@@ -1924,24 +1924,24 @@ Thank you for choosing us!`;
   const netAmount = Math.round(netBeforeRoundOff + roundOff);
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="max-w-[1600px] mx-auto px-4 py-3 space-y-3">
       <BackToDashboard label="Back to Sales Dashboard" to="/sales-invoice-dashboard" />
       
-      {/* Header Card */}
-      <div className="bg-card rounded-xl border shadow-sm p-5 flex items-center justify-between">
-        <h1 className="text-[18px] font-semibold flex items-center gap-2">
-          <Home className="h-5 w-5 text-primary" />
+      {/* Header Card - Compact */}
+      <div className="bg-card rounded-lg border shadow-sm px-4 py-2.5 flex items-center justify-between sticky top-0 z-30">
+        <h1 className="text-[16px] font-semibold flex items-center gap-2">
+          <Home className="h-4 w-4 text-primary" />
           {editingInvoiceId ? 'Edit Invoice' : 'New Invoice'}
         </h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {lastInvoice && !editingInvoiceId && (
-            <div className="bg-primary/5 border border-primary/20 rounded-lg px-3 py-1.5 text-xs">
+            <div className="bg-primary/5 border border-primary/20 rounded-md px-2.5 py-1 text-[11px]">
               <span className="text-muted-foreground">Last: </span>
               <span className="font-semibold text-primary">{lastInvoice.sale_number}</span>
               <span className="text-muted-foreground"> | Qty: </span>
               <span className="font-semibold">{lastInvoice.total_qty}</span>
-              <span className="text-muted-foreground"> | Amt: </span>
-              <span className="font-semibold">₹{Math.round(lastInvoice.net_amount || 0).toLocaleString('en-IN')}</span>
+              <span className="text-muted-foreground"> | ₹</span>
+              <span className="font-semibold">{Math.round(lastInvoice.net_amount || 0).toLocaleString('en-IN')}</span>
               <span className="text-muted-foreground"> | </span>
               <span className="font-semibold">{lastInvoice.customer_name}</span>
             </div>
@@ -1950,12 +1950,12 @@ Thank you for choosing us!`;
       </div>
 
 
-      {/* Invoice Details Card */}
-      <div className="erp-invoice-info-card">
-        <div className="erp-invoice-section-label">Invoice Details</div>
+      {/* Invoice Details Card - Compact */}
+      <div className="bg-secondary/30 dark:bg-muted/20 rounded-lg border shadow-sm p-4">
+        <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-3">Invoice & Customer Details</div>
 
-          {/* Simplified Form - matching Quotation/Sale Order layout */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
+          {/* 6-col compact form */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-3">
             {/* Customer Selection */}
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -2205,10 +2205,10 @@ Thank you for choosing us!`;
       </div>
       </div>
 
-      {/* Product Search & Entry Mode Card */}
-      <div className="bg-card rounded-xl border shadow-sm p-5">
-          <div className="erp-invoice-section-label">Product Entry</div>
-          <div className="flex items-center gap-4 flex-wrap">
+      {/* Product Entry Bar - Compact */}
+      <div className="bg-card rounded-lg border shadow-sm p-3">
+          <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">Product Entry</div>
+          <div className="flex items-center gap-3 flex-wrap">
             {/* Entry Mode Toggle */}
             <div className="flex items-center gap-2">
               <Label className="text-sm">Entry Mode:</Label>
@@ -2336,37 +2336,37 @@ Thank you for choosing us!`;
             </Popover>
 
             {/* Live Total Qty Badge */}
-            <div className="flex items-center gap-2 bg-primary/10 px-3 py-2 rounded-lg border border-primary/20">
-              <span className="text-sm font-medium text-muted-foreground">Total Qty:</span>
-              <span className="text-xl font-bold text-primary">
+            <div className="flex items-center gap-1.5 bg-primary/10 px-2.5 py-1.5 rounded-md border border-primary/20 ml-auto">
+              <span className="text-[12px] font-medium text-muted-foreground">Total Qty:</span>
+              <span className="text-[16px] font-bold text-primary tabular-nums">
                 {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
               </span>
             </div>
           </div>
       </div>
 
-      {/* Products Table Card */}
-      <div className="bg-card rounded-xl border shadow-sm p-5">
-        <div className="erp-invoice-section-label">Line Items</div>
-        <div ref={tableContainerRef} className="max-h-[calc(100vh-420px)] overflow-y-auto isolate">
+      {/* Products Table Card - High Density */}
+      <div className="bg-card rounded-lg border shadow-sm p-3">
+        <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">Line Items</div>
+        <div ref={tableContainerRef} className="max-h-[calc(100vh-360px)] overflow-y-auto isolate">
           <Table>
-            <TableHeader className="z-0 erp-invoice-table-header">
-              <TableRow>
-                <TableHead className="w-8">#</TableHead>
-                <TableHead className="min-w-[180px] max-w-[280px]">Product</TableHead>
-                <TableHead className="w-16">Size</TableHead>
-                <TableHead className="w-16">Color</TableHead>
-                <TableHead className="w-28">Barcode</TableHead>
-                <TableHead>HSN</TableHead>
-                <TableHead className="w-20">Qty</TableHead>
-                <TableHead className="w-16">Box</TableHead>
-                <TableHead className="w-20">MRP</TableHead>
-                <TableHead className="w-24">Price</TableHead>
-                <TableHead className="w-16">Disc %</TableHead>
-                <TableHead className="w-20">Disc ₹</TableHead>
-                <TableHead className="w-16">GST %</TableHead>
-                <TableHead className="w-24 text-right">Total</TableHead>
-                <TableHead className="w-10"></TableHead>
+            <TableHeader className="z-0 [&_tr]:border-b [&_tr]:border-border/60">
+              <TableRow className="bg-muted/70 dark:bg-muted/50">
+                <TableHead className="w-7 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">#</TableHead>
+                <TableHead className="min-w-[160px] max-w-[260px] px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Product</TableHead>
+                <TableHead className="w-14 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Size</TableHead>
+                <TableHead className="w-14 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Color</TableHead>
+                <TableHead className="w-24 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Barcode</TableHead>
+                <TableHead className="px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">HSN</TableHead>
+                <TableHead className="w-16 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Qty</TableHead>
+                <TableHead className="w-14 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Box</TableHead>
+                <TableHead className="w-18 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">MRP</TableHead>
+                <TableHead className="w-20 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Price</TableHead>
+                <TableHead className="w-14 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Disc %</TableHead>
+                <TableHead className="w-18 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Disc ₹</TableHead>
+                <TableHead className="w-14 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">GST %</TableHead>
+                <TableHead className="w-22 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9 text-right">Total</TableHead>
+                <TableHead className="w-8 px-1 py-2 h-9"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -2384,24 +2384,24 @@ Thank you for choosing us!`;
                   const srNo = item.productId ? originalIndex + 1 : '-';
                   
                   return (
-                    <TableRow key={item.id} className={item.productId ? '' : 'opacity-50'}>
-                      <TableCell>{srNo}</TableCell>
-                      <TableCell className="min-w-[180px] max-w-[280px]">
+                    <TableRow key={item.id} className={cn("h-11 transition-colors", item.productId ? 'hover:bg-primary/[0.03]' : 'opacity-40')}>
+                      <TableCell className="px-2 py-1.5 text-[13px]">{srNo}</TableCell>
+                      <TableCell className="min-w-[160px] max-w-[260px] px-2 py-1.5">
                         {item.productId ? (
                           <button
                             type="button"
                             onClick={() => setHistoryProduct({ id: item.productId, name: item.productName })}
-                            className="text-primary hover:underline text-left font-medium break-words whitespace-normal leading-tight"
+                            className="text-primary hover:underline text-left font-medium break-words whitespace-normal leading-tight text-[13px]"
                           >
                             {item.productName}
                           </button>
                         ) : '-'}
                       </TableCell>
-                      <TableCell>{item.size || '-'}</TableCell>
-                      <TableCell>{item.color || '-'}</TableCell>
-                      <TableCell className="text-xs">{item.barcode || '-'}</TableCell>
-                      <TableCell className="text-xs">{item.hsnCode || '-'}</TableCell>
-                      <TableCell>
+                      <TableCell className="px-2 py-1.5 text-[13px]">{item.size || '-'}</TableCell>
+                      <TableCell className="px-2 py-1.5 text-[13px]">{item.color || '-'}</TableCell>
+                      <TableCell className="px-2 py-1.5 text-[11px]">{item.barcode || '-'}</TableCell>
+                      <TableCell className="px-2 py-1.5 text-[11px]">{item.hsnCode || '-'}</TableCell>
+                      <TableCell className="px-2 py-1.5">
                         {item.productId && (
                           <Input
                             type="number"
@@ -2410,22 +2410,22 @@ Thank you for choosing us!`;
                             placeholder="1"
                             onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-16 h-8"
+                            className="w-14 h-7 text-[13px] tabular-nums rounded-md"
                           />
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-2 py-1.5">
                         {item.productId && (
                           <Input
                             type="text"
                             value={item.box || ''}
                             onChange={(e) => updateBox(item.id, e.target.value)}
                             placeholder=""
-                            className="w-14 h-8"
+                            className="w-12 h-7 text-[13px] rounded-md"
                           />
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-2 py-1.5">
                         {item.productId ? (
                           <Input
                             type="number"
@@ -2434,11 +2434,11 @@ Thank you for choosing us!`;
                             placeholder="0"
                             onChange={(e) => updateMRP(item.id, parseFloat(e.target.value) || 0)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-20 h-8"
+                            className="w-16 h-7 text-[13px] tabular-nums text-right rounded-md"
                           />
                         ) : '-'}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-2 py-1.5">
                         {item.productId ? (
                           <Input
                             type="number"
@@ -2447,11 +2447,11 @@ Thank you for choosing us!`;
                             placeholder="0"
                             onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-20 h-8"
+                            className="w-16 h-7 text-[13px] tabular-nums text-right rounded-md"
                           />
                         ) : '-'}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-2 py-1.5">
                         {item.productId && (
                           <Input
                             type="number"
@@ -2461,11 +2461,11 @@ Thank you for choosing us!`;
                             placeholder="0"
                             onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-14 h-8"
+                            className="w-12 h-7 text-[13px] tabular-nums rounded-md"
                           />
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-2 py-1.5">
                         {item.productId && (
                           <Input
                             type="number"
@@ -2474,11 +2474,11 @@ Thank you for choosing us!`;
                             placeholder="0"
                             onChange={(e) => updateDiscountAmount(item.id, parseFloat(e.target.value) || 0)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-20 h-8"
+                            className="w-16 h-7 text-[13px] tabular-nums rounded-md"
                           />
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-2 py-1.5">
                         {item.productId ? (
                           <Input
                             type="number"
@@ -2488,15 +2488,15 @@ Thank you for choosing us!`;
                             placeholder="0"
                             onChange={(e) => updateGSTPercent(item.id, parseFloat(e.target.value) || 0)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-16 h-8"
+                            className="w-12 h-7 text-[13px] tabular-nums rounded-md"
                           />
                         ) : `${item.gstPercent}%`}
                       </TableCell>
-                      <TableCell className="text-right font-medium">₹{item.lineTotal.toFixed(2)}</TableCell>
-                      <TableCell>
+                      <TableCell className="text-right font-medium text-[13px] tabular-nums px-2 py-1.5">₹{item.lineTotal.toFixed(2)}</TableCell>
+                      <TableCell className="px-1 py-1.5">
                         {item.productId && (
-                          <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)}>
-                            <X className="h-4 w-4" />
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeItem(item.id)}>
+                            <X className="h-3.5 w-3.5" />
                           </Button>
                         )}
                       </TableCell>
@@ -2505,24 +2505,24 @@ Thank you for choosing us!`;
                 });
               })()}
               {/* Total Qty Row */}
-              <TableRow className="bg-muted/50 font-medium">
-                <TableCell></TableCell>
-                <TableCell></TableCell>
-                <TableCell></TableCell>
-                <TableCell></TableCell>
-                <TableCell></TableCell>
-                <TableCell className="text-right text-xs text-muted-foreground">Total:</TableCell>
-                <TableCell className="font-bold text-primary">
+              <TableRow className="bg-muted/50 font-medium h-9">
+                <TableCell className="px-2 py-1"></TableCell>
+                <TableCell className="px-2 py-1"></TableCell>
+                <TableCell className="px-2 py-1"></TableCell>
+                <TableCell className="px-2 py-1"></TableCell>
+                <TableCell className="px-2 py-1"></TableCell>
+                <TableCell className="text-right text-[11px] text-muted-foreground px-2 py-1">Total:</TableCell>
+                <TableCell className="font-bold text-primary text-[13px] tabular-nums px-2 py-1">
                   {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
                 </TableCell>
-                <TableCell></TableCell>
-                <TableCell></TableCell>
-                <TableCell></TableCell>
-                <TableCell></TableCell>
-                <TableCell></TableCell>
-                <TableCell></TableCell>
-                <TableCell className="text-right font-bold">₹{grossAmount.toFixed(2)}</TableCell>
-                <TableCell></TableCell>
+                <TableCell className="px-2 py-1"></TableCell>
+                <TableCell className="px-2 py-1"></TableCell>
+                <TableCell className="px-2 py-1"></TableCell>
+                <TableCell className="px-2 py-1"></TableCell>
+                <TableCell className="px-2 py-1"></TableCell>
+                <TableCell className="px-2 py-1"></TableCell>
+                <TableCell className="text-right font-bold text-[13px] tabular-nums px-2 py-1">₹{grossAmount.toFixed(2)}</TableCell>
+                <TableCell className="px-1 py-1"></TableCell>
               </TableRow>
             </TableBody>
           </Table>
@@ -2530,11 +2530,11 @@ Thank you for choosing us!`;
 
       </div>
 
-      {/* Bill Summary Card */}
+      {/* Bill Summary Card - Compact */}
       <div className="flex justify-end">
-        <div className="erp-invoice-summary-card w-96">
-          <div className="erp-invoice-section-label">Bill Summary</div>
-          <div className="space-y-2">
+        <div className="bg-primary/5 dark:bg-primary/10 rounded-lg border border-primary/20 p-4 w-80">
+          <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">Bill Summary</div>
+          <div className="space-y-1.5">
             <div className="flex justify-between text-[13px]"><span className="text-muted-foreground">Gross Amount:</span><span className="font-medium">₹{grossAmount.toFixed(2)}</span></div>
             <div className="flex justify-between text-[13px]"><span className="text-muted-foreground">Line Discount:</span><span className="font-medium text-destructive">-₹{lineItemDiscount.toFixed(2)}</span></div>
             <div className="flex justify-between items-center text-[13px]">
@@ -2588,27 +2588,27 @@ Thank you for choosing us!`;
                 className="w-24 h-8 text-[13px]"
               />
             </div>
-            <div className="flex justify-between items-center border-t border-border pt-3 mt-2">
-              <span className="text-[15px] font-semibold">Net Amount:</span>
-              <span className="text-[20px] font-bold text-primary">₹{netAmount.toLocaleString('en-IN')}</span>
+            <div className="flex justify-between items-center border-t border-border pt-2.5 mt-1.5">
+              <span className="text-[13px] font-semibold">Net Amount:</span>
+              <span className="text-[20px] font-extrabold text-primary tabular-nums">₹{netAmount.toLocaleString('en-IN')}</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Notes */}
-      <div className="bg-card rounded-xl border shadow-sm p-5">
-        <Label>Notes</Label>
-        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="max-w-md mt-2" />
+      {/* Notes - Compact */}
+      <div className="bg-card rounded-lg border shadow-sm p-3">
+        <Label className="text-[12px]">Notes</Label>
+        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="max-w-md mt-1.5 text-[13px]" />
       </div>
 
-      {/* Sticky Action Bar */}
-      <div className="erp-invoice-sticky-actions flex gap-4 rounded-xl">
-        <Button variant="outline" onClick={() => navigate('/sales-invoice-dashboard')} className="min-w-[120px]">
+      {/* Sticky Action Bar - Compact h-14 */}
+      <div className="sticky bottom-0 z-20 bg-card/90 backdrop-blur-md border-t shadow-lg py-2.5 px-4 flex gap-3 justify-end rounded-lg -mx-4">
+        <Button variant="outline" size="sm" onClick={() => navigate('/sales-invoice-dashboard')} className="h-9 px-4 text-[13px] rounded-md">
           Cancel
         </Button>
-        <Button onClick={handleSaveInvoice} disabled={isSaving || savingLockRef.current} className="flex-1">
-          <Eye className="mr-2 h-4 w-4" />
+        <Button size="sm" onClick={handleSaveInvoice} disabled={isSaving || savingLockRef.current} className="h-9 px-6 text-[13px] rounded-md">
+          <Eye className="mr-1.5 h-3.5 w-3.5" />
           {isSaving ? 'Saving...' : editingInvoiceId ? 'Update Invoice' : 'Save Invoice'}
         </Button>
       </div>
