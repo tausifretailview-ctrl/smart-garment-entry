@@ -34,6 +34,7 @@ import { useDraftSave } from "@/hooks/useDraftSave";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { ERPTable } from "@/components/erp-table";
+import { cn } from "@/lib/utils";
 
 interface PurchaseItem {
   id: string;
@@ -862,54 +863,57 @@ const PurchaseBillDashboard = () => {
           />
         </div>
       ),
-      size: 40,
+      size: 36,
+      minSize: 36,
     },
     {
       id: "srNo",
-      header: "Sr. No.",
+      header: "Sr.",
       cell: ({ row }) => {
         const globalIndex = paginatedBills.indexOf(row.original);
-        return <span className="font-medium">{(currentPage - 1) * itemsPerPage + globalIndex + 1}</span>;
+        return <span className="font-medium text-sm">{(currentPage - 1) * itemsPerPage + globalIndex + 1}</span>;
       },
-      size: 70,
+      size: 45,
+      minSize: 40,
     },
     {
       accessorKey: "software_bill_no",
       header: "Bill No.",
       cell: ({ row }) => (
-        <Badge variant="secondary" className="font-mono text-xs">
+        <span className="font-mono text-sm font-medium">
           {row.original.software_bill_no || "N/A"}
-        </Badge>
+        </span>
       ),
-      size: 120,
+      size: 90,
+      minSize: 70,
     },
     {
       accessorKey: "bill_date",
       header: "Date",
       cell: ({ row }) => (
-        <Badge variant="outline">
-          {format(new Date(row.original.bill_date), "dd MMM yyyy")}
-        </Badge>
+        <span className="text-sm whitespace-nowrap">{format(new Date(row.original.bill_date), "dd MMM yyyy")}</span>
       ),
-      size: 130,
+      size: 100,
+      minSize: 90,
     },
     {
       accessorKey: "supplier_invoice_no",
-      header: "Invoice No.",
+      header: "Inv. No.",
       cell: ({ row }) => (
         <span className="font-mono text-sm">{row.original.supplier_invoice_no}</span>
       ),
-      size: 120,
+      size: 90,
+      minSize: 70,
     },
     {
       accessorKey: "supplier_name",
-      header: "Supplier Name",
+      header: "Supplier",
       cell: ({ row }) => {
         const bill = row.original;
         return (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span 
-              className={bill.supplier_id ? "cursor-pointer text-blue-600 hover:underline font-medium" : "font-medium"}
+              className={cn("truncate text-sm", bill.supplier_id ? "cursor-pointer text-blue-600 hover:underline font-medium" : "font-medium")}
               onClick={(e) => {
                 if (bill.supplier_id) {
                   e.stopPropagation();
@@ -920,57 +924,57 @@ const PurchaseBillDashboard = () => {
             >
               {bill.supplier_name}
             </span>
-            <Badge variant="outline" className="text-xs">
-              Qty: {billItems[bill.id]?.reduce((sum, item) => sum + item.qty, 0) || 0}
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
+              {billItems[bill.id]?.reduce((sum, item) => sum + item.qty, 0) || 0}
             </Badge>
           </div>
         );
       },
-      size: 220,
+      size: 180,
+      minSize: 120,
     },
     {
       accessorKey: "gross_amount",
-      header: "Gross Amount",
+      header: "Gross Amt",
       cell: ({ row }) => (
-        <span className="text-right block tabular-nums">₹{row.original.gross_amount.toFixed(2)}</span>
+        <span className="text-right block tabular-nums text-sm">₹{row.original.gross_amount.toFixed(2)}</span>
       ),
-      size: 120,
+      size: 100,
+      minSize: 80,
     },
     {
       accessorKey: "gst_amount",
-      header: "GST Amount",
+      header: "GST",
       cell: ({ row }) => (
-        <span className="text-right block tabular-nums">₹{row.original.gst_amount.toFixed(2)}</span>
+        <span className="text-right block tabular-nums text-sm">₹{row.original.gst_amount.toFixed(2)}</span>
       ),
-      size: 110,
+      size: 85,
+      minSize: 70,
     },
     {
       accessorKey: "net_amount",
-      header: "Net Amount",
+      header: "Net Amt",
       cell: ({ row }) => (
-        <span className="text-right block font-semibold text-primary tabular-nums">₹{row.original.net_amount.toFixed(2)}</span>
+        <span className="text-right block font-semibold text-primary tabular-nums text-sm">₹{row.original.net_amount.toFixed(2)}</span>
       ),
-      size: 120,
+      size: 100,
+      minSize: 80,
     },
     {
       id: "payment_status",
-      header: "Payment Status",
-      cell: ({ row }) => (
-        <div className="text-center">{getPaymentStatusBadge(row.original)}</div>
-      ),
-      size: 130,
+      header: "Status",
+      cell: ({ row }) => getPaymentStatusBadge(row.original),
+      size: 85,
+      minSize: 75,
     },
     {
       id: "items_count",
       header: "Items",
       cell: ({ row }) => (
-        <div className="text-center">
-          <Badge variant="secondary">
-            {billItems[row.original.id]?.length || 0}
-          </Badge>
-        </div>
+        <span className="text-center block text-sm">{billItems[row.original.id]?.length || 0}</span>
       ),
-      size: 70,
+      size: 55,
+      minSize: 45,
     },
     {
       id: "actions",
@@ -978,54 +982,24 @@ const PurchaseBillDashboard = () => {
       cell: ({ row }) => {
         const bill = row.original;
         return (
-          <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={(e) => handleOpenPaymentDialog(bill, e)}
-              title="Record Payment"
-            >
-              <Wallet className="h-4 w-4" />
+          <div className="flex items-center gap-0" onClick={(e) => e.stopPropagation()}>
+            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => handleOpenPaymentDialog(bill, e)} title="Record Payment">
+              <Wallet className="h-3.5 w-3.5" />
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate("/purchase-entry", { state: { editBillId: bill.id } });
-              }}
-            >
-              <Edit className="h-4 w-4" />
+            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); navigate("/purchase-entry", { state: { editBillId: bill.id } }); }} title="Edit">
+              <Edit className="h-3.5 w-3.5" />
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={(e) => handlePrintBarcodes(bill.id, e)}
-              disabled={printingBill === bill.id}
-            >
-              {printingBill === bill.id ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Printer className="h-4 w-4" />
-              )}
+            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => handlePrintBarcodes(bill.id, e)} disabled={printingBill === bill.id} title="Print Barcodes">
+              {printingBill === bill.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={(e) => handleDeleteClick(bill, e)}
-              disabled={deletingBill === bill.id}
-              className="text-destructive hover:text-destructive"
-            >
-              {deletingBill === bill.id ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2 className="h-4 w-4" />
-              )}
+            <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => handleDeleteClick(bill, e)} disabled={deletingBill === bill.id} title="Delete">
+              {deletingBill === bill.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
             </Button>
           </div>
         );
       },
-      size: 180,
+      size: 130,
+      minSize: 120,
     },
   ], [selectedBills, paginatedBills, toggleSelectAll, toggleSelectBill, billItems, currentPage, itemsPerPage, printingBill, deletingBill]);
 
