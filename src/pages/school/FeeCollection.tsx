@@ -7,14 +7,20 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, Receipt, Loader2, IndianRupee, Calendar, User } from "lucide-react";
+import { Search, Receipt, Loader2, IndianRupee, Calendar, User, MessageCircle } from "lucide-react";
 import { FeeCollectionDialog } from "@/components/school/FeeCollectionDialog";
+import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
+import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
+import { toast } from "sonner";
 
 const FeeCollection = () => {
   const { currentOrganization } = useOrganization();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [sendingReminder, setSendingReminder] = useState<string | null>(null);
+  const { settings: whatsAppSettings, sendMessageAsync } = useWhatsAppAPI();
+  const { sendWhatsApp } = useWhatsAppSend();
 
   // Get current academic year
   const { data: currentYear } = useQuery({
@@ -176,6 +182,80 @@ const FeeCollection = () => {
     setDialogOpen(true);
   };
 
+  // Fetch UPI ID from payment gateway settings
+  const { data: gatewaySettings } = useQuery({
+    queryKey: ["payment-gateway-settings", currentOrganization?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("payment_gateway_settings")
+        .select("upi_id, upi_business_name")
+        .eq("organization_id", currentOrganization!.id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  const handleSendReminder = async (student: any) => {
+    const phone = student.parent_phone;
+    if (!phone) {
+      toast.error("No phone number found for this student");
+      return;
+    }
+    if (student.totalDue <= 0) {
+      toast.info("No pending dues for this student");
+      return;
+    }
+
+    const templateName = (whatsAppSettings as any)?.fee_reminder_template_name;
+    const upiId = gatewaySettings?.upi_id || "";
+    const upiBusinessName = gatewaySettings?.upi_business_name || currentOrganization?.name || "School";
+
+    // Build UPI payment link
+    let paymentLink = "";
+    if (upiId) {
+      const upiParams = new URLSearchParams({
+        pa: upiId,
+        pn: upiBusinessName.replace(/[^a-zA-Z0-9 ]/g, "").substring(0, 50),
+        am: student.totalDue.toFixed(2),
+        cu: "INR",
+        tn: `Fee payment - ${student.student_name} (${student.admission_number})`,
+      });
+      paymentLink = `upi://pay?${upiParams.toString()}`;
+    }
+
+    // If WhatsApp API is active and template is configured, use API
+    if (whatsAppSettings?.is_active && templateName) {
+      setSendingReminder(student.id);
+      try {
+        await sendMessageAsync({
+          phone,
+          message: `Fee Reminder - ${currentOrganization?.name}\nStudent: ${student.student_name} (${student.admission_number})\nClass: ${student.school_classes?.class_name || "-"}\nPending Amount: Rs.${student.totalDue.toLocaleString("en-IN")}\n${upiId ? `UPI ID: ${upiId}` : ""}`,
+          templateType: "fee_reminder",
+          templateName,
+          saleData: {
+            student_name: student.student_name,
+            admission_number: student.admission_number,
+            class_name: student.school_classes?.class_name || "",
+            amount: student.totalDue,
+            organization_name: currentOrganization?.name || "",
+            payment_link: paymentLink,
+            upi_id: upiId,
+          },
+        });
+        toast.success("Fee reminder sent via WhatsApp!");
+      } catch (err: any) {
+        toast.error("Failed: " + (err.message || "Unknown error"));
+      } finally {
+        setSendingReminder(null);
+      }
+    } else {
+      // Fallback to wa.me link
+      const msg = `Dear Parent,\n\nFee Reminder - ${currentOrganization?.name || "School"}\nStudent: ${student.student_name} (${student.admission_number})\nClass: ${student.school_classes?.class_name || "-"}\nPending Amount: Rs.${student.totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}\n${upiId ? `\nPay via UPI: ${upiId}` : ""}${paymentLink ? `\nPayment Link: ${paymentLink}` : ""}\n\nPlease pay at the earliest.\nThank you!`;
+      sendWhatsApp(phone, msg);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "paid": return <Badge className="bg-green-600 text-white">Paid</Badge>;
@@ -287,7 +367,7 @@ const FeeCollection = () => {
                   <TableHead>Phone</TableHead>
                   <TableHead className="text-right">Total Due</TableHead>
                   <TableHead className="text-center">Status</TableHead>
-                  <TableHead className="w-28">Action</TableHead>
+                  <TableHead className="w-44">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -306,10 +386,27 @@ const FeeCollection = () => {
                       {getStatusBadge(student.feeStatus || "no-structure")}
                     </TableCell>
                     <TableCell>
-                      <Button size="sm" onClick={() => handleCollect(student)}>
-                        <Receipt className="h-4 w-4 mr-1" />
-                        Collect
-                      </Button>
+                      <div className="flex gap-1">
+                        {student.totalDue > 0 && student.parent_phone && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-green-600 border-green-600 hover:bg-green-50"
+                            onClick={() => handleSendReminder(student)}
+                            disabled={sendingReminder === student.id}
+                          >
+                            {sendingReminder === student.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <MessageCircle className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
+                        <Button size="sm" onClick={() => handleCollect(student)}>
+                          <Receipt className="h-4 w-4 mr-1" />
+                          Collect
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

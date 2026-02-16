@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Loader2, MessageCircle, Printer, Receipt, Search } from "lucide-react";
 import { format } from "date-fns";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
+import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { useReactToPrint } from "react-to-print";
 
 interface Student {
@@ -60,6 +61,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
   const [receiptData, setReceiptData] = useState<any>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
   const { sendWhatsApp } = useWhatsAppSend();
+  const { settings: whatsAppSettings, sendMessageAsync } = useWhatsAppAPI();
   const [studentSearch, setStudentSearch] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(initialStudent);
 
@@ -194,13 +196,44 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         totalPaying,
       };
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast.success("Fee collected successfully!");
       setReceiptData(data);
       setShowReceipt(true);
       queryClient.invalidateQueries({ queryKey: ["students-fee-collection"] });
       queryClient.invalidateQueries({ queryKey: ["student-fee-details"] });
       queryClient.invalidateQueries({ queryKey: ["fee-collection-summary"] });
+
+      // Auto-send WhatsApp receipt via API if configured
+      const autoSend = (whatsAppSettings as any)?.auto_send_fee_receipt;
+      const templateName = (whatsAppSettings as any)?.fee_receipt_template_name;
+      const phone = student?.parent_phone;
+      if (autoSend && templateName && phone && whatsAppSettings?.is_active) {
+        try {
+          const feeLines = data.selectedItems.map((item: any) => `${item.head_name}: Rs.${item.paying.toLocaleString("en-IN")}`).join(", ");
+          await sendMessageAsync({
+            phone,
+            message: `Fee Receipt - ${currentOrganization?.name || "School"}\nReceipt: ${data.receiptNumber}\nStudent: ${student?.student_name}\nAmount: Rs.${data.totalPaying.toLocaleString("en-IN")}\nPayment: ${data.paymentMethod}`,
+            templateType: "fee_receipt",
+            templateName,
+            saleData: {
+              student_name: student?.student_name,
+              admission_number: student?.admission_number,
+              class_name: student?.school_classes?.class_name || "",
+              receipt_number: data.receiptNumber,
+              amount: data.totalPaying,
+              fee_heads: feeLines,
+              payment_method: data.paymentMethod,
+              organization_name: currentOrganization?.name || "",
+              date: format(new Date(data.paidDate), "dd/MM/yyyy"),
+            },
+          });
+          toast.success("WhatsApp receipt sent!");
+        } catch (err: any) {
+          console.error("WhatsApp auto-send failed:", err);
+          toast.error("WhatsApp send failed: " + (err.message || "Unknown error"));
+        }
+      }
     },
     onError: (err: any) => {
       toast.error("Collection failed: " + err.message);

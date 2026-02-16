@@ -83,11 +83,18 @@ export const WhatsAppAPISettings = () => {
     quotation_template_name: "",
     sale_order_template_name: "",
     payment_reminder_template_name: "",
+    fee_receipt_template_name: "",
+    fee_reminder_template_name: "",
     // Template parameter mappings
     invoice_template_params: [] as TemplateParam[],
     quotation_template_params: [] as TemplateParam[],
     sale_order_template_params: [] as TemplateParam[],
     payment_reminder_template_params: [] as TemplateParam[],
+    fee_receipt_template_params: [] as TemplateParam[],
+    fee_reminder_template_params: [] as TemplateParam[],
+    // Auto-send fee settings
+    auto_send_fee_receipt: false,
+    auto_send_fee_reminder: false,
     // Chatbot settings
     chatbot_enabled: false,
     chatbot_greeting: "Hello! I'm an AI assistant. How can I help you today?",
@@ -142,11 +149,17 @@ export const WhatsAppAPISettings = () => {
         quotation_template_name: settings.quotation_template_name || "",
         sale_order_template_name: settings.sale_order_template_name || "",
         payment_reminder_template_name: settings.payment_reminder_template_name || "",
+        fee_receipt_template_name: (settings as any).fee_receipt_template_name || "",
+        fee_reminder_template_name: (settings as any).fee_reminder_template_name || "",
         // Template parameter mappings
         invoice_template_params: settings.invoice_template_params || [],
         quotation_template_params: settings.quotation_template_params || [],
         sale_order_template_params: settings.sale_order_template_params || [],
         payment_reminder_template_params: settings.payment_reminder_template_params || [],
+        fee_receipt_template_params: (settings as any).fee_receipt_template_params || [],
+        fee_reminder_template_params: (settings as any).fee_reminder_template_params || [],
+        auto_send_fee_receipt: (settings as any).auto_send_fee_receipt || false,
+        auto_send_fee_reminder: (settings as any).auto_send_fee_reminder || false,
         // Chatbot settings
         chatbot_enabled: settings.chatbot_enabled || false,
         chatbot_greeting: settings.chatbot_greeting || "Hello! I'm an AI assistant. How can I help you today?",
@@ -810,6 +823,30 @@ export const WhatsAppAPISettings = () => {
             isOpen={openTemplateSection === 'payment_reminder'}
             onOpenChange={(open) => setOpenTemplateSection(open ? 'payment_reminder' : null)}
           />
+
+          {/* Fee Receipt Template */}
+          <MetaTemplateSelector
+            templateType="fee_receipt"
+            selectedTemplateId={null}
+            selectedTemplateName={formData.fee_receipt_template_name}
+            params={formData.fee_receipt_template_params}
+            onTemplateChange={(id, name) => handleInputChange("fee_receipt_template_name", name)}
+            onParamsChange={(params) => handleInputChange("fee_receipt_template_params", params)}
+            isOpen={openTemplateSection === 'fee_receipt'}
+            onOpenChange={(open) => setOpenTemplateSection(open ? 'fee_receipt' : null)}
+          />
+
+          {/* Fee Reminder Template */}
+          <MetaTemplateSelector
+            templateType="fee_reminder"
+            selectedTemplateId={null}
+            selectedTemplateName={formData.fee_reminder_template_name}
+            params={formData.fee_reminder_template_params}
+            onTemplateChange={(id, name) => handleInputChange("fee_reminder_template_name", name)}
+            onParamsChange={(params) => handleInputChange("fee_reminder_template_params", params)}
+            isOpen={openTemplateSection === 'fee_reminder'}
+            onOpenChange={(open) => setOpenTemplateSection(open ? 'fee_reminder' : null)}
+          />
         </CardContent>
       </Card>
 
@@ -879,6 +916,21 @@ export const WhatsAppAPISettings = () => {
               id="auto_reminder"
               checked={formData.auto_send_payment_reminder}
               onCheckedChange={(checked) => handleInputChange("auto_send_payment_reminder", checked)}
+              disabled={!formData.is_active}
+            />
+          </div>
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="auto_fee_receipt">Auto-send Fee Receipt</Label>
+              <p className="text-xs text-muted-foreground">Send receipt after fee collection (School)</p>
+            </div>
+            <Switch
+              id="auto_fee_receipt"
+              checked={formData.auto_send_fee_receipt}
+              onCheckedChange={(checked) => handleInputChange("auto_send_fee_receipt", checked)}
               disabled={!formData.is_active}
             />
           </div>
