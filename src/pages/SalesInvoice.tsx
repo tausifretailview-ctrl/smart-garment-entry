@@ -2322,7 +2322,7 @@ Thank you for choosing us!`;
                                   {product.category && <span className="bg-muted px-1.5 py-0.5 rounded">{product.category}</span>}
                                   {product.style && <span className="bg-muted px-1.5 py-0.5 rounded">{product.style}</span>}
                                   {(variant.color || product.color) && (
-                                    <span className="bg-muted px-1.5 py-0.5 rounded">{variant.color || product.color}</span>
+                                    <span className="bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 rounded font-medium">{variant.color || product.color}</span>
                                   )}
                                   <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">Size: {variant.size}</span>
                                 </div>
