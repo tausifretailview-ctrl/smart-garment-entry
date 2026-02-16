@@ -53,7 +53,7 @@ export function AdjustCustomerCreditNoteDialog({
         .eq("customer_id", customerId)
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
-        .neq("payment_status", "paid")
+        .neq("payment_status", "completed")
         .order("sale_date", { ascending: true });
 
       if (salesError) throw salesError;
@@ -85,7 +85,7 @@ export function AdjustCustomerCreditNoteDialog({
 
         const adjustAmount = Math.min(creditAmount, selectedSale.pending_amount);
         const newPaidAmount = (selectedSale.paid_amount || 0) + adjustAmount;
-        const newStatus = newPaidAmount >= selectedSale.net_amount ? "paid" : "partial";
+        const newStatus = newPaidAmount >= selectedSale.net_amount ? "completed" : "partial";
 
         // Update the sale
         const { error: saleError } = await supabase
