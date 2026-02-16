@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -656,6 +657,8 @@ const CustomerMaster = () => {
               <Input placeholder="Search by name, phone, email..." value={searchQuery} onChange={(e) => handleSearchChange(e.target.value)} className="h-9 text-sm pl-9 rounded-md border" />
             </div>
 
+            <div id="erp-toolbar-portal-customer" className="flex items-center gap-2" />
+
             {isSomeSelected && (
               <Button variant="destructive" size="sm" className="h-9 text-sm px-4 rounded-md shrink-0" onClick={handleBulkDelete} disabled={bulkDeleteCustomers.isPending}>
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -756,6 +759,11 @@ const CustomerMaster = () => {
             defaultColumnVisibility={{}}
             defaultDensity="compact"
             onRowContextMenu={handleRowContextMenu}
+            showToolbar={false}
+            renderToolbar={(toolbar) => {
+              const el = document.getElementById('erp-toolbar-portal-customer');
+              return el ? createPortal(toolbar, el) : toolbar;
+            }}
           />
 
           {/* Pagination */}
