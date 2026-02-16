@@ -1,53 +1,121 @@
 
 
-# Composite Indexes -- Original Request with Column Name Corrections
+# Ultra-Premium Typography Scale -- System-Wide Implementation
 
-Create all 8 indexes as originally requested, correcting only the column names that don't exist in the actual schema.
+## Overview
 
----
-
-## Column Name Corrections
-
-| Original Request | Corrected | Reason |
-|-----------------|-----------|--------|
-| `purchase_bills.purchase_date` | `purchase_bills.bill_date` | Actual column name in schema |
-| `purchase_items.purchase_id` | `purchase_items.bill_id` | Actual column name in schema |
+Apply a strict, consistent typography hierarchy across the entire Ezzy ERP application by updating global CSS rules and key UI components. No color changes.
 
 ---
 
-## Migration SQL
+## Typography Scale Reference
 
-```sql
--- 1. SALES TABLE INDEXES
-CREATE INDEX IF NOT EXISTS idx_sales_org_date
-ON sales (organization_id, sale_date);
+| Element | Size | Weight | Extras |
+|---------|------|--------|--------|
+| Body base | 15px | normal | line-height: 1.5, antialiased |
+| Page titles | text-2xl | bold | tracking-tight |
+| Section titles | text-lg | semibold | -- |
+| Table headers | 12px | semibold | uppercase, tracking-wider |
+| Table data | 14px | normal | -- |
+| Financial columns | 14px | medium | text-right, tabular-nums |
+| Customer name cols | 14px | semibold | -- |
+| Form labels | 13px | medium | -- |
+| Badge text | 11px | semibold | -- |
+| KPI values | text-2xl | bold | tracking-tight |
 
-CREATE INDEX IF NOT EXISTS idx_sales_org_id
-ON sales (organization_id, id);
+---
 
--- 2. SALE_ITEMS TABLE INDEXES
-CREATE INDEX IF NOT EXISTS idx_sale_items_saleid_org
-ON sale_items (sale_id, organization_id);
+## Changes
 
-CREATE INDEX IF NOT EXISTS idx_sale_items_org
-ON sale_items (organization_id);
+### 1. Global CSS (`src/index.css`)
 
--- 3. PURCHASE_BILLS TABLE INDEXES
-CREATE INDEX IF NOT EXISTS idx_purchase_org_date
-ON purchase_bills (organization_id, bill_date);
+Update the base body rule to enforce 15px, line-height 1.5, and antialiased rendering:
 
-CREATE INDEX IF NOT EXISTS idx_purchase_org_id
-ON purchase_bills (organization_id, id);
-
--- 4. PURCHASE_ITEMS TABLE INDEXES
-CREATE INDEX IF NOT EXISTS idx_purchase_items_billid_org
-ON purchase_items (bill_id, organization_id);
-
-CREATE INDEX IF NOT EXISTS idx_purchase_items_org
-ON purchase_items (organization_id);
+```css
+body {
+  @apply bg-background text-foreground text-[15px] leading-relaxed antialiased;
+}
 ```
 
-All indexes use `IF NOT EXISTS` so any that already exist will be safely skipped. No tables, columns, or existing indexes are modified or dropped.
+Update the global table `th` rule to use 12px uppercase tracking-wider:
+
+```css
+table th {
+  @apply text-[12px] uppercase tracking-wider font-semibold px-4 py-3;
+}
+```
+
+Update the global table `td` rule to use 14px:
+
+```css
+table td {
+  @apply text-[14px] px-4 py-3 border-b border-muted;
+}
+```
+
+### 2. Table Component (`src/components/ui/table.tsx`)
+
+- `TableHead`: Change from `text-[13px] font-semibold` to `text-[12px] uppercase tracking-wider font-semibold`
+- `TableCell`: Keep `text-[14px]` (already correct)
+
+### 3. Badge Component (`src/components/ui/badge.tsx`)
+
+- Change base size from `text-xs` to `text-[11px] font-semibold`
+
+### 4. Label Component (`src/components/ui/label.tsx`)
+
+- Change from `text-sm font-medium` to `text-[13px] font-medium`
+
+### 5. Sidebar Menu Items (`src/index.css`)
+
+- Keep existing `text-[14px]` for sidebar items (already consistent)
+
+---
+
+## Utility Classes (added to `src/index.css`)
+
+Add reusable ERP typography utility classes under `@layer utilities`:
+
+```css
+/* ERP Typography Utilities */
+.erp-page-title {
+  @apply text-2xl font-bold tracking-tight;
+}
+
+.erp-section-title {
+  @apply text-lg font-semibold;
+}
+
+.erp-table-header {
+  @apply text-[12px] uppercase tracking-wider font-semibold;
+}
+
+.erp-table-data {
+  @apply text-[14px];
+}
+
+.erp-financial {
+  @apply text-[14px] font-medium text-right tabular-nums;
+}
+
+.erp-customer-name {
+  @apply text-[14px] font-semibold;
+}
+
+.erp-form-label {
+  @apply text-[13px] font-medium;
+}
+
+.erp-badge {
+  @apply text-[11px] font-semibold;
+}
+
+.erp-kpi-value {
+  @apply text-2xl font-bold tracking-tight;
+}
+```
+
+These utility classes provide a single source of truth. Existing pages that already use inline Tailwind classes will inherit the correct sizes from the updated global rules (body, table th/td, badge, label). Pages can optionally use these named classes for explicit control.
 
 ---
 
@@ -55,5 +123,17 @@ All indexes use `IF NOT EXISTS` so any that already exist will be safely skipped
 
 | File | Change |
 |------|--------|
-| New migration SQL | 8 composite indexes created |
+| `src/index.css` | Update body base, table th/td globals, add typography utilities |
+| `src/components/ui/table.tsx` | Update TableHead to 12px uppercase tracking-wider |
+| `src/components/ui/badge.tsx` | Update base size to text-[11px] |
+| `src/components/ui/label.tsx` | Update to text-[13px] |
+
+---
+
+## What Is NOT Changed
+
+- No color theme changes
+- No print styles modified
+- No layout or spacing changes beyond typography
+- Sidebar menu items already at 14px (kept as-is)
 
