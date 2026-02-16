@@ -57,6 +57,7 @@ import { useDraftSave } from "@/hooks/useDraftSave";
 
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
+import { ERPVariantRow, groupVariantsByProduct } from "@/components/ERPVariantSearchDropdown";
 
 interface LineItem {
   id: string;
@@ -846,6 +847,9 @@ export default function SaleOrderEntry() {
     const timer = setTimeout(async () => {
       try {
         const query = inlineSearchQuery.toLowerCase();
+        // Use first term for DB search, all terms for client-side filtering
+        const searchTerms = query.split(/\s+/).filter(Boolean);
+        const primaryTerm = searchTerms[0] || query;
         
         // Search products
         const { data: matchingProducts } = await supabase
@@ -853,7 +857,7 @@ export default function SaleOrderEntry() {
           .select("id")
           .is("deleted_at", null)
           .eq("organization_id", currentOrganization?.id)
-          .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%`);
+          .or(`product_name.ilike.%${primaryTerm}%,brand.ilike.%${primaryTerm}%,style.ilike.%${primaryTerm}%`);
 
         const productIds = matchingProducts?.map(p => p.id) || [];
 
@@ -869,14 +873,14 @@ export default function SaleOrderEntry() {
           .eq("organization_id", currentOrganization?.id);
 
         if (productIds.length > 0) {
-          variantsQuery = variantsQuery.or(`barcode.ilike.%${query}%,product_id.in.(${productIds.join(",")})`);
+          variantsQuery = variantsQuery.or(`barcode.ilike.%${primaryTerm}%,color.ilike.%${primaryTerm}%,size.ilike.%${primaryTerm}%,product_id.in.(${productIds.join(",")})`);
         } else {
-          variantsQuery = variantsQuery.ilike("barcode", `%${query}%`);
+          variantsQuery = variantsQuery.or(`barcode.ilike.%${primaryTerm}%,color.ilike.%${primaryTerm}%,size.ilike.%${primaryTerm}%`);
         }
 
-        const { data } = await variantsQuery.limit(50);
+        const { data } = await variantsQuery.limit(100);
 
-        const results = (data || []).map((v: any) => ({
+        let results = (data || []).map((v: any) => ({
           id: v.id,
           product_id: v.products?.id || "",
           size: v.size,
@@ -892,6 +896,14 @@ export default function SaleOrderEntry() {
           gst_per: v.products?.gst_per || 0,
           hsn_code: v.products?.hsn_code || "",
         }));
+
+        // Multi-term client-side filter: e.g. "Rolex Gray 7" matches all 3 terms
+        if (searchTerms.length > 1) {
+          results = results.filter(r => {
+            const haystack = `${r.product_name} ${r.brand} ${r.color} ${r.size} ${r.barcode} ${r.style} ${r.category}`.toLowerCase();
+            return searchTerms.every(term => haystack.includes(term));
+          });
+        }
 
         // Smart sort - exact barcode match first
         const sorted = sortSearchResults(results, query, { barcode: 'barcode', style: 'style', productName: 'product_name' });
@@ -935,15 +947,7 @@ export default function SaleOrderEntry() {
     }
   };
 
-  const formatInlineProductDescription = (result: any) => {
-    const parts = [result.product_name];
-    if (result.brand) parts.push(result.brand);
-    if (result.category) parts.push(result.category);
-    if (result.style) parts.push(result.style);
-    if (result.color) parts.push(result.color);
-    parts.push(result.size);
-    return parts.join(' | ');
-  };
+  // formatInlineProductDescription removed - using ERPVariantRow component instead
 
   const handleSaveOrder = async (): Promise<{ success: boolean; orderId?: string }> => {
     // Capture items at save time to prevent race conditions
@@ -1149,17 +1153,17 @@ export default function SaleOrderEntry() {
 
   const filteredProducts = (() => {
     const searchLower = searchInput.toLowerCase();
+    const searchTerms = searchLower.split(/\s+/).filter(Boolean);
+    
     const filtered = productsData?.filter(product => {
-      const matchesProduct = product.product_name?.toLowerCase().includes(searchLower) ||
-        product.brand?.toLowerCase().includes(searchLower) ||
-        product.category?.toLowerCase().includes(searchLower) ||
-        product.style?.toLowerCase().includes(searchLower) ||
-        product.color?.toLowerCase().includes(searchLower);
-      const matchesVariant = product.product_variants?.some((v: any) => 
-        v.barcode?.toLowerCase().includes(searchLower) ||
-        v.color?.toLowerCase().includes(searchLower)
-      );
-      return matchesProduct || matchesVariant;
+      const productHaystack = `${product.product_name} ${product.brand} ${product.category} ${product.style} ${product.color}`.toLowerCase();
+      const variantMatch = product.product_variants?.some((v: any) => {
+        const variantHaystack = `${productHaystack} ${v.barcode} ${v.color} ${v.size}`.toLowerCase();
+        return searchTerms.every(term => variantHaystack.includes(term));
+      });
+      // Also check product-level match for all terms
+      const productMatch = searchTerms.every(term => productHaystack.includes(term));
+      return productMatch || variantMatch;
     }) || [];
     
     // Apply smart sorting
@@ -1323,9 +1327,9 @@ export default function SaleOrderEntry() {
                 Search Products (Shows Stock)
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[650px] p-0" align="start">
+            <PopoverContent className="w-[700px] p-0" align="start">
               <Command shouldFilter={false}>
-                <CommandInput placeholder="Search by name, barcode, brand, color, style..." value={searchInput} onValueChange={setSearchInput} />
+                <CommandInput placeholder="Search by name, barcode, brand, color, size... (e.g. 'Rolex Gray 7')" value={searchInput} onValueChange={setSearchInput} />
                 <CommandList className="max-h-[400px]">
                   <CommandEmpty>No products found</CommandEmpty>
                   {totalMatchingVariants > displayLimit && (
@@ -1348,45 +1352,63 @@ export default function SaleOrderEntry() {
                   <CommandGroup>
                     {(() => {
                       let variantCount = 0;
-                      return filteredProducts.map(product => 
-                        product.product_variants?.map((variant: any) => {
-                          if (variantCount >= displayLimit) return null;
+                      const allVariants: { product: any; variant: any }[] = [];
+                      filteredProducts.forEach(product => {
+                        product.product_variants?.forEach((variant: any) => {
+                          if (variantCount >= displayLimit) return;
                           variantCount++;
-                          return (
+                          allVariants.push({ product, variant });
+                        });
+                      });
+
+                      // Group by parent product
+                      const grouped: Record<string, { product: any; variants: any[] }> = {};
+                      allVariants.forEach(({ product, variant }) => {
+                        if (!grouped[product.id]) {
+                          grouped[product.id] = { product, variants: [] };
+                        }
+                        grouped[product.id].variants.push(variant);
+                      });
+
+                      return Object.values(grouped).map(({ product, variants }) => (
+                        <div key={product.id}>
+                          {variants.length > 1 && (
+                            <div className="px-4 py-1.5 text-xs font-semibold text-foreground/70 bg-muted/40 border-b border-border sticky top-0">
+                              {product.product_name}
+                              {product.brand && <span className="ml-2 font-normal text-muted-foreground">Brand: {product.brand}</span>}
+                            </div>
+                          )}
+                          {variants.map((variant: any) => (
                             <CommandItem
                               key={variant.id}
-                              onSelect={() => addProductToOrder(product, variant)}
-                              className="cursor-pointer py-2"
+                              onSelect={() => {
+                                if ((variant.stock_qty || 0) > 0) {
+                                  addProductToOrder(product, variant);
+                                }
+                              }}
+                              className="p-0 cursor-pointer"
                             >
-                              <div className="flex flex-col w-full gap-1">
-                                <div className="flex justify-between items-center">
-                                  <span className="font-medium">{product.product_name}</span>
-                                  <span className="font-semibold text-primary">₹{variant.sale_price}</span>
-                                </div>
-                                <div className="flex justify-between items-center text-xs text-muted-foreground">
-                                  <div className="flex gap-2 flex-wrap">
-                                    {product.brand && <span className="bg-muted px-1.5 py-0.5 rounded">{product.brand}</span>}
-                                    {product.category && <span className="bg-muted px-1.5 py-0.5 rounded">{product.category}</span>}
-                                    {product.style && <span className="bg-muted px-1.5 py-0.5 rounded">{product.style}</span>}
-                                    {(variant.color || product.color) && (
-                                      <span className="bg-muted px-1.5 py-0.5 rounded">{variant.color || product.color}</span>
-                                    )}
-                                    <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">Size: {variant.size}</span>
-                                  </div>
-                                  <div className="flex gap-2 items-center">
-                                    {variant.mrp && variant.mrp !== variant.sale_price && (
-                                      <span className="line-through">MRP: ₹{variant.mrp}</span>
-                                    )}
-                                    <Badge variant={variant.stock_qty > 5 ? "default" : variant.stock_qty > 0 ? "secondary" : "destructive"} className="text-xs">
-                                      Stock: {variant.stock_qty}
-                                    </Badge>
-                                  </div>
-                                </div>
-                              </div>
+                              <ERPVariantRow
+                                result={{
+                                  id: variant.id,
+                                  product_id: product.id,
+                                  product_name: product.product_name,
+                                  brand: product.brand,
+                                  category: product.category,
+                                  style: product.style,
+                                  color: variant.color || product.color || "",
+                                  size: variant.size,
+                                  barcode: variant.barcode,
+                                  sale_price: variant.sale_price,
+                                  mrp: variant.mrp,
+                                  stock_qty: variant.stock_qty || 0,
+                                }}
+                                showProductName={variants.length === 1}
+                              />
                             </CommandItem>
-                          );
-                        })
-                      );
+                          ))}
+                        </div>
+                      ));
                     })()}
                   </CommandGroup>
                 </CommandList>
@@ -1610,30 +1632,19 @@ export default function SaleOrderEntry() {
                           position: 'fixed',
                           top: inlineSearchInputRef.current.getBoundingClientRect().bottom + 4,
                           left: inlineSearchInputRef.current.getBoundingClientRect().left,
-                          width: Math.max(450, inlineSearchInputRef.current.getBoundingClientRect().width),
+                          width: Math.max(600, inlineSearchInputRef.current.getBoundingClientRect().width),
                           zIndex: 9999,
                         }}
                       >
                         {inlineSearchResults.length > 0 ? (
                           inlineSearchResults.map((result, idx) => (
-                            <button
+                            <ERPVariantRow
                               key={result.id + idx}
+                              result={result}
+                              isSelected={idx === selectedInlineIndex}
                               onClick={() => handleInlineProductSelect(result)}
                               onMouseEnter={() => setSelectedInlineIndex(idx)}
-                              className={cn(
-                                "w-full text-left px-4 py-3 text-popover-foreground border-b border-border last:border-0 transition-colors",
-                                idx === selectedInlineIndex ? "bg-accent" : "hover:bg-accent/50"
-                              )}
-                            >
-                              <div className="font-medium">{formatInlineProductDescription(result)}</div>
-                              <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                {result.barcode && <span>Barcode: {result.barcode}</span>}
-                                <span className="text-primary font-medium">₹{result.sale_price?.toFixed(2) || '0.00'}</span>
-                                <span className={result.stock_qty > 5 ? 'text-green-600' : result.stock_qty > 0 ? 'text-orange-500' : 'text-destructive'}>
-                                  Stock: {result.stock_qty}
-                                </span>
-                              </div>
-                            </button>
+                            />
                           ))
                         ) : inlineSearchQuery.length >= 1 ? (
                           <div className="px-4 py-3 text-sm text-muted-foreground">
