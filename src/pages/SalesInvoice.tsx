@@ -366,7 +366,7 @@ export default function SalesInvoice() {
         .from('settings')
         .select('business_name, address, mobile_number, email_id, gst_number, sale_settings, bill_barcode_settings')
         .eq('organization_id', currentOrganization.id)
-        .single();
+        .maybeSingle();
       
       if (error) throw error;
       return data;

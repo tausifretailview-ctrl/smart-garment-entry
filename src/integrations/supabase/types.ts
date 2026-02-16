@@ -4011,14 +4011,14 @@ export type Database = {
           {
             foreignKeyName: "settings_organization_id_fkey"
             columns: ["organization_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "settings_organization_id_fkey"
             columns: ["organization_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "v_dashboard_counts"
             referencedColumns: ["organization_id"]
           },

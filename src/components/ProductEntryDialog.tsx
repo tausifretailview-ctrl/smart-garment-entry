@@ -327,7 +327,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       .from("settings")
       .select("product_settings")
       .eq("organization_id", currentOrganization.id)
-      .single();
+      .maybeSingle();
 
     if (data && typeof data.product_settings === 'object' && data.product_settings !== null) {
       const settings = data.product_settings as any;
@@ -344,7 +344,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       .from("settings")
       .select("product_settings, purchase_settings")
       .eq("organization_id", currentOrganization.id)
-      .single();
+      .maybeSingle();
 
     if (data) {
       if (typeof data.product_settings === 'object' && data.product_settings !== null) {
