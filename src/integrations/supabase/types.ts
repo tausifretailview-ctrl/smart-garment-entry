@@ -3933,7 +3933,7 @@ export type Database = {
           gst_number: string | null
           id: string
           mobile_number: string | null
-          organization_id: string | null
+          organization_id: string
           product_settings: Json | null
           purchase_settings: Json | null
           report_settings: Json | null
@@ -3950,7 +3950,7 @@ export type Database = {
           gst_number?: string | null
           id?: string
           mobile_number?: string | null
-          organization_id?: string | null
+          organization_id: string
           product_settings?: Json | null
           purchase_settings?: Json | null
           report_settings?: Json | null
@@ -3967,7 +3967,7 @@ export type Database = {
           gst_number?: string | null
           id?: string
           mobile_number?: string | null
-          organization_id?: string | null
+          organization_id?: string
           product_settings?: Json | null
           purchase_settings?: Json | null
           report_settings?: Json | null
@@ -4503,7 +4503,7 @@ export type Database = {
           gst_number: string | null
           id: string
           opening_balance: number | null
-          organization_id: string | null
+          organization_id: string
           phone: string | null
           supplier_code: string | null
           supplier_name: string
@@ -4519,7 +4519,7 @@ export type Database = {
           gst_number?: string | null
           id?: string
           opening_balance?: number | null
-          organization_id?: string | null
+          organization_id: string
           phone?: string | null
           supplier_code?: string | null
           supplier_name: string
@@ -4535,7 +4535,7 @@ export type Database = {
           gst_number?: string | null
           id?: string
           opening_balance?: number | null
-          organization_id?: string | null
+          organization_id?: string
           phone?: string | null
           supplier_code?: string | null
           supplier_name?: string
