@@ -2530,9 +2530,16 @@ Thank you for choosing us!`;
 
       </div>
 
-      {/* Bill Summary Card - Compact */}
-      <div className="flex justify-end">
-        <div className="bg-primary/5 dark:bg-primary/10 rounded-lg border border-primary/20 p-4 w-80">
+      {/* Notes + Bill Summary - Side by Side */}
+      <div className="flex gap-3 items-start">
+        {/* Notes - Left */}
+        <div className="flex-1 bg-card rounded-lg border shadow-sm p-3">
+          <Label className="text-[12px]">Notes</Label>
+          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} className="mt-1.5 text-[13px]" />
+        </div>
+
+        {/* Bill Summary - Right */}
+        <div className="bg-primary/5 dark:bg-primary/10 rounded-lg border border-primary/20 p-4 w-80 shrink-0">
           <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">Bill Summary</div>
           <div className="space-y-1.5">
             <div className="flex justify-between text-[13px]"><span className="text-muted-foreground">Gross Amount:</span><span className="font-medium">₹{grossAmount.toFixed(2)}</span></div>
@@ -2594,12 +2601,6 @@ Thank you for choosing us!`;
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Notes - Compact */}
-      <div className="bg-card rounded-lg border shadow-sm p-3">
-        <Label className="text-[12px]">Notes</Label>
-        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="max-w-md mt-1.5 text-[13px]" />
       </div>
 
       {/* Sticky Action Bar - Compact h-14 */}
