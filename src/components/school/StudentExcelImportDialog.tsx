@@ -128,21 +128,26 @@ export const StudentExcelImportDialog = ({
           const name = row["Student Name"] || row["student_name"] || row["Name"];
           return name && String(name).trim();
         })
-        .map(row => ({
-          admission_number: String(row["Admission Number"] || row["admission_number"] || row["Adm No"] || row["Adm. No"] || "").trim(),
-          student_name: String(row["Student Name"] || row["student_name"] || row["Name"] || "").trim(),
-          class_name: String(row["Class Name"] || row["class_name"] || row["Class"] || "").trim() || undefined,
-          date_of_birth: parseDate(row["Date of Birth"] || row["date_of_birth"] || row["DOB"]),
-          gender: String(row["Gender"] || row["gender"] || "").toLowerCase().trim() || undefined,
-          parent_name: String(row["Parent Name"] || row["parent_name"] || row["Father Name"] || row["Guardian"] || "").trim() || undefined,
-          parent_phone: normalizePhoneNumber(row["Parent Phone"] || row["parent_phone"] || row["Mobile"] || row["Phone"]),
-          parent_email: String(row["Parent Email"] || row["parent_email"] || row["Email"] || "").trim() || undefined,
-          parent_relation: String(row["Relation"] || row["parent_relation"] || "").toLowerCase().trim() || undefined,
-          address: String(row["Address"] || row["address"] || "").trim() || undefined,
-          emergency_contact: normalizePhoneNumber(row["Emergency Contact"] || row["emergency_contact"]),
-          admission_date: parseDate(row["Admission Date"] || row["admission_date"]),
-          status: String(row["Status"] || row["status"] || "active").toLowerCase().trim(),
-        }));
+        .map((row, idx) => {
+          const rawAdm = String(row["Admission Number"] || row["admission_number"] || row["Adm No"] || row["Adm. No"] || "").trim();
+          // Treat "nan", "null", "undefined", empty as no admission number
+          const isEmptyAdm = !rawAdm || ["nan", "null", "undefined", "-"].includes(rawAdm.toLowerCase());
+          return {
+            admission_number: isEmptyAdm ? "" : rawAdm,
+            student_name: String(row["Student Name"] || row["student_name"] || row["Name"] || "").trim(),
+            class_name: String(row["Class Name"] || row["class_name"] || row["Class"] || "").trim() || undefined,
+            date_of_birth: parseDate(row["Date of Birth"] || row["date_of_birth"] || row["DOB"]),
+            gender: String(row["Gender"] || row["gender"] || "").toLowerCase().trim() || undefined,
+            parent_name: String(row["Parent Name"] || row["parent_name"] || row["Father Name"] || row["Guardian"] || "").trim() || undefined,
+            parent_phone: normalizePhoneNumber(row["Parent Phone"] || row["parent_phone"] || row["Mobile"] || row["Phone"]),
+            parent_email: String(row["Parent Email"] || row["parent_email"] || row["Email"] || "").trim() || undefined,
+            parent_relation: String(row["Relation"] || row["parent_relation"] || "").toLowerCase().trim() || undefined,
+            address: String(row["Address"] || row["address"] || "").trim() || undefined,
+            emergency_contact: normalizePhoneNumber(row["Emergency Contact"] || row["emergency_contact"]),
+            admission_date: parseDate(row["Admission Date"] || row["admission_date"]),
+            status: String(row["Status"] || row["status"] || "active").toLowerCase().trim(),
+          };
+        });
 
       if (students.length === 0) {
         toast.error("No valid students found in Excel file");
@@ -225,14 +230,37 @@ export const StudentExcelImportDialog = ({
         existingStudents?.map(s => s.admission_number.toLowerCase()) || []
       );
 
+      // Auto-generate sequential admission numbers for students without one
+      const { data: maxAdmData } = await supabase
+        .from("students")
+        .select("admission_number")
+        .eq("organization_id", currentOrganization.id)
+        .ilike("admission_number", "ADM%")
+        .order("admission_number", { ascending: false })
+        .limit(1);
+      
+      let autoAdmCounter = 1;
+      if (maxAdmData && maxAdmData.length > 0) {
+        const match = maxAdmData[0].admission_number.match(/ADM(\d+)/);
+        if (match) autoAdmCounter = parseInt(match[1], 10) + 1;
+      }
+
       for (let i = 0; i < parsedStudents.length; i += BATCH_SIZE) {
         const batch = parsedStudents.slice(i, i + BATCH_SIZE);
         
         for (const student of batch) {
-          // Skip if admission number already exists
-          if (existingAdmNumbers.has(student.admission_number.toLowerCase())) {
-            skippedCount++;
-            continue;
+          // Determine admission number
+          let admNumber = student.admission_number;
+          if (!admNumber) {
+            // Auto-generate unique admission number
+            admNumber = `ADM${String(autoAdmCounter).padStart(4, "0")}`;
+            autoAdmCounter++;
+          } else {
+            // Skip if admission number already exists
+            if (existingAdmNumbers.has(admNumber.toLowerCase())) {
+              skippedCount++;
+              continue;
+            }
           }
 
           try {
@@ -242,7 +270,7 @@ export const StudentExcelImportDialog = ({
               .from("students")
               .insert({
                 organization_id: currentOrganization.id,
-                admission_number: student.admission_number || `ADM${Date.now()}`,
+                admission_number: admNumber,
                 student_name: student.student_name,
                 class_id: classId,
                 academic_year_id: currentAcademicYear?.id || null,
@@ -263,7 +291,7 @@ export const StudentExcelImportDialog = ({
               errorCount++;
             } else {
               successCount++;
-              existingAdmNumbers.add(student.admission_number.toLowerCase());
+              existingAdmNumbers.add(admNumber.toLowerCase());
             }
           } catch (err) {
             console.error("Error inserting student:", err);
