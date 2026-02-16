@@ -28,7 +28,6 @@ interface ERPVariantRowProps {
 /** Format raw color codes into readable names */
 const formatColorName = (color: string): string => {
   if (!color) return "";
-  // Common abbreviation mappings
   const abbrevMap: Record<string, string> = {
     "BK": "Black", "BL": "Blue", "GR": "Green", "GY": "Gray",
     "RD": "Red", "WH": "White", "YL": "Yellow", "OR": "Orange",
@@ -37,8 +36,6 @@ const formatColorName = (color: string): string => {
     "LB": "Light Blue", "DG": "Dark Green", "OL": "Olive",
     "TN": "Tan", "CL": "Coral", "LV": "Lavender",
   };
-
-  // Handle dot/period-separated color codes like RED.BK.MHD
   const parts = color.split(/[.,\/\-]/).map(p => p.trim()).filter(Boolean);
   const formatted = parts.map(part => {
     const upper = part.toUpperCase();
@@ -50,31 +47,39 @@ const formatColorName = (color: string): string => {
 /** Format brand names properly */
 const formatBrandName = (brand: string): string => {
   if (!brand) return "";
-  // If it's already properly cased, return as-is
   if (brand !== brand.toUpperCase() && brand !== brand.toLowerCase()) return brand;
-  // Title case
   return brand.charAt(0).toUpperCase() + brand.slice(1).toLowerCase();
 };
 
-const StockBadge = ({ qty }: { qty: number }) => {
+const StockBadge = ({ qty, isSelected }: { qty: number; isSelected?: boolean }) => {
+  if (isSelected) {
+    // White-on-blue style when row is selected
+    const label = qty > 5 ? `Stock: ${qty}` : qty > 0 ? `Stock: ${qty}` : "Out of Stock";
+    return (
+      <span className="inline-flex items-center justify-center text-[12px] font-semibold px-2.5 py-1 rounded-md min-w-[70px] bg-white/20 text-white border border-white/30">
+        {label}
+      </span>
+    );
+  }
+
   if (qty > 5) {
     return (
-      <Badge className="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 border-green-200 dark:border-green-800 text-xs font-semibold px-2 py-0.5 min-w-[60px] justify-center">
+      <span className="inline-flex items-center justify-center text-[12px] font-semibold px-2.5 py-1 rounded-md min-w-[70px] bg-[#DCFCE7] text-[#166534] dark:bg-green-900/50 dark:text-green-300 border border-green-200 dark:border-green-800">
         Stock: {qty}
-      </Badge>
+      </span>
     );
   }
   if (qty > 0) {
     return (
-      <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400 border-orange-200 dark:border-orange-800 text-xs font-semibold px-2 py-0.5 min-w-[60px] justify-center">
+      <span className="inline-flex items-center justify-center text-[12px] font-semibold px-2.5 py-1 rounded-md min-w-[70px] bg-[#FEF3C7] text-[#92400E] dark:bg-amber-900/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
         Stock: {qty}
-      </Badge>
+      </span>
     );
   }
   return (
-    <Badge className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400 border-red-200 dark:border-red-800 text-xs font-semibold px-2 py-0.5 min-w-[60px] justify-center">
+    <span className="inline-flex items-center justify-center text-[12px] font-semibold px-2.5 py-1 rounded-md min-w-[70px] bg-[#FEE2E2] text-[#991B1B] dark:bg-red-900/50 dark:text-red-300 border border-red-200 dark:border-red-800">
       Out of Stock
-    </Badge>
+    </span>
   );
 };
 
@@ -94,52 +99,68 @@ export const ERPVariantRow = ({
       type="button"
       onClick={isOutOfStock ? undefined : onClick}
       onMouseDown={(e) => {
-        // Prevent blur from closing dropdown before click registers
         if (!isOutOfStock) e.preventDefault();
       }}
       onMouseEnter={onMouseEnter}
       className={cn(
-        "w-full text-left px-4 py-2.5 border-b border-border last:border-0 transition-all duration-100 flex items-center gap-3",
-        isSelected && "bg-primary/10 shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.2)]",
-        !isSelected && !isOutOfStock && "hover:bg-accent/60",
-        isOutOfStock && "opacity-50 cursor-not-allowed"
+        "w-full text-left px-4 py-3 border-b border-border last:border-0 transition-colors duration-75 flex items-center gap-4",
+        isSelected && "bg-primary text-primary-foreground",
+        !isSelected && !isOutOfStock && "hover:bg-accent",
+        isOutOfStock && !isSelected && "opacity-60 cursor-not-allowed bg-muted/30"
       )}
       disabled={isOutOfStock}
     >
       {/* LEFT: Product info */}
       <div className="flex-1 min-w-0">
         {showProductName && (
-          <div className="font-semibold text-[15px] leading-tight text-foreground truncate">
+          <div className={cn(
+            "font-semibold text-[16px] leading-snug truncate",
+            isSelected ? "text-primary-foreground" : "text-foreground"
+          )}>
             {result.product_name}
           </div>
         )}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[13px] text-muted-foreground">
+        <div className={cn(
+          "flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[14px] font-medium",
+          showProductName ? "mt-1" : "mt-0",
+          isSelected ? "text-primary-foreground/90" : "text-foreground/80"
+        )}>
           {color && (
-            <span>
-              <span className="text-muted-foreground/70">Color:</span>{" "}
-              <span className="font-medium text-foreground/80">{color}</span>
+            <span className="inline-flex items-center gap-1">
+              <span className={cn(
+                "inline-block w-2 h-2 rounded-full shrink-0",
+                isSelected ? "bg-primary-foreground/60" : "bg-foreground/40"
+              )} />
+              <span className={cn(
+                "font-semibold tracking-wide",
+                isSelected ? "text-primary-foreground" : "text-foreground"
+              )}>{color}</span>
             </span>
           )}
-          {color && result.size && <span className="text-muted-foreground/40">|</span>}
+          {color && result.size && (
+            <span className={isSelected ? "text-primary-foreground/40" : "text-foreground/30"}>|</span>
+          )}
           {result.size && (
             <span>
-              <span className="text-muted-foreground/70">Size:</span>{" "}
-              <span className="font-medium text-foreground/80">{result.size}</span>
+              <span className={isSelected ? "text-primary-foreground/70" : "text-muted-foreground"}>Size:</span>{" "}
+              <span className={cn("font-semibold", isSelected ? "text-primary-foreground" : "text-foreground")}>{result.size}</span>
             </span>
           )}
-          {(color || result.size) && result.barcode && <span className="text-muted-foreground/40">|</span>}
+          {(color || result.size) && result.barcode && (
+            <span className={isSelected ? "text-primary-foreground/40" : "text-foreground/30"}>|</span>
+          )}
           {result.barcode && (
             <span>
-              <span className="text-muted-foreground/70">SKU:</span>{" "}
-              <span className="font-mono text-foreground/70 text-[12px]">{result.barcode}</span>
+              <span className={isSelected ? "text-primary-foreground/70" : "text-muted-foreground"}>SKU:</span>{" "}
+              <span className={cn("font-mono text-[13px]", isSelected ? "text-primary-foreground" : "text-foreground/80")}>{result.barcode}</span>
             </span>
           )}
           {brand && (
             <>
-              <span className="text-muted-foreground/40">|</span>
+              <span className={isSelected ? "text-primary-foreground/40" : "text-foreground/30"}>|</span>
               <span>
-                <span className="text-muted-foreground/70">Brand:</span>{" "}
-                <span className="font-medium text-foreground/80">{brand}</span>
+                <span className={isSelected ? "text-primary-foreground/70" : "text-muted-foreground"}>Brand:</span>{" "}
+                <span className={cn("font-semibold", isSelected ? "text-primary-foreground" : "text-foreground")}>{brand}</span>
               </span>
             </>
           )}
@@ -147,12 +168,18 @@ export const ERPVariantRow = ({
       </div>
 
       {/* CENTER: Price */}
-      <div className="text-right shrink-0 min-w-[80px]">
-        <div className="font-bold text-[14px] text-primary">
+      <div className="text-right shrink-0 min-w-[85px]">
+        <div className={cn(
+          "font-bold text-[15px]",
+          isSelected ? "text-primary-foreground" : "text-primary"
+        )}>
           ₹{(result.sale_price || 0).toFixed(2)}
         </div>
         {result.mrp && result.mrp !== result.sale_price && (
-          <div className="text-[12px] text-muted-foreground line-through">
+          <div className={cn(
+            "text-[13px] line-through",
+            isSelected ? "text-primary-foreground/60" : "text-muted-foreground"
+          )}>
             MRP: ₹{result.mrp}
           </div>
         )}
@@ -160,7 +187,7 @@ export const ERPVariantRow = ({
 
       {/* RIGHT: Stock */}
       <div className="shrink-0">
-        <StockBadge qty={result.stock_qty || 0} />
+        <StockBadge qty={result.stock_qty || 0} isSelected={isSelected} />
       </div>
     </button>
   );
