@@ -115,7 +115,7 @@ export default function DeliveryChallanDashboard() {
         .from('settings')
         .select('sale_settings')
         .eq('organization_id', currentOrganization?.id)
-        .single();
+        .maybeSingle();
 
       const saleSettings = settingsData?.sale_settings as any;
       const defaultGst = saleSettings?.default_gst_percent || 0;

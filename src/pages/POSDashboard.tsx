@@ -202,7 +202,7 @@ const POSDashboard = () => {
         .from('settings')
         .select('*')
         .eq('organization_id', currentOrganization.id)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       return data;

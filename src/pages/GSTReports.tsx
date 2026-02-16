@@ -170,7 +170,7 @@ const GSTReports = () => {
       .from("settings")
       .select("business_name, gst_number")
       .eq("organization_id", currentOrganization.id)
-      .single();
+      .maybeSingle();
     
     setBusinessInfo({
       name: settings?.business_name || currentOrganization.name || "Business",

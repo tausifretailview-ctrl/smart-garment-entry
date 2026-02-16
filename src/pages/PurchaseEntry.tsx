@@ -266,7 +266,7 @@ const PurchaseEntry = () => {
         .from("settings")
         .select("purchase_settings, product_settings, bill_barcode_settings")
         .eq("organization_id", currentOrganization?.id)
-        .single();
+        .maybeSingle();
       if (error) throw error;
       return data;
     },

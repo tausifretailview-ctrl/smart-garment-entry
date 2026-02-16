@@ -109,7 +109,7 @@ const GSTSalePurchaseRegister = () => {
         .from("settings")
         .select("business_name, gst_number")
         .eq("organization_id", currentOrganization.id)
-        .single();
+        .maybeSingle();
 
       const businessName = settings?.business_name || currentOrganization.name || "Business";
       const businessGSTIN = settings?.gst_number || "";
