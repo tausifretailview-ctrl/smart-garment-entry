@@ -24,6 +24,8 @@ interface StudentFormData {
   student_name: string;
   class_id: string;
   academic_year_id: string;
+  division: string;
+  roll_number: string;
   date_of_birth: string;
   gender: string;
   address: string;
@@ -42,6 +44,8 @@ const initialFormData: StudentFormData = {
   student_name: "",
   class_id: "",
   academic_year_id: "",
+  division: "",
+  roll_number: "",
   date_of_birth: "",
   gender: "",
   address: "",
@@ -142,6 +146,8 @@ const StudentEntry = () => {
         student_name: existingStudent.student_name || "",
         class_id: existingStudent.class_id || "",
         academic_year_id: existingStudent.academic_year_id || "",
+        division: existingStudent.division || "",
+        roll_number: existingStudent.roll_number || "",
         date_of_birth: existingStudent.date_of_birth || "",
         gender: existingStudent.gender || "",
         address: existingStudent.address || "",
@@ -184,6 +190,8 @@ const StudentEntry = () => {
         student_name: formData.student_name,
         class_id: formData.class_id || null,
         academic_year_id: formData.academic_year_id || null,
+        division: formData.division || null,
+        roll_number: formData.roll_number || null,
         date_of_birth: formData.date_of_birth || null,
         gender: formData.gender || null,
         address: formData.address || null,
@@ -334,6 +342,27 @@ const StudentEntry = () => {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="division">Division</Label>
+                  <Input
+                    id="division"
+                    value={formData.division}
+                    onChange={(e) => handleChange("division", e.target.value)}
+                    placeholder="e.g. A, B, C"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="roll_number">Roll Number</Label>
+                  <Input
+                    id="roll_number"
+                    value={formData.roll_number}
+                    onChange={(e) => handleChange("roll_number", e.target.value)}
+                    placeholder="e.g. 1, 2, 3"
+                  />
                 </div>
               </div>
 

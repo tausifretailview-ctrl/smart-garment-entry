@@ -213,6 +213,8 @@ const StudentMaster = () => {
                 <TableHead>Adm. No</TableHead>
                 <TableHead>Student Name</TableHead>
                 <TableHead>Class</TableHead>
+                <TableHead>Division</TableHead>
+                <TableHead>Roll No</TableHead>
                 <TableHead>Parent</TableHead>
                 <TableHead>Contact</TableHead>
                 <TableHead>Status</TableHead>
@@ -222,13 +224,13 @@ const StudentMaster = () => {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
+                  <TableCell colSpan={9} className="text-center py-8">
                     Loading students...
                   </TableCell>
                 </TableRow>
               ) : students.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
+                  <TableCell colSpan={9} className="text-center py-8">
                     <div className="text-muted-foreground">
                     {searchTerm ? "No students found matching your search" : "No students added yet"}
                     </div>
@@ -263,6 +265,8 @@ const StudentMaster = () => {
                         <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
+                    <TableCell>{student.division || "-"}</TableCell>
+                    <TableCell>{student.roll_number || "-"}</TableCell>
                     <TableCell>{student.parent_name || "-"}</TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-1">

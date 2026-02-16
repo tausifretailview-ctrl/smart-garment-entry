@@ -4420,6 +4420,7 @@ export type Database = {
           date_of_birth: string | null
           deleted_at: string | null
           deleted_by: string | null
+          division: string | null
           emergency_contact: string | null
           gender: string | null
           id: string
@@ -4430,6 +4431,7 @@ export type Database = {
           parent_phone: string | null
           parent_relation: string | null
           photo_url: string | null
+          roll_number: string | null
           status: string | null
           student_name: string
           updated_at: string | null
@@ -4446,6 +4448,7 @@ export type Database = {
           date_of_birth?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          division?: string | null
           emergency_contact?: string | null
           gender?: string | null
           id?: string
@@ -4456,6 +4459,7 @@ export type Database = {
           parent_phone?: string | null
           parent_relation?: string | null
           photo_url?: string | null
+          roll_number?: string | null
           status?: string | null
           student_name: string
           updated_at?: string | null
@@ -4472,6 +4476,7 @@ export type Database = {
           date_of_birth?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          division?: string | null
           emergency_contact?: string | null
           gender?: string | null
           id?: string
@@ -4482,6 +4487,7 @@ export type Database = {
           parent_phone?: string | null
           parent_relation?: string | null
           photo_url?: string | null
+          roll_number?: string | null
           status?: string | null
           student_name?: string
           updated_at?: string | null
