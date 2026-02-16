@@ -73,7 +73,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
       const searchTerm = studentSearch.trim();
       const { data } = await supabase
         .from("students")
-        .select("*, school_classes:class_id (class_name), school_sections:section_id (section_name)")
+        .select("*, school_classes:class_id (class_name)")
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null)
         .or(`student_name.ilike.%${searchTerm}%,admission_number.ilike.%${searchTerm}%,parent_phone.ilike.%${searchTerm}%,parent_name.ilike.%${searchTerm}%`)
