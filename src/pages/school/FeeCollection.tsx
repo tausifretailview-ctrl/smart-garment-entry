@@ -112,13 +112,13 @@ const FeeCollection = () => {
 
       let query = supabase
         .from("students")
-        .select(`*, school_classes:class_id (class_name), school_sections:section_id (section_name)`)
+        .select(`*, school_classes:class_id (class_name)`)
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .order("student_name", { ascending: true });
 
       if (searchQuery) {
-        query = query.or(`student_name.ilike.%${searchQuery}%,admission_number.ilike.%${searchQuery}%,phone.ilike.%${searchQuery}%`);
+        query = query.or(`student_name.ilike.%${searchQuery}%,admission_number.ilike.%${searchQuery}%,parent_phone.ilike.%${searchQuery}%`);
       }
 
       const { data, error } = await query.limit(50);
@@ -297,9 +297,8 @@ const FeeCollection = () => {
                     <TableCell>{student.student_name}</TableCell>
                     <TableCell>
                       {student.school_classes?.class_name || "-"}
-                      {student.school_sections?.section_name && ` - ${student.school_sections.section_name}`}
                     </TableCell>
-                    <TableCell>{student.phone || student.guardian_phone || "-"}</TableCell>
+                    <TableCell>{student.parent_phone || "-"}</TableCell>
                     <TableCell className="text-right font-medium">
                       ₹{(student.totalDue || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                     </TableCell>
