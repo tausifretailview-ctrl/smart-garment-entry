@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,17 +6,19 @@ import { useToast } from "@/hooks/use-toast";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import * as XLSX from "xlsx";
+import { ColumnDef } from "@tanstack/react-table";
+import { ERPTable } from "@/components/erp-table";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2, Barcode, RefreshCw, Eye, Edit, ShoppingCart, History, Ban } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2, Barcode, RefreshCw, Eye, Edit, ShoppingCart, History, Ban } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -74,7 +76,7 @@ const ProductDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [isRefetching, setIsRefetching] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
   
   // Filter states
@@ -508,7 +510,12 @@ const ProductDashboard = () => {
   };
 
   const toggleExpanded = (productId: string) => {
-    setExpandedProduct(expandedProduct === productId ? null : productId);
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(productId)) next.delete(productId);
+      else next.add(productId);
+      return next;
+    });
   };
 
   const clearAllFilters = () => {
@@ -820,6 +827,163 @@ const ProductDashboard = () => {
   const endIndex = filteredRows.length;
   const paginatedRows = filteredRows;
 
+  // ---- ERPTable columns ----
+  const productColumns = useMemo<ColumnDef<ProductRow, any>[]>(() => {
+    const cols: ColumnDef<ProductRow, any>[] = [
+      {
+        id: "select",
+        header: () => (
+          <Checkbox
+            checked={selectedProducts.size === paginatedRows.length && paginatedRows.length > 0}
+            onCheckedChange={toggleSelectAll}
+          />
+        ),
+        cell: ({ row }) => (
+          <div onClick={(e) => e.stopPropagation()}>
+            <Checkbox
+              checked={selectedProducts.has(row.original.product_id)}
+              onCheckedChange={() => toggleSelectProduct(row.original.product_id)}
+            />
+          </div>
+        ),
+        size: 40,
+      },
+      {
+        id: "srno",
+        header: "Sr.",
+        cell: ({ row }) => <span className="font-medium">{startIndex + row.index + 1}</span>,
+        size: 50,
+      },
+    ];
+
+    if (columnVisibility.image) {
+      cols.push({
+        id: "image",
+        header: "Image",
+        cell: ({ row }) => (
+          <div onClick={(e) => e.stopPropagation()}>
+            <ProductImageGallery
+              key={`${row.original.product_id}-${galleryRefreshKey}`}
+              productId={row.original.product_id}
+              productName={row.original.product_name}
+              fallbackImageUrl={row.original.image_url}
+              onImageClick={handleImageClick}
+              onAddClick={handleAddImageClick}
+            />
+          </div>
+        ),
+        size: 80,
+      });
+    }
+
+    if (columnVisibility.productName) {
+      cols.push({
+        accessorKey: "product_name",
+        header: "Product Name",
+        cell: ({ row }) => (
+          <span
+            className="cursor-pointer text-primary hover:underline font-medium"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedProductForHistory({ id: row.original.product_id, name: row.original.product_name });
+              setShowProductHistory(true);
+            }}
+          >
+            {row.original.product_name}
+          </span>
+        ),
+        size: 200,
+      });
+    }
+
+    if (columnVisibility.category) cols.push({ accessorKey: "category", header: "Category", cell: ({ getValue }) => getValue() || "—", size: 120 });
+    if (columnVisibility.brand) cols.push({ accessorKey: "brand", header: "Brand", cell: ({ getValue }) => getValue() || "—", size: 120 });
+    if (columnVisibility.style) cols.push({ accessorKey: "style", header: "Style", cell: ({ getValue }) => getValue() || "—", size: 100 });
+    if (columnVisibility.color) cols.push({ accessorKey: "color", header: "Color", cell: ({ getValue }) => getValue() || "—", size: 100 });
+    if (columnVisibility.hsn) cols.push({ accessorKey: "hsn_code", header: "HSN", cell: ({ getValue }) => <span className="text-xs">{getValue() || "—"}</span>, size: 90 });
+    if (columnVisibility.gst) cols.push({ accessorKey: "gst_per", header: "GST%", cell: ({ getValue }) => <span className="text-right block">{getValue()}%</span>, size: 70 });
+    if (columnVisibility.purPrice) cols.push({ accessorKey: "default_pur_price", header: "Pur Price", cell: ({ getValue }) => <span className="text-right block">₹{(getValue() as number).toFixed(2)}</span>, size: 110 });
+    if (columnVisibility.salePrice) cols.push({ accessorKey: "default_sale_price", header: "Sale Price", cell: ({ getValue }) => <span className="text-right block">₹{(getValue() as number).toFixed(2)}</span>, size: 110 });
+    if (columnVisibility.status) cols.push({ accessorKey: "status", header: "Status", cell: ({ getValue }) => <Badge variant={getValue() === "active" ? "default" : "secondary"}>{getValue() as string}</Badge>, size: 90 });
+    if (columnVisibility.totalQty) cols.push({ accessorKey: "total_stock", header: "Total Qty", cell: ({ getValue }) => <span className="text-right block font-medium">{getValue() as number}</span>, size: 90 });
+    if (columnVisibility.variants) cols.push({ id: "variants", header: "Variants", cell: ({ row }) => <Badge variant="secondary">{row.original.variants.length}</Badge>, size: 80 });
+
+    cols.push({
+      id: "actions",
+      header: "",
+      cell: ({ row }) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => navigate(`/product-entry?id=${row.original.product_id}`)}>
+                Edit Product
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={async () => {
+                  const result = await getProductRelationDetails(row.original.product_id);
+                  if (result.hasTransactions) {
+                    setRelationDialog({ open: true, productName: row.original.product_name, productId: row.original.product_id, relations: result.relations });
+                  } else {
+                    setSelectedProducts(new Set([row.original.product_id]));
+                    setShowBulkDeleteDialog(true);
+                  }
+                }}
+              >
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ),
+      size: 60,
+    });
+
+    return cols;
+  }, [columnVisibility, selectedProducts, paginatedRows, startIndex, galleryRefreshKey, showMrp]);
+
+  const renderProductSubRow = useCallback((row: ProductRow) => {
+    if (row.variants.length === 0) return null;
+    return (
+      <div className="p-4">
+        <h4 className="font-semibold text-sm mb-3">Product Variants Details</h4>
+        <div className="border rounded-lg overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/30">
+                <TableHead>Size</TableHead>
+                <TableHead>Barcode</TableHead>
+                <TableHead>Color</TableHead>
+                <TableHead className="text-right">Purchase Price</TableHead>
+                <TableHead className="text-right">Sale Price</TableHead>
+                {showMrp && <TableHead className="text-right">MRP</TableHead>}
+                <TableHead className="text-right">Stock Qty</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {row.variants.map((variant) => (
+                <TableRow key={variant.variant_id}>
+                  <TableCell className="font-medium">{variant.size}</TableCell>
+                  <TableCell className="font-mono text-xs">{variant.barcode || "—"}</TableCell>
+                  <TableCell>{variant.color || "—"}</TableCell>
+                  <TableCell className="text-right">₹{variant.pur_price.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">₹{variant.sale_price.toFixed(2)}</TableCell>
+                  {showMrp && <TableCell className="text-right">₹{variant.mrp.toFixed(2)}</TableCell>}
+                  <TableCell className="text-right font-medium">{variant.stock_qty}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    );
+  }, [showMrp]);
+
   if (loading && productRows.length === 0) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -953,43 +1117,6 @@ const ProductDashboard = () => {
                   <Download className="h-4 w-4" />
                   Export
                 </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <Settings2 className="h-4 w-4" />
-                      Columns
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-48 bg-popover z-50">
-                    <div className="p-2 space-y-2">
-                      <Label className="text-xs font-semibold text-muted-foreground">Toggle Columns</Label>
-                      {[
-                        { key: 'image', label: 'Image' },
-                        { key: 'productName', label: 'Product Name' },
-                        { key: 'category', label: 'Category' },
-                        { key: 'brand', label: 'Brand' },
-                        { key: 'style', label: 'Style' },
-                        { key: 'color', label: 'Color' },
-                        { key: 'hsn', label: 'HSN Code' },
-                        { key: 'gst', label: 'GST %' },
-                        { key: 'purPrice', label: 'Def. Pur Price' },
-                        { key: 'salePrice', label: 'Def. Sale Price' },
-                        { key: 'status', label: 'Status' },
-                        { key: 'totalQty', label: 'Total Qty' },
-                        { key: 'variants', label: 'Variants' },
-                      ].map(({ key, label }) => (
-                        <div key={key} className="flex items-center gap-2">
-                          <Checkbox
-                            id={`col-${key}`}
-                            checked={columnVisibility[key as keyof typeof columnVisibility]}
-                            onCheckedChange={() => toggleColumnVisibility(key as keyof typeof columnVisibility)}
-                          />
-                          <Label htmlFor={`col-${key}`} className="text-sm cursor-pointer">{label}</Label>
-                        </div>
-                      ))}
-                    </div>
-                  </DropdownMenuContent>
-                </DropdownMenu>
               </div>
 
               <div className="flex items-center gap-2 flex-1 max-w-md">
@@ -1271,211 +1398,18 @@ const ProductDashboard = () => {
                 <p className="text-sm">Add your first product to get started</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-foreground text-background [&>th]:text-background">
-                      <TableHead className="w-12"></TableHead>
-                      <TableHead className="w-12">
-                        <Checkbox
-                          checked={selectedProducts.size === paginatedRows.length && paginatedRows.length > 0}
-                          onCheckedChange={toggleSelectAll}
-                        />
-                      </TableHead>
-                      <TableHead className="w-16 text-center">Sr. No.</TableHead>
-                      {columnVisibility.image && <TableHead className="w-20">Image</TableHead>}
-                      {columnVisibility.productName && <TableHead>Product Name</TableHead>}
-                      {columnVisibility.category && <TableHead>Category</TableHead>}
-                      {columnVisibility.brand && <TableHead>Brand</TableHead>}
-                      {columnVisibility.style && <TableHead>Style</TableHead>}
-                      {columnVisibility.color && <TableHead>Color</TableHead>}
-                      {columnVisibility.hsn && <TableHead>HSN</TableHead>}
-                      {columnVisibility.gst && <TableHead className="text-right">GST%</TableHead>}
-                      {columnVisibility.purPrice && <TableHead className="text-right">Def. Pur Price</TableHead>}
-                      {columnVisibility.salePrice && <TableHead className="text-right">Def. Sale Price</TableHead>}
-                      {columnVisibility.status && <TableHead>Status</TableHead>}
-                      {columnVisibility.totalQty && <TableHead className="text-right">Total Qty</TableHead>}
-                      {columnVisibility.variants && <TableHead className="text-center">Variants</TableHead>}
-                      <TableHead className="w-16">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-              <TableBody>
-                {paginatedRows.map((row, index) => (
-                      <>
-                        <TableRow
-                          key={row.product_id}
-                          className="cursor-pointer hover:bg-muted/30 transition-colors"
-                          onClick={() => toggleExpanded(row.product_id)}
-                          onContextMenu={(e) => handleRowContextMenu(e, row)}
-                        >
-                          <TableCell>
-                            {expandedProduct === row.product_id ? (
-                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                            )}
-                          </TableCell>
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            <Checkbox
-                              checked={selectedProducts.has(row.product_id)}
-                              onCheckedChange={() => toggleSelectProduct(row.product_id)}
-                            />
-                          </TableCell>
-                          <TableCell className="text-center font-medium">
-                            {startIndex + index + 1}
-                          </TableCell>
-                          {columnVisibility.image && (
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            <ProductImageGallery
-                              key={`${row.product_id}-${galleryRefreshKey}`}
-                              productId={row.product_id}
-                              productName={row.product_name}
-                              fallbackImageUrl={row.image_url}
-                              onImageClick={handleImageClick}
-                              onAddClick={handleAddImageClick}
-                            />
-                          </TableCell>
-                          )}
-                          {columnVisibility.productName && (
-                            <TableCell className="font-medium">
-                              <span 
-                                className="cursor-pointer text-primary hover:underline"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedProductForHistory({ id: row.product_id, name: row.product_name });
-                                  setShowProductHistory(true);
-                                }}
-                              >
-                                {row.product_name}
-                              </span>
-                            </TableCell>
-                          )}
-                          {columnVisibility.category && <TableCell>{row.category || "—"}</TableCell>}
-                          {columnVisibility.brand && <TableCell>{row.brand || "—"}</TableCell>}
-                          {columnVisibility.style && <TableCell>{row.style || "—"}</TableCell>}
-                          {columnVisibility.color && <TableCell>{row.color || "—"}</TableCell>}
-                          {columnVisibility.hsn && <TableCell className="text-xs">{row.hsn_code || "—"}</TableCell>}
-                          {columnVisibility.gst && <TableCell className="text-right">{row.gst_per}%</TableCell>}
-                          {columnVisibility.purPrice && <TableCell className="text-right">₹{row.default_pur_price.toFixed(2)}</TableCell>}
-                          {columnVisibility.salePrice && <TableCell className="text-right">₹{row.default_sale_price.toFixed(2)}</TableCell>}
-                          {columnVisibility.status && (
-                          <TableCell>
-                            <Badge variant={row.status === "active" ? "default" : "secondary"}>
-                              {row.status}
-                            </Badge>
-                          </TableCell>
-                          )}
-                          {columnVisibility.totalQty && (
-                          <TableCell className="text-right font-medium">
-                            {row.total_stock}
-                          </TableCell>
-                          )}
-                          {columnVisibility.variants && (
-                          <TableCell className="text-center">
-                            <Badge variant="secondary">{row.variants.length}</Badge>
-                          </TableCell>
-                          )}
-                          <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-8 w-8"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigate(`/product-entry?id=${row.product_id}`);
-                                  }}
-                                >
-                                  Edit Product
-                                </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  className="text-destructive"
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    const result = await getProductRelationDetails(row.product_id);
-                                    if (result.hasTransactions) {
-                                      setRelationDialog({
-                                        open: true,
-                                        productName: row.product_name,
-                                        productId: row.product_id,
-                                        relations: result.relations,
-                                      });
-                                    } else {
-                                      setSelectedProducts(new Set([row.product_id]));
-                                      setShowBulkDeleteDialog(true);
-                                    }
-                                  }}
-                                >
-                                  Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-
-                        {/* Expanded Variants Row */}
-                        {expandedProduct === row.product_id && row.variants.length > 0 && (
-                          <TableRow>
-                            <TableCell colSpan={visibleColumnCount} className="bg-muted/20 p-0">
-                              <div className="p-4">
-                                <h4 className="font-semibold text-sm mb-3">Product Variants Details</h4>
-                                <div className="border rounded-lg overflow-hidden">
-                                  <Table>
-                                    <TableHeader>
-                                      <TableRow className="bg-muted/30">
-                                        <TableHead>Size</TableHead>
-                                        <TableHead>Barcode</TableHead>
-                                        <TableHead>Color</TableHead>
-                                        <TableHead className="text-right">Purchase Price</TableHead>
-                                        <TableHead className="text-right">Sale Price</TableHead>
-                                        {showMrp && <TableHead className="text-right">MRP</TableHead>}
-                                        <TableHead className="text-right">Stock Qty</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                      {row.variants.map((variant) => (
-                                        <TableRow key={variant.variant_id}>
-                                          <TableCell className="font-medium">{variant.size}</TableCell>
-                                          <TableCell className="font-mono text-xs">
-                                            {variant.barcode || "—"}
-                                          </TableCell>
-                                          <TableCell>{variant.color || "—"}</TableCell>
-                                          <TableCell className="text-right">
-                                            ₹{variant.pur_price.toFixed(2)}
-                                          </TableCell>
-                                          <TableCell className="text-right">
-                                            ₹{variant.sale_price.toFixed(2)}
-                                          </TableCell>
-                                          {showMrp && (
-                                            <TableCell className="text-right">
-                                              ₹{variant.mrp.toFixed(2)}
-                                            </TableCell>
-                                          )}
-                                          <TableCell className="text-right font-medium">
-                                            {variant.stock_qty}
-                                          </TableCell>
-                                        </TableRow>
-                                      ))}
-                                    </TableBody>
-                                  </Table>
-                                </div>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+              <ERPTable<ProductRow>
+                tableId="product_list"
+                columns={productColumns}
+                data={paginatedRows}
+                isLoading={loading && productRows.length === 0}
+                emptyMessage="No products found"
+                renderSubRow={renderProductSubRow}
+                expandedRows={expandedRows}
+                onToggleExpand={toggleExpanded}
+                getRowId={(row) => row.product_id}
+                onRowContextMenu={handleRowContextMenu}
+              />
             )}
           </CardContent>
         </Card>
