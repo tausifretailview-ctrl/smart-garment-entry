@@ -50,6 +50,7 @@ export default function MobileReportsHub() {
         { icon: Package, label: "Stock Report", path: "/stock-report", desc: "Current inventory levels" },
         { icon: Grid3X3, label: "Size-wise Stock", path: "/stock-report?tab=sizewise", desc: "Stock by product + size" },
         { icon: Layers, label: "Item-wise Stock", path: "/item-wise-stock", desc: "Aggregated by product" },
+        { icon: Grid3X3, label: "Size-wise Stock", path: "/stock-report?tab=sizewise", desc: "Stock by size grid" },
         { icon: TrendingDown, label: "Stock Analysis", path: "/stock-analysis", desc: "Low stock & movement" },
       ]
     },
