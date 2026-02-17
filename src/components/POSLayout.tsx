@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { Menu, Home, Package, ShoppingCart, FileText, Settings, LogOut, Store, PlusCircle, Trash2, Keyboard, LayoutGrid, BarChart3, Package as PackageIcon, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +26,7 @@ import { FloatingChatButton } from "@/components/AIChatbot/FloatingChatButton";
 import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
+import { SizeStockDialog } from "@/components/SizeStockDialog";
 
 interface POSLayoutProps {
   children: ReactNode;
@@ -38,6 +39,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const { orgNavigate, orgSlug } = useOrgNavigation();
   const { onNewSale, onClearCart, onOpenCashierReport, onOpenStockReport, onOpenSaleReturn, hasItems } = usePOS();
   const { isOpen, setIsOpen } = useKeyboardShortcuts("pos");
+  const [showSizeStock, setShowSizeStock] = useState(false);
 
   const handleSignOut = async () => {
     const slug = currentOrganization?.slug || orgSlug;
@@ -198,7 +200,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  onClick={() => orgNavigate("/stock-report?tab=sizewise")}
+                  onClick={() => setShowSizeStock(true)}
                   className="text-primary-foreground hover:bg-primary/80 gap-1"
                 >
                   <LayoutGrid className="h-4 w-4" />
@@ -241,6 +243,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
       <MobileBottomNav />
       
       <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="pos" />
+      <SizeStockDialog open={showSizeStock} onOpenChange={setShowSizeStock} />
     </div>
   );
 };
