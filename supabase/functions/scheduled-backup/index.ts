@@ -198,9 +198,9 @@ Deno.serve(async (req) => {
               body: JSON.stringify({
                 from: 'EzzyERP Backup <onboarding@resend.dev>',
                 to: [backupEmail],
-                subject: `Daily Backup - ${orgName} (${today})`,
+                subject: `Weekly Backup - ${orgName} (${today})`,
                 html: `
-                  <h2>Daily Backup Report</h2>
+                  <h2>Weekly Backup Report</h2>
                   <p><strong>Organization:</strong> ${orgName}</p>
                   <p><strong>Date:</strong> ${today}</p>
                   <p><strong>Total Records:</strong> ${totalRecords}</p>
