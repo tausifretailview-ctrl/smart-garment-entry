@@ -5852,6 +5852,8 @@ export type Database = {
       restore_sale_order: { Args: { p_order_id: string }; Returns: undefined }
       restore_sale_return: { Args: { p_return_id: string }; Returns: undefined }
       restore_voucher: { Args: { p_voucher_id: string }; Returns: undefined }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       soft_delete_delivery_challan: {
         Args: { p_challan_id: string; p_user_id: string }
         Returns: undefined
