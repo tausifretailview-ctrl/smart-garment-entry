@@ -707,9 +707,10 @@ export default function POSSales() {
         const { data: products, error: productsError } = await supabase
           .from('products')
           .select(`
-            *,
+            id, product_name, brand, hsn_code, gst_per, product_type, status, category, style, color,
             product_variants (
-              *,
+              id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, deleted_at,
+              last_purchase_sale_price, last_purchase_mrp, last_purchase_date,
               batch_stock (
                 bill_number,
                 quantity,

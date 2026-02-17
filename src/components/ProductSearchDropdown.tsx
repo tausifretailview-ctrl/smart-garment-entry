@@ -85,7 +85,7 @@ export function ProductSearchDropdown({
           .is("products.deleted_at", null)
           .or(`barcode.eq.${value},barcode.ilike.%${value}%,size.ilike.%${value}%,color.ilike.%${value}%`)
           .order("stock_qty", { ascending: false })
-          .limit(50);
+          .limit(51); // Fetch 51 to detect if more results exist
 
         if (error) throw error;
 
@@ -99,8 +99,10 @@ export function ProductSearchDropdown({
           stock_qty: item.stock_qty || 0,
         })) || [];
 
-        setResults(formatted);
-        setShowDropdown(formatted.length > 0);
+        // Trim to 50 for display, use 51st to detect hasMore
+        const displayResults = formatted.length > 50 ? formatted.slice(0, 50) : formatted;
+        setResults(displayResults);
+        setShowDropdown(displayResults.length > 0);
         setSelectedIndex(-1);
         updatePosition();
       } catch (error) {
