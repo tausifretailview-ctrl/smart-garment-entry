@@ -96,6 +96,7 @@ import FeeHeadsSetup from "./pages/school/FeeHeadsSetup";
 import FeeCollection from "./pages/school/FeeCollection";
 import FeeStructureSetup from "./pages/school/FeeStructureSetup";
 import TeacherMaster from "./pages/school/TeacherMaster";
+import StudentReports from "./pages/school/StudentReports";
 import { SchoolFeatureGate } from "./components/school/SchoolFeatureGate";
 // Helpers for redirecting when org slug is missing in URL (PWA resilience)
 function getStoredOrgSlug(): string | null {
@@ -520,6 +521,18 @@ const App = () => {
                       <SchoolFeatureGate>
                         <Layout>
                           <TeacherMaster />
+                        </Layout>
+                      </SchoolFeatureGate>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="student-reports"
+                  element={
+                    <ProtectedRoute>
+                      <SchoolFeatureGate>
+                        <Layout>
+                          <StudentReports />
                         </Layout>
                       </SchoolFeatureGate>
                     </ProtectedRoute>
