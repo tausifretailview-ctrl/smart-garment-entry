@@ -145,7 +145,7 @@ const BackupSettings = () => {
             Cloud Auto-Backup
           </CardTitle>
            <CardDescription>
-            Automatically backs up your data every night at 11:00 PM IST. Backup file is emailed to you.
+            Automatically backs up your data every Monday at 11:00 PM IST. Backup file is emailed to you.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -157,9 +157,9 @@ const BackupSettings = () => {
             <>
               <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
                 <div>
-                  <h4 className="font-medium">Enable Nightly Auto-Backup (11:00 PM IST)</h4>
+                  <h4 className="font-medium">Enable Weekly Auto-Backup (Every Monday, 11:00 PM IST)</h4>
                   <p className="text-sm text-muted-foreground">
-                    Backup runs automatically every night and the file is emailed to you
+                    Backup runs automatically every Monday and the file is emailed to you
                   </p>
                 </div>
                 <Switch
@@ -183,7 +183,7 @@ const BackupSettings = () => {
                     onChange={(e) => setBackupEmail(e.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Daily backup JSON file will be sent to this email at 11:00 PM IST
+                    Weekly backup JSON file will be sent to this email every Monday at 11:00 PM IST
                   </p>
                 </div>
 
