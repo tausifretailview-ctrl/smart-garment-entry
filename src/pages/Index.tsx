@@ -59,6 +59,7 @@ import {
 } from "@/components/ui/tooltip";
 import { format, startOfMonth, startOfQuarter, startOfYear, endOfMonth, endOfQuarter, endOfYear } from "date-fns";
 import { cn } from "@/lib/utils";
+import { SizeStockDialog } from "@/components/SizeStockDialog";
 
 // Currency formatter helper
 const formatCurrency = (value: number) => {
@@ -206,6 +207,7 @@ const DesktopDashboard = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const queryClient = useQueryClient();
+  const [showSizeStock, setShowSizeStock] = useState(false);
   
   // Tier-based polling - reduces cloud usage based on subscription tier
   // Free: Manual only | Basic: 5min | Professional: 2min | Enterprise: 1min
@@ -235,7 +237,7 @@ const DesktopDashboard = () => {
     {
       label: "Size-wise Stock",
       icon: Layers,
-      onClick: () => navigate("/stock-report?tab=sizewise"),
+      onClick: () => setShowSizeStock(true),
     },
     { label: "", separator: true, onClick: () => {} },
     {
@@ -651,6 +653,7 @@ const DesktopDashboard = () => {
   };
 
   return (
+    <>
     <TooltipProvider>
     <div 
       className="space-y-6 bg-background min-h-full"
@@ -1015,6 +1018,8 @@ const DesktopDashboard = () => {
       </div>
     </div>
     </TooltipProvider>
+    <SizeStockDialog open={showSizeStock} onOpenChange={setShowSizeStock} />
+    </>
   );
 };
 
