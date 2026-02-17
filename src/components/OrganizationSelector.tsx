@@ -39,7 +39,7 @@ export const OrganizationSelector = () => {
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-[280px] justify-between"
+          className="w-[320px] max-w-[400px] justify-between"
         >
           <div className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
@@ -50,7 +50,7 @@ export const OrganizationSelector = () => {
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[280px] p-0">
+      <PopoverContent className="w-[320px] max-w-[400px] p-0">
         <Command>
           <CommandInput placeholder="Search organization..." />
           <CommandList>
