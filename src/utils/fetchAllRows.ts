@@ -13,7 +13,7 @@ export async function fetchAllCustomers(organizationId: string) {
   while (hasMore) {
     const { data, error } = await supabase
       .from("customers")
-      .select("*")
+      .select("id, customer_name, phone, email, gst_number, address, customer_type, opening_balance, points_balance, discount_percent")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .order("customer_name")
@@ -91,7 +91,7 @@ export async function fetchAllSalesDetails(organizationId: string) {
   while (hasMore) {
     const { data, error } = await supabase
       .from("sales")
-      .select("*")
+      .select("id, sale_date, sale_number, customer_name, customer_id, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, cash_amount, card_amount, upi_amount, payment_method, payment_status, sale_type, refund_amount, sale_return_adjust, points_redeemed_amount, balance_amount")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .order("sale_date", { ascending: false })
@@ -129,7 +129,7 @@ export async function fetchAllSuppliers(organizationId: string) {
   while (hasMore) {
     const { data, error } = await supabase
       .from("suppliers")
-      .select("*")
+      .select("id, supplier_name, phone, email, gst_number, address, opening_balance")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .order("supplier_name")
@@ -211,7 +211,7 @@ export async function fetchAllVouchers(organizationId: string) {
   while (hasMore) {
     const { data, error } = await supabase
       .from("voucher_entries")
-      .select("*")
+      .select("id, voucher_number, voucher_date, voucher_type, total_amount, description, party_name, payment_mode")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
@@ -529,7 +529,7 @@ export async function fetchAllSalesWithFilters(
   while (hasMore) {
     let query = supabase
       .from("sales")
-      .select("*")
+      .select("id, sale_date, sale_number, customer_name, customer_id, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, cash_amount, card_amount, upi_amount, payment_method, payment_status, sale_type, refund_amount, sale_return_adjust, points_redeemed_amount, balance_amount")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .order("sale_date", { ascending: false })
@@ -589,7 +589,7 @@ export async function fetchAllPurchaseBillsWithFilters(
   while (hasMore) {
     let query = supabase
       .from("purchase_bills")
-      .select("*")
+      .select("id, bill_date, supplier_name, supplier_invoice_no, gross_amount, gst_amount, net_amount, supplier_id")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .order("bill_date", { ascending: false })
@@ -646,7 +646,7 @@ export async function fetchAllVouchersWithFilters(
   while (hasMore) {
     let query = supabase
       .from("voucher_entries")
-      .select("*")
+      .select("id, voucher_number, voucher_date, voucher_type, total_amount, description, party_name, payment_mode")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .order("voucher_date", { ascending: false })
