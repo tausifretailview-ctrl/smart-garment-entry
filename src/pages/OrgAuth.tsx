@@ -49,6 +49,7 @@ export default function OrgAuth() {
   const [error, setError] = useState<string>("");
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [lockoutUntil, setLockoutUntil] = useState<Date | null>(null);
+  const [inputSlug, setInputSlug] = useState(orgSlug || "");
 
   // Check and clear lockout on mount
   useEffect(() => {
@@ -264,18 +265,50 @@ export default function OrgAuth() {
     );
   }
 
+  const handleGoToOrgLogin = () => {
+    const trimmed = inputSlug.toLowerCase().trim();
+    if (trimmed) {
+      navigate(`/${trimmed}`);
+    }
+  };
+
   if (!organization) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md shadow-elevated">
-          <div className="p-6 text-center">
-            <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2 text-card-foreground">Organization Not Found</h2>
-            <p className="text-muted-foreground mb-4">
-              The organization URL you're trying to access doesn't exist.
+          <div className="p-6 text-center space-y-4">
+            <AlertCircle className="h-12 w-12 text-destructive mx-auto" />
+            <h2 className="text-xl font-semibold text-card-foreground">Organization Not Found</h2>
+            <p className="text-muted-foreground text-sm">
+              The organization URL you're trying to access doesn't exist. Enter the correct organization code below.
             </p>
+
+            <div className="space-y-2 text-left">
+              <Label htmlFor="orgSlugInput" className="text-card-foreground font-medium text-sm">Organization Code</Label>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground text-sm whitespace-nowrap shrink-0">app.lovable.app /</span>
+                <Input
+                  id="orgSlugInput"
+                  value={inputSlug}
+                  onChange={(e) => setInputSlug(e.target.value)}
+                  placeholder="your-org-slug"
+                  className="h-10"
+                  onKeyDown={(e) => e.key === "Enter" && handleGoToOrgLogin()}
+                />
+              </div>
+            </div>
+
+            <Button 
+              onClick={handleGoToOrgLogin} 
+              className="w-full"
+              disabled={!inputSlug.trim()}
+            >
+              Go to Organization Login
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
             <Button 
               onClick={() => navigate("/auth")} 
+              variant="outline"
               className="w-full"
             >
               Go to General Login
