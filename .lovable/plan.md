@@ -1,21 +1,51 @@
 
 
-# Fix "Organization Not Found" Screen
+## Fix: Loading Spinner Stuck After User Creation + Login Page Not Appearing
 
-## Problem
-When users navigate to an incorrect organization URL (e.g., typo in slug), they see an "Organization Not Found" error with only a "Go to General Login" button. This is unhelpful -- users need a way to enter the correct org slug and go directly to their login page.
+### Problem
+After creating an organization and user, when visiting the org auth URL (e.g., `/adtechagency`), the page gets stuck on an infinite loading spinner instead of showing the login form. This prevents logging in with a different account.
 
-## Solution
-Update the "Organization Not Found" error screen in `OrgAuth.tsx` to include:
-1. An input field where users can type their correct organization slug
-2. A "Go to Login" button that navigates to `/{slug}` 
-3. Keep the existing "Go to General Login" button as a secondary option
+### Root Cause
+The `OrgLayout` component shows a loading spinner while `authLoading || orgLoading` is true. After sign-out or session transitions, there can be a race condition where:
+1. `authLoading` from `AuthContext` doesn't resolve to `false` quickly enough
+2. The `OrgLayout` waits for both auth AND org loading, even when there's no user (org loading is irrelevant without a user)
+3. The `checkUserMembership` effect in `OrgAuth` signs out non-members, but the loading state doesn't reset properly
 
-## File Changes
+### Solution
 
-**`src/pages/OrgAuth.tsx`** -- Update the `!organization` error block (around lines 230-248):
-- Add a text input for entering the org slug (pre-filled with the current incorrect slug for easy editing)
-- Add a "Go to Organization Login" primary button
-- Change "Go to General Login" to a secondary/outline button
-- Show the domain prefix (e.g., `inventoryshop.in/`) for clarity, matching the OrganizationSetup pattern
+**1. Fix `OrgLayout.tsx`** - Prioritize auth state over org loading:
+- If auth is done loading and there's NO user, immediately render `<OrgAuth />` without waiting for org loading
+- This prevents the spinner from blocking the login page when the user is logged out
+
+```tsx
+// Current (broken):
+if (authLoading || orgLoading) {
+  return <Loader2 spinner />;
+}
+
+// Fixed:
+if (authLoading) {
+  return <Loader2 spinner />;
+}
+if (!user) {
+  return <OrgAuth />;
+}
+if (orgLoading) {
+  return <Loader2 spinner />;
+}
+```
+
+**2. Fix `OrgAuth.tsx`** - Ensure loading state resets after membership check sign-out:
+- When `checkUserMembership` signs out a non-member, ensure the component properly shows the login form
+- Add a local state to track when the membership check has completed to avoid re-triggering
+
+### Files to Modify
+- `src/components/OrgLayout.tsx` - Reorder auth/loading checks
+- `src/pages/OrgAuth.tsx` - Improve membership check flow and loading reset
+
+### Technical Details
+The fix separates the loading logic so that:
+1. First, wait only for auth to load
+2. If no user after auth loads, show login immediately (skip org loading)
+3. Only wait for org loading when a user IS authenticated
 
