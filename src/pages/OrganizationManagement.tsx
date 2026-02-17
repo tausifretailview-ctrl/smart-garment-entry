@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Building2, Crown, Users, Plus, Loader2, UserX, Copy } from "lucide-react";
+import { Building2, Crown, Users, Plus, Loader2, UserX, Copy, Eye, EyeOff } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const AVAILABLE_FEATURES = [
@@ -33,6 +33,7 @@ export default function OrganizationManagement() {
   const [isAddExistingUserOpen, setIsAddExistingUserOpen] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserPassword, setNewUserPassword] = useState("");
+  const [showNewUserPassword, setShowNewUserPassword] = useState(false);
   const [existingUserEmail, setExistingUserEmail] = useState("");
   const [newUserRole, setNewUserRole] = useState<"admin" | "manager" | "user">("user");
   const [existingUserRole, setExistingUserRole] = useState<"admin" | "manager" | "user">("user");
@@ -503,13 +504,24 @@ export default function OrganizationManagement() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="password">Temporary Password</Label>
-                      <Input
-                        id="password"
-                        type="password"
-                        placeholder="Enter a secure password"
-                        value={newUserPassword}
-                        onChange={(e) => setNewUserPassword(e.target.value)}
-                      />
+                      <div className="relative">
+                        <Input
+                          id="password"
+                          type={showNewUserPassword ? "text" : "password"}
+                          placeholder="Enter a secure password"
+                          value={newUserPassword}
+                          onChange={(e) => setNewUserPassword(e.target.value)}
+                          className="pr-10"
+                        />
+                        <button
+                          type="button"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          onClick={() => setShowNewUserPassword(!showNewUserPassword)}
+                          tabIndex={-1}
+                        >
+                          {showNewUserPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         User can change this after first login
                       </p>
