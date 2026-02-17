@@ -235,7 +235,7 @@ const DesktopDashboard = () => {
     {
       label: "Size-wise Stock",
       icon: Layers,
-      onClick: () => navigate("/stock-report?tab=size-wise"),
+      onClick: () => navigate("/stock-report?tab=sizewise"),
     },
     { label: "", separator: true, onClick: () => {} },
     {

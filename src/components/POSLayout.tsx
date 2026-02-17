@@ -198,7 +198,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  onClick={() => orgNavigate("/stock-report?tab=size-wise")}
+                  onClick={() => orgNavigate("/stock-report?tab=sizewise")}
                   className="text-primary-foreground hover:bg-primary/80 gap-1"
                 >
                   <LayoutGrid className="h-4 w-4" />
