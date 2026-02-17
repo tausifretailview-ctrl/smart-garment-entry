@@ -1,115 +1,77 @@
 
 
-## Point-in-Time Inventory: `balance_after` on Stock Movements
+## Stock Health Widget + User ID Audit Enhancement
 
-### Concept
+### Phase A: Add `user_id` Column to `stock_movements`
 
-Add a `balance_after` column to `stock_movements` so every row records the resulting stock level after that movement. This enables instant historical queries like "What was stock for item X on Friday at 4 PM?" without recalculating from the beginning.
+**Database Migration:**
 
-### Why This Is Not Straightforward
+1. Add a nullable `user_id UUID` column to `stock_movements`
+2. Update all 20 functions that INSERT into `stock_movements` to include `user_id = auth.uid()`
 
-Before recommending implementation, here are the real engineering challenges:
+**Functions to update (adding `user_id` to every INSERT INTO stock_movements):**
 
-**Problem 1: FIFO Creates Multiple Rows Per Transaction**
+Trigger functions (12):
+- `update_stock_on_purchase()`
+- `handle_purchase_item_update()`
+- `handle_purchase_item_delete()`
+- `update_stock_on_sale()`
+- `handle_sale_item_update()`
+- `handle_sale_item_delete()`
+- `restore_stock_on_sale_return()`
+- `handle_sale_return_item_delete()`
+- `deduct_stock_on_purchase_return()`
+- `handle_purchase_return_item_delete()`
+- `update_stock_on_challan()`
+- `handle_challan_item_delete()`
 
-A single sale can create up to **14 movement rows** for the same variant (one per batch deducted). The current triggers insert these movement rows inside a loop BEFORE the final `stock_qty` UPDATE happens. So during insertion, the "correct" balance_after isn't yet committed.
+Soft-delete/restore functions (8):
+- `soft_delete_sale()`
+- `restore_sale()`
+- `soft_delete_purchase_bill()`
+- `restore_purchase_bill()`
+- `soft_delete_sale_return()`
+- `restore_sale_return()`
+- `soft_delete_purchase_return()`
+- `restore_purchase_return()`
 
-Example: Variant has stock=50. Sale of 10 units deducts from 3 batches:
-- Row 1: -4 from batch A (balance_after should be 46)
-- Row 2: -3 from batch B (balance_after should be 43)  
-- Row 3: -3 from batch C (balance_after should be 40)
+Reconciliation functions (2):
+- `fix_stock_discrepancies()`
+- `reset_stock_from_transactions()` (if it inserts movements)
 
-Each row needs a different value, and all are inserted before the `UPDATE product_variants SET stock_qty = stock_qty - 10` executes.
-
-**Problem 2: Concurrent Transactions Race**
-
-If two sales for the same variant happen simultaneously, both triggers read `stock_qty = 50` at the start. Both would calculate `balance_after` based on 50, producing incorrect values. Currently 1,432 timestamp collisions exist in the data, confirming this happens in practice.
-
-**Problem 3: Reconciliation Invalidates History**
-
-When `fix_stock_discrepancies()` corrects `stock_qty`, all previous `balance_after` values become retroactively wrong. You'd need to rewrite history or accept that `balance_after` is only accurate going forward.
-
-**Problem 4: Massive Trigger Surface Change**
-
-All 12 stock-affecting trigger functions would need modification. Each has different INSERT patterns (loop-based for FIFO, single for simple operations). This is a high-risk change across ~500 lines of trigger SQL.
-
----
-
-### Recommended Approach: Computed, Not Stored
-
-Instead of modifying all 12 triggers, create a **database function** that calculates point-in-time stock on demand:
-
-```sql
-CREATE FUNCTION get_stock_at_time(
-  p_variant_id UUID, 
-  p_timestamp TIMESTAMPTZ
-) RETURNS INTEGER
-```
-
-This function would:
-1. Start from `product_variants.opening_qty`
-2. Sum all `stock_movements.quantity` for that variant where `created_at <= p_timestamp`
-3. Exclude `movement_type = 'reconciliation'`
-4. Return the result
-
-**Why this works better:**
-- Zero trigger changes (no risk to existing stock logic)
-- Always accurate (computed from source of truth)
-- Works retroactively on all 55,000 existing movements
-- No race condition issues
-- No reconciliation invalidation
-
-**Performance:** With the existing `idx_stock_movements_org_date` index, this query scans a small subset of movements per variant. Average ~7 movements per variant currently (55K / 8.2K variants).
+**Risk:** Very low. Adding a nullable column is non-breaking. `auth.uid()` returns NULL in non-authenticated contexts (like background jobs), which is acceptable since the column is nullable. All existing data keeps `user_id = NULL`.
 
 ---
 
-### Implementation Plan
+### Phase B: Stock Health Summary Widget
 
-**Step 1 -- Database function (migration)**
+Add a summary section at the top of the Stock Reconciliation card that loads on mount and shows:
 
-Create `get_stock_at_time(p_variant_id, p_timestamp)` that returns the computed stock level at any point in time. Also create `get_stock_at_time_batch(p_variant_ids UUID[], p_timestamp)` for bulk queries.
+- **Total Variants** -- count of active product variants
+- **Discrepancies** -- count from `detect_stock_discrepancies()` (already exists)
+- **Last Reconciliation** -- timestamp of the most recent `movement_type = 'reconciliation'` entry
+- **Health Status** -- green checkmark if 0 discrepancies, yellow warning if any exist
 
-**Step 2 -- Add index for per-variant time queries**
-
-```sql
-CREATE INDEX idx_stock_movements_variant_time 
-ON stock_movements(variant_id, created_at);
-```
-
-**Step 3 -- Stock History Ledger View (optional UI enhancement)**
-
-A new component or report page that shows a variant's full movement history with running balance, computed at query time using a window function:
-
-```sql
-SELECT *, 
-  opening_qty + SUM(quantity) OVER (
-    ORDER BY created_at 
-    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-  ) as balance_after
-FROM stock_movements 
-WHERE variant_id = ? 
-ORDER BY created_at;
-```
-
-This gives the exact `balance_after` for every row without storing it, with perfect accuracy.
+This auto-loads when the component mounts, giving admins an instant health overview without needing to click "Scan."
 
 ---
 
-### What We Will NOT Do
+### Technical Details
 
-- Will not modify any of the 12 stock trigger functions
-- Will not add a stored `balance_after` column (risk outweighs benefit at current scale)
-- Will not change any existing stock logic
-- Will not backfill historical data (the computed approach works retroactively)
+**Migration SQL will:**
+1. `ALTER TABLE stock_movements ADD COLUMN user_id UUID;`
+2. Re-create all 20 functions with `user_id` added to every `INSERT INTO stock_movements` statement
+3. Each INSERT gets `, user_id` in the column list and `, auth.uid()` in the VALUES
+
+**UI changes in `src/components/StockReconciliation.tsx`:**
+1. Add `useEffect` to fetch health summary on mount
+2. Query total variant count, discrepancy count, and last reconciliation timestamp
+3. Render 3 stat cards above the existing action buttons
 
 ### Files to Modify
 
 | File | Change |
 |------|--------|
-| `supabase/migrations/` | New function `get_stock_at_time()` + index |
-| No application files | Function is available for future report pages |
-
-### When to Revisit Stored `balance_after`
-
-If query volume for point-in-time lookups becomes high (hundreds per minute) AND per-variant movement counts exceed 1,000+ rows, then adding a stored column with careful trigger ordering becomes worthwhile. At current scale (avg 7 movements/variant), computation is instant.
+| `supabase/migrations/` | New migration: add `user_id` column + update all 20 functions |
+| `src/components/StockReconciliation.tsx` | Add stock health summary widget with auto-load |
 
