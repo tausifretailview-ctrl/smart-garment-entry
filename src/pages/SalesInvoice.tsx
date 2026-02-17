@@ -1957,7 +1957,7 @@ Thank you for choosing us!`;
           {/* 6-col compact form */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-3">
             {/* Customer Selection */}
-            <div>
+            <div className="col-span-2 md:col-span-1 lg:col-span-2">
               <div className="flex items-center justify-between mb-1">
                 <Label>Customer<span className="text-destructive">*</span></Label>
                 <div className="flex items-center gap-2">
