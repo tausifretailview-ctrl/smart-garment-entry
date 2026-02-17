@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Building2, Users, Plus, Shield, Edit, UserX, Link2, Settings, Database, FileText, Activity, Download } from "lucide-react";
+import { Building2, Users, Plus, Shield, Edit, UserX, Link2, Settings, Database, FileText, Activity, Download, Eye, EyeOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -252,6 +252,7 @@ export default function PlatformAdmin() {
   
   const [userEmail, setUserEmail] = useState("");
   const [userPassword, setUserPassword] = useState("");
+  const [showUserPassword, setShowUserPassword] = useState(false);
   const [userOrgId, setUserOrgId] = useState("");
   const [userRole, setUserRole] = useState<"admin" | "manager" | "user">("user");
 
@@ -812,13 +813,24 @@ export default function PlatformAdmin() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="userPassword">Temporary Password *</Label>
-                      <Input
-                        id="userPassword"
-                        type="password"
-                        value={userPassword}
-                        onChange={(e) => setUserPassword(e.target.value)}
-                        placeholder="Enter temporary password"
-                      />
+                      <div className="relative">
+                        <Input
+                          id="userPassword"
+                          type={showUserPassword ? "text" : "password"}
+                          value={userPassword}
+                          onChange={(e) => setUserPassword(e.target.value)}
+                          placeholder="Enter temporary password"
+                          className="pr-10"
+                        />
+                        <button
+                          type="button"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          onClick={() => setShowUserPassword(!showUserPassword)}
+                          tabIndex={-1}
+                        >
+                          {showUserPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="userOrg">Organization *</Label>
