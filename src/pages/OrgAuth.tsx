@@ -110,30 +110,34 @@ export default function OrgAuth() {
     fetchOrganization();
   }, [orgSlug]);
 
+  // Track if membership check already ran to avoid re-triggering after sign-out
+  const [membershipChecked, setMembershipChecked] = useState(false);
+
   useEffect(() => {
     const checkUserMembership = async () => {
-      if (user && organization) {
-        const { data: membership } = await supabase
-          .from("organization_members")
-          .select("id")
-          .eq("user_id", user.id)
-          .eq("organization_id", organization.id)
-          .single();
+      if (!user || !organization || membershipChecked) return;
+
+      setMembershipChecked(true);
+
+      const { data: membership } = await supabase
+        .from("organization_members")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("organization_id", organization.id)
+        .single();
 
       if (membership) {
-          // Store in both localStorage and sessionStorage for PWA resilience
-          localStorage.setItem("selectedOrgSlug", organization.slug);
-          sessionStorage.setItem("selectedOrgSlug", organization.slug);
-          navigate(`/${organization.slug}`);
-        } else {
-          setError("You are not a member of this organization. Please contact your administrator.");
-          await supabase.auth.signOut();
-        }
+        localStorage.setItem("selectedOrgSlug", organization.slug);
+        sessionStorage.setItem("selectedOrgSlug", organization.slug);
+        navigate(`/${organization.slug}`);
+      } else {
+        setError("You are not a member of this organization. Please contact your administrator.");
+        await supabase.auth.signOut();
       }
     };
 
     checkUserMembership();
-  }, [user, organization, navigate]);
+  }, [user, organization, navigate, membershipChecked]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();

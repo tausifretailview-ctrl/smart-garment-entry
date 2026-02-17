@@ -54,8 +54,8 @@ export const OrgLayout = () => {
     return <Outlet />;
   }
 
-  // Show loading while auth or org data is being fetched
-  if (authLoading || orgLoading) {
+  // Show loading only while auth is being determined
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -63,9 +63,18 @@ export const OrgLayout = () => {
     );
   }
 
-  // If not logged in, render org login page directly (avoid redirect loop)
+  // If not logged in, render org login page immediately (don't wait for orgLoading)
   if (!user) {
     return <OrgAuth />;
+  }
+
+  // Only wait for org loading when user IS authenticated
+  if (orgLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   // Check if user belongs to this organization
