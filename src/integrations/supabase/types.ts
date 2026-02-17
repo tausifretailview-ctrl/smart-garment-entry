@@ -5759,6 +5759,17 @@ export type Database = {
           sample_references: string[]
         }[]
       }
+      get_stock_at_time: {
+        Args: { p_timestamp: string; p_variant_id: string }
+        Returns: number
+      }
+      get_stock_at_time_batch: {
+        Args: { p_timestamp: string; p_variant_ids: string[] }
+        Returns: {
+          stock_at_time: number
+          variant_id: string
+        }[]
+      }
       get_user_organization_ids: {
         Args: { user_id: string }
         Returns: string[]
