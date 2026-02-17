@@ -209,7 +209,7 @@ export function CustomerHistoryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-6xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-3 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <ShoppingCart className="h-6 w-6 text-primary" />
@@ -227,41 +227,41 @@ export function CustomerHistoryDialog({
             return sum;
           }, 0);
           return (
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-3 py-3">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 sm:gap-3 py-3">
               <Card className="border-l-4 border-l-blue-500">
-                <CardContent className="p-3">
-                  <p className="text-xs text-muted-foreground">Opening Bal</p>
-                  <p className="text-base font-bold text-blue-600">₹{openingBalance.toFixed(2)}</p>
+                <CardContent className="p-2 sm:p-3">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Opening Bal</p>
+                  <p className="text-sm sm:text-base font-bold text-blue-600 truncate">₹{openingBalance.toFixed(2)}</p>
                 </CardContent>
               </Card>
               <Card className="border-l-4 border-l-green-500">
-                <CardContent className="p-3">
-                  <p className="text-xs text-muted-foreground">Total Sales</p>
-                  <p className="text-base font-bold text-green-600">₹{totalSales.toFixed(2)}</p>
+                <CardContent className="p-2 sm:p-3">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Sales</p>
+                  <p className="text-sm sm:text-base font-bold text-green-600 truncate">₹{totalSales.toFixed(2)}</p>
                 </CardContent>
               </Card>
               <Card className="border-l-4 border-l-purple-500">
-                <CardContent className="p-3">
-                  <p className="text-xs text-muted-foreground">Total Paid</p>
-                  <p className="text-base font-bold text-purple-600">₹{totalPaid.toFixed(2)}</p>
+                <CardContent className="p-2 sm:p-3">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Paid</p>
+                  <p className="text-sm sm:text-base font-bold text-purple-600 truncate">₹{totalPaid.toFixed(2)}</p>
                 </CardContent>
               </Card>
               <Card className="border-l-4 border-l-orange-500">
-                <CardContent className="p-3">
-                  <p className="text-xs text-muted-foreground">Advance</p>
-                  <p className="text-base font-bold text-orange-600">₹{advanceBalance.toFixed(2)}</p>
+                <CardContent className="p-2 sm:p-3">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Advance</p>
+                  <p className="text-sm sm:text-base font-bold text-orange-600 truncate">₹{advanceBalance.toFixed(2)}</p>
                 </CardContent>
               </Card>
               <Card className="border-l-4 border-l-pink-500">
-                <CardContent className="p-3">
-                  <p className="text-xs text-muted-foreground">CR Pending</p>
-                  <p className="text-base font-bold text-pink-600">₹{crPending.toFixed(2)}</p>
+                <CardContent className="p-2 sm:p-3">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground truncate">CR Pending</p>
+                  <p className="text-sm sm:text-base font-bold text-pink-600 truncate">₹{crPending.toFixed(2)}</p>
                 </CardContent>
               </Card>
               <Card className={`border-l-4 ${balance > 0 ? 'border-l-red-500' : 'border-l-emerald-500'}`}>
-                <CardContent className="p-3">
-                  <p className="text-xs text-muted-foreground">Current Bal</p>
-                  <p className={`text-base font-bold ${balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                <CardContent className="p-2 sm:p-3">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Current Bal</p>
+                  <p className={`text-sm sm:text-base font-bold truncate ${balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                     ₹{Math.abs(balance).toFixed(2)}
                     {balance < 0 && ' CR'}
                   </p>
@@ -273,32 +273,34 @@ export function CustomerHistoryDialog({
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 overflow-hidden flex flex-col">
-          <TabsList className="grid grid-cols-6 w-full">
-            <TabsTrigger value="sales" className="gap-1 text-xs">
-              <Receipt className="h-3 w-3" />
-              Sales ({salesHistory?.length || 0})
-            </TabsTrigger>
-            <TabsTrigger value="legacy" className="gap-1 text-xs">
-              <History className="h-3 w-3" />
-              Legacy ({legacyInvoices?.length || 0})
-            </TabsTrigger>
-            <TabsTrigger value="payments" className="gap-1 text-xs">
-              <IndianRupee className="h-3 w-3" />
-              Payments ({paymentHistory?.length || 0})
-            </TabsTrigger>
-            <TabsTrigger value="returns" className="gap-1 text-xs">
-              <RotateCcw className="h-3 w-3" />
-              Returns ({saleReturns?.length || 0})
-            </TabsTrigger>
-            <TabsTrigger value="credit-notes" className="gap-1 text-xs">
-              <FileText className="h-3 w-3" />
-              C/Notes ({creditNotes?.length || 0})
-            </TabsTrigger>
-            <TabsTrigger value="refunds" className="gap-1 text-xs">
-              <CreditCard className="h-3 w-3" />
-              Refunds ({refunds.length})
-            </TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto -mx-1 px-1">
+            <TabsList className="inline-flex w-auto min-w-full sm:grid sm:grid-cols-6 sm:w-full">
+              <TabsTrigger value="sales" className="gap-1 text-xs whitespace-nowrap">
+                <Receipt className="h-3 w-3 hidden sm:block" />
+                Sales ({salesHistory?.length || 0})
+              </TabsTrigger>
+              <TabsTrigger value="legacy" className="gap-1 text-xs whitespace-nowrap">
+                <History className="h-3 w-3 hidden sm:block" />
+                Legacy ({legacyInvoices?.length || 0})
+              </TabsTrigger>
+              <TabsTrigger value="payments" className="gap-1 text-xs whitespace-nowrap">
+                <IndianRupee className="h-3 w-3 hidden sm:block" />
+                Payments ({paymentHistory?.length || 0})
+              </TabsTrigger>
+              <TabsTrigger value="returns" className="gap-1 text-xs whitespace-nowrap">
+                <RotateCcw className="h-3 w-3 hidden sm:block" />
+                Returns ({saleReturns?.length || 0})
+              </TabsTrigger>
+              <TabsTrigger value="credit-notes" className="gap-1 text-xs whitespace-nowrap">
+                <FileText className="h-3 w-3 hidden sm:block" />
+                C/Notes ({creditNotes?.length || 0})
+              </TabsTrigger>
+              <TabsTrigger value="refunds" className="gap-1 text-xs whitespace-nowrap">
+                <CreditCard className="h-3 w-3 hidden sm:block" />
+                Refunds ({refunds.length})
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <ScrollArea className="flex-1 mt-3 h-[55vh]">
             {/* Sales Tab */}
