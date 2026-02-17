@@ -2358,14 +2358,14 @@ Thank you for choosing us!`;
                 <TableHead className="w-14 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Color</TableHead>
                 <TableHead className="w-24 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Barcode</TableHead>
                 <TableHead className="px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">HSN</TableHead>
-                <TableHead className="w-16 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Qty</TableHead>
-                <TableHead className="w-14 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Box</TableHead>
-                <TableHead className="w-18 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">MRP</TableHead>
-                <TableHead className="w-20 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Price</TableHead>
-                <TableHead className="w-14 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Disc %</TableHead>
-                <TableHead className="w-18 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Disc ₹</TableHead>
-                <TableHead className="w-14 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">GST %</TableHead>
-                <TableHead className="w-22 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9 text-right">Total</TableHead>
+                <TableHead className="w-20 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Qty</TableHead>
+                <TableHead className="w-16 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Box</TableHead>
+                <TableHead className="w-24 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">MRP</TableHead>
+                <TableHead className="w-24 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Price</TableHead>
+                <TableHead className="w-20 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Disc %</TableHead>
+                <TableHead className="w-24 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Disc ₹</TableHead>
+                <TableHead className="w-18 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">GST %</TableHead>
+                <TableHead className="w-24 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9 text-right">Total</TableHead>
                 <TableHead className="w-8 px-1 py-2 h-9"></TableHead>
               </TableRow>
             </TableHeader>
@@ -2410,7 +2410,7 @@ Thank you for choosing us!`;
                             placeholder="1"
                             onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-14 h-7 text-[13px] tabular-nums rounded-md"
+                            className="w-[72px] h-7 text-[13px] tabular-nums rounded-md"
                           />
                         )}
                       </TableCell>
@@ -2434,7 +2434,7 @@ Thank you for choosing us!`;
                             placeholder="0"
                             onChange={(e) => updateMRP(item.id, parseFloat(e.target.value) || 0)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-16 h-7 text-[13px] tabular-nums text-right rounded-md"
+                            className="w-[84px] h-7 text-[13px] tabular-nums text-right rounded-md"
                           />
                         ) : '-'}
                       </TableCell>
@@ -2447,7 +2447,7 @@ Thank you for choosing us!`;
                             placeholder="0"
                             onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-16 h-7 text-[13px] tabular-nums text-right rounded-md"
+                            className="w-[84px] h-7 text-[13px] tabular-nums text-right rounded-md"
                           />
                         ) : '-'}
                       </TableCell>
@@ -2461,7 +2461,7 @@ Thank you for choosing us!`;
                             placeholder="0"
                             onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-12 h-7 text-[13px] tabular-nums rounded-md"
+                            className="w-[68px] h-7 text-[13px] tabular-nums rounded-md"
                           />
                         )}
                       </TableCell>
@@ -2474,7 +2474,7 @@ Thank you for choosing us!`;
                             placeholder="0"
                             onChange={(e) => updateDiscountAmount(item.id, parseFloat(e.target.value) || 0)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-16 h-7 text-[13px] tabular-nums rounded-md"
+                            className="w-[84px] h-7 text-[13px] tabular-nums rounded-md"
                           />
                         )}
                       </TableCell>
@@ -2488,7 +2488,7 @@ Thank you for choosing us!`;
                             placeholder="0"
                             onChange={(e) => updateGSTPercent(item.id, parseFloat(e.target.value) || 0)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-12 h-7 text-[13px] tabular-nums rounded-md"
+                            className="w-[60px] h-7 text-[13px] tabular-nums rounded-md"
                           />
                         ) : `${item.gstPercent}%`}
                       </TableCell>
