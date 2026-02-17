@@ -83,7 +83,7 @@ export default function SalesAnalyticsDashboard() {
       if (!currentOrganization?.id) return [];
       const { data, error } = await supabase
         .from("sales")
-        .select("*")
+        .select("id, sale_date, sale_number, customer_name, customer_id, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, payment_method, payment_status, sale_type")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .gte("sale_date", format(dateRange.start, "yyyy-MM-dd"))

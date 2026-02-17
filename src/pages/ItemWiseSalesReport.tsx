@@ -154,6 +154,11 @@ export default function ItemWiseSalesReport() {
       if (salesError) throw salesError;
       if (!salesData || salesData.length === 0) return [];
 
+      // Row count guard: warn if too many sales
+      if (salesData.length > 5000) {
+        console.warn(`ItemWiseSalesReport: ${salesData.length} sales found - consider narrowing date range`);
+      }
+
       const saleIds = salesData.map((s) => s.id);
       const salesMap = new Map(salesData.map(s => [s.id, s.customer_name]));
 

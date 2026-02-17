@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card } from "@/components/ui/card";
@@ -12,10 +13,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Barcode } from "lucide-react";
+import { Search, Barcode, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { format } from "date-fns";
+import { format, subDays } from "date-fns";
 import { ColumnDef } from "@tanstack/react-table";
 import { ERPTable } from "@/components/erp-table";
 
@@ -30,7 +31,6 @@ interface MovementRecord {
   product_name: string;
   size: string;
   barcode: string;
-  running_balance: number;
   category: string;
   brand: string;
 }
@@ -119,15 +119,6 @@ const columns: ColumnDef<MovementRecord, any>[] = [
     ),
   },
   {
-    id: "balance",
-    accessorKey: "running_balance",
-    header: "Balance",
-    size: 100,
-    cell: ({ getValue }) => (
-      <span className="text-right font-bold block">{getValue()}</span>
-    ),
-  },
-  {
     id: "notes",
     accessorKey: "notes",
     header: "Notes",
@@ -140,39 +131,66 @@ const columns: ColumnDef<MovementRecord, any>[] = [
   },
 ];
 
+const PAGE_SIZE = 100;
+const MAX_DATE_RANGE_DAYS = 90;
+
 const ProductTrackingReport = () => {
   const { currentOrganization } = useOrganization();
-  const [movements, setMovements] = useState<MovementRecord[]>([]);
-  const [filteredMovements, setFilteredMovements] = useState<MovementRecord[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchBarcode, setSearchBarcode] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), "yyyy-MM-dd"));
+  const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [movementTypeFilter, setMovementTypeFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(25);
 
-  useEffect(() => {
-    if (currentOrganization) {
-      fetchMovements();
-    }
-  }, [currentOrganization]);
+  // Validate date range
+  const dateRangeError = useMemo(() => {
+    if (!startDate || !endDate) return "Please select a date range";
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (end < start) return "End date must be after start date";
+    const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays > MAX_DATE_RANGE_DAYS) return `Date range cannot exceed ${MAX_DATE_RANGE_DAYS} days`;
+    return null;
+  }, [startDate, endDate]);
 
-  useEffect(() => {
-    applyFilters();
-  }, [movements, searchBarcode, startDate, endDate, movementTypeFilter, categoryFilter, brandFilter]);
+  // Fetch category/brand options from products (lightweight)
+  const { data: filterOptions } = useQuery({
+    queryKey: ["product-tracking-filters", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return { categories: [], brands: [] };
+      const { data } = await supabase
+        .from("products")
+        .select("category, brand")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
+      const categories = [...new Set((data || []).map(p => p.category).filter(Boolean))].sort() as string[];
+      const brands = [...new Set((data || []).map(p => p.brand).filter(Boolean))].sort() as string[];
+      return { categories, brands };
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 60000,
+  });
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchBarcode, startDate, endDate, movementTypeFilter, categoryFilter, brandFilter, itemsPerPage]);
+  // Server-side paginated query
+  const { data: queryResult, isLoading } = useQuery({
+    queryKey: [
+      "product-tracking",
+      currentOrganization?.id,
+      startDate,
+      endDate,
+      searchBarcode,
+      movementTypeFilter,
+      categoryFilter,
+      brandFilter,
+      currentPage,
+    ],
+    queryFn: async () => {
+      if (!currentOrganization?.id || dateRangeError) return { data: [], totalCount: 0 };
 
-  const fetchMovements = async () => {
-    try {
-      setLoading(true);
-
-      const { data, error } = await supabase
+      // Build the query with server-side filters
+      let query = supabase
         .from("stock_movements")
         .select(`
           id,
@@ -185,7 +203,6 @@ const ProductTrackingReport = () => {
           product_variants!inner (
             barcode,
             size,
-            product_id,
             products!inner (
               product_name,
               organization_id,
@@ -193,128 +210,75 @@ const ProductTrackingReport = () => {
               brand
             )
           )
-        `)
+        `, { count: "exact" })
         .eq("product_variants.products.organization_id", currentOrganization.id)
-        .order("created_at", { ascending: true });
+        .gte("created_at", startDate + "T00:00:00")
+        .lte("created_at", endDate + "T23:59:59")
+        .order("created_at", { ascending: false });
+
+      // Server-side filters
+      if (movementTypeFilter !== "all") {
+        query = query.eq("movement_type", movementTypeFilter);
+      }
+
+      if (searchBarcode) {
+        // Search across barcode and product name via the join
+        query = query.or(
+          `barcode.ilike.%${searchBarcode}%,products.product_name.ilike.%${searchBarcode}%`,
+          { referencedTable: "product_variants" }
+        );
+      }
+
+      if (categoryFilter !== "all") {
+        query = query.eq("product_variants.products.category", categoryFilter);
+      }
+
+      if (brandFilter !== "all") {
+        query = query.eq("product_variants.products.brand", brandFilter);
+      }
+
+      // Server-side pagination
+      const from = (currentPage - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      query = query.range(from, to);
+
+      const { data, error, count } = await query;
 
       if (error) throw error;
 
-      const movementsByVariant: { [key: string]: MovementRecord[] } = {};
-      
-      data?.forEach((movement: any) => {
-        const variantId = movement.variant_id;
-        if (!movementsByVariant[variantId]) {
-          movementsByVariant[variantId] = [];
-        }
+      const movements: MovementRecord[] = (data || []).map((movement: any) => ({
+        id: movement.id,
+        created_at: movement.created_at,
+        movement_type: movement.movement_type,
+        quantity: movement.quantity,
+        bill_number: movement.bill_number,
+        notes: movement.notes,
+        variant_id: movement.variant_id,
+        product_name: movement.product_variants.products.product_name,
+        size: movement.product_variants.size,
+        barcode: movement.product_variants.barcode || "",
+        category: movement.product_variants.products.category || "",
+        brand: movement.product_variants.products.brand || "",
+      }));
 
-        let runningBalance = 0;
-        if (movementsByVariant[variantId].length > 0) {
-          runningBalance = movementsByVariant[variantId][movementsByVariant[variantId].length - 1].running_balance;
-        }
+      return { data: movements, totalCount: count || 0 };
+    },
+    enabled: !!currentOrganization?.id && !dateRangeError,
+  });
 
-        if (movement.movement_type === 'purchase') {
-          runningBalance += movement.quantity;
-        } else if (movement.movement_type === 'sale') {
-          runningBalance += movement.quantity;
-        }
+  const movements = queryResult?.data || [];
+  const totalCount = queryResult?.totalCount || 0;
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
-        movementsByVariant[variantId].push({
-          id: movement.id,
-          created_at: movement.created_at,
-          movement_type: movement.movement_type,
-          quantity: movement.quantity,
-          bill_number: movement.bill_number,
-          notes: movement.notes,
-          variant_id: movement.variant_id,
-          product_name: movement.product_variants.products.product_name,
-          size: movement.product_variants.size,
-          barcode: movement.product_variants.barcode || "",
-          running_balance: runningBalance,
-          category: movement.product_variants.products.category || "",
-          brand: movement.product_variants.products.brand || "",
-        });
-      });
+  // Reset page when filters change
+  const handleFilterChange = useCallback((setter: (v: string) => void) => {
+    return (value: string) => {
+      setter(value);
+      setCurrentPage(1);
+    };
+  }, []);
 
-      const allMovements: MovementRecord[] = [];
-      Object.values(movementsByVariant).forEach(variantMovements => {
-        allMovements.push(...variantMovements);
-      });
-
-      allMovements.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-      setMovements(allMovements);
-    } catch (error: any) {
-      console.error("Error fetching movements:", error);
-      toast.error("Failed to load product tracking data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const applyFilters = () => {
-    let filtered = [...movements];
-
-    if (searchBarcode) {
-      filtered = filtered.filter(
-        (m) =>
-          m.barcode?.toLowerCase().includes(searchBarcode.toLowerCase()) ||
-          m.product_name.toLowerCase().includes(searchBarcode.toLowerCase()) ||
-          m.size.toLowerCase().includes(searchBarcode.toLowerCase())
-      );
-    }
-
-    if (movementTypeFilter !== "all") {
-      filtered = filtered.filter((m) => m.movement_type === movementTypeFilter);
-    }
-
-    if (categoryFilter !== "all") {
-      filtered = filtered.filter((m) => m.category === categoryFilter);
-    }
-
-    if (brandFilter !== "all") {
-      filtered = filtered.filter((m) => m.brand === brandFilter);
-    }
-
-    if (startDate) {
-      filtered = filtered.filter(
-        (m) => new Date(m.created_at) >= new Date(startDate)
-      );
-    }
-
-    if (endDate) {
-      filtered = filtered.filter(
-        (m) => new Date(m.created_at) <= new Date(endDate + "T23:59:59")
-      );
-    }
-
-    setFilteredMovements(filtered);
-  };
-
-  const totalPages = Math.ceil(filteredMovements.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedMovements = filteredMovements.slice(startIndex, endIndex);
-
-  const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
-    }
-  };
-
-  const handlePreviousPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
-    }
-  };
-
-  const handlePageSizeChange = (value: string) => {
-    setItemsPerPage(Number(value));
-  };
-
-  const uniqueCategories = Array.from(new Set(movements.map(m => m.category).filter(Boolean)));
-  const uniqueBrands = Array.from(new Set(movements.map(m => m.brand).filter(Boolean)));
-
-  if (loading) {
+  if (isLoading && !movements.length) {
     return (
       <div className="p-8 space-y-6">
         <Skeleton className="h-10 w-64" />
@@ -332,7 +296,7 @@ const ProductTrackingReport = () => {
               Product Tracking Report
             </h1>
             <p className="text-muted-foreground mt-1">
-              Track product movements with credit, debit, and balance details
+              Track product movements with credit and debit details
             </p>
           </div>
           <BackToDashboard />
@@ -348,7 +312,7 @@ const ProductTrackingReport = () => {
                 <Input
                   placeholder="Enter barcode or product name..."
                   value={searchBarcode}
-                  onChange={(e) => setSearchBarcode(e.target.value)}
+                  onChange={(e) => { setSearchBarcode(e.target.value); setCurrentPage(1); }}
                   className="pl-10"
                 />
               </div>
@@ -356,7 +320,7 @@ const ProductTrackingReport = () => {
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Movement Type</label>
-              <Select value={movementTypeFilter} onValueChange={setMovementTypeFilter}>
+              <Select value={movementTypeFilter} onValueChange={handleFilterChange(setMovementTypeFilter)}>
                 <SelectTrigger>
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
@@ -370,13 +334,13 @@ const ProductTrackingReport = () => {
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Category</label>
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <Select value={categoryFilter} onValueChange={handleFilterChange(setCategoryFilter)}>
                 <SelectTrigger>
                   <SelectValue placeholder="All Categories" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
-                  {uniqueCategories.map((category) => (
+                  {(filterOptions?.categories || []).map((category) => (
                     <SelectItem key={category} value={category}>
                       {category}
                     </SelectItem>
@@ -387,13 +351,13 @@ const ProductTrackingReport = () => {
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Brand</label>
-              <Select value={brandFilter} onValueChange={setBrandFilter}>
+              <Select value={brandFilter} onValueChange={handleFilterChange(setBrandFilter)}>
                 <SelectTrigger>
                   <SelectValue placeholder="All Brands" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Brands</SelectItem>
-                  {uniqueBrands.map((brand) => (
+                  {(filterOptions?.brands || []).map((brand) => (
                     <SelectItem key={brand} value={brand}>
                       {brand}
                     </SelectItem>
@@ -403,37 +367,45 @@ const ProductTrackingReport = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Start Date</label>
+              <label className="text-sm font-medium">Start Date *</label>
               <Input
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
               />
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">End Date</label>
+              <label className="text-sm font-medium">End Date *</label>
               <Input
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
               />
             </div>
           </div>
 
+          {dateRangeError && (
+            <div className="flex items-center gap-2 text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 rounded-md text-sm">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              {dateRangeError}
+            </div>
+          )}
+
           <div className="flex justify-between items-center pt-2">
             <p className="text-sm text-muted-foreground">
-              Showing {filteredMovements.length} records
+              {totalCount > 0 ? `Showing ${movements.length} of ${totalCount} records (page ${currentPage}/${totalPages})` : "No records found"}
             </p>
             <Button
               variant="outline"
               onClick={() => {
                 setSearchBarcode("");
-                setStartDate("");
-                setEndDate("");
+                setStartDate(format(subDays(new Date(), 30), "yyyy-MM-dd"));
+                setEndDate(format(new Date(), "yyyy-MM-dd"));
                 setMovementTypeFilter("all");
                 setCategoryFilter("all");
                 setBrandFilter("all");
+                setCurrentPage(1);
               }}
             >
               Clear Filters
@@ -441,46 +413,28 @@ const ProductTrackingReport = () => {
           </div>
         </Card>
 
-        {/* Movements Table - ERPTable */}
+        {/* Movements Table */}
         <Card>
           <ERPTable
             tableId="product_tracking"
             columns={columns}
-            data={paginatedMovements}
+            data={movements}
             stickyFirstColumn={true}
-            isLoading={loading}
-            emptyMessage="No movement records found"
+            isLoading={isLoading}
+            emptyMessage={dateRangeError ? "Please fix the date range to view data" : "No movement records found"}
             defaultColumnVisibility={{}}
           />
 
-          {/* Pagination */}
-          {filteredMovements.length > 0 && (
+          {/* Server-side Pagination */}
+          {totalCount > 0 && (
             <div className="flex items-center justify-between px-6 py-4 border-t">
-              <div className="flex items-center gap-4">
-                <p className="text-sm text-muted-foreground">
-                  Showing {startIndex + 1} to {Math.min(endIndex, filteredMovements.length)} of{" "}
-                  {filteredMovements.length} records
-                </p>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Rows per page:</span>
-                  <Select value={itemsPerPage.toString()} onValueChange={handlePageSizeChange}>
-                    <SelectTrigger className="w-20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="25">25</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                      <SelectItem value="100">100</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
+              <p className="text-sm text-muted-foreground">
+                Page {currentPage} of {totalPages} ({totalCount} total records)
+              </p>
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
-                  onClick={handlePreviousPage}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
                 >
                   Previous
@@ -490,8 +444,8 @@ const ProductTrackingReport = () => {
                 </span>
                 <Button
                   variant="outline"
-                  onClick={handleNextPage}
-                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
                 >
                   Next
                 </Button>
@@ -499,7 +453,7 @@ const ProductTrackingReport = () => {
             </div>
           )}
         </Card>
-      </div>
+    </div>
   );
 };
 
