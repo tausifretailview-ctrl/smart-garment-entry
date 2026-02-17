@@ -1,51 +1,74 @@
 
 
-## Fix: Loading Spinner Stuck After User Creation + Login Page Not Appearing
+## Tiered Search Optimization Plan (Safe Mode)
 
-### Problem
-After creating an organization and user, when visiting the org auth URL (e.g., `/adtechagency`), the page gets stuck on an infinite loading spinner instead of showing the login form. This prevents logging in with a different account.
+### What We'll Do
 
-### Root Cause
-The `OrgLayout` component shows a loading spinner while `authLoading || orgLoading` is true. After sign-out or session transitions, there can be a race condition where:
-1. `authLoading` from `AuthContext` doesn't resolve to `false` quickly enough
-2. The `OrgLayout` waits for both auth AND org loading, even when there's no user (org loading is irrelevant without a user)
-3. The `checkUserMembership` effect in `OrgAuth` signs out non-members, but the loading state doesn't reset properly
+Optimize search performance and reduce cloud bandwidth across the application without changing any business logic, invoice flows, or RLS policies.
 
-### Solution
+### Phase 1: Enable Trigram Extension + Add Missing Indexes
 
-**1. Fix `OrgLayout.tsx`** - Prioritize auth state over org loading:
-- If auth is done loading and there's NO user, immediately render `<OrgAuth />` without waiting for org loading
-- This prevents the spinner from blocking the login page when the user is logged out
+Add the `pg_trgm` extension (not currently installed) and create trigram indexes for fast `ILIKE` searches on ~10K customers and ~10K product variants.
 
-```tsx
-// Current (broken):
-if (authLoading || orgLoading) {
-  return <Loader2 spinner />;
-}
+**New indexes to create:**
+- `idx_customers_name_trgm` (GIN trigram on `customer_name`)
+- `idx_customers_phone_trgm` (GIN trigram on `phone`)
+- `idx_customers_email_trgm` (GIN trigram on `email`)
+- `idx_products_name_trgm` (GIN trigram on `product_name`)
+- `idx_products_brand_trgm` (GIN trigram on `brand`)
 
-// Fixed:
-if (authLoading) {
-  return <Loader2 spinner />;
-}
-if (!user) {
-  return <OrgAuth />;
-}
-if (orgLoading) {
-  return <Loader2 spinner />;
-}
+**Already existing indexes (no action needed):**
+- `idx_product_variants_barcode`
+- `idx_product_variants_org_barcode`
+- `idx_customers_org_deleted`
+- `idx_customers_org_name`
+- `idx_products_org_deleted`
+- `idx_product_variants_org_deleted`
+
+### Phase 2: POS Prefetch Payload Reduction (Biggest Cloud Savings)
+
+Currently POS fetches `SELECT *, product_variants(*, batch_stock(*))` in 1000-row batches across all products. With 10K+ variants, this transfers massive payloads including unnecessary columns.
+
+**Change:** Replace `SELECT *` with explicit column lists:
+- Products: `id, product_name, brand, hsn_code, product_type, status`
+- Variants: `id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id`
+- Remove `batch_stock` from POS prefetch (only needed at checkout, not search)
+
+**Expected savings:** ~60% reduction in POS prefetch payload size.
+
+### Phase 3: Limit + hasMore Accuracy
+
+Apply the "fetch N+1, show N" pattern for accurate "more results" indicators:
+- Customer search: fetch 101, show 100
+- Product search in entry screens: fetch 101, show 100
+
+### Phase 4: POS Partial Index for Stock Filtering
+
+Add a composite partial index specifically for POS queries:
+
+```text
+idx_variants_pos_active ON product_variants(organization_id, stock_qty)
+WHERE deleted_at IS NULL AND active = true
 ```
 
-**2. Fix `OrgAuth.tsx`** - Ensure loading state resets after membership check sign-out:
-- When `checkUserMembership` signs out a non-member, ensure the component properly shows the login form
-- Add a local state to track when the membership check has completed to avoid re-triggering
+### What We Will NOT Change
+- No invoice logic modifications
+- No RLS policy changes
+- No table/column drops
+- No business logic changes
+- Debounce stays at 300ms
+- Soft-delete filtering unchanged
+- Organization scoping unchanged
+- Search limits stay at current values (100 for customers, varies for products) -- trigram indexes make current limits efficient enough without needing increases
 
 ### Files to Modify
-- `src/components/OrgLayout.tsx` - Reorder auth/loading checks
-- `src/pages/OrgAuth.tsx` - Improve membership check flow and loading reset
+- **Migration SQL** -- pg_trgm extension + trigram indexes + POS partial index
+- `src/pages/POSSales.tsx` -- Replace `SELECT *` with explicit columns in prefetch query
+- `src/hooks/useCustomerSearch.tsx` -- Apply limit+1 pattern for hasMore accuracy
+- `src/components/ProductSearchDropdown.tsx` -- Apply limit+1 pattern
 
-### Technical Details
-The fix separates the loading logic so that:
-1. First, wait only for auth to load
-2. If no user after auth loads, show login immediately (skip org loading)
-3. Only wait for org loading when a user IS authenticated
-
+### Expected Results
+- Customer/product `ILIKE` searches use index scans instead of sequential scans on 10K+ rows
+- POS prefetch bandwidth reduced by ~60%
+- Accurate "more results" indicator in search dropdowns
+- No increase in compute load -- indexes trade disk space for CPU savings
