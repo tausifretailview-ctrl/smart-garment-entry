@@ -211,7 +211,7 @@ export async function fetchAllVouchers(organizationId: string) {
   while (hasMore) {
     const { data, error } = await supabase
       .from("voucher_entries")
-      .select("id, voucher_number, voucher_date, voucher_type, total_amount, description, payment_mode")
+      .select("id, voucher_number, voucher_date, voucher_type, total_amount, description")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
@@ -646,7 +646,7 @@ export async function fetchAllVouchersWithFilters(
   while (hasMore) {
     let query = supabase
       .from("voucher_entries")
-      .select("id, voucher_number, voucher_date, voucher_type, total_amount, description, payment_mode")
+      .select("id, voucher_number, voucher_date, voucher_type, total_amount, description")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .order("voucher_date", { ascending: false })
