@@ -2223,7 +2223,7 @@ const PurchaseEntry = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background px-6 py-6">
+    <div className="min-h-screen bg-[hsl(210_20%_97%)] dark:bg-background px-6 py-6">
       <div className="w-full space-y-4">
         <BackToDashboard label="Back to Purchase Dashboard" to="/purchase-bills" />
         
@@ -2428,7 +2428,7 @@ const PurchaseEntry = () => {
           </div>
 
         {/* Products Table Card */}
-        <div className="bg-card rounded-xl border shadow-sm p-5">
+        <div className="bg-card dark:bg-card bg-white rounded-lg border border-border p-4">
           <div className="flex items-center justify-between flex-wrap gap-4 mb-4">
             <div className="erp-invoice-section-label mb-0">Products</div>
               <div className="flex items-center gap-4">
@@ -2502,7 +2502,7 @@ const PurchaseEntry = () => {
                     const gstAmount = (total * item.gst_per) / 100;
                     
                     return (
-                      <TableRow key={item.temp_id}>
+                      <TableRow key={item.temp_id} className="hover:bg-[hsl(210_20%_98%)] dark:hover:bg-primary/5">
                         <TableCell className="w-[40px]">
                           <Checkbox
                             checked={selectedForPrint.has(item.temp_id)}
@@ -2892,7 +2892,7 @@ const PurchaseEntry = () => {
           <Button
             onClick={handlePrintBarcodes}
             disabled={lineItems.length === 0}
-            size="lg"
+            size="default"
             variant="outline"
             className="gap-2 min-w-[150px]"
           >
@@ -2902,8 +2902,8 @@ const PurchaseEntry = () => {
           <Button
             onClick={handleSave}
             disabled={loading || lineItems.length === 0}
-            size="lg"
-            className="gap-2 min-w-[150px]"
+            size="default"
+            className="gap-2 min-w-[150px] bg-gradient-to-r from-[hsl(217,91%,53%)] to-[hsl(224,76%,40%)] hover:from-[hsl(217,91%,48%)] hover:to-[hsl(224,76%,35%)] text-white font-bold shadow-md"
           >
             {loading ? (
               <>
