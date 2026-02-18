@@ -211,6 +211,11 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
 
   const totalPages = pages.length;
 
+  // When all items fit on a single page, reduce empty rows to prevent footer overflow
+  const effectiveMinItemRows = totalPages === 1 
+    ? Math.min(minItemRows, Math.max(groupedItems.length, Math.min(minItemRows, format === 'a4' ? 10 : format === 'a5-horizontal' ? 5 : 7)))
+    : minItemRows;
+
   const cellStyle: React.CSSProperties = {
     border: "1px solid #374151",
     padding: "6px 4px",
@@ -359,7 +364,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           </tr>
         ))}
         {/* Fill empty rows only on last page to maintain layout */}
-        {isLastPage && Array.from({ length: Math.max(0, minItemRows - pageItems.length) }).map((_, i) => (
+        {isLastPage && Array.from({ length: Math.max(0, effectiveMinItemRows - pageItems.length) }).map((_, i) => (
           <tr key={`empty-${i}`} style={{ height: "25px" }}>
             <td style={cellStyle}>&nbsp;</td>
             <td style={cellStyle}>&nbsp;</td>
@@ -431,36 +436,36 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         )}
 
         <div style={{ width: "220px", padding: "8px", background: colors.light }}>
-          <table style={{ width: "100%", fontSize: "9pt", fontWeight: "600" }}>
+          <table style={{ width: "100%", fontSize: "9pt", fontWeight: "600", borderCollapse: "collapse" }}>
             <tbody>
               <tr>
-                <td>Sub Total:</td>
-                <td style={{ textAlign: "right" }}>{formatCurrency(subtotal)}</td>
+                <td style={{ padding: "4px 2px", whiteSpace: "nowrap" }}>Sub Total:</td>
+                <td style={{ textAlign: "right", padding: "4px 2px" }}>{formatCurrency(subtotal)}</td>
               </tr>
               {discount > 0 && (
                 <tr>
-                  <td>Total Discount:</td>
-                  <td style={{ textAlign: "right" }}>-{formatCurrency(discount)}</td>
+                  <td style={{ padding: "4px 2px", whiteSpace: "nowrap" }}>Total Discount:</td>
+                  <td style={{ textAlign: "right", padding: "4px 2px" }}>-{formatCurrency(discount)}</td>
                 </tr>
               )}
               <tr>
-                <td>Taxable Amt:</td>
-                <td style={{ textAlign: "right" }}>{formatCurrency(calculatedTaxableAmount)}</td>
+                <td style={{ padding: "4px 2px", whiteSpace: "nowrap" }}>Taxable Amt:</td>
+                <td style={{ textAlign: "right", padding: "4px 2px" }}>{formatCurrency(calculatedTaxableAmount)}</td>
               </tr>
               {cgstAmount > 0 && (
                 <tr>
-                  <td>CGST:</td>
-                  <td style={{ textAlign: "right" }}>{formatCurrency(cgstAmount)}</td>
+                  <td style={{ padding: "4px 2px", whiteSpace: "nowrap" }}>CGST:</td>
+                  <td style={{ textAlign: "right", padding: "4px 2px" }}>{formatCurrency(cgstAmount)}</td>
                 </tr>
               )}
               {sgstAmount > 0 && (
                 <tr>
-                  <td>SGST:</td>
-                  <td style={{ textAlign: "right" }}>{formatCurrency(sgstAmount)}</td>
+                  <td style={{ padding: "4px 2px", whiteSpace: "nowrap" }}>SGST:</td>
+                  <td style={{ textAlign: "right", padding: "4px 2px" }}>{formatCurrency(sgstAmount)}</td>
                 </tr>
               )}
               <tr style={{ fontSize: "11pt", color: colors.primary }}>
-                <td style={{ paddingTop: "5px", borderTop: "1px solid #374151" }}>GRAND TOTAL:</td>
+                <td style={{ paddingTop: "5px", borderTop: "1px solid #374151", whiteSpace: "nowrap" }}>GRAND TOTAL:</td>
                 <td
                   style={{ paddingTop: "5px", borderTop: "1px solid #374151", textAlign: "right", fontWeight: "800" }}
                 >
