@@ -97,22 +97,30 @@ const DailyCashierReport = () => {
   const { data: cashRefundData, isLoading: refundsLoading } = useQuery({
     queryKey: ["cashier-report-cash-refunds", currentOrganization?.id, selectedDate, period],
     queryFn: async () => {
-      if (!currentOrganization?.id) return null;
+      if (!currentOrganization?.id) return [];
 
       const startDateStr = format(startDate, 'yyyy-MM-dd');
       const endDateStr = format(endDate, 'yyyy-MM-dd');
 
-      const { data, error } = await supabase
-        .from("sale_returns")
-        .select("id, net_amount, return_date, refund_type")
-        .eq("organization_id", currentOrganization.id)
-        .eq("refund_type", "cash_refund")
-        .gte("return_date", startDateStr)
-        .lte("return_date", endDateStr)
-        .is("deleted_at", null);
+      try {
+        const { data, error } = await supabase
+          .from("sale_returns")
+          .select("id, net_amount, return_date, refund_type")
+          .eq("organization_id", currentOrganization.id)
+          .eq("refund_type", "cash_refund")
+          .gte("return_date", startDateStr)
+          .lte("return_date", endDateStr)
+          .is("deleted_at", null);
 
-      if (error) throw error;
-      return data || [];
+        if (error) {
+          console.error("Cash refund query error:", error);
+          return [];
+        }
+        return data || [];
+      } catch (e) {
+        console.error("Cash refund query failed:", e);
+        return [];
+      }
     },
     enabled: !!currentOrganization?.id,
   });
