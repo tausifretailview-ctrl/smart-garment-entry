@@ -4229,6 +4229,7 @@ export type Database = {
           organization_id: string
           quantity: number
           reference_id: string | null
+          user_id: string | null
           variant_id: string
         }
         Insert: {
@@ -4240,6 +4241,7 @@ export type Database = {
           organization_id: string
           quantity: number
           reference_id?: string | null
+          user_id?: string | null
           variant_id: string
         }
         Update: {
@@ -4251,6 +4253,7 @@ export type Database = {
           organization_id?: string
           quantity?: number
           reference_id?: string | null
+          user_id?: string | null
           variant_id?: string
         }
         Relationships: [
