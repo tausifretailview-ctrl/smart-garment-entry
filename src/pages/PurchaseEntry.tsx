@@ -2510,7 +2510,7 @@ const PurchaseEntry = () => {
                           />
                         </TableCell>
                         <TableCell className="w-[50px] text-center font-medium">{index + 1}</TableCell>
-                        <TableCell className="font-medium whitespace-normal break-words leading-tight">
+                        <TableCell className="w-auto font-medium whitespace-normal break-words leading-tight">
                           {formatProductDescription(item)}
                         </TableCell>
                         <TableCell className="w-[110px]">
@@ -2518,7 +2518,7 @@ const PurchaseEntry = () => {
                             {item.barcode || "—"}
                           </Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="w-[80px]">
                           <Input
                             ref={index === lineItems.length - 1 ? lastQtyInputRef : undefined}
                             type="number"
@@ -2535,7 +2535,7 @@ const PurchaseEntry = () => {
                             className="w-full"
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="w-[110px]">
                           <Input
                             type="number"
                             min="0"
@@ -2552,7 +2552,7 @@ const PurchaseEntry = () => {
                             className="w-full"
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="w-[110px]">
                           <Input
                             type="number"
                             min="0"
@@ -2570,7 +2570,7 @@ const PurchaseEntry = () => {
                           />
                         </TableCell>
                         {showMrp && (
-                          <TableCell>
+                          <TableCell className="w-[110px]">
                             <Input
                               type="number"
                               min="0"
@@ -2588,7 +2588,7 @@ const PurchaseEntry = () => {
                             />
                           </TableCell>
                         )}
-                        <TableCell>
+                        <TableCell className="w-[80px]">
                           <Select
                             value={String(item.gst_per)}
                             onValueChange={(value) =>
@@ -2607,10 +2607,10 @@ const PurchaseEntry = () => {
                             </SelectContent>
                           </Select>
                         </TableCell>
-                        <TableCell className="font-semibold">
+                        <TableCell className="w-[100px] font-semibold">
                           ₹{subTotal.toFixed(2)}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="w-[80px]">
                           <Input
                             type="number"
                             min="0"
@@ -2628,7 +2628,7 @@ const PurchaseEntry = () => {
                             className="w-full"
                           />
                         </TableCell>
-                        <TableCell className="font-semibold">
+                        <TableCell className="w-[100px] font-semibold">
                           ₹{total.toFixed(2)}
                         </TableCell>
                         <TableCell className="w-[40px]">
