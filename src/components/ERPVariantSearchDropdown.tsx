@@ -104,7 +104,7 @@ export const ERPVariantRow = ({
       onMouseEnter={onMouseEnter}
       className={cn(
         "w-full text-left px-4 py-3 border-b border-border last:border-0 transition-colors duration-75 flex items-center gap-4",
-        isSelected && "bg-primary text-primary-foreground",
+        isSelected && "bg-primary text-primary-foreground shadow-md",
         !isSelected && !isOutOfStock && "hover:bg-accent",
         isOutOfStock && !isSelected && "opacity-60 cursor-not-allowed bg-muted/30"
       )}
@@ -121,19 +121,19 @@ export const ERPVariantRow = ({
           </div>
         )}
         <div className={cn(
-          "flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[14px] font-medium",
+          "flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[14px] font-semibold",
           showProductName ? "mt-1" : "mt-0",
           isSelected ? "text-primary-foreground/90" : "text-foreground/80"
         )}>
           {color && (
             <span className="inline-flex items-center gap-1">
               <span className={cn(
-                "inline-block w-2 h-2 rounded-full shrink-0",
-                isSelected ? "bg-primary-foreground/60" : "bg-foreground/40"
+                "inline-block w-2.5 h-2.5 rounded-full shrink-0",
+                isSelected ? "bg-white" : "bg-foreground/50"
               )} />
               <span className={cn(
-                "font-semibold tracking-wide",
-                isSelected ? "text-primary-foreground" : "text-foreground"
+                "font-bold tracking-wide text-[15px]",
+                isSelected ? "text-white" : "text-foreground dark:text-foreground"
               )}>{color}</span>
             </span>
           )}
