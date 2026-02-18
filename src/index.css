@@ -1009,12 +1009,12 @@ All colors MUST be HSL.
 }
 
 .erp-invoice-table-header th {
-  font-size: 11px !important;
-  font-weight: 700 !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   background: hsl(210 17% 95%);
-  color: hsl(var(--muted-foreground));
+  color: hsl(var(--foreground));
   padding-top: 10px !important;
   padding-bottom: 10px !important;
 }
