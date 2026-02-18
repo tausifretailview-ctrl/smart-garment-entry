@@ -2513,7 +2513,7 @@ const PurchaseEntry = () => {
                         </TableCell>
                         <TableCell className="w-[50px] text-center font-medium">{index + 1}</TableCell>
                         <TableCell className="w-auto min-w-[220px] font-medium whitespace-normal break-words leading-tight">
-                          {formatProductDescription(item)}
+                          {[item.product_name, (item.color && item.color.trim() && item.color.trim() !== '-') ? item.color : ''].filter(Boolean).join('-')}
                         </TableCell>
                         <TableCell className="w-[90px] text-sm">{item.size || "—"}</TableCell>
                         <TableCell className="w-[110px]">
