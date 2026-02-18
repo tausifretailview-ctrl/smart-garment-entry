@@ -2702,7 +2702,7 @@ const PurchaseEntry = () => {
                               position: 'fixed',
                               top: inlineSearchInputRef.current.getBoundingClientRect().bottom + 4,
                               left: inlineSearchInputRef.current.getBoundingClientRect().left,
-                              width: Math.max(400, inlineSearchInputRef.current.getBoundingClientRect().width),
+                              width: Math.min(800, window.innerWidth - inlineSearchInputRef.current.getBoundingClientRect().left - 16),
                               zIndex: 9999,
                             }}
                           >
