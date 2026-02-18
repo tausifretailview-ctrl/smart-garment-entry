@@ -102,6 +102,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const [productImage, setProductImage] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [creatingSizeGroup, setCreatingSizeGroup] = useState(false);
+  const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   
   // Copy from existing product
   const [copySearch, setCopySearch] = useState("");
@@ -153,6 +154,14 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     }
   }, [open]);
 
+  // Sync selectedSizes when size_group_id or sizeGroups change (e.g. from defaults/copy)
+  useEffect(() => {
+    if (formData.size_group_id && sizeGroups.length > 0 && selectedSizes.length === 0) {
+      const group = sizeGroups.find(g => g.id === formData.size_group_id);
+      if (group) setSelectedSizes([...group.sizes]);
+    }
+  }, [formData.size_group_id, sizeGroups]);
+
   // Fetch unique categories, brands, HSN codes, and styles from existing products
   const fetchPreviousValues = async () => {
     if (!currentOrganization) return;
@@ -203,6 +212,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       status: "active",
     });
     setColorInput("");
+    setSelectedSizes([]);
     setVariants([]);
     setShowVariants(false);
     setProductImage(null);
@@ -504,8 +514,21 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
     const newVariants: ProductVariant[] = [];
     
+    const sizesToUse = selectedSizes.length > 0
+      ? selectedGroup.sizes.filter(s => selectedSizes.includes(s))
+      : selectedGroup.sizes;
+
+    if (sizesToUse.length === 0) {
+      toast({
+        title: "No sizes selected",
+        description: "Please select at least one size from the checkboxes",
+        variant: "destructive",
+      });
+      return;
+    }
+
     for (const color of colorsToUse) {
-      for (const size of selectedGroup.sizes) {
+      for (const size of sizesToUse) {
         const exists = variants.some(v => v.color === color && v.size === size);
         if (!exists) {
           newVariants.push({
@@ -1160,7 +1183,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                   <div className="flex gap-2">
                     <Select
                       value={formData.size_group_id}
-                      onValueChange={(value) => setFormData({ ...formData, size_group_id: value })}
+                      onValueChange={(value) => {
+                        setFormData({ ...formData, size_group_id: value });
+                        const group = sizeGroups.find(g => g.id === value);
+                        setSelectedSizes(group ? [...group.sizes] : []);
+                      }}
                     >
                       <SelectTrigger className="flex-1">
                         <SelectValue placeholder="Select size group" />
@@ -1177,6 +1204,44 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       <Plus className="h-4 w-4 mr-1" /> New
                     </Button>
                   </div>
+
+                  {/* Size Selection Checkboxes */}
+                  {formData.size_group_id && (() => {
+                    const group = sizeGroups.find(g => g.id === formData.size_group_id);
+                    if (!group || group.sizes.length === 0) return null;
+                    const allSelected = selectedSizes.length === group.sizes.length;
+                    return (
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSizes(allSelected ? [] : [...group.sizes])}
+                          className="text-xs font-medium text-primary hover:underline px-1"
+                        >
+                          {allSelected ? "None" : "All"}
+                        </button>
+                        {group.sizes.map(size => {
+                          const isChecked = selectedSizes.includes(size);
+                          return (
+                            <button
+                              key={size}
+                              type="button"
+                              onClick={() => setSelectedSizes(prev =>
+                                isChecked ? prev.filter(s => s !== size) : [...prev, size]
+                              )}
+                              className={cn(
+                                "px-2 py-0.5 rounded border text-xs font-medium transition-colors",
+                                isChecked
+                                  ? "bg-primary text-primary-foreground border-primary"
+                                  : "bg-muted text-muted-foreground border-border hover:border-primary/50"
+                              )}
+                            >
+                              {isChecked ? "✓ " : ""}{size}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
