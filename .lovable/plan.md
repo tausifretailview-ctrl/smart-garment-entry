@@ -1,40 +1,27 @@
 
-# Fix: Customer Name Not Showing for POS Receipt (RCP/25-26/333)
+
+# Fix: Make Invoice Selection Mandatory When Pending Invoices Exist
 
 ## Problem
-In the Customer Payment tab (Accounts), receipt **RCP/25-26/333** for POS sale **POS/25-26/1760** shows "-" instead of "Manish Jain" in the Customer column.
-
-**Root cause**: The customer name lookup logic tries to find the sale in the loaded `sales` array. If the sale isn't found (due to pagination or date filtering), it falls back to searching the `customers` array using the voucher's `reference_id` -- but for sale-type vouchers, `reference_id` is a **sale ID**, not a customer ID, so the fallback never matches.
+When a customer has pending invoices, the user can skip selecting any invoice and the payment gets recorded as an "Opening Balance Payment." This means the actual invoice's `payment_status` never gets updated, so the Sale and POS dashboards continue showing "Not Paid" even though money was received.
 
 ## Solution
-Improve the customer name resolution in `CustomerPaymentTab.tsx` to handle sale-type vouchers whose sales aren't in the currently loaded sales list.
+Add a validation check in the payment form submission: if the selected customer has pending invoices, at least one invoice must be selected before the payment can be saved.
 
-### Technical Details
+## Technical Details
 
-**File: `src/components/accounts/CustomerPaymentTab.tsx` (line ~703-705)**
+**File: `src/components/accounts/CustomerPaymentTab.tsx`**
 
-Current logic:
-```
-const invoice = sales?.find(s => s.id === voucher.reference_id);
-const customerName = invoice?.customer_name 
-  || customers?.find(c => c.id === voucher.reference_id)?.customer_name 
-  || "-";
-```
+1. **Add validation in `handleSubmit` (around line 357-362):**
+   - After checking for a valid customer, check if `customerInvoices` has items
+   - If pending invoices exist and `selectedInvoiceIds` is empty, show an error toast: "Please select at least one pending invoice" and block submission
 
-Updated logic:
-```
-const invoice = sales?.find(s => s.id === voucher.reference_id);
-let customerName = "-";
-if (invoice?.customer_name) {
-  customerName = invoice.customer_name;
-} else if (voucher.reference_type === 'customer') {
-  customerName = customers?.find(c => c.id === voucher.reference_id)?.customer_name || "-";
-} else if (invoice?.customer_id) {
-  customerName = customers?.find(c => c.id === invoice.customer_id)?.customer_name || "-";
-}
-```
+2. **Update the invoice selection label (line 470):**
+   - Change from "Select Invoices (Optional - Leave empty for Opening Balance)" to conditionally show:
+     - "Select Invoices (Required)" when pending invoices exist
+     - "No pending invoices - Payment will be applied to Opening Balance" when none exist
 
-This ensures:
-- **Sale-type vouchers**: Uses `invoice.customer_name` directly, or falls back to looking up the customer via `invoice.customer_id` in the customers list
-- **Customer-type vouchers** (opening balance payments): Correctly matches by customer ID as before
-- Also apply the same fix to the receipt print lookup at ~line 729 to ensure receipts also show the correct customer name
+3. **Update the info message (line 498-500):**
+   - Change the amber info message to a red warning: "Please select at least one invoice to proceed" when pending invoices exist, making it clear this is required, not optional
+
+This ensures every payment against a customer with pending invoices is properly linked to an invoice, keeping the Sale/POS dashboard statuses accurate.
