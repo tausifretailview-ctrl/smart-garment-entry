@@ -1013,7 +1013,7 @@ All colors MUST be HSL.
   font-weight: 700 !important;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  background: hsl(210 20% 96%);
+  background: hsl(210 17% 95%);
   color: hsl(var(--muted-foreground));
   padding-top: 10px !important;
   padding-bottom: 10px !important;
@@ -1028,18 +1028,18 @@ All colors MUST be HSL.
   bottom: 0;
   background: hsl(var(--card) / 0.95);
   backdrop-filter: blur(8px);
-  border-top: 1px solid hsl(var(--border));
-  padding: 16px 24px;
+  border-top: 2px solid hsl(var(--border));
+  padding: 18px 24px;
   margin: 0 -24px -24px;
   box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
   z-index: 20;
 }
 
 .erp-invoice-info-card {
-  background: hsl(210 20% 98%);
-  border-radius: 12px;
+  background: #ffffff;
+  border-radius: 8px;
   border: 1px solid hsl(var(--border));
-  padding: 20px;
+  padding: 16px;
 }
 
 .dark .erp-invoice-info-card {
