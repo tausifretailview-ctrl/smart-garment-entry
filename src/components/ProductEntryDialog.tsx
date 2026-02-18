@@ -137,7 +137,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   });
   const [colorInput, setColorInput] = useState("");
 
-  // Reset form when dialog opens
+  // Reset form when dialog opens - pre-fill from last saved product
   useEffect(() => {
     if (open) {
       resetForm();
@@ -174,27 +174,55 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     }
   };
 
+  const LAST_PRODUCT_KEY = `last_product_details_${currentOrganization?.id || ''}`;
+
   const resetForm = () => {
+    // Try to load last saved product details for pre-fill
+    let lastProduct: Partial<ProductForm> = {};
+    try {
+      const stored = localStorage.getItem(LAST_PRODUCT_KEY);
+      if (stored) lastProduct = JSON.parse(stored);
+    } catch {}
+
     setFormData({
       product_type: "goods",
       product_name: "",
-      category: "",
-      brand: "",
-      style: "",
+      category: lastProduct.category || "",
+      brand: lastProduct.brand || "",
+      style: lastProduct.style || "",
       colors: [],
-      size_group_id: "",
-      hsn_code: "",
-      gst_per: 18,
-      uom: DEFAULT_UOM,
-      default_pur_price: undefined,
-      default_sale_price: undefined,
-      default_mrp: undefined,
+      size_group_id: lastProduct.size_group_id || "",
+      hsn_code: lastProduct.hsn_code || "",
+      gst_per: lastProduct.gst_per ?? 18,
+      uom: lastProduct.uom || DEFAULT_UOM,
+      default_pur_price: lastProduct.default_pur_price,
+      default_sale_price: lastProduct.default_sale_price,
+      default_mrp: lastProduct.default_mrp,
       status: "active",
     });
     setColorInput("");
     setVariants([]);
     setShowVariants(false);
     setProductImage(null);
+  };
+
+  // Save current product details to localStorage for next time
+  const saveLastProductDetails = () => {
+    try {
+      const toStore: Partial<ProductForm> = {
+        category: formData.category,
+        brand: formData.brand,
+        style: formData.style,
+        size_group_id: formData.size_group_id,
+        hsn_code: formData.hsn_code,
+        gst_per: formData.gst_per,
+        uom: formData.uom,
+        default_pur_price: formData.default_pur_price,
+        default_sale_price: formData.default_sale_price,
+        default_mrp: formData.default_mrp,
+      };
+      localStorage.setItem(LAST_PRODUCT_KEY, JSON.stringify(toStore));
+    } catch {}
   };
 
   // Debounced copy-from-existing search
@@ -725,6 +753,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         title: "Success",
         description: `Product "${formData.product_name}" created`,
       });
+
+      // Save last product details for quick entry next time
+      saveLastProductDetails();
 
       // Call the callback with product data
       onProductCreated({
