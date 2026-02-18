@@ -1600,12 +1600,7 @@ export default function SalesInvoiceDashboard() {
               <div id="erp-toolbar-portal" className="flex items-center gap-2 ml-auto" />
             </div>
 
-            {isLoading ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : (
-              <SalesInvoiceERPTable
+            <SalesInvoiceERPTable
                 paginatedInvoices={paginatedInvoices}
                 expandedRows={expandedRows}
                 toggleExpanded={toggleExpanded}
@@ -1658,7 +1653,6 @@ export default function SalesInvoiceDashboard() {
                   return toolbar;
                 }}
               />
-            )}
             {invoicesData && invoicesData.length > 0 && (
               <div className="flex items-center justify-between mt-4">
                 <div className="flex items-center gap-4">
