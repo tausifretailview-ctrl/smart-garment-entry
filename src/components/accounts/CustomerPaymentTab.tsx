@@ -702,7 +702,14 @@ export function CustomerPaymentTab({
             <TableBody>
               {paginatedPayments.map((voucher) => {
                 const invoice = sales?.find((s) => s.id === voucher.reference_id);
-                const customerName = invoice?.customer_name || customers?.find((c) => c.id === voucher.reference_id)?.customer_name || "-";
+                let customerName = "-";
+                if (invoice?.customer_name) {
+                  customerName = invoice.customer_name;
+                } else if (voucher.reference_type === 'customer') {
+                  customerName = customers?.find((c) => c.id === voucher.reference_id)?.customer_name || "-";
+                } else if (invoice?.customer_id) {
+                  customerName = customers?.find((c) => c.id === invoice.customer_id)?.customer_name || "-";
+                }
                 const isSelected = selectedPaymentIds.includes(voucher.id);
                 return (
                   <TableRow key={voucher.id} className={isSelected ? "bg-muted/50" : ""}>
@@ -726,7 +733,9 @@ export function CustomerPaymentTab({
                             <Pencil className="h-4 w-4" />
                           </Button>
                           <Button variant="ghost" size="icon" title="Print Receipt" onClick={() => {
-                            const customer = customers?.find((c) => c.id === voucher.reference_id);
+                            const customer = voucher.reference_type === 'customer'
+                              ? customers?.find((c) => c.id === voucher.reference_id)
+                              : (invoice?.customer_id ? customers?.find((c) => c.id === invoice.customer_id) : null);
                             onShowReceipt({
                               voucherNumber: voucher.voucher_number, voucherDate: voucher.voucher_date,
                               customerName, customerPhone: customer?.phone || "", customerAddress: customer?.address || "",
