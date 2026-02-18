@@ -752,18 +752,35 @@ export default function SalesInvoice() {
     const debounceTimer = setTimeout(searchProducts, 150);
     return () => clearTimeout(debounceTimer);
   }, [searchInput, currentOrganization?.id]);
-  // Open size grid modal for a product
-  const openSizeGridForProduct = (product: any) => {
-    const variants = product.product_variants || [];
-    if (variants.length === 0) return;
-    
+  // Open size grid modal for a product - fetch ALL variants fresh from DB
+  const openSizeGridForProduct = async (product: any) => {
+    if (!currentOrganization) return;
+
+    const { data, error } = await supabase
+      .from("product_variants")
+      .select("id, size, color, barcode, sale_price, mrp, stock_qty, pur_price, active")
+      .eq("product_id", product.id)
+      .eq("organization_id", currentOrganization.id)
+      .eq("active", true)
+      .is("deleted_at", null);
+
+    if (error || !data || data.length === 0) {
+      toast({
+        title: "No variants found",
+        description: "This product has no active variants.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSizeGridProduct(product);
-    setSizeGridVariants(variants.map((v: any) => ({
+    setSizeGridVariants(data.map((v: any) => ({
       id: v.id,
       size: v.size,
       stock_qty: v.stock_qty || 0,
-      sale_price: v.sale_price,
-      color: v.color || product.color,
+      sale_price: v.sale_price || 0,
+      mrp: v.mrp || 0,
+      color: v.color || product.color || "",
       barcode: v.barcode,
     })));
     setShowSizeGrid(true);
