@@ -27,7 +27,7 @@ interface BatchRow {
     color: string | null;
     barcode: string | null;
     mrp: number;
-    purchase_price: number;
+    pur_price: number;
     product_id: string;
     products: {
       product_name: string;
@@ -78,7 +78,7 @@ export default function StockAgeingReport() {
           .from("batch_stock")
           .select(`
             id, bill_number, purchase_date, quantity, purchase_bill_id, variant_id,
-            product_variants!inner(size, color, barcode, mrp, purchase_price, product_id,
+            product_variants!inner(size, color, barcode, mrp, pur_price, product_id,
               products!inner(product_name, brand)
             ),
             purchase_bills(supplier_name)
@@ -113,7 +113,7 @@ export default function StockAgeingReport() {
         size: row.product_variants?.size || "",
         barcode: row.product_variants?.barcode || "",
         mrp: row.product_variants?.mrp || 0,
-        purchasePrice: row.product_variants?.purchase_price || 0,
+        purchasePrice: row.product_variants?.pur_price || 0,
         supplier: row.purchase_bills?.supplier_name || "N/A",
       };
     });
