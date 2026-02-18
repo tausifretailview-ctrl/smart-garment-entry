@@ -525,6 +525,31 @@ const DesktopDashboard = () => {
   const NewUpdatesPanel = () => {
     const updates = [
       {
+        version: "v1.3.3",
+        date: "18/02/2026",
+        changes: [
+          "A4 invoice print footer section fixed",
+          "Size selection checkboxes in Add Product",
+          "Auto-focus on Product Name in new product dialog"
+        ]
+      },
+      {
+        version: "v1.3.2",
+        date: "16/02/2026",
+        changes: [
+          "Improved A4 print layout with proper page sizing",
+          "Enhanced print font scaling for all formats"
+        ]
+      },
+      {
+        version: "v1.3.1",
+        date: "10/02/2026",
+        changes: [
+          "Purchase entry product cursor position fix",
+          "Size group partial selection feature"
+        ]
+      },
+      {
         version: "v1.3.0",
         date: "05/02/2026",
         changes: [
