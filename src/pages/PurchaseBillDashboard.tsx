@@ -97,6 +97,7 @@ const PurchaseBillDashboard = () => {
   const { currentOrganization } = useOrganization();
   const [bills, setBills] = useState<PurchaseBill[]>([]);
   const [loading, setLoading] = useState(true);
+  const [itemsLoading, setItemsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -276,7 +277,7 @@ const PurchaseBillDashboard = () => {
   const fetchBills = async () => {
     setLoading(true);
     try {
-      // Fetch all purchase bills using pagination to bypass 1000 row limit
+      // Phase 1: Fetch all purchase bills — show table as soon as bills arrive
       const allBills: any[] = [];
       const PAGE_SIZE = 1000;
       let offset = 0;
@@ -303,12 +304,13 @@ const PurchaseBillDashboard = () => {
       }
 
       setBills(allBills);
+      setLoading(false); // UI becomes interactive here
       
-      // Fetch item counts for all bills (excluding soft-deleted items)
+      // Phase 2: Fetch items in background — qty badges update later
       if (allBills.length > 0) {
+        setItemsLoading(true);
         const billIds = allBills.map(b => b.id);
         
-        // Also paginate items fetching for large datasets
         const allItems: any[] = [];
         let itemOffset = 0;
         let itemsHasMore = true;
@@ -340,6 +342,7 @@ const PurchaseBillDashboard = () => {
           itemsByBill[item.bill_id].push(item);
         });
         setBillItems(itemsByBill);
+        setItemsLoading(false);
       }
     } catch (error: any) {
       toast({
@@ -347,8 +350,8 @@ const PurchaseBillDashboard = () => {
         description: error.message || "Failed to load purchase bills",
         variant: "destructive",
       });
-    } finally {
       setLoading(false);
+      setItemsLoading(false);
     }
   };
 
@@ -1054,13 +1057,7 @@ const PurchaseBillDashboard = () => {
     );
   }, [billItems, showMrp]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  // No full-page blocker — layout renders immediately, ERPTable shows skeletons via isLoading
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-accent/5 to-background px-6 py-6">
