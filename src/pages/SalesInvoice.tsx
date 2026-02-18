@@ -1952,15 +1952,15 @@ Thank you for choosing us!`;
         </h1>
         <div className="flex items-center gap-2">
           {lastInvoice && !editingInvoiceId && (
-            <div className="bg-primary/5 border border-primary/20 rounded-md px-2.5 py-1 text-[11px]">
+            <div className="bg-primary/5 border border-primary/20 rounded-md px-3 py-1.5 text-sm">
               <span className="text-muted-foreground">Last: </span>
               <span className="font-semibold text-primary">{lastInvoice.sale_number}</span>
               <span className="text-muted-foreground"> | Qty: </span>
-              <span className="font-semibold">{lastInvoice.total_qty}</span>
+              <span className="font-bold">{lastInvoice.total_qty}</span>
               <span className="text-muted-foreground"> | ₹</span>
-              <span className="font-semibold">{Math.round(lastInvoice.net_amount || 0).toLocaleString('en-IN')}</span>
+              <span className="font-bold">{Math.round(lastInvoice.net_amount || 0).toLocaleString('en-IN')}</span>
               <span className="text-muted-foreground"> | </span>
-              <span className="font-semibold">{lastInvoice.customer_name}</span>
+              <span className="font-bold text-foreground">{lastInvoice.customer_name}</span>
             </div>
           )}
         </div>
