@@ -196,13 +196,6 @@ const PurchaseBillDashboard = () => {
           navigate("/barcode-printing", { state: { purchaseItems: barcodeItems } });
         },
       },
-      { label: "", separator: true, onClick: () => {} },
-      {
-        label: "Delete Bill",
-        icon: Trash2,
-        onClick: () => setBillToDelete(bill),
-        destructive: true,
-      },
     ];
   };
 
@@ -992,9 +985,6 @@ const PurchaseBillDashboard = () => {
             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => handlePrintBarcodes(bill.id, e)} disabled={printingBill === bill.id} title="Print Barcodes">
               {printingBill === bill.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
             </Button>
-            <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => handleDeleteClick(bill, e)} disabled={deletingBill === bill.id} title="Delete">
-              {deletingBill === bill.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-            </Button>
           </div>
         );
       },
@@ -1217,16 +1207,6 @@ const PurchaseBillDashboard = () => {
                     {selectedBills.size} bill(s) selected
                   </span>
                 </div>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={handleBulkDeleteClick}
-                  disabled={isDeleting}
-                  className="gap-2"
-                >
-                  {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                  Delete Selected
-                </Button>
               </div>
             </CardContent>
           </Card>
