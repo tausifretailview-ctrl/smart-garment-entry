@@ -1,33 +1,40 @@
 
-# Add Size Selection Checkboxes to Product Entry
+# Fix: Customer Name Not Showing for POS Receipt (RCP/25-26/333)
 
 ## Problem
-When adding a new product, selecting a size group like "22-28" generates variants for ALL sizes (22, 24, 26, 28). If the user only needs size 26, they must manually delete the unwanted sizes one by one using the X button -- tedious and slow.
+In the Customer Payment tab (Accounts), receipt **RCP/25-26/333** for POS sale **POS/25-26/1760** shows "-" instead of "Manish Jain" in the Customer column.
+
+**Root cause**: The customer name lookup logic tries to find the sale in the loaded `sales` array. If the sale isn't found (due to pagination or date filtering), it falls back to searching the `customers` array using the voucher's `reference_id` -- but for sale-type vouchers, `reference_id` is a **sale ID**, not a customer ID, so the fallback never matches.
 
 ## Solution
-After a size group is selected, display all sizes from that group as **checkboxes**. By default, all sizes are checked. The user can uncheck sizes they don't need before clicking "Generate Size Variants". Only checked sizes will be used to create variants.
+Improve the customer name resolution in `CustomerPaymentTab.tsx` to handle sale-type vouchers whose sales aren't in the currently loaded sales list.
 
-## How It Works
-1. User selects a size group (e.g., "22-28")
-2. Below the dropdown, a row of checkbox chips appears: [x] 22  [x] 24  [x] 26  [x] 28
-3. User unchecks sizes they don't want (e.g., uncheck 22, 24, 28 -- keep only 26)
-4. Click "Generate Size Variants" -- only size 26 variants are created
-5. A "Select All / Deselect All" toggle for quick bulk selection
+### Technical Details
 
-## Technical Details
+**File: `src/components/accounts/CustomerPaymentTab.tsx` (line ~703-705)**
 
-### File: `src/components/ProductEntryDialog.tsx`
+Current logic:
+```
+const invoice = sales?.find(s => s.id === voucher.reference_id);
+const customerName = invoice?.customer_name 
+  || customers?.find(c => c.id === voucher.reference_id)?.customer_name 
+  || "-";
+```
 
-1. **Add state** for selected sizes:
-   ```typescript
-   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
-   ```
+Updated logic:
+```
+const invoice = sales?.find(s => s.id === voucher.reference_id);
+let customerName = "-";
+if (invoice?.customer_name) {
+  customerName = invoice.customer_name;
+} else if (voucher.reference_type === 'customer') {
+  customerName = customers?.find(c => c.id === voucher.reference_id)?.customer_name || "-";
+} else if (invoice?.customer_id) {
+  customerName = customers?.find(c => c.id === invoice.customer_id)?.customer_name || "-";
+}
+```
 
-2. **Update size group selection handler**: When a size group is selected, auto-populate `selectedSizes` with all sizes from that group (all checked by default).
-
-3. **Render checkbox row** below the Size Group dropdown: Display each size as a compact checkbox chip. Include "All" / "None" quick toggle buttons.
-
-4. **Modify `handleGenerateSizeVariants`**: Filter `selectedGroup.sizes` to only include sizes present in `selectedSizes` array before generating variants.
-
-### UI Layout
-The size checkboxes will appear as a compact inline row of small toggleable chips right below the Size Group selector, keeping the dialog clean and not adding extra height.
+This ensures:
+- **Sale-type vouchers**: Uses `invoice.customer_name` directly, or falls back to looking up the customer via `invoice.customer_id` in the customers list
+- **Customer-type vouchers** (opening balance payments): Correctly matches by customer ID as before
+- Also apply the same fix to the receipt print lookup at ~line 729 to ensure receipts also show the correct customer name
