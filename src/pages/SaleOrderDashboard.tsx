@@ -660,7 +660,12 @@ export default function SaleOrderDashboard() {
         {/* Table */}
         {isLoading ? (
           <div className="flex items-center justify-center py-10">
-            <Loader2 className="h-8 w-8 animate-spin" />
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <span className="ml-2 text-sm text-muted-foreground">Loading orders...</span>
+          </div>
+        ) : paginatedOrders.length === 0 ? (
+          <div className="flex items-center justify-center py-10 text-muted-foreground">
+            No sale orders found
           </div>
         ) : (
           <ScrollArea className="h-[calc(100vh-320px)] rounded-md border">
