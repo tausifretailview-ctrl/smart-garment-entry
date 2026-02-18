@@ -1,58 +1,41 @@
 
 
-## Fix Purchase Invoice Product Grid Column Alignment
+## Fix Purchase Dashboard Loading Performance
 
 ### Problem
-The purchase bill entry table has misaligned columns with equal widths, wrapping item names, and no right-alignment on numeric fields. This doesn't match the expected high-density ERP billing grid style.
+When opening the Purchase Dashboard, users see a full-screen loading spinner for an extended time. This happens because the page fetches ALL purchase bills AND ALL their items (in 1000-row paginated loops) before rendering anything.
 
-### Changes (single file: `src/pages/PurchaseEntry.tsx`)
+### Root Cause
+1. The `fetchBills` function (line 276) loops through ALL bills, then loops through ALL purchase items for every bill before setting `loading = false`
+2. Line 1057 returns a full-page spinner (`Loader2`) that blocks the entire UI until loading completes
+3. For organizations with many bills (hundreds/thousands), this causes a noticeable delay
 
-**1. Update Header Widths**
+### Solution: Progressive Loading Pattern
 
-Apply the exact pixel widths specified:
+Instead of blocking the entire page, show the page structure immediately and load data in the background.
 
-| Column     | Current        | New     |
-|-----------|----------------|---------|
-| Checkbox  | 40px           | 40px    |
-| SR NO     | 50px           | 60px    |
-| ITEM NAME | auto/min-220px | 280px   |
-| SIZE      | 90px           | 80px    |
-| BARCODE   | 110px          | 130px   |
-| QTY       | 120px          | 80px    |
-| PUR.RATE  | 150px          | 110px   |
-| SALE.RATE | 150px          | 110px   |
-| MRP       | 130px          | 100px   |
-| GST %     | 120px          | 80px    |
-| SUB TOTAL | 110px          | 130px   |
-| DISC %    | 80px           | 90px    |
-| TOTAL     | 110px          | 130px   |
-| Action    | 40px           | 40px    |
+**Changes (single file: `src/pages/PurchaseBillDashboard.tsx`):**
 
-**2. Fix Item Name Cell**
+1. **Remove the full-page loading blocker** (lines 1057-1063)
+   - Delete the early return that shows only a spinner
+   - Instead, pass `isLoading={loading}` to the ERPTable component, which already supports skeleton rows
 
-Change from `whitespace-normal break-words` to `whitespace-nowrap overflow-hidden text-ellipsis` with a fixed `w-[280px]` and `max-w-[280px]` so text truncates with ellipsis instead of wrapping.
+2. **Show the page layout immediately**
+   - The header, summary cards, and search filters render right away
+   - Summary cards show "0" or skeleton placeholders while data loads
+   - The ERPTable shows skeleton rows during loading (it already supports this via the `isLoading` prop)
 
-**3. Right-Align Numeric Fields**
-
-Add `text-right` class to header and data cells for: QTY, PUR.RATE, SALE.RATE, MRP, GST %, SUB TOTAL, DISC %, TOTAL. Also add `tabular-nums` to currency display cells for proper digit alignment.
-
-**4. Match Data Row Cell Widths**
-
-Update every `TableCell` width in the data rows to match the corresponding header width exactly.
-
-**5. Update Inline Search Row and Footer Row**
-
-Adjust `colSpan` values in the search row and footer total row to match the new column count and widths.
-
-**6. Update Table Min-Width**
-
-Recalculate `min-w` on the table to match the sum of all column widths (~1360px without MRP, ~1460px with MRP).
+3. **Defer item fetching**
+   - Split the fetch: load bills first (set loading=false after bills arrive), then fetch items in the background
+   - This means the table shows bill rows quickly; item counts and qty badges populate a moment later
 
 ### Technical Details
 
-- All edits in `src/pages/PurchaseEntry.tsx` lines ~2470-2820
-- Header table and body table both use `table-fixed` layout, so fixed widths will be enforced
-- Row height stays at compact ERP standard (h-10 / 40px) via existing classes
-- Input fields inside cells keep `w-full` but inherit the tighter column widths
-- Numeric inputs get `text-right` class added
+- Remove lines 1057-1063 (the early `if (loading) return ...` block)
+- Split `fetchBills` into two phases:
+  - Phase 1: Fetch bills, call `setBills()` and `setLoading(false)`
+  - Phase 2: Fetch items in background, update `setBillItems()` without blocking
+- Add a separate `itemsLoading` state for the items fetch phase
+- The ERPTable already renders skeletons when `isLoading={true}`, so no table changes needed
+- Summary cards will show real bill counts from Phase 1; qty totals update after Phase 2
 
