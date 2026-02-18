@@ -2381,6 +2381,7 @@ const PurchaseEntry = () => {
                       {searchResults.map((result, idx) => (
                         <button
                           key={result.product_id + idx}
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={() => handleProductSelect(result)}
                           onMouseEnter={() => setSelectedSearchIndex(idx)}
                           className={cn(
@@ -2663,8 +2664,8 @@ const PurchaseEntry = () => {
                             }
                           }}
                           onBlur={() => {
-                            // Delay hiding to allow click on dropdown items
-                            setTimeout(() => setShowInlineSearch(false), 200);
+                            // Delay hiding to allow click/touch on dropdown items (longer for mobile)
+                            setTimeout(() => setShowInlineSearch(false), 400);
                           }}
                           onKeyDown={(e) => {
                             if (e.key === 'ArrowDown') {
@@ -2726,6 +2727,7 @@ const PurchaseEntry = () => {
                                 {inlineSearchResults.slice(0, inlineDisplayLimit).map((result, idx) => (
                                   <button
                                     key={result.id + idx}
+                                    onMouseDown={(e) => e.preventDefault()}
                                     onClick={() => handleInlineProductSelect(result)}
                                     onMouseEnter={() => setSelectedInlineIndex(idx)}
                                     className={cn(
