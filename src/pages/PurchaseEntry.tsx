@@ -2526,7 +2526,7 @@ const PurchaseEntry = () => {
                             ref={index === lineItems.length - 1 ? lastQtyInputRef : undefined}
                             type="number"
                             min="1"
-                            value={item.qty}
+                            value={item.qty || ""}
                             onChange={(e) =>
                               updateLineItem(
                                 item.temp_id,
@@ -2535,7 +2535,7 @@ const PurchaseEntry = () => {
                               )
                             }
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-full text-right"
+                            className="w-full text-right px-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                         </TableCell>
                         <TableCell className="w-[120px]">
