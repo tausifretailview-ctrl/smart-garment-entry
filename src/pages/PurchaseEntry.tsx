@@ -2466,8 +2466,8 @@ const PurchaseEntry = () => {
                 </div>
               </div>
             </div>
-          <div className="border rounded-lg overflow-hidden">
-            <Table className="table-fixed">
+          <div className="border rounded-lg overflow-x-auto">
+            <Table className="table-fixed min-w-[1100px]">
               <TableHeader className="sticky top-0 z-10 erp-invoice-table-header">
                   <TableRow>
                     <TableHead className="w-[40px]">
@@ -2479,7 +2479,7 @@ const PurchaseEntry = () => {
                       />
                     </TableHead>
                     <TableHead className="w-[50px]">SR.NO</TableHead>
-                    <TableHead className="w-auto">ITEM NAME</TableHead>
+                    <TableHead className="w-auto min-w-[180px]">ITEM NAME</TableHead>
                     <TableHead className="w-[110px]">BARCODE</TableHead>
                     <TableHead className="w-[80px]">QTY</TableHead>
                     <TableHead className="w-[110px]">PUR.RATE</TableHead>
@@ -2494,7 +2494,7 @@ const PurchaseEntry = () => {
                 </TableHeader>
               </Table>
               <div className="max-h-[50vh] overflow-y-auto isolate">
-              <Table className="table-fixed">
+              <Table className="table-fixed min-w-[1100px]">
                 <TableBody>
                   {lineItems.map((item, index) => {
                     const subTotal = item.qty * item.pur_price;
