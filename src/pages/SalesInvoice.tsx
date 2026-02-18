@@ -29,7 +29,7 @@ import { useBeepSound } from "@/hooks/useBeepSound";
 
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { format } from "date-fns";
-import { cn, sortSearchResults } from "@/lib/utils";
+import { cn, sortSearchResults, buildProductDisplayName } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 
@@ -836,7 +836,7 @@ export default function SalesInvoice() {
           id: emptyRowIndex >= 0 ? updatedItems[emptyRowIndex].id : `row-${updatedItems.length}`,
           productId: product.id,
           variantId: variant.id,
-          productName: product.product_name,
+          productName: buildProductDisplayName(product),
           size: variant.size,
           barcode: variant.barcode || '',
           color: variant.color || product.color || '',
@@ -1061,7 +1061,7 @@ export default function SalesInvoice() {
       const newItemBase = {
         productId: product.id,
         variantId: variant.id,
-        productName: product.product_name,
+        productName: buildProductDisplayName(product),
         size: variant.size,
         barcode: variant.barcode || '',
         color: variant.color || product.color || '',

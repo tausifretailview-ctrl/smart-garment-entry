@@ -15,7 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { CalendarIcon, Plus, X, Search, Save, ClipboardList, AlertTriangle, CheckCircle, Printer, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { UOM_OPTIONS, DEFAULT_UOM, UOMType } from "@/constants/uom";
-import { cn, sortSearchResults } from "@/lib/utils";
+import { cn, sortSearchResults, buildProductDisplayName } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import {
@@ -565,7 +565,7 @@ export default function SaleOrderEntry() {
           id: emptyRowIndex >= 0 ? updatedItems[emptyRowIndex].id : `row-${updatedItems.length}`,
           productId: product.id,
           variantId: variant.id,
-          productName: product.product_name,
+           productName: buildProductDisplayName(product),
           size: variant.size,
           barcode: variant.barcode || '',
           orderQty: qty,
@@ -660,7 +660,7 @@ export default function SaleOrderEntry() {
           id: `row-${lineItems.length}`,
           productId: product.id,
           variantId: variant.id,
-          productName: product.product_name,
+           productName: buildProductDisplayName(product),
           size: variant.size,
           barcode: variant.barcode || '',
           orderQty: 1,
@@ -683,7 +683,7 @@ export default function SaleOrderEntry() {
           id: updatedItems[emptyRowIndex].id,
           productId: product.id,
           variantId: variant.id,
-          productName: product.product_name,
+          productName: buildProductDisplayName(product),
           size: variant.size,
           barcode: variant.barcode || '',
           orderQty: 1,

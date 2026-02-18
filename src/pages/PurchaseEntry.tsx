@@ -101,12 +101,10 @@ const formatProductDescription = (item: {
   size: string;
 }) => {
   const parts = [item.product_name];
-  if (item.brand) parts.push(item.brand);
-  if (item.category) parts.push(item.category);
-  if (item.style) parts.push(item.style);
-  if (item.color) parts.push(item.color);
-  parts.push(item.size);
-  return parts.join(' | ');
+  if (item.style && item.style.trim() && item.style.trim() !== '-') parts.push(item.style);
+  if (item.brand && item.brand.trim() && item.brand.trim() !== '-') parts.push(item.brand);
+  if (item.category && item.category.trim() && item.category.trim() !== '-') parts.push(item.category);
+  return parts.join('-');
 };
 
 const PurchaseEntry = () => {

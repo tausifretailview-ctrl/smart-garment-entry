@@ -108,3 +108,19 @@ export function numberToWords(num: number): string {
   
   return result;
 }
+
+/** Build a descriptive product display name like "SHIRT-FULL SLEEVE-NIKE-FORMAL" */
+export function buildProductDisplayName(product: {
+  product_name?: string;
+  style?: string;
+  brand?: string;
+  category?: string;
+}): string {
+  const parts = [
+    product.product_name,
+    product.style,
+    product.brand,
+    product.category,
+  ].filter(p => p && p.trim() && p.trim() !== '-');
+  return parts.join('-') || product.product_name || '';
+}

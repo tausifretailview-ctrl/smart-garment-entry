@@ -117,7 +117,7 @@ export const ERPVariantRow = ({
             "font-semibold text-[16px] leading-snug truncate",
             isSelected ? "text-primary-foreground" : "text-foreground"
           )}>
-            {result.product_name}
+            {[result.product_name, result.style, result.brand, result.category].filter(p => p && p.trim() && p.trim() !== '-').join('-')}
           </div>
         )}
         <div className={cn(
@@ -207,7 +207,7 @@ export const groupVariantsByProduct = (results: VariantResult[]): GroupedProduct
     const key = r.product_id || r.product_name;
     if (!groups[key]) {
       groups[key] = {
-        productName: r.product_name,
+        productName: [r.product_name, r.style, r.brand, r.category].filter(p => p && p.trim() && p.trim() !== '-').join('-'),
         productId: r.product_id || "",
         brand: r.brand,
         variants: [],
