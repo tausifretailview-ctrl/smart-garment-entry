@@ -148,6 +148,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       setCopySearch("");
       setCopyResults([]);
       setShowCopyDropdown(false);
+      // Auto-focus product name field
+      setTimeout(() => productNameInputRef.current?.focus(), 150);
     }
   }, [open]);
 
