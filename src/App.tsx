@@ -71,6 +71,7 @@ import HourlySalesAnalysis from "./pages/HourlySalesAnalysis";
 import RecycleBin from "./pages/RecycleBin";
 import StockAdjustment from "./pages/StockAdjustment";
 import StockAnalysis from "./pages/StockAnalysis";
+import StockAgeingReport from "./pages/StockAgeingReport";
 import BulkProductUpdate from "./pages/BulkProductUpdate";
 import DeliveryChallanEntry from "./pages/DeliveryChallanEntry";
 import DeliveryChallanDashboard from "./pages/DeliveryChallanDashboard";
@@ -389,6 +390,16 @@ const App = () => {
                           <StockAdjustment />
                         </Layout>
                       </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="stock-ageing"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <StockAgeingReport />
+                      </Layout>
                     </ProtectedRoute>
                   }
                 />
