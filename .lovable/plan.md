@@ -1,62 +1,49 @@
 
 
-## Phase 1: Refactor Accounts.tsx (3,518 lines to ~6 focused components)
+## Stock Ageing Report
 
-### Problem
-The `Accounts.tsx` file is a 3,518-line monolith containing 9 tabs, ~50 state variables, 3 mutations, and multiple data queries all in one component. This makes it extremely hard to maintain, debug, and extend.
+A new report page that shows stock items grouped by how long they've been sitting unsold, with supplier filtering and search capabilities.
 
-### Refactoring Strategy
+### What You'll Get
 
-Extract each tab into its own component file, moving the relevant state, queries, and mutations with it. The parent `Accounts.tsx` will become a thin orchestrator (~300 lines) that only handles:
-- Shared data (settings, organization context)
-- Tab navigation and URL params
-- Dashboard metric cards
-- Dialog rendering for receipts
+1. **Summary Cards** -- Total aged stock value, items older than 30/60/90 days at a glance
+2. **Ageing Buckets** -- Stock categorized into 0-30 days, 31-60 days, 61-90 days, 90+ days based on purchase date
+3. **Supplier Filter** -- Dropdown to view aged stock from a specific supplier
+4. **Age Threshold Filter** -- Quick buttons to show stock older than 1 month, 2 months, 3 months, or custom
+5. **Search** -- Search by product name, barcode, brand, or size
+6. **Excel Export** -- Download the filtered aged stock data
 
-### New Component Files
+### Data Source
 
-| New File | Lines Extracted | Responsibility |
-|----------|----------------|----------------|
-| `src/components/accounts/CustomerPaymentTab.tsx` | ~600 lines | Customer search, invoice selection, payment form, receipt creation mutation, recent payments table with pagination, edit/delete |
-| `src/components/accounts/SupplierPaymentTab.tsx` | ~420 lines | Supplier search, bill selection, payment form, recent supplier payments table, cheque print |
-| `src/components/accounts/EmployeeSalaryTab.tsx` | ~120 lines | Employee selector, salary form, recent salary table |
-| `src/components/accounts/ExpensesTab.tsx` | ~100 lines | Expense category, amount form, recent expenses table |
-| `src/components/accounts/VoucherEntryTab.tsx` | ~35 lines | All voucher entries table view |
-| `src/components/accounts/ReconciliationTab.tsx` | ~470 lines | Date/customer/status filters, summary cards, source breakdown, reconciliation table with export |
-| `src/components/accounts/AccountsDashboardCards.tsx` | ~150 lines | Payment stats cards + dashboard metric cards |
+The report will use the `batch_stock` table which tracks individual purchase batches with their `purchase_date`. Each batch record links to a variant and tracks remaining `quantity`. This gives exact aging per purchase batch.
 
-### Shared Logic
+### Technical Details
 
-A shared hook `src/hooks/useVoucherMutation.tsx` will encapsulate the core `createVoucher` mutation logic since both Customer and Supplier payment tabs use it. It will accept parameters for voucher type, reference info, and invoice/bill selections, and return the mutation + receipt data.
+**New file:** `src/pages/StockAgeingReport.tsx` (~400 lines)
+- Fetches `batch_stock` records joined with `product_variants` and `products` for names/brands
+- Joins with `purchase_bills` for supplier info
+- Calculates age in days from `purchase_date` to today
+- Groups into aging buckets (0-30d, 31-60d, 61-90d, 90d+)
+- Default view: stock older than 30 days
+- Server-side filtering by organization, client-side filtering by supplier/search/age threshold
+- Pagination (200 rows per page) with "load more" pattern
+- Excel export using `xlsx` library
 
-### What Stays in Accounts.tsx (~300 lines)
+**Modified file:** `src/App.tsx`
+- Add route `/stock-ageing` pointing to the new page
 
-- Tab state management (URL params)
-- Organization context
-- Settings query (shared by receipt dialog)
-- Receipt dialog rendering (shared across tabs)
-- Edit payment dialog
-- Layout structure with Tabs component
-- Advance booking and balance adjustment dialogs
+**Modified file:** `src/components/AppSidebar.tsx`
+- Add "Stock Ageing" menu item under the Reports/Stock section
 
-### Implementation Order
+**Table columns:**
+- Product Name, Brand, Size, Barcode, Supplier, Bill No., Purchase Date, Age (days), Qty, Purchase Value, Sale Value, Ageing Bucket badge
 
-1. Create `AccountsDashboardCards.tsx` -- extract stat cards and metric cards
-2. Create `useVoucherMutation.tsx` -- extract shared mutation logic
-3. Create `CustomerPaymentTab.tsx` -- largest extraction, includes form + recent table + pagination
-4. Create `SupplierPaymentTab.tsx` -- form + recent table + cheque print
-5. Create `EmployeeSalaryTab.tsx` -- simple form + table
-6. Create `ExpensesTab.tsx` -- simple form + table
-7. Create `VoucherEntryTab.tsx` -- simple table
-8. Create `ReconciliationTab.tsx` -- filters + cards + table + export
-9. Slim down `Accounts.tsx` to orchestrator
+**Filters row:**
+- Search input (product name/barcode)
+- Supplier dropdown (populated from batch_stock join purchase_bills)
+- Age threshold dropdown (All, >30 days, >60 days, >90 days)
+- Brand dropdown
+- Export to Excel button
 
-### Technical Notes
-
-- Each component receives `organizationId`, `settings`, and callback props (e.g., `onShowReceipt`) as needed
-- Query keys remain the same to preserve cache invalidation across tabs
-- The `resetForm` logic moves into each tab's local state
-- The `createVoucher` mutation will be parameterized in the shared hook so each tab passes its own config
-- No database changes needed -- this is purely a frontend refactor
-- No user-facing behavior changes -- everything works exactly the same after refactoring
+No database changes required -- this uses existing `batch_stock`, `product_variants`, `products`, and `purchase_bills` tables.
 
