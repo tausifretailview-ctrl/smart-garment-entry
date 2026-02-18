@@ -6,9 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trash2, Plus, Minus, Search, Loader2, Scan, FileText } from "lucide-react";
+import { Trash2, Plus, Minus, Search, Loader2, Scan, FileText, Banknote, CreditCard } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+
+type RefundType = "cash_refund" | "credit_note";
 
 interface ReturnItem {
   productId: string;
@@ -79,7 +82,7 @@ export const FloatingSaleReturn = ({
   const [billItems, setBillItems] = useState<SaleItemRecord[]>([]);
   const [billLookupLoading, setBillLookupLoading] = useState(false);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
-
+  const [refundType, setRefundType] = useState<RefundType>("credit_note");
   // Load sold products when dialog opens
   useEffect(() => {
     if (open && organizationId) {
@@ -94,6 +97,7 @@ export const FloatingSaleReturn = ({
       setBillNumber("");
       setBillSaleId(null);
       setBillItems([]);
+      setRefundType("credit_note");
     }
   }, [open, organizationId]);
 
@@ -458,7 +462,8 @@ export const FloatingSaleReturn = ({
 
       if (itemsError) throw itemsError;
 
-      toast({ title: "Return Saved", description: `Return ${returnNumber} saved - ₹${Math.round(grossAmount)}` });
+      const refundLabel = refundType === "cash_refund" ? "Cash Refund" : "Credit Note";
+      toast({ title: "Return Saved", description: `Return ${returnNumber} — ₹${Math.round(grossAmount)} (${refundLabel})` });
       onReturnSaved(grossAmount, returnNumber);
       onOpenChange(false);
     } catch (error) {
@@ -637,6 +642,39 @@ export const FloatingSaleReturn = ({
           </div>
         )}
 
+        {/* Refund Type Selection */}
+        <div className="pt-2 border-t">
+          <Label className="text-xs font-semibold mb-2 block">Refund Type</Label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setRefundType("cash_refund")}
+              className={cn(
+                "flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all",
+                refundType === "cash_refund"
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border bg-background text-muted-foreground hover:border-primary/40"
+              )}
+            >
+              <Banknote className="h-4 w-4" />
+              Cash Refund
+            </button>
+            <button
+              type="button"
+              onClick={() => setRefundType("credit_note")}
+              className={cn(
+                "flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all",
+                refundType === "credit_note"
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border bg-background text-muted-foreground hover:border-primary/40"
+              )}
+            >
+              <CreditCard className="h-4 w-4" />
+              Credit Note
+            </button>
+          </div>
+        </div>
+
         {/* Footer */}
         <div className="flex items-center justify-between pt-2 border-t">
           <div className="text-lg font-bold">
@@ -648,7 +686,7 @@ export const FloatingSaleReturn = ({
             </Button>
             <Button onClick={handleSaveReturn} disabled={saving || returnItems.length === 0}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Save Return
+              {refundType === "cash_refund" ? "Save & Refund" : "Save Return"}
             </Button>
           </div>
         </div>
