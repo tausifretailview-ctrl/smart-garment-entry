@@ -597,9 +597,9 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
                               {/* Line 2: Colors as badges */}
                               {product.allColors.length > 0 && (
                                 <div className="flex items-center gap-1 flex-wrap">
-                                  <span className="text-[9px] text-muted-foreground">Colors:</span>
+                                  <span className="text-[10px] font-semibold text-foreground">Colors:</span>
                                   {product.allColors.map(c => (
-                                    <span key={c} className="text-[9px] px-1 py-0 rounded bg-secondary text-secondary-foreground font-medium">
+                                    <span key={c} className="text-[10px] px-1.5 py-0 rounded bg-secondary text-foreground font-bold">
                                       {c}
                                     </span>
                                   ))}
@@ -607,22 +607,22 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
                               )}
                               
                               {/* Line 3: Barcode and prices */}
-                              <div className="flex items-center gap-3 text-[10px] text-muted-foreground flex-wrap">
+                              <div className="flex items-center gap-3 text-[11px] text-foreground font-semibold flex-wrap">
                                 {product.barcode && (
-                                  <span>Barcode: {product.barcode}</span>
+                                  <span className="font-bold">Barcode: {product.barcode}</span>
                                 )}
                                 {product.pur_price != null && (
-                                  <span className="text-primary font-medium">
+                                  <span className="text-primary font-bold">
                                     Pur: ₹{product.pur_price.toFixed(2)}
                                   </span>
                                 )}
                                 {product.sale_price != null && (
-                                  <span className="text-green-600 dark:text-green-400 font-medium">
+                                  <span className="text-green-700 dark:text-green-400 font-bold">
                                     Sale: ₹{product.sale_price.toFixed(2)}
                                   </span>
                                 )}
                                 {product.mrp != null && (
-                                  <span className="text-amber-600 dark:text-amber-400 font-medium">
+                                  <span className="text-amber-700 dark:text-amber-400 font-bold">
                                     MRP: ₹{product.mrp.toFixed(2)}
                                   </span>
                                 )}
