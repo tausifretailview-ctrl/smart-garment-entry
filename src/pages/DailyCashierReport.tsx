@@ -93,7 +93,31 @@ const DailyCashierReport = () => {
     enabled: !!currentOrganization?.id,
   });
 
-  const isLoading = salesLoading || receiptsLoading;
+  // Fetch cash refund sale returns for selected period
+  const { data: cashRefundData, isLoading: refundsLoading } = useQuery({
+    queryKey: ["cashier-report-cash-refunds", currentOrganization?.id, selectedDate, period],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+
+      const startDateStr = format(startDate, 'yyyy-MM-dd');
+      const endDateStr = format(endDate, 'yyyy-MM-dd');
+
+      const { data, error } = await supabase
+        .from("sale_returns")
+        .select("id, net_amount, return_date, refund_type")
+        .eq("organization_id", currentOrganization.id)
+        .eq("refund_type", "cash_refund")
+        .gte("return_date", startDateStr)
+        .lte("return_date", endDateStr)
+        .is("deleted_at", null);
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  const isLoading = salesLoading || receiptsLoading || refundsLoading;
 
   // Fetch settings for business name
   const { data: settings } = useQuery({
@@ -142,6 +166,9 @@ const DailyCashierReport = () => {
         rcpOtherCollection: 0,
         rcpTotalCollection: 0,
         rcpCount: 0,
+        // Cash refunds from sale returns
+        cashRefundTotal: 0,
+        cashRefundCount: 0,
       };
     }
 
@@ -239,6 +266,14 @@ const DailyCashierReport = () => {
 
     const rcpTotalCollection = rcpCashCollection + rcpUpiCollection + rcpCardCollection + rcpOtherCollection;
 
+    // Calculate cash refund total from sale returns
+    let cashRefundTotal = 0;
+    if (cashRefundData) {
+      cashRefundData.forEach((refund: any) => {
+        cashRefundTotal += Number(refund.net_amount) || 0;
+      });
+    }
+
     // Net Receivable = Net Sale - S/R Adjusted (actual amount to collect from customers)
     const netReceivable = totalSale - totalSRAdjusted;
 
@@ -268,6 +303,9 @@ const DailyCashierReport = () => {
       rcpOtherCollection,
       rcpTotalCollection,
       rcpCount: receiptData?.length || 0,
+      // Cash refunds
+      cashRefundTotal,
+      cashRefundCount: cashRefundData?.length || 0,
     };
   };
 
@@ -319,7 +357,8 @@ const DailyCashierReport = () => {
       ["S/R Adjusted", totals.totalSRAdjusted],
       ["Total Collection", grandTotalCollection],
       ["Less: Refund", totals.totalRefund],
-      ["Net Cash Collection", grandCashCollection - totals.totalRefund],
+      ["Less: Sale Return Cash Refund", totals.cashRefundTotal],
+      ["Net Cash Collection", grandCashCollection - totals.totalRefund - totals.cashRefundTotal],
       [],
       ["Outstanding"],
       ["Credit (Pay Later)", totals.creditSale],
@@ -414,8 +453,12 @@ const DailyCashierReport = () => {
     y += 7;
     doc.text("Less: Refund: " + formatCurrency(totals.totalRefund), 20, y);
     y += 7;
+    if (totals.cashRefundTotal > 0) {
+      doc.text("Less: S/R Cash Refund (" + totals.cashRefundCount + "): " + formatCurrency(totals.cashRefundTotal), 20, y);
+      y += 7;
+    }
     doc.setFont("helvetica", "bold");
-    doc.text("Net Cash Collection: " + formatCurrency(grandCashCollection - totals.totalRefund), 20, y);
+    doc.text("Net Cash Collection: " + formatCurrency(grandCashCollection - totals.totalRefund - totals.cashRefundTotal), 20, y);
     y += 10;
     doc.setFont("helvetica", "normal");
     doc.text("Credit Outstanding: " + formatCurrency(totals.creditSale), 20, y);
@@ -679,6 +722,20 @@ const DailyCashierReport = () => {
                     </TableCell>
                     <TableCell className="text-right font-semibold text-red-600">{formatCurrency(totals.totalRefund)}</TableCell>
                   </TableRow>
+                  {totals.cashRefundTotal > 0 && (
+                    <TableRow>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div className="p-2 rounded-full bg-red-100 dark:bg-red-900">
+                            <RotateCcw className="h-4 w-4 text-red-600 dark:text-red-400" />
+                          </div>
+                          <span className="font-medium">Less: Sale Return Cash Refund</span>
+                          <span className="text-xs text-muted-foreground">({totals.cashRefundCount} returns)</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-red-600">{formatCurrency(totals.cashRefundTotal)}</TableCell>
+                    </TableRow>
+                  )}
                   <TableRow className="bg-green-50 dark:bg-green-950">
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -688,7 +745,7 @@ const DailyCashierReport = () => {
                         <span className="font-bold">Net Cash Collection</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-bold text-lg">{formatCurrency(totals.cashSale - totals.totalRefund)}</TableCell>
+                    <TableCell className="text-right font-bold text-lg">{formatCurrency(totals.cashSale - totals.totalRefund - totals.cashRefundTotal)}</TableCell>
                   </TableRow>
                   {/* RCP Collections Section */}
                   {totals.rcpTotalCollection > 0 && (
@@ -721,7 +778,7 @@ const DailyCashierReport = () => {
                       <TableRow className="bg-primary/10">
                         <TableCell className="font-bold text-primary">GRAND TOTAL (Sales + RCP)</TableCell>
                         <TableCell className="text-right font-bold text-lg text-primary">
-                          {formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.rcpTotalCollection - totals.totalRefund)}
+                          {formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.rcpTotalCollection - totals.totalRefund - totals.cashRefundTotal)}
                         </TableCell>
                       </TableRow>
                     </>
@@ -820,10 +877,16 @@ const DailyCashierReport = () => {
                     <span className="text-muted-foreground">Less: Refund</span>
                     <span>- {formatCurrency(totals.totalRefund)}</span>
                   </div>
+                  {totals.cashRefundTotal > 0 && (
+                    <div className="flex justify-between text-red-600">
+                      <span className="text-muted-foreground">Less: S/R Cash Refund ({totals.cashRefundCount})</span>
+                      <span>- {formatCurrency(totals.cashRefundTotal)}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex justify-between py-2 border-t mt-2 font-bold text-green-600">
                   <span>Total Collected</span>
-                  <span>{formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted - totals.totalRefund)}</span>
+                  <span>{formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted - totals.totalRefund - totals.cashRefundTotal)}</span>
                 </div>
                 <div className="pt-2 space-y-1 border-t mt-2">
                   <div className="flex justify-between">

@@ -3646,6 +3646,7 @@ export type Database = {
           notes: string | null
           organization_id: string
           original_sale_number: string | null
+          refund_type: string
           return_date: string
           return_number: string | null
           updated_at: string
@@ -3666,6 +3667,7 @@ export type Database = {
           notes?: string | null
           organization_id: string
           original_sale_number?: string | null
+          refund_type?: string
           return_date?: string
           return_number?: string | null
           updated_at?: string
@@ -3686,6 +3688,7 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           original_sale_number?: string | null
+          refund_type?: string
           return_date?: string
           return_number?: string | null
           updated_at?: string
