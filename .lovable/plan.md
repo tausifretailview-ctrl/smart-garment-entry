@@ -1,77 +1,62 @@
 
 
-## Stock Health Widget + User ID Audit Enhancement
+## Phase 1: Refactor Accounts.tsx (3,518 lines to ~6 focused components)
 
-### Phase A: Add `user_id` Column to `stock_movements`
+### Problem
+The `Accounts.tsx` file is a 3,518-line monolith containing 9 tabs, ~50 state variables, 3 mutations, and multiple data queries all in one component. This makes it extremely hard to maintain, debug, and extend.
 
-**Database Migration:**
+### Refactoring Strategy
 
-1. Add a nullable `user_id UUID` column to `stock_movements`
-2. Update all 20 functions that INSERT into `stock_movements` to include `user_id = auth.uid()`
+Extract each tab into its own component file, moving the relevant state, queries, and mutations with it. The parent `Accounts.tsx` will become a thin orchestrator (~300 lines) that only handles:
+- Shared data (settings, organization context)
+- Tab navigation and URL params
+- Dashboard metric cards
+- Dialog rendering for receipts
 
-**Functions to update (adding `user_id` to every INSERT INTO stock_movements):**
+### New Component Files
 
-Trigger functions (12):
-- `update_stock_on_purchase()`
-- `handle_purchase_item_update()`
-- `handle_purchase_item_delete()`
-- `update_stock_on_sale()`
-- `handle_sale_item_update()`
-- `handle_sale_item_delete()`
-- `restore_stock_on_sale_return()`
-- `handle_sale_return_item_delete()`
-- `deduct_stock_on_purchase_return()`
-- `handle_purchase_return_item_delete()`
-- `update_stock_on_challan()`
-- `handle_challan_item_delete()`
+| New File | Lines Extracted | Responsibility |
+|----------|----------------|----------------|
+| `src/components/accounts/CustomerPaymentTab.tsx` | ~600 lines | Customer search, invoice selection, payment form, receipt creation mutation, recent payments table with pagination, edit/delete |
+| `src/components/accounts/SupplierPaymentTab.tsx` | ~420 lines | Supplier search, bill selection, payment form, recent supplier payments table, cheque print |
+| `src/components/accounts/EmployeeSalaryTab.tsx` | ~120 lines | Employee selector, salary form, recent salary table |
+| `src/components/accounts/ExpensesTab.tsx` | ~100 lines | Expense category, amount form, recent expenses table |
+| `src/components/accounts/VoucherEntryTab.tsx` | ~35 lines | All voucher entries table view |
+| `src/components/accounts/ReconciliationTab.tsx` | ~470 lines | Date/customer/status filters, summary cards, source breakdown, reconciliation table with export |
+| `src/components/accounts/AccountsDashboardCards.tsx` | ~150 lines | Payment stats cards + dashboard metric cards |
 
-Soft-delete/restore functions (8):
-- `soft_delete_sale()`
-- `restore_sale()`
-- `soft_delete_purchase_bill()`
-- `restore_purchase_bill()`
-- `soft_delete_sale_return()`
-- `restore_sale_return()`
-- `soft_delete_purchase_return()`
-- `restore_purchase_return()`
+### Shared Logic
 
-Reconciliation functions (2):
-- `fix_stock_discrepancies()`
-- `reset_stock_from_transactions()` (if it inserts movements)
+A shared hook `src/hooks/useVoucherMutation.tsx` will encapsulate the core `createVoucher` mutation logic since both Customer and Supplier payment tabs use it. It will accept parameters for voucher type, reference info, and invoice/bill selections, and return the mutation + receipt data.
 
-**Risk:** Very low. Adding a nullable column is non-breaking. `auth.uid()` returns NULL in non-authenticated contexts (like background jobs), which is acceptable since the column is nullable. All existing data keeps `user_id = NULL`.
+### What Stays in Accounts.tsx (~300 lines)
 
----
+- Tab state management (URL params)
+- Organization context
+- Settings query (shared by receipt dialog)
+- Receipt dialog rendering (shared across tabs)
+- Edit payment dialog
+- Layout structure with Tabs component
+- Advance booking and balance adjustment dialogs
 
-### Phase B: Stock Health Summary Widget
+### Implementation Order
 
-Add a summary section at the top of the Stock Reconciliation card that loads on mount and shows:
+1. Create `AccountsDashboardCards.tsx` -- extract stat cards and metric cards
+2. Create `useVoucherMutation.tsx` -- extract shared mutation logic
+3. Create `CustomerPaymentTab.tsx` -- largest extraction, includes form + recent table + pagination
+4. Create `SupplierPaymentTab.tsx` -- form + recent table + cheque print
+5. Create `EmployeeSalaryTab.tsx` -- simple form + table
+6. Create `ExpensesTab.tsx` -- simple form + table
+7. Create `VoucherEntryTab.tsx` -- simple table
+8. Create `ReconciliationTab.tsx` -- filters + cards + table + export
+9. Slim down `Accounts.tsx` to orchestrator
 
-- **Total Variants** -- count of active product variants
-- **Discrepancies** -- count from `detect_stock_discrepancies()` (already exists)
-- **Last Reconciliation** -- timestamp of the most recent `movement_type = 'reconciliation'` entry
-- **Health Status** -- green checkmark if 0 discrepancies, yellow warning if any exist
+### Technical Notes
 
-This auto-loads when the component mounts, giving admins an instant health overview without needing to click "Scan."
-
----
-
-### Technical Details
-
-**Migration SQL will:**
-1. `ALTER TABLE stock_movements ADD COLUMN user_id UUID;`
-2. Re-create all 20 functions with `user_id` added to every `INSERT INTO stock_movements` statement
-3. Each INSERT gets `, user_id` in the column list and `, auth.uid()` in the VALUES
-
-**UI changes in `src/components/StockReconciliation.tsx`:**
-1. Add `useEffect` to fetch health summary on mount
-2. Query total variant count, discrepancy count, and last reconciliation timestamp
-3. Render 3 stat cards above the existing action buttons
-
-### Files to Modify
-
-| File | Change |
-|------|--------|
-| `supabase/migrations/` | New migration: add `user_id` column + update all 20 functions |
-| `src/components/StockReconciliation.tsx` | Add stock health summary widget with auto-load |
+- Each component receives `organizationId`, `settings`, and callback props (e.g., `onShowReceipt`) as needed
+- Query keys remain the same to preserve cache invalidation across tabs
+- The `resetForm` logic moves into each tab's local state
+- The `createVoucher` mutation will be parameterized in the shared hook so each tab passes its own config
+- No database changes needed -- this is purely a frontend refactor
+- No user-facing behavior changes -- everything works exactly the same after refactoring
 
