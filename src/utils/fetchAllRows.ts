@@ -13,7 +13,7 @@ export async function fetchAllCustomers(organizationId: string) {
   while (hasMore) {
     const { data, error } = await supabase
       .from("customers")
-      .select("id, customer_name, phone, email, gst_number, address, customer_type, opening_balance, points_balance, discount_percent")
+      .select("id, customer_name, phone, email, gst_number, address, opening_balance, points_balance, discount_percent")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .order("customer_name")
