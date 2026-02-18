@@ -1126,33 +1126,6 @@ const POSDashboard = () => {
             </CardContent>
           </Card>
 
-          <Card 
-            className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-rose-500 border-0 shadow-none"
-            onClick={() => setRefundFilter("with_refund")}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
-              <CardDescription className="text-[11px] font-medium text-white/90">With Refunds</CardDescription>
-              <RefreshCcw className="h-3.5 w-3.5 text-white" />
-            </CardHeader>
-            <CardContent className="p-3 pt-0">
-              <div className="text-xl font-bold text-white">{summaryStats.refundCount}</div>
-              <p className="text-[11px] text-white/80">₹{summaryStats.refundAmount.toFixed(0)}</p>
-            </CardContent>
-          </Card>
-
-          <Card 
-            className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-indigo-500 border-0 shadow-none"
-            onClick={() => setCreditNoteFilter("with_credit_note")}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
-              <CardDescription className="text-[11px] font-medium text-white/90">Credit Notes</CardDescription>
-              <FileText className="h-3.5 w-3.5 text-white" />
-            </CardHeader>
-            <CardContent className="p-3 pt-0">
-              <div className="text-xl font-bold text-white">{summaryStats.creditNoteCount}</div>
-              <p className="text-[11px] text-white/80">₹{summaryStats.creditNoteAmount.toFixed(0)}</p>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Payment Method Totals */}
