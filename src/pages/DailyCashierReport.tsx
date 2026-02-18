@@ -655,8 +655,8 @@ const DailyCashierReport = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold text-white">{formatCurrency(totals.netReceivable - totals.totalBalance)}</p>
-                <p className="text-xs text-white/70">Net - Balance Pending</p>
+                <p className="text-2xl font-bold text-white">{formatCurrency(totals.netReceivable - totals.totalBalance + totals.rcpTotalCollection)}</p>
+                <p className="text-xs text-white/70">Net - Balance + Old Receipts</p>
               </CardContent>
             </Card>
           </div>
@@ -822,7 +822,7 @@ const DailyCashierReport = () => {
                         <span className="font-bold text-green-700 dark:text-green-300">Actual Net Receivable</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-bold text-lg text-green-700 dark:text-green-300">{formatCurrency(totals.netReceivable - totals.totalBalance)}</TableCell>
+                    <TableCell className="text-right font-bold text-lg text-green-700 dark:text-green-300">{formatCurrency(totals.netReceivable - totals.totalBalance + totals.rcpTotalCollection)}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
@@ -862,7 +862,7 @@ const DailyCashierReport = () => {
                 </div>
                 <div className="flex justify-between py-2 border-b-2 border-double text-lg font-bold bg-green-100 dark:bg-green-900/30 px-2 -mx-2 rounded">
                   <span className="text-green-700 dark:text-green-400">Actual Net Receivable</span>
-                  <span className="text-green-700 dark:text-green-400">{formatCurrency(totals.netReceivable - totals.totalBalance)}</span>
+                  <span className="text-green-700 dark:text-green-400">{formatCurrency(totals.netReceivable - totals.totalBalance + totals.rcpTotalCollection)}</span>
                 </div>
                 <div className="pt-2 space-y-1">
                   <div className="flex justify-between">
