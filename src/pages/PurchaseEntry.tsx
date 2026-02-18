@@ -2466,10 +2466,10 @@ const PurchaseEntry = () => {
               </div>
             </div>
           <div className="border rounded-lg overflow-hidden">
-            <Table>
+            <Table className="table-fixed">
               <TableHeader className="sticky top-0 z-10 erp-invoice-table-header">
                   <TableRow>
-                    <TableHead className="w-10">
+                    <TableHead className="w-[40px]">
                       <Checkbox
                         checked={lineItems.length > 0 && selectedForPrint.size === lineItems.length}
                         onCheckedChange={toggleSelectAll}
@@ -2477,23 +2477,23 @@ const PurchaseEntry = () => {
                         disabled={lineItems.length === 0}
                       />
                     </TableHead>
-                    <TableHead className="w-12">SR.NO</TableHead>
-                    <TableHead className="w-auto min-w-[300px]">ITEM NAME</TableHead>
-                    <TableHead className="w-28">BARCODE</TableHead>
-                    <TableHead className="w-20">QTY</TableHead>
-                    <TableHead className="w-28">PUR.RATE</TableHead>
-                    <TableHead className="w-28">SALE.RATE</TableHead>
-                    {showMrp && <TableHead className="w-28">MRP</TableHead>}
-                    <TableHead className="w-20">GST %</TableHead>
-                    <TableHead className="w-24">SUB TOTAL</TableHead>
-                    <TableHead className="w-20">DISC %</TableHead>
-                    <TableHead className="w-24">TOTAL</TableHead>
-                    <TableHead className="w-12 sticky right-0 bg-sidebar"></TableHead>
+                    <TableHead className="w-[50px]">SR.NO</TableHead>
+                    <TableHead className="w-auto">ITEM NAME</TableHead>
+                    <TableHead className="w-[110px]">BARCODE</TableHead>
+                    <TableHead className="w-[80px]">QTY</TableHead>
+                    <TableHead className="w-[110px]">PUR.RATE</TableHead>
+                    <TableHead className="w-[110px]">SALE.RATE</TableHead>
+                    {showMrp && <TableHead className="w-[110px]">MRP</TableHead>}
+                    <TableHead className="w-[80px]">GST %</TableHead>
+                    <TableHead className="w-[100px]">SUB TOTAL</TableHead>
+                    <TableHead className="w-[80px]">DISC %</TableHead>
+                    <TableHead className="w-[100px]">TOTAL</TableHead>
+                    <TableHead className="w-[40px]"></TableHead>
                   </TableRow>
                 </TableHeader>
               </Table>
-              <div className="max-h-[50vh] overflow-y-auto overflow-x-auto isolate">
-              <Table>
+              <div className="max-h-[50vh] overflow-y-auto isolate">
+              <Table className="table-fixed">
                 <TableBody>
                   {lineItems.map((item, index) => {
                     const subTotal = item.qty * item.pur_price;
@@ -2502,18 +2502,18 @@ const PurchaseEntry = () => {
                     
                     return (
                       <TableRow key={item.temp_id}>
-                        <TableCell>
+                        <TableCell className="w-[40px]">
                           <Checkbox
                             checked={selectedForPrint.has(item.temp_id)}
                             onCheckedChange={() => toggleItemSelection(item.temp_id)}
                             aria-label={`Select ${item.product_name} for printing`}
                           />
                         </TableCell>
-                        <TableCell className="text-center font-medium">{index + 1}</TableCell>
-                        <TableCell className="font-medium whitespace-normal break-words min-w-[200px] max-w-[320px] leading-tight">
+                        <TableCell className="w-[50px] text-center font-medium">{index + 1}</TableCell>
+                        <TableCell className="font-medium whitespace-normal break-words leading-tight">
                           {formatProductDescription(item)}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="w-[110px]">
                           <Badge variant="outline" className="font-mono text-xs">
                             {item.barcode || "—"}
                           </Badge>
@@ -2532,7 +2532,7 @@ const PurchaseEntry = () => {
                               )
                             }
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-20"
+                            className="w-full"
                           />
                         </TableCell>
                         <TableCell>
@@ -2549,7 +2549,7 @@ const PurchaseEntry = () => {
                               )
                             }
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-28"
+                            className="w-full"
                           />
                         </TableCell>
                         <TableCell>
@@ -2566,7 +2566,7 @@ const PurchaseEntry = () => {
                               )
                             }
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-28"
+                            className="w-full"
                           />
                         </TableCell>
                         {showMrp && (
@@ -2584,7 +2584,7 @@ const PurchaseEntry = () => {
                                 )
                               }
                               onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                              className="w-28"
+                              className="w-full"
                             />
                           </TableCell>
                         )}
@@ -2595,7 +2595,7 @@ const PurchaseEntry = () => {
                               updateLineItem(item.temp_id, "gst_per", Number(value))
                             }
                           >
-                            <SelectTrigger className="w-20 h-9">
+                            <SelectTrigger className="w-full h-9">
                               <SelectValue placeholder="GST" />
                             </SelectTrigger>
                             <SelectContent className="bg-background z-50">
@@ -2625,13 +2625,13 @@ const PurchaseEntry = () => {
                               )
                             }
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-20"
+                            className="w-full"
                           />
                         </TableCell>
                         <TableCell className="font-semibold">
                           ₹{total.toFixed(2)}
                         </TableCell>
-                        <TableCell className="sticky right-0 bg-background">
+                        <TableCell className="w-[40px]">
                           <Button
                             variant="ghost"
                             size="icon"
