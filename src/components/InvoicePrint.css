@@ -72,6 +72,61 @@
   font-size: 11pt;
 }
 
+.invoice-print.invoice-format-a4-full .shop-name {
+  font-size: 18pt;
+}
+
+.invoice-print.invoice-format-a4-full .shop-details p {
+  font-size: 9pt;
+}
+
+.invoice-print.invoice-format-a4-full .bill-type {
+  font-size: 13pt;
+}
+
+.invoice-print.invoice-format-a4-full .items-table th,
+.invoice-print.invoice-format-a4-full .items-table td {
+  padding: 6px 4px;
+  font-size: 10pt;
+}
+
+.invoice-print.invoice-format-a4-full .footer-section,
+.invoice-print.invoice-format-a4-full .payment-section {
+  font-size: 10pt;
+}
+
+.invoice-print.invoice-format-a4-full .footer-section p,
+.invoice-print.invoice-format-a4-full .payment-section p {
+  margin: 4px 0;
+}
+
+.invoice-print.invoice-format-a4-full .terms-section {
+  font-size: 9pt;
+  min-height: 80px;
+}
+
+.invoice-print.invoice-format-a4-full .terms-section p {
+  margin: 3px 0;
+}
+
+.invoice-print.invoice-format-a4-full .grand-total {
+  font-size: 12pt;
+}
+
+.invoice-print.invoice-format-a4-full .total-amount {
+  font-size: 16pt;
+}
+
+.invoice-print.invoice-format-a4-full .upi-qr-code {
+  width: 120px;
+  height: 120px;
+}
+
+.invoice-print.invoice-format-a4-full .signatory {
+  font-size: 10pt;
+  margin-top: 20px;
+}
+
 .invoice-print.invoice-format-thermal-receipt {
   width: 72mm;
   max-width: 72mm;
@@ -617,14 +672,72 @@
     page-break-after: always !important;
   }
 
-  /* A4 Full format */
+/* A4 Full format */
   .invoice-print.invoice-format-a4-full {
     width: 210mm !important;
     height: 297mm !important;
     max-width: 210mm !important;
     max-height: 297mm !important;
-    padding: 8mm !important;
+    padding: 10mm !important;
     page-break-after: always !important;
+    font-size: 10pt !important;
+  }
+
+  .invoice-print.invoice-format-a4-full .shop-name {
+    font-size: 18pt !important;
+  }
+
+  .invoice-print.invoice-format-a4-full .shop-details p {
+    font-size: 9pt !important;
+  }
+
+  .invoice-print.invoice-format-a4-full .bill-type {
+    font-size: 13pt !important;
+  }
+
+  .invoice-print.invoice-format-a4-full .items-table th,
+  .invoice-print.invoice-format-a4-full .items-table td {
+    padding: 6px 4px !important;
+    font-size: 10pt !important;
+  }
+
+  .invoice-print.invoice-format-a4-full .footer-section,
+  .invoice-print.invoice-format-a4-full .payment-section {
+    font-size: 10pt !important;
+  }
+
+  .invoice-print.invoice-format-a4-full .footer-section p,
+  .invoice-print.invoice-format-a4-full .payment-section p {
+    margin: 4px 0 !important;
+    font-size: 10pt !important;
+  }
+
+  .invoice-print.invoice-format-a4-full .terms-section {
+    font-size: 9pt !important;
+    min-height: 80px !important;
+  }
+
+  .invoice-print.invoice-format-a4-full .terms-section p {
+    margin: 3px 0 !important;
+    font-size: 9pt !important;
+  }
+
+  .invoice-print.invoice-format-a4-full .grand-total {
+    font-size: 12pt !important;
+  }
+
+  .invoice-print.invoice-format-a4-full .total-amount {
+    font-size: 16pt !important;
+  }
+
+  .invoice-print.invoice-format-a4-full .upi-qr-code {
+    width: 120px !important;
+    height: 120px !important;
+  }
+
+  .invoice-print.invoice-format-a4-full .signatory {
+    font-size: 10pt !important;
+    margin-top: 20px !important;
   }
 
   /* Thermal Receipt format */
@@ -657,8 +770,10 @@
   }
 }
 
-/* Page size definitions for print */
+/* Default page size */
 @page {
   size: A5 portrait;
   margin: 0;
 }
+
+/* A4 page size override - applied via inline style in component */

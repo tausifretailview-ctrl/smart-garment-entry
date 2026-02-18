@@ -170,6 +170,10 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
 
     return (
       <div ref={ref} className={templateClass} style={{ '--invoice-primary': currentColors.primary, '--invoice-secondary': currentColors.secondary, '--invoice-accent': currentColors.accent } as React.CSSProperties}>
+        {/* Dynamic @page size for A4 */}
+        {invoiceFormat === 'a4-full' && (
+          <style>{`@page { size: A4 portrait; margin: 5mm; }`}</style>
+        )}
         {/* Header Text */}
         {headerText && (
           <div className="header-text" style={{ textAlign: 'center', padding: '8px', fontSize: '12px', fontWeight: 'bold', color: currentColors.primary, borderBottom: `1px solid ${currentColors.accent}` }}>
