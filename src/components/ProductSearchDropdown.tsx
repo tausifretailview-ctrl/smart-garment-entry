@@ -177,12 +177,13 @@ export function ProductSearchDropdown({
       {results.map((product, index) => (
         <div
           key={product.id}
-          className={cn(
-            "px-3 py-2 cursor-pointer hover:bg-accent text-sm border-b border-border last:border-b-0",
-            selectedIndex === index && "bg-primary text-primary-foreground"
-          )}
-          onClick={() => handleSelect(product)}
-          onMouseEnter={() => setSelectedIndex(index)}
+           className={cn(
+             "px-3 py-2 cursor-pointer hover:bg-accent text-sm border-b border-border last:border-b-0",
+             selectedIndex === index && "bg-primary text-primary-foreground"
+           )}
+           onMouseDown={(e) => e.preventDefault()}
+           onClick={() => handleSelect(product)}
+           onMouseEnter={() => setSelectedIndex(index)}
         >
           <div className="flex justify-between items-start gap-2">
             <div className="flex-1 min-w-0">
