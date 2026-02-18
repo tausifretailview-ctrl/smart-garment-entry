@@ -2467,7 +2467,7 @@ const PurchaseEntry = () => {
               </div>
             </div>
           <div className="border rounded-lg overflow-x-auto">
-            <Table className="table-fixed min-w-[1400px]">
+            <Table className="table-fixed min-w-[1500px]">
               <TableHeader className="sticky top-0 z-10 erp-invoice-table-header">
                   <TableRow>
                     <TableHead className="w-[40px]">
@@ -2480,6 +2480,7 @@ const PurchaseEntry = () => {
                     </TableHead>
                     <TableHead className="w-[50px]">SR.NO</TableHead>
                     <TableHead className="w-auto min-w-[180px]">ITEM NAME</TableHead>
+                    <TableHead className="w-[90px]">SIZE</TableHead>
                     <TableHead className="w-[110px]">BARCODE</TableHead>
                     <TableHead className="w-[120px]">QTY</TableHead>
                     <TableHead className="w-[150px]">PUR.RATE</TableHead>
@@ -2494,7 +2495,7 @@ const PurchaseEntry = () => {
                 </TableHeader>
               </Table>
               <div className="max-h-[50vh] overflow-y-auto isolate">
-              <Table className="table-fixed min-w-[1400px]">
+              <Table className="table-fixed min-w-[1500px]">
                 <TableBody>
                   {lineItems.map((item, index) => {
                     const subTotal = item.qty * item.pur_price;
@@ -2514,6 +2515,7 @@ const PurchaseEntry = () => {
                         <TableCell className="w-auto font-medium whitespace-normal break-words leading-tight">
                           {formatProductDescription(item)}
                         </TableCell>
+                        <TableCell className="w-[90px] text-sm">{item.size || "—"}</TableCell>
                         <TableCell className="w-[110px]">
                           <Badge variant="outline" className="font-mono text-xs">
                             {item.barcode || "—"}
@@ -2793,7 +2795,7 @@ const PurchaseEntry = () => {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell colSpan={showMrp ? 10 : 9} className="text-muted-foreground text-sm">
+                    <TableCell colSpan={showMrp ? 11 : 10} className="text-muted-foreground text-sm">
                       <span className="hidden md:inline">Type to search or </span>
                       <button 
                         onClick={handleAddNewProductFromInline}
@@ -2808,9 +2810,9 @@ const PurchaseEntry = () => {
                   {lineItems.length > 0 && (
                     <TableRow className="bg-muted/50 font-semibold">
                       <TableCell></TableCell>
-                      <TableCell colSpan={3} className="text-right">Total:</TableCell>
+                      <TableCell colSpan={4} className="text-right">Total:</TableCell>
                       <TableCell className="text-center">{totals.totalQty}</TableCell>
-                      <TableCell colSpan={showMrp ? 8 : 7}></TableCell>
+                      <TableCell colSpan={showMrp ? 9 : 8}></TableCell>
                     </TableRow>
                   )}
                 </TableBody>
