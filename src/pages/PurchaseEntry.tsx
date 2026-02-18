@@ -2479,7 +2479,7 @@ const PurchaseEntry = () => {
                       />
                     </TableHead>
                     <TableHead className="w-[50px]">SR.NO</TableHead>
-                    <TableHead className="w-auto min-w-[180px]">ITEM NAME</TableHead>
+                    <TableHead className="w-auto min-w-[220px]">ITEM NAME</TableHead>
                     <TableHead className="w-[90px]">SIZE</TableHead>
                     <TableHead className="w-[110px]">BARCODE</TableHead>
                     <TableHead className="w-[120px]">QTY</TableHead>
@@ -2512,7 +2512,7 @@ const PurchaseEntry = () => {
                           />
                         </TableCell>
                         <TableCell className="w-[50px] text-center font-medium">{index + 1}</TableCell>
-                        <TableCell className="w-auto font-medium whitespace-normal break-words leading-tight">
+                        <TableCell className="w-auto min-w-[220px] font-medium whitespace-normal break-words leading-tight">
                           {formatProductDescription(item)}
                         </TableCell>
                         <TableCell className="w-[90px] text-sm">{item.size || "—"}</TableCell>
