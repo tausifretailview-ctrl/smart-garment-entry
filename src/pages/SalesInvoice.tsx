@@ -978,86 +978,64 @@ export default function SalesInvoice() {
         .reduce((sum, orig) => sum + orig.quantity, 0);
     }
 
-    // Check if product already exists in filled rows
-    const existingIndex = lineItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
+    // Check if last_purchase prices differ from master prices (for new items only)
+    // We need to prepare the new item data before the functional update,
+    // but the duplicate check MUST happen inside setLineItems to avoid stale state during rapid scans
+    const masterSalePrice = parseFloat(variant.sale_price || 0);
+    const masterMrp = variant.mrp ? parseFloat(variant.mrp) : masterSalePrice;
+    const lastPurchaseSalePrice = variant.last_purchase_sale_price ? parseFloat(variant.last_purchase_sale_price) : null;
+    const lastPurchaseMrp = variant.last_purchase_mrp ? parseFloat(variant.last_purchase_mrp) : null;
     
-    if (existingIndex >= 0) {
-      // Increment quantity immediately (non-blocking for speed)
-      const newQty = lineItems[existingIndex].quantity + 1;
-      
-      // Use functional update to prevent stale state during rapid scans
-      setLineItems(prev => {
-        const updatedItems = [...prev];
-        const idx = updatedItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
-        if (idx >= 0) {
-          updatedItems[idx] = calculateLineTotal({ ...updatedItems[idx], quantity: updatedItems[idx].quantity + 1 });
-        }
-        return updatedItems;
-      });
-      
-      // Validate stock asynchronously (non-blocking) - revert if insufficient
-      checkStock(variant.id, newQty, freedQty).then(stockCheck => {
-        if (!stockCheck.isAvailable) {
-          playErrorBeep();
-          showStockError(stockCheck.productName, stockCheck.size, newQty, stockCheck.availableStock);
-          // Revert the quantity increment
-          setLineItems(prev => {
-            const updatedItems = [...prev];
-            const idx = updatedItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
-            if (idx >= 0) {
-              updatedItems[idx] = calculateLineTotal({ ...updatedItems[idx], quantity: updatedItems[idx].quantity - 1 });
-            }
-            return updatedItems;
-          });
-        }
-      });
-    } else {
-      // Check if last_purchase prices differ from master prices (for new items only)
-      const masterSalePrice = parseFloat(variant.sale_price || 0);
-      const masterMrp = variant.mrp ? parseFloat(variant.mrp) : masterSalePrice;
-      const lastPurchaseSalePrice = variant.last_purchase_sale_price ? parseFloat(variant.last_purchase_sale_price) : null;
-      const lastPurchaseMrp = variant.last_purchase_mrp ? parseFloat(variant.last_purchase_mrp) : null;
-      
-      // Check for customer-specific pricing (only if enabled in settings)
-      let customerPrice = null;
-      const isCustomerPriceMemoryEnabled = (settingsData?.sale_settings as any)?.enable_customer_price_memory ?? false;
-      if (isCustomerPriceMemoryEnabled && selectedCustomerId && currentOrganization?.id) {
-        const custPrice = await fetchCustomerProductPrice(
-          currentOrganization.id,
-          selectedCustomerId,
-          variant.id
-        );
-        if (custPrice && custPrice.lastSalePrice !== masterSalePrice) {
-          customerPrice = {
-            sale_price: custPrice.lastSalePrice,
-            mrp: custPrice.lastMrp,
-            date: custPrice.lastSaleDate,
-            customerName: selectedCustomer?.customer_name,
-          };
-        }
-      }
-      
-      // Auto-apply customer price if available (no dialog)
-      // Sale Price = customer's last sale price, MRP = actual product MRP
-      if (!overridePrice && customerPrice !== null) {
-        overridePrice = {
-          sale_price: customerPrice.sale_price,  // Use customer's last sale price (e.g., ₹54)
-          mrp: masterMrp,                        // MRP = actual product MRP (unchanged)
+    // Check for customer-specific pricing (only if enabled in settings)
+    let customerPrice = null;
+    const isCustomerPriceMemoryEnabled = (settingsData?.sale_settings as any)?.enable_customer_price_memory ?? false;
+    if (isCustomerPriceMemoryEnabled && selectedCustomerId && currentOrganization?.id) {
+      const custPrice = await fetchCustomerProductPrice(
+        currentOrganization.id,
+        selectedCustomerId,
+        variant.id
+      );
+      if (custPrice && custPrice.lastSalePrice !== masterSalePrice) {
+        customerPrice = {
+          sale_price: custPrice.lastSalePrice,
+          mrp: custPrice.lastMrp,
+          date: custPrice.lastSaleDate,
+          customerName: selectedCustomer?.customer_name,
         };
       }
+    }
+    
+    // Auto-apply customer price if available (no dialog)
+    if (!overridePrice && customerPrice !== null) {
+      overridePrice = {
+        sale_price: customerPrice.sale_price,
+        mrp: masterMrp,
+      };
+    }
+    
+    const salePrice = overridePrice?.sale_price ?? masterSalePrice;
+    const mrpToUse = overridePrice?.mrp ?? masterMrp;
+    
+    const customerHasMasterDiscount = selectedCustomer?.discount_percent && selectedCustomer.discount_percent > 0;
+    const brandDiscount = customerHasMasterDiscount ? 0 : getBrandDiscount(product.brand);
+    const discountPercent = brandDiscount > 0 ? brandDiscount : 0;
+
+    // Use functional update with duplicate check INSIDE to prevent stale state during rapid barcode scans
+    setLineItems(prev => {
+      // Check for existing item inside the updater to always see latest state
+      const existingIndex = prev.findIndex(item => item.variantId === variant.id && item.productId !== '');
       
-      // Use override price or master price
-      const salePrice = overridePrice?.sale_price ?? masterSalePrice;
-      const mrpToUse = overridePrice?.mrp ?? masterMrp;
+      if (existingIndex >= 0) {
+        // Merge: increment quantity
+        const updatedItems = [...prev];
+        updatedItems[existingIndex] = calculateLineTotal({
+          ...updatedItems[existingIndex],
+          quantity: updatedItems[existingIndex].quantity + 1,
+        });
+        return updatedItems;
+      }
       
-      // Mutually exclusive discount logic:
-      // Only apply brand discount if customer has NO master discount
-      // If customer has master discount, it's applied as flat discount instead
-      const customerHasMasterDiscount = selectedCustomer?.discount_percent && selectedCustomer.discount_percent > 0;
-      const brandDiscount = customerHasMasterDiscount ? 0 : getBrandDiscount(product.brand);
-      const discountPercent = brandDiscount > 0 ? brandDiscount : 0;
-      
-      // Use functional update to find empty row and fill it (prevents stale state)
+      // New item: find empty row or append
       const newItemBase = {
         productId: product.id,
         variantId: variant.id,
@@ -1075,55 +1053,56 @@ export default function SalesInvoice() {
         lineTotal: 0,
         hsnCode: product.hsn_code || '',
       };
-
-      setLineItems(prev => {
-        const emptyRowIndex = prev.findIndex(item => item.productId === '');
-        if (emptyRowIndex === -1) {
-          // Add new row
-          const newItem: LineItem = calculateLineTotal({
-            ...newItemBase,
-            id: `row-${prev.length}`,
-          });
-          return [...prev, newItem];
-        } else {
-          // Fill empty row
-          const updatedItems = [...prev];
-          updatedItems[emptyRowIndex] = calculateLineTotal({
-            ...newItemBase,
-            id: updatedItems[emptyRowIndex].id,
-          });
-          return updatedItems;
-        }
-      });
       
-      // Show toast if brand discount was applied
-      if (brandDiscount > 0) {
-        toast({
-          title: `Brand discount applied: ${brandDiscount}%`,
-          description: `${product.brand} discount for this customer`,
+      const emptyRowIndex = prev.findIndex(item => item.productId === '');
+      if (emptyRowIndex === -1) {
+        const newItem: LineItem = calculateLineTotal({
+          ...newItemBase,
+          id: `row-${prev.length}`,
         });
+        return [...prev, newItem];
+      } else {
+        const updatedItems = [...prev];
+        updatedItems[emptyRowIndex] = calculateLineTotal({
+          ...newItemBase,
+          id: updatedItems[emptyRowIndex].id,
+        });
+        return updatedItems;
       }
-      
-      // Validate stock asynchronously (non-blocking) - revert if insufficient
-      checkStock(variant.id, 1, freedQty).then(stockCheck => {
-        if (!stockCheck.isAvailable) {
-          playErrorBeep();
-          showStockError(stockCheck.productName, stockCheck.size, 1, stockCheck.availableStock);
-          // Remove the just-added item
-          setLineItems(prev => {
-            const idx = prev.findIndex(item => item.variantId === variant.id && item.productId !== '');
-            if (idx >= 0) {
-              const updatedItems = [...prev];
-              updatedItems[idx] = {
-                ...updatedItems[idx],
-                productId: '', variantId: '', productName: '', size: '', barcode: '', color: '',
-                quantity: 0, mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, hsnCode: '',
-              };
-              return updatedItems;
+    });
+
+    // Validate stock asynchronously after state update
+    // Use a microtask to read the updated quantity
+    setTimeout(() => {
+      setLineItems(prev => {
+        const idx = prev.findIndex(item => item.variantId === variant.id && item.productId !== '');
+        if (idx >= 0) {
+          const currentQty = prev[idx].quantity;
+          checkStock(variant.id, currentQty, freedQty).then(stockCheck => {
+            if (!stockCheck.isAvailable) {
+              playErrorBeep();
+              showStockError(stockCheck.productName, stockCheck.size, currentQty, stockCheck.availableStock);
+              // Revert
+              setLineItems(p => {
+                const items = [...p];
+                const i = items.findIndex(item => item.variantId === variant.id && item.productId !== '');
+                if (i >= 0) {
+                  items[i] = calculateLineTotal({ ...items[i], quantity: items[i].quantity - 1 });
+                }
+                return items;
+              });
             }
-            return prev;
           });
         }
+        return prev; // No change, just reading
+      });
+    }, 0);
+
+    // Show toast if brand discount was applied
+    if (brandDiscount > 0) {
+      toast({
+        title: `Brand discount applied: ${brandDiscount}%`,
+        description: `${product.brand} discount for this customer`,
       });
     }
     
