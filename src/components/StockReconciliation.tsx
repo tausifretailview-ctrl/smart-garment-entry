@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Loader2, Search, CheckCircle, AlertTriangle, RefreshCw, RotateCcw } from "lucide-react";
+import { Loader2, Search, CheckCircle, AlertTriangle, RefreshCw, RotateCcw, Package, Activity, Clock } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Discrepancy {
   variant_id: string;
@@ -34,6 +35,13 @@ interface FixResult {
   sale_returns?: number;
 }
 
+interface HealthSummary {
+  totalVariants: number;
+  discrepancyCount: number;
+  lastReconciliation: string | null;
+  isLoading: boolean;
+}
+
 export const StockReconciliation = () => {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
@@ -47,6 +55,35 @@ export const StockReconciliation = () => {
   const [fixResults, setFixResults] = useState<FixResult[]>([]);
   const [showResultsDialog, setShowResultsDialog] = useState(false);
   const [resultDialogTitle, setResultDialogTitle] = useState("Reconciliation Complete");
+  const [health, setHealth] = useState<HealthSummary>({
+    totalVariants: 0, discrepancyCount: 0, lastReconciliation: null, isLoading: true,
+  });
+
+  useEffect(() => {
+    if (!currentOrganization?.id) return;
+    const fetchHealth = async () => {
+      setHealth(prev => ({ ...prev, isLoading: true }));
+      try {
+        const [variantRes, discRes, reconRes] = await Promise.all([
+          supabase.from('product_variants').select('id', { count: 'exact', head: true })
+            .eq('organization_id', currentOrganization.id).is('deleted_at', null),
+          supabase.rpc('detect_stock_discrepancies', { p_organization_id: currentOrganization.id }),
+          supabase.from('stock_movements').select('created_at')
+            .eq('organization_id', currentOrganization.id).eq('movement_type', 'reconciliation')
+            .order('created_at', { ascending: false }).limit(1),
+        ]);
+        setHealth({
+          totalVariants: variantRes.count || 0,
+          discrepancyCount: discRes.data?.length || 0,
+          lastReconciliation: reconRes.data?.[0]?.created_at || null,
+          isLoading: false,
+        });
+      } catch {
+        setHealth(prev => ({ ...prev, isLoading: false }));
+      }
+    };
+    fetchHealth();
+  }, [currentOrganization?.id]);
 
   const handleScanDiscrepancies = async () => {
     if (!currentOrganization?.id) {
@@ -112,6 +149,7 @@ export const StockReconciliation = () => {
       setFixResults(details);
       setDiscrepancies([]);
       setShowResultsDialog(true);
+      setHealth(prev => ({ ...prev, discrepancyCount: 0, lastReconciliation: new Date().toISOString() }));
 
       toast({
         title: "Reconciliation Complete",
@@ -149,6 +187,7 @@ export const StockReconciliation = () => {
       setDiscrepancies([]);
       setResultDialogTitle("Stock Reset Complete");
       setShowResultsDialog(true);
+      setHealth(prev => ({ ...prev, discrepancyCount: 0, lastReconciliation: new Date().toISOString() }));
 
       toast({
         title: "Stock Reset Complete",
@@ -177,7 +216,39 @@ export const StockReconciliation = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Action Buttons */}
+        {/* Stock Health Summary */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="flex items-center gap-3 p-4 rounded-lg border bg-muted/30">
+            <Package className="h-8 w-8 text-primary" />
+            <div>
+              <p className="text-sm text-muted-foreground">Total Variants</p>
+              {health.isLoading ? <Skeleton className="h-6 w-16" /> : (
+                <p className="text-xl font-bold">{health.totalVariants.toLocaleString()}</p>
+              )}
+            </div>
+          </div>
+          <div className={`flex items-center gap-3 p-4 rounded-lg border ${health.discrepancyCount > 0 ? 'bg-destructive/10 border-destructive/20' : 'bg-success/10 border-success/20'}`}>
+            <Activity className={`h-8 w-8 ${health.discrepancyCount > 0 ? 'text-destructive' : 'text-success'}`} />
+            <div>
+              <p className="text-sm text-muted-foreground">Discrepancies</p>
+              {health.isLoading ? <Skeleton className="h-6 w-16" /> : (
+                <p className="text-xl font-bold">{health.discrepancyCount}</p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-3 p-4 rounded-lg border bg-muted/30">
+            <Clock className="h-8 w-8 text-muted-foreground" />
+            <div>
+              <p className="text-sm text-muted-foreground">Last Reconciliation</p>
+              {health.isLoading ? <Skeleton className="h-6 w-24" /> : (
+                <p className="text-sm font-medium">
+                  {health.lastReconciliation ? new Date(health.lastReconciliation).toLocaleDateString() : 'Never'}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
         <div className="flex items-center gap-4">
           <Button onClick={handleScanDiscrepancies} disabled={isScanning || isFixing}>
             {isScanning ? (
