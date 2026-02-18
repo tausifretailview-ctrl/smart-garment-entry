@@ -137,6 +137,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     status: "active",
   });
   const [colorInput, setColorInput] = useState("");
+  const [markupPercent, setMarkupPercent] = useState("");
 
   // Reset form when dialog opens - pre-fill from last saved product
   useEffect(() => {
@@ -212,6 +213,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       status: "active",
     });
     setColorInput("");
+    setMarkupPercent("");
     setSelectedSizes([]);
     setVariants([]);
     setShowVariants(false);
@@ -1112,9 +1114,41 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     id="default_pur_price"
                     type="number"
                     value={formData.default_pur_price ?? ""}
-                    onChange={(e) => setFormData({ ...formData, default_pur_price: e.target.value ? Number(e.target.value) : undefined })}
+                    onChange={(e) => {
+                      const purPrice = e.target.value ? Number(e.target.value) : undefined;
+                      const updates: Partial<typeof formData> = { default_pur_price: purPrice };
+                      // Recalculate sale price from markup if markup exists and pur price is valid
+                      if (purPrice && purPrice > 0 && markupPercent !== "") {
+                        const mk = parseFloat(markupPercent);
+                        if (!isNaN(mk)) {
+                          updates.default_sale_price = Math.round(purPrice * (1 + mk / 100) * 100) / 100;
+                        }
+                      }
+                      setFormData({ ...formData, ...updates });
+                    }}
                     placeholder="0"
                     required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="markup_percent" className="text-xs">Markup %</Label>
+                  <Input
+                    id="markup_percent"
+                    type="number"
+                    step="0.01"
+                    value={markupPercent}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setMarkupPercent(val);
+                      const mk = parseFloat(val);
+                      const purPrice = formData.default_pur_price;
+                      if (!isNaN(mk) && purPrice && purPrice > 0) {
+                        setFormData({ ...formData, default_sale_price: Math.round(purPrice * (1 + mk / 100) * 100) / 100 });
+                      }
+                    }}
+                    placeholder="%"
+                    className="h-11"
                   />
                 </div>
 
@@ -1124,7 +1158,17 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     id="default_sale_price"
                     type="number"
                     value={formData.default_sale_price ?? ""}
-                    onChange={(e) => setFormData({ ...formData, default_sale_price: e.target.value ? Number(e.target.value) : undefined })}
+                    onChange={(e) => {
+                      const salePrice = e.target.value ? Number(e.target.value) : undefined;
+                      setFormData({ ...formData, default_sale_price: salePrice });
+                      // Reverse-calculate markup
+                      const purPrice = formData.default_pur_price;
+                      if (salePrice && salePrice > 0 && purPrice && purPrice > 0) {
+                        setMarkupPercent((((salePrice - purPrice) / purPrice) * 100).toFixed(2));
+                      } else {
+                        setMarkupPercent("");
+                      }
+                    }}
                     placeholder="0"
                     required
                   />
