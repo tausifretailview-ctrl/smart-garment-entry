@@ -2479,16 +2479,16 @@ const PurchaseEntry = () => {
                       />
                     </TableHead>
                     <TableHead className="w-[60px]">SR.NO</TableHead>
-                    <TableHead className="w-[280px]">ITEM NAME</TableHead>
-                    <TableHead className="w-[80px]">SIZE</TableHead>
+                    <TableHead className="w-[200px]">ITEM NAME</TableHead>
+                    <TableHead className="w-[50px]">SIZE</TableHead>
                     <TableHead className="w-[130px]">BARCODE</TableHead>
-                    <TableHead className="w-[80px] text-right">QTY</TableHead>
-                    <TableHead className="w-[110px] text-right">PUR.RATE</TableHead>
-                    <TableHead className="w-[110px] text-right">SALE.RATE</TableHead>
+                    <TableHead className="w-[70px] text-right">QTY</TableHead>
+                    <TableHead className="w-[120px] text-right">PUR.RATE</TableHead>
+                    <TableHead className="w-[120px] text-right">SALE.RATE</TableHead>
                     {showMrp && <TableHead className="w-[100px] text-right">MRP</TableHead>}
-                    <TableHead className="w-[80px] text-right">GST %</TableHead>
+                    <TableHead className="w-[90px] text-right">GST %</TableHead>
                     <TableHead className="w-[130px] text-right">SUB TOTAL</TableHead>
-                    <TableHead className="w-[90px] text-right">DISC %</TableHead>
+                    <TableHead className="w-[100px] text-right">DISC %</TableHead>
                     <TableHead className="w-[130px] text-right">TOTAL</TableHead>
                     <TableHead className="w-[40px]"></TableHead>
                   </TableRow>
@@ -2512,16 +2512,16 @@ const PurchaseEntry = () => {
                           />
                         </TableCell>
                         <TableCell className="w-[60px] text-center font-medium">{index + 1}</TableCell>
-                        <TableCell className="w-[280px] max-w-[280px] font-medium whitespace-nowrap overflow-hidden text-ellipsis" title={[item.product_name, (item.color && item.color.trim() && item.color.trim() !== '-') ? item.color : ''].filter(Boolean).join('-')}>
+                        <TableCell className="w-[200px] max-w-[200px] font-medium whitespace-nowrap overflow-hidden text-ellipsis" title={[item.product_name, (item.color && item.color.trim() && item.color.trim() !== '-') ? item.color : ''].filter(Boolean).join('-')}>
                           {[item.product_name, (item.color && item.color.trim() && item.color.trim() !== '-') ? item.color : ''].filter(Boolean).join('-')}
                         </TableCell>
-                        <TableCell className="w-[80px] text-sm">{item.size || "—"}</TableCell>
+                        <TableCell className="w-[50px] text-sm">{item.size || "—"}</TableCell>
                         <TableCell className="w-[130px]">
                           <Badge variant="outline" className="font-mono text-xs">
                             {item.barcode || "—"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="w-[80px]">
+                        <TableCell className="w-[70px]">
                           <Input
                             ref={index === lineItems.length - 1 ? lastQtyInputRef : undefined}
                             type="number"
@@ -2538,7 +2538,7 @@ const PurchaseEntry = () => {
                             className="w-full text-right"
                           />
                         </TableCell>
-                        <TableCell className="w-[110px]">
+                        <TableCell className="w-[120px]">
                           <Input
                             type="number"
                             min="0"
@@ -2555,7 +2555,7 @@ const PurchaseEntry = () => {
                             className="w-full text-right"
                           />
                         </TableCell>
-                        <TableCell className="w-[110px]">
+                        <TableCell className="w-[120px]">
                           <Input
                             type="number"
                             min="0"
@@ -2591,7 +2591,7 @@ const PurchaseEntry = () => {
                             />
                           </TableCell>
                         )}
-                        <TableCell className="w-[80px]">
+                        <TableCell className="w-[90px]">
                           <Select
                             value={String(item.gst_per)}
                             onValueChange={(value) =>
@@ -2613,7 +2613,7 @@ const PurchaseEntry = () => {
                         <TableCell className="w-[130px] text-right font-semibold tabular-nums">
                           ₹{subTotal.toFixed(2)}
                         </TableCell>
-                        <TableCell className="w-[90px]">
+                        <TableCell className="w-[100px]">
                           <Input
                             type="number"
                             min="0"
