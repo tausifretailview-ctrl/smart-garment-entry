@@ -434,7 +434,8 @@ export const FloatingSaleReturn = ({
           gross_amount: grossAmount,
           gst_amount: gstAmount,
           net_amount: grossAmount,
-        })
+          refund_type: refundType === "cash_refund" ? "cash_refund" : "credit_note",
+        } as any)
         .select()
         .single();
 

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronUp, Printer, Trash2, Plus, Search, Receipt, TrendingDown, IndianRupee, CreditCard } from "lucide-react";
+import { ChevronDown, ChevronUp, Printer, Trash2, Plus, Search, Receipt, TrendingDown, IndianRupee, CreditCard, Banknote, ArrowLeftRight } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useReactToPrint } from "react-to-print";
 import { SaleReturnPrint } from "@/components/SaleReturnPrint";
@@ -30,6 +30,7 @@ interface SaleReturn {
   credit_note_id?: string;
   credit_status?: string;
   linked_sale_id?: string;
+  refund_type?: string;
 }
 
 interface SaleReturnItem {
@@ -262,6 +263,7 @@ export default function SaleReturnDashboard() {
                     <TableHead className="text-right">GST</TableHead>
                     <TableHead className="text-right">Net Amount</TableHead>
                     <TableHead>Credit Status</TableHead>
+                    <TableHead>Refund Type</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -322,6 +324,26 @@ export default function SaleReturnDashboard() {
                             <span className="text-muted-foreground text-sm">-</span>
                           )}
                         </TableCell>
+                        <TableCell>
+                          {ret.refund_type === 'cash_refund' && (
+                            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700">
+                              <Banknote className="h-3 w-3 mr-1" />
+                              Cash Refund
+                            </Badge>
+                          )}
+                          {ret.refund_type === 'exchange' && (
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700">
+                              <ArrowLeftRight className="h-3 w-3 mr-1" />
+                              Exchange
+                            </Badge>
+                          )}
+                          {(ret.refund_type === 'credit_note' || !ret.refund_type) && (
+                            <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700">
+                              <CreditCard className="h-3 w-3 mr-1" />
+                              Credit Note
+                            </Badge>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                             {(ret.credit_status === 'pending' || !ret.credit_status) && (
@@ -359,7 +381,7 @@ export default function SaleReturnDashboard() {
                       </TableRow>
                       {expandedRows.has(ret.id) && ret.items && (
                         <TableRow>
-                          <TableCell colSpan={10} className="bg-muted/50">
+                          <TableCell colSpan={11} className="bg-muted/50">
                             <div className="p-4">
                               <h4 className="font-medium mb-2">Return Items:</h4>
                               <Table>
