@@ -357,6 +357,7 @@ export function CustomerPaymentTab({
     if (!amount || parseFloat(amount) <= 0) { toast.error("Please enter a valid amount"); return; }
     if (!referenceId) { toast.error("Please select a customer"); return; }
     if (customerBalance !== undefined && customerBalance <= 0) { toast.error("Cannot create payment receipt - customer balance is zero"); return; }
+    if (customerInvoices && customerInvoices.length > 0 && selectedInvoiceIds.length === 0) { toast.error("Please select at least one pending invoice"); return; }
     const discountValue = parseFloat(discountAmount) || 0;
     if (discountValue > 0 && !discountReason.trim()) { toast.error("Please enter a discount reason"); return; }
     createVoucher.mutate();
@@ -467,7 +468,7 @@ export function CustomerPaymentTab({
 
               {/* Invoice Selection */}
               <div className="space-y-2 md:col-span-2">
-                <Label>Select Invoices (Optional - Leave empty for Opening Balance)</Label>
+                <Label>{customerInvoices && customerInvoices.length > 0 ? "Select Invoices (Required)" : "Select Invoices"}</Label>
                 {!referenceId ? (
                   <p className="text-xs text-muted-foreground">Select a customer first</p>
                 ) : customerInvoices?.length === 0 ? (
@@ -496,7 +497,7 @@ export function CustomerPaymentTab({
                       })}
                     </div>
                     {selectedInvoiceIds.length === 0 && referenceId && (
-                      <p className="text-xs text-amber-600 dark:text-amber-400">ℹ No invoices selected - Payment will be recorded as Opening Balance collection</p>
+                      <p className="text-xs text-red-600 dark:text-red-400">⚠️ Please select at least one invoice to proceed</p>
                     )}
                   </>
                 )}
