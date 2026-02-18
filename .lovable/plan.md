@@ -1,49 +1,33 @@
 
+# Add Size Selection Checkboxes to Product Entry
 
-## Stock Ageing Report
+## Problem
+When adding a new product, selecting a size group like "22-28" generates variants for ALL sizes (22, 24, 26, 28). If the user only needs size 26, they must manually delete the unwanted sizes one by one using the X button -- tedious and slow.
 
-A new report page that shows stock items grouped by how long they've been sitting unsold, with supplier filtering and search capabilities.
+## Solution
+After a size group is selected, display all sizes from that group as **checkboxes**. By default, all sizes are checked. The user can uncheck sizes they don't need before clicking "Generate Size Variants". Only checked sizes will be used to create variants.
 
-### What You'll Get
+## How It Works
+1. User selects a size group (e.g., "22-28")
+2. Below the dropdown, a row of checkbox chips appears: [x] 22  [x] 24  [x] 26  [x] 28
+3. User unchecks sizes they don't want (e.g., uncheck 22, 24, 28 -- keep only 26)
+4. Click "Generate Size Variants" -- only size 26 variants are created
+5. A "Select All / Deselect All" toggle for quick bulk selection
 
-1. **Summary Cards** -- Total aged stock value, items older than 30/60/90 days at a glance
-2. **Ageing Buckets** -- Stock categorized into 0-30 days, 31-60 days, 61-90 days, 90+ days based on purchase date
-3. **Supplier Filter** -- Dropdown to view aged stock from a specific supplier
-4. **Age Threshold Filter** -- Quick buttons to show stock older than 1 month, 2 months, 3 months, or custom
-5. **Search** -- Search by product name, barcode, brand, or size
-6. **Excel Export** -- Download the filtered aged stock data
+## Technical Details
 
-### Data Source
+### File: `src/components/ProductEntryDialog.tsx`
 
-The report will use the `batch_stock` table which tracks individual purchase batches with their `purchase_date`. Each batch record links to a variant and tracks remaining `quantity`. This gives exact aging per purchase batch.
+1. **Add state** for selected sizes:
+   ```typescript
+   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
+   ```
 
-### Technical Details
+2. **Update size group selection handler**: When a size group is selected, auto-populate `selectedSizes` with all sizes from that group (all checked by default).
 
-**New file:** `src/pages/StockAgeingReport.tsx` (~400 lines)
-- Fetches `batch_stock` records joined with `product_variants` and `products` for names/brands
-- Joins with `purchase_bills` for supplier info
-- Calculates age in days from `purchase_date` to today
-- Groups into aging buckets (0-30d, 31-60d, 61-90d, 90d+)
-- Default view: stock older than 30 days
-- Server-side filtering by organization, client-side filtering by supplier/search/age threshold
-- Pagination (200 rows per page) with "load more" pattern
-- Excel export using `xlsx` library
+3. **Render checkbox row** below the Size Group dropdown: Display each size as a compact checkbox chip. Include "All" / "None" quick toggle buttons.
 
-**Modified file:** `src/App.tsx`
-- Add route `/stock-ageing` pointing to the new page
+4. **Modify `handleGenerateSizeVariants`**: Filter `selectedGroup.sizes` to only include sizes present in `selectedSizes` array before generating variants.
 
-**Modified file:** `src/components/AppSidebar.tsx`
-- Add "Stock Ageing" menu item under the Reports/Stock section
-
-**Table columns:**
-- Product Name, Brand, Size, Barcode, Supplier, Bill No., Purchase Date, Age (days), Qty, Purchase Value, Sale Value, Ageing Bucket badge
-
-**Filters row:**
-- Search input (product name/barcode)
-- Supplier dropdown (populated from batch_stock join purchase_bills)
-- Age threshold dropdown (All, >30 days, >60 days, >90 days)
-- Brand dropdown
-- Export to Excel button
-
-No database changes required -- this uses existing `batch_stock`, `product_variants`, `products`, and `purchase_bills` tables.
-
+### UI Layout
+The size checkboxes will appear as a compact inline row of small toggleable chips right below the Size Group selector, keeping the dialog clean and not adding extra height.
