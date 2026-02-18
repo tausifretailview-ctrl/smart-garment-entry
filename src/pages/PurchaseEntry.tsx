@@ -2467,7 +2467,7 @@ const PurchaseEntry = () => {
               </div>
             </div>
           <div className="border rounded-lg overflow-x-auto">
-            <Table className="table-fixed min-w-[1250px]">
+            <Table className="table-fixed min-w-[1400px]">
               <TableHeader className="sticky top-0 z-10 erp-invoice-table-header">
                   <TableRow>
                     <TableHead className="w-[40px]">
@@ -2481,11 +2481,11 @@ const PurchaseEntry = () => {
                     <TableHead className="w-[50px]">SR.NO</TableHead>
                     <TableHead className="w-auto min-w-[180px]">ITEM NAME</TableHead>
                     <TableHead className="w-[110px]">BARCODE</TableHead>
-                    <TableHead className="w-[100px]">QTY</TableHead>
-                    <TableHead className="w-[130px]">PUR.RATE</TableHead>
-                    <TableHead className="w-[130px]">SALE.RATE</TableHead>
+                    <TableHead className="w-[120px]">QTY</TableHead>
+                    <TableHead className="w-[150px]">PUR.RATE</TableHead>
+                    <TableHead className="w-[150px]">SALE.RATE</TableHead>
                     {showMrp && <TableHead className="w-[130px]">MRP</TableHead>}
-                    <TableHead className="w-[100px]">GST %</TableHead>
+                    <TableHead className="w-[120px]">GST %</TableHead>
                     <TableHead className="w-[110px]">SUB TOTAL</TableHead>
                     <TableHead className="w-[80px]">DISC %</TableHead>
                     <TableHead className="w-[110px]">TOTAL</TableHead>
@@ -2494,7 +2494,7 @@ const PurchaseEntry = () => {
                 </TableHeader>
               </Table>
               <div className="max-h-[50vh] overflow-y-auto isolate">
-              <Table className="table-fixed min-w-[1250px]">
+              <Table className="table-fixed min-w-[1400px]">
                 <TableBody>
                   {lineItems.map((item, index) => {
                     const subTotal = item.qty * item.pur_price;
@@ -2519,7 +2519,7 @@ const PurchaseEntry = () => {
                             {item.barcode || "—"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="w-[100px]">
+                        <TableCell className="w-[120px]">
                           <Input
                             ref={index === lineItems.length - 1 ? lastQtyInputRef : undefined}
                             type="number"
@@ -2536,7 +2536,7 @@ const PurchaseEntry = () => {
                             className="w-full"
                           />
                         </TableCell>
-                        <TableCell className="w-[130px]">
+                        <TableCell className="w-[150px]">
                           <Input
                             type="number"
                             min="0"
@@ -2553,7 +2553,7 @@ const PurchaseEntry = () => {
                             className="w-full"
                           />
                         </TableCell>
-                        <TableCell className="w-[130px]">
+                        <TableCell className="w-[150px]">
                           <Input
                             type="number"
                             min="0"
@@ -2589,7 +2589,7 @@ const PurchaseEntry = () => {
                             />
                           </TableCell>
                         )}
-                        <TableCell className="w-[100px]">
+                        <TableCell className="w-[120px]">
                           <Select
                             value={String(item.gst_per)}
                             onValueChange={(value) =>
