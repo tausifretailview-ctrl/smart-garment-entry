@@ -2467,34 +2467,34 @@ const PurchaseEntry = () => {
               </div>
             </div>
           <div className="border rounded-lg overflow-x-auto">
-            <Table className="table-fixed min-w-[1100px]">
+            <Table className="table-fixed min-w-[1250px]">
               <TableHeader className="sticky top-0 z-10 erp-invoice-table-header">
                   <TableRow>
                     <TableHead className="w-[40px]">
-                      <Checkbox
-                        checked={lineItems.length > 0 && selectedForPrint.size === lineItems.length}
-                        onCheckedChange={toggleSelectAll}
-                        aria-label="Select all for printing"
-                        disabled={lineItems.length === 0}
+                      <input
+                        type="checkbox"
+                        checked={lineItems.length > 0 && lineItems.every((_, i) => document.getElementById(`check-${i}`)?.getAttribute('data-state') === 'checked')}
+                        className="rounded"
+                        readOnly
                       />
                     </TableHead>
                     <TableHead className="w-[50px]">SR.NO</TableHead>
                     <TableHead className="w-auto min-w-[180px]">ITEM NAME</TableHead>
                     <TableHead className="w-[110px]">BARCODE</TableHead>
-                    <TableHead className="w-[80px]">QTY</TableHead>
-                    <TableHead className="w-[110px]">PUR.RATE</TableHead>
-                    <TableHead className="w-[110px]">SALE.RATE</TableHead>
-                    {showMrp && <TableHead className="w-[110px]">MRP</TableHead>}
-                    <TableHead className="w-[80px]">GST %</TableHead>
-                    <TableHead className="w-[100px]">SUB TOTAL</TableHead>
+                    <TableHead className="w-[100px]">QTY</TableHead>
+                    <TableHead className="w-[130px]">PUR.RATE</TableHead>
+                    <TableHead className="w-[130px]">SALE.RATE</TableHead>
+                    {showMrp && <TableHead className="w-[130px]">MRP</TableHead>}
+                    <TableHead className="w-[100px]">GST %</TableHead>
+                    <TableHead className="w-[110px]">SUB TOTAL</TableHead>
                     <TableHead className="w-[80px]">DISC %</TableHead>
-                    <TableHead className="w-[100px]">TOTAL</TableHead>
+                    <TableHead className="w-[110px]">TOTAL</TableHead>
                     <TableHead className="w-[40px]"></TableHead>
                   </TableRow>
                 </TableHeader>
               </Table>
               <div className="max-h-[50vh] overflow-y-auto isolate">
-              <Table className="table-fixed min-w-[1100px]">
+              <Table className="table-fixed min-w-[1250px]">
                 <TableBody>
                   {lineItems.map((item, index) => {
                     const subTotal = item.qty * item.pur_price;
@@ -2519,7 +2519,7 @@ const PurchaseEntry = () => {
                             {item.barcode || "—"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="w-[80px]">
+                        <TableCell className="w-[100px]">
                           <Input
                             ref={index === lineItems.length - 1 ? lastQtyInputRef : undefined}
                             type="number"
@@ -2536,7 +2536,7 @@ const PurchaseEntry = () => {
                             className="w-full"
                           />
                         </TableCell>
-                        <TableCell className="w-[110px]">
+                        <TableCell className="w-[130px]">
                           <Input
                             type="number"
                             min="0"
@@ -2553,7 +2553,7 @@ const PurchaseEntry = () => {
                             className="w-full"
                           />
                         </TableCell>
-                        <TableCell className="w-[110px]">
+                        <TableCell className="w-[130px]">
                           <Input
                             type="number"
                             min="0"
@@ -2571,7 +2571,7 @@ const PurchaseEntry = () => {
                           />
                         </TableCell>
                         {showMrp && (
-                          <TableCell className="w-[110px]">
+                          <TableCell className="w-[130px]">
                             <Input
                               type="number"
                               min="0"
@@ -2589,7 +2589,7 @@ const PurchaseEntry = () => {
                             />
                           </TableCell>
                         )}
-                        <TableCell className="w-[80px]">
+                        <TableCell className="w-[100px]">
                           <Select
                             value={String(item.gst_per)}
                             onValueChange={(value) =>
@@ -2608,7 +2608,7 @@ const PurchaseEntry = () => {
                             </SelectContent>
                           </Select>
                         </TableCell>
-                        <TableCell className="w-[100px] font-semibold">
+                        <TableCell className="w-[110px] font-semibold">
                           ₹{subTotal.toFixed(2)}
                         </TableCell>
                         <TableCell className="w-[80px]">
@@ -2629,7 +2629,7 @@ const PurchaseEntry = () => {
                             className="w-full"
                           />
                         </TableCell>
-                        <TableCell className="w-[100px] font-semibold">
+                        <TableCell className="w-[110px] font-semibold">
                           ₹{total.toFixed(2)}
                         </TableCell>
                         <TableCell className="w-[40px]">
