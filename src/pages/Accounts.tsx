@@ -36,6 +36,7 @@ import { EmployeeSalaryTab } from "@/components/accounts/EmployeeSalaryTab";
 import { ExpensesTab } from "@/components/accounts/ExpensesTab";
 import { VoucherEntryTab } from "@/components/accounts/VoucherEntryTab";
 import { ReconciliationTab } from "@/components/accounts/ReconciliationTab";
+import { OutstandingDashboardTab } from "@/components/accounts/OutstandingDashboardTab";
 
 export default function Accounts() {
   const { currentOrganization } = useOrganization();
@@ -318,9 +319,10 @@ export default function Accounts() {
       />
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-9">
+        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-10">
           <TabsTrigger value="customer-ledger">Customer Ledger</TabsTrigger>
           <TabsTrigger value="supplier-ledger">Supplier Ledger</TabsTrigger>
+          <TabsTrigger value="outstanding">Outstanding</TabsTrigger>
           <TabsTrigger value="customer-payment">Customer Payment</TabsTrigger>
           <TabsTrigger value="supplier-payment">Supplier Payment</TabsTrigger>
           <TabsTrigger value="employee-salary">Employee Salary</TabsTrigger>
@@ -338,6 +340,10 @@ export default function Accounts() {
 
         <TabsContent value="supplier-ledger" className="space-y-6">
           {currentOrganization?.id && <SupplierLedger organizationId={currentOrganization.id} />}
+        </TabsContent>
+
+        <TabsContent value="outstanding" className="space-y-6">
+          {currentOrganization?.id && <OutstandingDashboardTab organizationId={currentOrganization.id} />}
         </TabsContent>
 
         <TabsContent value="customer-payment" className="space-y-6">
