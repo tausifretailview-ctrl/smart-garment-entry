@@ -2384,23 +2384,23 @@ Thank you for choosing us!`;
                   const srNo = item.productId ? originalIndex + 1 : '-';
                   
                   return (
-                    <TableRow key={item.id} className={cn("h-11 transition-colors", item.productId ? 'hover:bg-primary/[0.03]' : 'opacity-40')}>
-                      <TableCell className="px-2 py-1.5 text-[13px]">{srNo}</TableCell>
-                      <TableCell className="min-w-[160px] max-w-[260px] px-2 py-1.5">
+                    <TableRow key={item.id} className={cn("h-12 transition-colors", item.productId ? 'hover:bg-primary/[0.03]' : 'opacity-40')}>
+                      <TableCell className="px-2 py-1.5 text-sm font-medium text-foreground">{srNo}</TableCell>
+                      <TableCell className="min-w-[180px] max-w-[280px] px-2 py-1.5">
                         {item.productId ? (
                           <button
                             type="button"
                             onClick={() => setHistoryProduct({ id: item.productId, name: item.productName })}
-                            className="text-primary hover:underline text-left font-medium break-words whitespace-normal leading-tight text-[13px]"
+                            className="text-primary hover:underline text-left font-semibold break-words whitespace-normal leading-tight text-sm"
                           >
                             {item.productName}
                           </button>
                         ) : '-'}
                       </TableCell>
-                      <TableCell className="px-2 py-1.5 text-[13px]">{item.size || '-'}</TableCell>
-                      <TableCell className="px-2 py-1.5 text-[13px]">{item.color || '-'}</TableCell>
-                      <TableCell className="px-2 py-1.5 text-[11px]">{item.barcode || '-'}</TableCell>
-                      <TableCell className="px-2 py-1.5 text-[11px]">{item.hsnCode || '-'}</TableCell>
+                      <TableCell className="px-2 py-1.5 text-sm font-medium text-foreground">{item.size || '-'}</TableCell>
+                      <TableCell className="px-2 py-1.5 text-sm font-medium text-foreground">{item.color || '-'}</TableCell>
+                      <TableCell className="px-2 py-1.5 text-[13px] font-medium text-foreground">{item.barcode || '-'}</TableCell>
+                      <TableCell className="px-2 py-1.5 text-[13px] font-medium text-foreground">{item.hsnCode || '-'}</TableCell>
                       <TableCell className="px-2 py-1.5">
                         {item.productId && (
                           <Input
