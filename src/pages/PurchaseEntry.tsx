@@ -2648,8 +2648,7 @@ const PurchaseEntry = () => {
                   
                   {/* Inline Search Row - Always visible at bottom */}
                   <TableRow className="bg-accent/30 relative" style={{ zIndex: 50 }}>
-                    <TableCell></TableCell>
-                    <TableCell className="text-center font-medium text-muted-foreground">
+                    <TableCell colSpan={2} className="text-center font-medium text-muted-foreground">
                       {lineItems.length + 1}
                     </TableCell>
                     <TableCell className="relative overflow-visible" style={{ overflow: 'visible' }}>
