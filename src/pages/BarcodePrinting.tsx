@@ -2748,7 +2748,7 @@ export default function BarcodePrinting() {
         gridDiv.style.cssText = `
           display: grid;
           grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
-          grid-auto-rows: ${dimensions.height}mm;
+          grid-template-rows: repeat(${rowsPerPage}, ${dimensions.height}mm);
           gap: ${dimensions.gap}mm;
           padding-top: ${topOffset}mm;
           padding-left: ${leftOffset}mm;
@@ -2773,6 +2773,8 @@ export default function BarcodePrinting() {
             cell.style.cssText = `
               width: ${dimensions.width}mm;
               height: ${dimensions.height}mm;
+              min-height: ${dimensions.height}mm;
+              max-height: ${dimensions.height}mm;
               font-family: Arial, sans-serif;
               position: relative;
               overflow: hidden;
@@ -2783,6 +2785,8 @@ export default function BarcodePrinting() {
             cell.style.cssText = `
               width: ${dimensions.width}mm;
               height: ${dimensions.height}mm;
+              min-height: ${dimensions.height}mm;
+              max-height: ${dimensions.height}mm;
               font-family: Arial, sans-serif;
               text-align: center;
               display: flex;
@@ -2817,12 +2821,17 @@ export default function BarcodePrinting() {
       const useAbsoluteLayout = hasAbsolutePositioning(labelConfig);
 
       for (let page = 0; page < numPrintPages; page++) {
+        // Calculate indices first so we can use them for grid-template-rows
+        const startIdx = page * labelsPerPage;
+        const endIdx = Math.min(startIdx + labelsPerPage, allLabels.length);
+        const rowsOnPage = Math.ceil((endIdx - startIdx) / dimensions.cols);
+
         const gridDiv = document.createElement("div");
         gridDiv.className = "label-grid";
         gridDiv.style.cssText = `
           display: grid;
           grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
-          grid-auto-rows: ${dimensions.height}mm;
+          grid-template-rows: repeat(${rowsOnPage}, ${dimensions.height}mm);
           gap: ${dimensions.gap}mm;
           padding-top: ${topOffset}mm;
           padding-left: ${leftOffset}mm;
@@ -2838,10 +2847,6 @@ export default function BarcodePrinting() {
           gridDiv.style.breakAfter = 'auto';
         }
         
-        // Add labels for this page
-        const startIdx = page * labelsPerPage;
-        const endIdx = Math.min(startIdx + labelsPerPage, allLabels.length);
-        
         for (let i = startIdx; i < endIdx; i++) {
           const cell = document.createElement("div");
           cell.className = "label-cell";
@@ -2851,6 +2856,8 @@ export default function BarcodePrinting() {
             cell.style.cssText = `
               width: ${dimensions.width}mm;
               height: ${dimensions.height}mm;
+              min-height: ${dimensions.height}mm;
+              max-height: ${dimensions.height}mm;
               font-family: Arial, sans-serif;
               position: relative;
               overflow: hidden;
@@ -2861,6 +2868,8 @@ export default function BarcodePrinting() {
             cell.style.cssText = `
               width: ${dimensions.width}mm;
               height: ${dimensions.height}mm;
+              min-height: ${dimensions.height}mm;
+              max-height: ${dimensions.height}mm;
               font-family: Arial, sans-serif;
               text-align: center;
               display: flex;
@@ -3026,7 +3035,7 @@ export default function BarcodePrinting() {
         gridDiv.style.cssText = `
           display: grid;
           grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
-          grid-auto-rows: ${dimensions.height}mm;
+          grid-template-rows: repeat(${rowsOnThisPage}, ${dimensions.height}mm);
           gap: ${dimensions.gap}mm;
           padding-top: ${topOffset}mm;
           padding-left: ${leftOffset}mm;
@@ -3049,6 +3058,8 @@ export default function BarcodePrinting() {
             cell.style.cssText = `
               width: ${dimensions.width}mm;
               height: ${dimensions.height}mm;
+              min-height: ${dimensions.height}mm;
+              max-height: ${dimensions.height}mm;
               font-family: Arial, sans-serif;
               position: relative;
               overflow: hidden;
@@ -3061,6 +3072,8 @@ export default function BarcodePrinting() {
             cell.style.cssText = `
               width: ${dimensions.width}mm;
               height: ${dimensions.height}mm;
+              min-height: ${dimensions.height}mm;
+              max-height: ${dimensions.height}mm;
               font-family: Arial, sans-serif;
               text-align: center;
               display: flex;
