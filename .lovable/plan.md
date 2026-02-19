@@ -1,60 +1,44 @@
 
-
-## Fix: Al Nisa 40-Label Sheet Margin Reset Issue
+## Fix: Label Content Shifting After First 4 Rows
 
 ### Problem
-The Al Nisa user reports that their 40-label sheet margins were previously perfect but are now automatically changing. Labels are misaligned on the printed sheet.
+On Al Nisa's 40-label sheet (5x8, 40x35mm), the first 4 rows print correctly but subsequent rows shift upward, causing misalignment with the physical label sheet.
 
-### Root Causes Found
+### Root Cause
+The CSS grid uses `grid-auto-rows` which sets a **minimum** height, not a strict fixed height. When label content varies slightly (shorter text, smaller barcode), rows can collapse below the specified height. Over 8 rows, this cumulative drift becomes visible.
 
-**1. Default Format useEffect Re-runs on Every Hook Update (MAJOR BUG)**
-The useEffect at line 1189 that loads saved defaults has these dependencies:
-```
-[isLoadingSettings, dbLabelTemplates, dbMarginPresets, dbCustomPresets, dbDefaultFormat]
-```
-The `dbLabelTemplates`, `dbMarginPresets`, and `dbCustomPresets` are arrays returned from the `useBarcodeLabelSettings` hook. Every time the hook re-renders (e.g., on any state change), these arrays get new references, causing the effect to re-run and **reset all user-modified margins back to saved defaults**. This means if a user adjusts margins during a session, they can get silently reverted.
-
-**2. Auto-Fit Scale Interacts Unpredictably with Margins**
-The `getAutoFitScale()` function (line 2621) calculates a shrink factor based on content size including offsets. For Al Nisa's custom 40-label sheet (5x8, 40x35mm):
-- Content width = 207mm, Content height = 289mm
-- This triggers auto-shrinking (scale ~0.89x horizontally)
-- Combined with their saved `printScale=150%`, the effective scale is ~1.33x
-- Any margin change recalculates this scale, causing the "automatically changed" behavior
-
-**3. @page CSS Adds Extra Top Margin**
-The print CSS has `@page { margin: 3mm 0 0 0 }` for A4 sheets (line 4371), which adds 3mm top margin ON TOP of the user's padding-top offset. This causes cumulative vertical shift across rows.
+Additionally, label cells don't enforce a strict `min-height` and `max-height`, allowing the browser to adjust cell sizes based on content.
 
 ### Fix Plan
 
 **File: `src/pages/BarcodePrinting.tsx`**
 
-1. **Stabilize the default format loading effect** - Add a `hasLoadedDefaults` ref to ensure the default format only loads ONCE when settings first arrive, not on every array reference change. This prevents user-adjusted margins from being silently reverted.
+1. **Replace `grid-auto-rows` with `grid-template-rows`** - Use explicit row definitions that enforce exact heights:
+   - Change: `grid-auto-rows: ${height}mm` 
+   - To: `grid-template-rows: repeat(${rows}, ${height}mm)`
+   - Apply to both preview grids (~line 2751) and print grids (~line 2825)
 
-2. **Fix @page margin for custom sheets** - Change `@page { margin: 3mm 0 0 0 }` to `@page { margin: 0 }` for custom sheet types, since the user's padding offsets already handle margins. The 3mm extra top margin causes labels to shift down on each page.
+2. **Enforce strict cell dimensions** - Add `min-height` and `max-height` to every label cell to prevent content from stretching or collapsing cells:
+   - Add to cell styles: `min-height: ${height}mm; max-height: ${height}mm;`
+   - Apply to both absolute-layout and legacy-flow cell styles (4 places total: preview absolute, preview legacy, print absolute, print legacy)
 
-3. **Exclude user offsets from auto-fit calculation** - Modify `getAutoFitScale()` to not include `topOffset`, `bottomOffset`, `leftOffset`, `rightOffset` in the content size calculation, since these are already handled by CSS padding. This prevents margin changes from affecting the print scale.
+3. **Fix the static CSS `.label-cell` defaults** - Update the fallback `.label-cell` style at line 4301 to include `overflow: hidden` to prevent content from spilling out of fixed-size cells.
 
 ### Technical Details
 
 ```text
-Change 1: Add hasLoadedDefaults ref
-- Add: const hasLoadedDefaultsRef = useRef(false);
-- Wrap the default format loading logic in: if (!hasLoadedDefaultsRef.current && dbDefaultFormat) { ... hasLoadedDefaultsRef.current = true; }
-- Simplify dependency array to [isLoadingSettings]
+Changes in generatePreview function:
 
-Change 2: Fix @page margin
-- Line 4371: Change margin from '3mm 0 0 0' to '0' for non-thermal sheets
-- The user's topOffset/leftOffset padding already handles positioning
+Grid divs (lines ~2750 and ~2825):
+  Before: grid-auto-rows: ${dimensions.height}mm;
+  After:  grid-template-rows: repeat(${rows}, ${dimensions.height}mm);
 
-Change 3: Fix getAutoFitScale
-- Line 2636-2637: Remove offset additions from content size:
-  Before: contentWidth = (cols*width) + ((cols-1)*gap) + leftOffset + rightOffset
-  After:  contentWidth = (cols*width) + ((cols-1)*gap)
-  Same for contentHeight
+Cell divs (4 locations: ~2773, ~2783, ~2851, ~2861):
+  Add: min-height: ${dimensions.height}mm; max-height: ${dimensions.height}mm;
+
+The rows count for print mode grid-template-rows will use:
+  - Preview: rowsPerPage (calculated from available height)
+  - Print: actual number of rows on that page (endIdx - startIdx) / cols, rounded up
 ```
 
-These three changes together will ensure:
-- Saved margins load once and stay stable
-- Print scale is not affected by margin adjustments
-- No double-margin effect from @page CSS + padding offsets
-
+These changes ensure each label cell occupies exactly 35mm height regardless of content, preventing the upward drift that occurs after the first few rows.
