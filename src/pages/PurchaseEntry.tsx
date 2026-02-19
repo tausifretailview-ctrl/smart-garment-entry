@@ -2654,7 +2654,7 @@ const PurchaseEntry = () => {
                     <TableCell className="w-[60px] text-center font-medium text-muted-foreground">
                       {lineItems.length + 1}
                     </TableCell>
-                    <TableCell className="relative overflow-visible" style={{ overflow: 'visible' }}>
+                    <TableCell colSpan={3} className="relative overflow-visible" style={{ overflow: 'visible' }}>
                       <div className="relative" style={{ overflow: 'visible' }}>
                         <Input
                           ref={inlineSearchInputRef}
@@ -2796,8 +2796,7 @@ const PurchaseEntry = () => {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="w-[80px]"></TableCell>
-                    <TableCell colSpan={showMrp ? 10 : 9} className="text-muted-foreground text-sm">
+                    <TableCell colSpan={showMrp ? 9 : 8} className="text-muted-foreground text-sm">
                       <span className="hidden md:inline">Type to search or </span>
                       <button 
                         onClick={handleAddNewProductFromInline}
