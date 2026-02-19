@@ -78,10 +78,11 @@ export default function AuditLog() {
   };
 
   const getActionBadgeVariant = (action: string) => {
+    if (action === "PURCHASE_CREATED" || action === "SALE_CREATED") return "success";
+    if (action === "PURCHASE_DELETED" || action === "SALE_DELETED") return "destructive";
     if (action.includes("CREATE") || action.includes("ASSIGNED")) return "default";
     if (action.includes("UPDATE")) return "secondary";
     if (action.includes("DELETE") || action.includes("REMOVED")) return "destructive";
-    if (action.includes("STOCK")) return "outline";
     return "secondary";
   };
 
@@ -137,10 +138,49 @@ export default function AuditLog() {
           </Button>
         </div>
 
+        {/* Quick filter chips */}
+        <div className="mb-4 flex flex-wrap gap-2">
+          <Button
+            variant={filterEntityType === "all" && filterAction === "all" ? "default" : "outline"}
+            size="sm"
+            onClick={() => { setFilterEntityType("all"); setFilterAction("all"); }}
+          >
+            All Events
+          </Button>
+          <Button
+            variant={filterEntityType === "purchase_bill" ? "default" : "outline"}
+            size="sm"
+            onClick={() => { setFilterEntityType("purchase_bill"); setFilterAction("all"); }}
+          >
+            Purchase Bills
+          </Button>
+          <Button
+            variant={filterEntityType === "sale" ? "default" : "outline"}
+            size="sm"
+            onClick={() => { setFilterEntityType("sale"); setFilterAction("all"); }}
+          >
+            Sales
+          </Button>
+          <Button
+            variant={filterAction === "PRICE_CHANGE" ? "default" : "outline"}
+            size="sm"
+            onClick={() => { setFilterAction("PRICE_CHANGE"); setFilterEntityType("all"); }}
+          >
+            Price Changes
+          </Button>
+          <Button
+            variant={filterEntityType === "product" ? "default" : "outline"}
+            size="sm"
+            onClick={() => { setFilterEntityType("product"); setFilterAction("all"); }}
+          >
+            Products
+          </Button>
+        </div>
+
         <Alert className="mb-6">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            This log tracks all critical operations including stock changes, sales, purchases, and user actions for accountability and troubleshooting.
+            Tracks sales, purchases, product changes, price history, and user role changes for accountability and fraud detection. Stock movements are tracked separately in the Stock module.
           </AlertDescription>
         </Alert>
 
@@ -287,15 +327,25 @@ export default function AuditLog() {
                         </TableCell>
                         <TableCell>{getEntityTypeLabel(log.entity_type)}</TableCell>
                         <TableCell className="max-w-md">
-                          {log.new_values && (
-                            <div className="text-sm text-muted-foreground truncate">
-                              {log.new_values.sale_number && `Sale: ${log.new_values.sale_number}`}
-                              {log.new_values.supplier_name && `Supplier: ${log.new_values.supplier_name}`}
-                              {log.new_values.product_name && `Product: ${log.new_values.product_name}`}
-                              {log.new_values.product_info?.product_name &&
-                                `Product: ${log.new_values.product_info.product_name}`}
-                            </div>
-                          )}
+                          {(() => {
+                            // For DELETE actions, read from old_values; otherwise new_values
+                            const isDelete = log.action.includes("DELETE") || log.action.includes("REMOVED");
+                            const values = isDelete ? log.old_values : (log.new_values || log.old_values);
+                            if (!values) return null;
+                            const parts: string[] = [];
+                            if (values.software_bill_no) parts.push(`Bill: ${values.software_bill_no}`);
+                            if (values.sale_number) parts.push(`Sale: ${values.sale_number}`);
+                            if (values.supplier_name) parts.push(`Supplier: ${values.supplier_name}`);
+                            if (values.customer_name) parts.push(`Customer: ${values.customer_name}`);
+                            if (values.net_amount !== undefined) parts.push(`₹${values.net_amount}`);
+                            if (values.product_name) parts.push(`Product: ${values.product_name}`);
+                            if (values.product_info?.product_name) parts.push(`Product: ${values.product_info.product_name}`);
+                            return parts.length > 0 ? (
+                              <div className="text-sm text-muted-foreground truncate">
+                                {parts.join(" · ")}
+                              </div>
+                            ) : null;
+                          })()}
                         </TableCell>
                         <TableCell>
                           <Button
