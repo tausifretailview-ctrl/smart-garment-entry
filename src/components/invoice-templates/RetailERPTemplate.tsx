@@ -202,33 +202,33 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
       <div style={{ border: B2, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
         {/* ===== HEADER ===== */}
-        <div style={{ borderBottom: B2, padding: "6px 8px 4px", position: "relative" }}>
-          <div style={{ fontSize: headerFs, fontWeight: "bold", textTransform: "uppercase", letterSpacing: "1px" }}>
-            {businessName}
-          </div>
-          <div style={{ fontSize: fsHeader, marginTop: "2px", textTransform: "uppercase", lineHeight: 1.4 }}>
-            {address}
-          </div>
-          <div style={{ fontSize: fsHeader, lineHeight: 1.4 }}>
-            {mobile && `Mob: ${mobile}`}
-            {email && ` | ${email}`}
-          </div>
-          {gstNumber && (
-            <div style={{ fontSize: fsHeader, fontWeight: "bold" }}>GSTIN: {gstNumber}</div>
-          )}
+        <div style={{ borderBottom: B2, padding: "8px 10px 6px", position: "relative", textAlign: "center" }}>
           {logoUrl && (
             <img
               src={logoUrl}
               alt="Logo"
               style={{
-                height: isA4 ? "60px" : "50px",
-                maxWidth: "90px",
+                height: isA4 ? "80px" : "65px",
+                maxWidth: isA4 ? "120px" : "100px",
                 objectFit: "contain",
                 position: "absolute",
-                right: "8px",
-                top: "6px",
+                right: "10px",
+                top: "8px",
               }}
             />
+          )}
+          <div style={{ fontSize: isA4 ? "24px" : "20px", fontWeight: "900", textTransform: "uppercase", letterSpacing: "1.5px", color: "#000" }}>
+            {businessName}
+          </div>
+          <div style={{ fontSize: isA4 ? "12px" : "9px", marginTop: "3px", textTransform: "uppercase", lineHeight: 1.5, fontWeight: "600", color: "#111" }}>
+            {address}
+          </div>
+          <div style={{ fontSize: isA4 ? "12px" : "9px", lineHeight: 1.4, fontWeight: "600", color: "#111" }}>
+            {mobile && `Mob: ${mobile}`}
+            {email && ` | ${email}`}
+          </div>
+          {gstNumber && (
+            <div style={{ fontSize: isA4 ? "12px" : "9px", fontWeight: "bold", color: "#000" }}>GSTIN: {gstNumber}</div>
           )}
         </div>
 
