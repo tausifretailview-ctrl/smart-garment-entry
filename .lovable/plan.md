@@ -1,38 +1,44 @@
 
-## Add "Retail ERP" Invoice Template
 
-The uploaded image shows a specific invoice layout that closely resembles the existing Retail template but with key differences. This plan creates a new template as an additional option without modifying any existing templates.
+## Purchase Return Barcode Scanning - Bug Investigation & Fix Plan
 
-### Key Design Elements from the Image
-- Header: Business name (bold, large) on left, logo on right
-- Title: **"TAX INVOICE"** (not "Bill Of Supply")
-- Bill To section on left, Invoice No / Date / Payment on right
-- Table columns: Sr., Description, Barcode, Qty, Rate, Amount (6 columns)
-- Footer left: Terms & Conditions with bullet points + QR code
-- Footer right: Total Qty, Sub Total, **Bill Total** (highlighted/bold box), Received (Today), Current Balance, Previous Balance, **TOTAL DUE**
-- "Authorized Signatory" label at bottom right
+### Issues Found
 
-### Changes Required
+**1. Same barcode cannot be scanned twice in a row (MAJOR BUG)**
+In `PurchaseReturnEntry.tsx` line 278, the code checks:
+```
+if (isBarcodeInput && searchQuery !== lastBarcodeRef.current)
+```
+This means if a user scans barcode `40001069` (PUL204 Size 6), then scans the **same barcode again**, it is silently ignored. In purchase returns, scanning the same item multiple times to increase quantity is a common workflow.
 
-**1. New file: `src/components/invoice-templates/RetailERPTemplate.tsx`**
-- Copy the structure from `RetailTemplate.tsx` as the base
-- Change the title from "Bill Of Supply" to "TAX INVOICE"
-- Adjust the footer summary to match the image layout exactly:
-  - Show "Total Qty" and "Sub Total" rows
-  - Show "Bill Total" in a highlighted/bold box row
-  - Show "Received (Today)", "Current Balance", "Previous Balance", "TOTAL DUE"
-- Add "Authorized Signatory" text at the bottom right of the footer
+**2. No organization_id filter in barcode database query**
+The `handleBarcodeSearch` function (line 213-236) queries `product_variants` by barcode but does NOT filter by `organization_id` at the database level. It only checks org membership post-query (line 241). While not currently causing issues (no duplicate barcodes across orgs exist), this is fragile and could fail silently if another org creates a matching barcode.
 
-**2. Update `src/components/InvoiceWrapper.tsx`**
-- Import the new `RetailERPTemplate`
-- Add a new case `'retail-erp'` in the template switch statement
-- Pass `commonProps` to the new template
+**3. useEffect re-triggers on lineItems change causing potential race conditions**
+The search `useEffect` (line 263) has `lineItems` in its dependency array. Every time an item is added/updated, the entire search effect re-runs, which can interfere with rapid scanning.
 
-**3. Update `src/pages/Settings.tsx`**
-- Add `'retail-erp'` to the `invoice_template` type union
-- Add a new `SelectItem` option: `"Retail ERP - Tax Invoice ERP Style"`
+### Database Verification
+All reported barcodes (40001069, 40001087, 40001067, 40001089, 40001022) exist in the database, are active, and not deleted. The data is correct - the issue is purely in the frontend scanning logic.
+
+### Fix Plan
+
+**File: `src/pages/PurchaseReturnEntry.tsx`**
+
+1. **Remove `lastBarcodeRef` blocking logic** - Allow the same barcode to be scanned consecutively. Instead, reset `lastBarcodeRef` after the search query is cleared, so it only prevents the *same* `useEffect` run from double-processing (not subsequent scans).
+
+2. **Add `organization_id` filter to barcode query** - Add `.eq("products.organization_id", currentOrganization.id)` to the `handleBarcodeSearch` database query for reliable filtering at the DB level.
+
+3. **Remove `lineItems` from useEffect dependency** - Use a `useRef` for lineItems (similar to the POS pattern with `itemsRef`) to avoid the search effect re-triggering on every cart change. This prevents race conditions during rapid scanning.
+
+4. **Use functional state update for adding items** - Change `setLineItems([...lineItems, newItem])` to `setLineItems(prev => [...prev, newItem])` to avoid stale state during rapid scans.
 
 ### Technical Details
-- The new template will be a standalone component -- no changes to any existing template
-- It reuses the same props interface as `RetailTemplate` for full compatibility
-- All existing invoice designs remain completely untouched
+
+The changes are isolated to `src/pages/PurchaseReturnEntry.tsx`:
+- Modify `handleBarcodeSearch` to include org filter in query
+- Add a `lineItemsRef` that stays in sync with `lineItems` state
+- Update the barcode scan handler to use `lineItemsRef.current` instead of `lineItems`
+- Remove `lineItems` from the `useEffect` dependency array
+- Remove the `lastBarcodeRef` guard or reset it properly after each scan completes
+- Use functional `setLineItems(prev => ...)` pattern in `handleProductSelect`
+
