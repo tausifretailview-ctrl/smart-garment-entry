@@ -1,44 +1,80 @@
 
-## Fix: Label Content Shifting After First 4 Rows
+## Slug Uniqueness: Impact Analysis & Safe Implementation Plan
 
-### Problem
-On Al Nisa's 40-label sheet (5x8, 40x35mm), the first 4 rows print correctly but subsequent rows shift upward, causing misalignment with the physical label sheet.
+### Answering Your Question: Will Existing Organization URLs Change?
 
-### Root Cause
-The CSS grid uses `grid-auto-rows` which sets a **minimum** height, not a strict fixed height. When label content varies slightly (shorter text, smaller barcode), rows can collapse below the specified height. Over 8 rows, this cumulative drift becomes visible.
+After checking the live database, here is the exact impact on all 16 organizations:
 
-Additionally, label cells don't enforce a strict `min-height` and `max-height`, allowing the browser to adjust cell sizes based on content.
+**15 organizations: ZERO impact** - Their slugs are already lowercase and valid. Their login URLs will not change at all.
 
-### Fix Plan
+**1 organization affected by data fix:**
+- Org #7: `Adtech-accounts` → becomes `adtech-accounts`
+- Current login URL: `inventoryshop.in/Adtech-accounts`
+- New login URL: `inventoryshop.in/adtech-accounts`
+- Note: Browser URL routing is case-sensitive, so `Adtech-accounts` and `adtech-accounts` are treated differently. After the fix, users of Adtech-Accounts will need to use the lowercase URL.
 
-**File: `src/pages/BarcodePrinting.tsx`**
+**All other orgs are unaffected:**
+- gurukrupasarees, sm-hair-replacement, ks-footwear, miranos-clothing, tirtha-cosmetics, pushpak-motor-parts, ella-noor, demo, bombay-coldchain-solutions, yojak, steaphiin-international-high-school, al-nisa-couture, velvet-exclusive-ladies-wear-bags, lotus-dry-fruits, adtechagency — all remain exactly as they are.
 
-1. **Replace `grid-auto-rows` with `grid-template-rows`** - Use explicit row definitions that enforce exact heights:
-   - Change: `grid-auto-rows: ${height}mm` 
-   - To: `grid-template-rows: repeat(${rows}, ${height}mm)`
-   - Apply to both preview grids (~line 2751) and print grids (~line 2825)
+---
 
-2. **Enforce strict cell dimensions** - Add `min-height` and `max-height` to every label cell to prevent content from stretching or collapsing cells:
-   - Add to cell styles: `min-height: ${height}mm; max-height: ${height}mm;`
-   - Apply to both absolute-layout and legacy-flow cell styles (4 places total: preview absolute, preview legacy, print absolute, print legacy)
+### What the Plan Does (No Harm to Existing Setup)
 
-3. **Fix the static CSS `.label-cell` defaults** - Update the fallback `.label-cell` style at line 4301 to include `overflow: hidden` to prevent content from spilling out of fixed-size cells.
+**Part 1 - Data Fix (One-time SQL, affects only Adtech-Accounts)**
+```sql
+UPDATE organizations 
+SET slug = lower(slug) 
+WHERE slug != lower(slug);
+-- Only affects: Adtech-accounts → adtech-accounts
+```
+
+**Part 2 - UI Changes in PlatformAdmin.tsx (Purely additive)**
+- Add a live slug preview below the Organization Name field in the "Create Organization" dialog
+- Add a real-time availability indicator (green checkmark / red X) with 500ms debounce
+- Allow admin to manually override the auto-generated slug before creating
+- Catch unique constraint errors and show friendly message instead of raw DB error
+
+**Part 3 - UI Changes in OrganizationManagement.tsx (Purely additive)**
+- Show the slug clearly labeled in the General tab (it currently shows the full URL only)
+- Add a slug edit field with real-time availability check (so org admins can change their login URL slug if needed)
+
+---
 
 ### Technical Details
 
 ```text
-Changes in generatePreview function:
+Files to edit:
+1. src/pages/PlatformAdmin.tsx
+   - Add: customSlug state (string), slugPreview computed value, isSlugAvailable state
+   - Add: useEffect with 500ms debounce to check slug availability via Supabase query
+   - Add: Slug preview + availability badge in Create Organization dialog
+   - Add: Optional custom slug override input field
+   - Add: Friendly error detection for "unique constraint" errors
 
-Grid divs (lines ~2750 and ~2825):
-  Before: grid-auto-rows: ${dimensions.height}mm;
-  After:  grid-template-rows: repeat(${rows}, ${dimensions.height}mm);
+2. src/pages/OrganizationManagement.tsx  
+   - Add: editableSlug state, isCheckingSlug state, isSlugAvailable state
+   - Add: Slug input field in General tab (currently only shows full Login URL read-only)
+   - Add: Save slug button with uniqueness check before updating
 
-Cell divs (4 locations: ~2773, ~2783, ~2851, ~2861):
-  Add: min-height: ${dimensions.height}mm; max-height: ${dimensions.height}mm;
+Slug validation regex (same as DB function):
+  const toSlug = (name: string) =>
+    name.toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .trim();
 
-The rows count for print mode grid-template-rows will use:
-  - Preview: rowsPerPage (calculated from available height)
-  - Print: actual number of rows on that page (endIdx - startIdx) / cols, rounded up
+Availability check (excludes current org when editing):
+  .from('organizations')
+  .select('id', { count: 'exact', head: true })
+  .eq('slug', slug)
+  .neq('id', currentOrg.id)  // excluded when editing self
 ```
 
-These changes ensure each label cell occupies exactly 35mm height regardless of content, preventing the upward drift that occurs after the first few rows.
+---
+
+### Summary: Safe to Approve
+
+- 15 of 16 organizations: **No change whatsoever**
+- Org #7 (Adtech-Accounts): Login URL changes from `/Adtech-accounts` to `/adtech-accounts` (lowercase only)
+- All UI changes are **additive only** — new fields and checks added, nothing removed or broken
+- The UNIQUE constraint is already in place at the database level, so this plan only improves the user-facing experience to match what the database already enforces
