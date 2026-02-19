@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
@@ -1186,11 +1186,15 @@ export default function BarcodePrinting() {
     })
   );
 
+  // Track whether defaults have been loaded to prevent re-runs
+  const hasLoadedDefaultsRef = useRef(false);
+
+
   // Sync database settings with local state
   useEffect(() => {
     if (isLoadingSettings) return;
     
-    // Sync label templates
+    // Sync label templates (always keep in sync)
     setSavedLabelTemplates(dbLabelTemplates);
     
     // Sync margin presets
@@ -1199,8 +1203,9 @@ export default function BarcodePrinting() {
     // Sync custom presets
     setSavedPresets(dbCustomPresets);
     
-    // Load default format if available
-    if (dbDefaultFormat) {
+    // Load default format ONLY ONCE when settings first arrive
+    if (!hasLoadedDefaultsRef.current && dbDefaultFormat) {
+      hasLoadedDefaultsRef.current = true;
       const defaultFormat = dbDefaultFormat;
       
       // Check if default references a template
@@ -1287,10 +1292,16 @@ export default function BarcodePrinting() {
         setSizeSortOrder(defaultFormat.sizeSortOrder);
       }
     }
-  }, [isLoadingSettings, dbLabelTemplates, dbMarginPresets, dbCustomPresets, dbDefaultFormat]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoadingSettings]);
 
   // Get organization context
   const { currentOrganization } = useOrganization();
+
+  // Reset defaults ref when organization changes so defaults reload for new org
+  useEffect(() => {
+    hasLoadedDefaultsRef.current = false;
+  }, [currentOrganization?.id]);
 
   // Fetch business name from settings (organization-scoped)
   useEffect(() => {
@@ -2633,8 +2644,9 @@ export default function BarcodePrinting() {
           gap: parseInt(sheetPresets[sheetType].gap)
         };
 
-    const contentWidth = (dims.cols * dims.width) + ((dims.cols - 1) * dims.gap) + leftOffset + rightOffset;
-    const contentHeight = (dims.rows * dims.height) + ((dims.rows - 1) * dims.gap) + topOffset + bottomOffset;
+    // Exclude user offsets - they are handled by CSS padding, not content size
+    const contentWidth = (dims.cols * dims.width) + ((dims.cols - 1) * dims.gap);
+    const contentHeight = (dims.rows * dims.height) + ((dims.rows - 1) * dims.gap);
 
     const printableWidth = 184;  // A4 210mm - ~26mm default margins
     const printableHeight = 270; // A4 297mm - ~27mm default margins
@@ -4368,7 +4380,7 @@ export default function BarcodePrinting() {
           size: ${isThermal1Up() 
             ? `${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm` 
             : 'A4'}; 
-          margin: ${isThermal1Up() ? '0' : '3mm 0 0 0'};
+          margin: 0;
         }
         
         @media print {
