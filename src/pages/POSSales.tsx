@@ -946,8 +946,10 @@ export default function POSSales() {
   }, [productsData, playErrorBeep, toast]);
 
   const handleQuickServiceAdd = useCallback(({ code, quantity, mrp }: { code: string; quantity: number; mrp: number }) => {
-    // Try to find actual product name from products with matching barcode
+    // Try to find actual product with matching barcode to get valid IDs
     let productName = `Service Item ${code}`;
+    let productId = '';
+    let variantId = '';
     if (productsData) {
       for (const product of productsData) {
         const variantMatch = product.product_variants?.find((v: any) => 
@@ -955,9 +957,23 @@ export default function POSSales() {
         );
         if (variantMatch) {
           productName = product.product_name;
+          productId = product.id;
+          variantId = variantMatch.id;
           break;
         }
       }
+    }
+
+    // If no matching product found, we cannot save to sale_items (product_id/variant_id are required UUID columns)
+    if (!productId || !variantId) {
+      toast({
+        title: "Product not found",
+        description: `Cannot add item: barcode "${code}" not found in products. Please create the product first.`,
+        variant: "destructive",
+      });
+      setShowQuickServiceDialog(false);
+      setQuickServiceCode("");
+      return;
     }
 
     const newItem: CartItem = {
@@ -974,8 +990,8 @@ export default function POSSales() {
       discountAmount: 0,
       unitCost: mrp,
       netAmount: quantity * mrp,
-      productId: '',
-      variantId: '',
+      productId,
+      variantId,
       hsnCode: '',
       productType: 'service',
     };
@@ -984,7 +1000,7 @@ export default function POSSales() {
     setShowQuickServiceDialog(false);
     setQuickServiceCode("");
     setTimeout(() => barcodeInputRef.current?.focus(), 100);
-  }, [setItems, playSuccessBeep, productsData]);
+  }, [setItems, playSuccessBeep, productsData, toast]);
 
   const addItemToCart = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }) => {
     // Service products: NEVER merge - each scan is a unique item with manual price entry
