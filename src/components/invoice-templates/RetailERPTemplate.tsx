@@ -391,7 +391,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               </div>
             )}
             {/* Bill Total - highlighted box */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "32px", borderBottom: B, borderTop: B2, padding: "0 8px", fontWeight: "bold", fontSize: fsGrand, backgroundColor: "#e8e8e8" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "34px", borderBottom: B, borderTop: B2, padding: "0 8px", fontWeight: "900", fontSize: isA4 ? "16px" : "13px", backgroundColor: "#d9d9d9" }}>
               <span>Bill Total</span>
               <span>₹{fmt(billTotal)}</span>
             </div>
@@ -411,7 +411,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               <span>₹{fmt(previousBalance)}</span>
             </div>
             {/* TOTAL DUE */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "32px", borderBottom: B, padding: "0 8px", fontWeight: "bold", fontSize: fsGrand, backgroundColor: "#f5f5f5" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "28px", borderBottom: B, padding: "0 8px", fontWeight: "600", fontSize: fsTotals }}>
               <span>TOTAL DUE</span>
               <span>₹{fmt(totalDue)}</span>
             </div>
