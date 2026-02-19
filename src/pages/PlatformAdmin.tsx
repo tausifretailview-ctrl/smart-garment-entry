@@ -255,6 +255,7 @@ export default function PlatformAdmin() {
   const [showUserPassword, setShowUserPassword] = useState(false);
   const [userOrgId, setUserOrgId] = useState("");
   const [userRole, setUserRole] = useState<"admin" | "manager" | "user">("user");
+  const [allUsersOpen, setAllUsersOpen] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -559,14 +560,14 @@ export default function PlatformAdmin() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setAllUsersOpen(true)}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Users</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{userCount}</div>
-              <p className="text-xs text-muted-foreground">Across all organizations</p>
+              <p className="text-xs text-muted-foreground">Across all organizations • Click to view</p>
             </CardContent>
           </Card>
 
@@ -1097,6 +1098,57 @@ export default function PlatformAdmin() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* All Users Dialog */}
+        <Dialog open={allUsersOpen} onOpenChange={setAllUsersOpen}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                All Organization Users ({userCount})
+              </DialogTitle>
+              <DialogDescription>
+                Complete list of users across all organizations
+              </DialogDescription>
+            </DialogHeader>
+            <div className="border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>#</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Organization</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Password</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {members.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                        No users found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    members.map((member, index) => (
+                      <TableRow key={`${member.user_id}-${member.organization_id}`}>
+                        <TableCell className="font-mono text-muted-foreground">{index + 1}</TableCell>
+                        <TableCell className="font-medium">{member.user_email}</TableCell>
+                        <TableCell>{member.org_name}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize">{member.role}</Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground italic">
+                          Encrypted (not retrievable)
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );
