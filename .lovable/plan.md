@@ -1,44 +1,60 @@
 
 
-## Purchase Return Barcode Scanning - Bug Investigation & Fix Plan
+## Fix: Al Nisa 40-Label Sheet Margin Reset Issue
 
-### Issues Found
+### Problem
+The Al Nisa user reports that their 40-label sheet margins were previously perfect but are now automatically changing. Labels are misaligned on the printed sheet.
 
-**1. Same barcode cannot be scanned twice in a row (MAJOR BUG)**
-In `PurchaseReturnEntry.tsx` line 278, the code checks:
+### Root Causes Found
+
+**1. Default Format useEffect Re-runs on Every Hook Update (MAJOR BUG)**
+The useEffect at line 1189 that loads saved defaults has these dependencies:
 ```
-if (isBarcodeInput && searchQuery !== lastBarcodeRef.current)
+[isLoadingSettings, dbLabelTemplates, dbMarginPresets, dbCustomPresets, dbDefaultFormat]
 ```
-This means if a user scans barcode `40001069` (PUL204 Size 6), then scans the **same barcode again**, it is silently ignored. In purchase returns, scanning the same item multiple times to increase quantity is a common workflow.
+The `dbLabelTemplates`, `dbMarginPresets`, and `dbCustomPresets` are arrays returned from the `useBarcodeLabelSettings` hook. Every time the hook re-renders (e.g., on any state change), these arrays get new references, causing the effect to re-run and **reset all user-modified margins back to saved defaults**. This means if a user adjusts margins during a session, they can get silently reverted.
 
-**2. No organization_id filter in barcode database query**
-The `handleBarcodeSearch` function (line 213-236) queries `product_variants` by barcode but does NOT filter by `organization_id` at the database level. It only checks org membership post-query (line 241). While not currently causing issues (no duplicate barcodes across orgs exist), this is fragile and could fail silently if another org creates a matching barcode.
+**2. Auto-Fit Scale Interacts Unpredictably with Margins**
+The `getAutoFitScale()` function (line 2621) calculates a shrink factor based on content size including offsets. For Al Nisa's custom 40-label sheet (5x8, 40x35mm):
+- Content width = 207mm, Content height = 289mm
+- This triggers auto-shrinking (scale ~0.89x horizontally)
+- Combined with their saved `printScale=150%`, the effective scale is ~1.33x
+- Any margin change recalculates this scale, causing the "automatically changed" behavior
 
-**3. useEffect re-triggers on lineItems change causing potential race conditions**
-The search `useEffect` (line 263) has `lineItems` in its dependency array. Every time an item is added/updated, the entire search effect re-runs, which can interfere with rapid scanning.
-
-### Database Verification
-All reported barcodes (40001069, 40001087, 40001067, 40001089, 40001022) exist in the database, are active, and not deleted. The data is correct - the issue is purely in the frontend scanning logic.
+**3. @page CSS Adds Extra Top Margin**
+The print CSS has `@page { margin: 3mm 0 0 0 }` for A4 sheets (line 4371), which adds 3mm top margin ON TOP of the user's padding-top offset. This causes cumulative vertical shift across rows.
 
 ### Fix Plan
 
-**File: `src/pages/PurchaseReturnEntry.tsx`**
+**File: `src/pages/BarcodePrinting.tsx`**
 
-1. **Remove `lastBarcodeRef` blocking logic** - Allow the same barcode to be scanned consecutively. Instead, reset `lastBarcodeRef` after the search query is cleared, so it only prevents the *same* `useEffect` run from double-processing (not subsequent scans).
+1. **Stabilize the default format loading effect** - Add a `hasLoadedDefaults` ref to ensure the default format only loads ONCE when settings first arrive, not on every array reference change. This prevents user-adjusted margins from being silently reverted.
 
-2. **Add `organization_id` filter to barcode query** - Add `.eq("products.organization_id", currentOrganization.id)` to the `handleBarcodeSearch` database query for reliable filtering at the DB level.
+2. **Fix @page margin for custom sheets** - Change `@page { margin: 3mm 0 0 0 }` to `@page { margin: 0 }` for custom sheet types, since the user's padding offsets already handle margins. The 3mm extra top margin causes labels to shift down on each page.
 
-3. **Remove `lineItems` from useEffect dependency** - Use a `useRef` for lineItems (similar to the POS pattern with `itemsRef`) to avoid the search effect re-triggering on every cart change. This prevents race conditions during rapid scanning.
-
-4. **Use functional state update for adding items** - Change `setLineItems([...lineItems, newItem])` to `setLineItems(prev => [...prev, newItem])` to avoid stale state during rapid scans.
+3. **Exclude user offsets from auto-fit calculation** - Modify `getAutoFitScale()` to not include `topOffset`, `bottomOffset`, `leftOffset`, `rightOffset` in the content size calculation, since these are already handled by CSS padding. This prevents margin changes from affecting the print scale.
 
 ### Technical Details
 
-The changes are isolated to `src/pages/PurchaseReturnEntry.tsx`:
-- Modify `handleBarcodeSearch` to include org filter in query
-- Add a `lineItemsRef` that stays in sync with `lineItems` state
-- Update the barcode scan handler to use `lineItemsRef.current` instead of `lineItems`
-- Remove `lineItems` from the `useEffect` dependency array
-- Remove the `lastBarcodeRef` guard or reset it properly after each scan completes
-- Use functional `setLineItems(prev => ...)` pattern in `handleProductSelect`
+```text
+Change 1: Add hasLoadedDefaults ref
+- Add: const hasLoadedDefaultsRef = useRef(false);
+- Wrap the default format loading logic in: if (!hasLoadedDefaultsRef.current && dbDefaultFormat) { ... hasLoadedDefaultsRef.current = true; }
+- Simplify dependency array to [isLoadingSettings]
+
+Change 2: Fix @page margin
+- Line 4371: Change margin from '3mm 0 0 0' to '0' for non-thermal sheets
+- The user's topOffset/leftOffset padding already handles positioning
+
+Change 3: Fix getAutoFitScale
+- Line 2636-2637: Remove offset additions from content size:
+  Before: contentWidth = (cols*width) + ((cols-1)*gap) + leftOffset + rightOffset
+  After:  contentWidth = (cols*width) + ((cols-1)*gap)
+  Same for contentHeight
+```
+
+These three changes together will ensure:
+- Saved margins load once and stay stable
+- Print scale is not affected by margin adjustments
+- No double-margin effect from @page CSS + padding offsets
 
