@@ -300,8 +300,10 @@ const POSDashboard = () => {
       }
 
       setSales(allSales);
+      // Phase 1 complete - show table immediately
+      setLoading(false);
       
-      // Fetch all sale items upfront using batched queries
+      // Phase 2: Fetch sale items in background (non-blocking)
       if (allSales.length > 0) {
         const saleIds = allSales.map(sale => sale.id);
         const batchSize = 500;
@@ -334,7 +336,6 @@ const POSDashboard = () => {
         description: error.message || "Failed to load sales",
         variant: "destructive",
       });
-    } finally {
       setLoading(false);
     }
   };
