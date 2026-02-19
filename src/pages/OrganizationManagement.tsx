@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Building2, Crown, Users, Plus, Loader2, UserX, Copy, Eye, EyeOff } from "lucide-react";
+import { Building2, Crown, Users, Plus, Loader2, UserX, Copy, Eye, EyeOff, CheckCircle2, XCircle, Save } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const AVAILABLE_FEATURES = [
@@ -38,7 +38,45 @@ export default function OrganizationManagement() {
   const [newUserRole, setNewUserRole] = useState<"admin" | "manager" | "user">("user");
   const [existingUserRole, setExistingUserRole] = useState<"admin" | "manager" | "user">("user");
 
+  // Slug editing state
+  const [editableSlug, setEditableSlug] = useState(currentOrganization?.slug || "");
+  const [isCheckingSlug, setIsCheckingSlug] = useState(false);
+  const [isSlugAvailable, setIsSlugAvailable] = useState<boolean | null>(null);
+  const [isSavingSlug, setIsSavingSlug] = useState(false);
+
   const isAdmin = organizationRole === "admin";
+
+  // Sync editableSlug when org changes
+  useEffect(() => {
+    setEditableSlug(currentOrganization?.slug || "");
+    setIsSlugAvailable(null);
+  }, [currentOrganization?.slug]);
+
+  // Debounced slug availability check (only when slug differs from current)
+  useEffect(() => {
+    const slug = editableSlug.trim();
+    if (!slug || slug === currentOrganization?.slug) {
+      setIsSlugAvailable(null);
+      return;
+    }
+    setIsCheckingSlug(true);
+    setIsSlugAvailable(null);
+    const timer = setTimeout(async () => {
+      try {
+        const { count } = await supabase
+          .from("organizations")
+          .select("id", { count: "exact", head: true })
+          .eq("slug", slug)
+          .neq("id", currentOrganization?.id || "");
+        setIsSlugAvailable(count === 0);
+      } catch {
+        setIsSlugAvailable(null);
+      } finally {
+        setIsCheckingSlug(false);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [editableSlug, currentOrganization?.slug, currentOrganization?.id]);
 
   // Fetch organization members with user details
   const { data: members = [], isLoading: membersLoading } = useQuery({
@@ -105,6 +143,34 @@ export default function OrganizationManagement() {
       name: orgName,
       subscription_tier: selectedTier,
     });
+  };
+
+  const handleSaveSlug = async () => {
+    const slug = editableSlug.trim();
+    if (!slug) { toast.error("Slug cannot be empty"); return; }
+    if (slug === currentOrganization?.slug) { toast.info("Slug is unchanged"); return; }
+    if (isSlugAvailable === false) { toast.error("This slug is already taken"); return; }
+    if (!/^[a-z0-9-]+$/.test(slug)) { toast.error("Slug can only contain lowercase letters, numbers, and hyphens"); return; }
+
+    setIsSavingSlug(true);
+    try {
+      const { error } = await supabase
+        .from("organizations")
+        .update({ slug })
+        .eq("id", currentOrganization!.id);
+      if (error) throw error;
+      toast.success("Login URL slug updated! Users must now use the new URL.");
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+    } catch (err: any) {
+      const msg = err.message || "";
+      if (msg.includes("unique") || msg.includes("duplicate")) {
+        toast.error("This slug is already taken by another organization.");
+      } else {
+        toast.error(msg || "Failed to update slug");
+      }
+    } finally {
+      setIsSavingSlug(false);
+    }
   };
 
   const toggleFeature = (featureId: string, enabled: boolean) => {
@@ -335,24 +401,50 @@ export default function OrganizationManagement() {
               </div>
 
               <div className="space-y-2">
-                <Label>Login URL</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={`${window.location.origin}/${currentOrganization.slug}`}
-                    readOnly
-                    className="font-mono text-sm"
-                  />
+                <Label>Login URL Slug</Label>
+                <div className="flex gap-2 items-center">
+                  <span className="text-sm text-muted-foreground font-mono shrink-0">{window.location.origin}/</span>
+                  <div className="relative flex-1">
+                    <Input
+                      value={editableSlug}
+                      onChange={(e) => setEditableSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                      className="font-mono"
+                      placeholder={currentOrganization.slug}
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={handleSaveSlug}
+                    disabled={isSavingSlug || isCheckingSlug || editableSlug.trim() === currentOrganization.slug}
+                  >
+                    {isSavingSlug ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  </Button>
                   <Button
                     variant="outline"
                     onClick={() => {
                       navigator.clipboard.writeText(`${window.location.origin}/${currentOrganization.slug}`);
-                      toast.success("Login URL copied to clipboard!");
+                      toast.success("Login URL copied!");
                     }}
                   >
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">Share this URL with users to login to this organization</p>
+                {/* Availability indicator */}
+                {editableSlug.trim() && editableSlug.trim() !== currentOrganization.slug && (
+                  <div className="flex items-center gap-2 mt-1">
+                    {isCheckingSlug && <><Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /><span className="text-xs text-muted-foreground">Checking...</span></>}
+                    {!isCheckingSlug && isSlugAvailable === true && (
+                      <span className="flex items-center gap-1 text-xs text-success"><CheckCircle2 className="h-3 w-3" /> Available</span>
+                    )}
+                    {!isCheckingSlug && isSlugAvailable === false && (
+                      <span className="flex items-center gap-1 text-xs text-destructive"><XCircle className="h-3 w-3" /> Already taken by another organization</span>
+                    )}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  This is your organization's login URL. Only lowercase letters, numbers, and hyphens. 
+                  <strong className="text-foreground"> Changing this will break existing bookmarks.</strong>
+                </p>
               </div>
 
               <Button onClick={handleSaveSettings}>Save Changes</Button>
