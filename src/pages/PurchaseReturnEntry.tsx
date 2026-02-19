@@ -73,7 +73,7 @@ const PurchaseReturnEntry = () => {
   const [isSearching, setIsSearching] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastBarcodeRef = useRef<string>("");
+  const lineItemsRef = useRef<LineItem[]>([]);
 
   const [returnData, setReturnData] = useState({
     supplier_id: "",
@@ -233,6 +233,7 @@ const PurchaseReturnEntry = () => {
         .eq("barcode", barcode)
         .eq("active", true)
         .is("deleted_at", null)
+        .eq("products.organization_id", currentOrganization.id)
         .limit(1);
 
       if (!error && exactMatch && exactMatch.length > 0) {
@@ -259,6 +260,11 @@ const PurchaseReturnEntry = () => {
     }
   }, [currentOrganization?.id]);
 
+  // Keep lineItemsRef in sync
+  useEffect(() => {
+    lineItemsRef.current = lineItems;
+  }, [lineItems]);
+
   // Handle search with debounce for text search, instant for barcode
   useEffect(() => {
     if (!searchQuery || searchQuery.length < 1) {
@@ -275,13 +281,13 @@ const PurchaseReturnEntry = () => {
     // Check if input looks like a barcode scan (fast typing, numeric, etc.)
     const isBarcodeInput = /^\d+$/.test(searchQuery) && searchQuery.length >= 6;
 
-    if (isBarcodeInput && searchQuery !== lastBarcodeRef.current) {
+    if (isBarcodeInput) {
       // Fast barcode scan - try exact match immediately
       handleBarcodeSearch(searchQuery).then((variant) => {
         if (variant) {
-          lastBarcodeRef.current = searchQuery;
-          // Auto-add or increment quantity
-          const existingItem = lineItems.find(item => item.sku_id === variant.id);
+          // Use ref to avoid stale state
+          const currentItems = lineItemsRef.current;
+          const existingItem = currentItems.find(item => item.sku_id === variant.id);
           if (existingItem) {
             updateLineItem(existingItem.temp_id, "qty", existingItem.qty + 1);
             toast({
@@ -316,7 +322,7 @@ const PurchaseReturnEntry = () => {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchQuery, handleBarcodeSearch, lineItems]);
+  }, [searchQuery, handleBarcodeSearch]);
 
   useEffect(() => {
     if (taxType === "exclusive") {
@@ -453,8 +459,9 @@ const PurchaseReturnEntry = () => {
   };
 
   const handleProductSelect = (variant: ProductVariant) => {
-    // Check if item already exists - if so, increment quantity
-    const existingItem = lineItems.find(item => item.sku_id === variant.id);
+    // Check if item already exists - use ref for current state
+    const currentItems = lineItemsRef.current;
+    const existingItem = currentItems.find(item => item.sku_id === variant.id);
     if (existingItem) {
       updateLineItem(existingItem.temp_id, "qty", existingItem.qty + 1);
       toast({
@@ -479,7 +486,7 @@ const PurchaseReturnEntry = () => {
         discount_percent: 0,
         discount_amount: 0,
       };
-      setLineItems([...lineItems, newItem]);
+      setLineItems(prev => [...prev, newItem]);
     }
     setSearchQuery("");
     setShowSearch(false);
