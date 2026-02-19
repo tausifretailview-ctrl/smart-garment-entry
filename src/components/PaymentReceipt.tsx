@@ -66,144 +66,139 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
     return (
       <div
         ref={ref}
-        className="bg-white p-8 max-w-[210mm] mx-auto"
+        className="bg-white p-4 max-w-[210mm] mx-auto"
         style={{
           fontFamily: "Arial, sans-serif",
           color: "#000",
-          fontSize: "12px",
+          fontSize: "11px",
         }}
       >
         {/* Header */}
-        <div className="border-b-2 border-gray-800 pb-4 mb-4">
+        <div className="border-b-2 border-gray-800 pb-2 mb-2">
           <div className="flex items-start justify-between">
             <div className="flex-1">
               {receiptSettings.showCompanyLogo && companyDetails.logoUrl && (
                 <img
                   src={companyDetails.logoUrl}
                   alt="Company Logo"
-                  className="h-16 mb-2"
+                  className="h-12 mb-1"
                 />
               )}
-              <h1 className="text-2xl font-bold text-gray-900 mb-1">
+              <h1 className="text-lg font-bold text-gray-900 leading-tight">
                 {companyDetails.businessName || "Company Name"}
               </h1>
-              <div className="text-gray-700 space-y-1">
+              <div className="text-gray-700 text-[10px] leading-snug mt-0.5">
                 {companyDetails.address && <p>{companyDetails.address}</p>}
-                <div className="flex gap-4">
-                  {companyDetails.mobileNumber && <p>Phone: {companyDetails.mobileNumber}</p>}
-                  {companyDetails.emailId && <p>Email: {companyDetails.emailId}</p>}
-                </div>
+                <p>
+                  {companyDetails.mobileNumber && <>Phone: {companyDetails.mobileNumber}</>}
+                  {companyDetails.mobileNumber && companyDetails.emailId && <>&nbsp;&nbsp;&nbsp;</>}
+                  {companyDetails.emailId && <>Email: {companyDetails.emailId}</>}
+                </p>
                 {companyDetails.gstNumber && <p>GSTIN: {companyDetails.gstNumber}</p>}
               </div>
             </div>
             {receiptSettings.showQrCode && qrCodeUrl && (
-              <div className="ml-4">
-                <img src={qrCodeUrl} alt="Payment QR Code" className="w-32 h-32" />
-                <p className="text-xs text-center mt-1">Scan to Pay</p>
+              <div className="ml-2">
+                <img src={qrCodeUrl} alt="Payment QR Code" className="w-24 h-24" />
+                <p className="text-[9px] text-center">Scan to Pay</p>
               </div>
             )}
           </div>
         </div>
 
         {/* Receipt Title */}
-        <div className="text-center mb-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-1">PAYMENT RECEIPT</h2>
+        <div className="text-center mb-2">
+          <h2 className="text-base font-bold text-gray-900">PAYMENT RECEIPT</h2>
           {receiptSettings.headerText && (
-            <p className="text-sm text-gray-600">{receiptSettings.headerText}</p>
+            <p className="text-[10px] text-gray-600">{receiptSettings.headerText}</p>
           )}
         </div>
 
         {/* Receipt Details */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-2 gap-2 mb-2 text-[11px]">
           <div>
-            <p className="font-semibold text-gray-900">Receipt No:</p>
-            <p className="text-gray-700">{receiptData.voucherNumber}</p>
+            <span className="font-semibold text-gray-900">Receipt No: </span>
+            <span className="text-gray-700">{receiptData.voucherNumber}</span>
           </div>
           <div>
-            <p className="font-semibold text-gray-900">Receipt Date:</p>
-            <p className="text-gray-700">
+            <span className="font-semibold text-gray-900">Receipt Date: </span>
+            <span className="text-gray-700">
               {receiptData.voucherDate ? format(new Date(receiptData.voucherDate), "dd MMM yyyy") : "-"}
-            </p>
+            </span>
           </div>
         </div>
 
         {/* Customer Details */}
-        <div className="border border-gray-300 p-4 mb-6">
-          <h3 className="font-bold text-gray-900 mb-2">Received From:</h3>
-          <p className="text-gray-700 font-medium mb-1">{receiptData.customerName}</p>
+        <div className="border border-gray-300 p-2 mb-2 text-[11px]">
+          <p className="font-bold text-gray-900 text-[10px] mb-0.5">Received From:</p>
+          <p className="text-gray-700 font-medium">{receiptData.customerName}</p>
           {receiptData.customerPhone && (
-            <p className="text-gray-600 text-sm">Phone: {receiptData.customerPhone}</p>
+            <span className="text-gray-600 text-[10px]">Phone: {receiptData.customerPhone}&nbsp;&nbsp;</span>
           )}
           {receiptData.customerAddress && (
-            <p className="text-gray-600 text-sm">{receiptData.customerAddress}</p>
+            <span className="text-gray-600 text-[10px]">{receiptData.customerAddress}</span>
           )}
         </div>
 
         {/* Payment Details Table */}
-        <table className="w-full border border-gray-300 mb-6">
+        <table className="w-full border border-gray-300 mb-2 text-[11px]">
           <thead>
             <tr className="bg-gray-100">
-              <th className="border border-gray-300 p-2 text-left">Description</th>
-              <th className="border border-gray-300 p-2 text-right">Amount</th>
+              <th className="border border-gray-300 p-1.5 text-left font-semibold">Description</th>
+              <th className="border border-gray-300 p-1.5 text-right font-semibold w-28">Amount</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td className="border border-gray-300 p-2">
+              <td className="border border-gray-300 p-1.5">
                 Payment for Invoice: {receiptData?.invoiceNumber || '-'}
-                <br />
-                <span className="text-sm text-gray-600">
-                  Invoice Date: {receiptData?.invoiceDate ? format(new Date(receiptData.invoiceDate), "dd MMM yyyy") : "-"}
+                <span className="text-[10px] text-gray-600 ml-2">
+                  ({receiptData?.invoiceDate ? format(new Date(receiptData.invoiceDate), "dd MMM yyyy") : "-"})
                 </span>
               </td>
-              <td className="border border-gray-300 p-2 text-right">
+              <td className="border border-gray-300 p-1.5 text-right">
                 ₹{Math.round(invoiceAmount).toLocaleString("en-IN")}
               </td>
             </tr>
             <tr>
-              <td className="border border-gray-300 p-2 font-medium">Previous Balance</td>
-              <td className="border border-gray-300 p-2 text-right font-medium">
+              <td className="border border-gray-300 p-1.5">Previous Balance</td>
+              <td className="border border-gray-300 p-1.5 text-right">
                 ₹{Math.round(previousBalance).toLocaleString("en-IN")}
               </td>
             </tr>
             <tr className="bg-green-50">
-              <td className="border border-gray-300 p-2 font-bold">Amount Received</td>
-              <td className="border border-gray-300 p-2 text-right font-bold text-green-700">
+              <td className="border border-gray-300 p-1.5 font-bold">Amount Received</td>
+              <td className="border border-gray-300 p-1.5 text-right font-bold text-green-700">
                 ₹{Math.round(paidAmount).toLocaleString("en-IN")}
               </td>
             </tr>
             {discountAmount > 0 && (
               <tr className="bg-amber-50">
-                <td className="border border-gray-300 p-2 font-medium">
-                  Discount Applied
-                  {discountReason && (
-                    <span className="block text-xs text-gray-500 font-normal">
-                      Reason: {discountReason}
-                    </span>
-                  )}
+                <td className="border border-gray-300 p-1.5">
+                  Discount{discountReason && <span className="text-[9px] text-gray-500 ml-1">({discountReason})</span>}
                 </td>
-                <td className="border border-gray-300 p-2 text-right font-medium text-amber-700">
+                <td className="border border-gray-300 p-1.5 text-right text-amber-700">
                   ₹{Math.round(discountAmount).toLocaleString("en-IN")}
                 </td>
               </tr>
             )}
             {discountAmount > 0 && (
               <tr className="bg-emerald-50">
-                <td className="border border-gray-300 p-2 font-bold">Total Settled</td>
-                <td className="border border-gray-300 p-2 text-right font-bold text-emerald-700">
+                <td className="border border-gray-300 p-1.5 font-bold">Total Settled</td>
+                <td className="border border-gray-300 p-1.5 text-right font-bold text-emerald-700">
                   ₹{Math.round(totalSettled).toLocaleString("en-IN")}
                 </td>
               </tr>
             )}
             <tr>
-              <td className="border border-gray-300 p-2 font-medium">Payment Method</td>
-              <td className="border border-gray-300 p-2 text-right">
+              <td className="border border-gray-300 p-1.5">Payment Method</td>
+              <td className="border border-gray-300 p-1.5 text-right">
                 {receiptData?.paymentMethod?.toUpperCase() || '-'}
               </td>
             </tr>
             <tr className="bg-blue-50">
-              <td className="border border-gray-300 p-2 font-bold">Current Balance</td>
-              <td className="border border-gray-300 p-2 text-right font-bold text-blue-700">
+              <td className="border border-gray-300 p-1.5 font-bold">Current Balance</td>
+              <td className="border border-gray-300 p-1.5 text-right font-bold text-blue-700">
                 ₹{Math.round(currentBalance).toLocaleString("en-IN")}
               </td>
             </tr>
@@ -211,24 +206,22 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
         </table>
 
         {/* Amount in Words */}
-        <div className="mb-6">
-          <p className="font-semibold text-gray-900">Amount in Words:</p>
-          <p className="text-gray-700 italic">
+        <div className="mb-2 text-[10px]">
+          <span className="font-semibold text-gray-900">Amount in Words: </span>
+          <span className="text-gray-700 italic">
             Rupees {numberToWords(paidAmount)} Only
             {discountAmount > 0 && (
-              <span className="block text-sm mt-1">
-                (Discount: Rupees {numberToWords(discountAmount)} Only)
-              </span>
+              <span className="ml-1">(Discount: Rupees {numberToWords(discountAmount)} Only)</span>
             )}
-          </p>
+          </span>
         </div>
 
         {/* Signature Section */}
         {receiptSettings.showSignature && (
-          <div className="flex justify-end mt-12 mb-6">
+          <div className="flex justify-end mt-8 mb-2">
             <div className="text-center">
-              <div className="border-t-2 border-gray-800 pt-2 w-48">
-                <p className="font-semibold text-gray-900">
+              <div className="border-t-2 border-gray-800 pt-1 w-40">
+                <p className="font-semibold text-gray-900 text-[10px]">
                   {receiptSettings.signatureLabel || "Authorized Signature"}
                 </p>
               </div>
@@ -238,12 +231,12 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
 
         {/* Footer */}
         {receiptSettings.footerText && (
-          <div className="border-t-2 border-gray-300 pt-4 mt-6 text-center">
-            <p className="text-sm text-gray-600">{receiptSettings.footerText}</p>
+          <div className="border-t border-gray-300 pt-2 mt-2 text-center">
+            <p className="text-[10px] text-gray-600">{receiptSettings.footerText}</p>
           </div>
         )}
 
-        <div className="text-center text-xs text-gray-500 mt-4">
+        <div className="text-center text-[9px] text-gray-500 mt-2">
           <p>This is a computer-generated receipt and does not require a signature.</p>
         </div>
       </div>
