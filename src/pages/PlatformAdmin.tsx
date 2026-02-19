@@ -229,6 +229,86 @@ const DatabaseStatsSection = ({ organizations }: { organizations: any[] }) => {
   );
 };
 
+// All Users Table Component
+const AllUsersTable = ({ organizations }: { organizations: Organization[] }) => {
+  const { data, isLoading } = useQuery({
+    queryKey: ["platform-all-users-details"],
+    queryFn: async () => {
+      // Fetch users via edge function
+      const { data: result, error } = await supabase.functions.invoke("get-users");
+      if (error) throw error;
+      
+      const users = result?.users || [];
+
+      // Fetch all org memberships
+      const { data: allMembers, error: memError } = await supabase
+        .from("organization_members")
+        .select("organization_id, user_id, role");
+      if (memError) throw memError;
+
+      // Build enriched list: one row per user-org membership
+      const rows: { email: string; orgName: string; role: string; userId: string }[] = [];
+      for (const member of (allMembers || [])) {
+        const user = users.find((u: any) => u.id === member.user_id);
+        const org = organizations.find((o) => o.id === member.organization_id);
+        rows.push({
+          userId: member.user_id,
+          email: user?.email || "Unknown",
+          orgName: org?.name || "Unknown",
+          role: member.role,
+        });
+      }
+      return rows;
+    },
+  });
+
+  if (isLoading) {
+    return <div className="text-center py-8 text-muted-foreground">Loading users...</div>;
+  }
+
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>#</TableHead>
+            <TableHead>Email / User ID</TableHead>
+            <TableHead>Organization</TableHead>
+            <TableHead>Role</TableHead>
+            <TableHead>Password</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {(!data || data.length === 0) ? (
+            <TableRow>
+              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                No users found
+              </TableCell>
+            </TableRow>
+          ) : (
+            data.map((row, index) => (
+              <TableRow key={`${row.userId}-${row.orgName}-${index}`}>
+                <TableCell className="font-mono text-muted-foreground">{index + 1}</TableCell>
+                <TableCell>
+                  <div className="font-medium">{row.email}</div>
+                  <div className="text-xs text-muted-foreground font-mono">{row.userId}</div>
+                </TableCell>
+                <TableCell>{row.orgName}</TableCell>
+                <TableCell>
+                  <Badge variant="outline" className="capitalize">{row.role}</Badge>
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground italic">
+                  🔒 Encrypted (security protected)
+                </TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+    </div>
+  );
+};
+
 export default function PlatformAdmin() {
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
   const [createUserOpen, setCreateUserOpen] = useState(false);
@@ -1105,48 +1185,13 @@ export default function PlatformAdmin() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
-                All Organization Users ({userCount})
+                All Organization Users
               </DialogTitle>
               <DialogDescription>
-                Complete list of users across all organizations
+                Complete list of users across all organizations with their details
               </DialogDescription>
             </DialogHeader>
-            <div className="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>#</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Organization</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Password</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {members.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                        No users found
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    members.map((member, index) => (
-                      <TableRow key={`${member.user_id}-${member.organization_id}`}>
-                        <TableCell className="font-mono text-muted-foreground">{index + 1}</TableCell>
-                        <TableCell className="font-medium">{member.user_email}</TableCell>
-                        <TableCell>{member.org_name}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="capitalize">{member.role}</Badge>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground italic">
-                          Encrypted (not retrievable)
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+            <AllUsersTable organizations={organizations} />
           </DialogContent>
         </Dialog>
       </div>
