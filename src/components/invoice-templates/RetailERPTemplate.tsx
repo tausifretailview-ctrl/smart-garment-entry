@@ -364,7 +364,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               )}
               {qrCodeUrl && (
                 <div style={{ marginTop: "6px" }}>
-                  <img src={qrCodeUrl} alt="QR Code" style={{ width: isA4 ? "120px" : "70px", height: isA4 ? "120px" : "70px", border: "1px solid #ccc" }} />
+                  <img src={qrCodeUrl} alt="QR Code" style={{ width: isA4 ? "160px" : "110px", height: isA4 ? "160px" : "110px", border: "1px solid #ccc" }} />
                 </div>
               )}
               <div style={{ marginTop: "4px", fontSize: isA4 ? "10px" : "8px" }}>E. & O.E.</div>
