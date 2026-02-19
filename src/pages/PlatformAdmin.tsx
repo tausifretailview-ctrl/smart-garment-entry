@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Layout } from "@/components/Layout";
@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Building2, Users, Plus, Shield, Edit, UserX, Link2, Settings, Database, FileText, Activity, Download, Eye, EyeOff } from "lucide-react";
+import { Building2, Users, Plus, Shield, Edit, UserX, Link2, Settings, Database, FileText, Activity, Download, Eye, EyeOff, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -329,6 +329,9 @@ export default function PlatformAdmin() {
   const [adminEmail, setAdminEmail] = useState("");
   const [orgType, setOrgType] = useState<"business" | "school">("business");
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
+  const [customSlug, setCustomSlug] = useState("");
+  const [isCheckingSlug, setIsCheckingSlug] = useState(false);
+  const [isSlugAvailable, setIsSlugAvailable] = useState<boolean | null>(null);
   
   const [userEmail, setUserEmail] = useState("");
   const [userPassword, setUserPassword] = useState("");
@@ -338,6 +341,41 @@ export default function PlatformAdmin() {
   const [allUsersOpen, setAllUsersOpen] = useState(false);
 
   const queryClient = useQueryClient();
+
+  // Slug utility: mirrors the DB function logic
+  const generateSlug = (name: string) =>
+    name.toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .trim();
+
+  // The effective slug to use: custom override or auto-generated from name
+  const slugPreview = customSlug.trim() || generateSlug(orgName);
+
+  // Debounced slug availability check
+  useEffect(() => {
+    if (!slugPreview || !createOrgOpen) {
+      setIsSlugAvailable(null);
+      return;
+    }
+    setIsCheckingSlug(true);
+    setIsSlugAvailable(null);
+    const timer = setTimeout(async () => {
+      try {
+        const { count } = await supabase
+          .from("organizations")
+          .select("id", { count: "exact", head: true })
+          .eq("slug", slugPreview);
+        setIsSlugAvailable(count === 0);
+      } catch {
+        setIsSlugAvailable(null);
+      } finally {
+        setIsCheckingSlug(false);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [slugPreview, createOrgOpen]);
 
   // Fetch all organizations
   const { data: organizations = [], isLoading: orgsLoading } = useQuery({
@@ -385,6 +423,7 @@ export default function PlatformAdmin() {
   // Create organization mutation
   const createOrgMutation = useMutation({
     mutationFn: async () => {
+      // If a custom slug was provided, first manually set it after creation
       const { data, error } = await supabase.rpc("platform_create_organization", {
         p_name: orgName,
         p_enabled_features: selectedFeatures,
@@ -393,6 +432,18 @@ export default function PlatformAdmin() {
       });
 
       if (error) throw error;
+
+      // If a custom slug override was provided and differs from auto-generated, update it
+      const autoSlug = generateSlug(orgName);
+      const orgData = data as any;
+      if (customSlug.trim() && customSlug.trim() !== autoSlug && orgData?.id) {
+        const { error: slugError } = await supabase
+          .from("organizations")
+          .update({ slug: customSlug.trim() })
+          .eq("id", orgData.id);
+        if (slugError) throw slugError;
+      }
+
       return data;
     },
     onSuccess: () => {
@@ -402,10 +453,17 @@ export default function PlatformAdmin() {
       setAdminEmail("");
       setOrgType("business");
       setSelectedFeatures([]);
+      setCustomSlug("");
+      setIsSlugAvailable(null);
       queryClient.invalidateQueries({ queryKey: ["platform-organizations"] });
     },
     onError: (error: any) => {
-      toast.error(error.message || "Failed to create organization");
+      const msg = error.message || "";
+      if (msg.includes("unique") || msg.includes("duplicate") || msg.includes("already exists")) {
+        toast.error(`Slug "${slugPreview}" is already taken. Please choose a different name or custom slug.`);
+      } else {
+        toast.error(msg || "Failed to create organization");
+      }
     },
   });
 
@@ -557,6 +615,10 @@ export default function PlatformAdmin() {
       toast.error("Maximum 20 organizations allowed");
       return;
     }
+    if (isSlugAvailable === false) {
+      toast.error(`Slug "${slugPreview}" is already taken. Please choose a different name or custom slug.`);
+      return;
+    }
     createOrgMutation.mutate();
   };
 
@@ -657,7 +719,7 @@ export default function PlatformAdmin() {
               <Shield className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">Active</div>
+              <div className="text-2xl font-bold text-success">Active</div>
               <p className="text-xs text-muted-foreground">All systems operational</p>
             </CardContent>
           </Card>
@@ -707,9 +769,34 @@ export default function PlatformAdmin() {
                       <Input
                         id="orgName"
                         value={orgName}
-                        onChange={(e) => setOrgName(e.target.value)}
+                        onChange={(e) => { setOrgName(e.target.value); setCustomSlug(""); }}
                         placeholder="Enter organization name"
                       />
+                      {/* Slug preview + availability */}
+                      {orgName.trim() && (
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-muted-foreground">Login URL slug:</span>
+                          <span className="text-xs font-mono bg-muted px-2 py-0.5 rounded">/{slugPreview}</span>
+                          {isCheckingSlug && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                          {!isCheckingSlug && isSlugAvailable === true && (
+                            <span className="flex items-center gap-1 text-xs text-success"><CheckCircle2 className="h-3 w-3" /> Available</span>
+                          )}
+                          {!isCheckingSlug && isSlugAvailable === false && (
+                            <span className="flex items-center gap-1 text-xs text-destructive"><XCircle className="h-3 w-3" /> Already taken</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="customSlug">Custom Slug (optional)</Label>
+                      <Input
+                        id="customSlug"
+                        value={customSlug}
+                        onChange={(e) => setCustomSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                        placeholder="auto-generated from name"
+                        className="font-mono"
+                      />
+                      <p className="text-xs text-muted-foreground">Only lowercase letters, numbers, hyphens. Leave blank to auto-generate.</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="adminEmail">Admin Email (optional)</Label>
