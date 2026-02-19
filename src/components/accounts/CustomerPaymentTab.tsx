@@ -629,7 +629,7 @@ export function CustomerPaymentTab({
               const discountValue = parseFloat(discountAmount) || 0;
               const totalSettled = paymentAmount + discountValue;
               const outstandingBalance = customerBalance || 0;
-              const isExcessPayment = totalSettled > Math.round(outstandingBalance) && outstandingBalance > 0;
+              const isExcessPayment = Math.round(totalSettled) > Math.round(outstandingBalance) && outstandingBalance > 0;
               const isZeroBalance = outstandingBalance <= 0;
               const isDisabled = isZeroBalance || isExcessPayment;
               return (
