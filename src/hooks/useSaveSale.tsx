@@ -370,7 +370,7 @@ export const useSaveSale = () => {
           // Check WhatsApp settings
           const { data: whatsappSettings } = await (supabase as any)
             .from('whatsapp_api_settings')
-            .select('is_active, auto_send_invoice, invoice_template_name, auto_send_invoice_link, invoice_link_message, social_links, send_invoice_pdf, invoice_pdf_template, use_document_header_template, invoice_document_template_name')
+            .select('is_active, auto_send_invoice, invoice_template_name, auto_send_invoice_link, invoice_link_message, social_links, send_invoice_pdf, invoice_pdf_template, use_document_header_template, invoice_document_template_name, pdf_min_amount')
             .eq('organization_id', currentOrganization.id)
             .maybeSingle();
 
@@ -456,7 +456,8 @@ export const useSaveSale = () => {
             // This uses DOCUMENT header template (bypasses 24h window)
             // ============================================
             const shouldSendPdfFlow = whatsappSettings.use_document_header_template && 
-              whatsappSettings.invoice_document_template_name;
+              whatsappSettings.invoice_document_template_name &&
+              (saleData.netAmount ?? 0) >= (whatsappSettings.pdf_min_amount ?? 0);
 
             if (shouldSendPdfFlow) {
               try {

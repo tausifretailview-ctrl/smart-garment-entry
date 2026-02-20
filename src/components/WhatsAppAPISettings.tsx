@@ -120,6 +120,8 @@ export const WhatsAppAPISettings = () => {
     use_document_header_template: false,
     invoice_document_template_name: "",
     invoice_document_template_params: [] as any[],
+    // Minimum amount threshold for PDF attachment (0 = always send)
+    pdf_min_amount: 0,
   });
 
   const [showToken, setShowToken] = useState(false);
@@ -185,6 +187,7 @@ export const WhatsAppAPISettings = () => {
         use_document_header_template: (settings as any).use_document_header_template || false,
         invoice_document_template_name: (settings as any).invoice_document_template_name || "",
         invoice_document_template_params: (settings as any).invoice_document_template_params || [],
+        pdf_min_amount: (settings as any).pdf_min_amount ?? 0,
       });
     }
   }, [settings]);
@@ -196,7 +199,7 @@ export const WhatsAppAPISettings = () => {
     refetchInterval: getRefreshInterval('fast'), // Tier-based: false for free tier
   });
 
-  const handleInputChange = (field: string, value: string | boolean | string[] | TemplateParam[] | SocialLinks) => {
+  const handleInputChange = (field: string, value: string | boolean | number | string[] | TemplateParam[] | SocialLinks) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -1090,6 +1093,23 @@ export const WhatsAppAPISettings = () => {
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* PDF Minimum Amount Threshold */}
+              <div className="space-y-2">
+                <Label htmlFor="pdf_min_amount">Minimum sale amount for PDF attachment (₹)</Label>
+                <Input
+                  id="pdf_min_amount"
+                  type="number"
+                  min={0}
+                  step={1}
+                  placeholder="0 (always send PDF)"
+                  value={formData.pdf_min_amount || ""}
+                  onChange={(e) => handleInputChange("pdf_min_amount", parseFloat(e.target.value) || 0)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  PDF will only be generated and sent for sales above this amount. Set to 0 to always send PDF.
+                </p>
               </div>
 
               {/* Configuration Summary */}

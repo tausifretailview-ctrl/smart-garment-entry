@@ -4916,6 +4916,7 @@ export type Database = {
           outside_hours_message: string | null
           payment_reminder_template_name: string | null
           payment_reminder_template_params: Json | null
+          pdf_min_amount: number | null
           phone_number_id: string | null
           provider: string
           quotation_template_name: string | null
@@ -4979,6 +4980,7 @@ export type Database = {
           outside_hours_message?: string | null
           payment_reminder_template_name?: string | null
           payment_reminder_template_params?: Json | null
+          pdf_min_amount?: number | null
           phone_number_id?: string | null
           provider?: string
           quotation_template_name?: string | null
@@ -5042,6 +5044,7 @@ export type Database = {
           outside_hours_message?: string | null
           payment_reminder_template_name?: string | null
           payment_reminder_template_params?: Json | null
+          pdf_min_amount?: number | null
           phone_number_id?: string | null
           provider?: string
           quotation_template_name?: string | null
