@@ -1,128 +1,109 @@
 
-# Fix: 40-Sheet 38×35mm Label Alignment
+## Status: None of the 3 Fixes Are Done Yet
 
-## Root Cause Analysis
-
-Looking at the two printed photos and the code, there are **3 compounding issues** causing the misalignment:
-
-### Issue 1 — Wrong Preset Dimensions (Primary Cause)
-
-The user's physical label sheet has **38mm wide × 35mm tall** labels in a 5×8 grid (40 labels).
-
-The closest built-in preset `novajet40` is defined as:
-```
-{ cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "1.2mm" }
-```
-
-- Width is wrong: code uses 35mm, physical label is 38mm (3mm too narrow)
-- Height is wrong: code uses 37mm, physical label is 35mm (2mm too tall)
-- **This means every row is 2mm too tall** — across 8 rows that's a 16mm drift by the last row, which matches exactly what the photos show (labels slipping downward on the sheet by rows 6-8)
-
-### Issue 2 — Row Overflow to Page 2
-
-With the current `novajet40` height of 37mm and gap of 1.2mm, the `rowsPerPage` calculation is:
-```
-Math.floor((297 - 2 - 0 - 5) / (37 + 1.2)) = Math.floor(290 / 38.2) = 7 rows
-```
-
-But the physical sheet has 8 rows. So the system splits the print across **2 pages** — the first 35 labels (5×7) print on page 1, and the remaining 5 labels go to page 2. When the user prints, the second page starts fresh from the top of a new sheet, misaligning all remaining labels.
-
-### Issue 3 — No Dedicated 38×35mm Preset
-
-There is no exact `38×35mm` preset in the dropdown. Users must either use `novajet40` (wrong dimensions) or set up a Custom preset. The UI needs a clearly labeled preset for this exact sheet size.
+The barcode label fix (last diff) was applied, but that was a separate task. The cloud cost reduction plan fixes are still pending. Here is the current state and what needs to be done for each:
 
 ---
 
-## The Fix: 3 Changes
+### Fix 1 — batch_stock FIFO Performance Index
+**Status: NOT DONE**
 
-### Fix 1 — Add a new `a4_38x35_40sheet` preset (38×35mm, 5×8)
+The only existing batch_stock indexes are:
+- `idx_batch_stock_organization_id` (on organization_id)
+- `idx_batch_stock_variant` (on variant_id)
+- `idx_batch_stock_bill_number` (on bill_number)
+- `idx_batch_stock_purchase_date` (on purchase_date)
 
-In `sheetPresets`, add an exact entry for the 38×35 sheet. The correct parameters:
-- Width: 38mm (physical label width)
-- Height: 35mm (physical label height)
-- Cols: 5
-- Rows: 8
-- Gap: 1mm (standard gap for this sheet type)
+Missing: The partial index `idx_batch_stock_variant_qty` on `(variant_id, purchase_date) WHERE quantity > 0` that accelerates FIFO lookups by excluding zero-quantity rows entirely.
 
-With height=35mm and gap=1mm, the row calculation becomes:
-```
-Math.floor((297 - 2 - 0 - 5) / (35 + 1)) = Math.floor(290 / 36) = 8 rows ✓
-```
-All 8 rows fit on a single page — no overflow, no split.
-
-### Fix 2 — Fix the `novajet40` preset to match real-world dimensions
-
-The `novajet40` label in the dropdown currently says "39×35mm, 5×8" in the UI but is coded as 35×37mm. Fix it to be accurate: `width: "38mm", height: "35mm"`. This fixes it for all existing users who rely on this preset.
-
-### Fix 3 — Add the new preset to the UI dropdown with a clear label
-
-Add it to the "A4 - Medium Labels" group in the `SelectContent` dropdown with a clear description: **"A4 40-Sheet (38×35mm, 5×8)"**
-
----
-
-## Files to Change
-
-### `src/pages/BarcodePrinting.tsx`
-
-**Change 1** — `sheetPresets` object (line ~210): Fix `novajet40` dimensions and add new `a4_40sheet` preset:
-
-```typescript
-// BEFORE:
-novajet40: { cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "1.2mm", category: "a4" },
-
-// AFTER (fix novajet40 + add exact 38x35 preset):
-novajet40: { cols: 5, rows: 8, width: "38mm", height: "35mm", gap: "1mm", category: "a4" },
-a4_40sheet: { cols: 5, rows: 8, width: "38mm", height: "35mm", gap: "1mm", category: "a4" },
-```
-
-**Change 2** — `sheetPresetLabels` (line ~266): Update `novajet40` label and add `a4_40sheet`:
-
-```typescript
-novajet40: { label: "Novajet 40", description: "38×35mm, 5×8 (40 labels)", group: "A4 - Medium Labels" },
-a4_40sheet: { label: "A4 40-Sheet", description: "38×35mm, 5×8 (40 labels)", group: "A4 - Medium Labels" },
-```
-
-**Change 3** — `SheetType` union type (line ~183): Add `"a4_40sheet"` to the type:
-
-```typescript
-type SheetType = 
-  "novajet48" | "novajet40" | "a4_40sheet" | "novajet65" | ...
-```
-
-**Change 4** — UI dropdown `SelectContent` (line ~3410): Add the new preset item in the "A4 - Medium Labels" group:
-
-```tsx
-<SelectItem value="a4_40sheet">A4 40-Sheet (38×35mm, 5×8) ✓ Exact fit</SelectItem>
-```
-
-**Change 5** — Fix the `novajet40` auto-offset defaults (line ~1069): Since dimensions changed, keep the same defaults:
-
-```typescript
-novajet40: { defaultTop: 2, defaultLeft: 1 },
-a4_40sheet: { defaultTop: 2, defaultLeft: 1 },
-```
-
-**Change 6** — Fix `handleCopyPresetToCustom` rowsMap (line ~2052): Update the rows entry:
-
-```typescript
-const rowsMap: Record<string, number> = {
-  novajet48: 6,
-  novajet40: 8,
-  a4_40sheet: 8,   // add this
-  novajet65: 13,
-  a4_12x4: 12,
-};
+**Action**: Run a database migration to create:
+```sql
+CREATE INDEX IF NOT EXISTS idx_batch_stock_variant_qty 
+ON public.batch_stock(variant_id, purchase_date) 
+WHERE quantity > 0;
 ```
 
 ---
 
-## Expected Result After Fix
+### Fix 2 — Sale Delete Confirmation Guard (Item Count)
+**Status: PARTIALLY DONE — message is generic, no item count shown**
 
-| Before | After |
+Current delete dialog text in both `SalesInvoiceDashboard.tsx` (line 1712) and `POSDashboard.tsx` (line 1842) says:
+
+> "Are you sure you want to delete invoice {sale_number}? Stock quantities will be restored. This action cannot be undone."
+
+This is missing the specific item count. The plan requires showing exactly how many stock movements will be reversed (e.g., "This will reverse **12 stock movements** across 6 products").
+
+**What needs to change:**
+- Add a state variable `itemCountToDelete` that gets populated when the delete button is clicked (query `sale_items` count for that sale_id)
+- Update the dialog description in both `SalesInvoiceDashboard.tsx` and `POSDashboard.tsx` to include the item count
+- For bulk delete (5+ invoices), show a warning: "Warning: You are deleting X invoices. This will reverse stock for Y total items."
+
+---
+
+### Fix 3 — WhatsApp PDF Minimum Amount Threshold
+**Status: NOT DONE**
+
+No trace of `whatsapp_pdf_min_amount` anywhere in the codebase. The PDF generation in `useSaveSale.tsx` (lines 461–526) currently:
+1. Checks only `whatsappSettings.use_document_header_template && whatsappSettings.invoice_document_template_name`
+2. If true, **always** generates a base64 PDF regardless of sale amount
+
+Missing: A threshold check like `saleData.netAmount >= (whatsappSettings.pdf_min_amount ?? 0)` before entering the PDF generation block.
+
+**What needs to change:**
+1. **Database**: Add `pdf_min_amount numeric DEFAULT 0` column to `whatsapp_api_settings` table
+2. **`useSaveSale.tsx`**: Add threshold guard: only generate PDF if `netAmount >= pdf_min_amount`
+3. **`WhatsAppAPISettings.tsx`**: Add a "Minimum sale amount for PDF attachment" input field (default 0 = always send)
+
+---
+
+## Implementation Plan
+
+### Step 1 — Database Migration (2 changes in 1 migration)
+```sql
+-- Performance index for FIFO batch_stock queries
+CREATE INDEX IF NOT EXISTS idx_batch_stock_variant_qty 
+ON public.batch_stock(variant_id, purchase_date) 
+WHERE quantity > 0;
+
+-- WhatsApp PDF threshold column
+ALTER TABLE whatsapp_api_settings 
+ADD COLUMN IF NOT EXISTS pdf_min_amount numeric DEFAULT 0;
+```
+
+### Step 2 — `src/pages/SalesInvoiceDashboard.tsx`
+- Add `itemCountToDelete: number | null` state
+- Before opening delete dialog, fetch `count` from `sale_items` where `sale_id = invoice.id`
+- Update dialog description:
+  > "Deleting invoice {sale_number} will reverse **{N} stock movement(s)** across {N} products. This action cannot be undone."
+- For bulk delete > 5 invoices: add a red warning badge: "High Impact: Deleting X invoices"
+
+### Step 3 — `src/pages/POSDashboard.tsx`
+- Same item count fetch and dialog update as SalesInvoiceDashboard
+
+### Step 4 — `src/hooks/useSaveSale.tsx`
+- In the WhatsApp settings fetch query, add `pdf_min_amount` to the select list
+- Add guard before PDF generation block (line ~461):
+  ```typescript
+  const shouldSendPdf = shouldSendPdfFlow && 
+    (saleData.netAmount >= (whatsappSettings.pdf_min_amount ?? 0));
+  if (shouldSendPdf) { ... }
+  ```
+
+### Step 5 — `src/components/WhatsAppAPISettings.tsx`
+- Add a new labeled input in the PDF/Document template section:
+  - Label: "Minimum sale amount for PDF attachment (₹)"
+  - Placeholder: "0 (always send PDF)"
+  - Saves to `pdf_min_amount` column
+
+---
+
+## Files to Modify
+
+| File | Change |
 |---|---|
-| novajet40 uses 35×37mm → 3mm narrow, 2mm too tall per label | novajet40 / a4_40sheet uses 38×35mm → exact physical match |
-| 8 rows don't fit in A4, spills to page 2 | All 8 rows fit: `(297-7)/(35+1)=8.05` → exactly 8 rows per page |
-| Labels drift downward by row 6-8 | Labels align perfectly across all 40 positions |
-| No exact 38×35 preset in dropdown | Clear "A4 40-Sheet (38×35mm)" option in dropdown |
-
-The fix is purely in the preset definitions — no changes to the print engine, CSS, or PDF logic needed.
+| Database migration | Add `idx_batch_stock_variant_qty` partial index + `pdf_min_amount` column |
+| `src/pages/SalesInvoiceDashboard.tsx` | Fetch item count on delete, show in confirmation dialog |
+| `src/pages/POSDashboard.tsx` | Same item count guard for POS delete |
+| `src/hooks/useSaveSale.tsx` | PDF threshold guard using `pdf_min_amount` |
+| `src/components/WhatsAppAPISettings.tsx` | Add `pdf_min_amount` setting input |
