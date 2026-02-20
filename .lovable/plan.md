@@ -1,173 +1,128 @@
 
-## Cloud Cost Investigation — $6 Spent in ~24 Hours: Root Cause & Fix Plan
+# Fix: 40-Sheet 38×35mm Label Alignment
 
-### Summary of Findings
+## Root Cause Analysis
 
-The balance dropped from $22 → $16 ($6 in ~24 hours). After investigating all database write operations, edge function calls, and query patterns, the cause is clear: **every sale creates a chain of 17+ database write operations**, and Feb 18 had an anomalous spike from mass bill deletions.
+Looking at the two printed photos and the code, there are **3 compounding issues** causing the misalignment:
 
----
+### Issue 1 — Wrong Preset Dimensions (Primary Cause)
 
-### The Evidence: What's Actually Happening Per Sale
+The user's physical label sheet has **38mm wide × 35mm tall** labels in a 5×8 grid (40 labels).
 
-For 208 sales on Feb 19, here are the actual write counts measured from the live database:
-
-| Write Operation | Count | Per Sale |
-|---|---|---|
-| `stock_movements` inserts | 943 | ~4.5 (multi-batch FIFO) |
-| `product_variants` updates | 574 | ~2.8 (stock_qty decrement) |
-| `sale_items` inserts | 542 | ~2.6 (line items) |
-| `batch_stock` updates | 531 | ~2.6 (FIFO deduction) |
-| `customer_product_prices` upserts | 375 | ~1.8 (price tracking) |
-| `audit_logs` writes | 371 | ~1.8 (triggers) |
-| `sales` inserts | 208 | 1.0 (sale header) |
-| **TOTAL** | **3,544** | **~17 writes per sale** |
-
-**Plus WhatsApp edge function invocations** — every sale with a customer phone number calls the `send-whatsapp` edge function, which generates a PDF in base64 and uploads it. Edge function compute time is billed in CPU-ms.
-
----
-
-### The Feb 18 Anomaly: The Biggest Cost Spike
-
-Feb 18 had **1,359 sale movements** (vs 943 on Feb 19) PLUS **657 `sale_delete` movements from 34 deleted bills**. This means:
-- Large bills were entered → then deleted → then re-entered
-- Each delete reverses stock (1 write per item)
-- Each new sale creates fresh stock movements
-- Result: **~2,000+ extra write operations in one day** purely from delete+re-entry behaviour
-
-This is likely the cause of the biggest cost jump.
-
----
-
-### The 3 Root Causes Ranked by Cost Impact
-
-**#1 — `batch_stock` FIFO writes (531/day)** — HIGH IMPACT
-Every sale item triggers a FIFO lookup that reads multiple batch_stock rows, then updates each one deducted. For 3-batch products, that's 3 `batch_stock` UPDATE statements per item. If `batch_stock` tracking is disabled/not used by most organizations, this trigger still fires unnecessarily.
-
-**#2 — `customer_product_prices` upsert (375/day)** — MEDIUM IMPACT
-Every sale item upserts into `customer_product_prices` to track "last price sold to this customer." This fires even for walk-in customers with no customer ID — where it's completely wasted. Currently 375 upserts/day even though it only provides value for named customers.
-
-**#3 — WhatsApp PDF edge function** — MEDIUM IMPACT
-The `send-whatsapp` edge function is called on every sale with a phone number. When PDF mode is active, it generates a base64 PDF (CPU-intensive) before sending. Edge function compute is charged by execution time × memory.
-
----
-
-### The Fix Plan: 3 Targeted Optimizations
-
-#### Fix 1 — Guard `customer_product_prices` with a customer_id check
-
-**In `useSaveSale.tsx`**: The trigger `update_customer_product_price_on_sale` fires unconditionally on every `sale_items` insert. The trigger already checks `IF v_customer_id IS NOT NULL` at the SQL level, but there are ~375 upserts/day still happening — meaning many sales DO have customer IDs.
-
-The real saving here is in the **database trigger itself**: add a check that only fires if `last_sale_date` is more than 1 day old, preventing re-upserts for the same customer+variant combo sold multiple times in the same day.
-
-**SQL Migration:**
-```sql
--- Only upsert customer_product_prices if the last sale was more than 24 hours ago
--- This prevents repeat upserts for the same customer buying the same item multiple times per day
-CREATE OR REPLACE FUNCTION public.update_customer_product_price_on_sale()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path TO 'public'
-AS $$
-DECLARE
-  v_customer_id UUID;
-  v_org_id UUID;
-  v_sale_date TIMESTAMPTZ;
-BEGIN
-  SELECT customer_id, organization_id, sale_date
-  INTO v_customer_id, v_org_id, v_sale_date
-  FROM sales WHERE id = NEW.sale_id;
-  
-  -- Skip if no customer (walk-in sales)
-  IF v_customer_id IS NULL THEN
-    RETURN NEW;
-  END IF;
-  
-  -- Only update if no recent record exists (within last 7 days for same customer+variant)
-  -- This prevents redundant upserts when same customer buys same item multiple times/day
-  INSERT INTO customer_product_prices (
-    organization_id, customer_id, variant_id,
-    last_sale_price, last_mrp, last_sale_date, last_sale_id
-  ) VALUES (
-    v_org_id, v_customer_id, NEW.variant_id,
-    NEW.unit_price, NEW.mrp, v_sale_date, NEW.sale_id
-  )
-  ON CONFLICT (organization_id, customer_id, variant_id)
-  DO UPDATE SET
-    last_sale_price = EXCLUDED.last_sale_price,
-    last_mrp = EXCLUDED.last_mrp,
-    last_sale_date = EXCLUDED.last_sale_date,
-    last_sale_id = EXCLUDED.last_sale_id,
-    updated_at = now()
-  WHERE customer_product_prices.last_sale_date < EXCLUDED.last_sale_date;
-  
-  RETURN NEW;
-END;
-$$;
+The closest built-in preset `novajet40` is defined as:
+```
+{ cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "1.2mm" }
 ```
 
-**Estimated savings: 50–80 fewer upserts/day** (the `WHERE last_sale_date < EXCLUDED.last_sale_date` condition already exists — the trigger is correct. No change needed here — this is already optimized.)
+- Width is wrong: code uses 35mm, physical label is 38mm (3mm too narrow)
+- Height is wrong: code uses 37mm, physical label is 35mm (2mm too tall)
+- **This means every row is 2mm too tall** — across 8 rows that's a 16mm drift by the last row, which matches exactly what the photos show (labels slipping downward on the sheet by rows 6-8)
 
-#### Fix 2 — Add a `sale_delete` guard in the UI to prevent accidental mass deletions
+### Issue 2 — Row Overflow to Page 2
 
-The Feb 18 spike (657 stock reversal writes from 34 deleted bills) is the single biggest cost event. A simple confirmation dialog that shows **how many stock movements will be reversed** before allowing a delete will prevent accidental mass-delete+re-entry cycles.
+With the current `novajet40` height of 37mm and gap of 1.2mm, the `rowsPerPage` calculation is:
+```
+Math.floor((297 - 2 - 0 - 5) / (37 + 1.2)) = Math.floor(290 / 38.2) = 7 rows
+```
 
-**In `src/pages/SalesInvoiceDashboard.tsx`** (and POS delete): Before deleting a sale, show: _"This will reverse X stock movement(s). Are you sure?"_ with a count of the sale items. This is a UI-only change with zero DB cost.
+But the physical sheet has 8 rows. So the system splits the print across **2 pages** — the first 35 labels (5×7) print on page 1, and the remaining 5 labels go to page 2. When the user prints, the second page starts fresh from the top of a new sheet, misaligning all remaining labels.
 
-#### Fix 3 — Defer WhatsApp PDF generation to background
+### Issue 3 — No Dedicated 38×35mm Preset
 
-**In `useSaveSale.tsx`**: The WhatsApp auto-send already uses "fire and forget" but the PDF generation (base64 encoding of the full invoice) happens synchronously inside the fire-and-forget block. The edge function is called with `pdfBlob` which is a large base64 string — this increases edge function execution time significantly.
-
-**The fix**: Only generate and send the PDF if the sale amount exceeds a configurable threshold (e.g., ₹500), or add a per-organization toggle for "Send PDF on every sale" vs "Send text notification only." This reduces expensive PDF edge function calls by 40–60%.
+There is no exact `38×35mm` preset in the dropdown. Users must either use `novajet40` (wrong dimensions) or set up a Custom preset. The UI needs a clearly labeled preset for this exact sheet size.
 
 ---
 
-### Files to Change
+## The Fix: 3 Changes
 
-```text
-1. Database Migration
-   - Verify customer_product_prices trigger (already has WHERE clause — confirm no issue)
-   - Add a partial index on stock_movements to speed up FIFO batch queries:
-     CREATE INDEX IF NOT EXISTS idx_batch_stock_variant_qty 
-     ON batch_stock(variant_id, purchase_date) WHERE quantity > 0;
+### Fix 1 — Add a new `a4_38x35_40sheet` preset (38×35mm, 5×8)
 
-2. src/pages/SalesInvoiceDashboard.tsx  
-   - Add item count to delete confirmation dialog:
-     "Deleting this sale will reverse [N] stock movements."
-   - Add a bulk-delete warning if more than 5 sales selected
+In `sheetPresets`, add an exact entry for the 38×35 sheet. The correct parameters:
+- Width: 38mm (physical label width)
+- Height: 35mm (physical label height)
+- Cols: 5
+- Rows: 8
+- Gap: 1mm (standard gap for this sheet type)
 
-3. src/pages/POSDashboard.tsx (or wherever POS delete lives)
-   - Same delete confirmation guard
+With height=35mm and gap=1mm, the row calculation becomes:
+```
+Math.floor((297 - 2 - 0 - 5) / (35 + 1)) = Math.floor(290 / 36) = 8 rows ✓
+```
+All 8 rows fit on a single page — no overflow, no split.
 
-4. src/hooks/useSaveSale.tsx
-   - Add PDF send threshold: only send PDF if net_amount > settings.whatsapp_pdf_min_amount
-   - Add check: if settings.auto_send_invoice_link is true, skip the heavy PDF flow and 
-     use the lightweight link flow instead (text template only)
-   - This reduces edge function compute time per sale significantly
+### Fix 2 — Fix the `novajet40` preset to match real-world dimensions
 
-5. src/components/Settings.tsx (WhatsApp tab)
-   - Add "Minimum sale amount for PDF attachment" setting (default ₹0 = always)
-   - This gives org admins control over PDF cost vs convenience trade-off
+The `novajet40` label in the dropdown currently says "39×35mm, 5×8" in the UI but is coded as 35×37mm. Fix it to be accurate: `width: "38mm", height: "35mm"`. This fixes it for all existing users who rely on this preset.
+
+### Fix 3 — Add the new preset to the UI dropdown with a clear label
+
+Add it to the "A4 - Medium Labels" group in the `SelectContent` dropdown with a clear description: **"A4 40-Sheet (38×35mm, 5×8)"**
+
+---
+
+## Files to Change
+
+### `src/pages/BarcodePrinting.tsx`
+
+**Change 1** — `sheetPresets` object (line ~210): Fix `novajet40` dimensions and add new `a4_40sheet` preset:
+
+```typescript
+// BEFORE:
+novajet40: { cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "1.2mm", category: "a4" },
+
+// AFTER (fix novajet40 + add exact 38x35 preset):
+novajet40: { cols: 5, rows: 8, width: "38mm", height: "35mm", gap: "1mm", category: "a4" },
+a4_40sheet: { cols: 5, rows: 8, width: "38mm", height: "35mm", gap: "1mm", category: "a4" },
+```
+
+**Change 2** — `sheetPresetLabels` (line ~266): Update `novajet40` label and add `a4_40sheet`:
+
+```typescript
+novajet40: { label: "Novajet 40", description: "38×35mm, 5×8 (40 labels)", group: "A4 - Medium Labels" },
+a4_40sheet: { label: "A4 40-Sheet", description: "38×35mm, 5×8 (40 labels)", group: "A4 - Medium Labels" },
+```
+
+**Change 3** — `SheetType` union type (line ~183): Add `"a4_40sheet"` to the type:
+
+```typescript
+type SheetType = 
+  "novajet48" | "novajet40" | "a4_40sheet" | "novajet65" | ...
+```
+
+**Change 4** — UI dropdown `SelectContent` (line ~3410): Add the new preset item in the "A4 - Medium Labels" group:
+
+```tsx
+<SelectItem value="a4_40sheet">A4 40-Sheet (38×35mm, 5×8) ✓ Exact fit</SelectItem>
+```
+
+**Change 5** — Fix the `novajet40` auto-offset defaults (line ~1069): Since dimensions changed, keep the same defaults:
+
+```typescript
+novajet40: { defaultTop: 2, defaultLeft: 1 },
+a4_40sheet: { defaultTop: 2, defaultLeft: 1 },
+```
+
+**Change 6** — Fix `handleCopyPresetToCustom` rowsMap (line ~2052): Update the rows entry:
+
+```typescript
+const rowsMap: Record<string, number> = {
+  novajet48: 6,
+  novajet40: 8,
+  a4_40sheet: 8,   // add this
+  novajet65: 13,
+  a4_12x4: 12,
+};
 ```
 
 ---
 
-### Expected Savings After Fix
+## Expected Result After Fix
 
-| Optimization | Current Cost | After Fix |
-|---|---|---|
-| Delete confirmation guard | ~$2-3/incident | Near-zero (prevents mass delete+re-entry) |
-| WhatsApp PDF threshold | ~$1-2/day (CPU) | ~$0.50/day (fewer PDFs) |
-| Batch_stock index | Slower queries = more CPU | Faster FIFO = less CPU per sale |
-| **Total estimated saving** | **$3-5/day** | **$1-2/day** |
+| Before | After |
+|---|---|
+| novajet40 uses 35×37mm → 3mm narrow, 2mm too tall per label | novajet40 / a4_40sheet uses 38×35mm → exact physical match |
+| 8 rows don't fit in A4, spills to page 2 | All 8 rows fit: `(297-7)/(35+1)=8.05` → exactly 8 rows per page |
+| Labels drift downward by row 6-8 | Labels align perfectly across all 40 positions |
+| No exact 38×35 preset in dropdown | Clear "A4 40-Sheet (38×35mm)" option in dropdown |
 
-The most impactful single change is the **delete confirmation guard** — it directly prevents the Feb 18-style spikes. The WhatsApp PDF threshold is second highest impact.
-
----
-
-### What Does NOT Need Changing
-
-- `stock_movements` writes — these are correct and necessary, already reduced 73% by the audit log fix done earlier
-- `audit_logs` writes — now lean and correct after the STOCK_MOVEMENT trigger was dropped
-- `batch_stock` writes — necessary for FIFO accuracy, no redundancy
-- Database polling — already on Free tier (manual refresh, no background polling cost)
+The fix is purely in the preset definitions — no changes to the print engine, CSS, or PDF logic needed.
