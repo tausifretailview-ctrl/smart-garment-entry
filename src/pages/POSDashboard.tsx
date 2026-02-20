@@ -126,6 +126,7 @@ const POSDashboard = () => {
   const [saleReturns, setSaleReturns] = useState<Record<string, any[]>>({});
   const [selectedSales, setSelectedSales] = useState<Set<string>>(new Set());
   const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
+  const [itemCountToDelete, setItemCountToDelete] = useState<number | null>(null);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -403,6 +404,21 @@ const POSDashboard = () => {
   // Stock restoration is now handled automatically by database triggers
   // No need for manual stock restoration code
   const { softDelete, bulkSoftDelete } = useSoftDelete();
+
+  const handleInitiateDelete = async (sale: Sale) => {
+    setItemCountToDelete(null);
+    setSaleToDelete(sale);
+    // Fetch item count in background to show in dialog
+    if (currentOrganization?.id) {
+      try {
+        const { count } = await supabase
+          .from('sale_items')
+          .select('id', { count: 'exact', head: true })
+          .eq('sale_id', sale.id);
+        setItemCountToDelete(count ?? null);
+      } catch { /* non-blocking */ }
+    }
+  };
 
   const handleDeleteSale = async () => {
     if (!saleToDelete) return;
@@ -1834,12 +1850,18 @@ const POSDashboard = () => {
         />
       )}
 
-      <AlertDialog open={!!saleToDelete} onOpenChange={() => setSaleToDelete(null)}>
+      <AlertDialog open={!!saleToDelete} onOpenChange={() => { setSaleToDelete(null); setItemCountToDelete(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Sale</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete sale {saleToDelete?.sale_number}? Stock quantities will be restored. This action cannot be undone.
+            <AlertDialogDescription asChild>
+              <div className="space-y-1">
+                <p>Are you sure you want to delete sale <strong>{saleToDelete?.sale_number}</strong>?</p>
+                {itemCountToDelete !== null && (
+                  <p>This will reverse <strong>{itemCountToDelete} stock movement{itemCountToDelete !== 1 ? 's' : ''}</strong> across {itemCountToDelete} line item{itemCountToDelete !== 1 ? 's' : ''}.</p>
+                )}
+                <p className="text-destructive font-medium">This action cannot be undone.</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1856,8 +1878,14 @@ const POSDashboard = () => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {selectedSales.size} Sale(s)</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete {selectedSales.size} selected sale(s)? Stock quantities will be restored for all items. This action cannot be undone.
+            <AlertDialogDescription asChild>
+              <div className="space-y-1">
+                <p>Are you sure you want to delete <strong>{selectedSales.size}</strong> selected sale(s)? Stock quantities will be restored for all items.</p>
+                {selectedSales.size >= 5 && (
+                  <p className="text-destructive font-medium">⚠️ High Impact: Deleting {selectedSales.size} sales will reverse stock for many products.</p>
+                )}
+                <p className="text-destructive font-medium">This action cannot be undone.</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -100,6 +100,7 @@ export default function SalesInvoiceDashboard() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set());
   const [invoiceToDelete, setInvoiceToDelete] = useState<any>(null);
+  const [itemCountToDelete, setItemCountToDelete] = useState<number | null>(null);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -221,7 +222,7 @@ export default function SalesInvoiceDashboard() {
       {
         label: "Delete Invoice",
         icon: Trash2,
-        onClick: () => setInvoiceToDelete(invoice),
+        onClick: () => handleInitiateDelete(invoice),
         disabled: !canDelete,
         destructive: true,
       },
@@ -420,6 +421,21 @@ export default function SalesInvoiceDashboard() {
   // No need for manual stock restoration code
   const { softDelete, bulkSoftDelete } = useSoftDelete();
   
+  const handleInitiateDelete = async (invoice: any) => {
+    setItemCountToDelete(null);
+    setInvoiceToDelete(invoice);
+    // Fetch item count in background to show in dialog
+    if (currentOrganization?.id) {
+      try {
+        const { count } = await supabase
+          .from('sale_items')
+          .select('id', { count: 'exact', head: true })
+          .eq('sale_id', invoice.id);
+        setItemCountToDelete(count ?? null);
+      } catch { /* non-blocking */ }
+    }
+  };
+
   const handleDeleteInvoice = async () => {
     if (!invoiceToDelete) return;
 
@@ -1634,7 +1650,7 @@ export default function SalesInvoiceDashboard() {
                 handleDownloadPDF={handleDownloadPDF}
                 hasSpecialPermission={hasSpecialPermission}
                 navigate={navigate}
-                setInvoiceToDelete={setInvoiceToDelete}
+                setInvoiceToDelete={handleInitiateDelete}
                 pageTotals={pageTotals}
                 showItemBrand={showItemBrand}
                 showItemColor={showItemColor}
@@ -1704,12 +1720,18 @@ export default function SalesInvoiceDashboard() {
         </Card>
       </div>
 
-      <AlertDialog open={!!invoiceToDelete} onOpenChange={() => setInvoiceToDelete(null)}>
+      <AlertDialog open={!!invoiceToDelete} onOpenChange={() => { setInvoiceToDelete(null); setItemCountToDelete(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Invoice</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete invoice {invoiceToDelete?.sale_number}? Stock quantities will be restored. This action cannot be undone.
+            <AlertDialogDescription asChild>
+              <div className="space-y-1">
+                <p>Are you sure you want to delete invoice <strong>{invoiceToDelete?.sale_number}</strong>?</p>
+                {itemCountToDelete !== null && (
+                  <p>This will reverse <strong>{itemCountToDelete} stock movement{itemCountToDelete !== 1 ? 's' : ''}</strong> across {itemCountToDelete} line item{itemCountToDelete !== 1 ? 's' : ''}.</p>
+                )}
+                <p className="text-destructive font-medium">This action cannot be undone.</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1726,8 +1748,14 @@ export default function SalesInvoiceDashboard() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {selectedInvoices.size} Invoice(s)</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete {selectedInvoices.size} selected invoice(s)? Stock quantities will be restored for all items. This action cannot be undone.
+            <AlertDialogDescription asChild>
+              <div className="space-y-1">
+                <p>Are you sure you want to delete <strong>{selectedInvoices.size}</strong> selected invoice(s)? Stock quantities will be restored for all items.</p>
+                {selectedInvoices.size >= 5 && (
+                  <p className="text-destructive font-medium">⚠️ High Impact: Deleting {selectedInvoices.size} invoices will reverse stock for many products.</p>
+                )}
+                <p className="text-destructive font-medium">This action cannot be undone.</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
