@@ -182,7 +182,7 @@ interface MarginPreset {
 
 type SheetType = 
   // A4 Sheet Types
-  "novajet48" | "novajet40" | "novajet65" | "a4_12x4" | "a4_65sheet" | "a4_32sheet" | 
+  "novajet48" | "novajet40" | "a4_40sheet" | "novajet65" | "a4_12x4" | "a4_65sheet" | "a4_32sheet" | 
   "a4_24sheet" | "a4_20sheet" | "a4_35square" | "a4_21sheet" | "a4_80sheet" | "a4_36sheet" |
   // Thermal 1UP Types
   "thermal_50x30_1up" | "thermal_50x25_1up" | "thermal_38x25_1up" | 
@@ -207,7 +207,8 @@ const sheetPresets = {
   a4_65sheet: { cols: 5, width: "38mm", height: "22mm", gap: "1mm", category: "a4" },
   
   // Medium Labels
-  novajet40: { cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "1.2mm", category: "a4" },
+  novajet40: { cols: 5, rows: 8, width: "38mm", height: "35mm", gap: "1mm", category: "a4" },
+  a4_40sheet: { cols: 5, rows: 8, width: "38mm", height: "35mm", gap: "1mm", category: "a4" },
   a4_35x37: { cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "1.2mm", category: "a4" },
   a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm", category: "a4" },
   a4_36sheet: { cols: 4, width: "48mm", height: "30mm", gap: "1mm", category: "a4" },
@@ -263,7 +264,8 @@ const sheetPresetLabels: Record<string, { label: string; description: string; gr
   a4_65sheet: { label: "A4 65-Sheet", description: "38×22mm, 5 cols (shelf)", group: "A4 - Small Labels" },
   
   // A4 Sheets - Medium
-  novajet40: { label: "Novajet 40", description: "35×37mm, 5×8", group: "A4 - Medium Labels" },
+  novajet40: { label: "Novajet 40", description: "38×35mm, 5×8 (40 labels)", group: "A4 - Medium Labels" },
+  a4_40sheet: { label: "A4 40-Sheet", description: "38×35mm, 5×8 (40 labels) ✓ Exact", group: "A4 - Medium Labels" },
   a4_35x37: { label: "A4 35×37mm", description: "35×37mm, 5×8 (40 labels)", group: "A4 - Medium Labels" },
   a4_12x4: { label: "A4 48-Sheet", description: "50×24mm, 4×12", group: "A4 - Medium Labels" },
   a4_36sheet: { label: "A4 36-Sheet", description: "48×30mm, 4×9", group: "A4 - Medium Labels" },
@@ -1067,6 +1069,7 @@ export default function BarcodePrinting() {
   useEffect(() => {
     const sheetPresets: Record<string, { defaultTop?: number; defaultLeft?: number }> = {
       novajet40: { defaultTop: 2, defaultLeft: 1 },
+      a4_40sheet: { defaultTop: 2, defaultLeft: 1 },
     };
     
     const preset = sheetPresets[sheetType];
@@ -2052,6 +2055,7 @@ export default function BarcodePrinting() {
     const rowsMap: Record<string, number> = {
       novajet48: 6,
       novajet40: 8,
+      a4_40sheet: 8,
       novajet65: 13,
       a4_12x4: 12,
     };
@@ -3410,7 +3414,8 @@ export default function BarcodePrinting() {
                   <SelectItem value="a4_36sheet">A4 36-Sheet (48×30mm, 4×9)</SelectItem>
                   <SelectItem value="a4_32sheet">A4 32-Sheet (52×30mm, retail)</SelectItem>
                   <SelectItem value="a4_35square">A4 35-Square (35×35mm, square)</SelectItem>
-                  <SelectItem value="novajet40">Novajet 40 (39×35mm, 5×8)</SelectItem>
+                  <SelectItem value="a4_40sheet">A4 40-Sheet (38×35mm, 5×8) ✓ Exact fit</SelectItem>
+                  <SelectItem value="novajet40">Novajet 40 (38×35mm, 5×8)</SelectItem>
                   
                   {/* A4 Sheet Presets - Large */}
                   <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">📄 A4 - Large Labels</div>
