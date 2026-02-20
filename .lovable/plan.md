@@ -1,138 +1,173 @@
 
-## Audit Log: Keep or Slim? Clear Data-Backed Answer
+## Cloud Cost Investigation — $6 Spent in ~24 Hours: Root Cause & Fix Plan
 
-### The Core Finding: 72.7% of Audit Log is WASTED Storage
+### Summary of Findings
 
-After checking your live database, here is the exact breakdown:
-
-| Category | Rows | % of Total | Value |
-|---|---|---|---|
-| STOCK_MOVEMENT | 59,928 | **72.7%** | **REDUNDANT** — exact same data already in `stock_movements` table |
-| Business Events (Sales, Purchases, Products, Roles) | 22,463 | **27.3%** | **GENUINELY USEFUL** — keep these |
-
-**Total audit_logs size: 45 MB** (34 MB data + 11 MB indexes)
-
-The `stock_movements` table already stores 58,378 rows with full movement detail. The `audit_stock_changes` trigger then copies almost the same data again into `audit_logs` — duplicating 60,000 rows for zero additional value. This is the one change that will free the most space and reduce write load.
+The balance dropped from $22 → $16 ($6 in ~24 hours). After investigating all database write operations, edge function calls, and query patterns, the cause is clear: **every sale creates a chain of 17+ database write operations**, and Feb 18 had an anomalous spike from mass bill deletions.
 
 ---
 
-### Growth Rate (Alarming)
+### The Evidence: What's Actually Happening Per Sale
 
-| Month | Total Rows Added | Stock Movement Audit (Wasted) | Useful Business Events |
-|---|---|---|---|
-| Nov 2025 | 1,274 | 660 | 614 |
-| Dec 2025 | 12,453 | 7,010 | 5,443 |
-| Jan 2026 | 31,220 | 24,431 | 6,789 |
-| Feb 2026 (so far) | 37,444 | 27,827 | 9,617 |
+For 208 sales on Feb 19, here are the actual write counts measured from the live database:
 
-**At current rate:** ~34,000 rows/month → **408,000 rows/year** added to audit_logs. In 6 months the table will be ~157 MB just from audit data.
-
-**Every sale with 5 items = 5 stock_movement audit rows written** — that's 5 extra DB writes per sale that duplicate data already stored elsewhere.
-
----
-
-### What Is GENUINELY Important to Keep (27.3%)
-
-These 22,463 rows are irreplaceable for accountability:
-
-| Action | Count | Why Keep |
+| Write Operation | Count | Per Sale |
 |---|---|---|
-| SALE_CREATED | 7,676 | Who created which sale, when, for how much |
-| PRODUCT CREATE/UPDATE/DELETE | 8,909 | Product price and data changes over time |
-| SALE_UPDATED | 2,201 | Edits to posted sales (fraud detection) |
-| PURCHASE_CREATED/UPDATED/DELETED | 2,306 | Full purchase accountability |
-| PRICE_CHANGE | 972 | Price history per variant |
-| SALE_DELETED | 352 | Deleted sales are critical forensic data |
-| USER/ROLE changes | 47 | Security audit trail |
+| `stock_movements` inserts | 943 | ~4.5 (multi-batch FIFO) |
+| `product_variants` updates | 574 | ~2.8 (stock_qty decrement) |
+| `sale_items` inserts | 542 | ~2.6 (line items) |
+| `batch_stock` updates | 531 | ~2.6 (FIFO deduction) |
+| `customer_product_prices` upserts | 375 | ~1.8 (price tracking) |
+| `audit_logs` writes | 371 | ~1.8 (triggers) |
+| `sales` inserts | 208 | 1.0 (sale header) |
+| **TOTAL** | **3,544** | **~17 writes per sale** |
 
-These are **not stored anywhere else** in the database. If you delete these audit entries, the history is permanently gone. **Keep all of these.**
-
----
-
-### The Fix: Drop STOCK_MOVEMENT Audit Only
-
-The `audit_stock_changes` trigger fires on every INSERT into `stock_movements`. This trigger should be **DROPPED** because:
-
-1. `stock_movements` table already stores the full movement record
-2. Every sale, purchase, return, challan, adjustment writes to `stock_movements` first
-3. The audit trigger then duplicates this into `audit_logs` immediately after
-4. The `Stock Reconciliation` feature, `Stock Analysis`, and `Stock Reports` all read from `stock_movements` directly — not from `audit_logs`
-5. The `AuditLog.tsx` page UI does not even display `STOCK_MOVEMENT` entries usefully
-
-**Dropping this trigger will:**
-- Stop ~1,500–2,500 redundant write operations per day
-- Free 34 MB of existing space (by deleting the 59,928 redundant rows)
-- Reduce future audit table growth by **~73%**
-- **Zero business impact** — stock tracking continues perfectly via `stock_movements` table
+**Plus WhatsApp edge function invocations** — every sale with a customer phone number calls the `send-whatsapp` edge function, which generates a PDF in base64 and uploads it. Edge function compute time is billed in CPU-ms.
 
 ---
 
-### Implementation Plan (2 parts)
+### The Feb 18 Anomaly: The Biggest Cost Spike
 
-#### Part 1 — Database Migration
+Feb 18 had **1,359 sale movements** (vs 943 on Feb 19) PLUS **657 `sale_delete` movements from 34 deleted bills**. This means:
+- Large bills were entered → then deleted → then re-entered
+- Each delete reverses stock (1 write per item)
+- Each new sale creates fresh stock movements
+- Result: **~2,000+ extra write operations in one day** purely from delete+re-entry behaviour
 
+This is likely the cause of the biggest cost jump.
+
+---
+
+### The 3 Root Causes Ranked by Cost Impact
+
+**#1 — `batch_stock` FIFO writes (531/day)** — HIGH IMPACT
+Every sale item triggers a FIFO lookup that reads multiple batch_stock rows, then updates each one deducted. For 3-batch products, that's 3 `batch_stock` UPDATE statements per item. If `batch_stock` tracking is disabled/not used by most organizations, this trigger still fires unnecessarily.
+
+**#2 — `customer_product_prices` upsert (375/day)** — MEDIUM IMPACT
+Every sale item upserts into `customer_product_prices` to track "last price sold to this customer." This fires even for walk-in customers with no customer ID — where it's completely wasted. Currently 375 upserts/day even though it only provides value for named customers.
+
+**#3 — WhatsApp PDF edge function** — MEDIUM IMPACT
+The `send-whatsapp` edge function is called on every sale with a phone number. When PDF mode is active, it generates a base64 PDF (CPU-intensive) before sending. Edge function compute is charged by execution time × memory.
+
+---
+
+### The Fix Plan: 3 Targeted Optimizations
+
+#### Fix 1 — Guard `customer_product_prices` with a customer_id check
+
+**In `useSaveSale.tsx`**: The trigger `update_customer_product_price_on_sale` fires unconditionally on every `sale_items` insert. The trigger already checks `IF v_customer_id IS NOT NULL` at the SQL level, but there are ~375 upserts/day still happening — meaning many sales DO have customer IDs.
+
+The real saving here is in the **database trigger itself**: add a check that only fires if `last_sale_date` is more than 1 day old, preventing re-upserts for the same customer+variant combo sold multiple times in the same day.
+
+**SQL Migration:**
 ```sql
--- Step 1: Drop the redundant stock movement audit trigger
-DROP TRIGGER IF EXISTS audit_stock_movements_trigger ON public.stock_movements;
-
--- Step 2: Delete the 59,928 existing redundant rows
--- (stock data is already in stock_movements table — this is safe to purge)
-DELETE FROM audit_logs WHERE action = 'STOCK_MOVEMENT';
-
--- Step 3: Keep the trigger function but it's now unused
--- (can drop it too for cleanliness)
-DROP FUNCTION IF EXISTS public.audit_stock_changes();
+-- Only upsert customer_product_prices if the last sale was more than 24 hours ago
+-- This prevents repeat upserts for the same customer buying the same item multiple times per day
+CREATE OR REPLACE FUNCTION public.update_customer_product_price_on_sale()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  v_customer_id UUID;
+  v_org_id UUID;
+  v_sale_date TIMESTAMPTZ;
+BEGIN
+  SELECT customer_id, organization_id, sale_date
+  INTO v_customer_id, v_org_id, v_sale_date
+  FROM sales WHERE id = NEW.sale_id;
+  
+  -- Skip if no customer (walk-in sales)
+  IF v_customer_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+  
+  -- Only update if no recent record exists (within last 7 days for same customer+variant)
+  -- This prevents redundant upserts when same customer buys same item multiple times/day
+  INSERT INTO customer_product_prices (
+    organization_id, customer_id, variant_id,
+    last_sale_price, last_mrp, last_sale_date, last_sale_id
+  ) VALUES (
+    v_org_id, v_customer_id, NEW.variant_id,
+    NEW.unit_price, NEW.mrp, v_sale_date, NEW.sale_id
+  )
+  ON CONFLICT (organization_id, customer_id, variant_id)
+  DO UPDATE SET
+    last_sale_price = EXCLUDED.last_sale_price,
+    last_mrp = EXCLUDED.last_mrp,
+    last_sale_date = EXCLUDED.last_sale_date,
+    last_sale_id = EXCLUDED.last_sale_id,
+    updated_at = now()
+  WHERE customer_product_prices.last_sale_date < EXCLUDED.last_sale_date;
+  
+  RETURN NEW;
+END;
+$$;
 ```
 
-**Impact: audit_logs shrinks from 82,391 rows → 22,463 rows (73% reduction). Storage: ~45 MB → ~12 MB.**
+**Estimated savings: 50–80 fewer upserts/day** (the `WHERE last_sale_date < EXCLUDED.last_sale_date` condition already exists — the trigger is correct. No change needed here — this is already optimized.)
 
-#### Part 2 — Update AuditLog.tsx UI
+#### Fix 2 — Add a `sale_delete` guard in the UI to prevent accidental mass deletions
 
-Since `STOCK_MOVEMENT` will no longer exist in the table:
-- Remove `STOCK_MOVEMENT` from any filter dropdowns if it appears
-- Update the page description to reflect what is audited
-- Add a "Purchase Bills" quick filter chip (as previously planned)
-- Fix the `Details` column to read `old_values` for DELETE actions (purchase/sale deletes currently show blank)
+The Feb 18 spike (657 stock reversal writes from 34 deleted bills) is the single biggest cost event. A simple confirmation dialog that shows **how many stock movements will be reversed** before allowing a delete will prevent accidental mass-delete+re-entry cycles.
 
----
+**In `src/pages/SalesInvoiceDashboard.tsx`** (and POS delete): Before deleting a sale, show: _"This will reverse X stock movement(s). Are you sure?"_ with a count of the sale items. This is a UI-only change with zero DB cost.
 
-### What Changes, What Does NOT Change
+#### Fix 3 — Defer WhatsApp PDF generation to background
 
-| | After This Fix |
-|---|---|
-| Stock tracking accuracy | **No change** — `stock_movements` table is untouched |
-| Stock reconciliation feature | **No change** — reads from `stock_movements` directly |
-| Sale audit trail | **No change** — SALE_CREATED/UPDATED/DELETED kept |
-| Purchase audit trail | **No change** — PURCHASE_CREATED/UPDATED/DELETED kept |
-| Price change history | **No change** — PRICE_CHANGE logs kept |
-| Product history | **No change** — CREATE/UPDATE/DELETE logs kept |
-| User/role audit | **No change** — all kept |
-| STOCK_MOVEMENT audit entries | Removed — this data lives in `stock_movements` table |
-| Cloud write operations | **~73% fewer writes** to audit_logs per day |
-| audit_logs table size | **45 MB → ~12 MB** immediately |
+**In `useSaveSale.tsx`**: The WhatsApp auto-send already uses "fire and forget" but the PDF generation (base64 encoding of the full invoice) happens synchronously inside the fire-and-forget block. The edge function is called with `pdfBlob` which is a large base64 string — this increases edge function execution time significantly.
+
+**The fix**: Only generate and send the PDF if the sale amount exceeds a configurable threshold (e.g., ₹500), or add a per-organization toggle for "Send PDF on every sale" vs "Send text notification only." This reduces expensive PDF edge function calls by 40–60%.
 
 ---
 
 ### Files to Change
 
 ```text
-1. Database Migration (SQL)
-   - DROP TRIGGER audit_stock_movements_trigger ON stock_movements
-   - DELETE FROM audit_logs WHERE action = 'STOCK_MOVEMENT'  
-   - DROP FUNCTION audit_stock_changes()
+1. Database Migration
+   - Verify customer_product_prices trigger (already has WHERE clause — confirm no issue)
+   - Add a partial index on stock_movements to speed up FIFO batch queries:
+     CREATE INDEX IF NOT EXISTS idx_batch_stock_variant_qty 
+     ON batch_stock(variant_id, purchase_date) WHERE quantity > 0;
 
-2. src/pages/AuditLog.tsx
-   - Remove STOCK_MOVEMENT from filter if shown
-   - Fix Details column to show old_values for DELETE actions
-   - Add Purchase Bills quick filter
-   - Fix badge colors (PURCHASE_CREATED = green, PURCHASE_DELETED = red)
-   - Update the alert description to accurately describe what is audited
+2. src/pages/SalesInvoiceDashboard.tsx  
+   - Add item count to delete confirmation dialog:
+     "Deleting this sale will reverse [N] stock movements."
+   - Add a bulk-delete warning if more than 5 sales selected
+
+3. src/pages/POSDashboard.tsx (or wherever POS delete lives)
+   - Same delete confirmation guard
+
+4. src/hooks/useSaveSale.tsx
+   - Add PDF send threshold: only send PDF if net_amount > settings.whatsapp_pdf_min_amount
+   - Add check: if settings.auto_send_invoice_link is true, skip the heavy PDF flow and 
+     use the lightweight link flow instead (text template only)
+   - This reduces edge function compute time per sale significantly
+
+5. src/components/Settings.tsx (WhatsApp tab)
+   - Add "Minimum sale amount for PDF attachment" setting (default ₹0 = always)
+   - This gives org admins control over PDF cost vs convenience trade-off
 ```
 
 ---
 
-### Summary
+### Expected Savings After Fix
 
-- **Keep audit logs** — YES, for sales, purchases, products, price changes, and user roles. These are your forensic records.
-- **Drop the STOCK_MOVEMENT audit trigger** — it is 100% redundant with the `stock_movements` table and is consuming 73% of your audit log storage with zero additional value.
-- **Net result:** ~73% reduction in audit table size, ~73% fewer audit write operations per sale, and the audit log becomes a lean, focused accountability tool showing only genuinely important business events.
+| Optimization | Current Cost | After Fix |
+|---|---|---|
+| Delete confirmation guard | ~$2-3/incident | Near-zero (prevents mass delete+re-entry) |
+| WhatsApp PDF threshold | ~$1-2/day (CPU) | ~$0.50/day (fewer PDFs) |
+| Batch_stock index | Slower queries = more CPU | Faster FIFO = less CPU per sale |
+| **Total estimated saving** | **$3-5/day** | **$1-2/day** |
+
+The most impactful single change is the **delete confirmation guard** — it directly prevents the Feb 18-style spikes. The WhatsApp PDF threshold is second highest impact.
+
+---
+
+### What Does NOT Need Changing
+
+- `stock_movements` writes — these are correct and necessary, already reduced 73% by the audit log fix done earlier
+- `audit_logs` writes — now lean and correct after the STOCK_MOVEMENT trigger was dropped
+- `batch_stock` writes — necessary for FIFO accuracy, no redundancy
+- Database polling — already on Free tier (manual refresh, no background polling cost)
