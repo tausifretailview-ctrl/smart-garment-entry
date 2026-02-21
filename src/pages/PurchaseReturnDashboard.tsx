@@ -10,14 +10,15 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ChevronDown, ChevronUp, Trash2, Search, Calendar, Package, TrendingDown, Plus, Printer, Receipt, IndianRupee, Edit, Eye, CreditCard } from "lucide-react";
-import { format } from "date-fns";
+import { ChevronDown, ChevronUp, Trash2, Search, Calendar, Package, TrendingDown, Plus, Printer, Receipt, IndianRupee, Edit, Eye, CreditCard, FileText, X } from "lucide-react";
+import { format, formatDistanceToNow } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PurchaseReturnPrint } from "@/components/PurchaseReturnPrint";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { AdjustCreditNoteDialog } from "@/components/AdjustCreditNoteDialog";
+import { useDraftSave } from "@/hooks/useDraftSave";
 
 interface PurchaseReturnItem {
   id: string;
@@ -71,6 +72,9 @@ const PurchaseReturnDashboard = () => {
   const [saleSettings, setSaleSettings] = useState<any>(null);
   const [logoUrl, setLogoUrl] = useState<string | undefined>(undefined);
   const printRef = useRef<HTMLDivElement>(null);
+
+  // Draft save hook
+  const { hasDraft, draftData, deleteDraft, lastSaved } = useDraftSave('purchase_return');
 
   // Supplier history dialog states
   const [showSupplierHistory, setShowSupplierHistory] = useState(false);
@@ -427,6 +431,54 @@ const PurchaseReturnDashboard = () => {
           Create New Return
         </Button>
       </div>
+
+      {/* Draft Resume Card */}
+      {hasDraft && draftData && (
+        <Card className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-700 mb-4">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <FileText className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                <div>
+                  <CardTitle className="text-base text-amber-900 dark:text-amber-200">
+                    Unsaved Purchase Return Draft
+                  </CardTitle>
+                  <CardDescription className="text-amber-700 dark:text-amber-400">
+                    {(draftData as any)?.lineItems?.length || 0} items • Saved {lastSaved ? formatDistanceToNow(lastSaved, { addSuffix: true }) : "recently"}
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    deleteDraft();
+                    toast({
+                      title: "Draft Discarded",
+                      description: "The unsaved purchase return has been removed",
+                    });
+                  }}
+                  className="gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/30"
+                >
+                  <X className="h-4 w-4" />
+                  Discard
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    navigate("/purchase-return-entry", { state: { loadDraft: true } });
+                  }}
+                  className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  <Edit className="h-4 w-4" />
+                  Resume Draft
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+      )}
 
       {/* Summary Cards - Vasy ERP Style Vibrant */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

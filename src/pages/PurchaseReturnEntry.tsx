@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -19,6 +19,8 @@ import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
+import { useDraftSave } from "@/hooks/useDraftSave";
+import { DraftResumeDialog } from "@/components/DraftResumeDialog";
 
 interface ProductVariant {
   id: string;
@@ -54,6 +56,7 @@ const PurchaseReturnEntry = () => {
   const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const editId = searchParams.get("edit");
   const isEditMode = !!editId;
   
@@ -72,9 +75,11 @@ const PurchaseReturnEntry = () => {
   const [discountPercent, setDiscountPercent] = useState(0);
   const [discountAmount, setDiscountAmount] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
+  const [showDraftDialog, setShowDraftDialog] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lineItemsRef = useRef<LineItem[]>([]);
+  const initialDraftCheckDone = useRef(false);
 
   const [returnData, setReturnData] = useState({
     supplier_id: "",
@@ -82,6 +87,76 @@ const PurchaseReturnEntry = () => {
     original_bill_number: "",
     notes: "",
   });
+
+  // Draft save hook
+  const {
+    hasDraft,
+    draftData,
+    saveDraft,
+    deleteDraft,
+    updateCurrentData,
+    lastSaved,
+    startAutoSave,
+    stopAutoSave,
+  } = useDraftSave('purchase_return');
+
+  // Load draft data callback
+  const loadDraftData = useCallback((data: any) => {
+    if (!data) return;
+    setReturnData(data.returnData || { supplier_id: "", supplier_name: "", original_bill_number: "", notes: "" });
+    setReturnNumber(data.returnNumber || "");
+    setReturnDate(data.returnDate ? new Date(data.returnDate) : new Date());
+    setLineItems(data.lineItems || []);
+    setTaxType(data.taxType || "exclusive");
+    setDiscountPercent(data.discountPercent || 0);
+    setDiscountAmount(data.discountAmount || 0);
+    toast({
+      title: "Draft Loaded",
+      description: "Your previous work has been restored",
+    });
+  }, [toast]);
+
+  // Load draft automatically if navigated from dashboard with loadDraft flag
+  useEffect(() => {
+    if (location.state?.loadDraft && hasDraft && draftData && !initialDraftCheckDone.current) {
+      initialDraftCheckDone.current = true;
+      loadDraftData(draftData);
+      deleteDraft();
+    }
+  }, [location.state?.loadDraft, hasDraft, draftData, loadDraftData, deleteDraft]);
+
+  // Show draft dialog on mount if draft exists and not loading from dashboard
+  useEffect(() => {
+    if (hasDraft && draftData && !isEditMode && !location.state?.loadDraft && !initialDraftCheckDone.current) {
+      initialDraftCheckDone.current = true;
+      setShowDraftDialog(true);
+    }
+  }, [hasDraft, draftData, isEditMode, location.state?.loadDraft]);
+
+  // Update current data for auto-save whenever form data changes
+  useEffect(() => {
+    if (lineItems.length > 0) {
+      updateCurrentData({
+        returnData,
+        returnNumber,
+        returnDate: returnDate.toISOString(),
+        lineItems,
+        taxType,
+        discountPercent,
+        discountAmount,
+        isEditMode,
+        editId,
+      });
+    } else {
+      updateCurrentData(null);
+    }
+  }, [returnData, returnNumber, returnDate, lineItems, taxType, discountPercent, discountAmount, isEditMode, editId, updateCurrentData]);
+
+  // Start auto-save
+  useEffect(() => {
+    startAutoSave();
+    return () => stopAutoSave();
+  }, [startAutoSave, stopAutoSave]);
 
   // Generate return number on mount (only for new returns)
   useEffect(() => {
@@ -740,6 +815,8 @@ const PurchaseReturnEntry = () => {
         });
       }
 
+      // Clear draft on successful save
+      await deleteDraft();
       navigate("/purchase-returns");
     } catch (error: any) {
       console.error("Error saving purchase return:", error);
@@ -765,6 +842,7 @@ const PurchaseReturnEntry = () => {
   }
 
   return (
+    <>
     <div className="w-full px-6 py-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -1145,6 +1223,24 @@ const PurchaseReturnEntry = () => {
         </Button>
       </div>
     </div>
+
+      {/* Draft Resume Dialog */}
+      <DraftResumeDialog
+        open={showDraftDialog}
+        onOpenChange={setShowDraftDialog}
+        onResume={() => {
+          loadDraftData(draftData);
+          deleteDraft();
+          setShowDraftDialog(false);
+        }}
+        onStartFresh={() => {
+          deleteDraft();
+          setShowDraftDialog(false);
+        }}
+        draftType="Purchase Return"
+        lastSaved={lastSaved}
+      />
+    </>
   );
 };
 
