@@ -1,109 +1,42 @@
 
-## Status: None of the 3 Fixes Are Done Yet
 
-The barcode label fix (last diff) was applied, but that was a separate task. The cloud cost reduction plan fixes are still pending. Here is the current state and what needs to be done for each:
+## Plan: Import Closing Fees Balance from Excel
 
----
+### What This Does
+Adds a new feature to import closing fees balances for students from your uploaded Excel file. Students are matched by **name + class** (standard) to ensure accurate updates. The Excel file has students grouped under class headers (NURSERY, JUNIOR, SENIOR KG, 1ST STD, etc.) with their outstanding fee amounts.
 
-### Fix 1 — batch_stock FIFO Performance Index
-**Status: NOT DONE**
+### Steps
 
-The only existing batch_stock indexes are:
-- `idx_batch_stock_organization_id` (on organization_id)
-- `idx_batch_stock_variant` (on variant_id)
-- `idx_batch_stock_bill_number` (on bill_number)
-- `idx_batch_stock_purchase_date` (on purchase_date)
+**1. Add `closing_fees_balance` column to students table**
+- Add a new nullable numeric column `closing_fees_balance` (default 0) to the `students` table via a database migration.
 
-Missing: The partial index `idx_batch_stock_variant_qty` on `(variant_id, purchase_date) WHERE quantity > 0` that accelerates FIFO lookups by excluding zero-quantity rows entirely.
+**2. Create a new "Fees Balance Import" dialog component**
+- New file: `src/components/school/FeesBalanceImportDialog.tsx`
+- Parses the Excel file which has class headers as section separators (e.g., "NURSERY", "JUNIOR", "1ST STD") followed by student rows with name and balance amount.
+- Maps Excel class names to database class names:
+  - JUNIOR -> Jr.Kg
+  - SENIOR KG -> Sr.Kg
+  - 1ST STD -> STD I
+  - 2ND STD -> STD II
+  - 3RD STD -> STD III
+  - 4TH STD -> STD IV, and so on
+- Matches students by **normalized name** (case-insensitive, prefix-stripped) AND **class_id** for accurate matching.
+- Shows a preview step with matched/unmatched counts before updating.
+- Updates the `closing_fees_balance` field in batches of 50.
 
-**Action**: Run a database migration to create:
-```sql
-CREATE INDEX IF NOT EXISTS idx_batch_stock_variant_qty 
-ON public.batch_stock(variant_id, purchase_date) 
-WHERE quantity > 0;
-```
+**3. Add button to Student Master page**
+- Add an "Import Fees Balance" button (with an icon) next to the existing "Bulk Update" button in `src/pages/school/StudentMaster.tsx`.
 
----
+### Technical Details
 
-### Fix 2 — Sale Delete Confirmation Guard (Item Count)
-**Status: PARTIALLY DONE — message is generic, no item count shown**
+- **Excel Parsing Logic**: The file has no traditional column headers. Each class section starts with a row containing only a class name (e.g., "NURSERY", "1ST STD"). Subsequent rows have [student_name, balance_amount] until the next class header or empty row.
+- **Class Name Mapping**: A mapping dictionary converts Excel class names to the database `school_classes.class_name` values. The class_id is resolved from this mapping.
+- **Name Matching**: Uses the existing `normalizeName` pattern (strip MS./MST./MR. prefixes, collapse spaces, lowercase) combined with the resolved class_id for a two-key match.
+- **Zero Balances**: Students with balance = 0 or empty are still updated (sets closing_fees_balance to 0).
+- **Preview Table**: Shows student name, class, and the balance to be imported, plus unmatched rows.
 
-Current delete dialog text in both `SalesInvoiceDashboard.tsx` (line 1712) and `POSDashboard.tsx` (line 1842) says:
+### Files to Create/Modify
+- **Migration**: Add `closing_fees_balance` column to `students` table
+- **New**: `src/components/school/FeesBalanceImportDialog.tsx`
+- **Edit**: `src/pages/school/StudentMaster.tsx` (add import button + dialog)
 
-> "Are you sure you want to delete invoice {sale_number}? Stock quantities will be restored. This action cannot be undone."
-
-This is missing the specific item count. The plan requires showing exactly how many stock movements will be reversed (e.g., "This will reverse **12 stock movements** across 6 products").
-
-**What needs to change:**
-- Add a state variable `itemCountToDelete` that gets populated when the delete button is clicked (query `sale_items` count for that sale_id)
-- Update the dialog description in both `SalesInvoiceDashboard.tsx` and `POSDashboard.tsx` to include the item count
-- For bulk delete (5+ invoices), show a warning: "Warning: You are deleting X invoices. This will reverse stock for Y total items."
-
----
-
-### Fix 3 — WhatsApp PDF Minimum Amount Threshold
-**Status: NOT DONE**
-
-No trace of `whatsapp_pdf_min_amount` anywhere in the codebase. The PDF generation in `useSaveSale.tsx` (lines 461–526) currently:
-1. Checks only `whatsappSettings.use_document_header_template && whatsappSettings.invoice_document_template_name`
-2. If true, **always** generates a base64 PDF regardless of sale amount
-
-Missing: A threshold check like `saleData.netAmount >= (whatsappSettings.pdf_min_amount ?? 0)` before entering the PDF generation block.
-
-**What needs to change:**
-1. **Database**: Add `pdf_min_amount numeric DEFAULT 0` column to `whatsapp_api_settings` table
-2. **`useSaveSale.tsx`**: Add threshold guard: only generate PDF if `netAmount >= pdf_min_amount`
-3. **`WhatsAppAPISettings.tsx`**: Add a "Minimum sale amount for PDF attachment" input field (default 0 = always send)
-
----
-
-## Implementation Plan
-
-### Step 1 — Database Migration (2 changes in 1 migration)
-```sql
--- Performance index for FIFO batch_stock queries
-CREATE INDEX IF NOT EXISTS idx_batch_stock_variant_qty 
-ON public.batch_stock(variant_id, purchase_date) 
-WHERE quantity > 0;
-
--- WhatsApp PDF threshold column
-ALTER TABLE whatsapp_api_settings 
-ADD COLUMN IF NOT EXISTS pdf_min_amount numeric DEFAULT 0;
-```
-
-### Step 2 — `src/pages/SalesInvoiceDashboard.tsx`
-- Add `itemCountToDelete: number | null` state
-- Before opening delete dialog, fetch `count` from `sale_items` where `sale_id = invoice.id`
-- Update dialog description:
-  > "Deleting invoice {sale_number} will reverse **{N} stock movement(s)** across {N} products. This action cannot be undone."
-- For bulk delete > 5 invoices: add a red warning badge: "High Impact: Deleting X invoices"
-
-### Step 3 — `src/pages/POSDashboard.tsx`
-- Same item count fetch and dialog update as SalesInvoiceDashboard
-
-### Step 4 — `src/hooks/useSaveSale.tsx`
-- In the WhatsApp settings fetch query, add `pdf_min_amount` to the select list
-- Add guard before PDF generation block (line ~461):
-  ```typescript
-  const shouldSendPdf = shouldSendPdfFlow && 
-    (saleData.netAmount >= (whatsappSettings.pdf_min_amount ?? 0));
-  if (shouldSendPdf) { ... }
-  ```
-
-### Step 5 — `src/components/WhatsAppAPISettings.tsx`
-- Add a new labeled input in the PDF/Document template section:
-  - Label: "Minimum sale amount for PDF attachment (₹)"
-  - Placeholder: "0 (always send PDF)"
-  - Saves to `pdf_min_amount` column
-
----
-
-## Files to Modify
-
-| File | Change |
-|---|---|
-| Database migration | Add `idx_batch_stock_variant_qty` partial index + `pdf_min_amount` column |
-| `src/pages/SalesInvoiceDashboard.tsx` | Fetch item count on delete, show in confirmation dialog |
-| `src/pages/POSDashboard.tsx` | Same item count guard for POS delete |
-| `src/hooks/useSaveSale.tsx` | PDF threshold guard using `pdf_min_amount` |
-| `src/components/WhatsAppAPISettings.tsx` | Add `pdf_min_amount` setting input |
