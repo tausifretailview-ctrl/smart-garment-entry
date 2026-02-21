@@ -70,6 +70,14 @@ function normalizeName(name: string): string {
     .toLowerCase();
 }
 
+/** Check if all words in the Excel name appear in the student's DB name */
+function fuzzyNameMatch(excelName: string, dbName: string): boolean {
+  const excelWords = normalizeName(excelName).split(" ").filter(Boolean);
+  const dbWords = normalizeName(dbName).split(" ").filter(Boolean);
+  // Every word from Excel must exist somewhere in the DB name
+  return excelWords.length > 0 && excelWords.every(w => dbWords.includes(w));
+}
+
 function isClassHeader(value: string): boolean {
   const upper = value.trim().toUpperCase();
   return ALL_CLASS_HEADERS.includes(upper);
@@ -147,21 +155,28 @@ export function FeesBalanceImportDialog({ open, onOpenChange }: FeesBalanceImpor
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
 
-      // Build lookup: normalized_name + class_id -> student
-      const studentLookup = new Map<string, { id: string; student_name: string; class_id: string }>();
+      // Group students by class_id for fuzzy matching
+      const studentsByClass = new Map<string, { id: string; student_name: string; class_id: string }[]>();
       for (const s of students || []) {
-        const key = normalizeName(s.student_name) + "|" + s.class_id;
-        studentLookup.set(key, s);
+        const list = studentsByClass.get(s.class_id) || [];
+        list.push(s);
+        studentsByClass.set(s.class_id, list);
       }
 
-      // Match
+      // Match: first try exact normalized name, then fuzzy (all Excel words found in DB name)
       const matched: ParsedRow[] = parsed.map(p => {
         const classId = classMap.get(p.className);
         const classNameForDisplay = (classes || []).find(c => c.id === classId)?.class_name || p.className;
         if (!classId) return { ...p, matchedClassName: classNameForDisplay };
 
-        const key = normalizeName(p.studentName) + "|" + classId;
-        const student = studentLookup.get(key);
+        const classStudents = studentsByClass.get(classId) || [];
+        const excelNorm = normalizeName(p.studentName);
+        // Exact match first
+        let student = classStudents.find(s => normalizeName(s.student_name) === excelNorm);
+        // Fuzzy match: all Excel name words appear in DB name
+        if (!student) {
+          student = classStudents.find(s => fuzzyNameMatch(p.studentName, s.student_name));
+        }
 
         return {
           ...p,
