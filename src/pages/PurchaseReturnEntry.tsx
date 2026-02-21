@@ -308,8 +308,8 @@ const PurchaseReturnEntry = () => {
         barcodeScanner.reset();
         setTimeout(() => searchInputRef.current?.focus(), 50);
       } else {
-        // No exact match — show dropdown with search results
-        searchProducts(barcode);
+        // No exact barcode match — don't open dropdown for scanner input
+        // Only show dropdown for manual typing (handled by debounce effect)
       }
     } finally {
       // Release lock after a short delay to prevent re-triggering from stale effects
@@ -319,7 +319,7 @@ const PurchaseReturnEntry = () => {
     }
   }, [handleBarcodeSearch, currentOrganization?.id, toast, barcodeScanner]);
 
-  // Handle search with debounce for text search, instant for barcode
+  // Handle search with debounce for manual typing only — barcode scans are handled by processBarcodeInput
   useEffect(() => {
     if (!searchQuery || searchQuery.length < 1) {
       setSearchResults([]);
@@ -327,8 +327,8 @@ const PurchaseReturnEntry = () => {
       return;
     }
 
-    // If scanner detected via Enter key, skip debounce — handled by pendingBarcodeRef
-    if (pendingBarcodeRef.current) return;
+    // If barcode is being processed or scanner pattern detected, skip dropdown search entirely
+    if (processingBarcodeRef.current) return;
 
     // Clear any existing timeout
     if (searchTimeoutRef.current) {
@@ -337,14 +337,15 @@ const PurchaseReturnEntry = () => {
 
     // Check if current typing pattern looks like a barcode scanner
     if (barcodeScanner.isScannerInput && searchQuery.length >= 4) {
-      // Fast scanner input detected — process immediately
+      // Fast scanner input detected — process immediately, no dropdown
       processBarcodeInput(searchQuery);
-    } else {
-      // Regular manual typing — debounce and show dropdown
-      searchTimeoutRef.current = setTimeout(() => {
-        searchProducts(searchQuery);
-      }, 300);
+      return;
     }
+
+    // Regular manual typing — debounce and show dropdown
+    searchTimeoutRef.current = setTimeout(() => {
+      searchProducts(searchQuery);
+    }, 300);
 
     return () => {
       if (searchTimeoutRef.current) {
