@@ -24,7 +24,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send, CheckCircle2, Clock, RefreshCcw, ShoppingCart, Pause, FileText, Lock } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send, CheckCircle2, Clock, RefreshCcw, ShoppingCart, Pause, FileText, Lock, FileSpreadsheet } from "lucide-react";
+import * as XLSX from "xlsx";
 import { format } from "date-fns";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -994,6 +995,33 @@ const POSDashboard = () => {
     return filteredSales.slice(startIndex, endIndex);
   }, [filteredSales, currentPage, itemsPerPage]);
 
+  const handleExportExcel = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    const exportData = paginatedSales.map((sale: Sale) => ({
+      'Bill No': sale.sale_number || '',
+      'Date': sale.sale_date ? format(new Date(sale.sale_date), 'dd/MM/yyyy') : '',
+      'Customer': sale.customer_name || '',
+      'Phone': sale.customer_phone || '',
+      'Qty': (saleItems[sale.id] || []).reduce((s, i) => s + i.quantity, 0),
+      'Gross Amount': sale.gross_amount || 0,
+      'Discount': (sale.discount_amount || 0) + (sale.flat_discount_amount || 0),
+      'Net Amount': sale.net_amount || 0,
+      'Paid Amount': sale.paid_amount || 0,
+      'Balance': (sale.net_amount || 0) - (sale.paid_amount || 0),
+      'Cash': sale.cash_amount || 0,
+      'Card': sale.card_amount || 0,
+      'UPI': sale.upi_amount || 0,
+      'Payment Status': sale.payment_status || '',
+      'Payment Method': sale.payment_method || '',
+      'Salesman': sale.salesman || '',
+    }));
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'POS Sales');
+    XLSX.writeFile(wb, `POS_Sales_Page${currentPage}_${format(new Date(), 'dd-MM-yyyy')}.xlsx`);
+    toast({ title: "Exported", description: `${exportData.length} records exported to Excel` });
+  }, [paginatedSales, currentPage, saleItems, toast]);
+
   // Memoized event handlers (defined after filteredSales/paginatedSales)
   const toggleSelectAll = useCallback(() => {
     if (selectedSales.size === filteredSales.length && filteredSales.length > 0) {
@@ -1053,6 +1081,10 @@ const POSDashboard = () => {
             <p className="text-sm text-muted-foreground">View and manage all POS sales</p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" onClick={handleExportExcel} className="gap-2">
+              <FileSpreadsheet className="h-4 w-4" />
+              Export Excel
+            </Button>
             <Button onClick={() => navigate("/pos-sales")} className="gap-2">
               <Plus className="h-4 w-4" />
               New Sale
