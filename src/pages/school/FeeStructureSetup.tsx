@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Save, BookOpen } from "lucide-react";
+import { Loader2, Save, BookOpen, Lock } from "lucide-react";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 const FREQUENCIES = [
   { value: "monthly", label: "Monthly" },
@@ -30,6 +31,8 @@ interface FeeRow {
 
 const FeeStructureSetup = () => {
   const { currentOrganization } = useOrganization();
+  const { isAdmin, hasSpecialPermission } = useUserPermissions();
+  const canEditFeeStructure = isAdmin || hasSpecialPermission("fee_structure_edit");
   const queryClient = useQueryClient();
   const [selectedYear, setSelectedYear] = useState<string>("");
   const [selectedClass, setSelectedClass] = useState<string>("");
@@ -185,11 +188,17 @@ const FeeStructureSetup = () => {
             <p className="text-muted-foreground">Define fee amounts per class for each academic year</p>
           </div>
         </div>
-        {selectedYear && selectedClass && feeRows.some(r => r.amount > 0) && (
+        {selectedYear && selectedClass && feeRows.some(r => r.amount > 0) && canEditFeeStructure && (
           <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
             {saveMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
             Save Fee Structure
           </Button>
+        )}
+        {!canEditFeeStructure && (
+          <div className="flex items-center gap-2 text-muted-foreground text-sm">
+            <Lock className="h-4 w-4" />
+            <span>View Only – Edit rights not granted</span>
+          </div>
         )}
       </div>
 
@@ -270,10 +279,11 @@ const FeeStructureSetup = () => {
                             value={row.amount || ""}
                             onChange={e => updateRow(idx, "amount", parseFloat(e.target.value) || 0)}
                             className="w-28"
+                            disabled={!canEditFeeStructure}
                           />
                         </TableCell>
                         <TableCell>
-                          <Select value={row.frequency} onValueChange={v => updateRow(idx, "frequency", v)}>
+                          <Select value={row.frequency} onValueChange={v => updateRow(idx, "frequency", v)} disabled={!canEditFeeStructure}>
                             <SelectTrigger className="w-32">
                               <SelectValue />
                             </SelectTrigger>
@@ -292,6 +302,7 @@ const FeeStructureSetup = () => {
                             value={row.due_day}
                             onChange={e => updateRow(idx, "due_day", parseInt(e.target.value) || 1)}
                             className="w-20"
+                            disabled={!canEditFeeStructure}
                           />
                         </TableCell>
                         <TableCell>
@@ -301,6 +312,7 @@ const FeeStructureSetup = () => {
                             value={row.late_fee_amount || ""}
                             onChange={e => updateRow(idx, "late_fee_amount", parseFloat(e.target.value) || 0)}
                             className="w-28"
+                            disabled={!canEditFeeStructure}
                           />
                         </TableCell>
                         <TableCell>
@@ -310,6 +322,7 @@ const FeeStructureSetup = () => {
                             value={row.late_fee_after_days}
                             onChange={e => updateRow(idx, "late_fee_after_days", parseInt(e.target.value) || 0)}
                             className="w-28"
+                            disabled={!canEditFeeStructure}
                           />
                         </TableCell>
                       </TableRow>
