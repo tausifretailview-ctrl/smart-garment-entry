@@ -149,6 +149,10 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   while (displayItems.length < FIXED_ROWS) displayItems.push(null);
 
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
+  // Sub Total = sum of rate * qty (before any discount)
+  const subTotalBeforeDiscount = items.reduce((s, i) => s + (i.rate * i.qty), 0);
+  // Total discount = subTotalBeforeDiscount - grandTotal (includes line discounts + flat discount + round off)
+  const totalDiscount = subTotalBeforeDiscount - grandTotal;
   const billTotal = grandTotal;
   const receivedToday = paidAmount;
   const currentBalance = billTotal - receivedToday;
@@ -329,7 +333,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               </td>
               <td style={{ ...cellR, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: "28px" }}>{totalQty}</td>
               <td style={{ ...cellR, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: "28px" }}>Sub Total</td>
-              <td style={{ ...cellR, fontWeight: "bold", borderRight: "none", borderTop: B2, fontSize: fsTotals, height: "28px" }}>₹{fmt(subtotal)}</td>
+              <td style={{ ...cellR, fontWeight: "bold", borderRight: "none", borderTop: B2, fontSize: fsTotals, height: "28px" }}>₹{fmt(subTotalBeforeDiscount)}</td>
             </tr>
           </tbody>
         </table>
@@ -378,10 +382,10 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
           {/* Right Column: Summary Rows + Authorized Signatory */}
           <div style={{ display: "flex", flexDirection: "column", fontSize: fsTotals }}>
-            {discount > 0 && (
+            {totalDiscount > 0 && (
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "28px", borderBottom: B, padding: "0 8px" }}>
                 <span>Discount</span>
-                <span>- ₹{fmt(discount)}</span>
+                <span>- ₹{fmt(totalDiscount)}</span>
               </div>
             )}
             {saleReturnAdjust > 0 && (
