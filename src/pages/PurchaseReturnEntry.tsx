@@ -639,6 +639,17 @@ const PurchaseReturnEntry = () => {
           description: "Purchase return updated successfully",
         });
       } else {
+        // Generate fresh return number at save time to prevent duplicate key errors
+        let freshReturnNumber = returnNumber;
+        try {
+          const { data: freshNum } = await supabase.rpc("generate_purchase_return_number", {
+            p_organization_id: currentOrganization?.id,
+          });
+          if (freshNum) freshReturnNumber = freshNum;
+        } catch (e) {
+          console.warn("Failed to regenerate return number, using existing:", e);
+        }
+
         // Insert new purchase return
         const { data: returnRecord, error: returnError } = await supabase
           .from("purchase_returns" as any)
@@ -652,7 +663,7 @@ const PurchaseReturnEntry = () => {
             gst_amount: gstAmount,
             net_amount: netAmount,
             notes: returnData.notes || null,
-            return_number: returnNumber,
+            return_number: freshReturnNumber,
             credit_status: "pending",
           })
           .select()
