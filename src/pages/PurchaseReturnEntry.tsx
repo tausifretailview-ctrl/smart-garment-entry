@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Loader2, CalendarIcon, Trash2, Plus, Search, Barcode } from "lucide-react";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
@@ -25,13 +26,17 @@ import { DraftResumeDialog } from "@/components/DraftResumeDialog";
 interface ProductVariant {
   id: string;
   product_id: string;
-  size: string;
-  pur_price: number;
-  barcode: string;
   product_name: string;
   brand: string;
+  category?: string;
+  style?: string;
+  color?: string;
+  size: string;
+  barcode: string;
+  pur_price: number;
   gst_per: number;
   hsn_code: string;
+  stock_qty: number;
 }
 
 interface LineItem {
@@ -80,6 +85,8 @@ const PurchaseReturnEntry = () => {
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lineItemsRef = useRef<LineItem[]>([]);
   const initialDraftCheckDone = useRef(false);
+  const [stockAlertOpen, setStockAlertOpen] = useState(false);
+  const [stockAlertMessage, setStockAlertMessage] = useState("");
 
   const [returnData, setReturnData] = useState({
     supplier_id: "",
@@ -293,6 +300,7 @@ const PurchaseReturnEntry = () => {
           size,
           pur_price,
           barcode,
+          stock_qty,
           active,
           deleted_at,
           product_id,
@@ -326,6 +334,7 @@ const PurchaseReturnEntry = () => {
             brand: v.products?.brand || "",
             gst_per: v.products?.gst_per || 0,
             hsn_code: v.products?.hsn_code || "",
+            stock_qty: v.stock_qty || 0,
           } as ProductVariant;
         }
       }
@@ -362,13 +371,50 @@ const PurchaseReturnEntry = () => {
     try {
       const variant = await handleBarcodeSearch(barcode);
       if (variant) {
+        // Stock validation: check if stock is available for purchase return
+        if ((variant.stock_qty || 0) <= 0) {
+          // Check if item already in cart (they may have stock reserved from previous additions)
+          const currentItems = lineItemsRef.current;
+          const existingItem = currentItems.find(item => item.sku_id === variant.id);
+          if (!existingItem) {
+            setStockAlertMessage(`${variant.product_name} - ${variant.size} is out of stock. Cannot add to purchase return.`);
+            setStockAlertOpen(true);
+            setSearchQuery("");
+            setShowSearch(false);
+            setSearchResults([]);
+            barcodeScanner.reset();
+            setTimeout(() => searchInputRef.current?.focus(), 50);
+            return;
+          }
+          // If already in cart, check if next qty exceeds stock
+          const nextQty = existingItem.qty + 1;
+          if (nextQty > variant.stock_qty) {
+            setStockAlertMessage(`${variant.product_name} - ${variant.size}: Only ${variant.stock_qty} units in stock. Cannot return more.`);
+            setStockAlertOpen(true);
+            setSearchQuery("");
+            barcodeScanner.reset();
+            setTimeout(() => searchInputRef.current?.focus(), 50);
+            return;
+          }
+        }
+
         const currentItems = lineItemsRef.current;
         const existingItem = currentItems.find(item => item.sku_id === variant.id);
         if (existingItem) {
-          updateLineItem(existingItem.temp_id, "qty", existingItem.qty + 1);
+          // Check if next qty exceeds stock
+          const nextQty = existingItem.qty + 1;
+          if (nextQty > (variant.stock_qty || 0)) {
+            setStockAlertMessage(`${variant.product_name} - ${variant.size}: Only ${variant.stock_qty} units in stock. Cannot return more.`);
+            setStockAlertOpen(true);
+            setSearchQuery("");
+            barcodeScanner.reset();
+            setTimeout(() => searchInputRef.current?.focus(), 50);
+            return;
+          }
+          updateLineItem(existingItem.temp_id, "qty", nextQty);
           toast({
             title: "Quantity Updated",
-            description: `${variant.product_name} - ${variant.size} (Qty: ${existingItem.qty + 1})`,
+            description: `${variant.product_name} - ${variant.size} (Qty: ${nextQty})`,
           });
         } else {
           handleProductSelect(variant);
@@ -384,7 +430,6 @@ const PurchaseReturnEntry = () => {
         setTimeout(() => searchInputRef.current?.focus(), 50);
       } else {
         // No exact barcode match — don't open dropdown for scanner input
-        // Only show dropdown for manual typing (handled by debounce effect)
       }
     } finally {
       // Release lock after a short delay to prevent re-triggering from stale effects
@@ -410,10 +455,10 @@ const PurchaseReturnEntry = () => {
       clearTimeout(searchTimeoutRef.current);
     }
 
-    // Check if current typing pattern looks like a barcode scanner
+    // Check if current typing pattern looks like a barcode scanner - auto-process without Enter
     if (barcodeScanner.isScannerInput && searchQuery.length >= 4) {
-      // Fast scanner input detected — process immediately, no dropdown
-      processBarcodeInput(searchQuery);
+      // Fast scanner input detected — process immediately, no dropdown, no Enter needed
+      processBarcodeInput(searchQuery.trim());
       return;
     }
 
@@ -502,6 +547,7 @@ const PurchaseReturnEntry = () => {
           size,
           pur_price,
           barcode,
+          stock_qty,
           active,
           deleted_at,
           product_id,
@@ -541,6 +587,7 @@ const PurchaseReturnEntry = () => {
           brand: v.products?.brand || "",
           gst_per: v.products?.gst_per || 0,
           hsn_code: v.products?.hsn_code || "",
+          stock_qty: v.stock_qty || 0,
         }));
 
       // Apply smart sorting
@@ -564,16 +611,29 @@ const PurchaseReturnEntry = () => {
   };
 
   const handleProductSelect = (variant: ProductVariant) => {
-    // Check if item already exists - use ref for current state
+    // Stock validation for purchase return
     const currentItems = lineItemsRef.current;
     const existingItem = currentItems.find(item => item.sku_id === variant.id);
+    
     if (existingItem) {
-      updateLineItem(existingItem.temp_id, "qty", existingItem.qty + 1);
+      const nextQty = existingItem.qty + 1;
+      if (nextQty > (variant.stock_qty || 0)) {
+        setStockAlertMessage(`${variant.product_name} - ${variant.size}: Only ${variant.stock_qty} units in stock. Cannot return more.`);
+        setStockAlertOpen(true);
+        return;
+      }
+      updateLineItem(existingItem.temp_id, "qty", nextQty);
       toast({
         title: "Quantity Updated",
-        description: `${variant.product_name} - ${variant.size} (Qty: ${existingItem.qty + 1})`,
+        description: `${variant.product_name} - ${variant.size} (Qty: ${nextQty})`,
       });
     } else {
+      // Check stock before adding new item
+      if ((variant.stock_qty || 0) <= 0) {
+        setStockAlertMessage(`${variant.product_name} - ${variant.size} is out of stock. Cannot add to purchase return.`);
+        setStockAlertOpen(true);
+        return;
+      }
       const lineTotal = 1 * variant.pur_price;
       const newItem: LineItem = {
         temp_id: Date.now().toString() + Math.random(),
@@ -1035,7 +1095,8 @@ const PurchaseReturnEntry = () => {
               value={searchQuery}
               onChange={(e) => {
                 barcodeScanner.recordKeystroke();
-                setSearchQuery(e.target.value);
+                const newValue = e.target.value;
+                setSearchQuery(newValue);
               }}
               onFocus={() => {
                 if (searchResults.length > 0) setShowSearch(true);
@@ -1240,6 +1301,24 @@ const PurchaseReturnEntry = () => {
         draftType="Purchase Return"
         lastSaved={lastSaved}
       />
+
+      {/* Stock Not Available Alert */}
+      <AlertDialog open={stockAlertOpen} onOpenChange={setStockAlertOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stock Not Available</AlertDialogTitle>
+            <AlertDialogDescription>{stockAlertMessage}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => {
+              setStockAlertOpen(false);
+              setTimeout(() => searchInputRef.current?.focus(), 50);
+            }}>
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };
