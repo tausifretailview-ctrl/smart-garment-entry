@@ -308,7 +308,7 @@ export function AppSidebar() {
                   <SidebarMenu>
                     <SidebarMenuItem>
                       <SidebarMenuSub>
-                        {(isAdminPermissions || hasMenuAccess("purchase_dashboard")) && (
+                        {(isAdminPermissions || hasMenuAccess("purchase_order_dashboard")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/purchase-orders")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
                               <NavLink to="/purchase-orders" className="flex items-center gap-3 group">
