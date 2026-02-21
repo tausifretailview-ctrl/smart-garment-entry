@@ -274,47 +274,50 @@ const PurchaseReturnEntry = () => {
 
   // Pending barcode from scanner Enter key
   const pendingBarcodeRef = useRef<string | null>(null);
+  // Lock to prevent multiple processBarcodeInput calls per single scan
+  const processingBarcodeRef = useRef(false);
 
   // Process a scanned barcode: exact match → auto-add, else fall back to search
   const processBarcodeInput = useCallback(async (barcode: string) => {
     if (!barcode || !currentOrganization?.id) return;
+    // Prevent duplicate processing from multiple triggers
+    if (processingBarcodeRef.current) return;
+    processingBarcodeRef.current = true;
     
-    const variant = await handleBarcodeSearch(barcode);
-    if (variant) {
-      const currentItems = lineItemsRef.current;
-      const existingItem = currentItems.find(item => item.sku_id === variant.id);
-      if (existingItem) {
-        updateLineItem(existingItem.temp_id, "qty", existingItem.qty + 1);
-        toast({
-          title: "Quantity Updated",
-          description: `${variant.product_name} - ${variant.size} (Qty: ${existingItem.qty + 1})`,
-        });
+    try {
+      const variant = await handleBarcodeSearch(barcode);
+      if (variant) {
+        const currentItems = lineItemsRef.current;
+        const existingItem = currentItems.find(item => item.sku_id === variant.id);
+        if (existingItem) {
+          updateLineItem(existingItem.temp_id, "qty", existingItem.qty + 1);
+          toast({
+            title: "Quantity Updated",
+            description: `${variant.product_name} - ${variant.size} (Qty: ${existingItem.qty + 1})`,
+          });
+        } else {
+          handleProductSelect(variant);
+          toast({
+            title: "Item Added",
+            description: `${variant.product_name} - ${variant.size}`,
+          });
+        }
+        setSearchQuery("");
+        setShowSearch(false);
+        setSearchResults([]);
+        barcodeScanner.reset();
+        setTimeout(() => searchInputRef.current?.focus(), 50);
       } else {
-        handleProductSelect(variant);
-        toast({
-          title: "Item Added",
-          description: `${variant.product_name} - ${variant.size}`,
-        });
+        // No exact match — show dropdown with search results
+        searchProducts(barcode);
       }
-      setSearchQuery("");
-      setShowSearch(false);
-      setSearchResults([]);
-      barcodeScanner.reset();
-      setTimeout(() => searchInputRef.current?.focus(), 50);
-    } else {
-      // No exact match — show dropdown with search results
-      searchProducts(barcode);
+    } finally {
+      // Release lock after a short delay to prevent re-triggering from stale effects
+      setTimeout(() => {
+        processingBarcodeRef.current = false;
+      }, 200);
     }
   }, [handleBarcodeSearch, currentOrganization?.id, toast, barcodeScanner]);
-
-  // Process pending barcode after state update
-  useEffect(() => {
-    if (pendingBarcodeRef.current) {
-      const barcode = pendingBarcodeRef.current;
-      pendingBarcodeRef.current = null;
-      processBarcodeInput(barcode);
-    }
-  }, [searchQuery, processBarcodeInput]);
 
   // Handle search with debounce for text search, instant for barcode
   useEffect(() => {
@@ -961,7 +964,6 @@ const PurchaseReturnEntry = () => {
                   const value = searchQuery.trim();
                   if (value.length >= 4) {
                     // Scanner sends Enter after barcode — process as barcode
-                    pendingBarcodeRef.current = value;
                     processBarcodeInput(value);
                   } else if (searchResults.length > 0) {
                     handleProductSelect(searchResults[0]);
