@@ -41,6 +41,8 @@ const menuStructure = [
     submenus: [
       { id: "product_dashboard", name: "Product Dashboard" },
       { id: "product_entry", name: "Product Entry" },
+      { id: "purchase_order_entry", name: "Purchase Orders" },
+      { id: "purchase_order_dashboard", name: "Purchase Order Dashboard" },
       { id: "purchase_bill", name: "Purchase Bill" },
       { id: "purchase_dashboard", name: "Purchase Dashboard" },
       { id: "purchase_return", name: "Purchase Return" },
@@ -138,6 +140,8 @@ const defaultManagerPermissions: Record<string, boolean> = {
   employee_master: true,
   product_dashboard: true,
   product_entry: true,
+  purchase_order_entry: true,
+  purchase_order_dashboard: true,
   purchase_bill: true,
   purchase_dashboard: true,
   purchase_return: true,
