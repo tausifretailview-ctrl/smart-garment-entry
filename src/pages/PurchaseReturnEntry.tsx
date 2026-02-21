@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -18,6 +18,7 @@ import { Loader2, CalendarIcon, Trash2, Plus, Search, Barcode } from "lucide-rea
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 
 interface ProductVariant {
   id: string;
@@ -265,6 +266,56 @@ const PurchaseReturnEntry = () => {
     lineItemsRef.current = lineItems;
   }, [lineItems]);
 
+  // Barcode scanner detection hook
+  const barcodeScanner = useBarcodeScanner({
+    minBarcodeLength: 4,
+    maxKeystrokeInterval: 50,
+  });
+
+  // Pending barcode from scanner Enter key
+  const pendingBarcodeRef = useRef<string | null>(null);
+
+  // Process a scanned barcode: exact match → auto-add, else fall back to search
+  const processBarcodeInput = useCallback(async (barcode: string) => {
+    if (!barcode || !currentOrganization?.id) return;
+    
+    const variant = await handleBarcodeSearch(barcode);
+    if (variant) {
+      const currentItems = lineItemsRef.current;
+      const existingItem = currentItems.find(item => item.sku_id === variant.id);
+      if (existingItem) {
+        updateLineItem(existingItem.temp_id, "qty", existingItem.qty + 1);
+        toast({
+          title: "Quantity Updated",
+          description: `${variant.product_name} - ${variant.size} (Qty: ${existingItem.qty + 1})`,
+        });
+      } else {
+        handleProductSelect(variant);
+        toast({
+          title: "Item Added",
+          description: `${variant.product_name} - ${variant.size}`,
+        });
+      }
+      setSearchQuery("");
+      setShowSearch(false);
+      setSearchResults([]);
+      barcodeScanner.reset();
+      setTimeout(() => searchInputRef.current?.focus(), 50);
+    } else {
+      // No exact match — show dropdown with search results
+      searchProducts(barcode);
+    }
+  }, [handleBarcodeSearch, currentOrganization?.id, toast, barcodeScanner]);
+
+  // Process pending barcode after state update
+  useEffect(() => {
+    if (pendingBarcodeRef.current) {
+      const barcode = pendingBarcodeRef.current;
+      pendingBarcodeRef.current = null;
+      processBarcodeInput(barcode);
+    }
+  }, [searchQuery, processBarcodeInput]);
+
   // Handle search with debounce for text search, instant for barcode
   useEffect(() => {
     if (!searchQuery || searchQuery.length < 1) {
@@ -273,45 +324,20 @@ const PurchaseReturnEntry = () => {
       return;
     }
 
+    // If scanner detected via Enter key, skip debounce — handled by pendingBarcodeRef
+    if (pendingBarcodeRef.current) return;
+
     // Clear any existing timeout
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
 
-    // Check if input looks like a barcode scan (fast typing, numeric, etc.)
-    const isBarcodeInput = /^\d+$/.test(searchQuery) && searchQuery.length >= 6;
-
-    if (isBarcodeInput) {
-      // Fast barcode scan - try exact match immediately
-      handleBarcodeSearch(searchQuery).then((variant) => {
-        if (variant) {
-          // Use ref to avoid stale state
-          const currentItems = lineItemsRef.current;
-          const existingItem = currentItems.find(item => item.sku_id === variant.id);
-          if (existingItem) {
-            updateLineItem(existingItem.temp_id, "qty", existingItem.qty + 1);
-            toast({
-              title: "Quantity Updated",
-              description: `${variant.product_name} - ${variant.size} (Qty: ${existingItem.qty + 1})`,
-            });
-          } else {
-            handleProductSelect(variant);
-            toast({
-              title: "Item Added",
-              description: `${variant.product_name} - ${variant.size}`,
-            });
-          }
-          setSearchQuery("");
-          setShowSearch(false);
-          // Focus back on search input for continuous scanning
-          setTimeout(() => searchInputRef.current?.focus(), 100);
-        } else {
-          // No exact match, fall back to regular search
-          searchProducts(searchQuery);
-        }
-      });
+    // Check if current typing pattern looks like a barcode scanner
+    if (barcodeScanner.isScannerInput && searchQuery.length >= 4) {
+      // Fast scanner input detected — process immediately
+      processBarcodeInput(searchQuery);
     } else {
-      // Regular search with debounce
+      // Regular manual typing — debounce and show dropdown
       searchTimeoutRef.current = setTimeout(() => {
         searchProducts(searchQuery);
       }, 300);
@@ -322,7 +348,7 @@ const PurchaseReturnEntry = () => {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchQuery, handleBarcodeSearch]);
+  }, [searchQuery, barcodeScanner.isScannerInput, processBarcodeInput]);
 
   useEffect(() => {
     if (taxType === "exclusive") {
@@ -914,25 +940,38 @@ const PurchaseReturnEntry = () => {
               ref={searchInputRef}
               placeholder="Scan barcode or search products..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                barcodeScanner.recordKeystroke();
+                setSearchQuery(e.target.value);
+              }}
               onFocus={() => {
                 if (searchResults.length > 0) setShowSearch(true);
               }}
               onBlur={() => {
-                // Delay to allow click on search results
+                // Delay to allow click on search results (mobile-safe)
                 setTimeout(() => {
                   setShowSearch(false);
                   setSearchResults([]);
-                }, 200);
+                  barcodeScanner.reset();
+                }, 400);
               }}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && searchResults.length > 0) {
-                  handleProductSelect(searchResults[0]);
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const value = searchQuery.trim();
+                  if (value.length >= 4) {
+                    // Scanner sends Enter after barcode — process as barcode
+                    pendingBarcodeRef.current = value;
+                    processBarcodeInput(value);
+                  } else if (searchResults.length > 0) {
+                    handleProductSelect(searchResults[0]);
+                  }
                 }
                 if (e.key === "Escape") {
                   setShowSearch(false);
                   setSearchResults([]);
                   setSearchQuery("");
+                  barcodeScanner.reset();
                 }
               }}
               className="pl-10"
