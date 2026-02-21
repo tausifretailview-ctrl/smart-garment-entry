@@ -3577,10 +3577,11 @@ export default function BarcodePrinting() {
                     id="printScaleCustom"
                     type="number"
                     min="50"
-                    max="200"
+                    max="300"
+                    step="10"
                     value={printScale}
-                    onChange={(e) => setPrintScale(Math.max(50, Math.min(200, parseInt(e.target.value) || 100)))}
-                    placeholder="e.g., 100"
+                    onChange={(e) => setPrintScale(Math.max(50, Math.min(300, parseInt(e.target.value) || 100)))}
+                    placeholder="e.g., 110, 150, 170"
                   />
                   <p className="text-xs text-muted-foreground">100% = auto-fit to page</p>
                 </div>
