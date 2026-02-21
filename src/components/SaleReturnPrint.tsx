@@ -11,6 +11,8 @@ interface SaleReturnItem {
 }
 
 interface SaleReturn {
+  return_number?: string | null;
+  credit_note_number?: string | null;
   customer_name: string;
   original_sale_number: string | null;
   return_date: string;
@@ -171,6 +173,12 @@ export const SaleReturnPrint = forwardRef<HTMLDivElement, SaleReturnPrintProps>(
               <div style={{ fontWeight: 'bold', marginBottom: '6px', borderBottom: '1px solid #ccc', paddingBottom: '4px' }}>
                 RETURN DETAILS:
               </div>
+              {saleReturn.return_number && (
+                <div><strong>Return No:</strong> {saleReturn.return_number}</div>
+              )}
+              {saleReturn.credit_note_number && (
+                <div><strong>Credit Note No:</strong> {saleReturn.credit_note_number}</div>
+              )}
               <div><strong>Return Date:</strong> {new Date(saleReturn.return_date).toLocaleDateString('en-IN')}</div>
             </div>
           </div>

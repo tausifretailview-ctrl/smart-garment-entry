@@ -31,6 +31,7 @@ interface SaleReturn {
   credit_status?: string;
   linked_sale_id?: string;
   refund_type?: string;
+  credit_note_number?: string;
 }
 
 interface SaleReturnItem {
@@ -162,12 +163,23 @@ export default function SaleReturnDashboard() {
   };
 
   const handlePrintClick = async (returnRecord: SaleReturn) => {
+    let printData: any = { ...returnRecord };
     if (!returnRecord.items) {
       const items = await fetchReturnItems(returnRecord.id);
-      setReturnToPrint({ ...returnRecord, items });
-    } else {
-      setReturnToPrint(returnRecord);
+      printData = { ...printData, items };
     }
+    // Fetch credit note number if credit_note_id exists
+    if (returnRecord.credit_note_id) {
+      const { data: cn } = await supabase
+        .from("credit_notes")
+        .select("credit_note_number")
+        .eq("id", returnRecord.credit_note_id)
+        .maybeSingle();
+      if (cn) {
+        printData.credit_note_number = cn.credit_note_number;
+      }
+    }
+    setReturnToPrint(printData);
     setTimeout(() => handlePrint(), 100);
   };
 
