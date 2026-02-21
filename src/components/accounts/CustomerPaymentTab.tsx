@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, TrendingDown, Printer, Check, ChevronsUpDown, Pencil, Trash2, ChevronLeft, ChevronRight, Coins, Send } from "lucide-react";
+import { CalendarIcon, Plus, TrendingDown, Printer, Check, ChevronsUpDown, Pencil, Trash2, ChevronLeft, ChevronRight, Coins, Send, Link2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
 import { calculateCustomerInvoiceBalances } from "@/utils/customerBalanceUtils";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import { ReassignPaymentDialog } from "./ReassignPaymentDialog";
 
 interface CustomerPaymentTabProps {
   organizationId: string;
@@ -68,6 +69,11 @@ export function CustomerPaymentTab({
   const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
   const [customerPaymentsPage, setCustomerPaymentsPage] = useState(1);
   const CUSTOMER_PAYMENTS_PER_PAGE = 10;
+
+  // Reassign dialog state
+  const [reassignPayment, setReassignPayment] = useState<any>(null);
+  const [reassignCustomerId, setReassignCustomerId] = useState("");
+  const [reassignCustomerName, setReassignCustomerName] = useState("");
 
   // Fetch next receipt number
   const { data: previewReceiptNumber } = useQuery({
@@ -730,6 +736,22 @@ export function CustomerPaymentTab({
                     {isAdmin && (
                       <TableCell>
                         <div className="flex items-center gap-1">
+                          {voucher.reference_type === 'customer' && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Link to Invoice"
+                              className="text-primary"
+                              onClick={() => {
+                                const cust = customers?.find((c) => c.id === voucher.reference_id);
+                                setReassignPayment(voucher);
+                                setReassignCustomerId(voucher.reference_id);
+                                setReassignCustomerName(cust?.customer_name || "Customer");
+                              }}
+                            >
+                              <Link2 className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button variant="ghost" size="icon" title="Edit Payment" onClick={() => onEditPayment(voucher)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -772,6 +794,18 @@ export function CustomerPaymentTab({
           )}
         </CardContent>
       </Card>
+
+      {/* Reassign Payment Dialog */}
+      {reassignPayment && (
+        <ReassignPaymentDialog
+          open={!!reassignPayment}
+          onOpenChange={(open) => { if (!open) setReassignPayment(null); }}
+          payment={reassignPayment}
+          customerId={reassignCustomerId}
+          customerName={reassignCustomerName}
+          organizationId={organizationId}
+        />
+      )}
     </div>
   );
 }
