@@ -1,0 +1,1 @@
+ALTER TABLE public.students ADD COLUMN closing_fees_balance numeric DEFAULT 0;

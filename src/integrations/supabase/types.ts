@@ -4421,6 +4421,7 @@ export type Database = {
           admission_date: string | null
           admission_number: string
           class_id: string | null
+          closing_fees_balance: number | null
           created_at: string | null
           customer_id: string | null
           date_of_birth: string | null
@@ -4449,6 +4450,7 @@ export type Database = {
           admission_date?: string | null
           admission_number: string
           class_id?: string | null
+          closing_fees_balance?: number | null
           created_at?: string | null
           customer_id?: string | null
           date_of_birth?: string | null
@@ -4477,6 +4479,7 @@ export type Database = {
           admission_date?: string | null
           admission_number?: string
           class_id?: string | null
+          closing_fees_balance?: number | null
           created_at?: string | null
           customer_id?: string | null
           date_of_birth?: string | null
