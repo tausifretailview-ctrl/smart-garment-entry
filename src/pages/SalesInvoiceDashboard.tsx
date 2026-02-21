@@ -15,7 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { ReportSkeleton, TableSkeleton } from "@/components/ui/skeletons";
 import { LoadingButton } from "@/components/ui/loading-button";
 
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap, FileDown, Lock, X, Plus, RefreshCw, Copy, Ban, Eye, MoreHorizontal } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap, FileDown, Lock, X, Plus, RefreshCw, Copy, Ban, Eye, MoreHorizontal, FileSpreadsheet } from "lucide-react";
+import * as XLSX from "xlsx";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
@@ -618,6 +619,30 @@ export default function SalesInvoiceDashboard() {
     amount: paginatedInvoices.reduce((sum: number, inv: any) => sum + (inv.net_amount || 0), 0),
     balance: paginatedInvoices.reduce((sum: number, inv: any) => sum + ((inv.net_amount || 0) - (inv.paid_amount || 0)), 0),
   }), [paginatedInvoices]);
+
+  const handleExportExcel = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    const exportData = paginatedInvoices.map((inv: any) => ({
+      'Invoice No': inv.sale_number || '',
+      'Date': inv.sale_date ? format(new Date(inv.sale_date), 'dd/MM/yyyy') : '',
+      'Customer': inv.customer_name || '',
+      'Phone': inv.customer_phone || '',
+      'Qty': inv.sale_items?.reduce((s: number, i: any) => s + (i.quantity || 0), 0) || 0,
+      'Gross Amount': inv.gross_amount || 0,
+      'Discount': (inv.discount_amount || 0) + (inv.flat_discount_amount || 0),
+      'Net Amount': inv.net_amount || 0,
+      'Paid Amount': inv.paid_amount || 0,
+      'Balance': (inv.net_amount || 0) - (inv.paid_amount || 0),
+      'Payment Status': inv.payment_status || '',
+      'Delivery Status': inv.delivery_status || '',
+      'Salesman': inv.salesman || '',
+    }));
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Sales Invoices');
+    XLSX.writeFile(wb, `Sales_Invoices_Page${currentPage}_${format(new Date(), 'dd-MM-yyyy')}.xlsx`);
+    toast({ title: "Exported", description: `${exportData.length} records exported to Excel` });
+  }, [paginatedInvoices, currentPage, toast]);
 
   // Memoized event handlers (defined after filteredInvoices/paginatedInvoices)
   const toggleSelectAll = useCallback(() => {
@@ -1361,6 +1386,10 @@ export default function SalesInvoiceDashboard() {
             <p className="text-muted-foreground mt-1">View and manage all sales invoices</p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" onClick={handleExportExcel} className="gap-2">
+              <FileSpreadsheet className="h-4 w-4" />
+              Export Excel
+            </Button>
             <Button onClick={() => navigate("/sales-invoice")}>
               New Invoice
             </Button>
