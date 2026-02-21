@@ -43,6 +43,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { StudentExcelImportDialog } from "@/components/school/StudentExcelImportDialog";
 import { StudentBulkUpdateDialog } from "@/components/school/StudentBulkUpdateDialog";
+import { FeesBalanceImportDialog } from "@/components/school/FeesBalanceImportDialog";
 
 const PAGE_SIZE = 50;
 
@@ -54,6 +55,7 @@ const StudentMaster = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showBulkUpdate, setShowBulkUpdate] = useState(false);
+  const [showFeesImport, setShowFeesImport] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -161,6 +163,14 @@ const StudentMaster = () => {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setShowFeesImport(true)} 
+            className="gap-2"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Import Fees Balance
+          </Button>
           <Button 
             variant="outline" 
             onClick={() => setShowBulkUpdate(true)} 
@@ -395,6 +405,12 @@ const StudentMaster = () => {
       <StudentBulkUpdateDialog 
         open={showBulkUpdate} 
         onOpenChange={setShowBulkUpdate} 
+      />
+
+      {/* Fees Balance Import Dialog */}
+      <FeesBalanceImportDialog 
+        open={showFeesImport} 
+        onOpenChange={setShowFeesImport} 
       />
 
       {/* Delete Confirmation Dialog */}
