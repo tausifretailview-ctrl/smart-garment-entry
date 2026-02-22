@@ -1,0 +1,1 @@
+ALTER TABLE public.settings ADD COLUMN owner_phone text;

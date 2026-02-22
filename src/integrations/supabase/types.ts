@@ -4025,6 +4025,7 @@ export type Database = {
           last_auto_backup_at: string | null
           mobile_number: string | null
           organization_id: string
+          owner_phone: string | null
           product_settings: Json | null
           purchase_settings: Json | null
           report_settings: Json | null
@@ -4046,6 +4047,7 @@ export type Database = {
           last_auto_backup_at?: string | null
           mobile_number?: string | null
           organization_id: string
+          owner_phone?: string | null
           product_settings?: Json | null
           purchase_settings?: Json | null
           report_settings?: Json | null
@@ -4067,6 +4069,7 @@ export type Database = {
           last_auto_backup_at?: string | null
           mobile_number?: string | null
           organization_id?: string
+          owner_phone?: string | null
           product_settings?: Json | null
           purchase_settings?: Json | null
           report_settings?: Json | null
