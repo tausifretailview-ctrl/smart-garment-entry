@@ -14,7 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, isToday } from "date-fns";
 import {
   CalendarIcon, Save, Printer, RefreshCw, Send,
-  ArrowDownLeft, ArrowUpRight, Wallet,
+  ArrowDownLeft, ArrowUpRight, Wallet, X,
   CheckCircle2, AlertTriangle, XCircle, IndianRupee,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -367,7 +367,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] p-0 gap-0 overflow-hidden">
+      <DialogContent className="max-w-2xl w-[95vw] max-h-[90vh] p-0 gap-0 overflow-hidden">
         {/* Header */}
         <DialogHeader className="px-4 pt-4 pb-3 border-b border-slate-200 dark:border-slate-700">
           <div className="flex items-center justify-between">
@@ -388,6 +388,9 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
               </Popover>
               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleRefresh}>
                 <RefreshCw className="h-3 w-3" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-red-100 dark:hover:bg-red-900/30" onClick={() => onOpenChange(false)}>
+                <X className="h-4 w-4" />
               </Button>
             </div>
           </div>
@@ -475,7 +478,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
                         <span className="text-slate-400 text-xs">×</span>
                         <Input type="number" min={0} value={denomCounts[denom] || ""} onChange={(e) => setDenomCounts(prev => ({ ...prev, [denom]: Number(e.target.value) || 0 }))} className="h-8 w-16 text-center text-sm font-bold tabular-nums" placeholder="0" />
                         <span className="text-slate-400 text-xs">=</span>
-                        <span className="text-right tabular-nums font-semibold text-xs text-slate-700 dark:text-slate-300 min-w-[72px]">{fmt(denom * (denomCounts[denom] || 0))}</span>
+                        <span className="text-right tabular-nums font-semibold text-sm text-slate-700 dark:text-slate-300 min-w-[100px]">{fmt(denom * (denomCounts[denom] || 0))}</span>
                       </div>
                     ))}
                     <div className="flex items-center gap-2 border-t border-slate-200 dark:border-slate-600 pt-2">
@@ -483,11 +486,11 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
                       <span className="text-slate-400 text-xs invisible">×</span>
                       <Input type="number" min={0} value={coinsBulk || ""} onChange={(e) => setCoinsBulk(Number(e.target.value) || 0)} className="h-8 w-16 text-center text-sm font-bold tabular-nums" placeholder="₹" />
                       <span className="text-slate-400 text-xs invisible">=</span>
-                      <span className="text-right tabular-nums font-semibold text-xs text-slate-700 dark:text-slate-300 min-w-[72px]">{fmt(coinsBulk)}</span>
+                      <span className="text-right tabular-nums font-semibold text-sm text-slate-700 dark:text-slate-300 min-w-[100px]">{fmt(coinsBulk)}</span>
                     </div>
                     <div className="border-t-2 border-indigo-200 dark:border-indigo-800 pt-2 flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Total</span>
-                      <span className="text-lg font-bold tabular-nums text-indigo-700 dark:text-indigo-400">{fmt(denomTotal)}</span>
+                      <span className="text-xl font-bold tabular-nums text-indigo-700 dark:text-indigo-400">{fmt(denomTotal)}</span>
                     </div>
                   </div>
                 </TabsContent>
