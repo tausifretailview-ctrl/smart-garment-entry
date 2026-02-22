@@ -74,6 +74,7 @@ import { QuickServiceProductDialog } from "@/components/QuickServiceProductDialo
 import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly, printA5BillFormat } from "@/utils/pdfGenerator";
 import { format } from "date-fns";
 import { useReactToPrint } from "react-to-print";
+import { useDirectPrint } from "@/hooks/useDirectPrint";
 
 interface PendingPriceSelection {
   product: any;
@@ -208,6 +209,7 @@ export default function POSSales() {
 
   // Cash drawer hook
   const { openDrawer: openCashDrawer } = useCashDrawer();
+
 
   // Barcode scanner detection for instant cart add
   const { recordKeystroke, reset: resetScannerDetection, detectScannerInput } = useBarcodeScanner();
@@ -434,6 +436,11 @@ export default function POSSales() {
     },
     enabled: !!currentOrganization?.id,
   });
+
+  // Direct print hook
+  const { isDirectPrintEnabled, isAutoPrintEnabled, directPrint } = useDirectPrint(
+    (settingsData as any)?.bill_barcode_settings
+  );
 
   // Keyboard shortcuts for POS actions
   useEffect(() => {
@@ -1550,7 +1557,32 @@ export default function POSSales() {
       
       // Now show print dialog with saved data
       setSavedInvoiceData(invoiceDataForPrint);
-      setShowPrintConfirmDialog(true);
+      
+      // If auto-print via QZ Tray is enabled, skip dialog and print directly
+      if (isDirectPrintEnabled && isAutoPrintEnabled) {
+        // Set data first, then trigger print after render
+        setTimeout(async () => {
+          const paperSize = posBillFormat === 'thermal' ? '80mm' : posBillFormat === 'a5' || posBillFormat === 'a5-horizontal' ? 'A5' : 'A4';
+          await directPrint(invoicePrintRef.current, {
+            context: 'pos',
+            paperSize,
+            onFallback: () => {
+              setShowPrintConfirmDialog(true);
+            },
+            onSuccess: async () => {
+              setSavedInvoiceData(null);
+              const billBarcodeSettings = (settingsData as any)?.bill_barcode_settings;
+              if (billBarcodeSettings?.enable_cash_drawer) {
+                const drawerPin = billBarcodeSettings?.cash_drawer_pin || 'pin2';
+                await openCashDrawer(undefined, { pin: drawerPin, showToast: false });
+              }
+              setTimeout(() => barcodeInputRef.current?.focus(), 100);
+            },
+          });
+        }, 300);
+      } else {
+        setShowPrintConfirmDialog(true);
+      }
       
       // Focus on barcode input for next sale
       setTimeout(() => {
@@ -1818,6 +1850,38 @@ export default function POSSales() {
     if (!savedInvoiceData) return;
 
     setShowPrintConfirmDialog(false);
+    
+    // Try QZ Tray direct print first
+    if (isDirectPrintEnabled) {
+      // Wait a tick for the invoice to render
+      setTimeout(async () => {
+        const paperSize = posBillFormat === 'thermal' ? '80mm' : posBillFormat === 'a5' || posBillFormat === 'a5-horizontal' ? 'A5' : 'A4';
+        const success = await directPrint(invoicePrintRef.current, {
+          context: 'pos',
+          paperSize,
+          onFallback: () => {
+            // Fallback to browser print
+            if (showInvoicePreviewSetting) {
+              setShowPrintPreview(true);
+            } else {
+              handlePrint();
+            }
+          },
+          onSuccess: async () => {
+            setSavedInvoiceData(null);
+            setShowPrintPreview(false);
+            // Open cash drawer if enabled
+            const billBarcodeSettings = (settingsData as any)?.bill_barcode_settings;
+            if (billBarcodeSettings?.enable_cash_drawer) {
+              const drawerPin = billBarcodeSettings?.cash_drawer_pin || 'pin2';
+              await openCashDrawer(undefined, { pin: drawerPin, showToast: false });
+            }
+            setTimeout(() => barcodeInputRef.current?.focus(), 100);
+          },
+        });
+      }, 150);
+      return;
+    }
     
     if (showInvoicePreviewSetting) {
       // Show preview dialog

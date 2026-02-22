@@ -176,11 +176,16 @@ interface BillBarcodeSettings {
   instagram_link?: string;
   website_link?: string;
   google_review_link?: string;
-  enable_barcode_prompt?: boolean;  // Enable/disable barcode print prompt after purchase save
+  enable_barcode_prompt?: boolean;
   // Cash Drawer Settings
-  enable_cash_drawer?: boolean;  // Enable/disable auto cash drawer open after POS print
-  cash_drawer_printer?: string;  // Printer name where cash drawer is connected
-  cash_drawer_pin?: 'pin2' | 'pin5';  // Drawer kick pin (most use pin2)
+  enable_cash_drawer?: boolean;
+  cash_drawer_printer?: string;
+  cash_drawer_pin?: 'pin2' | 'pin5';
+  // Direct Printing (QZ Tray) Settings
+  enable_direct_print?: boolean;
+  direct_print_sale_printer?: string;
+  direct_print_pos_printer?: string;
+  direct_print_auto_print?: boolean;
 }
 
 interface ReportSettings {
@@ -3297,6 +3302,171 @@ export default function Settings() {
                             <li>QZ Tray must be installed on the POS computer</li>
                             <li>Cash drawer connected to thermal printer via RJ11/RJ12 cable</li>
                             <li>Thermal printer must support ESC/POS commands</li>
+                          </ul>
+                        </div>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Direct Printing (QZ Tray) Settings */}
+                <Card className="border-dashed">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      🖨️ Direct Printing (QZ Tray)
+                    </CardTitle>
+                    <CardDescription>
+                      Print invoices directly to thermal or laser printers without browser print dialog
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="enable_direct_print" className="cursor-pointer">
+                          Enable Direct Printing
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Send invoices directly to printer via QZ Tray (no print preview dialog)
+                        </p>
+                      </div>
+                      <Switch
+                        id="enable_direct_print"
+                        checked={settings.bill_barcode_settings?.enable_direct_print === true}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              enable_direct_print: checked,
+                            },
+                          })
+                        }
+                      />
+                    </div>
+
+                    {settings.bill_barcode_settings?.enable_direct_print && (
+                      <>
+                        <div className="space-y-2">
+                          <Label>Sale Invoice Printer</Label>
+                          <Input
+                            placeholder="e.g., HP LaserJet Pro, EPSON TM-T82"
+                            value={settings.bill_barcode_settings?.direct_print_sale_printer || ''}
+                            onChange={(e) =>
+                              setSettings({
+                                ...settings,
+                                bill_barcode_settings: {
+                                  ...settings.bill_barcode_settings,
+                                  direct_print_sale_printer: e.target.value,
+                                },
+                              })
+                            }
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Printer name for Sale Invoice (A4/A5). Must match QZ Tray printer name exactly.
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>POS Printer</Label>
+                          <Input
+                            placeholder="e.g., EPSON TM-T82, RUGTEK RP80"
+                            value={settings.bill_barcode_settings?.direct_print_pos_printer || ''}
+                            onChange={(e) =>
+                              setSettings({
+                                ...settings,
+                                bill_barcode_settings: {
+                                  ...settings.bill_barcode_settings,
+                                  direct_print_pos_printer: e.target.value,
+                                },
+                              })
+                            }
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Printer name for POS billing (thermal 80mm/58mm). Must match QZ Tray printer name exactly.
+                          </p>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label htmlFor="direct_print_auto" className="cursor-pointer">
+                              Auto Print After Save
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              Automatically print invoice after saving (skip print confirmation dialog)
+                            </p>
+                          </div>
+                          <Switch
+                            id="direct_print_auto"
+                            checked={settings.bill_barcode_settings?.direct_print_auto_print === true}
+                            onCheckedChange={(checked) =>
+                              setSettings({
+                                ...settings,
+                                bill_barcode_settings: {
+                                  ...settings.bill_barcode_settings,
+                                  direct_print_auto_print: checked,
+                                },
+                              })
+                            }
+                          />
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              const { getQZPrinters } = await import('@/utils/directInvoicePrint');
+                              const printers = await getQZPrinters();
+                              if (printers.length === 0) {
+                                toast({
+                                  title: "No Printers Found",
+                                  description: "QZ Tray is not running or no printers detected. Install from https://qz.io/download/",
+                                  variant: "destructive",
+                                });
+                              } else {
+                                toast({
+                                  title: "Printers Detected",
+                                  description: printers.join(', '),
+                                });
+                              }
+                            }}
+                          >
+                            🔍 Detect Printers
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={async () => {
+                              const { printTestReceipt } = await import('@/utils/directInvoicePrint');
+                              const printer = settings.bill_barcode_settings?.direct_print_pos_printer 
+                                || settings.bill_barcode_settings?.direct_print_sale_printer;
+                              if (!printer) {
+                                toast({
+                                  title: "No Printer Set",
+                                  description: "Please enter a printer name first",
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
+                              const success = await printTestReceipt(printer);
+                              if (success) {
+                                toast({ title: "Test Print Sent", description: "Check your printer for the test receipt" });
+                              }
+                            }}
+                          >
+                            🧪 Test Print
+                          </Button>
+                        </div>
+
+                        <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-2">
+                          <p className="font-medium">Setup Requirements:</p>
+                          <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                            <li>QZ Tray must be installed — <a href="https://qz.io/download/" target="_blank" rel="noopener noreferrer" className="text-primary underline">Download here</a></li>
+                            <li>Printer name must match exactly as shown in QZ Tray</li>
+                            <li>Click "Detect Printers" to see available printer names</li>
+                            <li>Existing PDF print preview remains available as fallback</li>
                           </ul>
                         </div>
                       </>
