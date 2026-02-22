@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Search, Receipt, Loader2, IndianRupee, Calendar, User, MessageCircle } from "lucide-react";
 import { FeeCollectionDialog } from "@/components/school/FeeCollectionDialog";
+import { StudentHistoryDialog } from "@/components/school/StudentHistoryDialog";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { toast } from "sonner";
@@ -24,6 +25,8 @@ const FeeCollection = () => {
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
+  const [historyStudent, setHistoryStudent] = useState<any>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const { settings: whatsAppSettings, sendMessageAsync } = useWhatsAppAPI();
   const { sendWhatsApp } = useWhatsAppSend();
 
@@ -450,7 +453,14 @@ const FeeCollection = () => {
                   <TableRow key={student.id}>
                     <TableCell className="text-muted-foreground">{(currentPage - 1) * pageSize + index + 1}</TableCell>
                     <TableCell className="font-medium">{student.admission_number}</TableCell>
-                    <TableCell>{student.student_name}</TableCell>
+                    <TableCell>
+                      <button
+                        className="text-primary hover:underline font-medium text-left cursor-pointer bg-transparent border-none p-0"
+                        onClick={() => { setHistoryStudent(student); setHistoryOpen(true); }}
+                      >
+                        {student.student_name}
+                      </button>
+                    </TableCell>
                     <TableCell>
                       {student.school_classes?.class_name || "-"}
                     </TableCell>
@@ -462,14 +472,15 @@ const FeeCollection = () => {
                       {getStatusBadge(student.feeStatus || "no-structure")}
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
+                      <div className="flex items-center gap-1 justify-end">
                         {student.totalDue > 0 && student.parent_phone && (
                           <Button
                             size="sm"
                             variant="outline"
-                            className="text-green-600 border-green-600 hover:bg-green-50"
+                            className="text-green-600 border-green-600 hover:bg-green-50 h-8 w-8 p-0"
                             onClick={() => handleSendReminder(student)}
                             disabled={sendingReminder === student.id}
+                            title="Send WhatsApp Reminder"
                           >
                             {sendingReminder === student.id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -478,7 +489,7 @@ const FeeCollection = () => {
                             )}
                           </Button>
                         )}
-                        <Button size="sm" onClick={() => handleCollect(student)}>
+                        <Button size="sm" onClick={() => handleCollect(student)} className="h-8">
                           <Receipt className="h-4 w-4 mr-1" />
                           Collect
                         </Button>
@@ -523,8 +534,15 @@ const FeeCollection = () => {
         onOpenChange={setDialogOpen}
         student={selectedStudent}
       />
+
+      <StudentHistoryDialog
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        student={historyStudent}
+      />
     </div>
   );
 };
+
 
 export default FeeCollection;
