@@ -1,108 +1,112 @@
 
-
-# Direct Invoice Printing via QZ Tray - Implementation Plan
+# Daily Tally & Settlement Module - Implementation Plan
 
 ## Overview
-Add QZ Tray-based direct printing for invoices (thermal and laser) in both POS and Sales Invoice screens. This builds on the existing `useQZTray` hook and `DirectPrintDialog` infrastructure already in the project. Existing PDF preview printing remains untouched.
+Create a comprehensive Daily Tally & Settlement page that aggregates all financial inflows and outflows for a selected date, provides cash reconciliation, and allows optional settlement snapshots -- all using read-only aggregation from existing tables plus one new snapshot table.
 
-## What Changes
+## Database Changes
 
-### 1. Settings UI - "Bill & Barcode" Tab
-Add a new "Direct Printing (QZ Tray)" settings card (similar to the existing Cash Drawer card) with:
-- **Enable Direct Printing** toggle (stored in `bill_barcode_settings.enable_direct_print`)
-- **Sale Invoice Printer** - dropdown auto-populated from QZ Tray detected printers
-- **POS Printer** - separate dropdown for POS printer selection
-- **Auto Print After Save** toggle - when enabled, print fires automatically after sale save (no print confirmation dialog)
-- **Test Print** button to verify printer connectivity
-- Connect/Refresh printer list button with QZ Tray status indicator
+### New Table: `daily_tally_snapshot`
+A single additive table to store optional end-of-day settlement records. No existing tables are modified.
 
-Settings are stored in the existing `bill_barcode_settings` JSONB column -- no database migration needed.
+- Fields: `id`, `organization_id`, `tally_date`, `opening_cash`, `expected_cash`, `physical_cash`, `difference_amount`, `leave_in_drawer`, `deposit_to_bank`, `handover_to_owner`, `notes`, `created_by`, `created_at`
+- Unique constraint on `(organization_id, tally_date)` -- one snapshot per day per org
+- RLS using the project's standard `user_belongs_to_org` pattern (not `auth.uid()` directly, since this project uses org membership-based access)
 
-### 2. New Utility: `src/utils/directInvoicePrint.ts`
-A utility module that handles:
-- **`printThermalReceipt(invoiceData, printerName)`**: Renders the existing `ThermalPrint80mm` component to HTML, then sends via QZ Tray as HTML pixel print (not raw ESC/POS -- this reuses the existing styled thermal template exactly as-is)
-- **`printLaserInvoice(invoiceData, printerName, paperSize)`**: Renders the existing `InvoiceWrapper` component to HTML and sends via QZ Tray as HTML pixel print for A4/A5
-- **`printViaQZTray(html, printerName, config)`**: Core function that takes rendered HTML and prints via QZ Tray pixel printing mode
-- Fallback: if QZ Tray is unavailable or print fails, automatically falls back to the existing `useReactToPrint` browser print dialog
+## Data Sources (All Read-Only)
 
-### 3. New Hook: `src/hooks/useDirectPrint.ts`
-A hook that wraps QZ Tray + settings logic:
-- Reads `bill_barcode_settings` to check if direct printing is enabled
-- Determines printer name based on context (POS vs Sale)
-- Determines format (thermal vs laser) based on `pos_bill_format` / `sales_bill_format` settings
-- Exposes `directPrint(invoiceRef, options)` method
-- Handles fallback to browser print if QZ unavailable
-- Manages connection lifecycle (reuse websocket, auto-reconnect)
+| Section | Source Table | Filter |
+|---------|-------------|--------|
+| POS Sales | `sales` | `sale_type = 'pos'`, date match |
+| Invoice Sales | `sales` | `sale_type != 'pos'`, date match |
+| Receipts (Old Balance) | `voucher_entries` | `voucher_type = 'receipt'`, date match |
+| Advances Received | `customer_advances` | `created_at` date match |
+| Supplier Payments | `voucher_entries` | `voucher_type = 'payment'`, `reference_type = 'supplier'` |
+| Expenses | `voucher_entries` | `voucher_type = 'expense'` or `reference_type = 'expense'` |
+| Employee Salary | `voucher_entries` | `voucher_type = 'payment'`, `reference_type = 'employee'` |
+| Sale Returns (Refunds) | `sale_returns` | `refund_type = 'cash_refund'` |
 
-### 4. POS Integration (`src/pages/POSSales.tsx`)
-Modify the `handlePrintFromDialog` function:
-- If direct printing is enabled AND QZ Tray is connected:
-  - Get the rendered invoice HTML from `invoicePrintRef`
-  - Send to QZ Tray via the new `useDirectPrint` hook
-  - Skip browser print dialog entirely
-- If auto-print is enabled:
-  - After successful save, skip the print confirmation dialog and directly print
-- Fallback to existing `handlePrint()` (useReactToPrint) if QZ fails
+Payment mode breakdown uses `payment_method`, `cash_amount`, `card_amount`, `upi_amount` from sales, and description parsing from vouchers (same pattern as `DailyCashierReport`).
 
-### 5. Sales Invoice Integration (`src/pages/SalesInvoice.tsx`)
-Same pattern as POS:
-- Modify `handlePrintInvoice` to check direct print settings
-- Use `useDirectPrint` hook for QZ Tray printing
-- Fallback to existing browser print
+## New Files
 
-### 6. QZ Tray Script Loading
-Add QZ Tray script tag to `index.html` (loaded from CDN). The existing `useQZTray` hook already handles connection -- the script just needs to be available globally.
+### 1. `src/pages/DailyTally.tsx` (Main Page)
+The primary page with six sections:
 
-## What Does NOT Change
-- No database migrations (settings stored in existing JSONB column)
-- No changes to invoice numbering logic
-- No changes to RLS policies
-- No changes to sale triggers or save flow
-- No removal of existing PDF preview functionality
-- No changes to existing invoice templates
-- Existing `useReactToPrint` flow remains as fallback
+**Header Bar**
+- Date picker (default today)
+- Refresh button
+- Save Snapshot / Print / Export Excel buttons
+- Status badge: Balanced (green) / Minor Difference (yellow) / Mismatch (red)
+
+**Section 1 -- Summary Cards (4 cards)**
+- Total Sales, Total Collection, Total Payments Out, Net Movement
+- Large bold currency values with icons
+
+**Section 2 -- Money In Table**
+| Source | Cash | UPI | Card | Bank | Total |
+Rows: POS Sales, Sales Invoice, Old Balance Received, Advance Received, **Total Inward**
+
+**Section 3 -- Money Out Table**
+| Source | Cash | UPI | Card | Bank | Total |
+Rows: Supplier Payment, Shop Expense, Employee Salary, Sale Return Refund, **Total Outward**
+
+**Section 4 -- Cash Reconciliation**
+- Left: Opening Cash input + Expected Cash formula result (Opening + Cash In - Cash Out)
+- Right: Physical Cash Counted input + Difference display with color coding
+- No blocking behavior on mismatch
+
+**Section 5 -- Optional Settlement**
+- Leave in Drawer, Deposit to Bank, Handover to Owner inputs
+- Auto-calculate: Physical Cash - Leave - Deposit = Owner Handover
+- Warning toast if numbers don't add up, but save is never blocked
+
+**Section 6 -- Save/Load Snapshot**
+- Save button stores all values to `daily_tally_snapshot` (upsert on org+date)
+- Loading a date auto-loads saved snapshot if exists
+- Shows "Saved at [time]" indicator
+
+### 2. `src/components/DailyTallyReport.tsx` (Print Component)
+A print-optimized component (similar to existing `PaymentReceipt`) containing:
+- Company name, date, generated-by info
+- Sales summary, payment breakdown, money in/out tables
+- Cash reconciliation section
+- Settlement summary
+- Signature lines
+- Uses `useReactToPrint` for browser printing
+
+## Modified Files
+
+### 3. `src/App.tsx`
+- Import `DailyTally` page component (lazy loaded)
+- Add route: `daily-tally` under org layout with `ProtectedRoute` + `Layout` wrapper (same pattern as `daily-cashier-report`)
+
+### 4. `src/components/AppSidebar.tsx`
+- Add "Daily Tally" menu item under the Reports/Accounts section with a `Coins` or `ClipboardList` icon
+- Links to `/daily-tally`
 
 ## Technical Details
 
-### BillBarcodeSettings Interface Extension
-```typescript
-interface BillBarcodeSettings {
-  // ... existing fields ...
-  enable_direct_print?: boolean;
-  direct_print_sale_printer?: string;
-  direct_print_pos_printer?: string;
-  direct_print_auto_print?: boolean;
-}
-```
+### Data Fetching Strategy
+- All data fetched via `useQuery` hooks with date-based keys
+- Reuses existing patterns from `DailyCashierReport` (same `fetchAllSalesWithFilters`, `fetchAllVouchersWithFilters` utilities)
+- Additional queries for `customer_advances` and `sale_returns`
+- Snapshot loaded/saved via simple supabase queries on `daily_tally_snapshot`
 
-### QZ Tray Pixel Printing Approach
-Instead of generating raw ESC/POS commands (which would require rebuilding templates), we use QZ Tray's HTML pixel printing mode. This renders the existing React invoice components as HTML and sends them to the printer -- reusing all existing templates exactly.
+### Permission Control
+- All users can view today's date
+- Manager/Admin can view and edit any date
+- Uses existing `useUserRoles` hook for role checks
+- Snapshot save restricted to cashier (today only) and admin/manager (any date)
 
-```typescript
-// Conceptual flow
-const config = qz.configs.create(printerName, {
-  size: { width: 80, height: null }, // thermal
-  units: 'mm',
-  rasterize: true,
-});
-const data = [{ type: 'pixel', format: 'html', data: invoiceHTML }];
-await qz.print(config, data);
-```
+### Performance
+- Single date filtering keeps queries lightweight
+- No real-time listeners needed
+- Snapshot table is tiny (1 row per org per day)
 
-### File Changes Summary
-| File | Action |
-|------|--------|
-| `index.html` | Add QZ Tray CDN script |
-| `src/utils/directInvoicePrint.ts` | New - QZ pixel print utility |
-| `src/hooks/useDirectPrint.ts` | New - Direct print hook |
-| `src/pages/Settings.tsx` | Add Direct Printing settings card in Bill & Barcode tab |
-| `src/pages/POSSales.tsx` | Integrate direct print in print flow |
-| `src/pages/SalesInvoice.tsx` | Integrate direct print in print flow |
-
-### Extensibility
-The structure supports future additions:
-- Multiple printer profiles (kitchen/counter)
-- Cash drawer integration (already exists)
-- Silent background reprint
-- Fee receipt direct printing (school module)
-
+### What Does NOT Change
+- No modifications to `sales`, `voucher_entries`, `sale_returns`, or any existing table
+- No changes to invoice numbering, RLS policies, or sale triggers
+- No shift locking or transaction blocking
+- Existing `DailyCashierReport` remains untouched
+- Fully backward compatible
