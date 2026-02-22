@@ -63,6 +63,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
   const [denomCounts, setDenomCounts] = useState<Record<number, number>>({ ...DEFAULT_DENOM_COUNTS });
   const [coinsBulk, setCoinsBulk] = useState(0);
   const [tallyTab, setTallyTab] = useState<string>("denomination");
+  const [showSaved, setShowSaved] = useState(false);
 
   const orgId = currentOrganization?.id;
   const dateStr = format(selectedDate, "yyyy-MM-dd");
@@ -196,6 +197,15 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
       setLeaveInDrawer(Number(snapshot.leave_in_drawer) || 0);
       setDepositToBank(Number(snapshot.deposit_to_bank) || 0);
       setNotes(snapshot.notes || "");
+      // Restore denomination data if saved
+      const denomData = (snapshot as any)?.denomination_data;
+      if (denomData && denomData.denomCounts) {
+        setDenomCounts(denomData.denomCounts);
+        setCoinsBulk(denomData.coinsBulk || 0);
+      } else {
+        setDenomCounts({ ...DEFAULT_DENOM_COUNTS });
+        setCoinsBulk(0);
+      }
     } else {
       const yesterdayClosing = Number(yesterdaySnapshot?.leave_in_drawer) || 0;
       setOpeningCash(yesterdayClosing);
@@ -203,9 +213,9 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
       setLeaveInDrawer(0);
       setDepositToBank(0);
       setNotes("");
+      setDenomCounts({ ...DEFAULT_DENOM_COUNTS });
+      setCoinsBulk(0);
     }
-    setDenomCounts({ ...DEFAULT_DENOM_COUNTS });
-    setCoinsBulk(0);
   }, [snapshot, yesterdaySnapshot]);
 
   // ─── Aggregation ───────────────────────────────────────────────────
@@ -309,14 +319,17 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
         handover_to_owner: handoverToOwner,
         notes: notes || null,
         created_by: user?.id || null,
+        denomination_data: { denomCounts, coinsBulk } as any,
       };
       const { error } = await supabase
         .from("daily_tally_snapshot")
-        .upsert(payload, { onConflict: "organization_id,tally_date" });
+        .upsert(payload as any, { onConflict: "organization_id,tally_date" });
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Daily tally snapshot saved");
+      setShowSaved(true);
+      setTimeout(() => setShowSaved(false), 3000);
       refetchSnapshot();
     },
     onError: (e: Error) => toast.error(`Save failed: ${e.message}`),
@@ -555,8 +568,8 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
               <Send className="h-3 w-3" /> WhatsApp
             </Button>
           </div>
-          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="h-8 text-xs gap-1 bg-indigo-700 hover:bg-indigo-800 text-white font-semibold">
-            <Save className="h-3 w-3" /> Save
+          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className={cn("h-8 text-xs gap-1 font-semibold", showSaved ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-indigo-700 hover:bg-indigo-800 text-white")}>
+            {showSaved ? <><CheckCircle2 className="h-3 w-3" /> Saved</> : <><Save className="h-3 w-3" /> Save</>}
           </Button>
         </div>
 

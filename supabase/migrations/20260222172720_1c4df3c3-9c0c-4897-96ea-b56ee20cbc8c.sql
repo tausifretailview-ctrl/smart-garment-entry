@@ -1,0 +1,1 @@
+ALTER TABLE public.daily_tally_snapshot ADD COLUMN denomination_data jsonb;
