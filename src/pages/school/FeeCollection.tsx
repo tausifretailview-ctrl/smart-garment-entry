@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,7 @@ import { toast } from "sonner";
 const FeeCollection = () => {
   const { currentOrganization } = useOrganization();
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
@@ -166,9 +168,9 @@ const FeeCollection = () => {
         const hasStructures = totalExpected > 0;
         const totalDue = hasStructures ? Math.max(0, totalExpected - totalPaid) : Math.max(0, importedBalance - totalPaid);
         const effectiveExpected = hasStructures ? totalExpected : importedBalance;
-        const status = effectiveExpected === 0 ? "no-structure" : totalDue === 0 ? "paid" : totalPaid > 0 ? "partial" : "pending";
+        const effectiveStatus = totalDue === 0 ? "paid" : totalPaid > 0 ? "partial" : effectiveExpected === 0 ? "no-structure" : "pending";
 
-        return { ...student, totalExpected: effectiveExpected, totalPaid, totalDue, feeStatus: status };
+        return { ...student, totalExpected: effectiveExpected, totalPaid, totalDue, feeStatus: effectiveStatus };
       });
     },
     enabled: !!currentOrganization?.id,
@@ -256,12 +258,20 @@ const FeeCollection = () => {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "paid": return <Badge className="bg-green-600 text-white">Paid</Badge>;
-      case "partial": return <Badge className="bg-yellow-600 text-white">Partial</Badge>;
+      case "paid": return <Badge variant="success">Paid</Badge>;
+      case "partial": return <Badge variant="warning">Partial</Badge>;
       case "pending": return <Badge variant="destructive">Pending</Badge>;
       default: return <Badge variant="secondary">No Structure</Badge>;
     }
   };
+
+  const filteredStudents = (students || []).filter((s: any) => {
+    if (statusFilter === "all") return true;
+    if (statusFilter === "paid") return s.feeStatus === "paid" || (s.totalDue === 0 && s.feeStatus === "no-structure");
+    if (statusFilter === "pending") return s.feeStatus === "pending" || s.feeStatus === "partial";
+    if (statusFilter === "partial") return s.feeStatus === "partial";
+    return true;
+  });
 
   if (!currentOrganization) {
     return (
@@ -332,7 +342,20 @@ const FeeCollection = () => {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
             <CardTitle>Student Fee Status</CardTitle>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-36">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="paid">Paid</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="partial">Partial</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
             <div className="relative w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -349,7 +372,7 @@ const FeeCollection = () => {
             <div className="flex items-center justify-center h-32">
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
-          ) : students?.length === 0 ? (
+          ) : filteredStudents.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <User className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No students found.</p>
@@ -369,7 +392,7 @@ const FeeCollection = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {students?.map((student: any) => (
+                {filteredStudents.map((student: any) => (
                   <TableRow key={student.id}>
                     <TableCell className="font-medium">{student.admission_number}</TableCell>
                     <TableCell>{student.student_name}</TableCell>
