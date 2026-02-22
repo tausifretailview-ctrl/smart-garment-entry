@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -19,6 +20,7 @@ import {
   CalendarIcon, RefreshCw, Save, Printer, FileSpreadsheet,
   TrendingUp, TrendingDown, Wallet, ArrowDownLeft, ArrowUpRight, IndianRupee,
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { toast } from "sonner";
@@ -43,6 +45,10 @@ interface PaymentBreakdown {
 }
 const emptyBreakdown = (): PaymentBreakdown => ({ cash: 0, upi: 0, card: 0, bank: 0, total: 0 });
 
+const DENOMINATIONS = [2000, 500, 200, 100, 50] as const;
+const DEFAULT_DENOM_COUNTS: Record<number, number> = { 2000: 0, 500: 0, 200: 0, 100: 0, 50: 0 };
+
+
 // ─── Component ─────────────────────────────────────────────────────────
 const DailyTally = () => {
   const { currentOrganization } = useOrganization();
@@ -57,6 +63,9 @@ const DailyTally = () => {
   const [leaveInDrawer, setLeaveInDrawer] = useState(0);
   const [depositToBank, setDepositToBank] = useState(0);
   const [notes, setNotes] = useState("");
+  const [denomCounts, setDenomCounts] = useState<Record<number, number>>({ ...DEFAULT_DENOM_COUNTS });
+  const [coinsBulk, setCoinsBulk] = useState(0);
+  const [tallyTab, setTallyTab] = useState<string>("manual");
 
   const orgId = currentOrganization?.id;
   const dateStr = format(selectedDate, "yyyy-MM-dd");
@@ -142,6 +151,28 @@ const DailyTally = () => {
     enabled: !!orgId,
   });
 
+  // Yesterday's snapshot (for opening cash = yesterday's closing)
+  const yesterdayStr = useMemo(() => {
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() - 1);
+    return format(d, "yyyy-MM-dd");
+  }, [selectedDate]);
+
+  const { data: yesterdaySnapshot } = useQuery({
+    queryKey: ["daily-tally-snapshot", orgId, yesterdayStr],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("daily_tally_snapshot")
+        .select("physical_cash, leave_in_drawer")
+        .eq("organization_id", orgId!)
+        .eq("tally_date", yesterdayStr)
+        .maybeSingle();
+      if (error) return null;
+      return data;
+    },
+    enabled: !!orgId,
+  });
+
   // Settings (business name)
   const { data: settings } = useQuery({
     queryKey: ["settings", orgId],
@@ -154,6 +185,23 @@ const DailyTally = () => {
 
   const isLoading = salesLoading || vouchersLoading || advancesLoading || refundsLoading || snapshotLoading;
 
+  // ─── Denomination total ────────────────────────────────────────────
+  const denomTotal = useMemo(() => {
+    let total = 0;
+    for (const denom of DENOMINATIONS) {
+      total += denom * (denomCounts[denom] || 0);
+    }
+    total += coinsBulk;
+    return total;
+  }, [denomCounts, coinsBulk]);
+
+  // Auto-update physical cash when denomination changes
+  useEffect(() => {
+    if (tallyTab === "denomination") {
+      setPhysicalCash(denomTotal);
+    }
+  }, [denomTotal, tallyTab]);
+
   // ─── Load snapshot values when date changes ────────────────────────
   useEffect(() => {
     if (snapshot) {
@@ -163,13 +211,18 @@ const DailyTally = () => {
       setDepositToBank(Number(snapshot.deposit_to_bank) || 0);
       setNotes(snapshot.notes || "");
     } else {
-      setOpeningCash(0);
+      // Use yesterday's leave_in_drawer as today's opening cash
+      const yesterdayClosing = Number(yesterdaySnapshot?.leave_in_drawer) || 0;
+      setOpeningCash(yesterdayClosing);
       setPhysicalCash(0);
       setLeaveInDrawer(0);
       setDepositToBank(0);
       setNotes("");
     }
-  }, [snapshot]);
+    // Reset denomination counts
+    setDenomCounts({ ...DEFAULT_DENOM_COUNTS });
+    setCoinsBulk(0);
+  }, [snapshot, yesterdaySnapshot]);
 
   // ─── Aggregation ───────────────────────────────────────────────────
   const aggregated = useMemo(() => {
@@ -523,7 +576,12 @@ const DailyTally = () => {
             {/* Left — Expected */}
             <div className="space-y-4">
               <div>
-                <label className="text-sm text-muted-foreground mb-1 block">Opening Cash</label>
+                <label className="text-sm text-muted-foreground mb-1 block">
+                  Opening Cash
+                  {!snapshot && yesterdaySnapshot ? (
+                    <span className="ml-2 text-xs text-primary">(Yesterday's closing balance)</span>
+                  ) : null}
+                </label>
                 <Input
                   type="number"
                   value={openingCash || ""}
@@ -540,18 +598,95 @@ const DailyTally = () => {
                 </p>
               </div>
             </div>
-            {/* Right — Physical */}
+
+            {/* Right — Physical Tally (Tabbed) */}
             <div className="space-y-4">
-              <div>
-                <label className="text-sm text-muted-foreground mb-1 block">Physical Cash Counted</label>
-                <Input
-                  type="number"
-                  value={physicalCash || ""}
-                  onChange={(e) => setPhysicalCash(Number(e.target.value) || 0)}
-                  placeholder="0.00"
-                  className="text-lg font-semibold"
-                />
-              </div>
+              <Tabs value={tallyTab} onValueChange={setTallyTab}>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm text-muted-foreground">Physical Cash Counted</label>
+                  <TabsList className="h-8">
+                    <TabsTrigger value="manual" className="text-xs px-3 py-1">Manual</TabsTrigger>
+                    <TabsTrigger value="denomination" className="text-xs px-3 py-1">Denomination</TabsTrigger>
+                  </TabsList>
+                </div>
+
+                <TabsContent value="manual" className="mt-0">
+                  <Input
+                    type="number"
+                    value={physicalCash || ""}
+                    onChange={(e) => setPhysicalCash(Number(e.target.value) || 0)}
+                    placeholder="0.00"
+                    className="text-lg font-semibold"
+                  />
+                </TabsContent>
+
+                <TabsContent value="denomination" className="mt-0">
+                  <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+                    <p className="text-xs text-muted-foreground italic">
+                      🧮 Physical Tally (Blind Count) — Count what's in your drawer. Don't rely on system figures.
+                    </p>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="py-2 text-xs">Note</TableHead>
+                          <TableHead className="py-2 text-xs text-center">×</TableHead>
+                          <TableHead className="py-2 text-xs text-center">Count</TableHead>
+                          <TableHead className="py-2 text-xs text-center">=</TableHead>
+                          <TableHead className="py-2 text-xs text-right">Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {DENOMINATIONS.map((denom) => (
+                          <TableRow key={denom}>
+                            <TableCell className="py-1.5 font-medium text-sm">₹ {denom.toLocaleString("en-IN")}</TableCell>
+                            <TableCell className="py-1.5 text-center text-muted-foreground">×</TableCell>
+                            <TableCell className="py-1.5">
+                              <Input
+                                type="number"
+                                min={0}
+                                value={denomCounts[denom] || ""}
+                                onChange={(e) => setDenomCounts(prev => ({ ...prev, [denom]: Number(e.target.value) || 0 }))}
+                                className="h-8 w-20 text-center mx-auto text-sm"
+                                placeholder="0"
+                              />
+                            </TableCell>
+                            <TableCell className="py-1.5 text-center text-muted-foreground">=</TableCell>
+                            <TableCell className="py-1.5 text-right tabular-nums font-medium text-sm">
+                              {fmt(denom * (denomCounts[denom] || 0))}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {/* Coins / small notes bulk entry */}
+                        <TableRow>
+                          <TableCell className="py-1.5 font-medium text-sm" colSpan={2}>₹ 20 / 10 / Coins</TableCell>
+                          <TableCell className="py-1.5" colSpan={2}>
+                            <Input
+                              type="number"
+                              min={0}
+                              value={coinsBulk || ""}
+                              onChange={(e) => setCoinsBulk(Number(e.target.value) || 0)}
+                              className="h-8 w-28 text-sm"
+                              placeholder="Bulk ₹ amount"
+                            />
+                          </TableCell>
+                          <TableCell className="py-1.5 text-right tabular-nums font-medium text-sm">
+                            {fmt(coinsBulk)}
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                      <TableFooter>
+                        <TableRow className="bg-primary/5">
+                          <TableCell colSpan={4} className="py-2 font-bold text-sm">Total Physical Cash</TableCell>
+                          <TableCell className="py-2 text-right tabular-nums font-bold text-lg text-primary">
+                            {fmt(denomTotal)}
+                          </TableCell>
+                        </TableRow>
+                      </TableFooter>
+                    </Table>
+                  </div>
+                </TabsContent>
+              </Tabs>
+
               <div className={cn(
                 "rounded-lg border p-4",
                 Math.abs(difference) === 0 ? "border-emerald-500/30 bg-emerald-500/10" :
