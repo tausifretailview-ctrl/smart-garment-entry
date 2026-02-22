@@ -4291,7 +4291,7 @@ export type Database = {
           discount: number | null
           discount_reason: string | null
           due_date: string | null
-          fee_head_id: string
+          fee_head_id: string | null
           fee_structure_id: string | null
           id: string
           late_fee: number | null
@@ -4317,7 +4317,7 @@ export type Database = {
           discount?: number | null
           discount_reason?: string | null
           due_date?: string | null
-          fee_head_id: string
+          fee_head_id?: string | null
           fee_structure_id?: string | null
           id?: string
           late_fee?: number | null
@@ -4343,7 +4343,7 @@ export type Database = {
           discount?: number | null
           discount_reason?: string | null
           due_date?: string | null
-          fee_head_id?: string
+          fee_head_id?: string | null
           fee_structure_id?: string | null
           id?: string
           late_fee?: number | null
