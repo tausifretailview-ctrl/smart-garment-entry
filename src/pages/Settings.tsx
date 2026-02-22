@@ -199,6 +199,7 @@ interface Settings {
   business_name?: string;
   address?: string;
   mobile_number?: string;
+  owner_phone?: string;
   email_id?: string;
   gst_number?: string;
   product_settings?: ProductSettings;
@@ -221,6 +222,7 @@ export default function Settings() {
     business_name: "",
     address: "",
     mobile_number: "",
+    owner_phone: "",
     email_id: "",
     gst_number: "",
     product_settings: {},
@@ -380,6 +382,7 @@ export default function Settings() {
           business_name: settingsData.business_name || "",
           address: settingsData.address || "",
           mobile_number: settingsData.mobile_number || "",
+          owner_phone: settingsData.owner_phone || "",
           email_id: settingsData.email_id || "",
           gst_number: settingsData.gst_number || "",
           product_settings: (settingsData.product_settings as ProductSettings) || {},
@@ -426,6 +429,7 @@ export default function Settings() {
             business_name: settings.business_name,
             address: settings.address,
             mobile_number: settings.mobile_number,
+            owner_phone: settings.owner_phone,
             email_id: settings.email_id,
             gst_number: settings.gst_number,
             product_settings: settings.product_settings,
@@ -445,6 +449,7 @@ export default function Settings() {
             business_name: settings.business_name,
             address: settings.address,
             mobile_number: settings.mobile_number,
+            owner_phone: settings.owner_phone,
             email_id: settings.email_id,
             gst_number: settings.gst_number,
             product_settings: settings.product_settings,
@@ -817,6 +822,20 @@ export default function Settings() {
                       }
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="owner_phone">Owner WhatsApp Number</Label>
+                    <Input
+                      id="owner_phone"
+                      value={settings.owner_phone || ""}
+                      onChange={(e) =>
+                        setSettings({ ...settings, owner_phone: e.target.value })
+                      }
+                      placeholder="e.g. 9876543210"
+                    />
+                    <p className="text-xs text-muted-foreground">Used for sending daily Cash Tally reports via WhatsApp</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="email_id">Email ID</Label>
                     <Input

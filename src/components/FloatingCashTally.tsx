@@ -331,7 +331,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
 
   // ─── WhatsApp to Owner ─────────────────────────────────────────────
   const handleWhatsAppOwner = useCallback(() => {
-    const ownerPhone = (settings as any)?.owner_phone || (settings as any)?.phone || "";
+    const ownerPhone = (settings as any)?.owner_phone || (settings as any)?.mobile_number || "";
     if (!ownerPhone) {
       toast.error("Owner phone number not set in Settings");
       return;
