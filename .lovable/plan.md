@@ -1,112 +1,97 @@
 
-# Daily Tally & Settlement Module - Implementation Plan
+
+# Daily Tally -- "Solid & Trustworthy" Enterprise Redesign
 
 ## Overview
-Create a comprehensive Daily Tally & Settlement page that aggregates all financial inflows and outflows for a selected date, provides cash reconciliation, and allows optional settlement snapshots -- all using read-only aggregation from existing tables plus one new snapshot table.
+Complete visual overhaul of `DailyTally.tsx` to achieve a premium FinTech aesthetic with enterprise-grade typography, color coding, and component structure. No logic changes -- purely UI/UX transformation.
 
-## Database Changes
+---
 
-### New Table: `daily_tally_snapshot`
-A single additive table to store optional end-of-day settlement records. No existing tables are modified.
+## 1. Typography & Number System
 
-- Fields: `id`, `organization_id`, `tally_date`, `opening_cash`, `expected_cash`, `physical_cash`, `difference_amount`, `leave_in_drawer`, `deposit_to_bank`, `handover_to_owner`, `notes`, `created_by`, `created_at`
-- Unique constraint on `(organization_id, tally_date)` -- one snapshot per day per org
-- RLS using the project's standard `user_belongs_to_org` pattern (not `auth.uid()` directly, since this project uses org membership-based access)
+- Add `font-variant-numeric: tabular-nums` globally to all currency values via utility classes
+- Use `font-semibold` (600) for labels, `font-bold` (700) for totals and headers
+- Transaction labels: `text-slate-500 text-sm` (muted, small)
+- Currency amounts: `text-lg` or `text-2xl`, dark and bold
+- All numerical columns perfectly right-aligned with consistent decimal alignment
 
-## Data Sources (All Read-Only)
+## 2. Color Palette Changes
 
-| Section | Source Table | Filter |
-|---------|-------------|--------|
-| POS Sales | `sales` | `sale_type = 'pos'`, date match |
-| Invoice Sales | `sales` | `sale_type != 'pos'`, date match |
-| Receipts (Old Balance) | `voucher_entries` | `voucher_type = 'receipt'`, date match |
-| Advances Received | `customer_advances` | `created_at` date match |
-| Supplier Payments | `voucher_entries` | `voucher_type = 'payment'`, `reference_type = 'supplier'` |
-| Expenses | `voucher_entries` | `voucher_type = 'expense'` or `reference_type = 'expense'` |
-| Employee Salary | `voucher_entries` | `voucher_type = 'payment'`, `reference_type = 'employee'` |
-| Sale Returns (Refunds) | `sale_returns` | `refund_type = 'cash_refund'` |
+| Element | Current | New |
+|---------|---------|-----|
+| Money In header/accents | `text-emerald-400` | `text-emerald-600` (stronger contrast) |
+| Money Out header/accents | `text-red-400` | `text-rose-600` (enterprise rose) |
+| Save/Snapshot button | Default primary | `bg-indigo-700 hover:bg-indigo-800` with shadow |
+| Card borders | Default `border-border` | `border-[1.5px] border-slate-200` (thicker, purposeful) |
+| Difference badges | Existing color scheme | Enhanced with `ring-2` for emphasis |
 
-Payment mode breakdown uses `payment_method`, `cash_amount`, `card_amount`, `upi_amount` from sales, and description parsing from vouchers (same pattern as `DailyCashierReport`).
+## 3. Hero Summary Cards (Top 4)
 
-## New Files
+- Thicker border (`border-[1.5px]`) with subtle left-accent stripe (4px colored left border)
+- Icon placed in a soft colored circle background
+- Title: `text-xs uppercase tracking-wider text-slate-500`
+- Value: `text-2xl font-bold tabular-nums text-slate-900`
+- Subtle hover shadow elevation
 
-### 1. `src/pages/DailyTally.tsx` (Main Page)
-The primary page with six sections:
+## 4. Twin-Pillar Layout (Money In / Money Out)
 
-**Header Bar**
-- Date picker (default today)
-- Refresh button
-- Save Snapshot / Print / Export Excel buttons
-- Status badge: Balanced (green) / Minor Difference (yellow) / Mismatch (red)
+- Side-by-side on desktop (`grid grid-cols-1 lg:grid-cols-2 gap-6`)
+- Each card with colored top border (emerald for In, rose for Out)
+- Table headers: `font-bold text-xs uppercase tracking-wider bg-slate-50`
+- Total row: `bg-emerald-50` or `bg-rose-50` with bold text
+- Stripe pattern on rows for readability (`even:bg-slate-50/50`)
 
-**Section 1 -- Summary Cards (4 cards)**
-- Total Sales, Total Collection, Total Payments Out, Net Movement
-- Large bold currency values with icons
+## 5. Denomination Tally ("Digital Drawer" Hero Section)
 
-**Section 2 -- Money In Table**
-| Source | Cash | UPI | Card | Bank | Total |
-Rows: POS Sales, Sales Invoice, Old Balance Received, Advance Received, **Total Inward**
+- Larger input fields (`h-11 w-24 text-center text-lg font-bold`)
+- Each denomination row with subtle card-like feel
+- Note value displayed as a badge-like chip (`bg-slate-100 rounded-md px-3 py-1 font-bold`)
+- Running total prominently displayed at bottom with `text-2xl font-bold text-indigo-700`
+- Instruction text styled as an alert/callout box with a border-left accent
 
-**Section 3 -- Money Out Table**
-| Source | Cash | UPI | Card | Bank | Total |
-Rows: Supplier Payment, Shop Expense, Employee Salary, Sale Return Refund, **Total Outward**
+## 6. Variance Shield (Difference Display)
 
-**Section 4 -- Cash Reconciliation**
-- Left: Opening Cash input + Expected Cash formula result (Opening + Cash In - Cash Out)
-- Right: Physical Cash Counted input + Difference display with color coding
-- No blocking behavior on mismatch
+- Large central area within reconciliation
+- Balanced (0): Solid green badge with checkmark icon, `bg-emerald-50 border-emerald-600 border-2`
+- Minor diff (<=100): Warning amber with alert icon, `bg-amber-50 border-amber-500 border-2`
+- Mismatch (>100): High-visibility red alert, `bg-red-50 border-red-600 border-2`, pulsing ring effect
+- Difference value: `text-4xl font-bold tabular-nums` (largest number on screen)
 
-**Section 5 -- Optional Settlement**
-- Leave in Drawer, Deposit to Bank, Handover to Owner inputs
-- Auto-calculate: Physical Cash - Leave - Deposit = Owner Handover
-- Warning toast if numbers don't add up, but save is never blocked
+## 7. Save Snapshot Button ("The Final Touch")
 
-**Section 6 -- Save/Load Snapshot**
-- Save button stores all values to `daily_tally_snapshot` (upsert on org+date)
-- Loading a date auto-loads saved snapshot if exists
-- Shows "Saved at [time]" indicator
+- Standalone prominent styling: `bg-indigo-700 hover:bg-indigo-800 text-white shadow-lg hover:shadow-xl`
+- Size: `h-12 px-8 text-base font-semibold rounded-lg`
+- Save icon + text "Save Snapshot"
+- Satisfying scale animation on hover (`hover:scale-[1.02]`)
+- Separated from other toolbar buttons, placed with more visual weight
 
-### 2. `src/components/DailyTallyReport.tsx` (Print Component)
-A print-optimized component (similar to existing `PaymentReceipt`) containing:
-- Company name, date, generated-by info
-- Sales summary, payment breakdown, money in/out tables
-- Cash reconciliation section
-- Settlement summary
-- Signature lines
-- Uses `useReactToPrint` for browser printing
+## 8. Settlement Section
 
-## Modified Files
+- Clean 3-column grid with labeled inputs
+- Handover to Owner displayed as a highlighted calculated field with `bg-indigo-50 border-indigo-200`
+- Notes textarea with subtle styling
 
-### 3. `src/App.tsx`
-- Import `DailyTally` page component (lazy loaded)
-- Add route: `daily-tally` under org layout with `ProtectedRoute` + `Layout` wrapper (same pattern as `daily-cashier-report`)
+## 9. Page Header
 
-### 4. `src/components/AppSidebar.tsx`
-- Add "Daily Tally" menu item under the Reports/Accounts section with a `Coins` or `ClipboardList` icon
-- Links to `/daily-tally`
+- Title: `text-2xl font-bold text-slate-900`
+- Date subtitle: `text-sm text-slate-500`
+- Status badge with thick border and proper contrast
+- Action buttons grouped with consistent `border-[1.5px]` styling
 
-## Technical Details
+---
 
-### Data Fetching Strategy
-- All data fetched via `useQuery` hooks with date-based keys
-- Reuses existing patterns from `DailyCashierReport` (same `fetchAllSalesWithFilters`, `fetchAllVouchersWithFilters` utilities)
-- Additional queries for `customer_advances` and `sale_returns`
-- Snapshot loaded/saved via simple supabase queries on `daily_tally_snapshot`
+## Technical Changes
 
-### Permission Control
-- All users can view today's date
-- Manager/Admin can view and edit any date
-- Uses existing `useUserRoles` hook for role checks
-- Snapshot save restricted to cashier (today only) and admin/manager (any date)
+### Files Modified
+1. **`src/pages/DailyTally.tsx`** -- All UI class changes:
+   - Update `MoneyRow` component with new styling (striped rows, tabular-nums)
+   - Restructure summary cards with accent borders and icon circles
+   - Move Money In/Out to side-by-side grid layout
+   - Restyle denomination inputs to be larger, bolder
+   - Enhance difference display to "Variance Shield" pattern
+   - Restyle Save Snapshot button with indigo theme
+   - Add `border-[1.5px]` to all Card components
+   - Update color classes from `*-400` to `*-600` variants
 
-### Performance
-- Single date filtering keeps queries lightweight
-- No real-time listeners needed
-- Snapshot table is tiny (1 row per org per day)
+No new dependencies needed. All changes use existing Tailwind classes and shadcn components.
 
-### What Does NOT Change
-- No modifications to `sales`, `voucher_entries`, `sale_returns`, or any existing table
-- No changes to invoice numbering, RLS policies, or sale triggers
-- No shift locking or transaction blocking
-- Existing `DailyCashierReport` remains untouched
-- Fully backward compatible
