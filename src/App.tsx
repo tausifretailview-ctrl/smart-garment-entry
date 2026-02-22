@@ -46,6 +46,7 @@ import PurchaseReportBySupplier from "./pages/PurchaseReportBySupplier";
 import SalesReportByCustomer from "./pages/SalesReportByCustomer";
 import ProductTrackingReport from "./pages/ProductTrackingReport";
 import DailyCashierReport from "./pages/DailyCashierReport";
+import DailyTally from "./pages/DailyTally";
 import AuditLog from "./pages/AuditLog";
 import Accounts from "./pages/Accounts";
 import DeliveryDashboard from "./pages/DeliveryDashboard";
@@ -771,6 +772,16 @@ const App = () => {
                     <ProtectedRoute>
                       <Layout>
                         <DailyCashierReport />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="daily-tally"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <DailyTally />
                       </Layout>
                     </ProtectedRoute>
                   }
