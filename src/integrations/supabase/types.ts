@@ -1109,6 +1109,69 @@ export type Database = {
           },
         ]
       }
+      daily_tally_snapshot: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          deposit_to_bank: number | null
+          difference_amount: number | null
+          expected_cash: number | null
+          handover_to_owner: number | null
+          id: string
+          leave_in_drawer: number | null
+          notes: string | null
+          opening_cash: number | null
+          organization_id: string
+          physical_cash: number | null
+          tally_date: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          deposit_to_bank?: number | null
+          difference_amount?: number | null
+          expected_cash?: number | null
+          handover_to_owner?: number | null
+          id?: string
+          leave_in_drawer?: number | null
+          notes?: string | null
+          opening_cash?: number | null
+          organization_id: string
+          physical_cash?: number | null
+          tally_date: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          deposit_to_bank?: number | null
+          difference_amount?: number | null
+          expected_cash?: number | null
+          handover_to_owner?: number | null
+          id?: string
+          leave_in_drawer?: number | null
+          notes?: string | null
+          opening_cash?: number | null
+          organization_id?: string
+          physical_cash?: number | null
+          tally_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_tally_snapshot_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_tally_snapshot_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       delivery_challan_items: {
         Row: {
           barcode: string | null
