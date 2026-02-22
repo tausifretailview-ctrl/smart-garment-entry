@@ -248,7 +248,8 @@ const FeeCollection = () => {
       }
     } else {
       // Fallback to wa.me link
-      const msg = `Dear Parent,\n\nFee Reminder - ${currentOrganization?.name || "School"}\nStudent: ${student.student_name} (${student.admission_number})\nClass: ${student.school_classes?.class_name || "-"}\nPending Amount: Rs.${student.totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}\n${upiId ? `\nPay via UPI: ${upiId}` : ""}${paymentLink ? `\nPayment Link: ${paymentLink}` : ""}\n\nPlease pay at the earliest.\nThank you!`;
+      const amountStr = `Rs.${student.totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+      const msg = `Dear Parent,\n\nFee Reminder - ${currentOrganization?.name || "School"}\nStudent: ${student.student_name} (${student.admission_number})\nClass: ${student.school_classes?.class_name || "-"}\nPending Amount: ${amountStr}\n${upiId ? `\n💳 *Pay Online*\nUPI ID: ${upiId}\nAmount: ${amountStr}\n\n👉 Click to pay: ${paymentLink}` : ""}\n\nPlease pay at the earliest.\nThank you!`;
       sendWhatsApp(phone, msg);
     }
   };
