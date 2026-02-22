@@ -19,6 +19,7 @@ import { format, isToday } from "date-fns";
 import {
   CalendarIcon, RefreshCw, Save, Printer, FileSpreadsheet,
   TrendingUp, TrendingDown, Wallet, ArrowDownLeft, ArrowUpRight, IndianRupee,
+  CheckCircle2, AlertTriangle, XCircle,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -327,9 +328,9 @@ const DailyTally = () => {
   const statusBadge = useMemo(() => {
     if (physicalCash === 0 && !snapshot) return { label: "Not Settled", variant: "secondary" as const, color: "" };
     const abs = Math.abs(difference);
-    if (abs === 0) return { label: "Balanced", variant: "default" as const, color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" };
-    if (abs <= 100) return { label: "Minor Difference", variant: "default" as const, color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" };
-    return { label: "Cash Mismatch", variant: "destructive" as const, color: "bg-red-500/20 text-red-400 border-red-500/30" };
+    if (abs === 0) return { label: "Balanced", variant: "default" as const, color: "bg-emerald-50 text-emerald-700 border-emerald-600 border-[1.5px] ring-2 ring-emerald-200" };
+    if (abs <= 100) return { label: "Minor Difference", variant: "default" as const, color: "bg-amber-50 text-amber-700 border-amber-500 border-[1.5px] ring-2 ring-amber-200" };
+    return { label: "Cash Mismatch", variant: "destructive" as const, color: "bg-red-50 text-red-700 border-red-600 border-[1.5px] ring-2 ring-red-200" };
   }, [physicalCash, difference, snapshot]);
 
   // ─── Save snapshot ─────────────────────────────────────────────────
@@ -413,34 +414,47 @@ const DailyTally = () => {
   }, [selectedDate, aggregated, totalIn, totalOut, openingCash, expectedCash, physicalCash, difference, leaveInDrawer, depositToBank, handoverToOwner, settings, dateStr]);
 
   // ─── Table row helper ──────────────────────────────────────────────
-  const MoneyRow = ({ label, data, highlight }: { label: string; data: PaymentBreakdown; highlight?: boolean }) => (
-    <TableRow className={highlight ? "bg-muted/50 font-bold" : ""}>
-      <TableCell className="font-medium">{label}</TableCell>
-      <TableCell className="text-right tabular-nums">{fmt(data.cash)}</TableCell>
-      <TableCell className="text-right tabular-nums">{fmt(data.upi)}</TableCell>
-      <TableCell className="text-right tabular-nums">{fmt(data.card)}</TableCell>
-      <TableCell className="text-right tabular-nums">{fmt(data.bank)}</TableCell>
-      <TableCell className="text-right tabular-nums">{fmt(data.credit)}</TableCell>
-      <TableCell className="text-right tabular-nums font-semibold">{fmt(data.total)}</TableCell>
+  const MoneyRow = ({ label, data, highlight, type }: { label: string; data: PaymentBreakdown; highlight?: boolean; type?: "in" | "out" }) => (
+    <TableRow className={cn(
+      highlight && type === "in" ? "bg-emerald-50 dark:bg-emerald-950/30 font-bold" :
+      highlight && type === "out" ? "bg-rose-50 dark:bg-rose-950/30 font-bold" :
+      highlight ? "bg-muted/50 font-bold" :
+      "even:bg-slate-50/50 dark:even:bg-slate-900/30"
+    )}>
+      <TableCell className={cn("font-medium text-sm", !highlight && "text-slate-600 dark:text-slate-400")}>{label}</TableCell>
+      <TableCell className="text-right tabular-nums text-sm">{fmt(data.cash)}</TableCell>
+      <TableCell className="text-right tabular-nums text-sm">{fmt(data.upi)}</TableCell>
+      <TableCell className="text-right tabular-nums text-sm">{fmt(data.card)}</TableCell>
+      <TableCell className="text-right tabular-nums text-sm">{fmt(data.bank)}</TableCell>
+      <TableCell className="text-right tabular-nums text-sm">{fmt(data.credit)}</TableCell>
+      <TableCell className={cn("text-right tabular-nums font-semibold text-sm", highlight && "text-base")}>{fmt(data.total)}</TableCell>
     </TableRow>
   );
+
+  // ─── Hero card data ────────────────────────────────────────────────
+  const heroCards = [
+    { title: "Total Sales", value: totalSales, icon: IndianRupee, borderColor: "border-l-emerald-600", iconBg: "bg-emerald-100 dark:bg-emerald-900/40", iconColor: "text-emerald-600" },
+    { title: "Total Collection", value: totalCollection, icon: ArrowDownLeft, borderColor: "border-l-blue-600", iconBg: "bg-blue-100 dark:bg-blue-900/40", iconColor: "text-blue-600" },
+    { title: "Total Payments", value: totalPaymentsOut, icon: ArrowUpRight, borderColor: "border-l-rose-600", iconBg: "bg-rose-100 dark:bg-rose-900/40", iconColor: "text-rose-600" },
+    { title: "Net Movement", value: netMovement, icon: TrendingUp, borderColor: netMovement >= 0 ? "border-l-emerald-600" : "border-l-rose-600", iconBg: netMovement >= 0 ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-rose-100 dark:bg-rose-900/40", iconColor: netMovement >= 0 ? "text-emerald-600" : "text-rose-600" },
+  ];
 
   // ─── Render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-6 pb-10">
-      {/* Header */}
+      {/* ═══ Page Header ═══ */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <BackToDashboard />
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Daily Tally & Settlement</h1>
-            <p className="text-sm text-muted-foreground">{format(selectedDate, "EEEE, dd MMMM yyyy")}</p>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Daily Tally & Settlement</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{format(selectedDate, "EEEE, dd MMMM yyyy")}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="gap-2">
+              <Button variant="outline" className="gap-2 border-[1.5px] border-slate-200 dark:border-slate-700">
                 <CalendarIcon className="h-4 w-4" />
                 {format(selectedDate, "dd MMM yyyy")}
               </Button>
@@ -454,124 +468,121 @@ const DailyTally = () => {
               />
             </PopoverContent>
           </Popover>
-          <Button variant="outline" size="icon" onClick={handleRefresh} disabled={isLoading}>
+          <Button variant="outline" size="icon" onClick={handleRefresh} disabled={isLoading} className="border-[1.5px] border-slate-200 dark:border-slate-700">
             <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
           </Button>
-          <Button variant="outline" className="gap-2" onClick={() => handlePrint()}>
+          <Button variant="outline" className="gap-2 border-[1.5px] border-slate-200 dark:border-slate-700" onClick={() => handlePrint()}>
             <Printer className="h-4 w-4" /> Print
           </Button>
-          <Button variant="outline" className="gap-2" onClick={handleExportExcel}>
+          <Button variant="outline" className="gap-2 border-[1.5px] border-slate-200 dark:border-slate-700" onClick={handleExportExcel}>
             <FileSpreadsheet className="h-4 w-4" /> Excel
-          </Button>
-          <Button className="gap-2" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-            <Save className="h-4 w-4" /> Save Snapshot
           </Button>
           {statusBadge.label !== "Not Settled" && (
             <Badge className={statusBadge.color}>{statusBadge.label}</Badge>
           )}
           {snapshot && (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
               Saved {format(new Date(snapshot.created_at), "hh:mm a")}
             </span>
           )}
         </div>
       </div>
 
-      {/* Summary Cards */}
+      {/* ═══ Hero Summary Cards ═══ */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { title: "Total Sales", value: totalSales, icon: IndianRupee, color: "text-emerald-400" },
-          { title: "Total Collection", value: totalCollection, icon: ArrowDownLeft, color: "text-blue-400" },
-          { title: "Total Payments", value: totalPaymentsOut, icon: ArrowUpRight, color: "text-red-400" },
-          { title: "Net Movement", value: netMovement, icon: TrendingUp, color: netMovement >= 0 ? "text-emerald-400" : "text-red-400" },
-        ].map((c) => (
-          <Card key={c.title}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{c.title}</CardTitle>
-              <c.icon className={cn("h-5 w-5", c.color)} />
+        {heroCards.map((c) => (
+          <Card key={c.title} className={cn("border-[1.5px] border-slate-200 dark:border-slate-700 border-l-4 hover:shadow-lg transition-shadow", c.borderColor)}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 pt-4 px-4">
+              <span className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">{c.title}</span>
+              <div className={cn("h-9 w-9 rounded-full flex items-center justify-center", c.iconBg)}>
+                <c.icon className={cn("h-4 w-4", c.iconColor)} />
+              </div>
             </CardHeader>
-            <CardContent>
-              <p className={cn("text-2xl font-bold tabular-nums", c.color)}>{fmt(c.value)}</p>
+            <CardContent className="px-4 pb-4 pt-0">
+              <p className="text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{fmt(c.value)}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Money In */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-emerald-400">
-            <ArrowDownLeft className="h-5 w-5" /> Money In
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Source</TableHead>
-                  <TableHead className="text-right">Cash</TableHead>
-                  <TableHead className="text-right">UPI</TableHead>
-                  <TableHead className="text-right">Card</TableHead>
-                  <TableHead className="text-right">Bank</TableHead>
-                  <TableHead className="text-right">Credit</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <MoneyRow label="POS Sales" data={aggregated.posSales} />
-                <MoneyRow label="Sales Invoice" data={aggregated.invoiceSales} />
-                <MoneyRow label="Old Balance Received" data={aggregated.receipts} />
-                <MoneyRow label="Advance Received" data={aggregated.advances} />
-              </TableBody>
-              <TableFooter>
-                <MoneyRow label="Total Inward" data={totalIn} highlight />
-              </TableFooter>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+      {/* ═══ Twin-Pillar: Money In / Money Out ═══ */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Money In */}
+        <Card className="border-[1.5px] border-slate-200 dark:border-slate-700 border-t-4 border-t-emerald-600 overflow-hidden">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-emerald-600 font-bold">
+              <ArrowDownLeft className="h-5 w-5" /> Money In
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Source</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-right text-slate-600 dark:text-slate-300">Cash</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-right text-slate-600 dark:text-slate-300">UPI</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-right text-slate-600 dark:text-slate-300">Card</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-right text-slate-600 dark:text-slate-300">Bank</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-right text-slate-600 dark:text-slate-300">Credit</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-right text-slate-600 dark:text-slate-300">Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <MoneyRow label="POS Sales" data={aggregated.posSales} />
+                  <MoneyRow label="Sales Invoice" data={aggregated.invoiceSales} />
+                  <MoneyRow label="Old Balance Received" data={aggregated.receipts} />
+                  <MoneyRow label="Advance Received" data={aggregated.advances} />
+                </TableBody>
+                <TableFooter>
+                  <MoneyRow label="Total Inward" data={totalIn} highlight type="in" />
+                </TableFooter>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
 
-      {/* Money Out */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-red-400">
-            <ArrowUpRight className="h-5 w-5" /> Money Out
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Source</TableHead>
-                  <TableHead className="text-right">Cash</TableHead>
-                  <TableHead className="text-right">UPI</TableHead>
-                  <TableHead className="text-right">Card</TableHead>
-                  <TableHead className="text-right">Bank</TableHead>
-                  <TableHead className="text-right">Credit</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <MoneyRow label="Supplier Payment" data={aggregated.supplierPayments} />
-                <MoneyRow label="Shop Expense" data={aggregated.expenses} />
-                <MoneyRow label="Employee Salary" data={aggregated.employeeSalary} />
-                <MoneyRow label="Sale Return Refund" data={aggregated.saleReturnRefunds} />
-              </TableBody>
-              <TableFooter>
-                <MoneyRow label="Total Outward" data={totalOut} highlight />
-              </TableFooter>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+        {/* Money Out */}
+        <Card className="border-[1.5px] border-slate-200 dark:border-slate-700 border-t-4 border-t-rose-600 overflow-hidden">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-rose-600 font-bold">
+              <ArrowUpRight className="h-5 w-5" /> Money Out
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Source</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-right text-slate-600 dark:text-slate-300">Cash</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-right text-slate-600 dark:text-slate-300">UPI</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-right text-slate-600 dark:text-slate-300">Card</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-right text-slate-600 dark:text-slate-300">Bank</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-right text-slate-600 dark:text-slate-300">Credit</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-right text-slate-600 dark:text-slate-300">Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <MoneyRow label="Supplier Payment" data={aggregated.supplierPayments} />
+                  <MoneyRow label="Shop Expense" data={aggregated.expenses} />
+                  <MoneyRow label="Employee Salary" data={aggregated.employeeSalary} />
+                  <MoneyRow label="Sale Return Refund" data={aggregated.saleReturnRefunds} />
+                </TableBody>
+                <TableFooter>
+                  <MoneyRow label="Total Outward" data={totalOut} highlight type="out" />
+                </TableFooter>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* Cash Reconciliation */}
-      <Card>
+      {/* ═══ Cash Reconciliation ═══ */}
+      <Card className="border-[1.5px] border-slate-200 dark:border-slate-700">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2">
-            <Wallet className="h-5 w-5 text-primary" /> Cash Reconciliation
+          <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-slate-100 font-bold">
+            <Wallet className="h-5 w-5 text-indigo-600" /> Cash Reconciliation
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -579,10 +590,10 @@ const DailyTally = () => {
             {/* Left — Expected */}
             <div className="space-y-4">
               <div>
-                <label className="text-sm text-muted-foreground mb-1 block">
+                <label className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">
                   Opening Cash
                   {!snapshot && yesterdaySnapshot ? (
-                    <span className="ml-2 text-xs text-primary">(Yesterday's closing balance)</span>
+                    <span className="ml-2 text-xs normal-case tracking-normal font-normal text-indigo-600">(Yesterday's closing balance)</span>
                   ) : null}
                 </label>
                 <Input
@@ -590,13 +601,13 @@ const DailyTally = () => {
                   value={openingCash || ""}
                   onChange={(e) => setOpeningCash(Number(e.target.value) || 0)}
                   placeholder="0.00"
-                  className="text-lg font-semibold"
+                  className="text-lg font-bold tabular-nums"
                 />
               </div>
-              <div className="rounded-lg border border-border p-4 bg-muted/30">
-                <p className="text-sm text-muted-foreground mb-1">Expected Cash</p>
-                <p className="text-3xl font-bold tabular-nums text-foreground">{fmt(expectedCash)}</p>
-                <p className="text-xs text-muted-foreground mt-1">
+              <div className="rounded-lg border-[1.5px] border-slate-200 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-800/50">
+                <p className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1">Expected Cash</p>
+                <p className="text-3xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{fmt(expectedCash)}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums">
                   Opening ({fmt(openingCash)}) + Cash In ({fmt(totalIn.cash)}) − Cash Out ({fmt(totalOut.cash)})
                 </p>
               </div>
@@ -606,7 +617,7 @@ const DailyTally = () => {
             <div className="space-y-4">
               <Tabs value={tallyTab} onValueChange={setTallyTab}>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm text-muted-foreground">Physical Cash Counted</label>
+                  <label className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Physical Cash Counted</label>
                   <TabsList className="h-8">
                     <TabsTrigger value="manual" className="text-xs px-3 py-1">Manual</TabsTrigger>
                     <TabsTrigger value="denomination" className="text-xs px-3 py-1">Denomination</TabsTrigger>
@@ -619,92 +630,100 @@ const DailyTally = () => {
                     value={physicalCash || ""}
                     onChange={(e) => setPhysicalCash(Number(e.target.value) || 0)}
                     placeholder="0.00"
-                    className="text-lg font-semibold"
+                    className="text-lg font-bold tabular-nums"
                   />
                 </TabsContent>
 
                 <TabsContent value="denomination" className="mt-0">
-                  <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
-                    <p className="text-xs text-muted-foreground italic">
-                      🧮 Physical Tally (Blind Count) — Count what's in your drawer. Don't rely on system figures.
-                    </p>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="py-2 text-xs">Note</TableHead>
-                          <TableHead className="py-2 text-xs text-center">×</TableHead>
-                          <TableHead className="py-2 text-xs text-center">Count</TableHead>
-                          <TableHead className="py-2 text-xs text-center">=</TableHead>
-                          <TableHead className="py-2 text-xs text-right">Total</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {DENOMINATIONS.map((denom) => (
-                          <TableRow key={denom}>
-                            <TableCell className="py-1.5 font-medium text-sm">₹ {denom.toLocaleString("en-IN")}</TableCell>
-                            <TableCell className="py-1.5 text-center text-muted-foreground">×</TableCell>
-                            <TableCell className="py-1.5">
-                              <Input
-                                type="number"
-                                min={0}
-                                value={denomCounts[denom] || ""}
-                                onChange={(e) => setDenomCounts(prev => ({ ...prev, [denom]: Number(e.target.value) || 0 }))}
-                                className="h-8 w-20 text-center mx-auto text-sm"
-                                placeholder="0"
-                              />
-                            </TableCell>
-                            <TableCell className="py-1.5 text-center text-muted-foreground">=</TableCell>
-                            <TableCell className="py-1.5 text-right tabular-nums font-medium text-sm">
-                              {fmt(denom * (denomCounts[denom] || 0))}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                        {/* Coins / small notes bulk entry */}
-                        <TableRow>
-                          <TableCell className="py-1.5 font-medium text-sm" colSpan={2}>₹ 20 / 10 / Coins</TableCell>
-                          <TableCell className="py-1.5" colSpan={2}>
-                            <Input
-                              type="number"
-                              min={0}
-                              value={coinsBulk || ""}
-                              onChange={(e) => setCoinsBulk(Number(e.target.value) || 0)}
-                              className="h-8 w-28 text-sm"
-                              placeholder="Bulk ₹ amount"
-                            />
-                          </TableCell>
-                          <TableCell className="py-1.5 text-right tabular-nums font-medium text-sm">
-                            {fmt(coinsBulk)}
-                          </TableCell>
-                        </TableRow>
-                      </TableBody>
-                      <TableFooter>
-                        <TableRow className="bg-primary/5">
-                          <TableCell colSpan={4} className="py-2 font-bold text-sm">Total Physical Cash</TableCell>
-                          <TableCell className="py-2 text-right tabular-nums font-bold text-lg text-primary">
-                            {fmt(denomTotal)}
-                          </TableCell>
-                        </TableRow>
-                      </TableFooter>
-                    </Table>
+                  <div className="rounded-lg border-[1.5px] border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 p-4 space-y-3">
+                    {/* Callout */}
+                    <div className="border-l-4 border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30 rounded-r-md px-3 py-2">
+                      <p className="text-xs text-indigo-700 dark:text-indigo-300 font-medium">
+                        🧮 Physical Tally (Blind Count) — Count what's in your drawer. Don't rely on system figures.
+                      </p>
+                    </div>
+                    {/* Denomination rows */}
+                    <div className="space-y-2">
+                      {DENOMINATIONS.map((denom) => (
+                        <div key={denom} className="flex items-center gap-3 py-1.5">
+                          <span className="bg-slate-100 dark:bg-slate-700 rounded-md px-3 py-1.5 font-bold text-sm tabular-nums min-w-[80px] text-center text-slate-800 dark:text-slate-200">
+                            ₹ {denom.toLocaleString("en-IN")}
+                          </span>
+                          <span className="text-slate-400 font-medium">×</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={denomCounts[denom] || ""}
+                            onChange={(e) => setDenomCounts(prev => ({ ...prev, [denom]: Number(e.target.value) || 0 }))}
+                            className="h-11 w-24 text-center text-lg font-bold tabular-nums"
+                            placeholder="0"
+                          />
+                          <span className="text-slate-400 font-medium">=</span>
+                          <span className="text-right tabular-nums font-semibold text-sm text-slate-700 dark:text-slate-300 min-w-[100px]">
+                            {fmt(denom * (denomCounts[denom] || 0))}
+                          </span>
+                        </div>
+                      ))}
+                      {/* Coins / small notes bulk entry */}
+                      <div className="flex items-center gap-3 py-1.5 border-t border-slate-200 dark:border-slate-600 pt-3">
+                        <span className="bg-slate-100 dark:bg-slate-700 rounded-md px-3 py-1.5 font-bold text-sm min-w-[80px] text-center text-slate-800 dark:text-slate-200">
+                          Coins
+                        </span>
+                        <span className="text-slate-400 font-medium invisible">×</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={coinsBulk || ""}
+                          onChange={(e) => setCoinsBulk(Number(e.target.value) || 0)}
+                          className="h-11 w-24 text-center text-lg font-bold tabular-nums"
+                          placeholder="₹"
+                        />
+                        <span className="text-slate-400 font-medium invisible">=</span>
+                        <span className="text-right tabular-nums font-semibold text-sm text-slate-700 dark:text-slate-300 min-w-[100px]">
+                          {fmt(coinsBulk)}
+                        </span>
+                      </div>
+                    </div>
+                    {/* Denomination Total */}
+                    <div className="border-t-2 border-indigo-200 dark:border-indigo-800 pt-3 flex items-center justify-between">
+                      <span className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Total Physical Cash</span>
+                      <span className="text-2xl font-bold tabular-nums text-indigo-700 dark:text-indigo-400">{fmt(denomTotal)}</span>
+                    </div>
                   </div>
                 </TabsContent>
               </Tabs>
 
+              {/* ═══ Variance Shield ═══ */}
               <div className={cn(
-                "rounded-lg border p-4",
-                Math.abs(difference) === 0 ? "border-emerald-500/30 bg-emerald-500/10" :
-                Math.abs(difference) <= 100 ? "border-yellow-500/30 bg-yellow-500/10" :
-                "border-red-500/30 bg-red-500/10"
+                "rounded-lg border-2 p-5 text-center",
+                Math.abs(difference) === 0 ? "border-emerald-600 bg-emerald-50 dark:bg-emerald-950/30" :
+                Math.abs(difference) <= 100 ? "border-amber-500 bg-amber-50 dark:bg-amber-950/30" :
+                "border-red-600 bg-red-50 dark:bg-red-950/30 animate-pulse"
               )}>
-                <p className="text-sm text-muted-foreground mb-1">Difference</p>
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  {Math.abs(difference) === 0 ? (
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                  ) : Math.abs(difference) <= 100 ? (
+                    <AlertTriangle className="h-5 w-5 text-amber-600" />
+                  ) : (
+                    <XCircle className="h-5 w-5 text-red-600" />
+                  )}
+                  <p className={cn(
+                    "text-xs uppercase tracking-wider font-bold",
+                    Math.abs(difference) === 0 ? "text-emerald-700 dark:text-emerald-400" :
+                    Math.abs(difference) <= 100 ? "text-amber-700 dark:text-amber-400" : "text-red-700 dark:text-red-400"
+                  )}>
+                    {Math.abs(difference) === 0 ? "Cash Balanced" : Math.abs(difference) <= 100 ? "Minor Variance" : "Cash Mismatch"}
+                  </p>
+                </div>
                 <p className={cn(
-                  "text-3xl font-bold tabular-nums",
-                  Math.abs(difference) === 0 ? "text-emerald-400" :
-                  Math.abs(difference) <= 100 ? "text-yellow-400" : "text-red-400"
+                  "text-4xl font-bold tabular-nums",
+                  Math.abs(difference) === 0 ? "text-emerald-700 dark:text-emerald-400" :
+                  Math.abs(difference) <= 100 ? "text-amber-700 dark:text-amber-400" : "text-red-700 dark:text-red-400"
                 )}>
                   {difference >= 0 ? "+" : ""}{fmt(difference)}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 tabular-nums">
                   Physical ({fmt(physicalCash)}) − Expected ({fmt(expectedCash)})
                 </p>
               </div>
@@ -713,37 +732,48 @@ const DailyTally = () => {
         </CardContent>
       </Card>
 
-      {/* Settlement */}
-      <Card>
+      {/* ═══ Settlement ═══ */}
+      <Card className="border-[1.5px] border-slate-200 dark:border-slate-700">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2">
-            <TrendingDown className="h-5 w-5 text-primary" /> Settlement (Optional)
+          <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-slate-100 font-bold">
+            <TrendingDown className="h-5 w-5 text-indigo-600" /> Settlement (Optional)
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="text-sm text-muted-foreground mb-1 block">Leave in Drawer</label>
-              <Input type="number" value={leaveInDrawer || ""} onChange={(e) => setLeaveInDrawer(Number(e.target.value) || 0)} placeholder="0.00" />
+              <label className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">Leave in Drawer</label>
+              <Input type="number" value={leaveInDrawer || ""} onChange={(e) => setLeaveInDrawer(Number(e.target.value) || 0)} placeholder="0.00" className="font-semibold tabular-nums" />
             </div>
             <div>
-              <label className="text-sm text-muted-foreground mb-1 block">Deposit to Bank</label>
-              <Input type="number" value={depositToBank || ""} onChange={(e) => setDepositToBank(Number(e.target.value) || 0)} placeholder="0.00" />
+              <label className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">Deposit to Bank</label>
+              <Input type="number" value={depositToBank || ""} onChange={(e) => setDepositToBank(Number(e.target.value) || 0)} placeholder="0.00" className="font-semibold tabular-nums" />
             </div>
             <div>
-              <label className="text-sm text-muted-foreground mb-1 block">Handover to Owner</label>
-              <div className="rounded-lg border border-border p-3 bg-muted/30">
-                <p className="text-xl font-bold tabular-nums">{fmt(handoverToOwner)}</p>
-                <p className="text-xs text-muted-foreground">Auto-calculated</p>
+              <label className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">Handover to Owner</label>
+              <div className="rounded-lg border-[1.5px] border-indigo-200 dark:border-indigo-800 p-3 bg-indigo-50 dark:bg-indigo-950/30">
+                <p className="text-xl font-bold tabular-nums text-indigo-700 dark:text-indigo-400">{fmt(handoverToOwner)}</p>
+                <p className="text-xs text-indigo-500 dark:text-indigo-400 font-medium">Auto-calculated</p>
               </div>
             </div>
           </div>
           <div className="mt-4">
-            <label className="text-sm text-muted-foreground mb-1 block">Notes</label>
+            <label className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">Notes</label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional settlement notes…" rows={2} />
           </div>
         </CardContent>
       </Card>
+
+      {/* ═══ Save Snapshot — "The Final Touch" ═══ */}
+      <div className="flex justify-center pt-2">
+        <Button
+          onClick={() => saveMutation.mutate()}
+          disabled={saveMutation.isPending}
+          className="h-12 px-8 text-base font-semibold rounded-lg bg-indigo-700 hover:bg-indigo-800 text-white shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all duration-150 gap-2"
+        >
+          <Save className="h-5 w-5" /> Save Snapshot
+        </Button>
+      </div>
 
       {/* Print-only component (hidden) */}
       <div className="hidden">
