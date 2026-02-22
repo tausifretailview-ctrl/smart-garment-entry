@@ -1113,6 +1113,7 @@ export type Database = {
         Row: {
           created_at: string | null
           created_by: string | null
+          denomination_data: Json | null
           deposit_to_bank: number | null
           difference_amount: number | null
           expected_cash: number | null
@@ -1128,6 +1129,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           created_by?: string | null
+          denomination_data?: Json | null
           deposit_to_bank?: number | null
           difference_amount?: number | null
           expected_cash?: number | null
@@ -1143,6 +1145,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           created_by?: string | null
+          denomination_data?: Json | null
           deposit_to_bank?: number | null
           difference_amount?: number | null
           expected_cash?: number | null
