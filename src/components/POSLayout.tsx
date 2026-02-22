@@ -1,5 +1,5 @@
 import { ReactNode, useState } from "react";
-import { Menu, Home, Package, ShoppingCart, FileText, Settings, LogOut, Store, PlusCircle, Trash2, Keyboard, LayoutGrid, BarChart3, Package as PackageIcon, RotateCcw } from "lucide-react";
+import { Menu, Home, Package, ShoppingCart, FileText, Settings, LogOut, Store, PlusCircle, Trash2, Keyboard, LayoutGrid, BarChart3, Package as PackageIcon, RotateCcw, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -27,6 +27,7 @@ import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
+import { FloatingCashTally } from "@/components/FloatingCashTally";
 
 interface POSLayoutProps {
   children: ReactNode;
@@ -40,6 +41,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const { onNewSale, onClearCart, onOpenCashierReport, onOpenStockReport, onOpenSaleReturn, hasItems } = usePOS();
   const { isOpen, setIsOpen } = useKeyboardShortcuts("pos");
   const [showSizeStock, setShowSizeStock] = useState(false);
+  const [showCashTally, setShowCashTally] = useState(false);
 
   const handleSignOut = async () => {
     const slug = currentOrganization?.slug || orgSlug;
@@ -215,6 +217,22 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
               <TooltipTrigger asChild>
                 <Button 
                   variant="ghost" 
+                  size="sm" 
+                  onClick={() => setShowCashTally(true)}
+                  className="text-primary-foreground hover:bg-primary/80 gap-1"
+                >
+                  <Wallet className="h-4 w-4" />
+                  <span className="hidden sm:inline">Cash Tally</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
+                <p>Daily Cash Tally</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
                   size="icon" 
                   onClick={() => setIsOpen(true)}
                   className="text-primary-foreground hover:bg-primary/80 h-8 w-8"
@@ -244,6 +262,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
       
       <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="pos" />
       <SizeStockDialog open={showSizeStock} onOpenChange={setShowSizeStock} />
+      <FloatingCashTally open={showCashTally} onOpenChange={setShowCashTally} />
     </div>
   );
 };
