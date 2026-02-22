@@ -73,8 +73,8 @@ export const useUserPermissions = () => {
     return permissions.special?.[permissionId] === true;
   };
 
-  // Check if user is admin (has full access)
-  const isAdmin = organizationRole === "admin";
+  // Check if user is admin with full access (only when no custom permissions are set)
+  const isAdmin = organizationRole === "admin" && permissions === null;
 
   return {
     permissions,
