@@ -234,8 +234,7 @@ const UserRights = () => {
       const { data: orgMembers } = await supabase
         .from("organization_members")
         .select("*")
-        .eq("organization_id", currentOrganization.id)
-        .neq("role", "admin");
+        .eq("organization_id", currentOrganization.id);
       
       const users = response.data?.users || response.data || [];
       const membersWithEmail = (orgMembers || []).map((member: any) => {
