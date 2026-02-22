@@ -1,5 +1,5 @@
 import { ReactNode, useState } from "react";
-import { Menu, Home, Package, ShoppingCart, FileText, Settings, LogOut, Store, PlusCircle, Trash2, Keyboard, LayoutGrid, BarChart3, Package as PackageIcon, RotateCcw, Wallet } from "lucide-react";
+import { Menu, Home, Package, ShoppingCart, FileText, Settings, LogOut, Store, PlusCircle, Trash2, Keyboard, LayoutGrid, BarChart3, Package as PackageIcon, RotateCcw, Wallet, Banknote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -28,6 +28,7 @@ import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
 import { FloatingCashTally } from "@/components/FloatingCashTally";
+import { FloatingPayments } from "@/components/FloatingPayments";
 
 interface POSLayoutProps {
   children: ReactNode;
@@ -42,6 +43,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const { isOpen, setIsOpen } = useKeyboardShortcuts("pos");
   const [showSizeStock, setShowSizeStock] = useState(false);
   const [showCashTally, setShowCashTally] = useState(false);
+  const [showPayments, setShowPayments] = useState(false);
 
   const handleSignOut = async () => {
     const slug = currentOrganization?.slug || orgSlug;
@@ -233,6 +235,22 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
               <TooltipTrigger asChild>
                 <Button 
                   variant="ghost" 
+                  size="sm" 
+                  onClick={() => setShowPayments(true)}
+                  className="text-primary-foreground hover:bg-primary/80 gap-1"
+                >
+                  <Banknote className="h-4 w-4" />
+                  <span className="hidden sm:inline">Payments</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
+                <p>Quick Payments (Receipt / Supplier / Expense)</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
                   size="icon" 
                   onClick={() => setIsOpen(true)}
                   className="text-primary-foreground hover:bg-primary/80 h-8 w-8"
@@ -263,6 +281,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
       <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="pos" />
       <SizeStockDialog open={showSizeStock} onOpenChange={setShowSizeStock} />
       <FloatingCashTally open={showCashTally} onOpenChange={setShowCashTally} />
+      <FloatingPayments open={showPayments} onOpenChange={setShowPayments} />
     </div>
   );
 };
