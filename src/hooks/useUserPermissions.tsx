@@ -23,12 +23,7 @@ export const useUserPermissions = () => {
         return;
       }
 
-      // Admin users have full access - no need to check permissions
-      if (organizationRole === "admin") {
-        setPermissions(null); // null means full access
-        setLoading(false);
-        return;
-      }
+      // For all users (including admin), check if custom permissions exist
 
       try {
         const { data, error } = await supabase
@@ -44,7 +39,7 @@ export const useUserPermissions = () => {
           const perms = data.permissions as unknown as UserPermissions;
           setPermissions(perms);
         } else {
-          // No permissions set - use defaults for role
+          // No custom permissions set - admin gets full access, others get defaults
           setPermissions(null);
         }
       } catch (error) {
