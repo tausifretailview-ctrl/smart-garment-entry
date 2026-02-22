@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -188,6 +188,18 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
   const LAST_PRODUCT_KEY = `last_product_details_${currentOrganization?.id || ''}`;
 
+  // Get last product name for placeholder hint
+  const lastProductNameHint = useMemo(() => {
+    try {
+      const stored = localStorage.getItem(LAST_PRODUCT_KEY);
+      if (stored) {
+        const p = JSON.parse(stored);
+        if (p.product_name) return `Last: ${p.product_name}`;
+      }
+    } catch {}
+    return "Enter product name";
+  }, [LAST_PRODUCT_KEY, open]);
+
   const resetForm = () => {
     // Try to load last saved product details for pre-fill
     let lastProduct: Partial<ProductForm> = {};
@@ -224,6 +236,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const saveLastProductDetails = () => {
     try {
       const toStore: Partial<ProductForm> = {
+        product_name: formData.product_name,
         category: formData.category,
         brand: formData.brand,
         style: formData.style,
@@ -984,7 +997,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     id="product_name"
                     value={formData.product_name}
                     onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
-                    placeholder="Enter product name"
+                    placeholder={lastProductNameHint}
                   />
                 </div>
 
