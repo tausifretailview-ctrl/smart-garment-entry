@@ -18,6 +18,7 @@ const FeeCollection = () => {
   const { currentOrganization } = useOrganization();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [classFilter, setClassFilter] = useState<string>("all");
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
@@ -176,6 +177,20 @@ const FeeCollection = () => {
     enabled: !!currentOrganization?.id,
   });
 
+  // Fetch classes for filter
+  const { data: classes } = useQuery({
+    queryKey: ["school-classes-filter", currentOrganization?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("school_classes")
+        .select("id, class_name")
+        .eq("organization_id", currentOrganization!.id)
+        .order("display_order", { ascending: true });
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
   const handleCollect = (student: any) => {
     setSelectedStudent(student);
     setDialogOpen(true);
@@ -266,6 +281,7 @@ const FeeCollection = () => {
   };
 
   const filteredStudents = (students || []).filter((s: any) => {
+    if (classFilter !== "all" && s.class_id !== classFilter) return false;
     if (statusFilter === "all") return true;
     if (statusFilter === "paid") return s.feeStatus === "paid" || (s.totalDue === 0 && s.feeStatus === "no-structure");
     if (statusFilter === "pending") return s.feeStatus === "pending" || s.feeStatus === "partial";
@@ -342,20 +358,7 @@ const FeeCollection = () => {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
             <CardTitle>Student Fee Status</CardTitle>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-36">
-                <SelectValue placeholder="All Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="paid">Paid</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="partial">Partial</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
             <div className="relative w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -365,6 +368,30 @@ const FeeCollection = () => {
                 className="pl-9"
               />
             </div>
+          </div>
+          <div className="flex items-center gap-3 pt-2">
+            <Select value={classFilter} onValueChange={setClassFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="All Classes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Classes</SelectItem>
+                {(classes || []).map((c: any) => (
+                  <SelectItem key={c.id} value={c.id}>{c.class_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-36">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="paid">Paid</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="partial">Partial</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
         <CardContent>
@@ -380,7 +407,7 @@ const FeeCollection = () => {
             </div>
           ) : (
             <Table>
-              <TableHeader className="bg-sidebar">
+              <TableHeader>
                 <TableRow>
                   <TableHead>Admission No</TableHead>
                   <TableHead>Student Name</TableHead>
