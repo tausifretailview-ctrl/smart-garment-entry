@@ -19,6 +19,8 @@ const FeeCollection = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [classFilter, setClassFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 50;
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
@@ -114,7 +116,7 @@ const FeeCollection = () => {
 
       let query = supabase
         .from("students")
-        .select(`*, school_classes:class_id (class_name)`)
+        .select(`*, school_classes:class_id (class_name)`, { count: "exact" })
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .order("student_name", { ascending: true });
@@ -123,7 +125,7 @@ const FeeCollection = () => {
         query = query.or(`student_name.ilike.%${searchQuery}%,admission_number.ilike.%${searchQuery}%,parent_phone.ilike.%${searchQuery}%`);
       }
 
-      const { data, error } = await query.limit(50);
+      const { data, error, count } = await query;
       if (error) throw error;
 
       if (!data?.length) return data || [];
@@ -289,6 +291,24 @@ const FeeCollection = () => {
     return true;
   });
 
+  // Status counts
+  const statusCounts = {
+    total: filteredStudents.length,
+    paid: filteredStudents.filter((s: any) => s.feeStatus === "paid" || (s.totalDue === 0 && s.feeStatus === "no-structure")).length,
+    pending: filteredStudents.filter((s: any) => s.feeStatus === "pending").length,
+    partial: filteredStudents.filter((s: any) => s.feeStatus === "partial").length,
+  };
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / pageSize));
+  const paginatedStudents = filteredStudents.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  // Reset page when filters change
+  const handleFilterChange = (setter: (v: string) => void, value: string) => {
+    setter(value);
+    setCurrentPage(1);
+  };
+
   if (!currentOrganization) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -370,7 +390,7 @@ const FeeCollection = () => {
             </div>
           </div>
           <div className="flex items-center gap-3 pt-2">
-            <Select value={classFilter} onValueChange={setClassFilter}>
+            <Select value={classFilter} onValueChange={(v) => handleFilterChange(setClassFilter, v)}>
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="All Classes" />
               </SelectTrigger>
@@ -381,7 +401,7 @@ const FeeCollection = () => {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={statusFilter} onValueChange={(v) => handleFilterChange(setStatusFilter, v)}>
               <SelectTrigger className="w-36">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
@@ -392,6 +412,12 @@ const FeeCollection = () => {
                 <SelectItem value="partial">Partial</SelectItem>
               </SelectContent>
             </Select>
+            <div className="flex items-center gap-2 ml-auto text-sm">
+              <Badge variant="success">{statusCounts.paid} Paid</Badge>
+              <Badge variant="destructive">{statusCounts.pending} Pending</Badge>
+              <Badge variant="warning">{statusCounts.partial} Partial</Badge>
+              <Badge variant="secondary">Total: {statusCounts.total}</Badge>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -409,6 +435,7 @@ const FeeCollection = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-14">Sr.No</TableHead>
                   <TableHead>Admission No</TableHead>
                   <TableHead>Student Name</TableHead>
                   <TableHead>Class</TableHead>
@@ -419,8 +446,9 @@ const FeeCollection = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredStudents.map((student: any) => (
+                {paginatedStudents.map((student: any, index: number) => (
                   <TableRow key={student.id}>
+                    <TableCell className="text-muted-foreground">{(currentPage - 1) * pageSize + index + 1}</TableCell>
                     <TableCell className="font-medium">{student.admission_number}</TableCell>
                     <TableCell>{student.student_name}</TableCell>
                     <TableCell>
@@ -460,6 +488,32 @@ const FeeCollection = () => {
                 ))}
               </TableBody>
             </Table>
+          )}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-4">
+              <p className="text-sm text-muted-foreground">
+                Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filteredStudents.length)} of {filteredStudents.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm">Page {currentPage} of {totalPages}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
