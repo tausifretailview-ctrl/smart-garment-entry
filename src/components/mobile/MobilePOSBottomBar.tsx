@@ -63,7 +63,7 @@ export const MobilePOSBottomBar = ({
             value={flatDiscountValue || ''}
             onChange={(e) => onFlatDiscountValueChange(Number(e.target.value) || 0)}
             placeholder="Discount"
-            className="h-8 w-24 bg-primary-foreground/20 border-primary-foreground/30 text-primary-foreground placeholder:text-primary-foreground/50 text-sm"
+            className="h-8 w-32 bg-primary-foreground/20 border-primary-foreground/30 text-primary-foreground placeholder:text-primary-foreground/50 text-sm"
           />
           <Button
             variant="ghost"

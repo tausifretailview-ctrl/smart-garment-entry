@@ -2827,7 +2827,7 @@ export default function POSSales() {
           
           <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
             <PopoverTrigger asChild>
-              <div className="relative w-52">
+              <div className="relative w-72">
                 <div className="flex items-center justify-between mb-1">
                   <Label className="text-sm font-medium">Customer Name</Label>
                   {/* Customer Balance Display - on top of label */}
@@ -3430,7 +3430,7 @@ export default function POSSales() {
                 </Button>
                 <Input 
                   type="number"
-                  className="w-16 h-8 bg-white text-black text-center text-base font-semibold" 
+                  className="w-24 h-8 bg-white text-black text-center text-base font-semibold" 
                   value={flatDiscountValue || ""}
                   placeholder="0"
                   onChange={(e) => setFlatDiscountValue(parseFloat(e.target.value) || 0)}
