@@ -82,6 +82,7 @@ const menuStructure = [
       { id: "price_history", name: "Price History Report" },
       { id: "sales_analytics", name: "Sales Analytics Dashboard" },
       { id: "tally_export", name: "Tally Export" },
+      { id: "daily_tally", name: "Daily Tally" },
     ],
   },
   {
@@ -168,6 +169,7 @@ const defaultManagerPermissions: Record<string, boolean> = {
   price_history: true,
   sales_analytics: true,
   tally_export: true,
+  daily_tally: true,
   delivery_dashboard: true,
   delivery_update: true,
   delivery_whatsapp: true,
