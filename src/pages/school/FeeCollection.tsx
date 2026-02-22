@@ -76,7 +76,7 @@ const FeeCollection = () => {
 
       const { data: allStudents } = await supabase
         .from("students")
-        .select("id, class_id")
+        .select("id, class_id, closing_fees_balance")
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null);
 
@@ -88,22 +88,15 @@ const FeeCollection = () => {
 
       const totalPaid = (allPayments || []).reduce((s: number, r: any) => s + (r.paid_amount || 0), 0);
 
-      // Rough pending calculation
-      // Sum structures per class × students in that class
-      const classStructures = new Map<string, number>();
-      (allStructures || []).forEach((s: any) => {
-        // We don't have class_id here from the query, but for a rough estimate:
-        const mult = s.frequency === "monthly" ? 12 : s.frequency === "quarterly" ? 4 : 1;
-        // This is total per structure row; can be improved but gives useful estimate
-      });
-
-      // Simpler: just count total expected from structures * student count as rough
       const totalExpected = (allStructures || []).reduce((s: number, r: any) => {
         const mult = r.frequency === "monthly" ? 12 : r.frequency === "quarterly" ? 4 : 1;
         return s + r.amount * mult;
       }, 0);
-      // This is per-class total, multiply by avg students... for simplicity just show totalExpected - totalPaid
-      const pending = Math.max(0, totalExpected - totalPaid);
+
+      // Add imported balances from students who don't have fee structures
+      const totalImportedBalance = (allStudents || []).reduce((s: number, st: any) => s + (st.closing_fees_balance || 0), 0);
+
+      const pending = Math.max(0, (totalExpected > 0 ? totalExpected : totalImportedBalance) - totalPaid);
 
       return { today: todayTotal, month: monthTotal, pending };
     },
@@ -168,10 +161,14 @@ const FeeCollection = () => {
           .filter((p: any) => p.student_id === student.id)
           .reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
 
-        const totalDue = Math.max(0, totalExpected - totalPaid);
-        const status = totalExpected === 0 ? "no-structure" : totalDue === 0 ? "paid" : totalPaid > 0 ? "partial" : "pending";
+        // Use closing_fees_balance (from imported balance) as fallback when no fee structures exist
+        const importedBalance = student.closing_fees_balance || 0;
+        const hasStructures = totalExpected > 0;
+        const totalDue = hasStructures ? Math.max(0, totalExpected - totalPaid) : Math.max(0, importedBalance - totalPaid);
+        const effectiveExpected = hasStructures ? totalExpected : importedBalance;
+        const status = effectiveExpected === 0 ? "no-structure" : totalDue === 0 ? "paid" : totalPaid > 0 ? "partial" : "pending";
 
-        return { ...student, totalExpected, totalPaid, totalDue, feeStatus: status };
+        return { ...student, totalExpected: effectiveExpected, totalPaid, totalDue, feeStatus: status };
       });
     },
     enabled: !!currentOrganization?.id,

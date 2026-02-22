@@ -23,6 +23,7 @@ interface Student {
   class_id: string | null;
   parent_phone: string | null;
   parent_name: string | null;
+  closing_fees_balance?: number | null;
   school_classes?: { class_name: string } | null;
   school_sections?: { section_name: string } | null;
 }
@@ -108,15 +109,19 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
   const { isLoading } = useQuery({
     queryKey: ["student-fee-details", student?.id, student?.class_id, currentYear?.id],
     queryFn: async () => {
-      if (!student?.class_id || !currentYear?.id) return [];
+      if (!currentYear?.id) return [];
 
-      // Get fee structures for this class
-      const { data: structures } = await supabase
-        .from("fee_structures")
-        .select("*, fee_heads!inner(head_name)")
-        .eq("organization_id", currentOrganization!.id)
-        .eq("academic_year_id", currentYear.id)
-        .eq("class_id", student.class_id);
+      // Get fee structures for this class (if class assigned)
+      let structures: any[] = [];
+      if (student?.class_id) {
+        const { data } = await supabase
+          .from("fee_structures")
+          .select("*, fee_heads!inner(head_name)")
+          .eq("organization_id", currentOrganization!.id)
+          .eq("academic_year_id", currentYear.id)
+          .eq("class_id", student.class_id);
+        structures = data || [];
+      }
 
       // Get existing payments for this student
       const { data: payments } = await supabase
@@ -148,10 +153,28 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         };
       });
 
+      // If no fee structures found, use closing_fees_balance as a single "Imported Balance" item
+      if (items.length === 0 && student.closing_fees_balance && student.closing_fees_balance > 0) {
+        const totalPaidAll = (payments || []).reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
+        const importedBalance = student.closing_fees_balance - totalPaidAll;
+        if (importedBalance > 0) {
+          items.push({
+            fee_head_id: "__imported_balance__",
+            head_name: "Fees Balance (Imported)",
+            structure_amount: student.closing_fees_balance,
+            already_paid: totalPaidAll,
+            balance: importedBalance,
+            selected: true,
+            paying: importedBalance,
+            fee_structure_id: "__imported__",
+          });
+        }
+      }
+
       setFeeItems(items);
       return items;
     },
-    enabled: !!student?.id && !!student?.class_id && !!currentYear?.id && open,
+    enabled: !!student?.id && !!currentYear?.id && open,
   });
 
   const totalPaying = feeItems
@@ -170,11 +193,12 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
 
       for (const item of selectedItems) {
         const newStatus = item.paying >= item.balance ? "paid" : "partial";
+        const isImported = item.fee_head_id === "__imported_balance__";
         const { error } = await supabase.from("student_fees").insert({
           organization_id: currentOrganization.id,
           student_id: student.id,
-          fee_head_id: item.fee_head_id,
-          fee_structure_id: item.fee_structure_id,
+          fee_head_id: isImported ? null : item.fee_head_id,
+          fee_structure_id: isImported ? null : item.fee_structure_id,
           academic_year_id: currentYear.id,
           amount: item.structure_amount,
           paid_amount: item.paying,
