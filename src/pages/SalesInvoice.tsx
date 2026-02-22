@@ -34,6 +34,7 @@ import { BackToDashboard } from "@/components/BackToDashboard";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 
 import { useReactToPrint } from "react-to-print";
+import { useDirectPrint } from "@/hooks/useDirectPrint";
 import {
   Command,
   CommandEmpty,
@@ -181,6 +182,7 @@ export default function SalesInvoice() {
   
   // Product history dialog state
   const [historyProduct, setHistoryProduct] = useState<{ id: string; name: string } | null>(null);
+
 
 
   // Draft save hook
@@ -373,6 +375,11 @@ export default function SalesInvoice() {
     },
     enabled: !!currentOrganization?.id,
   });
+
+  // Direct print hook
+  const { isDirectPrintEnabled, directPrint } = useDirectPrint(
+    (settingsData as any)?.bill_barcode_settings
+  );
 
   // Fetch products with variants and size groups
   const { data: productsData } = useQuery({
@@ -1858,7 +1865,28 @@ Thank you for choosing us!`;
   const handlePrintInvoice = async () => {
     if (!savedInvoiceData || !currentOrganization?.id) return;
     
-    // Trigger print
+    // Try QZ Tray direct print first
+    if (isDirectPrintEnabled) {
+      setTimeout(async () => {
+        const saleSettings = (settingsData as any)?.sale_settings;
+        const billFormat = saleSettings?.sales_bill_format || 'a4';
+        const paperSize = billFormat === 'thermal' ? '80mm' : billFormat === 'a5' ? 'A5' : 'A4';
+        await directPrint(printRef.current, {
+          context: 'sale',
+          paperSize,
+          onFallback: () => {
+            handlePrint();
+          },
+          onSuccess: () => {
+            setSavedInvoiceData(null);
+            setShowPrintDialog(false);
+          },
+        });
+      }, 150);
+      return;
+    }
+    
+    // Fallback: browser print
     setTimeout(() => {
       handlePrint();
     }, 100);
