@@ -41,9 +41,9 @@ const parsePaymentMode = (desc: string) => {
 };
 
 interface PaymentBreakdown {
-  cash: number; upi: number; card: number; bank: number; total: number;
+  cash: number; upi: number; card: number; bank: number; credit: number; total: number;
 }
-const emptyBreakdown = (): PaymentBreakdown => ({ cash: 0, upi: 0, card: 0, bank: 0, total: 0 });
+const emptyBreakdown = (): PaymentBreakdown => ({ cash: 0, upi: 0, card: 0, bank: 0, credit: 0, total: 0 });
 
 const DENOMINATIONS = [2000, 500, 200, 100, 50] as const;
 const DEFAULT_DENOM_COUNTS: Record<number, number> = { 2000: 0, 500: 0, 200: 0, 100: 0, 50: 0 };
@@ -248,7 +248,7 @@ const DailyTally = () => {
           case "cash": target.cash += Number(s.cash_amount) || net; break;
           case "card": target.card += Number(s.card_amount) || net; break;
           case "upi": target.upi += Number(s.upi_amount) || net; break;
-          case "pay_later": break; // credit — not a mode column
+          case "pay_later": target.credit += net; break;
           default: target.cash += net;
         }
       }
@@ -302,7 +302,7 @@ const DailyTally = () => {
   const totalIn = useMemo(() => {
     const b = emptyBreakdown();
     [aggregated.posSales, aggregated.invoiceSales, aggregated.receipts, aggregated.advances].forEach(s => {
-      b.cash += s.cash; b.upi += s.upi; b.card += s.card; b.bank += s.bank; b.total += s.total;
+      b.cash += s.cash; b.upi += s.upi; b.card += s.card; b.bank += s.bank; b.credit += s.credit; b.total += s.total;
     });
     return b;
   }, [aggregated]);
@@ -310,7 +310,7 @@ const DailyTally = () => {
   const totalOut = useMemo(() => {
     const b = emptyBreakdown();
     [aggregated.supplierPayments, aggregated.expenses, aggregated.employeeSalary, aggregated.saleReturnRefunds].forEach(s => {
-      b.cash += s.cash; b.upi += s.upi; b.card += s.card; b.bank += s.bank; b.total += s.total;
+      b.cash += s.cash; b.upi += s.upi; b.card += s.card; b.bank += s.bank; b.credit += s.credit; b.total += s.total;
     });
     return b;
   }, [aggregated]);
@@ -381,19 +381,19 @@ const DailyTally = () => {
       [`Daily Tally — ${format(selectedDate, "dd MMM yyyy")}`],
       [settings?.business_name || ""],
       [],
-      ["MONEY IN", "Cash", "UPI", "Card", "Bank", "Total"],
-      ["POS Sales", aggregated.posSales.cash, aggregated.posSales.upi, aggregated.posSales.card, aggregated.posSales.bank, aggregated.posSales.total],
-      ["Sales Invoice", aggregated.invoiceSales.cash, aggregated.invoiceSales.upi, aggregated.invoiceSales.card, aggregated.invoiceSales.bank, aggregated.invoiceSales.total],
-      ["Old Balance Received", aggregated.receipts.cash, aggregated.receipts.upi, aggregated.receipts.card, aggregated.receipts.bank, aggregated.receipts.total],
-      ["Advance Received", aggregated.advances.cash, aggregated.advances.upi, aggregated.advances.card, aggregated.advances.bank, aggregated.advances.total],
-      ["Total Inward", totalIn.cash, totalIn.upi, totalIn.card, totalIn.bank, totalIn.total],
+      ["MONEY IN", "Cash", "UPI", "Card", "Bank", "Credit", "Total"],
+      ["POS Sales", aggregated.posSales.cash, aggregated.posSales.upi, aggregated.posSales.card, aggregated.posSales.bank, aggregated.posSales.credit, aggregated.posSales.total],
+      ["Sales Invoice", aggregated.invoiceSales.cash, aggregated.invoiceSales.upi, aggregated.invoiceSales.card, aggregated.invoiceSales.bank, aggregated.invoiceSales.credit, aggregated.invoiceSales.total],
+      ["Old Balance Received", aggregated.receipts.cash, aggregated.receipts.upi, aggregated.receipts.card, aggregated.receipts.bank, aggregated.receipts.credit, aggregated.receipts.total],
+      ["Advance Received", aggregated.advances.cash, aggregated.advances.upi, aggregated.advances.card, aggregated.advances.bank, aggregated.advances.credit, aggregated.advances.total],
+      ["Total Inward", totalIn.cash, totalIn.upi, totalIn.card, totalIn.bank, totalIn.credit, totalIn.total],
       [],
-      ["MONEY OUT", "Cash", "UPI", "Card", "Bank", "Total"],
-      ["Supplier Payment", aggregated.supplierPayments.cash, aggregated.supplierPayments.upi, aggregated.supplierPayments.card, aggregated.supplierPayments.bank, aggregated.supplierPayments.total],
-      ["Shop Expense", aggregated.expenses.cash, aggregated.expenses.upi, aggregated.expenses.card, aggregated.expenses.bank, aggregated.expenses.total],
-      ["Employee Salary", aggregated.employeeSalary.cash, aggregated.employeeSalary.upi, aggregated.employeeSalary.card, aggregated.employeeSalary.bank, aggregated.employeeSalary.total],
-      ["Sale Return Refund", aggregated.saleReturnRefunds.cash, aggregated.saleReturnRefunds.upi, aggregated.saleReturnRefunds.card, aggregated.saleReturnRefunds.bank, aggregated.saleReturnRefunds.total],
-      ["Total Outward", totalOut.cash, totalOut.upi, totalOut.card, totalOut.bank, totalOut.total],
+      ["MONEY OUT", "Cash", "UPI", "Card", "Bank", "Credit", "Total"],
+      ["Supplier Payment", aggregated.supplierPayments.cash, aggregated.supplierPayments.upi, aggregated.supplierPayments.card, aggregated.supplierPayments.bank, aggregated.supplierPayments.credit, aggregated.supplierPayments.total],
+      ["Shop Expense", aggregated.expenses.cash, aggregated.expenses.upi, aggregated.expenses.card, aggregated.expenses.bank, aggregated.expenses.credit, aggregated.expenses.total],
+      ["Employee Salary", aggregated.employeeSalary.cash, aggregated.employeeSalary.upi, aggregated.employeeSalary.card, aggregated.employeeSalary.bank, aggregated.employeeSalary.credit, aggregated.employeeSalary.total],
+      ["Sale Return Refund", aggregated.saleReturnRefunds.cash, aggregated.saleReturnRefunds.upi, aggregated.saleReturnRefunds.card, aggregated.saleReturnRefunds.bank, aggregated.saleReturnRefunds.credit, aggregated.saleReturnRefunds.total],
+      ["Total Outward", totalOut.cash, totalOut.upi, totalOut.card, totalOut.bank, totalOut.credit, totalOut.total],
       [],
       ["CASH RECONCILIATION"],
       ["Opening Cash", openingCash],
@@ -420,6 +420,7 @@ const DailyTally = () => {
       <TableCell className="text-right tabular-nums">{fmt(data.upi)}</TableCell>
       <TableCell className="text-right tabular-nums">{fmt(data.card)}</TableCell>
       <TableCell className="text-right tabular-nums">{fmt(data.bank)}</TableCell>
+      <TableCell className="text-right tabular-nums">{fmt(data.credit)}</TableCell>
       <TableCell className="text-right tabular-nums font-semibold">{fmt(data.total)}</TableCell>
     </TableRow>
   );
@@ -513,6 +514,7 @@ const DailyTally = () => {
                   <TableHead className="text-right">UPI</TableHead>
                   <TableHead className="text-right">Card</TableHead>
                   <TableHead className="text-right">Bank</TableHead>
+                  <TableHead className="text-right">Credit</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                 </TableRow>
               </TableHeader>
@@ -547,6 +549,7 @@ const DailyTally = () => {
                   <TableHead className="text-right">UPI</TableHead>
                   <TableHead className="text-right">Card</TableHead>
                   <TableHead className="text-right">Bank</TableHead>
+                  <TableHead className="text-right">Credit</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                 </TableRow>
               </TableHeader>

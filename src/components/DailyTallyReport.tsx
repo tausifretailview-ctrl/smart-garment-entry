@@ -2,7 +2,7 @@ import React from "react";
 import { format } from "date-fns";
 
 interface PaymentBreakdown {
-  cash: number; upi: number; card: number; bank: number; total: number;
+  cash: number; upi: number; card: number; bank: number; credit: number; total: number;
 }
 
 interface DailyTallyReportProps {
@@ -48,6 +48,7 @@ const DailyTallyReport = React.forwardRef<HTMLDivElement, DailyTallyReportProps>
         <td style={{ padding: "4px 8px", textAlign: "right" }}>{fmt(data.upi)}</td>
         <td style={{ padding: "4px 8px", textAlign: "right" }}>{fmt(data.card)}</td>
         <td style={{ padding: "4px 8px", textAlign: "right" }}>{fmt(data.bank)}</td>
+        <td style={{ padding: "4px 8px", textAlign: "right" }}>{fmt(data.credit)}</td>
         <td style={{ padding: "4px 8px", textAlign: "right", fontWeight: 700 }}>{fmt(data.total)}</td>
       </tr>
     );
@@ -79,6 +80,7 @@ const DailyTallyReport = React.forwardRef<HTMLDivElement, DailyTallyReportProps>
               <th style={{ textAlign: "right", padding: "4px 8px" }}>UPI</th>
               <th style={{ textAlign: "right", padding: "4px 8px" }}>Card</th>
               <th style={{ textAlign: "right", padding: "4px 8px" }}>Bank</th>
+              <th style={{ textAlign: "right", padding: "4px 8px" }}>Credit</th>
               <th style={{ textAlign: "right", padding: "4px 8px" }}>Total</th>
             </tr>
           </thead>
@@ -101,6 +103,7 @@ const DailyTallyReport = React.forwardRef<HTMLDivElement, DailyTallyReportProps>
               <th style={{ textAlign: "right", padding: "4px 8px" }}>UPI</th>
               <th style={{ textAlign: "right", padding: "4px 8px" }}>Card</th>
               <th style={{ textAlign: "right", padding: "4px 8px" }}>Bank</th>
+              <th style={{ textAlign: "right", padding: "4px 8px" }}>Credit</th>
               <th style={{ textAlign: "right", padding: "4px 8px" }}>Total</th>
             </tr>
           </thead>
