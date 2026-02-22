@@ -118,22 +118,38 @@ export function FeesBalanceImportDialog({ open, onOpenChange }: FeesBalanceImpor
       const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
       // Parse rows: detect class headers, then student rows
+      // Support two formats:
+      // 1. Class-grouped: class header rows followed by student rows
+      // 2. Flat CSV: just name,balance rows (no class headers)
       const parsed: { studentName: string; className: string; balance: number }[] = [];
       let currentClass = "";
+      let hasClassHeaders = false;
+
+      // First pass: check if any row is a class header
+      for (const row of rows) {
+        const firstCell = String(row[0] || "").trim();
+        if (firstCell && isClassHeader(firstCell)) {
+          hasClassHeaders = true;
+          break;
+        }
+      }
 
       for (const row of rows) {
         const firstCell = String(row[0] || "").trim();
         if (!firstCell) continue;
 
-        if (isClassHeader(firstCell)) {
+        if (hasClassHeaders && isClassHeader(firstCell)) {
           currentClass = CLASS_NAME_MAP[firstCell.toUpperCase()] || firstCell;
           continue;
         }
 
-        if (!currentClass) continue;
+        // Skip header row if it looks like column names
+        if (firstCell.toLowerCase() === "name" || firstCell.toLowerCase() === "student name" || firstCell.toLowerCase() === "student_name") continue;
+
+        if (hasClassHeaders && !currentClass) continue;
 
         const balance = parseFloat(String(row[1] || "0").replace(/[₹,]/g, "")) || 0;
-        parsed.push({ studentName: firstCell, className: currentClass, balance });
+        parsed.push({ studentName: firstCell, className: currentClass || "__ALL__", balance });
       }
 
       if (parsed.length === 0) {
@@ -164,25 +180,42 @@ export function FeesBalanceImportDialog({ open, onOpenChange }: FeesBalanceImpor
       }
 
       // Match: first try exact normalized name, then fuzzy (all Excel words found in DB name)
+      const allStudents = students || [];
       const matched: ParsedRow[] = parsed.map(p => {
-        const classId = classMap.get(p.className);
-        const classNameForDisplay = (classes || []).find(c => c.id === classId)?.class_name || p.className;
-        if (!classId) return { ...p, matchedClassName: classNameForDisplay };
-
-        const classStudents = studentsByClass.get(classId) || [];
+        const isFlat = p.className === "__ALL__";
         const excelNorm = normalizeName(p.studentName);
-        // Exact match first
-        let student = classStudents.find(s => normalizeName(s.student_name) === excelNorm);
-        // Fuzzy match: all Excel name words appear in DB name
-        if (!student) {
-          student = classStudents.find(s => fuzzyNameMatch(p.studentName, s.student_name));
+
+        let student: typeof allStudents[0] | undefined;
+        let matchedClassName = p.className;
+
+        if (isFlat) {
+          // Flat CSV: search across all students
+          student = allStudents.find(s => normalizeName(s.student_name) === excelNorm);
+          if (!student) {
+            student = allStudents.find(s => fuzzyNameMatch(p.studentName, s.student_name));
+          }
+          if (student) {
+            matchedClassName = (classes || []).find(c => c.id === student!.class_id)?.class_name || "";
+          } else {
+            matchedClassName = "";
+          }
+        } else {
+          const classId = classMap.get(p.className);
+          matchedClassName = (classes || []).find(c => c.id === classId)?.class_name || p.className;
+          if (!classId) return { ...p, matchedClassName };
+
+          const classStudents = studentsByClass.get(classId) || [];
+          student = classStudents.find(s => normalizeName(s.student_name) === excelNorm);
+          if (!student) {
+            student = classStudents.find(s => fuzzyNameMatch(p.studentName, s.student_name));
+          }
         }
 
         return {
           ...p,
           matchedStudentId: student?.id,
           matchedStudentName: student?.student_name,
-          matchedClassName: classNameForDisplay,
+          matchedClassName,
         };
       });
 
@@ -235,7 +268,7 @@ export function FeesBalanceImportDialog({ open, onOpenChange }: FeesBalanceImpor
         <DialogHeader>
           <DialogTitle>Import Closing Fees Balance</DialogTitle>
           <DialogDescription>
-            Upload an Excel file with class headers and student fee balances.
+            Upload an Excel or CSV file with student names and fee balances.
           </DialogDescription>
         </DialogHeader>
 
@@ -244,12 +277,12 @@ export function FeesBalanceImportDialog({ open, onOpenChange }: FeesBalanceImpor
             <div className="border-2 border-dashed rounded-lg p-8 text-center space-y-3">
               <Upload className="h-10 w-10 mx-auto text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
-                Select an Excel file (.xlsx) with class-wise fee balances
+                Select an Excel (.xlsx) or CSV file with student fee balances
               </p>
               <Input
                 ref={fileInputRef}
                 type="file"
-                accept=".xlsx,.xls"
+                accept=".xlsx,.xls,.csv"
                 onChange={handleFileSelect}
                 className="max-w-xs mx-auto"
               />
