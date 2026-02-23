@@ -133,35 +133,47 @@ export const printViaQZTray = async (
 export const extractInvoiceHTML = (ref: HTMLDivElement): string => {
   const clone = ref.cloneNode(true) as HTMLElement;
   
-  // Force visibility - parent container may have opacity:0 for off-screen rendering
+  // Force visibility
   clone.style.opacity = '1';
   clone.style.visibility = 'visible';
   clone.style.position = 'static';
   clone.style.pointerEvents = 'auto';
-  
-  // Get all stylesheets from the page (skip cross-origin ones)
-  const styles = Array.from(document.styleSheets)
-    .map(sheet => {
-      try {
-        return Array.from(sheet.cssRules)
-          .map(rule => rule.cssText)
-          .join('\n');
-      } catch {
-        // Cross-origin stylesheet - skip it
-        return '';
-      }
-    })
-    .join('\n');
 
-  // Build standalone HTML with forced visibility
+  // Inline computed styles on every element to avoid needing external stylesheets
+  // This keeps the HTML payload small and self-contained
+  const inlineStyles = (source: HTMLElement, target: HTMLElement) => {
+    const computed = window.getComputedStyle(source);
+    const important = [
+      'display', 'position', 'width', 'height', 'margin', 'padding',
+      'border', 'background', 'background-color', 'color', 'font-family',
+      'font-size', 'font-weight', 'line-height', 'text-align', 'text-decoration',
+      'vertical-align', 'box-sizing', 'flex-direction', 'justify-content',
+      'align-items', 'gap', 'grid-template-columns', 'overflow', 'white-space',
+      'word-break', 'border-collapse', 'border-spacing', 'table-layout',
+      'max-width', 'min-width', 'float', 'clear', 'opacity', 'visibility',
+      'letter-spacing', 'text-transform', 'border-radius', 'box-shadow',
+    ];
+    const styleStr = important.map(p => `${p}:${computed.getPropertyValue(p)}`).join(';');
+    target.setAttribute('style', (target.getAttribute('style') || '') + ';' + styleStr);
+    
+    const sourceChildren = source.children;
+    const targetChildren = target.children;
+    for (let i = 0; i < sourceChildren.length; i++) {
+      if (sourceChildren[i] instanceof HTMLElement && targetChildren[i] instanceof HTMLElement) {
+        inlineStyles(sourceChildren[i] as HTMLElement, targetChildren[i] as HTMLElement);
+      }
+    }
+  };
+
+  inlineStyles(ref, clone);
+
+  // Build lightweight standalone HTML - no external stylesheets needed
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
-  <style>${styles}</style>
   <style>
-    body { margin: 0; padding: 0; opacity: 1 !important; visibility: visible !important; }
-    * { opacity: 1 !important; visibility: visible !important; }
+    body { margin: 0; padding: 0; }
     @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
   </style>
 </head>
