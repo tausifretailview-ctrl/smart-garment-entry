@@ -3809,6 +3809,7 @@ export type Database = {
           net_amount: number
           notes: string | null
           organization_id: string
+          other_charges: number | null
           paid_amount: number | null
           payment_date: string | null
           payment_method: string
@@ -3862,6 +3863,7 @@ export type Database = {
           net_amount?: number
           notes?: string | null
           organization_id: string
+          other_charges?: number | null
           paid_amount?: number | null
           payment_date?: string | null
           payment_method: string
@@ -3915,6 +3917,7 @@ export type Database = {
           net_amount?: number
           notes?: string | null
           organization_id?: string
+          other_charges?: number | null
           paid_amount?: number | null
           payment_date?: string | null
           payment_method?: string
