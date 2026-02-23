@@ -2577,34 +2577,30 @@ Thank you for choosing us!`;
             <div className="flex justify-between text-[13px]"><span className="text-muted-foreground">Gross Amount:</span><span className="font-medium">₹{grossAmount.toFixed(2)}</span></div>
             <div className="flex justify-between text-[13px]"><span className="text-muted-foreground">Line Discount:</span><span className="font-medium text-destructive">-₹{lineItemDiscount.toFixed(2)}</span></div>
             <div className="flex justify-between items-center text-[13px]">
-              <span className="text-muted-foreground">Flat Disc %:</span>
-              <div className="flex items-center gap-2">
+              <span className="text-muted-foreground whitespace-nowrap">Flat Disc:</span>
+              <div className="flex items-center gap-1.5">
                 <Input
                   type="number"
                   min="0"
                   max="100"
                   value={flatDiscountPercent || ""}
-                  placeholder="0"
+                  placeholder="%"
                   onChange={(e) => setFlatDiscountPercent(parseFloat(e.target.value) || 0)}
                   onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                  className="w-20 h-8 text-[13px]"
+                  className="w-16 h-8 text-[13px]"
                 />
-                {flatDiscountPercent > 0 && (
-                  <span className="text-xs text-muted-foreground">(-₹{flatDiscountPercentAmount.toFixed(2)})</span>
-                )}
+                <span className="text-muted-foreground text-xs">%</span>
+                <Input
+                  type="number"
+                  min="0"
+                  value={flatDiscountRupees || ""}
+                  placeholder="₹"
+                  onChange={(e) => setFlatDiscountRupees(parseFloat(e.target.value) || 0)}
+                  onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                  className="w-16 h-8 text-[13px]"
+                />
+                <span className="text-muted-foreground text-xs">₹</span>
               </div>
-            </div>
-            <div className="flex justify-between items-center text-[13px]">
-              <span className="text-muted-foreground">Flat Disc ₹:</span>
-              <Input
-                type="number"
-                min="0"
-                value={flatDiscountRupees || ""}
-                placeholder="0"
-                onChange={(e) => setFlatDiscountRupees(parseFloat(e.target.value) || 0)}
-                onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                className="w-20 h-8 text-[13px]"
-              />
             </div>
             {(flatDiscountPercent > 0 || flatDiscountRupees > 0) && (
               <div className="flex justify-between text-[13px]">
