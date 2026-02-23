@@ -171,6 +171,7 @@ export default function SalesInvoice() {
   const [salesman, setSalesman] = useState<string>("");
   const [flatDiscountPercent, setFlatDiscountPercent] = useState<number>(0);
   const [flatDiscountRupees, setFlatDiscountRupees] = useState<number>(0);
+  const [otherCharges, setOtherCharges] = useState<number>(0);
   const [roundOff, setRoundOff] = useState<number>(0);
   const [nextInvoicePreview, setNextInvoicePreview] = useState<string>("");
   
@@ -216,6 +217,7 @@ export default function SalesInvoice() {
     setSalesman(data.salesman || "");
     setFlatDiscountPercent(data.flatDiscountPercent || 0);
     setFlatDiscountRupees(data.flatDiscountRupees || 0);
+    setOtherCharges(data.otherCharges || 0);
     setRoundOff(data.roundOff || 0);
     toast({
       title: "Draft Loaded",
@@ -254,10 +256,11 @@ export default function SalesInvoice() {
         salesman,
         flatDiscountPercent,
         flatDiscountRupees,
+        otherCharges,
         roundOff,
       });
     }
-  }, [invoiceDate, dueDate, lineItems, selectedCustomerId, selectedCustomer, paymentTerm, termsConditions, notes, shippingAddress, shippingInstructions, taxType, salesman, flatDiscountPercent, flatDiscountRupees, roundOff, editingInvoiceId, savedInvoiceData, updateCurrentData]);
+  }, [invoiceDate, dueDate, lineItems, selectedCustomerId, selectedCustomer, paymentTerm, termsConditions, notes, shippingAddress, shippingInstructions, taxType, salesman, flatDiscountPercent, flatDiscountRupees, otherCharges, roundOff, editingInvoiceId, savedInvoiceData, updateCurrentData]);
 
   // Start auto-save when not in edit mode
   useEffect(() => {
@@ -294,6 +297,7 @@ export default function SalesInvoice() {
           salesman,
           flatDiscountPercent,
           flatDiscountRupees,
+          otherCharges,
           roundOff,
         }, false);
       }
@@ -562,6 +566,7 @@ export default function SalesInvoice() {
       setSalesman(invoiceData.salesman || "");
       setFlatDiscountPercent(invoiceData.flat_discount_percent || 0);
       setFlatDiscountRupees(invoiceData.flat_discount_amount || 0);
+      setOtherCharges(invoiceData.other_charges || 0);
       setRoundOff(invoiceData.round_off || 0);
       
       // Transform sale items back to line items
@@ -1604,6 +1609,7 @@ Thank you for choosing us!`;
             discount_amount: lineItemDiscount,
             flat_discount_percent: flatDiscountPercent,
             flat_discount_amount: flatDiscountAmount,
+            other_charges: otherCharges,
             round_off: roundOff,
             net_amount: netAmount,
             due_date: dueDate.toISOString().split('T')[0],
@@ -1674,6 +1680,7 @@ Thank you for choosing us!`;
             discount_amount: lineItemDiscount,
             flat_discount_percent: flatDiscountPercent,
             flat_discount_amount: flatDiscountAmount,
+            other_charges: otherCharges,
             round_off: roundOff,
             net_amount: netAmount,
             payment_method: 'pay_later',
@@ -1828,6 +1835,7 @@ Thank you for choosing us!`;
         setSalesman("");
         setFlatDiscountPercent(0);
         setFlatDiscountRupees(0);
+        setOtherCharges(0);
         setRoundOff(0);
         setEditingInvoiceId(null);
         setOriginalItemsForEdit([]);
@@ -1912,7 +1920,7 @@ Thank you for choosing us!`;
   const flatDiscountPercentAmount = (grossAmount * flatDiscountPercent) / 100;
   const flatDiscountAmount = flatDiscountPercentAmount + flatDiscountRupees;
   const totalDiscount = lineItemDiscount + flatDiscountAmount;
-  const amountAfterDiscount = grossAmount - totalDiscount;
+  const amountAfterDiscount = grossAmount - totalDiscount + otherCharges;
   
   const totalGST = lineItems.reduce((sum, item) => {
     const baseAmount = item.salePrice * item.quantity - item.discountAmount;
@@ -2607,6 +2615,18 @@ Thank you for choosing us!`;
             {taxType === "exclusive" && (
               <div className="flex justify-between text-[13px]"><span className="text-muted-foreground">GST:</span><span className="font-medium">₹{totalGST.toFixed(2)}</span></div>
             )}
+            <div className="flex justify-between items-center text-[13px]">
+              <span className="text-muted-foreground">Other Charges:</span>
+              <Input
+                type="number"
+                min="0"
+                value={otherCharges || ""}
+                placeholder="0"
+                onChange={(e) => setOtherCharges(parseFloat(e.target.value) || 0)}
+                onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                className="w-20 h-8 text-[13px]"
+              />
+            </div>
             <div className="flex justify-between items-center text-[13px]">
               <span className="text-muted-foreground">Round Off:</span>
               <Input
