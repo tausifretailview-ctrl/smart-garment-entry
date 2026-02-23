@@ -52,7 +52,7 @@ export const FloatingWhatsAppInbox = () => {
   })();
 
   // Don't show if no permission, no org, or not on dashboard
-  if (permLoading || !hasSpecialPermission("whatsapp_api") || !currentOrganization || !isDashboard) {
+  if (permLoading || (!hasSpecialPermission("whatsapp_api") && !hasSpecialPermission("whatsapp_send")) || !currentOrganization || !isDashboard) {
     return null;
   }
 
