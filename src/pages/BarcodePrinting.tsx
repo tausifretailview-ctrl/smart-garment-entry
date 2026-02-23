@@ -4429,11 +4429,10 @@ export default function BarcodePrinting() {
             page-break-inside: avoid;
             break-inside: avoid;
             ${isThermal1Up() ? `
-              transform: scale(${printScale / 100});
-              transform-origin: top left;
               width: ${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm;
               height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm;
               overflow: hidden;
+              box-sizing: border-box;
             ` : ''}
           }
           
