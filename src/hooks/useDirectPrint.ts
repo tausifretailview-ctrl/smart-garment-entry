@@ -75,7 +75,17 @@ export const useDirectPrint = (billBarcodeSettings?: DirectPrintSettings | null)
 
       // Extract HTML from invoice ref
       if (!invoiceRef) {
-        toast.error('Invoice not rendered yet');
+        console.error('Direct print: invoiceRef is null - invoice not rendered yet');
+        toast.error('Invoice not rendered yet. Please try again.');
+        options.onFallback?.();
+        return false;
+      }
+
+      console.log('Direct print: extracting HTML from invoice ref, children:', invoiceRef.childNodes.length, 'innerHTML length:', invoiceRef.innerHTML.length);
+      
+      if (invoiceRef.innerHTML.length < 50) {
+        console.error('Direct print: invoice content appears empty');
+        toast.error('Invoice content not ready. Please try again.');
         options.onFallback?.();
         return false;
       }

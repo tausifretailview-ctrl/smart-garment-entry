@@ -133,7 +133,13 @@ export const printViaQZTray = async (
 export const extractInvoiceHTML = (ref: HTMLDivElement): string => {
   const clone = ref.cloneNode(true) as HTMLElement;
   
-  // Get all stylesheets from the page
+  // Force visibility - parent container may have opacity:0 for off-screen rendering
+  clone.style.opacity = '1';
+  clone.style.visibility = 'visible';
+  clone.style.position = 'static';
+  clone.style.pointerEvents = 'auto';
+  
+  // Get all stylesheets from the page (skip cross-origin ones)
   const styles = Array.from(document.styleSheets)
     .map(sheet => {
       try {
@@ -141,19 +147,21 @@ export const extractInvoiceHTML = (ref: HTMLDivElement): string => {
           .map(rule => rule.cssText)
           .join('\n');
       } catch {
+        // Cross-origin stylesheet - skip it
         return '';
       }
     })
     .join('\n');
 
-  // Build standalone HTML
+  // Build standalone HTML with forced visibility
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <style>${styles}</style>
   <style>
-    body { margin: 0; padding: 0; }
+    body { margin: 0; padding: 0; opacity: 1 !important; visibility: visible !important; }
+    * { opacity: 1 !important; visibility: visible !important; }
     @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
   </style>
 </head>
