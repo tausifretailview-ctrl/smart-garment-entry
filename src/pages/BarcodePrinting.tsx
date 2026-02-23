@@ -4410,17 +4410,31 @@ export default function BarcodePrinting() {
             left: 0; 
             top: 0;
             display: block !important;
-            transform: scale(${(printScale / 100) * getAutoFitScale()});
+            ${isThermal1Up() 
+              ? `transform: none;` 
+              : `transform: scale(${(printScale / 100) * getAutoFitScale()});`}
             transform-origin: top left;
           }
           
           .label-grid {
             page-break-after: auto;
+            ${isThermal1Up() ? `
+              width: ${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm;
+              height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm;
+              overflow: hidden;
+            ` : ''}
           }
           
           .label-cell {
             page-break-inside: avoid;
             break-inside: avoid;
+            ${isThermal1Up() ? `
+              transform: scale(${printScale / 100});
+              transform-origin: top left;
+              width: ${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm;
+              height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm;
+              overflow: hidden;
+            ` : ''}
           }
           
           /* Ensure business name and all fields print on every page */
