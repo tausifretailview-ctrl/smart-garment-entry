@@ -232,6 +232,7 @@ export default function Settings() {
     report_settings: {},
   });
 
+  const [detectedPrinters, setDetectedPrinters] = useState<string[]>([]);
   const [barcodeTemplates, setBarcodeTemplates] = useState<BarcodeTemplate[]>([]);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<BarcodeTemplate | null>(null);
@@ -3367,41 +3368,63 @@ export default function Settings() {
                       <>
                         <div className="space-y-2">
                           <Label>Sale Invoice Printer</Label>
-                          <Input
-                            placeholder="e.g., HP LaserJet Pro, EPSON TM-T82"
+                          <Select
                             value={settings.bill_barcode_settings?.direct_print_sale_printer || ''}
-                            onChange={(e) =>
+                            onValueChange={(value) =>
                               setSettings({
                                 ...settings,
                                 bill_barcode_settings: {
                                   ...settings.bill_barcode_settings,
-                                  direct_print_sale_printer: e.target.value,
+                                  direct_print_sale_printer: value,
                                 },
                               })
                             }
-                          />
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Click 'Detect Printers' first, then select..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {detectedPrinters.map(p => (
+                                <SelectItem key={p} value={p}>{p}</SelectItem>
+                              ))}
+                              {detectedPrinters.length === 0 && (
+                                <div className="p-2 text-sm text-muted-foreground">No printers detected. Click "Detect Printers" below.</div>
+                              )}
+                            </SelectContent>
+                          </Select>
                           <p className="text-xs text-muted-foreground">
-                            Printer name for Sale Invoice (A4/A5). Must match QZ Tray printer name exactly.
+                            Printer for Sale Invoice (A4/A5). Detect printers first, then select.
                           </p>
                         </div>
 
                         <div className="space-y-2">
                           <Label>POS Printer</Label>
-                          <Input
-                            placeholder="e.g., EPSON TM-T82, RUGTEK RP80"
+                          <Select
                             value={settings.bill_barcode_settings?.direct_print_pos_printer || ''}
-                            onChange={(e) =>
+                            onValueChange={(value) =>
                               setSettings({
                                 ...settings,
                                 bill_barcode_settings: {
                                   ...settings.bill_barcode_settings,
-                                  direct_print_pos_printer: e.target.value,
+                                  direct_print_pos_printer: value,
                                 },
                               })
                             }
-                          />
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Click 'Detect Printers' first, then select..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {detectedPrinters.map(p => (
+                                <SelectItem key={p} value={p}>{p}</SelectItem>
+                              ))}
+                              {detectedPrinters.length === 0 && (
+                                <div className="p-2 text-sm text-muted-foreground">No printers detected. Click "Detect Printers" below.</div>
+                              )}
+                            </SelectContent>
+                          </Select>
                           <p className="text-xs text-muted-foreground">
-                            Printer name for POS billing (thermal 80mm/58mm). Must match QZ Tray printer name exactly.
+                            Printer for POS billing (thermal 80mm/58mm). Supports shared printers (e.g., \\PC-NAME\PrinterShare).
                           </p>
                         </div>
 
@@ -3444,9 +3467,10 @@ export default function Settings() {
                                   variant: "destructive",
                                 });
                               } else {
+                                setDetectedPrinters(printers);
                                 toast({
-                                  title: "Printers Detected",
-                                  description: printers.join(', '),
+                                  title: `${printers.length} Printer(s) Detected`,
+                                  description: "Select your printers from the dropdowns above.",
                                 });
                               }
                             }}
@@ -3483,9 +3507,10 @@ export default function Settings() {
                           <p className="font-medium">Setup Requirements:</p>
                           <ul className="list-disc list-inside text-muted-foreground space-y-1">
                             <li>QZ Tray must be installed — <a href="https://qz.io/download/" target="_blank" rel="noopener noreferrer" className="text-primary underline">Download here</a></li>
-                            <li>Printer name must match exactly as shown in QZ Tray</li>
-                            <li>Click "Detect Printers" to see available printer names</li>
-                            <li>Existing PDF print preview remains available as fallback</li>
+                            <li>Click "Detect Printers" to auto-populate the dropdowns above</li>
+                            <li>Select your printers from the list, then click "Test Print"</li>
+                            <li>Shared printers (e.g., \\PC-NAME\PrinterShare) are also detected</li>
+                            <li>PDF print preview remains available as automatic fallback</li>
                           </ul>
                         </div>
                       </>
