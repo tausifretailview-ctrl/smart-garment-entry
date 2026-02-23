@@ -61,7 +61,7 @@ export function AppSidebar() {
   const { open } = useSidebar();
   const location = useLocation();
   const { canAccessSettings, canAccessPurchases, isPlatformAdmin, isAdmin } = useUserRoles();
-  const { hasMenuAccess, hasMainMenuAccess, isAdmin: isAdminPermissions, loading: permissionsLoading } = useUserPermissions();
+  const { hasMenuAccess, hasMainMenuAccess, hasSpecialPermission, isAdmin: isAdminPermissions, loading: permissionsLoading } = useUserPermissions();
   const { currentOrganization } = useOrganization();
   
   const isSchool = currentOrganization?.organization_type === "school";
@@ -909,7 +909,7 @@ export function AppSidebar() {
         <AIAssistantMenuItem open={open} />
 
         {/* WhatsApp Inbox */}
-        {(isAdminPermissions || hasMenuAccess("whatsapp_inbox")) && (
+        {(isAdminPermissions || hasMenuAccess("whatsapp_inbox") || hasSpecialPermission("whatsapp_send")) && (
           <SidebarGroup>
             <SidebarMenu>
               <SidebarMenuItem>
