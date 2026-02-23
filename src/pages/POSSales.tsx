@@ -1562,6 +1562,7 @@ export default function POSSales() {
       if (isDirectPrintEnabled && isAutoPrintEnabled) {
         // Set data first, then trigger print after render
         setTimeout(async () => {
+          console.log('Direct print: auto-print triggered, invoicePrintRef:', !!invoicePrintRef.current, 'innerHTML length:', invoicePrintRef.current?.innerHTML?.length || 0);
           const paperSize = posBillFormat === 'thermal' ? '80mm' : posBillFormat === 'a5' || posBillFormat === 'a5-horizontal' ? 'A5' : 'A4';
           await directPrint(invoicePrintRef.current, {
             context: 'pos',
@@ -1579,7 +1580,7 @@ export default function POSSales() {
               setTimeout(() => barcodeInputRef.current?.focus(), 100);
             },
           });
-        }, 300);
+        }, 500);
       } else {
         setShowPrintConfirmDialog(true);
       }
