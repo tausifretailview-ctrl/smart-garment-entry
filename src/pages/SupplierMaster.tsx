@@ -18,13 +18,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, FileSpreadsheet, BookOpen } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, FileSpreadsheet, BookOpen, Merge } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { supplierMasterFields, supplierMasterSampleData, normalizePhoneNumber } from "@/utils/excelImportUtils";
 import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
+import { MergeSuppliersDialog } from "@/components/MergeSuppliersDialog";
 import { ColumnDef } from "@tanstack/react-table";
 import { ERPTable } from "@/components/erp-table";
 
@@ -68,6 +69,7 @@ const SupplierMaster = () => {
   const [selectedSuppliers, setSelectedSuppliers] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [historySupplier, setHistorySupplier] = useState<Supplier | null>(null);
+  const [mergeSuppliers, setMergeSuppliers] = useState<Supplier[]>([]);
 
   // Debounced search for server-side filtering
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -139,8 +141,22 @@ const SupplierMaster = () => {
   const createSupplier = useMutation({
     mutationFn: async (data: typeof formData) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
+      
+      // Check for duplicate supplier name
+      const { data: existing } = await supabase
+        .from("suppliers")
+        .select("id, supplier_name")
+        .eq("organization_id", currentOrganization.id)
+        .ilike("supplier_name", data.supplier_name.trim())
+        .is("deleted_at", null)
+        .limit(1);
+      
+      if (existing && existing.length > 0) {
+        throw new Error(`Supplier "${existing[0].supplier_name}" already exists. Use the merge feature if you have duplicates.`);
+      }
+      
       const { data: newSupplier, error } = await supabase.from("suppliers").insert([{
-        supplier_name: data.supplier_name,
+        supplier_name: data.supplier_name.trim(),
         contact_person: data.contact_person,
         phone: data.phone,
         email: data.email,
@@ -491,6 +507,16 @@ const SupplierMaster = () => {
           </Button>
         )}
 
+        {selectedSuppliers.size === 2 && (
+          <Button variant="outline" size="sm" className="h-9 shrink-0" onClick={() => {
+            const selected = suppliers.filter(s => selectedSuppliers.has(s.id));
+            setMergeSuppliers(selected);
+          }}>
+            <Merge className="h-4 w-4 mr-2" />
+            Merge Selected
+          </Button>
+        )}
+
         <div className="flex gap-2 items-center ml-auto shrink-0">
           <Button variant="outline" size="sm" className="h-9" onClick={() => setShowExcelImport(true)}>
             <FileSpreadsheet className="h-4 w-4 mr-2" />
@@ -598,6 +624,17 @@ const SupplierMaster = () => {
           organizationId={currentOrganization.id}
         />
       )}
+
+      <MergeSuppliersDialog
+        open={mergeSuppliers.length === 2}
+        onOpenChange={(open) => { if (!open) setMergeSuppliers([]); }}
+        suppliers={mergeSuppliers}
+        onMergeComplete={() => {
+          queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+          setSelectedSuppliers(new Set());
+          setMergeSuppliers([]);
+        }}
+      />
     </div>
   );
 };

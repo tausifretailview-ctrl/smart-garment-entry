@@ -5900,6 +5900,10 @@ export type Database = {
         Args: { p_source_product_id: string; p_target_product_id: string }
         Returns: Json
       }
+      merge_suppliers: {
+        Args: { p_source_supplier_id: string; p_target_supplier_id: string }
+        Returns: Json
+      }
       platform_assign_user_to_org: {
         Args: {
           p_org_id: string
