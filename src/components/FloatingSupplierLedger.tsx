@@ -140,7 +140,7 @@ export const FloatingSupplierLedger = ({
 
     const allVouchers = [...vouchersData, ...openingPayments];
     const allTransactions: Transaction[] = [];
-    let runningBalance = openingBalance;
+    let runningBalance = Math.round(openingBalance);
 
     if (openingBalance !== 0) {
       allTransactions.push({
@@ -150,7 +150,7 @@ export const FloatingSupplierLedger = ({
         reference: "Opening",
         description: "Opening Balance (Carried Forward)",
         debit: 0,
-        credit: openingBalance > 0 ? openingBalance : 0,
+        credit: runningBalance > 0 ? runningBalance : 0,
         balance: runningBalance,
       });
     }
@@ -164,7 +164,7 @@ export const FloatingSupplierLedger = ({
     combined.forEach((item) => {
       if (item.type === "bill") {
         const bill = item.data as any;
-        runningBalance += bill.net_amount;
+        runningBalance = Math.round(runningBalance + bill.net_amount);
         allTransactions.push({
           id: bill.id,
           date: bill.bill_date,
@@ -180,7 +180,7 @@ export const FloatingSupplierLedger = ({
         const voucherPmts = voucherPaymentsByBillId[bill.id] || 0;
         const paidAtPurchase = Math.max(0, totalPaidOnBill - voucherPmts);
         if (paidAtPurchase > 0) {
-          runningBalance -= paidAtPurchase;
+          runningBalance = Math.round(runningBalance - paidAtPurchase);
           allTransactions.push({
             id: `${bill.id}-payment-at-purchase`,
             date: bill.bill_date,
@@ -194,7 +194,7 @@ export const FloatingSupplierLedger = ({
         }
       } else if (item.type === "credit_note") {
         const cn = item.data as any;
-        runningBalance -= cn.total_amount;
+        runningBalance = Math.round(runningBalance - cn.total_amount);
         allTransactions.push({
           id: cn.id,
           date: cn.voucher_date,
@@ -207,7 +207,7 @@ export const FloatingSupplierLedger = ({
         });
       } else {
         const voucher = item.data as any;
-        runningBalance -= voucher.total_amount;
+        runningBalance = Math.round(runningBalance - voucher.total_amount);
         const isOpeningBalancePayment = !billIds.includes(voucher.reference_id);
         allTransactions.push({
           id: voucher.id,
@@ -229,9 +229,9 @@ export const FloatingSupplierLedger = ({
 
   // Summary calculations
   const summary = useMemo(() => {
-    const totalDebit = transactions.reduce((sum, t) => sum + t.debit, 0);
-    const totalCredit = transactions.reduce((sum, t) => sum + t.credit, 0);
-    const totalCreditNoteAdjust = transactions.filter((t) => t.type === "credit_note").reduce((sum, t) => sum + t.debit, 0);
+    const totalDebit = Math.round(transactions.reduce((sum, t) => sum + t.debit, 0));
+    const totalCredit = Math.round(transactions.reduce((sum, t) => sum + t.credit, 0));
+    const totalCreditNoteAdjust = Math.round(transactions.filter((t) => t.type === "credit_note").reduce((sum, t) => sum + t.debit, 0));
     const finalBalance = transactions[transactions.length - 1]?.balance || 0;
     return { totalDebit, totalCredit, totalCreditNoteAdjust, finalBalance };
   }, [transactions]);
@@ -244,7 +244,7 @@ export const FloatingSupplierLedger = ({
   const handleWhatsApp = () => {
     if (!supplierPhone) return;
     const balance = summary.finalBalance;
-    const message = `Dear ${supplierName},\n\nYour current ledger balance is ₹${Math.abs(balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })} ${balance > 0 ? "(Payable)" : balance < 0 ? "(Advance)" : "(Settled)"}.\n\nTotal Purchases: ₹${summary.totalCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}\nTotal Paid: ₹${summary.totalDebit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}\n\nThank you.`;
+    const message = `Dear ${supplierName},\n\nYour current ledger balance is ₹${Math.abs(balance).toLocaleString("en-IN")} ${balance > 0 ? "(Payable)" : balance < 0 ? "(Advance)" : "(Settled)"}.\n\nTotal Purchases: ₹${summary.totalCredit.toLocaleString("en-IN")}\nTotal Paid: ₹${summary.totalDebit.toLocaleString("en-IN")}\n\nThank you.`;
     const cleanPhone = supplierPhone.replace(/\D/g, "");
     const phone = cleanPhone.startsWith("91") ? cleanPhone : `91${cleanPhone}`;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank");
@@ -284,13 +284,13 @@ export const FloatingSupplierLedger = ({
           <Card className="border-l-4 border-l-blue-500">
             <CardContent className="p-3">
               <span className="text-xs text-muted-foreground">Total Purchases</span>
-              <p className="text-lg font-bold">₹{summary.totalCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+              <p className="text-lg font-bold">₹{summary.totalCredit.toLocaleString("en-IN")}</p>
             </CardContent>
           </Card>
           <Card className="border-l-4 border-l-green-500">
             <CardContent className="p-3">
               <span className="text-xs text-muted-foreground">Total Paid</span>
-              <p className="text-lg font-bold text-green-600">₹{summary.totalDebit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+              <p className="text-lg font-bold text-green-600">₹{summary.totalDebit.toLocaleString("en-IN")}</p>
             </CardContent>
           </Card>
           <Card className="border-l-4 border-l-purple-500">
@@ -305,7 +305,7 @@ export const FloatingSupplierLedger = ({
             <CardContent className="p-3">
               <span className="text-xs text-muted-foreground">Balance</span>
               <p className={cn("text-lg font-bold", summary.finalBalance > 0 ? "text-red-600" : "text-green-600")}>
-                ₹{Math.abs(summary.finalBalance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                ₹{Math.abs(summary.finalBalance).toLocaleString("en-IN")}
                 {summary.finalBalance > 0 ? " Payable" : summary.finalBalance < 0 ? " Advance" : ""}
               </p>
             </CardContent>
@@ -398,14 +398,14 @@ export const FloatingSupplierLedger = ({
                         <TableCell className="text-right tabular-nums">
                           {t.debit > 0 && (
                             <span className="text-green-600 dark:text-green-400 font-bold">
-                              ₹{t.debit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                              ₹{t.debit.toLocaleString("en-IN")}
                             </span>
                           )}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {t.credit > 0 && (
                             <span className="text-red-600 dark:text-red-400 font-bold">
-                              ₹{t.credit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                              ₹{t.credit.toLocaleString("en-IN")}
                             </span>
                           )}
                         </TableCell>
@@ -415,7 +415,7 @@ export const FloatingSupplierLedger = ({
                           t.balance < 0 ? "text-green-600 dark:text-green-400" :
                           "text-foreground"
                         )}>
-                          ₹{Math.abs(t.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          ₹{Math.abs(t.balance).toLocaleString("en-IN")}
                         </TableCell>
                       </TableRow>
                     ))
@@ -426,17 +426,17 @@ export const FloatingSupplierLedger = ({
                       <TableCell colSpan={4} className="text-right text-sm font-extrabold text-foreground">Grand Total</TableCell>
                       <TableCell className="text-right text-sm tabular-nums">
                         <span className="text-green-600 dark:text-green-400 font-extrabold">
-                          ₹{summary.totalDebit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          ₹{summary.totalDebit.toLocaleString("en-IN")}
                         </span>
                         {summary.totalCreditNoteAdjust > 0 && (
                           <div className="text-xs text-purple-600 dark:text-purple-400 font-semibold">
-                            (CN Adj: ₹{summary.totalCreditNoteAdjust.toLocaleString("en-IN", { minimumFractionDigits: 2 })})
+                            (CN Adj: ₹{summary.totalCreditNoteAdjust.toLocaleString("en-IN")})
                           </div>
                         )}
                       </TableCell>
                       <TableCell className="text-right text-sm tabular-nums">
                         <span className="text-red-600 dark:text-red-400 font-extrabold">
-                          ₹{summary.totalCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          ₹{summary.totalCredit.toLocaleString("en-IN")}
                         </span>
                       </TableCell>
                       <TableCell className={cn(
@@ -445,7 +445,7 @@ export const FloatingSupplierLedger = ({
                         summary.finalBalance < 0 ? "text-green-600 dark:text-green-400" :
                         "text-foreground"
                       )}>
-                        ₹{Math.abs(summary.finalBalance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        ₹{Math.abs(summary.finalBalance).toLocaleString("en-IN")}
                         {summary.finalBalance > 0 ? " Payable" : summary.finalBalance < 0 ? " Advance" : ""}
                       </TableCell>
                     </TableRow>
