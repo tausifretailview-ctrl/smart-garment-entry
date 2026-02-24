@@ -48,7 +48,53 @@ export const ProductHistoryDialog = ({
     enabled: isOpen && !!productId,
   });
 
-  // Fetch sale items for this product
+  // Fetch accurate totals using count queries (not limited by row caps)
+  const { data: saleTotals } = useQuery({
+    queryKey: ["product-sale-totals", productId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sale_items")
+        .select("quantity, line_total")
+        .eq("product_id", productId);
+      if (error) throw error;
+      const totalQty = (data || []).reduce((sum, i) => sum + (i.quantity || 0), 0);
+      const totalCount = (data || []).length;
+      return { totalQty, totalCount };
+    },
+    enabled: isOpen && !!productId,
+  });
+
+  const { data: purchaseTotals } = useQuery({
+    queryKey: ["product-purchase-totals", productId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("purchase_items")
+        .select("qty")
+        .eq("product_id", productId);
+      if (error) throw error;
+      const totalQty = (data || []).reduce((sum, i) => sum + (i.qty || 0), 0);
+      const totalCount = (data || []).length;
+      return { totalQty, totalCount };
+    },
+    enabled: isOpen && !!productId,
+  });
+
+  const { data: returnTotals } = useQuery({
+    queryKey: ["product-return-totals", productId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sale_return_items")
+        .select("quantity")
+        .eq("product_id", productId);
+      if (error) throw error;
+      const totalQty = (data || []).reduce((sum, i) => sum + (i.quantity || 0), 0);
+      const totalCount = (data || []).length;
+      return { totalQty, totalCount };
+    },
+    enabled: isOpen && !!productId,
+  });
+
+  // Fetch sale items for this product (latest 100 for display)
   const { data: saleItems, isLoading: loadingSales } = useQuery({
     queryKey: ["product-sales", productId],
     queryFn: async () => {
@@ -64,14 +110,14 @@ export const ProductHistoryDialog = ({
         `)
         .eq("product_id", productId)
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(100);
       if (error) throw error;
       return data || [];
     },
     enabled: isOpen && !!productId,
   });
 
-  // Fetch purchase items for this product
+  // Fetch purchase items for this product (latest 100 for display)
   const { data: purchaseItems, isLoading: loadingPurchases } = useQuery({
     queryKey: ["product-purchases", productId],
     queryFn: async () => {
@@ -87,7 +133,7 @@ export const ProductHistoryDialog = ({
         `)
         .eq("product_id", productId)
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(100);
       if (error) throw error;
       return data || [];
     },
@@ -105,7 +151,7 @@ export const ProductHistoryDialog = ({
         .select("*")
         .in("variant_id", variantIds)
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(100);
       if (error) throw error;
       return data || [];
     },
@@ -128,18 +174,18 @@ export const ProductHistoryDialog = ({
         `)
         .eq("product_id", productId)
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(100);
       if (error) throw error;
       return data || [];
     },
     enabled: isOpen && !!productId,
   });
 
-  // Calculate totals
+  // Use accurate totals from dedicated queries (not limited by display row cap)
   const totalStock = variants?.reduce((sum, v) => sum + (v.stock_qty || 0), 0) || 0;
-  const totalSold = saleItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
-  const totalPurchased = purchaseItems?.reduce((sum, item) => sum + item.qty, 0) || 0;
-  const totalReturned = saleReturns?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+  const totalSold = saleTotals?.totalQty || 0;
+  const totalPurchased = purchaseTotals?.totalQty || 0;
+  const totalReturned = returnTotals?.totalQty || 0;
 
   const getMovementTypeBadge = (type: string) => {
     switch (type) {
@@ -209,9 +255,9 @@ export const ProductHistoryDialog = ({
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
           <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="sales">Sales ({saleItems?.length || 0})</TabsTrigger>
-            <TabsTrigger value="purchases">Purchases ({purchaseItems?.length || 0})</TabsTrigger>
-            <TabsTrigger value="returns">Returns ({saleReturns?.length || 0})</TabsTrigger>
+            <TabsTrigger value="sales">Sales ({saleTotals?.totalCount || 0})</TabsTrigger>
+            <TabsTrigger value="purchases">Purchases ({purchaseTotals?.totalCount || 0})</TabsTrigger>
+            <TabsTrigger value="returns">Returns ({returnTotals?.totalCount || 0})</TabsTrigger>
             <TabsTrigger value="movements">Movements ({stockMovements?.length || 0})</TabsTrigger>
           </TabsList>
 
