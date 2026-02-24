@@ -258,6 +258,7 @@ export function CustomerPaymentTab({
             total_amount: processed.amountApplied,
             discount_amount: i === 0 ? discountValue : 0,
             discount_reason: i === 0 ? discountReason || null : null,
+            payment_method: paymentMethod,
           }).select().single();
           if (voucherError) throw voucherError;
           createdVouchers.push(voucher);
@@ -274,6 +275,7 @@ export function CustomerPaymentTab({
           total_amount: paymentAmount,
           discount_amount: discountValue,
           discount_reason: discountReason || null,
+          payment_method: paymentMethod,
         }).select().single();
         if (voucherError) throw voucherError;
         createdVouchers.push(voucher);
