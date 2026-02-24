@@ -15,8 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { format } from "date-fns";
-import { Package, ShoppingCart, TrendingUp, TrendingDown, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
+import { format, startOfMonth, endOfMonth, subMonths, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
+import { Package, ShoppingCart, TrendingUp, TrendingDown, RotateCcw, ChevronDown, ChevronUp, Calendar } from "lucide-react";
 
 interface ProductHistoryDialogProps {
   isOpen: boolean;
@@ -35,8 +35,25 @@ export const ProductHistoryDialog = ({
 }: ProductHistoryDialogProps) => {
   const [showDetails, setShowDetails] = useState(false);
   const [activeTab, setActiveTab] = useState("sales");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [periodFilter, setPeriodFilter] = useState<"monthly" | "quarterly" | "yearly" | "custom">("monthly");
+  const [fromDate, setFromDate] = useState(() => format(startOfMonth(new Date()), "yyyy-MM-dd"));
+  const [toDate, setToDate] = useState(() => format(endOfMonth(new Date()), "yyyy-MM-dd"));
+
+  const applyPeriod = (period: "monthly" | "quarterly" | "yearly" | "custom") => {
+    setPeriodFilter(period);
+    const now = new Date();
+    if (period === "monthly") {
+      setFromDate(format(startOfMonth(now), "yyyy-MM-dd"));
+      setToDate(format(endOfMonth(now), "yyyy-MM-dd"));
+    } else if (period === "quarterly") {
+      setFromDate(format(startOfQuarter(now), "yyyy-MM-dd"));
+      setToDate(format(endOfQuarter(now), "yyyy-MM-dd"));
+    } else if (period === "yearly") {
+      setFromDate(format(startOfYear(now), "yyyy-MM-dd"));
+      setToDate(format(endOfYear(now), "yyyy-MM-dd"));
+    }
+    // custom: user picks manually
+  };
 
   // Fetch product variants
   const { data: variants } = useQuery({
@@ -308,13 +325,33 @@ export const ProductHistoryDialog = ({
         {/* Details Section */}
         {showDetails && (
           <div className="flex-1 flex flex-col overflow-hidden mt-2">
-            {/* Date Filters */}
-            <div className="flex items-center gap-2 mb-3">
-              <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="h-9 text-sm" placeholder="From Date" />
-              <span className="text-muted-foreground text-sm">to</span>
-              <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="h-9 text-sm" placeholder="To Date" />
-              {(fromDate || toDate) && (
-                <Button variant="ghost" size="sm" onClick={() => { setFromDate(""); setToDate(""); }}>Clear</Button>
+            {/* Period Filter */}
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <div className="flex gap-1">
+                {(["monthly", "quarterly", "yearly", "custom"] as const).map((p) => (
+                  <Button
+                    key={p}
+                    variant={periodFilter === p ? "default" : "outline"}
+                    size="sm"
+                    className="h-8 text-xs capitalize"
+                    onClick={() => applyPeriod(p)}
+                  >
+                    {p}
+                  </Button>
+                ))}
+              </div>
+              {periodFilter === "custom" && (
+                <div className="flex items-center gap-2">
+                  <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="h-8 text-xs w-[130px]" />
+                  <span className="text-muted-foreground text-xs">to</span>
+                  <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="h-8 text-xs w-[130px]" />
+                </div>
+              )}
+              {periodFilter !== "custom" && (
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  {fromDate && toDate ? `${format(new Date(fromDate), "dd MMM yy")} – ${format(new Date(toDate), "dd MMM yy")}` : ""}
+                </span>
               )}
             </div>
 
