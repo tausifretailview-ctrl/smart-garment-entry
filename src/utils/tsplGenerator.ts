@@ -7,6 +7,9 @@ export interface TSPLLabelConfig {
   gap: number; // gap between labels in mm
   dpi?: number; // printer DPI (default: 203, use 300 for TSC DA 310)
   direction?: 0 | 1; // print direction (default: 1 for most TSC printers)
+  speed?: number; // print speed 1-6 (default: 4)
+  density?: number; // print density 1-15 (default: 8)
+  gapMode?: 'gap' | 'continuous' | 'bline'; // gap sensing mode
 }
 
 export interface TSPLTextItem {
@@ -191,8 +194,28 @@ export const generateTSPLLabelFromTemplate = (
   
   // Label setup
   commands.push(generateSizeCommand(labelConfig.width, labelConfig.height));
-  commands.push(generateGapCommand(labelConfig.gap));
+  
+  // Gap mode: gap (default), continuous, or black mark
+  const gapMode = labelConfig.gapMode || 'gap';
+  if (gapMode === 'continuous') {
+    commands.push('GAP 0 mm, 0 mm');
+  } else if (gapMode === 'bline') {
+    commands.push(`BLINE ${labelConfig.gap} mm, 0 mm`);
+  } else {
+    commands.push(generateGapCommand(labelConfig.gap));
+  }
+  
   commands.push(`DIRECTION ${direction}`);
+  
+  // Speed and density for printer compatibility
+  if (labelConfig.speed) {
+    commands.push(`SPEED ${labelConfig.speed}`);
+  }
+  if (labelConfig.density) {
+    commands.push(`DENSITY ${labelConfig.density}`);
+  }
+  
+  commands.push('CODEPAGE UTF-8');
   commands.push('CLS'); // Clear buffer
   
   const labelWidthDots = mmToDots(labelConfig.width, dpi);
@@ -358,8 +381,26 @@ export const generateTSPLLabel = (
   
   // Label setup
   commands.push(generateSizeCommand(labelConfig.width, labelConfig.height));
-  commands.push(generateGapCommand(labelConfig.gap));
-  commands.push('DIRECTION 0');
+  
+  const gapMode = labelConfig.gapMode || 'gap';
+  if (gapMode === 'continuous') {
+    commands.push('GAP 0 mm, 0 mm');
+  } else if (gapMode === 'bline') {
+    commands.push(`BLINE ${labelConfig.gap} mm, 0 mm`);
+  } else {
+    commands.push(generateGapCommand(labelConfig.gap));
+  }
+  
+  commands.push(`DIRECTION ${labelConfig.direction ?? 0}`);
+  
+  if (labelConfig.speed) {
+    commands.push(`SPEED ${labelConfig.speed}`);
+  }
+  if (labelConfig.density) {
+    commands.push(`DENSITY ${labelConfig.density}`);
+  }
+  
+  commands.push('CODEPAGE UTF-8');
   commands.push('CLS'); // Clear buffer
   
   // Calculate positions based on label size (in dots, 8 dots = 1mm at 203 DPI)
