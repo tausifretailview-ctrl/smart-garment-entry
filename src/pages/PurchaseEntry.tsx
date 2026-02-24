@@ -771,10 +771,14 @@ const PurchaseEntry = () => {
     const grossAfterDiscount = gross - discountAmount;
     const gst = lineItems.reduce((sum, r) => sum + (r.line_total * r.gst_per / 100), 0);
     const netBeforeRoundOff = grossAfterDiscount + gst + otherCharges;
+    // Auto round-off: calculate round-off so net amount is always a whole number
+    const autoRoundOff = Math.round(netBeforeRoundOff) - netBeforeRoundOff;
+    const roundedAutoRoundOff = parseFloat(autoRoundOff.toFixed(2));
+    setRoundOff(roundedAutoRoundOff);
     setGrossAmount(gross);
     setGstAmount(gst);
-    setNetAmount(netBeforeRoundOff + roundOff);
-  }, [lineItems, roundOff, discountAmount, otherCharges]);
+    setNetAmount(Math.round(netBeforeRoundOff));
+  }, [lineItems, discountAmount, otherCharges]);
 
   const generateCentralizedBarcode = async (): Promise<string> => {
     try {
@@ -2868,15 +2872,9 @@ const PurchaseEntry = () => {
                 </div>
                 <div className="flex justify-between items-center text-[13px]">
                   <span className="text-muted-foreground">Round Off:</span>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={roundOff}
-                    onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
-                    onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                    className="w-28 text-right h-8 text-[13px]"
-                    placeholder="0.00"
-                  />
+                  <span className="w-28 text-right text-[13px] pr-3">
+                    {roundOff >= 0 ? `+${roundOff.toFixed(2)}` : roundOff.toFixed(2)}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center border-t border-border pt-3 mt-2">
                   <span className="text-[15px] font-semibold">Net Amount:</span>
