@@ -730,7 +730,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {(isAdminPermissions || hasMenuAccess("accounting_reports")) && (
+                        {(isAdminPermissions || hasMenuAccess("accounting_reports_view")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/accounting-reports")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
                               <NavLink to="/accounting-reports" className="flex items-center gap-3 group">
@@ -813,6 +813,7 @@ export function AppSidebar() {
         )}
 
         {/* Settings */}
+        {(isAdminPermissions || hasMainMenuAccess("settings")) && (
         <SidebarGroup>
           <Collapsible defaultOpen={isGroupActive(settingsPaths)} className="group/collapsible">
             <SidebarGroupLabel asChild>
@@ -837,32 +838,37 @@ export function AppSidebar() {
                           </NavLink>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
-                      {canAccessSettings && (
-                        <>
-                          <SidebarMenuSubItem>
-                            <SidebarMenuSubButton asChild isActive={isActive("/settings")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                              <NavLink to="/settings" className="flex items-center gap-3 group">
-                                <Settings className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Settings</span>
-                              </NavLink>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                          <SidebarMenuSubItem>
-                            <SidebarMenuSubButton asChild isActive={isActive("/organization-management")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                              <NavLink to="/organization-management" className="flex items-center gap-3 group">
-                                <Building2 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Organization</span>
-                              </NavLink>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                          <SidebarMenuSubItem>
-                            <SidebarMenuSubButton asChild isActive={isActive("/barcode-printing")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                              <NavLink to="/barcode-printing" className="flex items-center gap-3 group">
-                                <Barcode className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Barcode Printing</span>
-                              </NavLink>
+                      {(isAdminPermissions || hasMenuAccess("settings_view")) && (
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/settings")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                            <NavLink to="/settings" className="flex items-center gap-3 group">
+                              <Settings className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                              <span className="dark:text-white">Settings</span>
+                            </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
+                      )}
+                      {(isAdminPermissions || hasMenuAccess("settings_view")) && (
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/organization-management")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                            <NavLink to="/organization-management" className="flex items-center gap-3 group">
+                              <Building2 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                              <span className="dark:text-white">Organization</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      )}
+                      {(isAdminPermissions || hasMenuAccess("settings_view")) && (
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/barcode-printing")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                            <NavLink to="/barcode-printing" className="flex items-center gap-3 group">
+                              <Barcode className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                              <span className="dark:text-white">Barcode Printing</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      )}
+                      {(isAdminPermissions || hasMenuAccess("settings_view")) && (
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/whatsapp-logs")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
                             <NavLink to="/whatsapp-logs" className="flex items-center gap-3 group">
@@ -871,6 +877,8 @@ export function AppSidebar() {
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
+                      )}
+                      {(isAdminPermissions || hasMenuAccess("settings_view")) && (
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/whatsapp-inbox")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
                             <NavLink to="/whatsapp-inbox" className="flex items-center gap-3 group">
@@ -879,8 +887,7 @@ export function AppSidebar() {
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
-                      </>
-                    )}
+                      )}
                     </SidebarMenuSub>
                   </SidebarMenuItem>
                 </SidebarMenu>
@@ -888,9 +895,10 @@ export function AppSidebar() {
             </CollapsibleContent>
           </Collapsible>
         </SidebarGroup>
+        )}
 
-        {/* Recycle Bin - Admin Only */}
-        {canAccessSettings && (
+        {/* Recycle Bin */}
+        {(isAdminPermissions || hasMenuAccess("recycle_bin")) && (
           <SidebarGroup>
             <SidebarMenu>
               <SidebarMenuItem>
