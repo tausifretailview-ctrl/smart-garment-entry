@@ -291,11 +291,11 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       <div style={{ display: "flex", borderBottom: "1px solid #374151", fontSize: "9pt", flexShrink: 0 }}>
         <div style={{ flex: 1, padding: "8px", borderRight: "1px solid #374151" }}>
           <div style={{ fontWeight: "700", color: colors.primary, fontSize: "7pt" }}>BILL TO:</div>
-          <div style={{ fontWeight: "700", fontSize: "11pt" }}>{customerName}</div>
+          <div style={{ fontWeight: "600", fontSize: "11pt" }}>{customerName}</div>
           {customerAddress && <div style={{ fontSize: "9pt" }}>{customerAddress}</div>}
           {customerMobile && <div style={{ fontSize: "9pt" }}>Mob: {customerMobile}</div>}
           {customerGSTIN && (
-            <div style={{ marginTop: "2px", fontWeight: "600" }}>
+            <div style={{ marginTop: "2px", fontWeight: "500" }}>
               GSTIN: {customerGSTIN}
             </div>
           )}
@@ -436,7 +436,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         )}
 
         <div style={{ width: "260px", flexShrink: 0, padding: "6px", background: colors.light, boxSizing: "border-box", overflow: "visible" }}>
-          <table style={{ width: "100%", fontSize: "9pt", fontWeight: "600", borderCollapse: "collapse" }}>
+          <table style={{ width: "100%", fontSize: "9pt", fontWeight: "500", borderCollapse: "collapse" }}>
             <colgroup>
               <col />
               <col style={{ minWidth: "100px" }} />
@@ -469,9 +469,9 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
                 </tr>
               )}
               <tr style={{ fontSize: "11pt", color: colors.primary }}>
-                <td style={{ paddingTop: "5px", borderTop: "1px solid #374151", whiteSpace: "nowrap" }}>GRAND TOTAL:</td>
+                <td style={{ paddingTop: "5px", borderTop: "1px solid #374151", whiteSpace: "nowrap", fontWeight: "600" }}>GRAND TOTAL:</td>
                 <td
-                  style={{ paddingTop: "5px", borderTop: "1px solid #374151", textAlign: "right", fontWeight: "800" }}
+                  style={{ paddingTop: "5px", borderTop: "1px solid #374151", textAlign: "right", fontWeight: "700" }}
                 >
                   {formatCurrency(grandTotal)}
                 </td>
