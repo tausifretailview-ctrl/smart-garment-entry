@@ -661,6 +661,43 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
                       </TableRow>
                     ))
                   )}
+                  {/* Grand Total Row */}
+                  {transactions.length > 0 && (() => {
+                    const totalDebit = transactions.reduce((sum, t) => sum + t.debit, 0);
+                    const totalCredit = transactions.reduce((sum, t) => sum + t.credit, 0);
+                    const totalCreditNoteAdjust = transactions.filter(t => t.type === 'credit_note').reduce((sum, t) => sum + t.debit, 0);
+                    const finalBalance = transactions[transactions.length - 1]?.balance || 0;
+                    return (
+                      <TableRow className="bg-muted/70 border-t-2 border-primary/20 font-bold">
+                        <TableCell colSpan={4} className="text-right text-base font-bold">
+                          Grand Total
+                        </TableCell>
+                        <TableCell className="text-right text-base">
+                          <span className="text-green-600 dark:text-green-400">
+                            ₹{totalDebit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </span>
+                          {totalCreditNoteAdjust > 0 && (
+                            <div className="text-xs text-purple-600 dark:text-purple-400 font-normal mt-1">
+                              (CN Adj: ₹{totalCreditNoteAdjust.toLocaleString("en-IN", { minimumFractionDigits: 2 })})
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right text-base">
+                          <span className="text-red-600 dark:text-red-400">
+                            ₹{totalCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </span>
+                        </TableCell>
+                        <TableCell className={cn(
+                          "text-right text-base font-bold",
+                          finalBalance > 0 ? "text-red-600 dark:text-red-400" :
+                          finalBalance < 0 ? "text-green-600 dark:text-green-400" :
+                          "text-foreground"
+                        )}>
+                          ₹{Math.abs(finalBalance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })()}
                 </TableBody>
               </Table>
             </div>
