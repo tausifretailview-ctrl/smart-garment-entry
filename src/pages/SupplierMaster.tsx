@@ -24,7 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { supplierMasterFields, supplierMasterSampleData, normalizePhoneNumber } from "@/utils/excelImportUtils";
-import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
+import { FloatingSupplierLedger } from "@/components/FloatingSupplierLedger";
 import { MergeSuppliersDialog } from "@/components/MergeSuppliersDialog";
 import { ColumnDef } from "@tanstack/react-table";
 import { ERPTable } from "@/components/erp-table";
@@ -619,11 +619,12 @@ const SupplierMaster = () => {
       />
 
       {historySupplier && currentOrganization && (
-        <SupplierHistoryDialog
+        <FloatingSupplierLedger
           isOpen={!!historySupplier}
           onClose={() => setHistorySupplier(null)}
           supplierId={historySupplier.id}
           supplierName={historySupplier.supplier_name}
+          supplierPhone={historySupplier.phone}
           organizationId={currentOrganization.id}
         />
       )}
