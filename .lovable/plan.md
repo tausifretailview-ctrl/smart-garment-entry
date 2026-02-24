@@ -1,37 +1,43 @@
 
 
-## Redesign Product History Dialog -- Cards First, Details on Demand
+## Fix: Supplier Payment Bill Selection Crash
 
-### Overview
-Restructure the dialog so it opens with a clean summary-only view (4 total cards). Details are hidden by default and only shown when the user clicks a "View Details" button, with date filters and horizontal scrolling for the tables.
+### Problem
+Selecting a bill in the Supplier Payment tab crashes the app with React error #185 (infinite re-render loop). Customer Payment works fine because it uses a different checkbox pattern.
 
-### Changes (single file: `src/components/ProductHistoryDialog.tsx`)
+### Root Cause
+The bill selection table row has TWO conflicting event handlers:
+- `TableRow onClick` toggles the bill selection
+- `Checkbox onCheckedChange` also toggles the bill selection
 
-**1. Lazy-load detail queries**
-- The 4 detail queries (saleItems, purchaseItems, stockMovements, saleReturns) will only run when the user explicitly clicks "View Details" -- controlled by a `showDetails` state variable. This makes the dialog open faster.
+When clicking the checkbox, both fire due to event bubbling, causing rapid double state updates that crash React. The Customer Payment tab avoids this by using a read-only native checkbox with `pointer-events-none`.
 
-**2. Summary-first layout**
-- Dialog opens compact (`max-w-lg`) showing only the 4 summary cards (Current Stock, Total Purchased, Total Sold, Sale Returns).
-- A "View Details" button sits below the cards. Clicking it expands the dialog to `max-w-4xl` and reveals the tabs section.
+There is also a secondary bug: the supplier balance query searches voucher entries by bill IDs, but payments are saved with the supplier ID as `reference_id`, so the balance is always wrong.
 
-**3. Date filter for details**
-- Add `fromDate` and `toDate` state variables with two date `<input type="date">` fields above the tabs.
-- All 4 detail queries will filter by date range when set (sales by `sale_date`, purchases by `bill_date`, returns by `return_date`, movements by `created_at`).
-- Default: no filter (shows all, latest 100).
+### Fix (1 file: `src/components/accounts/SupplierPaymentTab.tsx`)
 
-**4. Horizontal scroll on detail tables**
-- Wrap each `<Table>` inside a `<div className="overflow-x-auto">` so on smaller screens or narrow dialogs, users can scroll horizontally to see all columns.
-- Add `min-w-[600px]` on each table to ensure columns don't collapse.
+**Change 1: Fix double event handler on checkbox**
+- Add `e.stopPropagation()` in the `Checkbox` `onCheckedChange` handler to prevent the click from bubbling to the `TableRow onClick`
+- This matches how the rest of the app handles checkbox-inside-clickable-row patterns
 
-**5. Close details**
-- A "Hide Details" button to collapse back to summary-only view.
+**Change 2: Fix supplier balance query**
+- Update the `supplierBalance` query to look for voucher entries where `reference_id = supplierID` (not bill IDs), matching how payments are actually stored
+- Use `paid_amount` from `purchase_bills` directly for a simpler, accurate balance calculation
+
+**Change 3: Add null safety on recent payments table**
+- Use `Number(voucher.total_amount || 0)` instead of `voucher.total_amount.toFixed(2)` to prevent crashes if a voucher has null `total_amount`
 
 ### Technical Details
 
-- **New state variables**: `showDetails` (boolean), `fromDate` (string), `toDate` (string)
-- **Query `enabled` conditions**: Detail queries add `&& showDetails` to their `enabled` flag so they don't fire on dialog open
-- **Date filtering**: Applied via `.gte()` and `.lte()` on the appropriate date columns in each query, with `queryKey` including the date range for proper cache invalidation
-- **Dialog width**: Conditional class `showDetails ? "max-w-4xl" : "max-w-lg"` on `DialogContent`
-- **Imports**: Add `Input` from `@/components/ui/input` and `Button` from `@/components/ui/button`, plus `ChevronDown`/`ChevronUp` icons
-- **ScrollBar**: Use existing `ScrollArea` with `showScrollbar` prop and add `overflow-x-auto` wrapper divs around tables
+```text
+Before (buggy):
+  TableRow onClick --> toggles selection
+  Checkbox onCheckedChange --> also toggles selection
+  Both fire on checkbox click --> double toggle --> React crash
+
+After (fixed):
+  TableRow onClick --> toggles selection
+  Checkbox onCheckedChange --> toggles selection + stopPropagation()
+  Only ONE handler fires per click --> works correctly
+```
 
