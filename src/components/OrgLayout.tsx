@@ -10,7 +10,19 @@ export const OrgLayout = () => {
   const { user, loading: authLoading } = useAuth();
   const { currentOrganization, organizations, loading: orgLoading, switchOrganization } = useOrganization();
   const [isOrgSynced, setIsOrgSynced] = useState(false);
+  const [syncTimeout, setSyncTimeout] = useState(false);
   const location = useLocation();
+
+  // Safety timeout: if org sync takes too long (8s), force render to prevent infinite spinner
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!isOrgSynced) {
+        console.warn("OrgLayout: Sync timeout reached, forcing render");
+        setSyncTimeout(true);
+      }
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, [isOrgSynced]);
 
   // Check if this is a public invoice view route (no auth required)
   const isPublicInvoiceRoute = location.pathname.includes('/invoice/view/');
@@ -86,8 +98,8 @@ export const OrgLayout = () => {
     return <Navigate to={`/${firstOrg.slug}`} replace />;
   }
 
-  // Wait for organization to be synced before rendering children
-  if (!isOrgSynced) {
+  // Wait for organization to be synced before rendering children (with timeout fallback)
+  if (!isOrgSynced && !syncTimeout) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
