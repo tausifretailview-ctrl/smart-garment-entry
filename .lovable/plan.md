@@ -1,45 +1,50 @@
 
 
-# Fix: Cash Tally Post-Save Blank State and WhatsApp Field Verification
+## Merge Duplicate Products Feature
 
-## Problem
-After saving the Cash Tally snapshot, the dialog resets to blank (all denomination counts go to 0, physical cash resets) because the `useEffect` that loads snapshot data always resets `denomCounts` and `coinsBulk` to defaults -- even when a snapshot exists with valid `physical_cash`.
+### Problem
+Products with the same name (e.g., "PUL175") exist as separate entries in the database with different color variants and barcodes. You want to consolidate them into a single product row.
 
-## Solution
+### Current Data for PUL175
+- **Product 1**: 18 variants, 274 total stock (main entry)
+- **Product 2**: 20 variants, 1 total stock (duplicate)
 
-### 1. Add `denomination_data` column to `daily_tally_snapshot`
-Store the denomination breakdown (counts per note + coins) as a JSONB column so it persists across saves and reloads.
+### Solution: Add "Merge Products" capability
 
-```sql
-ALTER TABLE public.daily_tally_snapshot ADD COLUMN denomination_data jsonb;
-```
+#### What You Will See
+1. In the Product Dashboard, when you select 2 products using checkboxes, a **"Merge Selected"** button will appear in the toolbar
+2. Clicking it will show a confirmation dialog listing:
+   - Which product will be kept (the one with more stock/history)
+   - Which product will be merged into it
+   - Summary of variants being moved
+3. After confirmation, all variants, images, and transaction history from the duplicate will be reassigned to the primary product
 
-### 2. Update save logic to include denomination data
-In `FloatingCashTally.tsx`, add `denomination_data` to the save payload:
-```js
-denomination_data: { denomCounts, coinsBulk }
-```
+#### Technical Details
 
-### 3. Update snapshot load logic
-When a snapshot exists and has `denomination_data`, restore the denomination counts and coins instead of resetting them to 0. The `useEffect` at line ~192 will be updated:
-- If `snapshot.denomination_data` exists, populate `denomCounts` and `coinsBulk` from it
-- Only reset to defaults when no snapshot exists
+**Step 1: Database Function (Migration)**
+Create a `merge_products` database function that:
+- Accepts `target_product_id` and `source_product_id`
+- Moves all `product_variants` from source to target (updates `product_id`)
+- Updates all 8 transaction tables (`sale_items`, `purchase_items`, `quotation_items`, `sale_order_items`, `sale_return_items`, `purchase_return_items`, `delivery_challan_items`, `purchase_order_items`) to point to the target
+- Moves `product_images` to the target
+- Soft-deletes the source product
+- Runs in a single transaction for safety
 
-### 4. Add "Saved" visual indicator
-After a successful save, show a subtle green "Saved" badge near the Save button so users can see the data was persisted, rather than the dialog looking like it reset.
+**Step 2: Merge Dialog Component**
+Create `src/components/MergeProductsDialog.tsx`:
+- Shows both products side by side
+- Lets user pick which to keep (defaults to the one with more stock)
+- Shows variant count and stock totals for each
+- Calls the database function on confirm
 
-### 5. WhatsApp message field verification
-Looking at the screenshot, the WhatsApp message already includes all key fields (Total Sales, Total Collection, Total Payments, Net Movement, Cash Reconciliation, Settlement). The values use the same state variables as the UI, so they will be accurate. No changes needed to the WhatsApp message format.
+**Step 3: Product Dashboard Integration**
+Update `src/pages/ProductDashboard.tsx`:
+- Add "Merge" button that appears when exactly 2 products are selected
+- Opens the merge dialog
+- Refreshes the product list after successful merge
 
----
-
-## Technical Changes
-
-### Database Migration
-- Add `denomination_data jsonb` column to `daily_tally_snapshot`
-
-### File: `src/components/FloatingCashTally.tsx`
-1. **Save mutation** (line ~298): Add `denomination_data: { denomCounts, coinsBulk }` to payload
-2. **Load snapshot effect** (line ~192): Restore `denomCounts` and `coinsBulk` from `snapshot.denomination_data` when available
-3. **Save button**: Show "Saved" state briefly after successful save (change button text/color for 2 seconds)
+### Files to Create/Modify
+- **New**: `src/components/MergeProductsDialog.tsx`
+- **Modify**: `src/pages/ProductDashboard.tsx` (add merge button + dialog)
+- **New migration**: `merge_products` database function
 
