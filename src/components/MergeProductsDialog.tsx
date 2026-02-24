@@ -70,8 +70,10 @@ export const MergeProductsDialog = ({
 
       if (error) throw error;
 
+      const moved = (data as any)?.variants_moved || 0;
+      const merged = (data as any)?.variants_merged || 0;
       toast.success(
-        `Merged "${source.product_name}" into "${target.product_name}" — ${(data as any)?.variants_moved || 0} variants moved`
+        `Merged "${source.product_name}" into "${target.product_name}" — ${moved} variants moved, ${merged} variants consolidated`
       );
       onOpenChange(false);
       onMergeComplete();
