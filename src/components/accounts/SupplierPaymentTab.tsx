@@ -84,12 +84,9 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
   const { data: supplierBalance } = useQuery({
     queryKey: ["supplier-balance", referenceId],
     queryFn: async () => {
-      const { data: bills } = await supabase.from("purchase_bills").select("id, net_amount").eq("supplier_id", referenceId).is("deleted_at", null);
-      const billIds = bills?.map(b => b.id) || [];
-      if (billIds.length === 0) return 0;
-      const { data: payments } = await supabase.from("voucher_entries").select("total_amount, reference_id").eq("reference_type", "supplier").in("reference_id", billIds).is("deleted_at", null);
+      const { data: bills } = await supabase.from("purchase_bills").select("id, net_amount, paid_amount").eq("supplier_id", referenceId).is("deleted_at", null);
       const totalBills = bills?.reduce((sum, bill) => sum + (bill.net_amount || 0), 0) || 0;
-      const totalPaid = payments?.reduce((sum, payment) => sum + (payment.total_amount || 0), 0) || 0;
+      const totalPaid = bills?.reduce((sum, bill) => sum + (bill.paid_amount || 0), 0) || 0;
       return totalBills - totalPaid;
     },
     enabled: !!referenceId,
@@ -373,10 +370,12 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
                                 else setSelectedSupplierBillIds(prev => [...prev, bill.id]);
                               }}>
                               <TableCell>
-                                <Checkbox checked={isSelected} onCheckedChange={(checked) => {
-                                  if (checked === true) setSelectedSupplierBillIds(prev => [...prev, bill.id]);
-                                  else setSelectedSupplierBillIds(prev => prev.filter(id => id !== bill.id));
-                                }} />
+                                <div onClick={(e) => e.stopPropagation()}>
+                                  <Checkbox checked={isSelected} onCheckedChange={(checked) => {
+                                    if (checked === true) setSelectedSupplierBillIds(prev => [...prev, bill.id]);
+                                    else setSelectedSupplierBillIds(prev => prev.filter(id => id !== bill.id));
+                                  }} />
+                                </div>
                               </TableCell>
                               <TableCell className="font-medium">{bill.software_bill_no || bill.supplier_invoice_no || bill.id.slice(0, 8)}</TableCell>
                               <TableCell>{billDateText}</TableCell>
@@ -549,7 +548,7 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
                     <TableCell className="font-medium">{voucher.voucher_number}</TableCell>
                     <TableCell>{format(new Date(voucher.voucher_date), "dd/MM/yyyy")}</TableCell>
                     <TableCell>{supplierName}</TableCell>
-                    <TableCell className="tabular-nums">₹{voucher.total_amount.toFixed(2)}</TableCell>
+                    <TableCell className="tabular-nums">₹{Number(voucher.total_amount || 0).toFixed(2)}</TableCell>
                     <TableCell className="uppercase text-xs">{voucher.payment_method || "-"}</TableCell>
                     <TableCell className="max-w-xs truncate">{voucher.description}</TableCell>
                     {isAdmin && (
