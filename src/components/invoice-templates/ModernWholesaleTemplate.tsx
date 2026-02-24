@@ -435,43 +435,43 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           </div>
         )}
 
-        <div style={{ width: "260px", flexShrink: 0, padding: "6px", background: colors.light, boxSizing: "border-box", overflow: "visible" }}>
-          <table style={{ width: "100%", fontSize: "9pt", fontWeight: "500", borderCollapse: "collapse" }}>
+        <div style={{ width: "280px", flexShrink: 0, padding: "8px 10px", background: colors.light, boxSizing: "border-box", overflow: "visible" }}>
+          <table style={{ width: "100%", fontSize: "9pt", fontWeight: "500", borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}>
             <colgroup>
-              <col />
-              <col style={{ minWidth: "100px" }} />
+              <col style={{ width: "45%" }} />
+              <col style={{ width: "55%" }} />
             </colgroup>
             <tbody>
               <tr>
-                <td style={{ padding: "4px 2px", whiteSpace: "nowrap" }}>Sub Total:</td>
-                <td style={{ textAlign: "right", padding: "4px 2px" }}>{formatCurrency(subtotal)}</td>
+                <td style={{ padding: "4px 4px 4px 0", whiteSpace: "nowrap" }}>Sub Total:</td>
+                <td style={{ textAlign: "right", padding: "4px 0 4px 4px" }}>{formatCurrency(subtotal)}</td>
               </tr>
               {discount > 0 && (
                 <tr>
-                  <td style={{ padding: "4px 2px", whiteSpace: "nowrap" }}>Total Discount:</td>
-                  <td style={{ textAlign: "right", padding: "4px 2px" }}>-{formatCurrency(discount)}</td>
+                  <td style={{ padding: "4px 4px 4px 0", whiteSpace: "nowrap" }}>Total Discount:</td>
+                  <td style={{ textAlign: "right", padding: "4px 0 4px 4px" }}>-{formatCurrency(discount)}</td>
                 </tr>
               )}
               <tr>
-                <td style={{ padding: "4px 2px", whiteSpace: "nowrap" }}>Taxable Amt:</td>
-                <td style={{ textAlign: "right", padding: "4px 2px" }}>{formatCurrency(calculatedTaxableAmount)}</td>
+                <td style={{ padding: "4px 4px 4px 0", whiteSpace: "nowrap" }}>Taxable Amt:</td>
+                <td style={{ textAlign: "right", padding: "4px 0 4px 4px" }}>{formatCurrency(calculatedTaxableAmount)}</td>
               </tr>
               {cgstAmount > 0 && (
                 <tr>
-                  <td style={{ padding: "4px 2px", whiteSpace: "nowrap" }}>CGST:</td>
-                  <td style={{ textAlign: "right", padding: "4px 2px" }}>{formatCurrency(cgstAmount)}</td>
+                  <td style={{ padding: "4px 4px 4px 0", whiteSpace: "nowrap" }}>CGST:</td>
+                  <td style={{ textAlign: "right", padding: "4px 0 4px 4px" }}>{formatCurrency(cgstAmount)}</td>
                 </tr>
               )}
               {sgstAmount > 0 && (
                 <tr>
-                  <td style={{ padding: "4px 2px", whiteSpace: "nowrap" }}>SGST:</td>
-                  <td style={{ textAlign: "right", padding: "4px 2px" }}>{formatCurrency(sgstAmount)}</td>
+                  <td style={{ padding: "4px 4px 4px 0", whiteSpace: "nowrap" }}>SGST:</td>
+                  <td style={{ textAlign: "right", padding: "4px 0 4px 4px" }}>{formatCurrency(sgstAmount)}</td>
                 </tr>
               )}
               <tr style={{ fontSize: "11pt", color: colors.primary }}>
-                <td style={{ paddingTop: "5px", borderTop: "1px solid #374151", whiteSpace: "nowrap", fontWeight: "600" }}>GRAND TOTAL:</td>
+                <td style={{ paddingTop: "6px", borderTop: "1.5px solid #374151", whiteSpace: "nowrap", fontWeight: "600" }}>GRAND TOTAL:</td>
                 <td
-                  style={{ paddingTop: "5px", borderTop: "1px solid #374151", textAlign: "right", fontWeight: "700" }}
+                  style={{ paddingTop: "6px", borderTop: "1.5px solid #374151", textAlign: "right", fontWeight: "700" }}
                 >
                   {formatCurrency(grandTotal)}
                 </td>
