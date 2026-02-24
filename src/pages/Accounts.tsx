@@ -363,7 +363,7 @@ export default function Accounts() {
 
         <TabsContent value="supplier-payment" className="space-y-6">
           {currentOrganization?.id && (
-            <SupplierPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} suppliers={suppliers} />
+            <SupplierPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} suppliers={suppliers} onEditPayment={openEditPaymentDialog} />
           )}
         </TabsContent>
 

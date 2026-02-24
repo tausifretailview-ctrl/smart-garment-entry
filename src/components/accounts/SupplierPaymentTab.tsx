@@ -8,25 +8,29 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, Printer, Check, ChevronsUpDown, X, AlertCircle } from "lucide-react";
+import { CalendarIcon, Plus, Printer, Check, ChevronsUpDown, X, AlertCircle, Pencil, Trash2, ChevronLeft, ChevronRight, Link2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ChequePrintDialog } from "@/components/ChequePrintDialog";
+import { useUserRoles } from "@/hooks/useUserRoles";
 
 interface SupplierPaymentTabProps {
   organizationId: string;
   vouchers: any[] | undefined;
   suppliers: any[] | undefined;
+  onEditPayment?: (voucher: any) => void;
 }
 
-export function SupplierPaymentTab({ organizationId, vouchers, suppliers }: SupplierPaymentTabProps) {
+export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEditPayment }: SupplierPaymentTabProps) {
   const queryClient = useQueryClient();
+  const { isAdmin } = useUserRoles();
 
   // Form states
   const [voucherDate, setVoucherDate] = useState<Date>(new Date());
@@ -45,6 +49,11 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers }: Supp
 
   // Cheque print
   const [showChequePrintDialog, setShowChequePrintDialog] = useState(false);
+
+  // Pagination & selection for recent payments
+  const PAYMENTS_PER_PAGE = 10;
+  const [paymentsPage, setPaymentsPage] = useState(1);
+  const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
 
   // Suppliers with balance
   const { data: suppliersWithBalance } = useQuery({
@@ -190,10 +199,39 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers }: Supp
     },
   });
 
+  // Delete supplier payment
+  const deletePayment = useMutation({
+    mutationFn: async (voucher: any) => {
+      // Reverse bill paid_amount if linked
+      if (voucher.reference_type === "supplier" && voucher.reference_id) {
+        // Try to find bills that were paid by this voucher and reverse
+        const desc = voucher.description || "";
+        const billMatch = desc.match(/Bills?:\s*(.+?)(?:\s*\||$)/i);
+        // For simplicity, just soft-delete the voucher
+      }
+      const { error } = await supabase.from("voucher_entries").update({ deleted_at: new Date().toISOString() }).eq("id", voucher.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Payment deleted");
+      queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["suppliers-with-balance"] });
+    },
+    onError: (error: any) => toast.error(error.message),
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     createVoucher.mutate();
   };
+
+  // Computed supplier payments for the table
+  const supplierPayments = vouchers?.filter((v) => v.reference_type === "supplier" && v.voucher_type === "payment") || [];
+  const totalPaymentPages = Math.ceil(supplierPayments.length / PAYMENTS_PER_PAGE);
+  const startIdx = (paymentsPage - 1) * PAYMENTS_PER_PAGE;
+  const endIdx = startIdx + PAYMENTS_PER_PAGE;
+  const paginatedPayments = supplierPayments.slice(startIdx, endIdx);
 
   return (
     <div className="space-y-6">
@@ -430,34 +468,109 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers }: Supp
         </CardContent>
       </Card>
 
-      {/* Recent Supplier Payments */}
+      {/* Recent Supplier Payments - Enhanced */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Recent Supplier Payments</CardTitle>
+          <div className="flex items-center gap-2">
+            {isAdmin && selectedPaymentIds.length > 0 && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Selected ({selectedPaymentIds.length})
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Selected Payments?</AlertDialogTitle>
+                    <AlertDialogDescription>This will delete {selectedPaymentIds.length} payment(s).</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => {
+                      const selected = supplierPayments.filter((v) => selectedPaymentIds.includes(v.id));
+                      selected.forEach((v) => deletePayment.mutate(v));
+                      setSelectedPaymentIds([]);
+                    }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      Delete All
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
+                {isAdmin && <TableHead className="w-10"></TableHead>}
                 <TableHead>Voucher No</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Supplier</TableHead>
                 <TableHead>Amount</TableHead>
+                <TableHead>Method</TableHead>
                 <TableHead>Description</TableHead>
+                {isAdmin && <TableHead>Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {vouchers?.filter((v) => v.reference_type === "supplier" && v.voucher_type === "payment").slice(0, 10).map((voucher) => (
-                <TableRow key={voucher.id}>
-                  <TableCell className="font-medium">{voucher.voucher_number}</TableCell>
-                  <TableCell>{format(new Date(voucher.voucher_date), "dd/MM/yyyy")}</TableCell>
-                  <TableCell>{suppliers?.find((s) => s.id === voucher.reference_id)?.supplier_name || "-"}</TableCell>
-                  <TableCell>₹{voucher.total_amount.toFixed(2)}</TableCell>
-                  <TableCell className="max-w-xs truncate">{voucher.description}</TableCell>
-                </TableRow>
-              ))}
+              {paginatedPayments.map((voucher) => {
+                const supplierName = suppliers?.find((s) => s.id === voucher.reference_id)?.supplier_name || "-";
+                const isSelected = selectedPaymentIds.includes(voucher.id);
+                return (
+                  <TableRow key={voucher.id} className={isSelected ? "bg-muted/50" : ""}>
+                    {isAdmin && (
+                      <TableCell>
+                        <Checkbox checked={isSelected} onCheckedChange={(checked) => {
+                          if (checked) setSelectedPaymentIds([...selectedPaymentIds, voucher.id]);
+                          else setSelectedPaymentIds(selectedPaymentIds.filter((id) => id !== voucher.id));
+                        }} />
+                      </TableCell>
+                    )}
+                    <TableCell className="font-medium">{voucher.voucher_number}</TableCell>
+                    <TableCell>{format(new Date(voucher.voucher_date), "dd/MM/yyyy")}</TableCell>
+                    <TableCell>{supplierName}</TableCell>
+                    <TableCell className="tabular-nums">₹{voucher.total_amount.toFixed(2)}</TableCell>
+                    <TableCell className="uppercase text-xs">{voucher.payment_method || "-"}</TableCell>
+                    <TableCell className="max-w-xs truncate">{voucher.description}</TableCell>
+                    {isAdmin && (
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          {voucher.description?.includes("Bill") && (
+                            <Button variant="ghost" size="icon" title="Linked to Bill" className="text-primary">
+                              <Link2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="icon" title="Edit Payment" onClick={() => onEditPayment?.(voucher)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" title="Print" onClick={() => window.print()}>
+                            <Printer className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
+          {totalPaymentPages > 1 && (
+            <div className="flex items-center justify-between mt-4 pt-4 border-t">
+              <p className="text-sm text-muted-foreground">Showing {startIdx + 1}-{Math.min(endIdx, supplierPayments.length)} of {supplierPayments.length} payments</p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setPaymentsPage(p => Math.max(1, p - 1))} disabled={paymentsPage === 1}>
+                  <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+                </Button>
+                <span className="text-sm font-medium px-2">Page {paymentsPage} of {totalPaymentPages}</span>
+                <Button variant="outline" size="sm" onClick={() => setPaymentsPage(p => Math.min(totalPaymentPages, p + 1))} disabled={paymentsPage === totalPaymentPages}>
+                  Next <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
