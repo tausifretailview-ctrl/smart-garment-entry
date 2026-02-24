@@ -5893,6 +5893,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      merge_products: {
+        Args: { p_source_product_id: string; p_target_product_id: string }
+        Returns: Json
+      }
       platform_assign_user_to_org: {
         Args: {
           p_org_id: string
