@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
-import { Package, ShoppingCart, TrendingUp, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
+import { Package, ShoppingCart, TrendingUp, TrendingDown, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
 
 interface ProductHistoryDialogProps {
   isOpen: boolean;
@@ -101,6 +101,22 @@ export const ProductHistoryDialog = ({
     enabled: isOpen && !!productId,
   });
 
+  const { data: purchaseReturnTotals } = useQuery({
+    queryKey: ["product-purchase-return-totals", productId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("purchase_return_items")
+        .select("qty, line_total")
+        .eq("product_id", productId);
+      if (error) throw error;
+      const totalQty = (data || []).reduce((sum, i) => sum + (i.qty || 0), 0);
+      const totalAmount = (data || []).reduce((sum, i) => sum + (i.line_total || 0), 0);
+      const totalCount = (data || []).length;
+      return { totalQty, totalAmount, totalCount };
+    },
+    enabled: isOpen && !!productId,
+  });
+
   // Detail queries — only fire when showDetails is true
   const { data: saleItems, isLoading: loadingSales } = useQuery({
     queryKey: ["product-sales", productId, fromDate, toDate],
@@ -176,10 +192,29 @@ export const ProductHistoryDialog = ({
     enabled: isOpen && !!variants && variants.length > 0 && showDetails,
   });
 
+  const { data: purchaseReturnItems, isLoading: loadingPurchaseReturns } = useQuery({
+    queryKey: ["product-purchase-returns", productId, fromDate, toDate],
+    queryFn: async () => {
+      let query = supabase
+        .from("purchase_return_items")
+        .select(`*, purchase_returns:return_id (return_number, return_date, supplier_name)`)
+        .eq("product_id", productId)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (fromDate) query = query.gte("purchase_returns.return_date", fromDate);
+      if (toDate) query = query.lte("purchase_returns.return_date", toDate);
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data || []).filter((i: any) => i.purchase_returns !== null);
+    },
+    enabled: isOpen && !!productId && showDetails,
+  });
+
   const totalStock = variants?.reduce((sum, v) => sum + (v.stock_qty || 0), 0) || 0;
   const totalSold = saleTotals?.totalQty || 0;
   const totalPurchased = purchaseTotals?.totalQty || 0;
   const totalReturned = returnTotals?.totalQty || 0;
+  const totalPurReturned = purchaseReturnTotals?.totalQty || 0;
 
   const getMovementTypeBadge = (type: string) => {
     switch (type) {
@@ -207,7 +242,7 @@ export const ProductHistoryDialog = ({
         </DialogHeader>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-2 gap-3 mb-2">
+        <div className="grid grid-cols-3 gap-3 mb-2">
           <Card className="border-l-4 border-l-blue-500">
             <CardContent className="p-3">
               <div className="flex items-center gap-2">
@@ -247,6 +282,16 @@ export const ProductHistoryDialog = ({
               <p className="text-xs text-muted-foreground">₹{(returnTotals?.totalAmount || 0).toLocaleString("en-IN")}</p>
             </CardContent>
           </Card>
+          <Card className="border-l-4 border-l-red-500">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <TrendingDown className="h-4 w-4 text-red-500" />
+                <span className="text-xs text-muted-foreground">Purchase Returns</span>
+              </div>
+              <p className="text-2xl font-bold text-red-600">{totalPurReturned}</p>
+              <p className="text-xs text-muted-foreground">₹{(purchaseReturnTotals?.totalAmount || 0).toLocaleString("en-IN")}</p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Toggle Details Button */}
@@ -275,11 +320,12 @@ export const ProductHistoryDialog = ({
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="sales">Sales ({saleTotals?.totalCount || 0})</TabsTrigger>
-                <TabsTrigger value="purchases">Purchases ({purchaseTotals?.totalCount || 0})</TabsTrigger>
-                <TabsTrigger value="returns">Returns ({returnTotals?.totalCount || 0})</TabsTrigger>
-                <TabsTrigger value="movements">Movements</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="sales" className="text-xs">Sales ({saleTotals?.totalCount || 0})</TabsTrigger>
+                <TabsTrigger value="purchases" className="text-xs">Purchases ({purchaseTotals?.totalCount || 0})</TabsTrigger>
+                <TabsTrigger value="returns" className="text-xs">Sale Ret ({returnTotals?.totalCount || 0})</TabsTrigger>
+                <TabsTrigger value="pur-returns" className="text-xs">Pur Ret ({purchaseReturnTotals?.totalCount || 0})</TabsTrigger>
+                <TabsTrigger value="movements" className="text-xs">Movements</TabsTrigger>
               </TabsList>
 
               <div className="flex-1 overflow-auto mt-3">
@@ -392,6 +438,44 @@ export const ProductHistoryDialog = ({
                     </div>
                   ) : (
                     <p className="text-center text-muted-foreground py-8">No return records found</p>
+                  )}
+                </TabsContent>
+
+                {/* Purchase Returns Tab */}
+                <TabsContent value="pur-returns" className="m-0">
+                  {loadingPurchaseReturns ? (
+                    <div className="space-y-2">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
+                  ) : purchaseReturnItems && purchaseReturnItems.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <Table className="min-w-[600px]">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Return No</TableHead>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Supplier</TableHead>
+                            <TableHead>Size</TableHead>
+                            <TableHead className="text-right">Qty</TableHead>
+                            <TableHead className="text-right">Rate</TableHead>
+                            <TableHead className="text-right">Amount</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {purchaseReturnItems.map((item: any) => (
+                            <TableRow key={item.id}>
+                              <TableCell className="font-medium">{item.purchase_returns?.return_number || "-"}</TableCell>
+                              <TableCell>{item.purchase_returns?.return_date ? format(new Date(item.purchase_returns.return_date), "dd MMM yy") : "-"}</TableCell>
+                              <TableCell>{item.purchase_returns?.supplier_name || "-"}</TableCell>
+                              <TableCell>{item.size}</TableCell>
+                              <TableCell className="text-right">{item.qty}</TableCell>
+                              <TableCell className="text-right">₹{item.pur_price?.toFixed(0)}</TableCell>
+                              <TableCell className="text-right text-red-600">₹{item.line_total?.toFixed(0)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (
+                    <p className="text-center text-muted-foreground py-8">No purchase return records found</p>
                   )}
                 </TabsContent>
 
