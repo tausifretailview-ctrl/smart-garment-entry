@@ -8,7 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Printer, RefreshCw, Download, Wifi, WifiOff, ExternalLink, FileText, Upload, Trash2, Plus, Eye } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { Printer, RefreshCw, Download, Wifi, WifiOff, ExternalLink, FileText, Upload, Trash2, Plus, Eye, Settings2 } from 'lucide-react';
 import { useQZTray } from '@/hooks/useQZTray';
 import { 
   generateTSPLBatchFromTemplate, 
@@ -83,38 +84,101 @@ export const DirectPrintDialog = ({
   const [newTemplateName, setNewTemplateName] = useState('');
   const [showAddTemplate, setShowAddTemplate] = useState(false);
   const [previewContent, setPreviewContent] = useState('');
+  const [showPrinterSettings, setShowPrinterSettings] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Printer-specific settings (persisted per printer)
+  interface PrinterConfig {
+    dpi: number;
+    speed: number;
+    density: number;
+    direction: 0 | 1;
+    gapMode: 'gap' | 'continuous' | 'bline';
+  }
+
+  const defaultPrinterConfig: PrinterConfig = {
+    dpi: 203,
+    speed: 4,
+    density: 8,
+    direction: 1,
+    gapMode: 'gap',
+  };
+
+  // Auto-detect DPI from printer name
+  const detectDPIFromPrinter = (printerName: string): number => {
+    const name = printerName.toUpperCase();
+    if (name.includes('D310') || name.includes('DA310') || name.includes('TDP-345')) return 300;
+    if (name.includes('DA220') || name.includes('DA240') || name.includes('TE244') || name.includes('TDP-225') || name.includes('TTP-245')) return 203;
+    return 203; // Default
+  };
+
+  const getPrinterConfigKey = (printer: string) => `qz_printer_config_${printer.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+  const loadPrinterConfig = (printer: string): PrinterConfig => {
+    try {
+      const saved = localStorage.getItem(getPrinterConfigKey(printer));
+      if (saved) return { ...defaultPrinterConfig, ...JSON.parse(saved) };
+    } catch { /* ignore */ }
+    return { ...defaultPrinterConfig, dpi: detectDPIFromPrinter(printer) };
+  };
+
+  const [printerConfig, setPrinterConfig] = useState<PrinterConfig>(defaultPrinterConfig);
+
+  // Load config when printer changes
+  const handleSelectPrinter = (printer: string) => {
+    selectPrinter(printer);
+    const config = loadPrinterConfig(printer);
+    setPrinterConfig(config);
+  };
+
+  const updatePrinterConfig = (updates: Partial<PrinterConfig>) => {
+    const newConfig = { ...printerConfig, ...updates };
+    setPrinterConfig(newConfig);
+    if (selectedPrinter) {
+      localStorage.setItem(getPrinterConfigKey(selectedPrinter), JSON.stringify(newConfig));
+    }
+  };
 
   // All available PRN templates (sample + saved)
   const allPRNTemplates = [...SAMPLE_PRN_TEMPLATES, ...prnTemplates];
 
-  // Parse label size to get dimensions
+  // Parse label size to get dimensions, merged with printer config
   const getLabelConfig = (): TSPLLabelConfig => {
-    // Handle custom_WxH format (e.g., "custom_50x38") - continuous rolls use GAP 0
-    // Custom sizes typically need 300 DPI (TSC DA 310) and DIRECTION 1
     const customMatch = labelSize.match(/custom[_]?(\d+)x(\d+)/i);
     if (customMatch) {
       return {
         width: parseInt(customMatch[1]),
         height: parseInt(customMatch[2]),
-        gap: 0,        // Continuous mode for custom rolls
-        dpi: 300,      // TSC DA 310 is 300 DPI
-        direction: 1,  // Standard orientation (fixes upside-down printing)
+        gap: printerConfig.gapMode === 'gap' ? 2 : 0,
+        dpi: printerConfig.dpi,
+        direction: printerConfig.direction,
+        speed: printerConfig.speed,
+        density: printerConfig.density,
+        gapMode: printerConfig.gapMode,
       };
     }
     
-    // Handle standard thermal preset format (e.g., "thermal_50x30_1up")
     const match = labelSize.match(/(\d+)x(\d+)/);
     if (match) {
       return {
         width: parseInt(match[1]),
         height: parseInt(match[2]),
-        gap: 2,        // Standard presets use gap mode
-        dpi: 203,      // Standard 203 DPI printers
-        direction: 1,  // Standard orientation
+        gap: printerConfig.gapMode === 'gap' ? 2 : 0,
+        dpi: printerConfig.dpi,
+        direction: printerConfig.direction,
+        speed: printerConfig.speed,
+        density: printerConfig.density,
+        gapMode: printerConfig.gapMode,
       };
     }
-    return { ...TSPL_PRESETS['50x25'], direction: 1 };
+    return { 
+      ...TSPL_PRESETS['50x25'], 
+      dpi: printerConfig.dpi,
+      direction: printerConfig.direction,
+      speed: printerConfig.speed,
+      density: printerConfig.density,
+      gapMode: printerConfig.gapMode,
+    };
   };
 
   const handleConnect = async () => {
@@ -421,7 +485,7 @@ export const DirectPrintDialog = ({
                 </Button>
               </div>
               
-              <Select value={selectedPrinter || ''} onValueChange={selectPrinter}>
+              <Select value={selectedPrinter || ''} onValueChange={handleSelectPrinter}>
                 <SelectTrigger>
                   <SelectValue placeholder="Choose a printer..." />
                 </SelectTrigger>
@@ -435,6 +499,105 @@ export const DirectPrintDialog = ({
                   )}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+
+          {/* Printer Settings (per-printer config) */}
+          {isConnected && selectedPrinter && (
+            <div className="space-y-2">
+              <button
+                onClick={() => setShowPrinterSettings(!showPrinterSettings)}
+                className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Settings2 className="h-4 w-4" />
+                Printer Settings
+                <Badge variant="secondary" className="text-xs">{printerConfig.dpi} DPI</Badge>
+              </button>
+              
+              {showPrinterSettings && (
+                <div className="p-3 bg-muted rounded-lg space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* DPI */}
+                    <div className="space-y-1">
+                      <Label className="text-xs">Printer DPI</Label>
+                      <Select value={String(printerConfig.dpi)} onValueChange={(v) => updatePrinterConfig({ dpi: parseInt(v) })}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="203">203 DPI (TE244, DA240)</SelectItem>
+                          <SelectItem value="300">300 DPI (D310, DA310)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {/* Direction */}
+                    <div className="space-y-1">
+                      <Label className="text-xs">Direction</Label>
+                      <Select value={String(printerConfig.direction)} onValueChange={(v) => updatePrinterConfig({ direction: parseInt(v) as 0 | 1 })}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">Direction 0</SelectItem>
+                          <SelectItem value="1">Direction 1</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {/* Gap Mode */}
+                    <div className="space-y-1">
+                      <Label className="text-xs">Gap Mode</Label>
+                      <Select value={printerConfig.gapMode} onValueChange={(v) => updatePrinterConfig({ gapMode: v as 'gap' | 'continuous' | 'bline' })}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="gap">Gap (Die-cut)</SelectItem>
+                          <SelectItem value="continuous">Continuous</SelectItem>
+                          <SelectItem value="bline">Black Mark</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  {/* Speed */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <Label className="text-xs">Speed</Label>
+                      <span className="text-xs text-muted-foreground">{printerConfig.speed}</span>
+                    </div>
+                    <Slider
+                      value={[printerConfig.speed]}
+                      onValueChange={([v]) => updatePrinterConfig({ speed: v })}
+                      min={1}
+                      max={6}
+                      step={1}
+                      className="py-1"
+                    />
+                  </div>
+                  
+                  {/* Density */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <Label className="text-xs">Density (Darkness)</Label>
+                      <span className="text-xs text-muted-foreground">{printerConfig.density}</span>
+                    </div>
+                    <Slider
+                      value={[printerConfig.density]}
+                      onValueChange={([v]) => updatePrinterConfig({ density: v })}
+                      min={1}
+                      max={15}
+                      step={1}
+                      className="py-1"
+                    />
+                  </div>
+                  
+                  <p className="text-xs text-muted-foreground">
+                    Settings saved per printer. Auto-detected DPI from printer name.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
