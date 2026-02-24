@@ -702,6 +702,7 @@ export function CustomerPaymentTab({
                 <TableHead>Date</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Amount</TableHead>
+                <TableHead>Method</TableHead>
                 <TableHead>Description</TableHead>
                 {isAdmin && <TableHead>Actions</TableHead>}
               </TableRow>
@@ -732,6 +733,7 @@ export function CustomerPaymentTab({
                     <TableCell>{format(new Date(voucher.voucher_date), "dd/MM/yyyy")}</TableCell>
                     <TableCell>{customerName}</TableCell>
                     <TableCell>₹{voucher.total_amount.toFixed(2)}</TableCell>
+                    <TableCell className="uppercase text-xs">{voucher.payment_method || "-"}</TableCell>
                     <TableCell className="max-w-xs truncate">{voucher.description}</TableCell>
                     {isAdmin && (
                       <TableCell>
