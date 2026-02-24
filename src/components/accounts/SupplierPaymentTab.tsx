@@ -54,6 +54,7 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
   const PAYMENTS_PER_PAGE = 10;
   const [paymentsPage, setPaymentsPage] = useState(1);
   const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
+  const [paymentSearchTerm, setPaymentSearchTerm] = useState("");
 
   // Suppliers with balance
   const { data: suppliersWithBalance } = useQuery({
@@ -227,7 +228,15 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
   };
 
   // Computed supplier payments for the table
-  const supplierPayments = vouchers?.filter((v) => v.reference_type === "supplier" && v.voucher_type === "payment") || [];
+  const allSupplierPayments = vouchers?.filter((v) => v.reference_type === "supplier" && v.voucher_type === "payment") || [];
+  const supplierPayments = paymentSearchTerm
+    ? allSupplierPayments.filter((v) => {
+        const supplierName = suppliers?.find((s) => s.id === v.reference_id)?.supplier_name || "";
+        return supplierName.toLowerCase().includes(paymentSearchTerm.toLowerCase()) ||
+          (v.voucher_number || "").toLowerCase().includes(paymentSearchTerm.toLowerCase()) ||
+          (v.description || "").toLowerCase().includes(paymentSearchTerm.toLowerCase());
+      })
+    : allSupplierPayments;
   const totalPaymentPages = Math.ceil(supplierPayments.length / PAYMENTS_PER_PAGE);
   const startIdx = (paymentsPage - 1) * PAYMENTS_PER_PAGE;
   const endIdx = startIdx + PAYMENTS_PER_PAGE;
@@ -502,6 +511,14 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
           </div>
         </CardHeader>
         <CardContent>
+          <div className="mb-4">
+            <Input
+              placeholder="Search by supplier name, voucher no, or description..."
+              value={paymentSearchTerm}
+              onChange={(e) => { setPaymentSearchTerm(e.target.value); setPaymentsPage(1); }}
+              className="max-w-sm"
+            />
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
