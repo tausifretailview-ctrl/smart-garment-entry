@@ -208,7 +208,7 @@ export const SupplierHistoryDialog = ({
             </TabsTrigger>
           </TabsList>
 
-          <ScrollArea className="flex-1 mt-4">
+          <ScrollArea className="flex-1 mt-4" showScrollbar>
             {/* Purchases Tab */}
             <TabsContent value="purchases" className="m-0">
               {loadingPurchases ? (
