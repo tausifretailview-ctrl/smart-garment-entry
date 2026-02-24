@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, ChevronDown, ChevronRight, Shield, Users, Save, LayoutDashboard, Package, ShoppingCart, FileText, Truck, Wallet, UserCog } from "lucide-react";
+import { Loader2, ChevronDown, ChevronRight, Shield, Users, Save, LayoutDashboard, Package, ShoppingCart, FileText, Truck, Wallet, UserCog, Calculator, Settings, Trash2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { cn } from "@/lib/utils";
@@ -106,6 +106,28 @@ const menuStructure = [
       { id: "payment_recording", name: "Record Payments" },
     ],
   },
+  {
+    id: "accounting_reports",
+    name: "Accounting Reports",
+    icon: Calculator,
+    submenus: [
+      { id: "accounting_reports_view", name: "Accounting Reports" },
+      { id: "net_profit_analysis", name: "Net Profit Analysis" },
+      { id: "gst_reports", name: "GST Reports" },
+      { id: "hourly_sales_analysis", name: "Hourly Sales Analysis" },
+    ],
+  },
+  {
+    id: "settings",
+    name: "Settings",
+    icon: Settings,
+    submenus: [
+      { id: "settings_view", name: "Settings" },
+      { id: "recycle_bin", name: "Recycle Bin" },
+      { id: "user_rights", name: "User Rights" },
+      { id: "stock_adjustment", name: "Stock Adjustment" },
+    ],
+  },
 ];
 
 // Special rights that can be enabled/disabled
@@ -174,19 +196,29 @@ const defaultManagerPermissions: Record<string, boolean> = {
   delivery_update: true,
   delivery_whatsapp: true,
   accounts_dashboard: true,
-  customer_ledger: true,
-  payments_dashboard: true,
-  payment_recording: true,
+    customer_ledger: true,
+    payments_dashboard: true,
+    payment_recording: true,
+    accounting_reports_view: true,
+    net_profit_analysis: true,
+    gst_reports: true,
+    hourly_sales_analysis: true,
+    settings_view: true,
+    recycle_bin: false,
+    user_rights: false,
+    stock_adjustment: true,
 };
 
 const defaultManagerMainMenu: Record<string, boolean> = {
   dashboard: true,
-  master: true,
-  inventory: true,
-  sales: true,
-  reports: true,
-  delivery: true,
-  accounts: true,
+    master: true,
+    inventory: true,
+    sales: true,
+    reports: true,
+    delivery: true,
+    accounts: true,
+    accounting_reports: true,
+    settings: true,
 };
 
 const defaultManagerSpecialRights: Record<string, boolean> = {
