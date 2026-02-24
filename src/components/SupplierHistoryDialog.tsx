@@ -83,31 +83,51 @@ export const SupplierHistoryDialog = ({
     enabled: isOpen && !!supplierId,
   });
 
-  // Fetch payments from voucher entries
+  // Fetch payments from voucher entries (supplier-level payments)
   const { data: payments, isLoading: loadingPayments } = useQuery({
-    queryKey: ["supplier-payments", supplierId, purchaseBills],
+    queryKey: ["supplier-payments", supplierId],
     queryFn: async () => {
-      if (!purchaseBills || purchaseBills.length === 0) return [];
-      const billIds = purchaseBills.map((b) => b.id);
       const { data, error } = await supabase
         .from("voucher_entries")
         .select("*")
-        .in("reference_id", billIds)
+        .eq("reference_id", supplierId)
+        .eq("reference_type", "supplier")
         .eq("voucher_type", "payment")
         .is("deleted_at", null)
         .order("voucher_date", { ascending: false });
       if (error) throw error;
       return data || [];
     },
-    enabled: isOpen && !!purchaseBills && purchaseBills.length > 0,
+    enabled: isOpen && !!supplierId,
   });
 
-  // Calculate totals
+  // Fetch credit notes for supplier
+  const { data: creditNotes, isLoading: loadingCreditNotes } = useQuery({
+    queryKey: ["supplier-credit-notes", supplierId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("voucher_entries")
+        .select("*")
+        .eq("reference_id", supplierId)
+        .eq("reference_type", "supplier")
+        .eq("voucher_type", "credit_note")
+        .is("deleted_at", null)
+        .order("voucher_date", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: isOpen && !!supplierId,
+  });
+
+  // Calculate totals matching ledger logic
   const openingBalance = supplier?.opening_balance || 0;
   const totalPurchases = purchaseBills?.reduce((sum, bill) => sum + (bill.net_amount || 0), 0) || 0;
   const totalReturns = purchaseReturns?.reduce((sum, ret) => sum + (ret.net_amount || 0), 0) || 0;
-  const totalPaid = purchaseBills?.reduce((sum, bill) => sum + (bill.paid_amount || 0), 0) || 0;
-  const currentBalance = openingBalance + totalPurchases - totalReturns - totalPaid;
+  const totalPaidOnBills = purchaseBills?.reduce((sum, bill) => sum + (bill.paid_amount || 0), 0) || 0;
+  const voucherPaymentTotal = payments?.reduce((sum, p) => sum + (Number(p.total_amount) || 0), 0) || 0;
+  const totalCreditNoteAdjust = creditNotes?.reduce((sum, cn) => sum + (Number(cn.total_amount) || 0), 0) || 0;
+  const totalPaid = totalPaidOnBills + voucherPaymentTotal;
+  const currentBalance = openingBalance + totalPurchases - totalPaid - totalCreditNoteAdjust;
 
   const getPaymentStatusBadge = (status: string | null | undefined) => {
     switch (status) {
