@@ -68,6 +68,7 @@ export function CustomerPaymentTab({
   // Selection and pagination
   const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
   const [customerPaymentsPage, setCustomerPaymentsPage] = useState(1);
+  const [paymentSearchTerm, setPaymentSearchTerm] = useState("");
   const CUSTOMER_PAYMENTS_PER_PAGE = 10;
 
   // Reassign dialog state
@@ -371,9 +372,22 @@ export function CustomerPaymentTab({
     createVoucher.mutate();
   };
 
-  const customerPayments = vouchers
+  const allCustomerPayments = vouchers
     ?.filter((v) => (v.reference_type === "customer" || v.reference_type === "customer_payment" || v.reference_type === "sale" || v.reference_type === "SALE") && (v.voucher_type === "receipt" || v.voucher_type === "RECEIPT"))
     .sort((a, b) => new Date(b.voucher_date).getTime() - new Date(a.voucher_date).getTime()) || [];
+  
+  const customerPayments = paymentSearchTerm
+    ? allCustomerPayments.filter((v) => {
+        const invoice = sales?.find((s) => s.id === v.reference_id);
+        let custName = "";
+        if (invoice?.customer_name) custName = invoice.customer_name;
+        else if (v.reference_type === 'customer') custName = customers?.find((c) => c.id === v.reference_id)?.customer_name || "";
+        else if (invoice?.customer_id) custName = customers?.find((c) => c.id === invoice.customer_id)?.customer_name || "";
+        return custName.toLowerCase().includes(paymentSearchTerm.toLowerCase()) ||
+          (v.voucher_number || "").toLowerCase().includes(paymentSearchTerm.toLowerCase()) ||
+          (v.description || "").toLowerCase().includes(paymentSearchTerm.toLowerCase());
+      })
+    : allCustomerPayments;
   
   const totalPages = Math.ceil(customerPayments.length / CUSTOMER_PAYMENTS_PER_PAGE);
   const startIndex = (customerPaymentsPage - 1) * CUSTOMER_PAYMENTS_PER_PAGE;
@@ -663,10 +677,6 @@ export function CustomerPaymentTab({
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Recent Customer Payments</CardTitle>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={onShowAdvanceDialog} className="border-primary/30 text-primary hover:bg-primary/10">
-              <Coins className="mr-2 h-4 w-4" />
-              Booking Advance
-            </Button>
             {isAdmin && selectedPaymentIds.length > 0 && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -696,6 +706,14 @@ export function CustomerPaymentTab({
           </div>
         </CardHeader>
         <CardContent>
+          <div className="mb-4">
+            <Input
+              placeholder="Search by customer name, voucher no, or description..."
+              value={paymentSearchTerm}
+              onChange={(e) => { setPaymentSearchTerm(e.target.value); setCustomerPaymentsPage(1); }}
+              className="max-w-sm"
+            />
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
