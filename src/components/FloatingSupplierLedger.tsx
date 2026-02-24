@@ -312,13 +312,29 @@ export const FloatingSupplierLedger = ({
           </Card>
         </div>
 
-        {/* Ledger Table */}
-        <ScrollArea className="flex-1">
+        {/* Ledger Table with scrollbar */}
+        <ScrollArea className="flex-1 max-h-[55vh]">
           <div ref={printRef}>
+            {/* Print-only styles */}
+            <style dangerouslySetInnerHTML={{ __html: `
+              @media print {
+                .print-ledger-header { display: block !important; margin-bottom: 16px; }
+                table { font-size: 12px !important; border-collapse: collapse; width: 100%; }
+                th { background: #1e293b !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 8px !important; font-weight: 700 !important; font-size: 12px !important; }
+                td { padding: 6px 8px !important; border-bottom: 1px solid #e2e8f0 !important; font-size: 12px !important; font-weight: 500 !important; color: #0f172a !important; }
+                .text-green-600, .text-green-400, .dark\\:text-green-400 { color: #16a34a !important; }
+                .text-red-600, .text-red-400, .dark\\:text-red-400 { color: #dc2626 !important; }
+                .text-purple-600, .text-purple-400, .dark\\:text-purple-400 { color: #9333ea !important; }
+                .grand-total-row { background: #f1f5f9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; border-top: 2px solid #334155 !important; }
+                .grand-total-row td { font-weight: 800 !important; font-size: 13px !important; padding: 10px 8px !important; }
+              }
+            ` }} />
+            
             {/* Print Header (hidden on screen) */}
-            <div className="hidden print:block mb-4">
-              <h2 className="text-xl font-bold">{supplierName} - Supplier Ledger</h2>
-              <p className="text-sm text-muted-foreground">Generated on {format(new Date(), "dd MMM yyyy")}</p>
+            <div className="hidden print-ledger-header" style={{ display: 'none' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', marginBottom: '4px' }}>{supplierName} - Supplier Ledger</h2>
+              <p style={{ fontSize: '13px', color: '#64748b' }}>Generated on {format(new Date(), "dd MMM yyyy")}</p>
+              {supplierPhone && <p style={{ fontSize: '13px', color: '#64748b' }}>Phone: {supplierPhone}</p>}
             </div>
 
             {isLoading ? (
@@ -330,14 +346,14 @@ export const FloatingSupplierLedger = ({
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Reference</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead className="text-right">Debit (Paid)</TableHead>
-                    <TableHead className="text-right">Credit (Bill)</TableHead>
-                    <TableHead className="text-right">Balance</TableHead>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="font-bold text-foreground">Date</TableHead>
+                    <TableHead className="font-bold text-foreground">Type</TableHead>
+                    <TableHead className="font-bold text-foreground">Reference</TableHead>
+                    <TableHead className="font-bold text-foreground">Description</TableHead>
+                    <TableHead className="text-right font-bold text-foreground">Debit (Paid)</TableHead>
+                    <TableHead className="text-right font-bold text-foreground">Credit (Bill)</TableHead>
+                    <TableHead className="text-right font-bold text-foreground">Balance</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -350,11 +366,11 @@ export const FloatingSupplierLedger = ({
                   ) : (
                     transactions.map((t) => (
                       <TableRow key={t.id} className={t.id === "opening-balance" ? "bg-muted/50" : ""}>
-                        <TableCell>
+                        <TableCell className="font-medium text-foreground">
                           <div className="flex items-center gap-1">
                             <Calendar className="h-3 w-3 text-muted-foreground" />
                             {t.id === "opening-balance" ? (
-                              <span className="font-semibold">Opening</span>
+                              <span className="font-bold">Opening</span>
                             ) : (
                               format(new Date(t.date), "dd MMM yy")
                             )}
@@ -377,24 +393,24 @@ export const FloatingSupplierLedger = ({
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell className="font-mono text-xs">{t.reference}</TableCell>
-                        <TableCell className="text-muted-foreground text-xs max-w-[200px] truncate">{t.description}</TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="font-mono text-xs font-semibold text-foreground">{t.reference}</TableCell>
+                        <TableCell className="text-foreground text-xs max-w-[200px] truncate font-medium">{t.description}</TableCell>
+                        <TableCell className="text-right tabular-nums">
                           {t.debit > 0 && (
-                            <span className="text-green-600 dark:text-green-400 font-medium">
+                            <span className="text-green-600 dark:text-green-400 font-bold">
                               ₹{t.debit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                             </span>
                           )}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right tabular-nums">
                           {t.credit > 0 && (
-                            <span className="text-red-600 dark:text-red-400 font-medium">
+                            <span className="text-red-600 dark:text-red-400 font-bold">
                               ₹{t.credit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                             </span>
                           )}
                         </TableCell>
                         <TableCell className={cn(
-                          "text-right font-bold",
+                          "text-right font-bold tabular-nums",
                           t.balance > 0 ? "text-red-600 dark:text-red-400" :
                           t.balance < 0 ? "text-green-600 dark:text-green-400" :
                           "text-foreground"
@@ -406,30 +422,31 @@ export const FloatingSupplierLedger = ({
                   )}
                   {/* Grand Total */}
                   {transactions.length > 0 && (
-                    <TableRow className="bg-muted/70 border-t-2 border-primary/20 font-bold">
-                      <TableCell colSpan={4} className="text-right text-sm font-bold">Grand Total</TableCell>
-                      <TableCell className="text-right text-sm">
-                        <span className="text-green-600 dark:text-green-400">
+                    <TableRow className="grand-total-row bg-muted border-t-2 border-primary/30 sticky bottom-0">
+                      <TableCell colSpan={4} className="text-right text-sm font-extrabold text-foreground">Grand Total</TableCell>
+                      <TableCell className="text-right text-sm tabular-nums">
+                        <span className="text-green-600 dark:text-green-400 font-extrabold">
                           ₹{summary.totalDebit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                         </span>
                         {summary.totalCreditNoteAdjust > 0 && (
-                          <div className="text-xs text-purple-600 dark:text-purple-400 font-normal">
+                          <div className="text-xs text-purple-600 dark:text-purple-400 font-semibold">
                             (CN Adj: ₹{summary.totalCreditNoteAdjust.toLocaleString("en-IN", { minimumFractionDigits: 2 })})
                           </div>
                         )}
                       </TableCell>
-                      <TableCell className="text-right text-sm">
-                        <span className="text-red-600 dark:text-red-400">
+                      <TableCell className="text-right text-sm tabular-nums">
+                        <span className="text-red-600 dark:text-red-400 font-extrabold">
                           ₹{summary.totalCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                         </span>
                       </TableCell>
                       <TableCell className={cn(
-                        "text-right text-sm font-bold",
+                        "text-right text-sm font-extrabold tabular-nums",
                         summary.finalBalance > 0 ? "text-red-600 dark:text-red-400" :
                         summary.finalBalance < 0 ? "text-green-600 dark:text-green-400" :
                         "text-foreground"
                       )}>
                         ₹{Math.abs(summary.finalBalance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        {summary.finalBalance > 0 ? " Payable" : summary.finalBalance < 0 ? " Advance" : ""}
                       </TableCell>
                     </TableRow>
                   )}
