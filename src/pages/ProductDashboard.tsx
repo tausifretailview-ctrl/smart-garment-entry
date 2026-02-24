@@ -19,7 +19,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2, Barcode, RefreshCw, Eye, Edit, ShoppingCart, History, Ban } from "lucide-react";
+import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2, Barcode, RefreshCw, Eye, Edit, ShoppingCart, History, Ban, Merge } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +39,7 @@ import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/componen
 import { ProductImageGallery, ProductImage } from "@/components/ProductImageGallery";
 import { ProductImageViewer } from "@/components/ProductImageViewer";
 import { ProductImageUploader } from "@/components/ProductImageUploader";
+import { MergeProductsDialog } from "@/components/MergeProductsDialog";
 
 interface ProductVariant {
   variant_id: string;
@@ -124,6 +125,7 @@ const ProductDashboard = () => {
     images: ProductImage[];
   }>({ productId: "", productName: "", images: [] });
   const [galleryRefreshKey, setGalleryRefreshKey] = useState(0);
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
 
   // Context menu for desktop right-click
   const isDesktop = useIsDesktop();
@@ -1377,6 +1379,17 @@ const ProductDashboard = () => {
                     <Barcode className="h-4 w-4" />
                     Generate Barcode
                   </Button>
+                  {selectedProducts.size === 2 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowMergeDialog(true)}
+                      className="gap-2"
+                    >
+                      <Merge className="h-4 w-4" />
+                      Merge Selected
+                    </Button>
+                  )}
                   <Button
                     variant="destructive"
                     size="sm"
@@ -1559,6 +1572,28 @@ const ProductDashboard = () => {
         productName={selectedProductImages.productName}
         existingImages={selectedProductImages.images}
         onImagesUpdated={handleImagesUpdated}
+      />
+
+      {/* Merge Products Dialog */}
+      <MergeProductsDialog
+        open={showMergeDialog}
+        onOpenChange={setShowMergeDialog}
+        products={productRows
+          .filter((p) => selectedProducts.has(p.product_id))
+          .map((p) => ({
+            product_id: p.product_id,
+            product_name: p.product_name,
+            category: p.category,
+            brand: p.brand,
+            style: p.style,
+            color: p.color,
+            total_stock: p.total_stock,
+            variants: p.variants,
+          }))}
+        onMergeComplete={() => {
+          setSelectedProducts(new Set());
+          fetchProductVariants();
+        }}
       />
     </div>
   );
