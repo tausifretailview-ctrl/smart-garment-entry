@@ -313,7 +313,7 @@ export const FloatingSupplierLedger = ({
         </div>
 
         {/* Ledger Table with scrollbar */}
-        <ScrollArea className="flex-1 max-h-[55vh]">
+        <ScrollArea className="flex-1 max-h-[55vh]" showScrollbar>
           <div ref={printRef}>
             {/* Print-only styles */}
             <style dangerouslySetInnerHTML={{ __html: `
