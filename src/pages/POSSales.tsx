@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Loader2, AlertCircle, Clock, Coins, BarChart3, Package } from "lucide-react";
+import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Loader2, AlertCircle, Clock, Coins, BarChart3, Package, History } from "lucide-react";
 import { MobilePOSLayout } from "@/components/mobile/MobilePOSLayout";
 import { FloatingPOSReports } from "@/components/FloatingPOSReports";
 import { FloatingSaleReturn } from "@/components/FloatingSaleReturn";
@@ -75,6 +75,7 @@ import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly, printA5
 import { format } from "date-fns";
 import { useReactToPrint } from "react-to-print";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
+import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 
 interface PendingPriceSelection {
   product: any;
@@ -204,6 +205,10 @@ export default function POSSales() {
   // Quick service product dialog state
   const [showQuickServiceDialog, setShowQuickServiceDialog] = useState(false);
   const [quickServiceCode, setQuickServiceCode] = useState("");
+
+  // Out-of-stock product history dialog state
+  const [showOutOfStockHistory, setShowOutOfStockHistory] = useState(false);
+  const [outOfStockProduct, setOutOfStockProduct] = useState<{ productId: string; productName: string } | null>(null);
 
   const { playSuccessBeep, playErrorBeep } = useBeepSound();
 
@@ -941,6 +946,27 @@ export default function POSSales() {
       // Await stock check before adding - prevents out-of-stock items from being added
       await addItemToCart(foundProduct, foundVariant);
     } else {
+      // Barcode not found in cached (in-stock) data — check DB for zero-stock match
+      if (currentOrganization?.id) {
+        const { data: zeroStockVariant } = await supabase
+          .from('product_variants')
+          .select('id, barcode, size, color, stock_qty, sale_price, mrp, product_id, products!inner(id, product_name, brand, category, style, color, product_type, organization_id)')
+          .eq('products.organization_id', currentOrganization.id)
+          .eq('barcode', searchTerm)
+          .is('deleted_at', null)
+          .maybeSingle();
+
+        if (zeroStockVariant && (zeroStockVariant as any).products) {
+          const prod = (zeroStockVariant as any).products;
+          setSearchInput("");
+          playErrorBeep();
+          setOutOfStockProduct({ productId: prod.id, productName: prod.product_name });
+          setStockNotAvailableMessage(`${prod.product_name} (Size: ${zeroStockVariant.size}) — Stock: ${zeroStockVariant.stock_qty || 0}`);
+          setShowStockNotAvailableDialog(true);
+          return;
+        }
+      }
+
       // Clear input and show error for barcode not found
       setSearchInput("");
       playErrorBeep();
@@ -950,7 +976,7 @@ export default function POSSales() {
         variant: "destructive",
       });
     }
-  }, [productsData, playErrorBeep, toast]);
+  }, [productsData, playErrorBeep, toast, currentOrganization?.id]);
 
   const handleQuickServiceAdd = useCallback(({ code, quantity, mrp }: { code: string; quantity: number; mrp: number }) => {
     // Try to find actual product with matching barcode to get valid IDs
@@ -4005,8 +4031,21 @@ export default function POSSales() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
+              {outOfStockProduct && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowStockNotAvailableDialog(false);
+                    setShowOutOfStockHistory(true);
+                  }}
+                >
+                  <History className="h-4 w-4 mr-1" />
+                  View History
+                </Button>
+              )}
               <AlertDialogAction onClick={() => {
                 setShowStockNotAvailableDialog(false);
+                setOutOfStockProduct(null);
                 barcodeInputRef.current?.focus();
               }}>
                 OK
@@ -4043,6 +4082,21 @@ export default function POSSales() {
           serviceCode={quickServiceCode}
           onAdd={handleQuickServiceAdd}
         />
+
+        {/* Out-of-Stock Product History Dialog */}
+        {outOfStockProduct && (
+          <ProductHistoryDialog
+            isOpen={showOutOfStockHistory}
+            onClose={() => {
+              setShowOutOfStockHistory(false);
+              setOutOfStockProduct(null);
+              barcodeInputRef.current?.focus();
+            }}
+            productId={outOfStockProduct.productId}
+            productName={outOfStockProduct.productName}
+            organizationId={currentOrganization?.id || ""}
+          />
+        )}
 
       </div>
     </div>
