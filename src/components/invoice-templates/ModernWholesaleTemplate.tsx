@@ -435,7 +435,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           </div>
         )}
 
-        <div style={{ width: "260px", padding: "8px 12px 8px 8px", background: colors.light }}>
+        <div style={{ width: "240px", padding: "8px", background: colors.light, boxSizing: "border-box" }}>
           <table style={{ width: "100%", fontSize: "9pt", fontWeight: "600", borderCollapse: "collapse" }}>
             <tbody>
               <tr>
