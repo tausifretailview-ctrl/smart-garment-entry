@@ -37,6 +37,7 @@ interface StudentFormData {
   admission_date: string;
   status: string;
   notes: string;
+  closing_fees_balance: string;
 }
 
 const initialFormData: StudentFormData = {
@@ -57,6 +58,7 @@ const initialFormData: StudentFormData = {
   admission_date: new Date().toISOString().split("T")[0],
   status: "active",
   notes: "",
+  closing_fees_balance: "",
 };
 
 const StudentEntry = () => {
@@ -159,6 +161,7 @@ const StudentEntry = () => {
         admission_date: existingStudent.admission_date || "",
         status: existingStudent.status || "active",
         notes: existingStudent.notes || "",
+        closing_fees_balance: existingStudent.closing_fees_balance != null ? String(existingStudent.closing_fees_balance) : "",
       });
     }
   }, [existingStudent]);
@@ -203,6 +206,7 @@ const StudentEntry = () => {
         admission_date: formData.admission_date || null,
         status: formData.status,
         notes: formData.notes || null,
+        closing_fees_balance: formData.closing_fees_balance ? parseFloat(formData.closing_fees_balance) : null,
       };
 
       if (isEditing) {
@@ -488,6 +492,22 @@ const StudentEntry = () => {
                   placeholder="Enter full address"
                   rows={3}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="closing_fees_balance">Closing Fees Balance (₹)</Label>
+                <Input
+                  id="closing_fees_balance"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.closing_fees_balance}
+                  onChange={(e) => handleChange("closing_fees_balance", e.target.value)}
+                  placeholder="Enter pending fees balance"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Used as fallback when no fee structure is defined for this student's class.
+                </p>
               </div>
 
               <div className="space-y-2">
