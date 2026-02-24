@@ -452,7 +452,7 @@ export function CustomerPaymentTab({
                                   <span className="font-medium">{customer.customer_name}</span>
                                   {customer.phone && <span className="text-xs text-muted-foreground">{customer.phone}</span>}
                                 </div>
-                                <Badge variant="outline" className="ml-2 text-amber-600 border-amber-300 bg-amber-50">
+                                <Badge variant="destructive" className="ml-2">
                                   ₹{Math.round(customer.outstandingBalance).toLocaleString('en-IN')}
                                 </Badge>
                                 {referenceId === customer.id && <Check className="ml-2 h-4 w-4 text-primary" />}
