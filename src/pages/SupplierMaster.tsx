@@ -90,7 +90,8 @@ const SupplierMaster = () => {
       const { count, error } = await supabase
         .from("suppliers")
         .select("id", { count: "exact", head: true })
-        .eq("organization_id", currentOrganization.id);
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
       if (error) throw error;
       return count || 0;
     },
@@ -110,7 +111,8 @@ const SupplierMaster = () => {
       let query = supabase
         .from("suppliers")
         .select("*", { count: "exact" })
-        .eq("organization_id", currentOrganization.id);
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
       
       if (term) {
         const filters = [
@@ -335,7 +337,8 @@ const SupplierMaster = () => {
     const { data: existingSuppliers } = await supabase
       .from("suppliers")
       .select("supplier_name")
-      .eq("organization_id", currentOrganization.id);
+      .eq("organization_id", currentOrganization.id)
+      .is("deleted_at", null);
     
     const existingNames = new Set(
       (existingSuppliers || [])
