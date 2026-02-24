@@ -435,8 +435,12 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           </div>
         )}
 
-        <div style={{ width: "220px", flexShrink: 0, padding: "6px", background: colors.light, boxSizing: "border-box" }}>
+        <div style={{ width: "260px", flexShrink: 0, padding: "6px", background: colors.light, boxSizing: "border-box", overflow: "visible" }}>
           <table style={{ width: "100%", fontSize: "9pt", fontWeight: "600", borderCollapse: "collapse" }}>
+            <colgroup>
+              <col />
+              <col style={{ minWidth: "100px" }} />
+            </colgroup>
             <tbody>
               <tr>
                 <td style={{ padding: "4px 2px", whiteSpace: "nowrap" }}>Sub Total:</td>
