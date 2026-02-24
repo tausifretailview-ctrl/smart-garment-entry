@@ -401,8 +401,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   const renderSummary = () => (
     <>
       {/* Bottom Summary Section */}
-      <div style={{ display: "flex", borderTop: "1px solid #374151" }}>
-        <div style={{ flex: 1, padding: "8px", borderRight: "1px solid #374151" }}>
+      <div style={{ display: "flex", borderTop: "1px solid #374151", width: "100%", boxSizing: "border-box", overflow: "hidden" }}>
+        <div style={{ flex: 1, padding: "8px", borderRight: "1px solid #374151", minWidth: 0 }}>
           <div style={{ fontSize: "7pt", fontWeight: "700" }}>AMOUNT IN WORDS:</div>
           <div style={{ fontSize: "9pt", fontStyle: "italic" }}>{numberToWords(grandTotal)} Only</div>
 
@@ -435,7 +435,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           </div>
         )}
 
-        <div style={{ width: "240px", padding: "8px", background: colors.light, boxSizing: "border-box" }}>
+        <div style={{ width: "220px", flexShrink: 0, padding: "6px", background: colors.light, boxSizing: "border-box" }}>
           <table style={{ width: "100%", fontSize: "9pt", fontWeight: "600", borderCollapse: "collapse" }}>
             <tbody>
               <tr>
