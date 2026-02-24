@@ -1,46 +1,61 @@
 
 
-## Merge Color Consolidation
+## Fix: Barcode Direct Print Compatibility for Multiple TSC Printer Models
 
 ### Problem
-The current `merge_products` function moves variants but does **not** update the parent product's `color` field. After merging PUL175:
-- **Target product** `color` = "BK" (only its original color)
-- **Source product** `color` = "BLU"
-- **Actual variant colors**: BK, BLU, BLUE, BR, PINK
+The QZ Tray direct print (TSPL mode) works perfectly on TSC TE244 but produces improper output on TSC DA240, TSC D310, and other models. This happens because:
 
-The target product's color list becomes incomplete and out of sync with its variants.
+1. **DPI is hardcoded by label size format** -- custom sizes always use 300 DPI, standard presets always use 203 DPI, regardless of the actual printer
+2. **No SPEED or DENSITY commands** -- different printer models need different print speed and darkness settings for clean output
+3. **GAP sensing issues** -- some rolls use gap mode, others use continuous or black-mark mode, but the code assumes based on label format
+4. **No CODEPAGE command** -- some models need explicit character encoding
 
 ### What Will Change
 
-After the fix, the merge function will automatically:
-1. Collect all unique colors from the merged variants
-2. Update the target product's `color` field with the combined, deduplicated list (e.g., "BK, BLU, BLUE, BR, PINK")
-3. Ensure the Product Dashboard and all search/filter screens reflect the correct colors
+A new "Printer Settings" section will be added to the Direct Print Dialog, allowing users to configure:
+- **Printer DPI** (203 or 300) -- auto-detected from common model names but user-overridable
+- **Print Speed** (1-6, default 4)
+- **Print Density** (1-15, default 8)
+- **Print Direction** (0 or 1)
+- **Gap Mode** (Gap / Continuous / Black Mark)
+
+These settings will be saved per-printer in localStorage so they only need to be configured once.
 
 ### Technical Details
 
-**Update the `merge_products` database function** to add a color consolidation step between moving variants and soft-deleting the source:
+**1. Update `src/utils/tsplGenerator.ts`**
+- Add `speed` and `density` fields to `TSPLLabelConfig`
+- Add `SPEED`, `DENSITY`, and `CODEPAGE` commands to generated TSPL output
+- Support `BLINE` (black mark) and `GAP 0 mm, 0 mm` (continuous) modes alongside standard gap
 
+**2. Update `src/components/DirectPrintDialog.tsx`**
+- Add printer configuration UI (DPI dropdown, speed/density sliders, gap mode selector)
+- Auto-detect DPI from printer name (e.g., "D310" -> 300 DPI, "DA240" -> 203 DPI)
+- Save/load per-printer settings from localStorage key `qz_printer_config_{printerName}`
+- Pass user-configured DPI/speed/density to TSPL generator instead of hardcoded values
+
+**3. Updated TSPL command output will look like:**
 ```text
--- After moving variants (step 1), before soft-delete (step 5):
--- Rebuild target product's color from all its variants
-UPDATE products
-SET color = (
-  SELECT STRING_AGG(DISTINCT v.color, ', ' ORDER BY v.color)
-  FROM product_variants v
-  WHERE v.product_id = p_target_product_id
-    AND v.deleted_at IS NULL
-    AND v.color IS NOT NULL
-    AND v.color != ''
-    AND v.color != '-'
-)
-WHERE id = p_target_product_id;
+SIZE 50 mm, 25 mm
+GAP 2 mm, 0 mm
+DIRECTION 1
+SPEED 4
+DENSITY 8
+CODEPAGE UTF-8
+CLS
+... (text and barcode commands)
+PRINT 1,1
+END
 ```
 
 ### Files to Modify
-- **Database migration**: Update `merge_products` function to include color consolidation step
+- `src/utils/tsplGenerator.ts` -- Add speed, density, codepage to config and generated commands
+- `src/components/DirectPrintDialog.tsx` -- Add printer settings UI, auto-detect model DPI, persist settings
 
 ### Notes
-- This rebuilds the color list from actual variant data, so it will be accurate even if the original product color fields were incomplete
-- Near-duplicate colors (e.g., "BLU" vs "BLUE") are kept as-is since they map to different variant records -- cleaning those up is a separate data normalization task
+- This is NOT a QZ Tray compatibility issue -- it is a TSPL command compatibility issue between printer models
+- The TSC TE244 works because 203 DPI + default speed/density happens to match
+- TSC D310 is 300 DPI and needs explicit density/speed tuning
+- TSC DA240 may need different DIRECTION or DENSITY values
+- Settings persist per printer name, so users with multiple printers can configure each one independently
 
