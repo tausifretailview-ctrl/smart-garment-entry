@@ -4832,6 +4832,7 @@ export type Database = {
           discount_reason: string | null
           id: string
           organization_id: string
+          payment_method: string | null
           reference_id: string | null
           reference_type: string | null
           total_amount: number
@@ -4851,6 +4852,7 @@ export type Database = {
           discount_reason?: string | null
           id?: string
           organization_id: string
+          payment_method?: string | null
           reference_id?: string | null
           reference_type?: string | null
           total_amount?: number
@@ -4870,6 +4872,7 @@ export type Database = {
           discount_reason?: string | null
           id?: string
           organization_id?: string
+          payment_method?: string | null
           reference_id?: string | null
           reference_type?: string | null
           total_amount?: number

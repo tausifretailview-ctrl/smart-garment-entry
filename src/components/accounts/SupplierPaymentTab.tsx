@@ -172,6 +172,7 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers }: Supp
         reference_id: referenceId,
         description: finalDescription,
         total_amount: paymentAmount,
+        payment_method: paymentMethod,
       });
       if (error) throw error;
     },
