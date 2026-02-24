@@ -1,50 +1,46 @@
 
 
-## Merge Duplicate Products Feature
+## Merge Color Consolidation
 
 ### Problem
-Products with the same name (e.g., "PUL175") exist as separate entries in the database with different color variants and barcodes. You want to consolidate them into a single product row.
+The current `merge_products` function moves variants but does **not** update the parent product's `color` field. After merging PUL175:
+- **Target product** `color` = "BK" (only its original color)
+- **Source product** `color` = "BLU"
+- **Actual variant colors**: BK, BLU, BLUE, BR, PINK
 
-### Current Data for PUL175
-- **Product 1**: 18 variants, 274 total stock (main entry)
-- **Product 2**: 20 variants, 1 total stock (duplicate)
+The target product's color list becomes incomplete and out of sync with its variants.
 
-### Solution: Add "Merge Products" capability
+### What Will Change
 
-#### What You Will See
-1. In the Product Dashboard, when you select 2 products using checkboxes, a **"Merge Selected"** button will appear in the toolbar
-2. Clicking it will show a confirmation dialog listing:
-   - Which product will be kept (the one with more stock/history)
-   - Which product will be merged into it
-   - Summary of variants being moved
-3. After confirmation, all variants, images, and transaction history from the duplicate will be reassigned to the primary product
+After the fix, the merge function will automatically:
+1. Collect all unique colors from the merged variants
+2. Update the target product's `color` field with the combined, deduplicated list (e.g., "BK, BLU, BLUE, BR, PINK")
+3. Ensure the Product Dashboard and all search/filter screens reflect the correct colors
 
-#### Technical Details
+### Technical Details
 
-**Step 1: Database Function (Migration)**
-Create a `merge_products` database function that:
-- Accepts `target_product_id` and `source_product_id`
-- Moves all `product_variants` from source to target (updates `product_id`)
-- Updates all 8 transaction tables (`sale_items`, `purchase_items`, `quotation_items`, `sale_order_items`, `sale_return_items`, `purchase_return_items`, `delivery_challan_items`, `purchase_order_items`) to point to the target
-- Moves `product_images` to the target
-- Soft-deletes the source product
-- Runs in a single transaction for safety
+**Update the `merge_products` database function** to add a color consolidation step between moving variants and soft-deleting the source:
 
-**Step 2: Merge Dialog Component**
-Create `src/components/MergeProductsDialog.tsx`:
-- Shows both products side by side
-- Lets user pick which to keep (defaults to the one with more stock)
-- Shows variant count and stock totals for each
-- Calls the database function on confirm
+```text
+-- After moving variants (step 1), before soft-delete (step 5):
+-- Rebuild target product's color from all its variants
+UPDATE products
+SET color = (
+  SELECT STRING_AGG(DISTINCT v.color, ', ' ORDER BY v.color)
+  FROM product_variants v
+  WHERE v.product_id = p_target_product_id
+    AND v.deleted_at IS NULL
+    AND v.color IS NOT NULL
+    AND v.color != ''
+    AND v.color != '-'
+)
+WHERE id = p_target_product_id;
+```
 
-**Step 3: Product Dashboard Integration**
-Update `src/pages/ProductDashboard.tsx`:
-- Add "Merge" button that appears when exactly 2 products are selected
-- Opens the merge dialog
-- Refreshes the product list after successful merge
+### Files to Modify
+- **Database migration**: Update `merge_products` function to include color consolidation step
 
-### Files to Create/Modify
-- **New**: `src/components/MergeProductsDialog.tsx`
-- **Modify**: `src/pages/ProductDashboard.tsx` (add merge button + dialog)
-- **New migration**: `merge_products` database function
+### Notes
+- This rebuilds the color list from actual variant data, so it will be accurate even if the original product color fields were incomplete
+- Near-duplicate colors (e.g., "BLU" vs "BLUE") are kept as-is since they map to different variant records -- cleaning those up is a separate data normalization task
 
