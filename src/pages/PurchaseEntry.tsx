@@ -2891,16 +2891,18 @@ const PurchaseEntry = () => {
 
         {/* Sticky Action Bar */}
         <div className="erp-invoice-sticky-actions flex justify-end gap-3 rounded-xl">
-          <Button
-            onClick={handlePrintBarcodes}
-            disabled={lineItems.length === 0}
-            size="default"
-            variant="outline"
-            className="gap-2 min-w-[150px]"
-          >
-            <Printer className="h-4 w-4" />
-            Print Barcodes {selectedForPrint.size > 0 && `(${selectedForPrint.size})`}
-          </Button>
+          {(savedBillId || isEditMode) && (
+            <Button
+              onClick={handlePrintBarcodes}
+              disabled={lineItems.length === 0}
+              size="default"
+              variant="outline"
+              className="gap-2 min-w-[150px]"
+            >
+              <Printer className="h-4 w-4" />
+              Print Barcodes {selectedForPrint.size > 0 && `(${selectedForPrint.size})`}
+            </Button>
+          )}
           <Button
             onClick={handleSave}
             disabled={loading || lineItems.length === 0}
