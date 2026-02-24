@@ -8,11 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, Receipt, Loader2, IndianRupee, Calendar, User, MessageCircle } from "lucide-react";
+import { Search, Receipt, Loader2, IndianRupee, Calendar, User, MessageCircle, Pencil } from "lucide-react";
 import { FeeCollectionDialog } from "@/components/school/FeeCollectionDialog";
 import { StudentHistoryDialog } from "@/components/school/StudentHistoryDialog";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
+import { BalanceEditDialog } from "@/components/school/BalanceEditDialog";
 import { toast } from "sonner";
 
 const FeeCollection = () => {
@@ -27,6 +28,8 @@ const FeeCollection = () => {
   const [sendingReminder, setSendingReminder] = useState<string | null>(null);
   const [historyStudent, setHistoryStudent] = useState<any>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [balanceEditStudent, setBalanceEditStudent] = useState<any>(null);
+  const [balanceEditOpen, setBalanceEditOpen] = useState(false);
   const { settings: whatsAppSettings, sendMessageAsync } = useWhatsAppAPI();
   const { sendWhatsApp } = useWhatsAppSend();
 
@@ -466,7 +469,18 @@ const FeeCollection = () => {
                     </TableCell>
                     <TableCell>{student.parent_phone || "-"}</TableCell>
                     <TableCell className="text-right font-medium">
-                      ₹{(student.totalDue || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      <div className="flex items-center justify-end gap-1">
+                        <span>₹{(student.totalDue || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
+                          onClick={() => { setBalanceEditStudent(student); setBalanceEditOpen(true); }}
+                          title="Edit closing fees balance"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </TableCell>
                     <TableCell className="text-center">
                       {getStatusBadge(student.feeStatus || "no-structure")}
@@ -539,6 +553,12 @@ const FeeCollection = () => {
         open={historyOpen}
         onOpenChange={setHistoryOpen}
         student={historyStudent}
+      />
+
+      <BalanceEditDialog
+        open={balanceEditOpen}
+        onOpenChange={setBalanceEditOpen}
+        student={balanceEditStudent}
       />
     </div>
   );
