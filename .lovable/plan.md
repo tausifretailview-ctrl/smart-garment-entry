@@ -1,33 +1,23 @@
 
 
-## Add Manual Closing Fees Balance Edit for Individual Students
+## Show Product History for Zero-Stock Products
 
-### What's Missing
-Currently, the `closing_fees_balance` field on students can only be updated through the bulk Excel/CSV import tool (`FeesBalanceImportDialog`). There is no way to manually edit this value for a single student from the UI.
+### Problem
+When scanning barcode `0090001607` in POS, it shows "Product not found" because the product has 0 stock. The POS search currently filters out zero-stock items, preventing you from viewing the product's purchase and sale history.
+
+### Solution
+Update the POS barcode scan to show zero-stock products with an "Out of Stock" indicator instead of hiding them. This way you can still view the product details and access its transaction history (purchases, sales, returns).
 
 ### What Will Change
 
-**Option 1 (Recommended): Add an editable field in Student Entry page**
-
-A "Closing Fees Balance" input field will be added to the Student Entry form (`src/pages/school/StudentEntry.tsx`), allowing admins to set or update the balance when creating or editing a student.
-
-**Option 2: Add inline edit on Fee Collection page**
-
-An edit icon next to the "Total Due" column on the Fee Collection page that opens a small dialog to update the closing fees balance for that specific student.
-
-### Recommended Approach: Both Options
-
-1. **Student Entry form** -- Add a "Closing Fees Balance" number input field in the fee/financial section of the student form. This allows setting the balance during student creation or when editing student details.
-
-2. **Fee Collection page** -- Add a small edit button next to students who have an imported balance, opening a quick dialog to adjust the balance without leaving the fee collection workflow.
+1. **POS barcode scan** -- When an exact barcode match is found but has zero stock, display the product with an "Out of Stock" badge instead of showing "Product not found"
+2. **Product History button** -- Add a "History" button on the POS product card so you can quickly view the purchase/sale history of any scanned product, even with zero stock
 
 ### Technical Details
 
 **Files to modify:**
 
-- `src/pages/school/StudentEntry.tsx` -- Add `closing_fees_balance` field to the form, include it in the save/update query
-- `src/pages/school/FeeCollection.tsx` -- Add an edit icon button per row that opens a small dialog to update `closing_fees_balance` directly
-- A new small component `BalanceEditDialog.tsx` (optional) -- A minimal dialog with a number input and save button for quick inline edits from the Fee Collection page
+- `src/pages/POSSales.tsx` -- Update the barcode scan/search logic to include exact barcode matches regardless of stock quantity. Add an "Out of Stock" visual indicator and prevent adding zero-stock items to the cart. Add a History button that opens the ProductHistoryDialog.
 
-**Database:** No schema changes needed -- `closing_fees_balance` column already exists on the `students` table.
+**No database changes needed.**
 
