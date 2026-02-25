@@ -210,14 +210,16 @@ export const generateTSPLLabelFromTemplate = (
   commands.push(`DIRECTION ${direction}`);
   
   // Add OFFSET to compensate for printer's physical print origin shift
-  // Most thermal printers have a ~1-2mm top offset that causes content to shift up
-  const topOffsetMm = labelConfig.topOffset ?? 2; // Default 2mm down to prevent top clipping
+  // OFFSET and SHIFT commands take values in dots
+  const topOffsetMm = labelConfig.topOffset ?? 2;
   const leftOffsetMm = labelConfig.leftOffset ?? 0;
   if (topOffsetMm !== 0) {
-    commands.push(`OFFSET ${topOffsetMm} mm`);
+    const topOffsetDots = mmToDots(topOffsetMm, dpi);
+    commands.push(`OFFSET ${topOffsetDots}`);
   }
   if (leftOffsetMm !== 0) {
-    commands.push(`SHIFT ${leftOffsetMm}`);
+    const leftOffsetDots = mmToDots(leftOffsetMm, dpi);
+    commands.push(`SHIFT ${leftOffsetDots}`);
   }
   
   // Speed and density for printer compatibility
@@ -349,12 +351,16 @@ export const generateTSPLLabelFromTemplate = (
       textX = fieldX + Math.max(0, fieldWidth - textWidthDots);
     }
     
-    // Ensure text doesn't go outside label bounds
-    textX = Math.max(0, Math.min(textX, labelWidthDots - textWidthDots));
+    // Ensure text doesn't start outside label bounds (but allow it to extend to edge)
+    textX = Math.max(0, textX);
     
-    // Truncate text to fit within field width
-    const maxChars = Math.floor(fieldWidth / (fieldConfig.fontSize <= 8 ? 8 : 10));
-    const truncatedContent = content.substring(0, Math.min(maxChars, 40));
+    // Truncate text only if it truly exceeds label width, using accurate character width
+    const charWidthDots = mapFontSize(scaledFontSize, fieldConfig.bold).font === '1' ? 8 
+      : mapFontSize(scaledFontSize, fieldConfig.bold).font === '2' ? 12 
+      : mapFontSize(scaledFontSize, fieldConfig.bold).font === '3' ? 16 
+      : mapFontSize(scaledFontSize, fieldConfig.bold).font === '4' ? 24 : 32;
+    const maxChars = Math.floor((labelWidthDots - textX) / charWidthDots);
+    const truncatedContent = content.substring(0, Math.max(maxChars, content.length > 40 ? 40 : content.length));
     
     commands.push(`TEXT ${Math.round(textX)},${Math.round(fieldY)},"${fontInfo.font}",0,${fontInfo.xMul},${fontInfo.yMul},"${truncatedContent}"`);
   }
