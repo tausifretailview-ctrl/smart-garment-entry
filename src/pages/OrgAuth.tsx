@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Building2, AlertCircle, Phone, ArrowRight, Check, Globe, Facebook, Instagram, Eye, EyeOff } from "lucide-react";
+import { Loader2, Building2, AlertCircle, Phone, ArrowRight, Check, Globe, Facebook, Instagram, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { validateAuth } from "@/lib/validations";
@@ -36,6 +36,8 @@ interface OrgSettings {
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 60000; // 1 minute
+const MAX_ORG_FETCH_RETRIES = 3;
+const ORG_FETCH_RETRY_DELAY_MS = 800;
 
 export default function OrgAuth() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
@@ -52,6 +54,8 @@ export default function OrgAuth() {
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [lockoutUntil, setLockoutUntil] = useState<Date | null>(null);
   const [inputSlug, setInputSlug] = useState(orgSlug || "");
+  const [orgFetchErrorType, setOrgFetchErrorType] = useState<"none" | "not_found" | "network" | "invalid_slug">("none");
+  const [orgFetchRetryKey, setOrgFetchRetryKey] = useState(0);
 
   // Check and clear lockout on mount
   useEffect(() => {
@@ -69,48 +73,94 @@ export default function OrgAuth() {
   useEffect(() => {
     const fetchOrganization = async () => {
       const normalizedSlug = normalizeOrgSlug(orgSlug);
+      setError("");
+      setOrgFetchErrorType("none");
+      setOrganization(null);
+      setOrgSettings(null);
+
       if (!isValidOrgSlug(normalizedSlug)) {
         setError("Invalid organization URL");
+        setOrgFetchErrorType("invalid_slug");
         setOrgLoading(false);
         return;
       }
 
-      try {
-        // Use secure RPC function that returns only safe fields
-        const { data, error } = await supabase.rpc("get_org_public_info", {
-          p_slug: normalizedSlug,
-        });
+      let resolvedOrgData: any = null;
+      let failureType: "none" | "not_found" | "network" | "invalid_slug" = "none";
+      let failureMessage = "";
+      let lastError: unknown = null;
 
-        if (error || !data) {
-          setError("Organization not found");
-          setOrgLoading(false);
-          return;
+      for (let attempt = 1; attempt <= MAX_ORG_FETCH_RETRIES; attempt += 1) {
+        try {
+          const { data, error } = await supabase.rpc("get_org_public_info", {
+            p_slug: normalizedSlug,
+          });
+
+          if (error) {
+            const errorMessage = (error.message || "").toLowerCase();
+            const isNotFound =
+              errorMessage.includes("not found") ||
+              errorMessage.includes("no rows") ||
+              error.code === "PGRST116";
+
+            if (isNotFound) {
+              failureType = "not_found";
+              failureMessage = "Organization not found";
+              break;
+            }
+
+            throw error;
+          }
+
+          if (!data) {
+            failureType = "not_found";
+            failureMessage = "Organization not found";
+            break;
+          }
+
+          resolvedOrgData = data as any;
+          break;
+        } catch (err) {
+          lastError = err;
+          if (attempt < MAX_ORG_FETCH_RETRIES) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, ORG_FETCH_RETRY_DELAY_MS * attempt)
+            );
+          }
         }
+      }
 
-        const orgData = data as any;
+      if (resolvedOrgData) {
         setOrganization({
-          id: orgData.id,
-          name: orgData.name,
-          slug: orgData.slug,
-          settings: orgData.settings,
+          id: resolvedOrgData.id,
+          name: resolvedOrgData.name,
+          slug: resolvedOrgData.slug,
+          settings: resolvedOrgData.settings,
         });
 
-        if (orgData.business_name || orgData.bill_barcode_settings) {
+        if (resolvedOrgData.business_name || resolvedOrgData.bill_barcode_settings) {
           setOrgSettings({
-            business_name: orgData.business_name,
-            bill_barcode_settings: orgData.bill_barcode_settings,
+            business_name: resolvedOrgData.business_name,
+            bill_barcode_settings: resolvedOrgData.bill_barcode_settings,
           });
         }
-      } catch (err) {
-        console.error("Error fetching organization:", err);
-        setError("Failed to load organization");
-      } finally {
-        setOrgLoading(false);
+      } else {
+        if (failureType === "none") {
+          failureType = "network";
+          failureMessage = "Unable to connect. Please check your internet and try again.";
+          console.error("Error fetching organization:", lastError);
+        }
+
+        setOrgFetchErrorType(failureType);
+        setError(failureMessage);
       }
+
+      setOrgLoading(false);
     };
 
+    setOrgLoading(true);
     fetchOrganization();
-  }, [orgSlug]);
+  }, [orgSlug, orgFetchRetryKey]);
 
   // Track if membership check already ran to avoid re-triggering after sign-out
   const [membershipChecked, setMembershipChecked] = useState(false);
@@ -278,15 +328,28 @@ export default function OrgAuth() {
     }
   };
 
+  const handleRetryOrganizationLoad = () => {
+    setOrgFetchRetryKey((prev) => prev + 1);
+  };
+
   if (!organization) {
+    const isNetworkError = orgFetchErrorType === "network";
+    const isInvalidSlug = orgFetchErrorType === "invalid_slug";
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md shadow-elevated">
           <div className="p-6 text-center space-y-4">
             <AlertCircle className="h-12 w-12 text-destructive mx-auto" />
-            <h2 className="text-xl font-semibold text-card-foreground">Organization Not Found</h2>
+            <h2 className="text-xl font-semibold text-card-foreground">
+              {isNetworkError ? "Connection Problem" : "Organization Not Found"}
+            </h2>
             <p className="text-muted-foreground text-sm">
-              The organization URL you're trying to access doesn't exist. Enter the correct organization code below.
+              {isNetworkError
+                ? "We're unable to connect right now. Please retry, then try organization login if needed."
+                : isInvalidSlug
+                  ? "The organization URL format is invalid. Enter the correct organization code below."
+                  : "The organization URL you're trying to access doesn't exist. Enter the correct organization code below."}
             </p>
 
             <div className="space-y-2 text-left">
@@ -304,16 +367,29 @@ export default function OrgAuth() {
               </div>
             </div>
 
-            <Button 
-              onClick={handleGoToOrgLogin} 
+            <Button
+              onClick={isNetworkError ? handleRetryOrganizationLoad : handleGoToOrgLogin}
               className="w-full"
-              disabled={!inputSlug.trim()}
+              disabled={isNetworkError ? orgLoading : !inputSlug.trim()}
             >
-              Go to Organization Login
-              <ArrowRight className="ml-2 h-4 w-4" />
+              {isNetworkError ? "Retry Connection" : "Go to Organization Login"}
+              {isNetworkError ? <RefreshCw className="ml-2 h-4 w-4" /> : <ArrowRight className="ml-2 h-4 w-4" />}
             </Button>
-            <Button 
-              onClick={() => navigate("/auth")} 
+
+            {isNetworkError && (
+              <Button
+                onClick={handleGoToOrgLogin}
+                variant="outline"
+                className="w-full"
+                disabled={!inputSlug.trim()}
+              >
+                Try Organization Login
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            )}
+
+            <Button
+              onClick={() => navigate("/auth")}
               variant="outline"
               className="w-full"
             >
