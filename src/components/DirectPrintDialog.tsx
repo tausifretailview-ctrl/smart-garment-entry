@@ -94,6 +94,8 @@ export const DirectPrintDialog = ({
     density: number;
     direction: 0 | 1;
     gapMode: 'gap' | 'continuous' | 'bline';
+    topOffset: number; // mm - vertical offset to fix top clipping
+    leftOffset: number; // mm - horizontal offset to fix right clipping
   }
 
   const defaultPrinterConfig: PrinterConfig = {
@@ -102,6 +104,8 @@ export const DirectPrintDialog = ({
     density: 8,
     direction: 1,
     gapMode: 'gap',
+    topOffset: 2,
+    leftOffset: 0,
   };
 
   // Auto-detect DPI from printer name
@@ -155,6 +159,8 @@ export const DirectPrintDialog = ({
         speed: printerConfig.speed,
         density: printerConfig.density,
         gapMode: printerConfig.gapMode,
+        topOffset: printerConfig.topOffset,
+        leftOffset: printerConfig.leftOffset,
       };
     }
     
@@ -169,6 +175,8 @@ export const DirectPrintDialog = ({
         speed: printerConfig.speed,
         density: printerConfig.density,
         gapMode: printerConfig.gapMode,
+        topOffset: printerConfig.topOffset,
+        leftOffset: printerConfig.leftOffset,
       };
     }
     return { 
@@ -178,6 +186,8 @@ export const DirectPrintDialog = ({
       speed: printerConfig.speed,
       density: printerConfig.density,
       gapMode: printerConfig.gapMode,
+      topOffset: printerConfig.topOffset,
+      leftOffset: printerConfig.leftOffset,
     };
   };
 
@@ -593,8 +603,40 @@ export const DirectPrintDialog = ({
                     />
                   </div>
                   
+                  {/* Top Offset */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <Label className="text-xs">Top Offset (mm)</Label>
+                      <span className="text-xs text-muted-foreground">{printerConfig.topOffset}mm</span>
+                    </div>
+                    <Slider
+                      value={[printerConfig.topOffset]}
+                      onValueChange={([v]) => updatePrinterConfig({ topOffset: v })}
+                      min={-5}
+                      max={10}
+                      step={0.5}
+                      className="py-1"
+                    />
+                  </div>
+                  
+                  {/* Left Offset */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <Label className="text-xs">Left Offset (mm)</Label>
+                      <span className="text-xs text-muted-foreground">{printerConfig.leftOffset}mm</span>
+                    </div>
+                    <Slider
+                      value={[printerConfig.leftOffset]}
+                      onValueChange={([v]) => updatePrinterConfig({ leftOffset: v })}
+                      min={-5}
+                      max={10}
+                      step={0.5}
+                      className="py-1"
+                    />
+                  </div>
+                  
                   <p className="text-xs text-muted-foreground">
-                    Settings saved per printer. Auto-detected DPI from printer name.
+                    Settings saved per printer. Adjust Top/Left Offset if labels shift on print.
                   </p>
                 </div>
               )}
