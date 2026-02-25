@@ -10,6 +10,8 @@ export interface TSPLLabelConfig {
   speed?: number; // print speed 1-6 (default: 4)
   density?: number; // print density 1-15 (default: 8)
   gapMode?: 'gap' | 'continuous' | 'bline'; // gap sensing mode
+  topOffset?: number; // vertical offset in mm to compensate for printer shift (default: 2)
+  leftOffset?: number; // horizontal offset in mm (default: 0)
 }
 
 export interface TSPLTextItem {
@@ -206,6 +208,17 @@ export const generateTSPLLabelFromTemplate = (
   }
   
   commands.push(`DIRECTION ${direction}`);
+  
+  // Add OFFSET to compensate for printer's physical print origin shift
+  // Most thermal printers have a ~1-2mm top offset that causes content to shift up
+  const topOffsetMm = labelConfig.topOffset ?? 2; // Default 2mm down to prevent top clipping
+  const leftOffsetMm = labelConfig.leftOffset ?? 0;
+  if (topOffsetMm !== 0) {
+    commands.push(`OFFSET ${topOffsetMm} mm`);
+  }
+  if (leftOffsetMm !== 0) {
+    commands.push(`SHIFT ${leftOffsetMm}`);
+  }
   
   // Speed and density for printer compatibility
   if (labelConfig.speed) {
