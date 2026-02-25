@@ -1,42 +1,44 @@
 
 
-# Fix: Customer Ledger ADJ Entry Double-Counting Advance
+# Fix: Field Sales "Access Denied" on Mobile Data
 
 ## Problem
-When a balance adjustment is made (e.g., for Saba Latif), the ledger shows an **ADJ** row worth Rs 2,84,300 which combines:
-- Outstanding reduction: Rs 2,02,500
-- Advance increase: Rs 81,800
+The Field Sales app shows "Access Denied" when using mobile data (slower connections), but works fine on WiFi. This is a **race condition** between the organization context loading and the field sales access check.
 
-However, the advance increase **also** creates a separate record in `customer_advances`, which appears as its own **ADVANCE** row in the ledger. This means the Rs 81,800 advance portion is counted twice -- once in the ADJ row and once in the ADVANCE row -- inflating the balance incorrectly.
+## Root Cause
+The `useFieldSalesAccess` hook depends on `currentOrganization?.id` from the OrganizationContext. On slower connections:
+1. The organization data takes longer to fetch
+2. While it's loading, `currentOrganization` is `null`
+3. This causes the access query to be **disabled** (`enabled: false`)
+4. TanStack Query v5 returns `isLoading: false` when disabled (the query simply hasn't started)
+5. The SalesmanLayout sees `isLoading=false` + `hasAccess=false` and immediately shows **"Access Denied"**
+
+On WiFi, the organization loads fast enough that by the time the component renders, everything is ready.
 
 ## Solution
-Modify the ADJ row logic in `CustomerLedger.tsx` to **only reflect the outstanding difference**, since the advance difference is already handled by a separate ADVANCE ledger entry.
+Update `useFieldSalesAccess` to also expose the organization loading state, so the SalesmanLayout knows to keep showing the loading spinner while the organization context is still loading.
 
 ## Technical Changes
 
-### File: `src/components/CustomerLedger.tsx` (lines 439-458)
+### 1. File: `src/hooks/useFieldSalesAccess.tsx`
+- Import `useOrganization`'s `loading` state
+- Include org loading in the returned `isLoading` value
+- If the organization context is still loading, treat the whole hook as "still loading"
 
-**Current logic (buggy):**
 ```typescript
-const outDiff = adj.outstanding_difference || 0;
-const advDiff = adj.advance_difference || 0;
-const netDebit = (outDiff > 0 ? outDiff : 0) + (advDiff < 0 ? Math.abs(advDiff) : 0);
-const netCredit = (outDiff < 0 ? Math.abs(outDiff) : 0) + (advDiff > 0 ? advDiff : 0);
+// Add org loading state
+const { currentOrganization, loading: orgLoading } = useOrganization();
+
+// Return combined loading state
+return {
+  hasAccess: !!data,
+  employeeName: data?.employee_name || null,
+  isLoading: isLoading || orgLoading,
+};
 ```
 
-**New logic (fix):**
-```typescript
-const outDiff = adj.outstanding_difference || 0;
-// Advance difference is NOT included here because advance adjustments
-// already create/modify separate customer_advances records that appear
-// as their own ADVANCE rows in the ledger.
-const netDebit = outDiff > 0 ? outDiff : 0;
-const netCredit = outDiff < 0 ? Math.abs(outDiff) : 0;
-```
-
-This ensures:
-- The ADJ row only shows the outstanding balance change (Rs 2,02,500 for Saba Latif)
-- The ADVANCE row independently shows the advance change (Rs 81,800)
-- No double-counting occurs
-- The running balance and final balance will be correct
-
+This single change ensures:
+- On slow mobile data, the spinner continues showing while the org context loads
+- Once the org context resolves, the access query fires and resolves normally
+- The 8-second safety timeout in SalesmanLayout still applies as a fallback
+- No changes needed to the layout or any other component
