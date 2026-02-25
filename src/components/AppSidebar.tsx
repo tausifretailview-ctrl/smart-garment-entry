@@ -812,8 +812,8 @@ export function AppSidebar() {
           </SidebarGroup>
         )}
 
-        {/* Settings */}
-        {(isAdminPermissions || hasMainMenuAccess("settings")) && (
+        {/* Settings - always visible for admin users, can be disabled via custom permissions */}
+        {(isAdmin || isAdminPermissions || hasMainMenuAccess("settings")) && (
         <SidebarGroup>
           <Collapsible defaultOpen={isGroupActive(settingsPaths)} className="group/collapsible">
             <SidebarGroupLabel asChild>
@@ -838,7 +838,7 @@ export function AppSidebar() {
                           </NavLink>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
-                      {(isAdminPermissions || hasMenuAccess("settings_view")) && (
+                      {(isAdmin || isAdminPermissions || hasMenuAccess("settings_view")) && (
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/settings")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
                             <NavLink to="/settings" className="flex items-center gap-3 group">
@@ -848,7 +848,7 @@ export function AppSidebar() {
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       )}
-                      {(isAdminPermissions || hasMenuAccess("settings_view")) && (
+                      {(isAdmin || isAdminPermissions || hasMenuAccess("settings_view")) && (
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/organization-management")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
                             <NavLink to="/organization-management" className="flex items-center gap-3 group">
@@ -858,7 +858,7 @@ export function AppSidebar() {
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       )}
-                      {(isAdminPermissions || hasMenuAccess("settings_view")) && (
+                      {(isAdmin || isAdminPermissions || hasMenuAccess("settings_view")) && (
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/barcode-printing")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
                             <NavLink to="/barcode-printing" className="flex items-center gap-3 group">
@@ -868,7 +868,7 @@ export function AppSidebar() {
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       )}
-                      {(isAdminPermissions || hasMenuAccess("settings_view")) && (
+                      {(isAdmin || isAdminPermissions || hasMenuAccess("settings_view")) && (
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/whatsapp-logs")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
                             <NavLink to="/whatsapp-logs" className="flex items-center gap-3 group">
@@ -878,7 +878,7 @@ export function AppSidebar() {
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       )}
-                      {(isAdminPermissions || hasMenuAccess("settings_view")) && (
+                      {(isAdmin || isAdminPermissions || hasMenuAccess("settings_view")) && (
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/whatsapp-inbox")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
                             <NavLink to="/whatsapp-inbox" className="flex items-center gap-3 group">
