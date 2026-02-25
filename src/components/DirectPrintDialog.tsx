@@ -106,7 +106,7 @@ export const DirectPrintDialog = ({
     density: 8,
     direction: 1,
     gapMode: 'gap',
-    topOffset: 2,
+    topOffset: 0,
     leftOffset: 0,
   };
 
