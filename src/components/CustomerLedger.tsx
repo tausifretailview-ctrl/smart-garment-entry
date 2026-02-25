@@ -439,11 +439,11 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         } else if (item.type === 'adjustment') {
           const adj = item.data as any;
           const outDiff = adj.outstanding_difference || 0;
-          const advDiff = adj.advance_difference || 0;
-          // Outstanding increase = debit, decrease = credit
-          // Advance increase = credit, decrease = debit
-          const netDebit = (outDiff > 0 ? outDiff : 0) + (advDiff < 0 ? Math.abs(advDiff) : 0);
-          const netCredit = (outDiff < 0 ? Math.abs(outDiff) : 0) + (advDiff > 0 ? advDiff : 0);
+          // Advance difference is NOT included here because advance adjustments
+          // already create/modify separate customer_advances records that appear
+          // as their own ADVANCE rows in the ledger.
+          const netDebit = outDiff > 0 ? outDiff : 0;
+          const netCredit = outDiff < 0 ? Math.abs(outDiff) : 0;
           runningBalance += netDebit - netCredit;
           
           allTransactions.push({
