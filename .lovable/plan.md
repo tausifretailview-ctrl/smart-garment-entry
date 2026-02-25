@@ -1,43 +1,42 @@
 
 
-## Fix: Supplier Payment Bill Selection Crash
+# Fix: Customer Ledger ADJ Entry Double-Counting Advance
 
-### Problem
-Selecting a bill in the Supplier Payment tab crashes the app with React error #185 (infinite re-render loop). Customer Payment works fine because it uses a different checkbox pattern.
+## Problem
+When a balance adjustment is made (e.g., for Saba Latif), the ledger shows an **ADJ** row worth Rs 2,84,300 which combines:
+- Outstanding reduction: Rs 2,02,500
+- Advance increase: Rs 81,800
 
-### Root Cause
-The bill selection table row has TWO conflicting event handlers:
-- `TableRow onClick` toggles the bill selection
-- `Checkbox onCheckedChange` also toggles the bill selection
+However, the advance increase **also** creates a separate record in `customer_advances`, which appears as its own **ADVANCE** row in the ledger. This means the Rs 81,800 advance portion is counted twice -- once in the ADJ row and once in the ADVANCE row -- inflating the balance incorrectly.
 
-When clicking the checkbox, both fire due to event bubbling, causing rapid double state updates that crash React. The Customer Payment tab avoids this by using a read-only native checkbox with `pointer-events-none`.
+## Solution
+Modify the ADJ row logic in `CustomerLedger.tsx` to **only reflect the outstanding difference**, since the advance difference is already handled by a separate ADVANCE ledger entry.
 
-There is also a secondary bug: the supplier balance query searches voucher entries by bill IDs, but payments are saved with the supplier ID as `reference_id`, so the balance is always wrong.
+## Technical Changes
 
-### Fix (1 file: `src/components/accounts/SupplierPaymentTab.tsx`)
+### File: `src/components/CustomerLedger.tsx` (lines 439-458)
 
-**Change 1: Fix double event handler on checkbox**
-- Add `e.stopPropagation()` in the `Checkbox` `onCheckedChange` handler to prevent the click from bubbling to the `TableRow onClick`
-- This matches how the rest of the app handles checkbox-inside-clickable-row patterns
-
-**Change 2: Fix supplier balance query**
-- Update the `supplierBalance` query to look for voucher entries where `reference_id = supplierID` (not bill IDs), matching how payments are actually stored
-- Use `paid_amount` from `purchase_bills` directly for a simpler, accurate balance calculation
-
-**Change 3: Add null safety on recent payments table**
-- Use `Number(voucher.total_amount || 0)` instead of `voucher.total_amount.toFixed(2)` to prevent crashes if a voucher has null `total_amount`
-
-### Technical Details
-
-```text
-Before (buggy):
-  TableRow onClick --> toggles selection
-  Checkbox onCheckedChange --> also toggles selection
-  Both fire on checkbox click --> double toggle --> React crash
-
-After (fixed):
-  TableRow onClick --> toggles selection
-  Checkbox onCheckedChange --> toggles selection + stopPropagation()
-  Only ONE handler fires per click --> works correctly
+**Current logic (buggy):**
+```typescript
+const outDiff = adj.outstanding_difference || 0;
+const advDiff = adj.advance_difference || 0;
+const netDebit = (outDiff > 0 ? outDiff : 0) + (advDiff < 0 ? Math.abs(advDiff) : 0);
+const netCredit = (outDiff < 0 ? Math.abs(outDiff) : 0) + (advDiff > 0 ? advDiff : 0);
 ```
+
+**New logic (fix):**
+```typescript
+const outDiff = adj.outstanding_difference || 0;
+// Advance difference is NOT included here because advance adjustments
+// already create/modify separate customer_advances records that appear
+// as their own ADVANCE rows in the ledger.
+const netDebit = outDiff > 0 ? outDiff : 0;
+const netCredit = outDiff < 0 ? Math.abs(outDiff) : 0;
+```
+
+This ensures:
+- The ADJ row only shows the outstanding balance change (Rs 2,02,500 for Saba Latif)
+- The ADVANCE row independently shows the advance change (Rs 81,800)
+- No double-counting occurs
+- The running balance and final balance will be correct
 
