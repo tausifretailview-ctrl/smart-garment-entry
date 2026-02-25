@@ -106,11 +106,30 @@ const mapFontSize = (fontSize: number, bold: boolean = false): { font: string; x
   return { font: '5', xMul: 1, yMul: 1 };
 };
 
-// Get approximate text width in dots based on font
-const getTextWidthDots = (text: string, fontSize: number): number => {
-  // Character widths for each TSPL font (approximate)
-  const charWidth = fontSize <= 6 ? 8 : fontSize <= 7 ? 10 : fontSize <= 8 ? 12 : fontSize <= 10 ? 14 : 16;
+// Get character width/height in dots for TSPL built-in fonts
+const getFontMetrics = (font: string): { charWidth: number; charHeight: number } => {
+  switch (font) {
+    case '1': return { charWidth: 8, charHeight: 12 };
+    case '2': return { charWidth: 12, charHeight: 20 };
+    case '3': return { charWidth: 16, charHeight: 24 };
+    case '4': return { charWidth: 24, charHeight: 32 };
+    case '5': return { charWidth: 32, charHeight: 48 };
+    default: return { charWidth: 12, charHeight: 20 };
+  }
+};
+
+// Get approximate text width in dots based on mapped TSPL font
+const getTextWidthDots = (text: string, fontSize: number, bold: boolean = false): number => {
+  const { font } = mapFontSize(fontSize, bold);
+  const { charWidth } = getFontMetrics(font);
   return text.length * charWidth;
+};
+
+// Get approximate text height in dots based on mapped TSPL font
+const getTextHeightDots = (fontSize: number, bold: boolean = false): number => {
+  const { font } = mapFontSize(fontSize, bold);
+  const { charHeight } = getFontMetrics(font);
+  return charHeight;
 };
 
 // Generate TSPL SIZE command
@@ -238,6 +257,20 @@ export const generateTSPLLabelFromTemplate = (
   
   const labelWidthDots = mmToDots(labelConfig.width, dpi);
   const labelHeightDots = mmToDots(labelConfig.height, dpi);
+  const isCompactLabel = labelConfig.width <= 40 && labelConfig.height <= 25;
+  const compactTopPaddingDots = isCompactLabel ? mmToDots(0.8, dpi) : 0;
+  const compactBottomPaddingDots = isCompactLabel ? mmToDots(0.8, dpi) : 0;
+
+  // For compact labels, always print shop name at top if available
+  const shouldAutoPrintBusinessName = isCompactLabel && !!data.businessName && !templateConfig.businessName?.show;
+  if (shouldAutoPrintBusinessName) {
+    const autoBusinessFontSize = getScaledFontSize(8, labelConfig.height);
+    const autoBusinessFont = mapFontSize(autoBusinessFontSize, true);
+    const autoBusinessWidth = getTextWidthDots(data.businessName as string, autoBusinessFontSize, true);
+    const autoBusinessX = Math.max(0, Math.round((labelWidthDots - autoBusinessWidth) / 2));
+
+    commands.push(`TEXT ${autoBusinessX},${compactTopPaddingDots},"${autoBusinessFont.font}",0,${autoBusinessFont.xMul},${autoBusinessFont.yMul},"${(data.businessName as string).substring(0, 32)}"`);
+  }
   
   // Process each field using its ABSOLUTE x/y coordinates from the template
   for (const fieldKey of templateConfig.fieldOrder) {
@@ -261,7 +294,25 @@ export const generateTSPLLabelFromTemplate = (
         
         // For smaller labels, reduce minimum barcode height
         const minBarcodeHeight = labelConfig.height <= 20 ? 20 : labelConfig.height <= 25 ? 25 : 30;
-        const barcodeHeightDots = Math.max(minBarcodeHeight, Math.round(mmToDots(barcodeHeightMm, dpi)));
+
+        // Reserve space for barcode text at bottom on compact labels to prevent clipping/overlap
+        let reservedBottomDots = isCompactLabel ? mmToDots(1.2, dpi) : mmToDots(0.6, dpi);
+        const barcodeTextConfig = templateConfig.barcodeText;
+        if (barcodeTextConfig?.show && data.barcode) {
+          const scaledBarcodeTextSize = getScaledFontSize(barcodeTextConfig.fontSize, labelConfig.height);
+          const barcodeTextHeightDots = getTextHeightDots(scaledBarcodeTextSize, barcodeTextConfig.bold);
+          reservedBottomDots = barcodeTextHeightDots + (isCompactLabel ? mmToDots(1.0, dpi) : mmToDots(0.6, dpi));
+        }
+
+        const maxBarcodeHeightDots = Math.max(
+          mmToDots(4, dpi),
+          labelHeightDots - barcodeY - reservedBottomDots
+        );
+
+        const barcodeHeightDots = Math.max(
+          minBarcodeHeight,
+          Math.min(Math.round(mmToDots(barcodeHeightMm, dpi)), maxBarcodeHeightDots)
+        );
         
         const barcodeNarrow = Math.max(1, Math.round(templateConfig.barcodeWidth || 1.5));
         
@@ -343,7 +394,8 @@ export const generateTSPLLabelFromTemplate = (
     // Auto-scale font size for smaller labels
     const scaledFontSize = getScaledFontSize(fieldConfig.fontSize, labelConfig.height);
     const fontInfo = mapFontSize(scaledFontSize, fieldConfig.bold);
-    const textWidthDots = getTextWidthDots(content, scaledFontSize);
+    const textWidthDots = getTextWidthDots(content, scaledFontSize, fieldConfig.bold);
+    const textHeightDots = getTextHeightDots(scaledFontSize, fieldConfig.bold);
     
     // Calculate final X position based on text alignment within field
     let textX = fieldX;
@@ -354,18 +406,30 @@ export const generateTSPLLabelFromTemplate = (
       textX = fieldX + Math.max(0, fieldWidth - textWidthDots);
     }
     
+    // Compact-label safety: avoid top clipping and keep barcode text at bottom
+    let textY = fieldY;
+    if (isCompactLabel && textY < compactTopPaddingDots) {
+      textY = compactTopPaddingDots;
+    }
+
+    if (fieldKey === 'barcodeText' && isCompactLabel) {
+      textY = Math.max(textY, labelHeightDots - textHeightDots - compactBottomPaddingDots);
+    }
+
+    const maxTextY = Math.max(0, labelHeightDots - textHeightDots - compactBottomPaddingDots);
+    textY = Math.min(textY, maxTextY);
+    
     // Ensure text doesn't start outside label bounds (but allow it to extend to edge)
     textX = Math.max(0, textX);
     
-    // Truncate text only if it truly exceeds label width, using accurate character width
-    const charWidthDots = mapFontSize(scaledFontSize, fieldConfig.bold).font === '1' ? 8 
-      : mapFontSize(scaledFontSize, fieldConfig.bold).font === '2' ? 12 
-      : mapFontSize(scaledFontSize, fieldConfig.bold).font === '3' ? 16 
-      : mapFontSize(scaledFontSize, fieldConfig.bold).font === '4' ? 24 : 32;
-    const maxChars = Math.floor((labelWidthDots - textX) / charWidthDots);
-    const truncatedContent = content.substring(0, Math.max(maxChars, content.length > 40 ? 40 : content.length));
+    // Truncate text if it exceeds label width
+    const { charWidth } = getFontMetrics(fontInfo.font);
+    const maxChars = Math.floor((labelWidthDots - textX) / charWidth);
+    const hardCap = content.length > 40 ? 40 : content.length;
+    const safeMaxChars = Math.max(1, Math.min(maxChars, hardCap));
+    const truncatedContent = content.substring(0, safeMaxChars);
     
-    commands.push(`TEXT ${Math.round(textX)},${Math.round(fieldY)},"${fontInfo.font}",0,${fontInfo.xMul},${fontInfo.yMul},"${truncatedContent}"`);
+    commands.push(`TEXT ${Math.round(textX)},${Math.round(textY)},"${fontInfo.font}",0,${fontInfo.xMul},${fontInfo.yMul},"${truncatedContent}"`);
   }
   
   // Print command
