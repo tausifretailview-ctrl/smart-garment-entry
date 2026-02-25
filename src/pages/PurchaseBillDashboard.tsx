@@ -35,6 +35,7 @@ import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { ERPTable } from "@/components/erp-table";
 import { cn } from "@/lib/utils";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 interface PurchaseItem {
   id: string;
@@ -396,6 +397,8 @@ const PurchaseBillDashboard = () => {
   }, [billItems]);
 
   const { softDelete, bulkSoftDelete, checkPurchaseStockDependencies } = useSoftDelete();
+  const { hasSpecialPermission } = useUserPermissions();
+  const canDelete = hasSpecialPermission('delete_records');
 
   const handleDeleteClick = async (bill: PurchaseBill, event: React.MouseEvent) => {
     event.stopPropagation();
@@ -988,6 +991,11 @@ const PurchaseBillDashboard = () => {
             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => handlePrintBarcodes(bill.id, e)} disabled={printingBill === bill.id} title="Print Barcodes">
               {printingBill === bill.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
             </Button>
+            {canDelete && (
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => handleDeleteClick(bill, e)} disabled={isDeleting} title="Delete">
+                {isDeleting && billToDelete?.id === bill.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              </Button>
+            )}
           </div>
         );
       },
@@ -1203,6 +1211,12 @@ const PurchaseBillDashboard = () => {
                   <span className="text-sm font-medium">
                     {selectedBills.size} bill(s) selected
                   </span>
+                  {canDelete && (
+                    <Button variant="destructive" size="sm" onClick={handleBulkDeleteClick} disabled={isDeleting}>
+                      {isDeleting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                      Delete Selected ({selectedBills.size})
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardContent>
