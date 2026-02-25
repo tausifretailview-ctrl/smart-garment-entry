@@ -372,9 +372,9 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
 
   // Compact row helper
   const CompactRow = ({ label, amount, color }: { label: string; amount: number; color?: string }) => (
-    <div className="flex items-center justify-between py-1">
-      <span className="text-xs text-slate-500 dark:text-slate-400">{label}</span>
-      <span className={cn("text-sm font-semibold tabular-nums", color || "text-slate-900 dark:text-slate-100")}>{fmt(amount)}</span>
+    <div className="flex items-center justify-between py-1.5">
+      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</span>
+      <span className={cn("text-base font-bold tabular-nums", color || "text-slate-900 dark:text-slate-100")}>{fmt(amount)}</span>
     </div>
   );
 
@@ -384,8 +384,8 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
         {/* Header */}
         <DialogHeader className="px-4 pt-4 pb-3 border-b border-slate-200 dark:border-slate-700">
           <div className="flex items-center justify-between">
-            <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-slate-100">
-              <Wallet className="h-4 w-4 text-indigo-600" /> Cash Tally
+            <DialogTitle className="flex items-center gap-2 text-lg font-extrabold text-slate-900 dark:text-slate-100">
+              <Wallet className="h-5 w-5 text-indigo-600" /> Cash Tally
             </DialogTitle>
             <div className="flex items-center gap-1.5">
               <Popover>
@@ -414,12 +414,12 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
             {/* ═══ Quick Summary ═══ */}
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-lg border border-slate-200 dark:border-slate-700 border-l-4 border-l-emerald-600 p-3">
-                <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Total Sales</p>
-                <p className="text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">{fmt(totalSales)}</p>
+                <p className="text-xs uppercase tracking-wider font-bold text-slate-600 dark:text-slate-400">Total Sales</p>
+                <p className="text-xl font-extrabold tabular-nums text-slate-900 dark:text-slate-100">{fmt(totalSales)}</p>
               </div>
               <div className="rounded-lg border border-slate-200 dark:border-slate-700 border-l-4 border-l-blue-600 p-3">
-                <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Net Movement</p>
-                <p className={cn("text-lg font-bold tabular-nums", (totalIn.total - totalOut.total) >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                <p className="text-xs uppercase tracking-wider font-bold text-slate-600 dark:text-slate-400">Net Movement</p>
+                <p className={cn("text-xl font-extrabold tabular-nums", (totalIn.total - totalOut.total) >= 0 ? "text-emerald-700" : "text-rose-700")}>
                   {fmt(totalIn.total - totalOut.total)}
                 </p>
               </div>
@@ -428,8 +428,8 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
             {/* ═══ Money In / Out Summary ═══ */}
             <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
               <div className="bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 border-b border-slate-200 dark:border-slate-700">
-                <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
-                  <ArrowDownLeft className="h-3 w-3" /> Money In — {fmt(totalIn.total)}
+                <p className="text-sm font-extrabold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                  <ArrowDownLeft className="h-3.5 w-3.5" /> Money In — {fmt(totalIn.total)}
                 </p>
               </div>
               <div className="px-3 py-1.5">
@@ -442,8 +442,8 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
 
             <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
               <div className="bg-rose-50 dark:bg-rose-950/30 px-3 py-2 border-b border-slate-200 dark:border-slate-700">
-                <p className="text-xs font-bold text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
-                  <ArrowUpRight className="h-3 w-3" /> Money Out — {fmt(totalOut.total)}
+                <p className="text-sm font-extrabold text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
+                  <ArrowUpRight className="h-3.5 w-3.5" /> Money Out — {fmt(totalOut.total)}
                 </p>
               </div>
               <div className="px-3 py-1.5">
@@ -456,25 +456,25 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
 
             {/* ═══ Cash Reconciliation ═══ */}
             <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3">
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
-                <IndianRupee className="h-3 w-3 text-indigo-600" /> Cash Reconciliation
+              <p className="text-sm font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                <IndianRupee className="h-4 w-4 text-indigo-600" /> Cash Reconciliation
               </p>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 block mb-1">Opening Cash</label>
-                  <Input type="number" value={openingCash || ""} onChange={(e) => setOpeningCash(Number(e.target.value) || 0)} placeholder="0.00" className="h-9 text-sm font-bold tabular-nums" />
+                  <label className="text-xs uppercase tracking-wider font-bold text-slate-600 dark:text-slate-400 block mb-1">Opening Cash</label>
+                  <Input type="number" value={openingCash || ""} onChange={(e) => setOpeningCash(Number(e.target.value) || 0)} placeholder="0.00" className="h-10 text-base font-bold tabular-nums" />
                 </div>
                 <div className="rounded-md bg-slate-50 dark:bg-slate-800/50 p-2">
-                  <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Expected Cash</p>
-                  <p className="text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">{fmt(expectedCash)}</p>
+                  <p className="text-xs uppercase tracking-wider font-bold text-slate-600 dark:text-slate-400">Expected Cash</p>
+                  <p className="text-xl font-extrabold tabular-nums text-slate-900 dark:text-slate-100">{fmt(expectedCash)}</p>
                 </div>
               </div>
 
               {/* Physical Cash Tally */}
               <Tabs value={tallyTab} onValueChange={setTallyTab}>
                 <div className="flex items-center justify-between">
-                  <label className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Physical Cash</label>
+                  <label className="text-xs uppercase tracking-wider font-bold text-slate-600 dark:text-slate-400">Physical Cash</label>
                   <TabsList className="h-7">
                     <TabsTrigger value="manual" className="text-[10px] px-2 py-0.5 h-5">Manual</TabsTrigger>
                     <TabsTrigger value="denomination" className="text-[10px] px-2 py-0.5 h-5">Denomination</TabsTrigger>
@@ -487,11 +487,11 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
                   <div className="rounded-md bg-slate-50 dark:bg-slate-800/30 p-3 space-y-2">
                     {DENOMINATIONS.map((denom) => (
                       <div key={denom} className="flex items-center gap-2">
-                        <span className="bg-slate-200 dark:bg-slate-700 rounded px-2 py-1 text-xs font-bold tabular-nums min-w-[56px] text-center">₹{denom}</span>
-                        <span className="text-slate-400 text-xs">×</span>
-                        <Input type="number" min={0} value={denomCounts[denom] || ""} onChange={(e) => setDenomCounts(prev => ({ ...prev, [denom]: Number(e.target.value) || 0 }))} className="h-8 w-16 text-center text-sm font-bold tabular-nums" placeholder="0" />
-                        <span className="text-slate-400 text-xs">=</span>
-                        <span className="text-right tabular-nums font-semibold text-sm text-slate-700 dark:text-slate-300 min-w-[100px]">{fmt(denom * (denomCounts[denom] || 0))}</span>
+                        <span className="bg-slate-200 dark:bg-slate-700 rounded px-2 py-1 text-sm font-extrabold tabular-nums min-w-[60px] text-center text-slate-800 dark:text-slate-200">₹{denom}</span>
+                        <span className="text-slate-500 text-sm font-medium">×</span>
+                        <Input type="number" min={0} value={denomCounts[denom] || ""} onChange={(e) => setDenomCounts(prev => ({ ...prev, [denom]: Number(e.target.value) || 0 }))} className="h-9 w-16 text-center text-base font-bold tabular-nums" placeholder="0" />
+                        <span className="text-slate-500 text-sm font-medium">=</span>
+                        <span className="text-right tabular-nums font-bold text-base text-slate-800 dark:text-slate-200 min-w-[100px]">{fmt(denom * (denomCounts[denom] || 0))}</span>
                       </div>
                     ))}
                     <div className="flex items-center gap-2 border-t border-slate-200 dark:border-slate-600 pt-2">
@@ -536,20 +536,20 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
 
             {/* ═══ Settlement ═══ */}
             <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3">
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Settlement</p>
+              <p className="text-sm font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-200">Settlement</p>
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 block mb-1">Drawer</label>
-                  <Input type="number" value={leaveInDrawer || ""} onChange={(e) => setLeaveInDrawer(Number(e.target.value) || 0)} placeholder="0" className="h-8 text-xs font-semibold tabular-nums" />
+                  <label className="text-xs uppercase tracking-wider font-bold text-slate-600 dark:text-slate-400 block mb-1">Drawer</label>
+                  <Input type="number" value={leaveInDrawer || ""} onChange={(e) => setLeaveInDrawer(Number(e.target.value) || 0)} placeholder="0" className="h-9 text-sm font-bold tabular-nums" />
                 </div>
                 <div>
-                  <label className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 block mb-1">Bank Deposit</label>
-                  <Input type="number" value={depositToBank || ""} onChange={(e) => setDepositToBank(Number(e.target.value) || 0)} placeholder="0" className="h-8 text-xs font-semibold tabular-nums" />
+                  <label className="text-xs uppercase tracking-wider font-bold text-slate-600 dark:text-slate-400 block mb-1">Bank Deposit</label>
+                  <Input type="number" value={depositToBank || ""} onChange={(e) => setDepositToBank(Number(e.target.value) || 0)} placeholder="0" className="h-9 text-sm font-bold tabular-nums" />
                 </div>
                 <div>
-                  <label className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 block mb-1">Handover</label>
+                  <label className="text-xs uppercase tracking-wider font-bold text-slate-600 dark:text-slate-400 block mb-1">Handover</label>
                   <div className="rounded-md bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 p-1.5">
-                    <p className="text-sm font-bold tabular-nums text-indigo-700 dark:text-indigo-400">{fmt(handoverToOwner)}</p>
+                    <p className="text-base font-extrabold tabular-nums text-indigo-700 dark:text-indigo-400">{fmt(handoverToOwner)}</p>
                   </div>
                 </div>
               </div>
