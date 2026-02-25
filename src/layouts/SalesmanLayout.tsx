@@ -12,6 +12,8 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
 
+const LOADING_TIMEOUT = 8000; // 8 seconds max wait
+
 const SalesmanLayout = () => {
   const { getOrgPath } = useOrgNavigation();
   const location = useLocation();
@@ -20,6 +22,20 @@ const SalesmanLayout = () => {
   const { hasAccess, employeeName, isLoading } = useFieldSalesAccess();
   const { isOnline, pendingActions, isSyncing } = useOfflineSync();
   const [sizeStockOpen, setSizeStockOpen] = useState(false);
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
+
+  // Safety timeout to prevent infinite loading on slow mobile data
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadingTimedOut(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      console.warn("Field Sales: Loading timed out after", LOADING_TIMEOUT, "ms");
+      setLoadingTimedOut(true);
+    }, LOADING_TIMEOUT);
+    return () => clearTimeout(timer);
+  }, [isLoading]);
 
   // Dynamic manifest and theme for Field Sales PWA
   useEffect(() => {
@@ -92,14 +108,50 @@ const SalesmanLayout = () => {
     }
   };
 
-  // Show loading state with orange spinner
-  if (isLoading) {
+  // Show loading state with orange spinner (with timeout fallback)
+  if (isLoading && !loadingTimedOut) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto"></div>
           <p className="mt-4 text-muted-foreground">Checking access...</p>
+          {!isOnline && (
+            <p className="mt-2 text-xs text-amber-500">You appear to be offline...</p>
+          )}
         </div>
+      </div>
+    );
+  }
+
+  // If loading timed out, show retry option instead of infinite spinner
+  if (isLoading && loadingTimedOut) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full border-orange-500/20">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-12 h-12 bg-orange-500/10 rounded-full flex items-center justify-center mb-4">
+              <AlertCircle className="h-6 w-6 text-orange-500" />
+            </div>
+            <CardTitle className="text-lg">Slow Connection</CardTitle>
+          </CardHeader>
+          <CardContent className="text-center space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Unable to verify access. Please check your internet connection and try again.
+            </p>
+            <div className="flex flex-col gap-2">
+              <Button
+                onClick={() => window.location.reload()}
+                className="bg-orange-500 hover:bg-orange-600 text-white"
+              >
+                Retry
+              </Button>
+              <Button variant="outline" onClick={() => signOut()}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
