@@ -37,6 +37,8 @@ export const OrgLayout = () => {
         if (currentOrganization?.id !== targetOrg.id) {
           console.log(`OrgLayout: Syncing to URL org "${orgSlug}" (current: "${currentOrganization?.slug}")`);
           switchOrganization(targetOrg.id);
+          // Mark synced after a short delay to allow state to update
+          setTimeout(() => setIsOrgSynced(true), 500);
         } else {
           // Already synced
           setIsOrgSynced(true);

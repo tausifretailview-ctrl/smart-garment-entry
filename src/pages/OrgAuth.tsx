@@ -171,6 +171,11 @@ export default function OrgAuth() {
     setError("");
 
     try {
+      // CRITICAL: Clear any existing stale session before login attempt
+      // This prevents "Refresh Token Not Found" errors from corrupted/expired tokens
+      await supabase.auth.signOut({ scope: 'local' });
+      localStorage.removeItem('auth_refresh_lock');
+
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
