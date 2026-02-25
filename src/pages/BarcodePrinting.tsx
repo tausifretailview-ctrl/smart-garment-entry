@@ -4294,6 +4294,7 @@ export default function BarcodePrinting() {
         }))}
         labelSize={sheetType === "custom" ? `custom_${customWidth}x${customHeight}` : sheetType}
         labelConfig={labelConfig}
+        businessName={businessName}
         prnTemplates={prnTemplates}
         onSavePRNTemplate={savePRNTemplate}
         onDeletePRNTemplate={deletePRNTemplate}

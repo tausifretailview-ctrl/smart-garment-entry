@@ -49,6 +49,7 @@ interface DirectPrintDialogProps {
   }>;
   labelSize: string;
   labelConfig?: LabelDesignConfig;
+  businessName?: string;
   prnTemplates?: PRNTemplate[];
   onSavePRNTemplate?: (template: PRNTemplate) => Promise<boolean>;
   onDeletePRNTemplate?: (name: string) => Promise<boolean>;
@@ -60,6 +61,7 @@ export const DirectPrintDialog = ({
   items, 
   labelSize,
   labelConfig: templateConfig,
+  businessName = '',
   prnTemplates = [],
   onSavePRNTemplate,
   onDeletePRNTemplate,
@@ -364,6 +366,7 @@ export const DirectPrintDialog = ({
           data: {
             productName: item.productName,
             brand: item.brand,
+            businessName: businessName,
             size: item.size,
             color: item.color,
             mrp: item.mrp,
@@ -380,6 +383,7 @@ export const DirectPrintDialog = ({
         if (templateConfig) {
           const tsplTemplate: TSPLTemplateConfig = {
             brand: templateConfig.brand,
+            businessName: templateConfig.businessName,
             productName: templateConfig.productName,
             color: templateConfig.color,
             style: templateConfig.style,
