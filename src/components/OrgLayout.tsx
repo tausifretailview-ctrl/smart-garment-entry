@@ -4,7 +4,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 import OrgAuth from "@/pages/OrgAuth";
-
+import { storeOrgSlug } from "@/lib/orgSlug";
 export const OrgLayout = () => {
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const { user, loading: authLoading } = useAuth();
@@ -45,8 +45,7 @@ export const OrgLayout = () => {
         }
         
         // Store the slug in both localStorage and sessionStorage for PWA resilience
-        localStorage.setItem("selectedOrgSlug", orgSlug);
-        sessionStorage.setItem("selectedOrgSlug", orgSlug);
+        storeOrgSlug(orgSlug);
       }
     }
   }, [orgSlug, user, organizations, orgLoading, currentOrganization?.id, switchOrganization]);
@@ -62,8 +61,7 @@ export const OrgLayout = () => {
   if (isPublicInvoiceRoute) {
     // Store org slug for context even for public views (in both storages)
     if (orgSlug) {
-      localStorage.setItem("selectedOrgSlug", orgSlug);
-      sessionStorage.setItem("selectedOrgSlug", orgSlug);
+      storeOrgSlug(orgSlug);
     }
     return <Outlet />;
   }

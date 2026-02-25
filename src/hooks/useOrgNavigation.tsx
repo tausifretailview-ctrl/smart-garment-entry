@@ -1,7 +1,7 @@
 import { useNavigate, useParams, NavigateOptions } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useCallback } from "react";
-
+import { getStoredOrgSlug, isValidOrgSlug, normalizeOrgSlug } from "@/lib/orgSlug";
 /**
  * Hook for organization-aware navigation
  * All internal navigation should use this hook to maintain org context in URLs
@@ -13,11 +13,11 @@ export function useOrgNavigation() {
 
   // Get the current org slug from URL params, organization context, or storage (PWA resilience)
   const getOrgSlug = useCallback(() => {
-    return urlOrgSlug || 
-           currentOrganization?.slug || 
-           localStorage.getItem("selectedOrgSlug") || 
-           sessionStorage.getItem("selectedOrgSlug") || 
-           "";
+    const fromUrl = isValidOrgSlug(urlOrgSlug) ? normalizeOrgSlug(urlOrgSlug) : "";
+    const fromContext = isValidOrgSlug(currentOrganization?.slug) ? normalizeOrgSlug(currentOrganization?.slug) : "";
+    const fromStorage = getStoredOrgSlug() || "";
+
+    return fromUrl || fromContext || fromStorage;
   }, [urlOrgSlug, currentOrganization?.slug]);
 
   const orgSlug = getOrgSlug();

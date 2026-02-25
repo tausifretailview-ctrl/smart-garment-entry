@@ -10,6 +10,7 @@ import { Loader2, Building2, AlertCircle, Phone, ArrowRight, Check, Globe, Faceb
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { validateAuth } from "@/lib/validations";
+import { isValidOrgSlug, normalizeOrgSlug, storeOrgSlug } from "@/lib/orgSlug";
 import ezzyerpLogo from "@/assets/ezzyerp-logo.jpg";
 import ezzyerpLogoFull from "@/assets/ezzyerp-logo-full.png";
 import posIllustration from "@/assets/pos-illustration.png";
@@ -67,7 +68,8 @@ export default function OrgAuth() {
 
   useEffect(() => {
     const fetchOrganization = async () => {
-      if (!orgSlug) {
+      const normalizedSlug = normalizeOrgSlug(orgSlug);
+      if (!isValidOrgSlug(normalizedSlug)) {
         setError("Invalid organization URL");
         setOrgLoading(false);
         return;
@@ -76,7 +78,7 @@ export default function OrgAuth() {
       try {
         // Use secure RPC function that returns only safe fields
         const { data, error } = await supabase.rpc("get_org_public_info", {
-          p_slug: orgSlug,
+          p_slug: normalizedSlug,
         });
 
         if (error || !data) {
@@ -127,8 +129,7 @@ export default function OrgAuth() {
         .single();
 
       if (membership) {
-        localStorage.setItem("selectedOrgSlug", organization.slug);
-        sessionStorage.setItem("selectedOrgSlug", organization.slug);
+        storeOrgSlug(organization.slug);
         navigate(`/${organization.slug}`);
       } else {
         setError("You are not a member of this organization. Please contact your administrator.");
@@ -241,8 +242,7 @@ export default function OrgAuth() {
         .maybeSingle();
 
       // Store in both localStorage and sessionStorage for PWA resilience
-      localStorage.setItem("selectedOrgSlug", organization.slug);
-      sessionStorage.setItem("selectedOrgSlug", organization.slug);
+      storeOrgSlug(organization.slug);
 
       if (fieldSalesEmployee) {
         // Set Field Sales PWA context flag for persistent routing
@@ -271,9 +271,10 @@ export default function OrgAuth() {
   }
 
   const handleGoToOrgLogin = () => {
-    const trimmed = inputSlug.toLowerCase().trim();
-    if (trimmed) {
-      navigate(`/${trimmed}`);
+    const normalizedSlug = normalizeOrgSlug(inputSlug).replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+    if (isValidOrgSlug(normalizedSlug)) {
+      storeOrgSlug(normalizedSlug);
+      navigate(`/${normalizedSlug}`);
     }
   };
 

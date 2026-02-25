@@ -2,7 +2,7 @@ import { NavLink as RouterNavLink, NavLinkProps, useParams } from "react-router-
 import { forwardRef, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useOrganization } from "@/contexts/OrganizationContext";
-
+import { getStoredOrgSlug, isValidOrgSlug, normalizeOrgSlug } from "@/lib/orgSlug";
 interface NavLinkCompatProps extends Omit<NavLinkProps, "className"> {
   className?: string;
   activeClassName?: string;
@@ -14,13 +14,13 @@ const NavLink = forwardRef<HTMLAnchorElement, NavLinkCompatProps>(
     const { orgSlug: urlOrgSlug } = useParams<{ orgSlug: string }>();
     const { currentOrganization } = useOrganization();
     
-    // Get org slug from URL params, context, localStorage, or sessionStorage (PWA resilience)
+    // Get org slug from URL params, context, or storage (PWA resilience)
     const orgSlug = useMemo(() => {
-      return urlOrgSlug || 
-             currentOrganization?.slug || 
-             localStorage.getItem("selectedOrgSlug") || 
-             sessionStorage.getItem("selectedOrgSlug") || 
-             "";
+      const fromUrl = isValidOrgSlug(urlOrgSlug) ? normalizeOrgSlug(urlOrgSlug) : "";
+      const fromContext = isValidOrgSlug(currentOrganization?.slug) ? normalizeOrgSlug(currentOrganization?.slug) : "";
+      const fromStorage = getStoredOrgSlug() || "";
+
+      return fromUrl || fromContext || fromStorage;
     }, [urlOrgSlug, currentOrganization?.slug]);
 
     // Convert the path to org-scoped path
@@ -37,7 +37,7 @@ const NavLink = forwardRef<HTMLAnchorElement, NavLinkCompatProps>(
       }
       
       // If no orgSlug available, still try to get it synchronously from storage
-      const effectiveOrgSlug = orgSlug || localStorage.getItem("selectedOrgSlug") || sessionStorage.getItem("selectedOrgSlug") || "";
+      const effectiveOrgSlug = orgSlug || getStoredOrgSlug() || "";
       
       if (!effectiveOrgSlug) {
         // If still no org slug, return the path as-is (fallback, shouldn't happen in normal flow)
