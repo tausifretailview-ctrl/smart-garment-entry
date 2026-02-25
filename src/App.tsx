@@ -100,10 +100,7 @@ import FeeStructureSetup from "./pages/school/FeeStructureSetup";
 import TeacherMaster from "./pages/school/TeacherMaster";
 import StudentReports from "./pages/school/StudentReports";
 import { SchoolFeatureGate } from "./components/school/SchoolFeatureGate";
-// Helpers for redirecting when org slug is missing in URL (PWA resilience)
-function getStoredOrgSlug(): string | null {
-  return localStorage.getItem("selectedOrgSlug") || sessionStorage.getItem("selectedOrgSlug") || null;
-}
+import { getStoredOrgSlug } from "@/lib/orgSlug";
 
 // Check if this is a Field Sales PWA launch (check URL param or sessionStorage)
 function isFieldSalesPWA(): boolean {
