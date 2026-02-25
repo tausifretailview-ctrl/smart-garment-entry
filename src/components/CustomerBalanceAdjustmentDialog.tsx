@@ -172,7 +172,7 @@ export function CustomerBalanceAdjustmentDialog({
         .select("amount, used_amount")
         .eq("customer_id", selectedCustomerId)
         .eq("organization_id", organizationId)
-        .eq("status", "active");
+        .in("status", ["active", "partially_used"]);
 
       const totalAdvance = advances?.reduce(
         (sum, a) => sum + ((a.amount || 0) - (a.used_amount || 0)),
@@ -262,9 +262,11 @@ export function CustomerBalanceAdjustmentDialog({
             organization_id: organizationId,
             customer_id: selectedCustomerId,
             amount: advanceDiff,
+            used_amount: 0,
             advance_number: advNum || `ADJ-${Date.now()}`,
             description: `Balance Adjustment: ${reason.trim()}`,
             payment_method: "other",
+            status: "active",
             created_by: user?.id,
           });
         } else {
@@ -288,7 +290,7 @@ export function CustomerBalanceAdjustmentDialog({
                 .from("customer_advances")
                 .update({
                   used_amount: newUsed,
-                  status: newUsed >= (adv.amount || 0) ? "used" : "active",
+                  status: newUsed >= (adv.amount || 0) ? "fully_used" : "partially_used",
                 })
                 .eq("id", adv.id);
               remaining -= deduct;
@@ -300,10 +302,14 @@ export function CustomerBalanceAdjustmentDialog({
     onSuccess: () => {
       toast.success("Balance adjustment saved successfully");
       queryClient.invalidateQueries({ queryKey: ["customer-adjustment-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["all-customers-adjustment-balances"] });
       queryClient.invalidateQueries({ queryKey: ["balance-adjustments"] });
       queryClient.invalidateQueries({ queryKey: ["customer-ledger"] });
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-advance-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["advance-dashboard"] });
       setNewOutstanding("");
       setNewAdvance("");
       setReason("");
