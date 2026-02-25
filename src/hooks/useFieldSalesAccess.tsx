@@ -5,7 +5,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 
 export function useFieldSalesAccess() {
   const { user } = useAuth();
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, loading: orgLoading } = useOrganization();
 
   const { data, isLoading } = useQuery({
     queryKey: ["field-sales-access", user?.id, currentOrganization?.id],
@@ -41,6 +41,6 @@ export function useFieldSalesAccess() {
   return {
     hasAccess: !!data,
     employeeName: data?.employee_name || null,
-    isLoading,
+    isLoading: isLoading || orgLoading,
   };
 }
