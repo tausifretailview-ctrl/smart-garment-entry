@@ -37,6 +37,7 @@ export interface TSPLBarcodeItem {
 export interface LabelData {
   productName?: string;
   brand?: string;
+  businessName?: string;
   size?: string;
   color?: string;
   mrp?: number;
@@ -70,6 +71,7 @@ export interface TSPLFieldConfig {
 // Template design configuration (matches LabelDesignConfig in BarcodePrinting)
 export interface TSPLTemplateConfig {
   brand: TSPLFieldConfig;
+  businessName?: TSPLFieldConfig;
   productName: TSPLFieldConfig;
   color: TSPLFieldConfig;
   style: TSPLFieldConfig;
@@ -140,6 +142,7 @@ export const generateBarcodeCommand = (item: TSPLBarcodeItem): string => {
 const getFieldContent = (fieldKey: string, data: LabelData): string => {
   switch (fieldKey) {
     case 'brand': return data.brand || '';
+    case 'businessName': return data.businessName || '';
     case 'productName': return data.productName || '';
     case 'color': return data.color || '';
     case 'style': return data.style || '';
