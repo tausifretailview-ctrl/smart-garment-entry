@@ -4305,8 +4305,8 @@ export default function BarcodePrinting() {
 
       <style>{`
         #printArea {
-          width: 210mm;
-          min-height: 297mm;
+          width: ${isThermal1Up() ? `${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm` : '210mm'};
+          min-height: ${isThermal1Up() ? `${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm` : '297mm'};
           padding: 0;
           margin: 0;
         }
@@ -4411,10 +4411,13 @@ export default function BarcodePrinting() {
             left: 0; 
             top: 0;
             display: block !important;
+            width: ${isThermal1Up() ? `${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm` : '210mm'} !important;
+            min-height: auto !important;
             ${isThermal1Up() 
               ? `transform: none;` 
               : `transform: scale(${(printScale / 100) * getAutoFitScale()});`}
             transform-origin: top left;
+            overflow: visible;
           }
           
           .label-grid {
@@ -4422,6 +4425,8 @@ export default function BarcodePrinting() {
             ${isThermal1Up() ? `
               width: ${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm;
               height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm;
+              padding: 0 !important;
+              margin: 0 !important;
               overflow: hidden;
             ` : ''}
           }
@@ -4430,8 +4435,10 @@ export default function BarcodePrinting() {
             page-break-inside: avoid;
             break-inside: avoid;
             ${isThermal1Up() ? `
-              width: ${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm;
-              height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm;
+              width: ${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm !important;
+              height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm !important;
+              padding: 0 !important;
+              margin: 0 !important;
               overflow: hidden;
               box-sizing: border-box;
             ` : ''}
