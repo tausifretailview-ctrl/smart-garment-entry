@@ -1,41 +1,79 @@
 
-# Fix Stock Report Purchase/Sales Qty Discrepancy
+
+# Fix Barcode Label Print Alignment for 38x25mm Thermal Labels
 
 ## Problem
-The Stock Report shows Purchase Qty: +34 and Sales Qty: -21 for PUL175, while Product History correctly shows 467 purchased and 223 sold. The numbers don't match because Stock Report uses the `stock_movements` table (which may have incomplete records for older transactions) instead of querying the actual transaction tables directly.
+The label preview looks correct, but the actual printed output on the TSC TL240 printer is misaligned and doesn't fill the 38x25mm label properly. Content appears smaller/shifted compared to the preview.
 
 ## Root Cause
-- **Product History**: Queries `purchase_items` and `sale_items` tables directly by `product_id` -- accurate source of truth
-- **Stock Report**: Queries `stock_movements` table by `variant_id` -- may be missing movements for transactions created before the movement tracking was added, or may be affected by the 1000-row default query limit
+The `#printArea` container is hardcoded to `width: 210mm; min-height: 297mm` (A4 dimensions) even when printing thermal 1UP labels. When the browser prints with `@page { size: 38mm 25mm }`, it tries to fit a 210mm-wide container into a 38mm page, causing the content to shrink dramatically. The `@media print` rules override `label-grid` and `label-cell` sizes but the parent `#printArea` container remains at 210mm, creating a mismatch.
 
 ## Solution
-Replace the `stock_movements`-based calculation in the Stock Report with direct queries to `purchase_items`, `sale_items`, `sale_return_items`, and `purchase_return_items` tables, matching the approach used by Product History.
+Update the CSS in `src/pages/BarcodePrinting.tsx` to make the `#printArea` dimensions dynamic based on whether we're printing thermal or A4 labels.
 
-## Technical Changes
+### Changes to `src/pages/BarcodePrinting.tsx`
 
-### File: `src/pages/StockReport.tsx`
+**1. Fix `#printArea` base styles (lines 4306-4312)**
+Make the `#printArea` dimensions conditional -- for thermal 1UP labels, use the actual label dimensions instead of A4.
 
-**Replace the stock_movements query block (lines 396-476)** with direct queries to transaction item tables:
+```css
+#printArea {
+  /* For thermal: use label width; for A4: use 210mm */
+  width: ${isThermal1Up() ? labelWidthMm + 'mm' : '210mm'};
+  min-height: ${isThermal1Up() ? labelHeightMm + 'mm' : '297mm'};
+  padding: 0;
+  margin: 0;
+}
+```
 
-1. **Remove** the `stock_movements` fetch (batched by variant IDs)
-2. **Add** batched queries to:
-   - `purchase_items` -- aggregate `qty` grouped by `sku_id` (variant_id)
-   - `sale_items` -- aggregate `quantity` grouped by `variant_id`
-   - `sale_return_items` -- aggregate `quantity` grouped by `variant_id` (for purchase return qty, already captured in current stock)
-   - `purchase_return_items` -- aggregate `qty` grouped by `variant_id`
-3. **Build** the same `variantMovements` map from direct data:
-   ```
-   purchase = SUM(purchase_items.qty) for each variant
-   sales = SUM(sale_items.quantity) for each variant
-   purchaseReturn = SUM(purchase_return_items.qty) for each variant
-   ```
-4. Keep the same batching approach (200 IDs per batch) to avoid query limits
-5. Each batch query uses no `.limit()` override -- instead, paginate within each batch if needed (fetch in 1000-row pages)
+**2. Fix `@media print` `#printArea` rules (lines 4409-4418)**
+For thermal labels, explicitly set the width/height to match the label size and remove any extra space:
 
-This ensures the Stock Report shows the same accurate numbers as Product History, regardless of whether stock_movements has complete data.
+```css
+#printArea {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block !important;
+  width: ${isThermal1Up() ? labelWidthMm + 'mm' : '210mm'} !important;
+  min-height: auto !important;
+  transform: none;
+  transform-origin: top left;
+  overflow: visible;
+}
+```
+
+**3. Fix `.label-grid` print styles for thermal**
+Remove the fixed height constraint on `.label-grid` for thermal so content flows naturally within the label:
+
+```css
+.label-grid {
+  /* For thermal: no extra gap, display flex instead of grid */
+  width: ${labelWidthMm}mm;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+```
+
+**4. Fix `.label-cell` print styles for thermal**
+Ensure the cell uses the full label area with no extra padding:
+
+```css
+.label-cell {
+  width: ${labelWidthMm}mm !important;
+  height: ${labelHeightMm}mm !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+```
+
+These changes will compute the label width/height values from the current sheet type selection (38mm and 25mm for the `thermal_38x25_1up` preset) and apply them consistently to `#printArea`, `.label-grid`, and `.label-cell` in the `@media print` block so the browser renders the content at the exact physical label size.
 
 ## Impact
-- Only `src/pages/StockReport.tsx` is modified
-- No database changes needed
-- The existing `batch_stock` query for supplier info remains unchanged
-- Current stock (`stock_qty`) from `product_variants` is unaffected -- it's already correct via database triggers
+- Only `src/pages/BarcodePrinting.tsx` is modified
+- Only affects the `@media print` and base CSS for `#printArea`
+- Preview rendering is unchanged
+- A4 sheet printing is unchanged (conditional logic)
+- All thermal label sizes benefit from this fix, not just 38x25mm
