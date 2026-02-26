@@ -355,7 +355,7 @@ export default function OrgAuth() {
             <div className="space-y-2 text-left">
               <Label htmlFor="orgSlugInput" className="text-card-foreground font-medium text-sm">Organization Code</Label>
               <div className="flex items-center gap-2">
-                <span className="text-muted-foreground text-sm whitespace-nowrap shrink-0">app.lovable.app /</span>
+                <span className="text-muted-foreground text-sm whitespace-nowrap shrink-0">{window.location.host} /</span>
                 <Input
                   id="orgSlugInput"
                   value={inputSlug}
