@@ -34,7 +34,7 @@ export default function ItemWiseStockReport() {
 
   // Check if any filter is active (required before fetching)
   const hasActiveFilter = useMemo(() => {
-    return (
+    return Boolean(
       searchQuery.trim().length > 0 ||
       (brandFilter && brandFilter !== "__all__") ||
       (categoryFilter && categoryFilter !== "__all__") ||
