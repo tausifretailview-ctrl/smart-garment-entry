@@ -2614,6 +2614,7 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           deleted_by: string | null
+          discount_amount: number | null
           gross_amount: number
           gst_amount: number
           id: string
@@ -2635,6 +2636,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           deleted_by?: string | null
+          discount_amount?: number | null
           gross_amount?: number
           gst_amount?: number
           id?: string
@@ -2656,6 +2658,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           deleted_by?: string | null
+          discount_amount?: number | null
           gross_amount?: number
           gst_amount?: number
           id?: string

@@ -397,6 +397,8 @@ const PurchaseEntry = () => {
           setSoftwareBillNo(existingBill.software_bill_no || "");
           setBillDate(new Date(existingBill.bill_date));
           setRoundOff(Number(existingBill.round_off) || 0);
+          setOtherCharges(Number(existingBill.other_charges) || 0);
+          setDiscountAmount(Number(existingBill.discount_amount) || 0);
           
           // Load bill items - get product details from purchase_items (denormalized data)
           const { data: itemsData, error: itemsError } = await supabase
@@ -1468,9 +1470,15 @@ const PurchaseEntry = () => {
     setLoading(true);
     try {
       // Calculate totals directly from lineItems to avoid stale state issues
-      const calculatedGross = lineItems.reduce((sum, r) => sum + r.line_total, 0);
+      const calculatedGrossBeforeDiscount = lineItems.reduce((sum, r) => sum + (r.qty * r.pur_price), 0);
+      const calculatedItemDiscount = lineItems.reduce((sum, r) => {
+        const sub = r.qty * r.pur_price;
+        return sum + (sub * r.discount_percent / 100);
+      }, 0);
+      const calculatedTotalDiscount = calculatedItemDiscount + discountAmount;
+      const calculatedGrossAfterDiscount = calculatedGrossBeforeDiscount - calculatedTotalDiscount;
       const calculatedGst = lineItems.reduce((sum, r) => sum + (r.line_total * r.gst_per / 100), 0);
-      const calculatedNet = calculatedGross + calculatedGst + otherCharges + roundOff;
+      const calculatedNet = calculatedGrossAfterDiscount + calculatedGst + otherCharges + roundOff;
 
       if (isEditMode && editingBillId) {
         // Update existing bill
@@ -1481,7 +1489,8 @@ const PurchaseEntry = () => {
             supplier_name: billData.supplier_name,
             supplier_invoice_no: billData.supplier_invoice_no,
             bill_date: format(billDate, "yyyy-MM-dd"),
-            gross_amount: calculatedGross,
+            gross_amount: calculatedGrossBeforeDiscount,
+            discount_amount: calculatedTotalDiscount,
             gst_amount: calculatedGst,
             other_charges: otherCharges,
             net_amount: calculatedNet,
@@ -1668,6 +1677,7 @@ const PurchaseEntry = () => {
         setBillDate(new Date());
         setLineItems([]);
         setOtherCharges(0);
+        setDiscountAmount(0);
         setRoundOff(0);
         setSoftwareBillNo("");
       } else {
@@ -1692,7 +1702,8 @@ const PurchaseEntry = () => {
               supplier_name: billData.supplier_name,
               supplier_invoice_no: billData.supplier_invoice_no,
               bill_date: format(billDate, "yyyy-MM-dd"),
-              gross_amount: calculatedGross,
+              gross_amount: calculatedGrossBeforeDiscount,
+              discount_amount: calculatedTotalDiscount,
               gst_amount: calculatedGst,
               other_charges: otherCharges,
               net_amount: calculatedNet,
@@ -1793,6 +1804,7 @@ const PurchaseEntry = () => {
         setBillDate(new Date());
         setLineItems([]);
         setOtherCharges(0);
+        setDiscountAmount(0);
         setRoundOff(0);
         setSoftwareBillNo(""); // Reset for next entry
       }

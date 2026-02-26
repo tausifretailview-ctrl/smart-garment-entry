@@ -83,6 +83,7 @@ interface PurchaseBill {
   software_bill_no: string;
   bill_date: string;
   gross_amount: number;
+  discount_amount: number;
   gst_amount: number;
   net_amount: number;
   notes: string;
@@ -940,6 +941,20 @@ const PurchaseBillDashboard = () => {
       ),
       size: 100,
       minSize: 80,
+    },
+    {
+      accessorKey: "discount_amount",
+      header: "Discount",
+      cell: ({ row }) => {
+        const disc = row.original.discount_amount || 0;
+        return disc > 0 ? (
+          <span className="text-right block tabular-nums text-sm text-destructive">-₹{disc.toFixed(2)}</span>
+        ) : (
+          <span className="text-right block tabular-nums text-sm text-muted-foreground">₹0.00</span>
+        );
+      },
+      size: 90,
+      minSize: 70,
     },
     {
       accessorKey: "gst_amount",
