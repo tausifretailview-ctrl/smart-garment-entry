@@ -80,6 +80,7 @@ export default function StockReport() {
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
   const [supplierInvoiceFilter, setSupplierInvoiceFilter] = useState<string>("all");
   const [stockStatusFilter, setStockStatusFilter] = useState<string>("all");
+  const [colorFilter, setColorFilter] = useState<string>("all");
   const [oldBarcodeVariantMap, setOldBarcodeVariantMap] = useState<Map<string, string>>(new Map());
   
   // Cached filter options from last search
@@ -88,6 +89,7 @@ export default function StockReport() {
     departments: [] as string[],
     sizes: [] as string[],
     categories: [] as string[],
+    colors: [] as string[],
     suppliers: [] as string[],
     supplierInvoices: [] as string[],
     productNames: [] as string[]
@@ -131,10 +133,10 @@ export default function StockReport() {
         .is("deleted_at", null)
         .neq("product_type", "service");
       
-      // Fetch distinct sizes from product_variants
+      // Fetch distinct sizes and colors from product_variants
       const { data: variants } = await supabase
         .from("product_variants")
-        .select("size")
+        .select("size, color")
         .eq("organization_id", currentOrganization.id)
         .eq("active", true)
         .is("deleted_at", null);
@@ -155,7 +157,8 @@ export default function StockReport() {
       const categories = [...new Set((products || []).map(p => p.category).filter(Boolean))].sort() as string[];
       const departments = [...new Set((products || []).map(p => p.style).filter(Boolean))].sort() as string[];
       const sizes = [...new Set((variants || []).map(v => v.size).filter(Boolean))].sort() as string[];
-      
+      const colors = [...new Set((variants || []).map(v => v.color).filter(Boolean))].sort() as string[];
+
       const suppliers = [...new Set((batchData || [])
         .map((b: any) => b.purchase_bills?.supplier_name)
         .filter(Boolean))].sort() as string[];
@@ -169,6 +172,7 @@ export default function StockReport() {
         categories,
         departments,
         sizes,
+        colors,
         suppliers,
         supplierInvoices,
         productNames: [...new Set((products || []).map(p => p.product_name).filter(Boolean))].sort() as string[]
@@ -312,7 +316,7 @@ export default function StockReport() {
     // Check if any filter is applied
     const hasFilters = searchTerm.trim() || productNameFilter.trim() || 
       brandFilter !== "all" || departmentFilter !== "all" || sizeFilter !== "all" || 
-      categoryFilter !== "all" || supplierFilter !== "all" || 
+      categoryFilter !== "all" || colorFilter !== "all" || supplierFilter !== "all" || 
       supplierInvoiceFilter !== "all" || stockStatusFilter !== "all";
     
     if (!hasFilters) return;
@@ -538,6 +542,7 @@ export default function StockReport() {
         departments: [...new Set(formattedData.map(i => i.department).filter(Boolean))].sort() as string[],
         sizes: [...new Set(formattedData.map(i => i.size).filter(Boolean))].sort() as string[],
         categories: [...new Set(formattedData.map(i => i.category).filter(Boolean))].sort() as string[],
+        colors: [...new Set(formattedData.map(i => i.color).filter(Boolean))].sort() as string[],
         suppliers: [...new Set(formattedData.map(i => i.supplier_name).filter(Boolean))].sort() as string[],
         supplierInvoices: [...new Set(formattedData.map(i => i.supplier_invoice_no).filter(Boolean))].sort() as string[]
       }));
@@ -548,7 +553,7 @@ export default function StockReport() {
     } finally {
       setLoading(false);
     }
-  }, [currentOrganization?.id, searchTerm, productNameFilter, brandFilter, departmentFilter, sizeFilter, categoryFilter, supplierFilter, supplierInvoiceFilter, stockStatusFilter]);
+  }, [currentOrganization?.id, searchTerm, productNameFilter, brandFilter, departmentFilter, sizeFilter, colorFilter, categoryFilter, supplierFilter, supplierInvoiceFilter, stockStatusFilter]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -610,6 +615,9 @@ export default function StockReport() {
       // Category filter
       if (categoryFilter !== "all" && item.category !== categoryFilter) return false;
       
+      // Color filter
+      if (colorFilter !== "all" && item.color !== colorFilter) return false;
+      
       // Stock status filter
       if (stockStatusFilter === "out" && item.stock_qty !== 0) return false;
       if (stockStatusFilter === "low" && (item.stock_qty === 0 || item.stock_qty > lowStockThreshold)) return false;
@@ -617,7 +625,7 @@ export default function StockReport() {
       
       return true;
     });
-  }, [stockItems, searchTerm, productNameFilter, brandFilter, departmentFilter, sizeFilter, supplierFilter, supplierInvoiceFilter, categoryFilter, stockStatusFilter, lowStockThreshold, oldBarcodeVariantMap]);
+  }, [stockItems, searchTerm, productNameFilter, brandFilter, departmentFilter, sizeFilter, colorFilter, supplierFilter, supplierInvoiceFilter, categoryFilter, stockStatusFilter, lowStockThreshold, oldBarcodeVariantMap]);
 
 
   // Size-wise stock report data
@@ -681,7 +689,7 @@ export default function StockReport() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, productNameFilter, brandFilter, departmentFilter, sizeFilter, supplierFilter, supplierInvoiceFilter, categoryFilter, stockStatusFilter]);
+  }, [searchTerm, productNameFilter, brandFilter, departmentFilter, sizeFilter, colorFilter, supplierFilter, supplierInvoiceFilter, categoryFilter, stockStatusFilter]);
 
   const clearFilters = () => {
     setSearchTerm("");
@@ -689,6 +697,7 @@ export default function StockReport() {
     setBrandFilter("all");
     setDepartmentFilter("all");
     setSizeFilter("all");
+    setColorFilter("all");
     setCategoryFilter("all");
     setSupplierFilter("all");
     setSupplierInvoiceFilter("all");
@@ -697,7 +706,7 @@ export default function StockReport() {
     setHasSearched(false);
   };
 
-  const hasActiveFilters = searchTerm || productNameFilter || brandFilter !== "all" || departmentFilter !== "all" || sizeFilter !== "all" || categoryFilter !== "all" || supplierFilter !== "all" || supplierInvoiceFilter !== "all" || stockStatusFilter !== "all";
+  const hasActiveFilters = searchTerm || productNameFilter || brandFilter !== "all" || departmentFilter !== "all" || sizeFilter !== "all" || colorFilter !== "all" || categoryFilter !== "all" || supplierFilter !== "all" || supplierInvoiceFilter !== "all" || stockStatusFilter !== "all";
 
   // Export Size-wise to Excel
   const exportSizeWiseToExcel = () => {
@@ -833,7 +842,7 @@ export default function StockReport() {
         </div>
         
         {/* Always visible multi-field filters */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
           <div className="space-y-2 relative">
             <label className="text-sm font-medium text-muted-foreground">Product Name</label>
             <Input
@@ -902,6 +911,20 @@ export default function StockReport() {
                 <SelectItem value="all">All Sizes</SelectItem>
                 {filterOptions.sizes.map(size => (
                   <SelectItem key={size} value={size}>{size}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">Color</label>
+            <Select value={colorFilter} onValueChange={setColorFilter}>
+              <SelectTrigger className="h-10 !bg-white !text-gray-900">
+                <SelectValue placeholder="All Colors" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Colors</SelectItem>
+                {filterOptions.colors.map(color => (
+                  <SelectItem key={color} value={color}>{color}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
