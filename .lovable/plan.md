@@ -1,35 +1,37 @@
 
 
-# Add Delete Button to Purchase Bills (with Permission Check)
+# Add Alternative Thermal Receipt Format with Settings Selection
 
-## Problem
-When selecting purchase bills, only "X bill(s) selected" text is shown with no delete button. Additionally, individual row actions lack a delete button. Admin users with delete rights should see the delete option.
-
-## Solution
-Add delete functionality gated by the `delete_records` special permission from the User Rights system, matching the pattern already used in the Sales Invoice Dashboard.
+## Overview
+Create a second thermal receipt format ("Compact Receipt") with a cleaner, modern sans-serif style, and add a setting in Settings > Sale to choose which thermal format to use.
 
 ## Changes
 
-### File: `src/pages/PurchaseBillDashboard.tsx`
+### 1. New Component: `src/components/ThermalReceiptCompact.tsx`
+A new 80mm thermal receipt component with a different visual style:
+- **Sans-serif font** (Arial) instead of monospace Courier
+- **Tabular item layout** with columns: Description (name + size), Qty, Price, Total
+- GST split calculation: `(line_total * gst_percent) / (100 + gst_percent)` for CGST/SGST
+- Centered header with Store Name (bold), Address, GSTIN
+- Compact spacing, thinner separators (single dashed lines instead of double equals)
+- Same props interface as `ThermalPrint80mm` for drop-in compatibility
+- Same UPI QR code, loyalty points, and payment breakdown features
 
-1. **Import `useUserPermissions` hook** at the top of the file
+### 2. Settings Update: `src/pages/Settings.tsx`
+- Add `thermal_receipt_style` field to the `SaleSettings` interface (values: `'classic'` | `'compact'`)
+- Add a new dropdown **"Thermal Receipt Style"** in the Sale settings section, shown below the existing "Sales Invoice Bill Format" dropdown
+- Options: "Classic (Monospace)" and "Compact (Sans-serif)"
+- Default: `'classic'` (current behavior unchanged)
 
-2. **Initialize the hook** inside the component:
-   ```typescript
-   const { hasSpecialPermission } = useUserPermissions();
-   const canDelete = hasSpecialPermission('delete_records');
-   ```
+### 3. InvoiceWrapper Update: `src/components/InvoiceWrapper.tsx`
+- Import `ThermalReceiptCompact`
+- When format is `'thermal'` or `'thermal-receipt'`, check `settings.sale_settings.thermal_receipt_style`
+- If `'compact'`, render `ThermalReceiptCompact`; otherwise render existing `ThermalPrint80mm`
 
-3. **Add Delete button to individual row actions** (around line 990, after the Print Barcodes button):
-   - Only show when `canDelete` is true
-   - Calls the existing `handleDeleteClick` function
-   - Shows loading spinner when that bill is being deleted
+### 4. POSSales Integration: `src/pages/POSSales.tsx`
+- Same logic: check `thermal_receipt_style` when rendering thermal format to pick the correct component
 
-4. **Add Delete Selected button to the bulk actions bar** (around line 1206):
-   - Only show when `canDelete` is true and bills are selected
-   - Calls the existing `handleBulkDeleteClick` function
-   - Red destructive variant with Trash2 icon
-   - Shows count of selected bills
-
-The existing delete logic (`handleDeleteClick`, `handleBulkDeleteClick`, `handleDeleteConfirm`, `handleBulkDelete`, stock dependency checks, and confirmation dialogs) is already fully implemented in the file -- the buttons to trigger them are simply missing from the UI.
-
+## Technical Notes
+- No database changes needed -- the setting is stored in the existing `sale_settings` JSONB column
+- The new component reuses the same `ThermalPrint80mmProps` interface
+- Existing behavior is completely unchanged (defaults to classic)
