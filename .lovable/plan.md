@@ -1,54 +1,82 @@
 
-# Fix Thermal Label Right & Bottom Blank Space
 
-## Problem
-When printing 38x25mm labels on TSC TL240, the content appears smaller than the label with visible blank space on the **right side** and **bottom**. The user has to manually set browser scale to 120-140% to compensate, and even then it doesn't fill the label properly like RetailView software does.
+# Fix Thermal Label: Margins, Double Labels, and Unwanted Content
 
-## Root Cause
-Two issues combine to create the blank space:
+## Issues Found
 
-1. **Base CSS padding not overridden**: The base `#printArea .label-cell` rule (line 4342) applies `padding: 0.5mm 1.5mm` (1.5mm on left and right). For a 38mm label, that's 3mm of horizontal dead space. The `@media print` thermal override sets `padding: 0 !important` but the base style still affects the initial render.
+### 1. Margins only affect 1st label (thermal print mode)
+**Root cause**: In the print-mode branch (line 2835-2849), thermal 1UP grids are created with `padding: 0; margin: 0` hardcoded. The user's margin settings (`topOffset`, `leftOffset`, `bottomOffset`, `rightOffset`) are only applied in the A4 grid branch (line 2856-2858). So from the 2nd label onward, margins are completely ignored.
 
-2. **Content not scaled to fill the physical label**: The browser renders the label content at its natural CSS size (38x25mm) and the printer driver page size is also 38x25mm. However, thermal printers have a built-in non-printable margin (typically 1-2mm on each side). RetailView compensates by rendering content slightly larger than the physical label so the printable area is fully utilized. Our code does `transform: none` for thermal, meaning no compensation for the printer's built-in margins.
+**Fix**: Apply user margins as padding on each thermal label grid container in print mode.
 
-3. **Inline `overflow: hidden`** on the cell (line 2784, 2888) clips content at the edges instead of letting it extend to fill the label.
+### 2. Preview shows double the labels (e.g., 10 qty shows 20)
+**Root cause**: The preview mode (line 2708) always uses A4-based pagination logic even for thermal 1UP labels. It calculates `rowsPerPage = floor(286 / 25) = 11` and creates a grid with `grid-template-rows: repeat(11, 25mm)`. This means for 10 labels, the grid creates 11 empty slots -- and the grid visually renders all 11 rows even though only 10 are filled, making it look like extra blank labels appear. For larger quantities, this pagination creates multiple pages each with empty trailing slots, inflating the visible count.
 
-## Solution
+**Fix**: Add a thermal-specific branch in preview mode that shows 1 label per row (simple list), matching what the printer will actually output. For thermal 1UP, `labelsPerPage` should equal 1 per row, and the grid should use `grid-template-rows` matching only the actual labels placed (not the calculated rows from A4 height).
+
+### 3. Unwanted content: timestamp and URL in print
+**Root cause**: Chrome's default print headers/footers add the page title ("EzzyERP - Easy Billing, Smart Business"), timestamp ("2/26/26, 1:48 PM"), and page URL at the top and bottom of each printed page. These appear when the `@page` margin is 0 but Chrome still reserves space for them unless the user manually unchecks "Headers and footers" in the print dialog.
+
+**Fix**: We already have `@page { margin: 0 }` which should suppress these. The remaining fix is to temporarily set `document.title` to an empty string before printing and restore it after, so even if Chrome shows headers, they'll be blank. Also add a note/tooltip instructing users to uncheck "Headers and footers" in Chrome's print settings.
+
+## Technical Changes
 
 ### File: `src/pages/BarcodePrinting.tsx`
 
-**1. Remove overflow: hidden from inline cell styles for thermal (lines 2880-2889)**
+**Change 1: Apply margins to thermal labels in print mode (lines 2835-2849)**
 
-For thermal 1UP labels, change `overflow: hidden` to `overflow: visible` in the absolute-layout cell inline styles so content can extend to the edges without clipping.
+Add padding from user margins to each thermal grid container:
+```typescript
+gridDiv.style.cssText = isThermal1Up()
+  ? `
+      display: block;
+      width: ${dimensions.width}mm;
+      height: ${dimensions.height}mm;
+      ...
+      padding-top: ${topOffset}mm;
+      padding-left: ${leftOffset}mm;
+      padding-bottom: ${bottomOffset}mm;
+      padding-right: ${rightOffset}mm;
+    `
+```
 
-**2. Add a slight scale-up transform in `@media print` for thermal labels (lines 4449-4451)**
+Also update the `@page` size to account for margins (add margin space to page dimensions) and update the `@media print` `#printArea .label-grid` width/height to include margins.
 
-Apply a small `transform: scale(1.05)` (5% oversize) to `#printArea` during thermal printing. This compensates for the printer's built-in non-printable margins and ensures content fills the full label area -- similar to how RetailView renders slightly oversized content. The `transform-origin: center center` ensures the scaling is symmetric.
+**Change 2: Fix preview pagination for thermal 1UP (lines 2692-2696, 2708-2811)**
 
-```css
-#printArea {
-  /* For thermal: scale up 5% to fill label, compensating for printer margins */
-  transform: scale(1.05);
-  transform-origin: center center;
+Add a thermal-specific branch in preview mode:
+```typescript
+if (isPreviewMode) {
+  if (isThermal1Up()) {
+    // For thermal 1UP, each label is a separate "page" - show them in a simple list
+    labelsPerPage = 1;
+    numPages = totalLabels;
+  } else {
+    // A4 pagination
+    ...
+  }
 }
 ```
 
-**3. Force `padding: 0` in the print override for label-cell (already done but reinforce)**
+And in the preview rendering, for thermal 1UP, use `grid-template-rows: repeat(1, ${height}mm)` instead of `repeat(rowsPerPage, ...)` to show exactly 1 label per page block.
 
-The existing `padding: 0 !important` in the thermal print block is correct; no change needed here.
+**Change 3: Suppress browser headers/footers during print (line 2919-2927)**
 
-**4. Set `overflow: visible` on both `.label-grid` and `.label-cell` in print mode**
+In `handlePrint`, temporarily clear `document.title` before `window.print()` and restore after:
+```typescript
+const handlePrint = () => {
+  generatePreview("printArea");
+  const originalTitle = document.title;
+  document.title = ' ';  // Blank title suppresses header text
+  setTimeout(() => {
+    window.print();
+    document.title = originalTitle;  // Restore after print
+  }, 50);
+};
+```
 
-Ensure no clipping occurs at any container level during printing.
-
-## Summary of Changes
-- `src/pages/BarcodePrinting.tsx`:
-  - Inline cell styles: `overflow: hidden` changed to `overflow: visible` for thermal absolute-layout cells
-  - `@media print` `#printArea` for thermal: add `transform: scale(1.05); transform-origin: center center;` instead of `transform: none`
-  - `@media print` `.label-cell` and `.label-grid` for thermal: ensure `overflow: visible !important`
-
-## Impact
-- Only thermal 1UP label printing is affected
-- Preview rendering unchanged (transform only applies in `@media print`)
-- A4 sheet printing unchanged
-- The 5% scale-up eliminates the need for users to manually set 120-140% scale in the browser print dialog -- they can leave it at 100%
+## Summary
+- 3 changes in `src/pages/BarcodePrinting.tsx`
+- Thermal margins applied to every label (not just 1st)
+- Preview correctly shows 1 label per page for thermal
+- Browser header/footer text suppressed during printing
