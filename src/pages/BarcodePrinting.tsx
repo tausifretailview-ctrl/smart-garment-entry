@@ -4322,14 +4322,14 @@ export default function BarcodePrinting() {
           margin: 0;
         }
 
-        .label-grid {
+        #printArea .label-grid {
           display: grid;
           grid-template-columns: repeat(8, 33mm);
           grid-auto-rows: 19mm;
           gap: 1mm;
         }
 
-        .label-cell {
+        #printArea .label-cell {
           padding: 0.5mm 1.5mm;
           text-align: center;
           font-size: 9px;
