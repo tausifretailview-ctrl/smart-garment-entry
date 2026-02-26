@@ -755,7 +755,14 @@ const ProductEntry = () => {
       }];
       setVariants(newVariants);
       setShowVariants(true);
-      setTimeout(() => variantsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+      setTimeout(() => {
+        variantsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Focus the first barcode input after scroll
+        setTimeout(() => {
+          const firstBarcodeInput = variantsSectionRef.current?.querySelector('input[placeholder="Barcode"]') as HTMLInputElement;
+          firstBarcodeInput?.focus();
+        }, 400);
+      }, 100);
       return;
     }
 
@@ -796,7 +803,13 @@ const ProductEntry = () => {
     // Merge with existing variants
     setVariants([...variants, ...newVariants]);
     setShowVariants(true);
-    setTimeout(() => variantsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+    setTimeout(() => {
+      variantsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setTimeout(() => {
+        const firstBarcodeInput = variantsSectionRef.current?.querySelector('input[placeholder="Barcode"]') as HTMLInputElement;
+        firstBarcodeInput?.focus();
+      }, 400);
+    }, 100);
   };
 
   const handleAutoGenerateBarcodes = async () => {
