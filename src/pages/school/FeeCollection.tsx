@@ -8,13 +8,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, Receipt, Loader2, IndianRupee, Calendar, User, MessageCircle, Pencil } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Search, Receipt, Loader2, IndianRupee, Calendar, User, MessageCircle, Pencil, CreditCard, Banknote, Smartphone, Building2 } from "lucide-react";
 import { FeeCollectionDialog } from "@/components/school/FeeCollectionDialog";
 import { StudentHistoryDialog } from "@/components/school/StudentHistoryDialog";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { BalanceEditDialog } from "@/components/school/BalanceEditDialog";
 import { toast } from "sonner";
+import { format, startOfDay, endOfDay, startOfMonth, startOfQuarter, startOfYear, subDays } from "date-fns";
 
 const FeeCollection = () => {
   const { currentOrganization } = useOrganization();
@@ -32,6 +34,14 @@ const FeeCollection = () => {
   const [balanceEditOpen, setBalanceEditOpen] = useState(false);
   const { settings: whatsAppSettings, sendMessageAsync } = useWhatsAppAPI();
   const { sendWhatsApp } = useWhatsAppSend();
+  const [activeTab, setActiveTab] = useState("collect");
+
+  // Fees Collected tab state
+  const [collectedPeriod, setCollectedPeriod] = useState("today");
+  const [collectedSearch, setCollectedSearch] = useState("");
+  const [customDateFrom, setCustomDateFrom] = useState("");
+  const [customDateTo, setCustomDateTo] = useState("");
+  const [collectedPage, setCollectedPage] = useState(1);
 
   // Get current academic year
   const { data: currentYear } = useQuery({
@@ -57,7 +67,6 @@ const FeeCollection = () => {
       const today = new Date().toISOString().split("T")[0];
       const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0];
 
-      // Today's collection
       const { data: todayData } = await supabase
         .from("student_fees")
         .select("paid_amount")
@@ -68,7 +77,6 @@ const FeeCollection = () => {
 
       const todayTotal = (todayData || []).reduce((s: number, r: any) => s + (r.paid_amount || 0), 0);
 
-      // Month collection
       const { data: monthData } = await supabase
         .from("student_fees")
         .select("paid_amount")
@@ -78,7 +86,6 @@ const FeeCollection = () => {
 
       const monthTotal = (monthData || []).reduce((s: number, r: any) => s + (r.paid_amount || 0), 0);
 
-      // Total fee structures (all classes) vs total paid
       const { data: allStructures } = await supabase
         .from("fee_structures")
         .select("amount, frequency")
@@ -104,9 +111,7 @@ const FeeCollection = () => {
         return s + r.amount * mult;
       }, 0);
 
-      // Add imported balances from students who don't have fee structures
       const totalImportedBalance = (allStudents || []).reduce((s: number, st: any) => s + (st.closing_fees_balance || 0), 0);
-
       const pending = Math.max(0, (totalExpected > 0 ? totalExpected : totalImportedBalance) - totalPaid);
 
       return { today: todayTotal, month: monthTotal, pending };
@@ -146,7 +151,6 @@ const FeeCollection = () => {
         }));
       }
 
-      // Get fee structures and payments in parallel for calculation
       const classIds = [...new Set(data.map((s: any) => s.class_id).filter(Boolean))];
       const studentIds = data.map((s: any) => s.id);
 
@@ -160,7 +164,6 @@ const FeeCollection = () => {
       const structures = structuresRes.data || [];
       const payments = paymentsRes.data || [];
 
-      // Calculate dues per student
       return data.map((student: any) => {
         const classStructures = structures.filter((s: any) => s.class_id === student.class_id);
         const totalExpected = classStructures.reduce((sum: number, s: any) => {
@@ -172,7 +175,6 @@ const FeeCollection = () => {
           .filter((p: any) => p.student_id === student.id)
           .reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
 
-        // Use closing_fees_balance (from imported balance) as fallback when no fee structures exist
         const importedBalance = student.closing_fees_balance || 0;
         const hasStructures = totalExpected > 0;
         const totalDue = hasStructures ? Math.max(0, totalExpected - totalPaid) : Math.max(0, importedBalance - totalPaid);
@@ -198,6 +200,72 @@ const FeeCollection = () => {
     },
     enabled: !!currentOrganization?.id,
   });
+
+  // === Fees Collected Tab: date range calculation ===
+  const getDateRange = () => {
+    const now = new Date();
+    switch (collectedPeriod) {
+      case "today":
+        return { from: startOfDay(now).toISOString(), to: endOfDay(now).toISOString() };
+      case "monthly":
+        return { from: startOfMonth(now).toISOString(), to: endOfDay(now).toISOString() };
+      case "quarterly":
+        return { from: startOfQuarter(now).toISOString(), to: endOfDay(now).toISOString() };
+      case "yearly":
+        return { from: startOfYear(now).toISOString(), to: endOfDay(now).toISOString() };
+      case "custom":
+        return {
+          from: customDateFrom ? new Date(customDateFrom + "T00:00:00").toISOString() : subDays(now, 30).toISOString(),
+          to: customDateTo ? new Date(customDateTo + "T23:59:59").toISOString() : endOfDay(now).toISOString(),
+        };
+      default:
+        return { from: startOfDay(now).toISOString(), to: endOfDay(now).toISOString() };
+    }
+  };
+
+  const dateRange = getDateRange();
+
+  // Fetch collected fees data
+  const { data: collectedFees, isLoading: collectedLoading } = useQuery({
+    queryKey: ["fees-collected", currentOrganization?.id, currentYear?.id, collectedPeriod, customDateFrom, customDateTo, collectedSearch],
+    queryFn: async () => {
+      if (!currentYear) return [];
+
+      let query = supabase
+        .from("student_fees")
+        .select("*, students!inner(student_name, admission_number, parent_phone, class_id, school_classes:class_id(class_name)), fee_heads(head_name)")
+        .eq("organization_id", currentOrganization!.id)
+        .eq("academic_year_id", currentYear.id)
+        .gte("paid_date", dateRange.from)
+        .lte("paid_date", dateRange.to)
+        .order("paid_date", { ascending: false });
+
+      if (collectedSearch) {
+        query = query.or(`students.student_name.ilike.%${collectedSearch}%,students.admission_number.ilike.%${collectedSearch}%`, { referencedTable: "students" });
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id && !!currentYear?.id && activeTab === "collected",
+  });
+
+  // Collected fees summary cards
+  const collectedSummary = (() => {
+    const fees = collectedFees || [];
+    const total = fees.reduce((s: number, f: any) => s + (f.paid_amount || 0), 0);
+    const cash = fees.filter((f: any) => f.payment_method === "Cash").reduce((s: number, f: any) => s + (f.paid_amount || 0), 0);
+    const upi = fees.filter((f: any) => f.payment_method === "UPI").reduce((s: number, f: any) => s + (f.paid_amount || 0), 0);
+    const card = fees.filter((f: any) => f.payment_method === "Card").reduce((s: number, f: any) => s + (f.paid_amount || 0), 0);
+    const bank = fees.filter((f: any) => f.payment_method === "Bank Transfer").reduce((s: number, f: any) => s + (f.paid_amount || 0), 0);
+    const count = fees.length;
+    return { total, cash, upi, card, bank, count };
+  })();
+
+  // Collected fees filtered by search (client-side for student name in results)
+  const paginatedCollected = (collectedFees || []).slice((collectedPage - 1) * pageSize, collectedPage * pageSize);
+  const collectedTotalPages = Math.max(1, Math.ceil((collectedFees || []).length / pageSize));
 
   const handleCollect = (student: any) => {
     setSelectedStudent(student);
@@ -233,7 +301,6 @@ const FeeCollection = () => {
     const upiId = gatewaySettings?.upi_id || "";
     const upiBusinessName = gatewaySettings?.upi_business_name || currentOrganization?.name || "School";
 
-    // Build UPI payment link
     let paymentLink = "";
     if (upiId) {
       const upiParams = new URLSearchParams({
@@ -246,7 +313,6 @@ const FeeCollection = () => {
       paymentLink = `upi://pay?${upiParams.toString()}`;
     }
 
-    // If WhatsApp API is active and template is configured, use API
     if (whatsAppSettings?.is_active && templateName) {
       setSendingReminder(student.id);
       try {
@@ -272,7 +338,6 @@ const FeeCollection = () => {
         setSendingReminder(null);
       }
     } else {
-      // Fallback to wa.me link
       const amountStr = `Rs.${student.totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
       const msg = `Dear Parent,\n\nFee Reminder - ${currentOrganization?.name || "School"}\nStudent: ${student.student_name} (${student.admission_number})\nClass: ${student.school_classes?.class_name || "-"}\nPending Amount: ${amountStr}\n${upiId ? `\n💳 *Pay Online*\nUPI ID: ${upiId}\nAmount: ${amountStr}\n\n👉 Click to pay: ${paymentLink}` : ""}\n\nPlease pay at the earliest.\nThank you!`;
       sendWhatsApp(phone, msg);
@@ -297,7 +362,6 @@ const FeeCollection = () => {
     return true;
   });
 
-  // Status counts
   const statusCounts = {
     total: filteredStudents.length,
     paid: filteredStudents.filter((s: any) => s.feeStatus === "paid" || (s.totalDue === 0 && s.feeStatus === "no-structure")).length,
@@ -305,14 +369,23 @@ const FeeCollection = () => {
     partial: filteredStudents.filter((s: any) => s.feeStatus === "partial").length,
   };
 
-  // Pagination
   const totalPages = Math.max(1, Math.ceil(filteredStudents.length / pageSize));
   const paginatedStudents = filteredStudents.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  // Reset page when filters change
   const handleFilterChange = (setter: (v: string) => void, value: string) => {
     setter(value);
     setCurrentPage(1);
+  };
+
+  const getPeriodLabel = (period: string) => {
+    switch (period) {
+      case "today": return "Today";
+      case "monthly": return "This Month";
+      case "quarterly": return "This Quarter";
+      case "yearly": return "This Year";
+      case "custom": return "Custom Range";
+      default: return "Today";
+    }
   };
 
   if (!currentOrganization) {
@@ -338,210 +411,384 @@ const FeeCollection = () => {
         </Button>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-primary/10 rounded-lg">
-                <IndianRupee className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Today's Collection</p>
-                <p className="text-2xl font-bold">₹{(summary?.today || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-yellow-500/10 rounded-lg">
-                <Calendar className="h-6 w-6 text-yellow-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">This Month</p>
-                <p className="text-2xl font-bold">₹{(summary?.month || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-destructive/10 rounded-lg">
-                <User className="h-6 w-6 text-destructive" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Pending Dues</p>
-                <p className="text-2xl font-bold">₹{(summary?.pending || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="collect">Collect Fees</TabsTrigger>
+          <TabsTrigger value="collected">Fees Collected</TabsTrigger>
+        </TabsList>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Student Fee Status</CardTitle>
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name or admission no..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
+        {/* ========== TAB 1: Collect Fees (existing) ========== */}
+        <TabsContent value="collect" className="space-y-6">
+          {/* Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-primary/10 rounded-lg">
+                    <IndianRupee className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Today's Collection</p>
+                    <p className="text-2xl font-bold">₹{(summary?.today || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-yellow-500/10 rounded-lg">
+                    <Calendar className="h-6 w-6 text-yellow-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">This Month</p>
+                    <p className="text-2xl font-bold">₹{(summary?.month || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-destructive/10 rounded-lg">
+                    <User className="h-6 w-6 text-destructive" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Pending Dues</p>
+                    <p className="text-2xl font-bold">₹{(summary?.pending || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-          <div className="flex items-center gap-3 pt-2">
-            <Select value={classFilter} onValueChange={(v) => handleFilterChange(setClassFilter, v)}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="All Classes" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Classes</SelectItem>
-                {(classes || []).map((c: any) => (
-                  <SelectItem key={c.id} value={c.id}>{c.class_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={(v) => handleFilterChange(setStatusFilter, v)}>
-              <SelectTrigger className="w-36">
-                <SelectValue placeholder="All Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="paid">Paid</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="partial">Partial</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="flex items-center gap-2 ml-auto text-sm">
-              <Badge variant="success">{statusCounts.paid} Paid</Badge>
-              <Badge variant="destructive">{statusCounts.pending} Pending</Badge>
-              <Badge variant="warning">{statusCounts.partial} Partial</Badge>
-              <Badge variant="secondary">Total: {statusCounts.total}</Badge>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center h-32">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
-          ) : filteredStudents.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <User className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No students found.</p>
-              <p className="text-sm">Add students first to collect fees.</p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-14">Sr.No</TableHead>
-                  <TableHead>Admission No</TableHead>
-                  <TableHead>Student Name</TableHead>
-                  <TableHead>Class</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead className="text-right">Total Due</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                  <TableHead className="w-44">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedStudents.map((student: any, index: number) => (
-                  <TableRow key={student.id}>
-                    <TableCell className="text-muted-foreground">{(currentPage - 1) * pageSize + index + 1}</TableCell>
-                    <TableCell className="font-medium">{student.admission_number}</TableCell>
-                    <TableCell>
-                      <button
-                        className="text-primary hover:underline font-medium text-left cursor-pointer bg-transparent border-none p-0"
-                        onClick={() => { setHistoryStudent(student); setHistoryOpen(true); }}
-                      >
-                        {student.student_name}
-                      </button>
-                    </TableCell>
-                    <TableCell>
-                      {student.school_classes?.class_name || "-"}
-                    </TableCell>
-                    <TableCell>{student.parent_phone || "-"}</TableCell>
-                    <TableCell className="text-right font-medium">
-                      <div className="flex items-center justify-end gap-1">
-                        <span>₹{(student.totalDue || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
-                          onClick={() => { setBalanceEditStudent(student); setBalanceEditOpen(true); }}
-                          title="Edit closing fees balance"
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {getStatusBadge(student.feeStatus || "no-structure")}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 justify-end">
-                        {student.totalDue > 0 && student.parent_phone && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-green-600 border-green-600 hover:bg-green-50 h-8 w-8 p-0"
-                            onClick={() => handleSendReminder(student)}
-                            disabled={sendingReminder === student.id}
-                            title="Send WhatsApp Reminder"
-                          >
-                            {sendingReminder === student.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <MessageCircle className="h-4 w-4" />
-                            )}
-                          </Button>
-                        )}
-                        <Button size="sm" onClick={() => handleCollect(student)} className="h-8">
-                          <Receipt className="h-4 w-4 mr-1" />
-                          Collect
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-4">
-              <p className="text-sm text-muted-foreground">
-                Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filteredStudents.length)} of {filteredStudents.length}
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                >
-                  Previous
-                </Button>
-                <span className="text-sm">Page {currentPage} of {totalPages}</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                >
-                  Next
-                </Button>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Student Fee Status</CardTitle>
+                <div className="relative w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by name or admission no..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
               </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              <div className="flex items-center gap-3 pt-2">
+                <Select value={classFilter} onValueChange={(v) => handleFilterChange(setClassFilter, v)}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="All Classes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Classes</SelectItem>
+                    {(classes || []).map((c: any) => (
+                      <SelectItem key={c.id} value={c.id}>{c.class_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={(v) => handleFilterChange(setStatusFilter, v)}>
+                  <SelectTrigger className="w-36">
+                    <SelectValue placeholder="All Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="paid">Paid</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="partial">Partial</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="flex items-center gap-2 ml-auto text-sm">
+                  <Badge variant="success">{statusCounts.paid} Paid</Badge>
+                  <Badge variant="destructive">{statusCounts.pending} Pending</Badge>
+                  <Badge variant="warning">{statusCounts.partial} Partial</Badge>
+                  <Badge variant="secondary">Total: {statusCounts.total}</Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex items-center justify-center h-32">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              ) : filteredStudents.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <User className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No students found.</p>
+                  <p className="text-sm">Add students first to collect fees.</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-14">Sr.No</TableHead>
+                      <TableHead>Admission No</TableHead>
+                      <TableHead>Student Name</TableHead>
+                      <TableHead>Class</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead className="text-right">Total Due</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                      <TableHead className="w-44">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedStudents.map((student: any, index: number) => (
+                      <TableRow key={student.id}>
+                        <TableCell className="text-muted-foreground">{(currentPage - 1) * pageSize + index + 1}</TableCell>
+                        <TableCell className="font-medium">{student.admission_number}</TableCell>
+                        <TableCell>
+                          <button
+                            className="text-primary hover:underline font-medium text-left cursor-pointer bg-transparent border-none p-0"
+                            onClick={() => { setHistoryStudent(student); setHistoryOpen(true); }}
+                          >
+                            {student.student_name}
+                          </button>
+                        </TableCell>
+                        <TableCell>{student.school_classes?.class_name || "-"}</TableCell>
+                        <TableCell>{student.parent_phone || "-"}</TableCell>
+                        <TableCell className="text-right font-medium">
+                          <div className="flex items-center justify-end gap-1">
+                            <span>₹{(student.totalDue || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
+                              onClick={() => { setBalanceEditStudent(student); setBalanceEditOpen(true); }}
+                              title="Edit closing fees balance"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {getStatusBadge(student.feeStatus || "no-structure")}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1 justify-end">
+                            {student.totalDue > 0 && student.parent_phone && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-green-600 border-green-600 hover:bg-green-50 h-8 w-8 p-0"
+                                onClick={() => handleSendReminder(student)}
+                                disabled={sendingReminder === student.id}
+                                title="Send WhatsApp Reminder"
+                              >
+                                {sendingReminder === student.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <MessageCircle className="h-4 w-4" />
+                                )}
+                              </Button>
+                            )}
+                            <Button size="sm" onClick={() => handleCollect(student)} className="h-8">
+                              <Receipt className="h-4 w-4 mr-1" />
+                              Collect
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-4">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filteredStudents.length)} of {filteredStudents.length}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
+                    <span className="text-sm">Page {currentPage} of {totalPages}</span>
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Next</Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ========== TAB 2: Fees Collected ========== */}
+        <TabsContent value="collected" className="space-y-6">
+          {/* Period Filter Chips */}
+          <div className="flex flex-wrap items-center gap-2">
+            {["today", "monthly", "quarterly", "yearly", "custom"].map((period) => (
+              <Button
+                key={period}
+                size="sm"
+                variant={collectedPeriod === period ? "default" : "outline"}
+                onClick={() => { setCollectedPeriod(period); setCollectedPage(1); }}
+                className="capitalize"
+              >
+                {getPeriodLabel(period)}
+              </Button>
+            ))}
+            {collectedPeriod === "custom" && (
+              <div className="flex items-center gap-2 ml-2">
+                <Input
+                  type="date"
+                  value={customDateFrom}
+                  onChange={(e) => setCustomDateFrom(e.target.value)}
+                  className="w-40 h-9"
+                />
+                <span className="text-muted-foreground text-sm">to</span>
+                <Input
+                  type="date"
+                  value={customDateTo}
+                  onChange={(e) => setCustomDateTo(e.target.value)}
+                  className="w-40 h-9"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <Card>
+              <CardContent className="pt-5 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-primary/10 rounded-lg">
+                    <IndianRupee className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total Collection</p>
+                    <p className="text-lg font-bold">₹{collectedSummary.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+                    <p className="text-xs text-muted-foreground">{collectedSummary.count} receipts</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-5 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-green-500/10 rounded-lg">
+                    <Banknote className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Cash</p>
+                    <p className="text-lg font-bold">₹{collectedSummary.cash.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-5 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-blue-500/10 rounded-lg">
+                    <Smartphone className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">UPI</p>
+                    <p className="text-lg font-bold">₹{collectedSummary.upi.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-5 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-purple-500/10 rounded-lg">
+                    <CreditCard className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Card</p>
+                    <p className="text-lg font-bold">₹{collectedSummary.card.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-5 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-orange-500/10 rounded-lg">
+                    <Building2 className="h-5 w-5 text-orange-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Bank Transfer</p>
+                    <p className="text-lg font-bold">₹{collectedSummary.bank.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Search + Table */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Collection Details — {getPeriodLabel(collectedPeriod)}</CardTitle>
+                <div className="relative w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search student name or adm no..."
+                    value={collectedSearch}
+                    onChange={(e) => { setCollectedSearch(e.target.value); setCollectedPage(1); }}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {collectedLoading ? (
+                <div className="flex items-center justify-center h-32">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              ) : (collectedFees || []).length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No fee collections found for this period.</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-14">Sr.No</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Receipt #</TableHead>
+                      <TableHead>Student Name</TableHead>
+                      <TableHead>Adm. No</TableHead>
+                      <TableHead>Class</TableHead>
+                      <TableHead>Fee Head</TableHead>
+                      <TableHead>Payment</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedCollected.map((fee: any, index: number) => (
+                      <TableRow key={fee.id}>
+                        <TableCell className="text-muted-foreground">{(collectedPage - 1) * pageSize + index + 1}</TableCell>
+                        <TableCell>{fee.paid_date ? format(new Date(fee.paid_date), "dd/MM/yyyy") : "-"}</TableCell>
+                        <TableCell className="font-medium">{fee.payment_receipt_id || "-"}</TableCell>
+                        <TableCell className="font-medium">{fee.students?.student_name || "-"}</TableCell>
+                        <TableCell>{fee.students?.admission_number || "-"}</TableCell>
+                        <TableCell>{fee.students?.school_classes?.class_name || "-"}</TableCell>
+                        <TableCell>{fee.fee_heads?.head_name || "General"}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{fee.payment_method || "Cash"}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-medium">₹{(fee.paid_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+              {collectedTotalPages > 1 && (
+                <div className="flex items-center justify-between pt-4">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {(collectedPage - 1) * pageSize + 1}-{Math.min(collectedPage * pageSize, (collectedFees || []).length)} of {(collectedFees || []).length}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setCollectedPage((p) => Math.max(1, p - 1))} disabled={collectedPage === 1}>Previous</Button>
+                    <span className="text-sm">Page {collectedPage} of {collectedTotalPages}</span>
+                    <Button variant="outline" size="sm" onClick={() => setCollectedPage((p) => Math.min(collectedTotalPages, p + 1))} disabled={collectedPage === collectedTotalPages}>Next</Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       <FeeCollectionDialog
         open={dialogOpen}
