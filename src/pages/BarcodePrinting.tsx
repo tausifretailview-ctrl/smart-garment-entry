@@ -2690,10 +2690,15 @@ export default function BarcodePrinting() {
     // Calculate labels per page (only for preview mode)
     let numPages = 0;
     if (isPreviewMode) {
-      const availableHeight = 297 - topOffset - bottomOffset - 10;
-      const rowsPerPage = Math.floor(availableHeight / (dimensions.height + dimensions.gap));
-      const labelsPerPage = dimensions.cols * Math.max(1, rowsPerPage);
-      numPages = totalLabels > 0 ? Math.ceil(totalLabels / labelsPerPage) : 0;
+      if (isThermal1Up()) {
+        // Thermal 1UP: each label is its own page, no A4 pagination
+        numPages = totalLabels;
+      } else {
+        const availableHeight = 297 - topOffset - bottomOffset - 10;
+        const rowsPerPage = Math.floor(availableHeight / (dimensions.height + dimensions.gap));
+        const labelsPerPage = dimensions.cols * Math.max(1, rowsPerPage);
+        numPages = totalLabels > 0 ? Math.ceil(totalLabels / labelsPerPage) : 0;
+      }
     }
 
     // Generate all labels as an array
@@ -2707,9 +2712,10 @@ export default function BarcodePrinting() {
 
     if (isPreviewMode && numPages > 0) {
       // Preview mode: Show pages with separators
+      const isThermalPreview = isThermal1Up();
       const availableHeight = 297 - topOffset - bottomOffset - 10;
-      const rowsPerPage = Math.floor(availableHeight / (dimensions.height + dimensions.gap));
-      const labelsPerPage = dimensions.cols * Math.max(1, rowsPerPage);
+      const rowsPerPage = isThermalPreview ? 1 : Math.floor(availableHeight / (dimensions.height + dimensions.gap));
+      const labelsPerPage = isThermalPreview ? 1 : dimensions.cols * Math.max(1, rowsPerPage);
 
       // Add total count at the top
       const totalCounter = document.createElement("div");
@@ -2749,17 +2755,34 @@ export default function BarcodePrinting() {
         // Create grid for this page
         const gridDiv = document.createElement("div");
         gridDiv.className = "label-grid";
-        gridDiv.style.cssText = `
-          display: grid;
-          grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
-          grid-template-rows: repeat(${rowsPerPage}, ${dimensions.height}mm);
-          gap: ${dimensions.gap}mm;
-          padding-top: ${topOffset}mm;
-          padding-left: ${leftOffset}mm;
-          padding-bottom: ${bottomOffset}mm;
-          padding-right: ${rightOffset}mm;
-          margin-bottom: ${page < numPages - 1 ? '20px' : '0'};
-        `;
+        
+        if (isThermalPreview) {
+          // Thermal 1UP: single label per page block
+          gridDiv.style.cssText = `
+            display: block;
+            width: ${dimensions.width}mm;
+            height: ${dimensions.height}mm;
+            padding-top: ${topOffset}mm;
+            padding-left: ${leftOffset}mm;
+            padding-bottom: ${bottomOffset}mm;
+            padding-right: ${rightOffset}mm;
+            box-sizing: border-box;
+            margin-bottom: ${page < numPages - 1 ? '10px' : '0'};
+            border: 1px dashed hsl(var(--border));
+          `;
+        } else {
+          gridDiv.style.cssText = `
+            display: grid;
+            grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
+            grid-template-rows: repeat(${rowsPerPage}, ${dimensions.height}mm);
+            gap: ${dimensions.gap}mm;
+            padding-top: ${topOffset}mm;
+            padding-left: ${leftOffset}mm;
+            padding-bottom: ${bottomOffset}mm;
+            padding-right: ${rightOffset}mm;
+            margin-bottom: ${page < numPages - 1 ? '20px' : '0'};
+          `;
+        }
 
         // Add labels for this page
         const startIdx = page * labelsPerPage;
@@ -2773,7 +2796,6 @@ export default function BarcodePrinting() {
           cell.className = "label-cell";
           
           if (useAbsoluteLayout) {
-            // Absolute positioning layout - matches BarTenderLabelDesigner
             cell.style.cssText = `
               width: ${dimensions.width}mm;
               height: ${dimensions.height}mm;
@@ -2785,7 +2807,6 @@ export default function BarcodePrinting() {
               box-sizing: border-box;
             `;
           } else {
-            // Legacy flow-based layout
             cell.style.cssText = `
               width: ${dimensions.width}mm;
               height: ${dimensions.height}mm;
@@ -2840,7 +2861,10 @@ export default function BarcodePrinting() {
               min-height: ${dimensions.height}mm;
               max-height: ${dimensions.height}mm;
               margin: 0;
-              padding: 0;
+              padding-top: ${topOffset}mm;
+              padding-left: ${leftOffset}mm;
+              padding-bottom: ${bottomOffset}mm;
+              padding-right: ${rightOffset}mm;
               box-sizing: border-box;
               page-break-inside: avoid;
               break-inside: avoid-page;
@@ -2920,9 +2944,14 @@ export default function BarcodePrinting() {
     // Generate labels in the print area
     generatePreview("printArea");
     
+    // Suppress browser headers/footers by clearing document title during print
+    const originalTitle = document.title;
+    document.title = ' ';
+    
     // Print immediately since barcodes are pre-rendered
     setTimeout(() => {
       window.print();
+      document.title = originalTitle;
     }, 50);
   };
 
