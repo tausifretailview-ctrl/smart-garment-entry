@@ -48,6 +48,20 @@ export const encodePurchasePrice = (price: number, alphabet?: string, billDate?:
 };
 
 /**
+ * Calculates the effective purchase price for encoding.
+ * If includeGst is true: pur_price + (pur_price * gst_per / 100)
+ * Otherwise: just pur_price
+ */
+export const getEffectivePurchasePrice = (
+  purPrice: number,
+  gstPer: number = 0,
+  includeGst: boolean = false
+): number => {
+  if (!includeGst || gstPer <= 0) return purPrice;
+  return Math.round(purPrice + (purPrice * gstPer / 100));
+};
+
+/**
  * Validates a purchase code alphabet string.
  * Must be exactly 10 unique uppercase letters (A-Z).
  * 

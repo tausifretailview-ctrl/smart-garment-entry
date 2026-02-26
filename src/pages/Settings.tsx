@@ -79,6 +79,7 @@ interface PurchaseSettings {
   default_tax_rate?: number;
   purchase_code_alphabet?: string;
   show_purchase_code?: boolean;
+  purchase_code_include_gst?: boolean;
   show_mrp?: boolean;
 }
 
@@ -1305,6 +1306,29 @@ export default function Settings() {
                 <p className="text-xs text-muted-foreground ml-6">
                   When enabled, purchase prices will be automatically encoded using the alphabet above 
                   and printed on barcode labels (e.g., ₹100 → BAA)
+                </p>
+                
+                <div className="flex items-center space-x-2 ml-6">
+                  <Checkbox
+                    id="purchase_code_include_gst"
+                    checked={settings.purchase_settings?.purchase_code_include_gst || false}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          purchase_code_include_gst: checked as boolean,
+                        },
+                      })
+                    }
+                    disabled={!settings.purchase_settings?.show_purchase_code}
+                  />
+                  <Label htmlFor="purchase_code_include_gst" className="font-normal cursor-pointer">
+                    Include GST in Purchase Code
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground ml-12">
+                  When enabled, purchase code = (Purchase Rate − Discount + GST Amount) instead of just purchase rate
                 </p>
                 
                 <div className="flex items-center space-x-2 pt-4">
