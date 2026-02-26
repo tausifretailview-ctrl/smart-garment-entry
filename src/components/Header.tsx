@@ -1,4 +1,4 @@
-import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, Grid3X3 } from "lucide-react";
+import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { Button } from "@/components/ui/button";
@@ -64,7 +64,7 @@ export const Header = () => {
   const quickActions = [
     { icon: ShoppingCart, label: "New Sale", path: "/pos-sales", isDialog: false },
     { icon: Package, label: "New Purchase", path: "/purchase-entry", isDialog: false },
-    { icon: Grid3X3, label: "Size Stock", path: "", isDialog: true, shortcut: "Ctrl+G" },
+    { icon: LayoutGrid, label: "Size Stock", path: "", isDialog: true, shortcut: "Ctrl+G" },
     { icon: TrendingUp, label: "Reports", path: "/stock-report", isDialog: false },
   ];
 
