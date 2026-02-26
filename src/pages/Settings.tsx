@@ -153,6 +153,7 @@ interface SaleSettings {
   show_mrp_column?: boolean;
   // E-Invoice Settings
   einvoice_settings?: EInvoiceSettings;
+  thermal_receipt_style?: 'classic' | 'compact';
 }
 
 interface BillBarcodeSettings {
@@ -1715,6 +1716,33 @@ export default function Settings() {
                     </p>
                   </div>
                   
+                  <div className="space-y-2">
+                    <Label htmlFor="thermal_receipt_style">Thermal Receipt Style</Label>
+                    <Select
+                      value={settings.sale_settings?.thermal_receipt_style || "classic"}
+                      onValueChange={(value) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            thermal_receipt_style: value as 'classic' | 'compact',
+                          },
+                        })
+                      }
+                    >
+                      <SelectTrigger id="thermal_receipt_style">
+                        <SelectValue placeholder="Select style" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="classic">Classic (Monospace)</SelectItem>
+                        <SelectItem value="compact">Compact (Sans-serif)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Visual style used when printing thermal (80mm) receipts
+                    </p>
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="pos_bill_format">POS Bill Format</Label>
                     <Select
