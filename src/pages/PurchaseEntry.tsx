@@ -767,15 +767,20 @@ const PurchaseEntry = () => {
 
 
   useEffect(() => {
-    const gross = lineItems.reduce((sum, r) => sum + r.line_total, 0);
-    const grossAfterDiscount = gross - discountAmount;
+    const grossBeforeDiscount = lineItems.reduce((sum, r) => sum + (r.qty * r.pur_price), 0);
+    const itemDiscount = lineItems.reduce((sum, r) => {
+      const sub = r.qty * r.pur_price;
+      return sum + (sub * r.discount_percent / 100);
+    }, 0);
+    const grossAfterItemDiscount = grossBeforeDiscount - itemDiscount;
+    const grossAfterAllDiscount = grossAfterItemDiscount - discountAmount;
     const gst = lineItems.reduce((sum, r) => sum + (r.line_total * r.gst_per / 100), 0);
-    const netBeforeRoundOff = grossAfterDiscount + gst + otherCharges;
+    const netBeforeRoundOff = grossAfterAllDiscount + gst + otherCharges;
     // Auto round-off: calculate round-off so net amount is always a whole number
     const autoRoundOff = Math.round(netBeforeRoundOff) - netBeforeRoundOff;
     const roundedAutoRoundOff = parseFloat(autoRoundOff.toFixed(2));
     setRoundOff(roundedAutoRoundOff);
-    setGrossAmount(gross);
+    setGrossAmount(grossBeforeDiscount);
     setGstAmount(gst);
     setNetAmount(Math.round(netBeforeRoundOff));
   }, [lineItems, discountAmount, otherCharges]);
@@ -1802,9 +1807,15 @@ const PurchaseEntry = () => {
     }
   };
 
+  const itemDiscountTotal = lineItems.reduce((sum, r) => {
+    const sub = r.qty * r.pur_price;
+    return sum + (sub * r.discount_percent / 100);
+  }, 0);
+
   const totals = { 
     totalQty: lineItems.reduce((sum, item) => sum + item.qty, 0),
     totalDiscount: discountAmount,
+    itemDiscount: itemDiscountTotal,
     grossAmount, 
     gstAmount, 
     netAmount 
@@ -2842,8 +2853,14 @@ const PurchaseEntry = () => {
                   <span className="text-muted-foreground">Gross Amount:</span>
                   <span className="font-semibold">₹{totals.grossAmount.toFixed(2)}</span>
                 </div>
+                {totals.itemDiscount > 0 && (
+                  <div className="flex justify-between text-[13px]">
+                    <span className="text-muted-foreground">Item Discount:</span>
+                    <span className="font-semibold text-destructive">-₹{totals.itemDiscount.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center text-[13px]">
-                  <span className="text-muted-foreground">Total Discount:</span>
+                  <span className="text-muted-foreground">Bill Discount:</span>
                   <Input
                     type="number"
                     step="0.01"
