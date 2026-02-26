@@ -2781,7 +2781,7 @@ export default function BarcodePrinting() {
               max-height: ${dimensions.height}mm;
               font-family: Arial, sans-serif;
               position: relative;
-              overflow: hidden;
+              overflow: visible;
               box-sizing: border-box;
             `;
           } else {
@@ -2884,7 +2884,7 @@ export default function BarcodePrinting() {
               max-height: ${dimensions.height}mm;
               font-family: Arial, sans-serif;
               position: relative;
-              overflow: hidden;
+              overflow: visible;
               box-sizing: border-box;
             `;
           } else {
@@ -4447,9 +4447,8 @@ export default function BarcodePrinting() {
             margin: 0 !important;
             padding: 0 !important;
             ${isThermal1Up() 
-              ? `transform: none;` 
-              : `transform: scale(${(printScale / 100) * getAutoFitScale()});`}
-            transform-origin: top left;
+              ? `transform: scale(1.05); transform-origin: center center;` 
+              : `transform: scale(${(printScale / 100) * getAutoFitScale()}); transform-origin: top left;`}
             overflow: visible !important;
           }
           
@@ -4468,6 +4467,7 @@ export default function BarcodePrinting() {
               break-inside: avoid-page !important;
               padding: 0 !important;
               margin: 0 !important;
+              overflow: visible !important;
               box-sizing: border-box !important;
             ` : `
               page-break-after: auto;
