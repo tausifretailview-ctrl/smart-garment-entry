@@ -1,61 +1,41 @@
 
-
-# Add Barcode Numbers & Improve Thermal Receipt Quality
+# Fix Stock Report Purchase/Sales Qty Discrepancy
 
 ## Problem
-1. Thermal receipts don't show product barcode numbers, which are essential for sale returns
-2. QR code for UPI payment needs to always show (when UPI is configured)
-3. Font needs to be clearer, darker, and more standard-looking
+The Stock Report shows Purchase Qty: +34 and Sales Qty: -21 for PUL175, while Product History correctly shows 467 purchased and 223 sold. The numbers don't match because Stock Report uses the `stock_movements` table (which may have incomplete records for older transactions) instead of querying the actual transaction tables directly.
 
-## Changes
+## Root Cause
+- **Product History**: Queries `purchase_items` and `sale_items` tables directly by `product_id` -- accurate source of truth
+- **Stock Report**: Queries `stock_movements` table by `variant_id` -- may be missing movements for transactions created before the movement tracking was added, or may be affected by the 1000-row default query limit
 
-### 1. Update ThermalItem Interface (both components)
-Add `barcode?: string` field to the `ThermalItem` interface in both `ThermalPrint80mm.tsx` and `ThermalReceiptCompact.tsx`.
+## Solution
+Replace the `stock_movements`-based calculation in the Stock Report with direct queries to `purchase_items`, `sale_items`, `sale_return_items`, and `purchase_return_items` tables, matching the approach used by Product History.
 
-### 2. Show Barcode Below Each Item (both components)
-Display the barcode number in a smaller font below each item's name/qty row. This helps staff quickly identify products during sale returns.
+## Technical Changes
 
-**ThermalPrint80mm.tsx** - After the item name line, add:
-```
-{item.barcode && <div style={{ fontSize: '9px', color: '#333' }}>BC: {item.barcode}</div>}
-```
+### File: `src/pages/StockReport.tsx`
 
-**ThermalReceiptCompact.tsx** - Inside each table row, show barcode below description:
-```
-{item.barcode && <div style={{ fontSize: '8px' }}>BC: {item.barcode}</div>}
-```
+**Replace the stock_movements query block (lines 396-476)** with direct queries to transaction item tables:
 
-### 3. Pass Barcode Data from InvoiceWrapper
-Update `InvoiceWrapper.tsx` (around line 343) to include `barcode` in the items mapping:
-```typescript
-items={props.items.map((item, idx) => ({
-  sr: idx + 1,
-  particulars: item.particulars,
-  barcode: item.barcode,  // ADD THIS
-  qty: item.qty,
-  rate: item.rate,
-  total: item.total,
-}))}
-```
+1. **Remove** the `stock_movements` fetch (batched by variant IDs)
+2. **Add** batched queries to:
+   - `purchase_items` -- aggregate `qty` grouped by `sku_id` (variant_id)
+   - `sale_items` -- aggregate `quantity` grouped by `variant_id`
+   - `sale_return_items` -- aggregate `quantity` grouped by `variant_id` (for purchase return qty, already captured in current stock)
+   - `purchase_return_items` -- aggregate `qty` grouped by `variant_id`
+3. **Build** the same `variantMovements` map from direct data:
+   ```
+   purchase = SUM(purchase_items.qty) for each variant
+   sales = SUM(sale_items.quantity) for each variant
+   purchaseReturn = SUM(purchase_return_items.qty) for each variant
+   ```
+4. Keep the same batching approach (200 IDs per batch) to avoid query limits
+5. Each batch query uses no `.limit()` override -- instead, paginate within each batch if needed (fetch in 1000-row pages)
 
-### 4. Improve Font Clarity & Darkness
+This ensures the Stock Report shows the same accurate numbers as Product History, regardless of whether stock_movements has complete data.
 
-**ThermalPrint80mm.tsx:**
-- Change font to `'Arial, Helvetica, sans-serif'` (cleaner than Courier for thermal)
-- Increase base `fontWeight` to 800
-- Set `color: '#000000'` consistently
-- Add `-webkit-text-stroke: 0.3px #000` for extra darkness on thermal printers
-
-**ThermalReceiptCompact.tsx:**
-- Increase base `fontWeight` to 700
-- Add `-webkit-text-stroke: 0.2px #000` for crispness
-- Ensure all text uses pure `#000` (no `#888` or `#ccc`)
-
-### 5. Ensure QR Code Always Shows (when UPI configured)
-Both components already generate UPI QR codes when `upi_id` is configured and `grandTotal > 0`. No changes needed here -- QR code functionality is already working.
-
-## Files Modified
-- `src/components/ThermalPrint80mm.tsx` -- Add barcode display, improve font darkness
-- `src/components/ThermalReceiptCompact.tsx` -- Add barcode display, improve font darkness
-- `src/components/InvoiceWrapper.tsx` -- Pass barcode field to thermal components
-
+## Impact
+- Only `src/pages/StockReport.tsx` is modified
+- No database changes needed
+- The existing `batch_stock` query for supplier info remains unchanged
+- Current stock (`stock_qty`) from `product_variants` is unaffected -- it's already correct via database triggers
