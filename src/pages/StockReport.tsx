@@ -393,85 +393,115 @@ export default function StockReport() {
       
       const data = allVariants;
 
-      // Fetch stock movements only for the fetched variant IDs (batched)
+      // Fetch purchase/sales/return quantities directly from transaction tables
+      // This is more accurate than stock_movements which may have incomplete historical data
       const variantIds = allVariants.map((v: any) => v.id);
-      const allMovements: any[] = [];
       const BATCH_SIZE = 200;
-      
-      for (let i = 0; i < variantIds.length; i += BATCH_SIZE) {
-        const batchIds = variantIds.slice(i, i + BATCH_SIZE);
-        const { data: movementsData, error: movementsError } = await supabase
-          .from("stock_movements")
-          .select("variant_id, movement_type, quantity")
-          .in("variant_id", batchIds);
 
-        if (movementsError) throw movementsError;
-        if (movementsData) allMovements.push(...movementsData);
-      }
-      
-      const movementsData = allMovements;
+      // Paginated fetch helpers for each table
+      const fetchPurchaseItems = async (batchIds: string[]) => {
+        const rows: any[] = [];
+        let offset = 0;
+        const pageSize = 1000;
+        let hasMore = true;
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from("purchase_items")
+            .select("sku_id, qty")
+            .in("sku_id", batchIds)
+            .is("deleted_at", null)
+            .order("id")
+            .range(offset, offset + pageSize - 1);
+          if (error) throw error;
+          if (data && data.length > 0) { rows.push(...data); offset += pageSize; hasMore = data.length === pageSize; } else { hasMore = false; }
+        }
+        return rows;
+      };
 
-      // Fetch batch stock only for fetched variant IDs (batched)
+      const fetchSaleItems = async (batchIds: string[]) => {
+        const rows: any[] = [];
+        let offset = 0;
+        const pageSize = 1000;
+        let hasMore = true;
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from("sale_items")
+            .select("variant_id, quantity")
+            .in("variant_id", batchIds)
+            .is("deleted_at", null)
+            .order("id")
+            .range(offset, offset + pageSize - 1);
+          if (error) throw error;
+          if (data && data.length > 0) { rows.push(...data); offset += pageSize; hasMore = data.length === pageSize; } else { hasMore = false; }
+        }
+        return rows;
+      };
+
+      const fetchPurchaseReturnItems = async (batchIds: string[]) => {
+        const rows: any[] = [];
+        let offset = 0;
+        const pageSize = 1000;
+        let hasMore = true;
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from("purchase_return_items")
+            .select("sku_id, qty")
+            .in("sku_id", batchIds)
+            .is("deleted_at", null)
+            .order("id")
+            .range(offset, offset + pageSize - 1);
+          if (error) throw error;
+          if (data && data.length > 0) { rows.push(...data); offset += pageSize; hasMore = data.length === pageSize; } else { hasMore = false; }
+        }
+        return rows;
+      };
+
+      // Aggregate quantities from all transaction tables
+      const variantMovements: Record<string, { purchase: number; purchaseReturn: number; sales: number }> = {};
+
+      // Fetch batch stock for supplier info (batched)
       const allBatchData: any[] = [];
-      
+
       for (let i = 0; i < variantIds.length; i += BATCH_SIZE) {
         const batchIds = variantIds.slice(i, i + BATCH_SIZE);
-        const { data: batchData, error: batchError } = await supabase
-          .from("batch_stock")
-          .select(`
-            variant_id,
-            purchase_bills (
-              supplier_name,
-              supplier_invoice_no
-            )
-          `)
-          .eq("organization_id", currentOrganization.id)
-          .in("variant_id", batchIds);
 
-        if (batchError) throw batchError;
-        if (batchData) allBatchData.push(...batchData);
+        // Run all 4 queries in parallel for each batch
+        const [purchaseRows, saleRows, purReturnRows, batchStockData] = await Promise.all([
+          fetchPurchaseItems(batchIds),
+          fetchSaleItems(batchIds),
+          fetchPurchaseReturnItems(batchIds),
+          supabase
+            .from("batch_stock")
+            .select(`variant_id, purchase_bills ( supplier_name, supplier_invoice_no )`)
+            .eq("organization_id", currentOrganization.id)
+            .in("variant_id", batchIds)
+            .then(({ data, error }) => { if (error) throw error; return data || []; }),
+        ]);
+
+        if (batchStockData) allBatchData.push(...batchStockData);
+
+        for (const row of purchaseRows) {
+          if (!variantMovements[row.sku_id]) variantMovements[row.sku_id] = { purchase: 0, purchaseReturn: 0, sales: 0 };
+          variantMovements[row.sku_id].purchase += (row.qty || 0);
+        }
+        for (const row of saleRows) {
+          if (!variantMovements[row.variant_id]) variantMovements[row.variant_id] = { purchase: 0, purchaseReturn: 0, sales: 0 };
+          variantMovements[row.variant_id].sales += (row.quantity || 0);
+        }
+        for (const row of purReturnRows) {
+          if (!variantMovements[row.sku_id]) variantMovements[row.sku_id] = { purchase: 0, purchaseReturn: 0, sales: 0 };
+          variantMovements[row.sku_id].purchaseReturn += (row.qty || 0);
+        }
       }
-      
-      const batchData = allBatchData;
 
       // Map variant_id to supplier names and invoice numbers
-      const variantSuppliers = (batchData || []).reduce((acc: any, batch: any) => {
+      const variantSuppliers = allBatchData.reduce((acc: any, batch: any) => {
         if (!acc[batch.variant_id] && batch.purchase_bills?.supplier_name) {
           acc[batch.variant_id] = {
             supplier_name: batch.purchase_bills.supplier_name,
             supplier_invoice_no: batch.purchase_bills.supplier_invoice_no || ''
           };
         }
-        return acc;
-      }, {});
-
-      // Calculate purchase, purchase returns, and sales quantities per variant
-      const variantMovements = (movementsData || []).reduce((acc: any, movement: any) => {
-        if (!acc[movement.variant_id]) {
-          acc[movement.variant_id] = { purchase: 0, purchaseReturn: 0, sales: 0 };
-        }
-        
-        if (movement.movement_type === 'purchase' || movement.movement_type === 'purchase_increase') {
-          acc[movement.variant_id].purchase += movement.quantity;
-        } 
-        else if (movement.movement_type === 'purchase_delete' || 
-                 movement.movement_type === 'soft_delete_purchase' ||
-                 movement.movement_type === 'purchase_decrease') {
-          acc[movement.variant_id].purchase += movement.quantity;
-        }
-        else if (movement.movement_type === 'purchase_return') {
-          acc[movement.variant_id].purchaseReturn += Math.abs(movement.quantity);
-        } 
-        else if (movement.movement_type === 'purchase_return_delete') {
-          acc[movement.variant_id].purchaseReturn -= Math.abs(movement.quantity);
-        }
-        else if (movement.movement_type === 'sale') {
-          acc[movement.variant_id].sales += Math.abs(movement.quantity);
-        } 
-        else if (movement.movement_type === 'sale_delete' || movement.movement_type === 'soft_delete_sale') {
-          acc[movement.variant_id].sales -= Math.abs(movement.quantity);
-        }
-        
         return acc;
       }, {});
 
