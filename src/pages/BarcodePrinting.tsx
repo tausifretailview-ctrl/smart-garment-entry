@@ -2832,18 +2832,29 @@ export default function BarcodePrinting() {
 
         const gridDiv = document.createElement("div");
         gridDiv.className = "label-grid";
-        gridDiv.style.cssText = `
-          display: grid;
-          grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
-          grid-template-rows: repeat(${rowsOnPage}, ${dimensions.height}mm);
-          gap: ${dimensions.gap}mm;
-          padding-top: ${topOffset}mm;
-          padding-left: ${leftOffset}mm;
-          padding-bottom: ${bottomOffset}mm;
-          padding-right: ${rightOffset}mm;
-          page-break-after: always;
-          break-after: page;
-        `;
+        gridDiv.style.cssText = isThermal1Up()
+          ? `
+              display: block;
+              width: ${dimensions.width}mm;
+              height: ${dimensions.height}mm;
+              min-height: ${dimensions.height}mm;
+              margin: 0;
+              padding: 0;
+              page-break-after: always;
+              break-after: page;
+            `
+          : `
+              display: grid;
+              grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
+              grid-template-rows: repeat(${rowsOnPage}, ${dimensions.height}mm);
+              gap: ${dimensions.gap}mm;
+              padding-top: ${topOffset}mm;
+              padding-left: ${leftOffset}mm;
+              padding-bottom: ${bottomOffset}mm;
+              padding-right: ${rightOffset}mm;
+              page-break-after: always;
+              break-after: page;
+            `;
         
         // Don't add page break after last page
         if (page === numPrintPages - 1) {
@@ -4404,15 +4415,27 @@ export default function BarcodePrinting() {
         }
         
         @media print {
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+
+          body {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
           body * { visibility: hidden; }
           #printArea, #printArea * { visibility: visible; }
           #printArea { 
-            position: absolute; 
+            position: ${isThermal1Up() ? 'fixed' : 'absolute'}; 
             left: 0; 
             top: 0;
             display: block !important;
             width: ${isThermal1Up() ? `${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm` : '210mm'} !important;
-            min-height: auto !important;
+            min-height: ${isThermal1Up() ? `${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm` : 'auto'} !important;
+            margin: 0 !important;
+            padding: 0 !important;
             ${isThermal1Up() 
               ? `transform: none;` 
               : `transform: scale(${(printScale / 100) * getAutoFitScale()});`}
@@ -4421,14 +4444,24 @@ export default function BarcodePrinting() {
           }
           
           .label-grid {
-            page-break-after: auto;
             ${isThermal1Up() ? `
-              width: ${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm;
-              height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm;
+              display: block !important;
+              width: ${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm !important;
+              height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm !important;
+              min-height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm !important;
+              page-break-after: always !important;
+              break-after: page !important;
               padding: 0 !important;
               margin: 0 !important;
-              overflow: hidden;
-            ` : ''}
+              overflow: hidden !important;
+            ` : `
+              page-break-after: auto;
+            `}
+          }
+
+          .label-grid:last-child {
+            page-break-after: auto !important;
+            break-after: auto !important;
           }
           
           .label-cell {
@@ -4437,6 +4470,7 @@ export default function BarcodePrinting() {
             ${isThermal1Up() ? `
               width: ${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm !important;
               height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm !important;
+              min-height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm !important;
               padding: 0 !important;
               margin: 0 !important;
               overflow: hidden;
