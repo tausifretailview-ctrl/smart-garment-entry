@@ -4483,15 +4483,26 @@ export default function BarcodePrinting() {
             page-break-inside: avoid;
             break-inside: avoid-page;
             ${isThermal1Up() ? `
+              position: relative !important;
+              display: block !important;
+              font-size: inherit !important;
+              line-height: inherit !important;
+              text-align: initial !important;
               width: ${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm !important;
               height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm !important;
               min-height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm !important;
               padding: 0 !important;
               margin: 0 !important;
-              overflow: hidden;
-              box-sizing: border-box;
+              overflow: visible !important;
+              box-sizing: border-box !important;
             ` : ''}
           }
+
+          ${isThermal1Up() ? `
+          #printArea .label-cell > div {
+            position: absolute !important;
+          }
+          ` : ''}
           
           /* Ensure business name and all fields print on every page */
           .brand, .prod, .mrp, .meta, .barcode, .supplier-code, .bill-num {
