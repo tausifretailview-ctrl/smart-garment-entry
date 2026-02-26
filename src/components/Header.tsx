@@ -1,4 +1,5 @@
 import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, Grid3X3 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { Button } from "@/components/ui/button";
 import { OrganizationSelector } from "@/components/OrganizationSelector";
@@ -121,18 +122,22 @@ export const Header = () => {
           </button>
         </div>
 
-        {/* Quick Actions - Desktop - Icons only for compact toolbar */}
+        {/* Quick Actions - Desktop */}
         <div className="hidden lg:flex items-center gap-0.5">
           {quickActions.map((action) => (
             <Button
               key={action.label}
               variant="ghost"
-              size="icon"
+              size="sm"
               onClick={() => handleQuickAction(action)}
-              className="h-8 w-8 text-foreground hover:bg-muted hover:text-primary"
-              title={action.label}
+              className={cn(
+                "h-8 gap-1.5 text-foreground hover:bg-muted hover:text-primary",
+                action.isDialog && "text-primary font-medium"
+              )}
+              title={action.shortcut || action.label}
             >
               <action.icon className="h-4 w-4" />
+              <span className="text-xs">{action.label}</span>
             </Button>
           ))}
         </div>
