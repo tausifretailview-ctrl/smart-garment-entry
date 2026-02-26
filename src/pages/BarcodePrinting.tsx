@@ -2838,8 +2838,12 @@ export default function BarcodePrinting() {
               width: ${dimensions.width}mm;
               height: ${dimensions.height}mm;
               min-height: ${dimensions.height}mm;
+              max-height: ${dimensions.height}mm;
               margin: 0;
               padding: 0;
+              box-sizing: border-box;
+              page-break-inside: avoid;
+              break-inside: avoid-page;
               page-break-after: always;
               break-after: page;
             `
@@ -2855,6 +2859,11 @@ export default function BarcodePrinting() {
               page-break-after: always;
               break-after: page;
             `;
+
+        if (isThermal1Up() && page > 0) {
+          gridDiv.style.pageBreakBefore = 'always';
+          gridDiv.style.breakBefore = 'page';
+        }
         
         // Don't add page break after last page
         if (page === numPrintPages - 1) {
@@ -4428,45 +4437,51 @@ export default function BarcodePrinting() {
           body * { visibility: hidden; }
           #printArea, #printArea * { visibility: visible; }
           #printArea { 
-            position: ${isThermal1Up() ? 'fixed' : 'absolute'}; 
+            position: absolute;
             left: 0; 
             top: 0;
             display: block !important;
             width: ${isThermal1Up() ? `${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm` : '210mm'} !important;
-            min-height: ${isThermal1Up() ? `${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm` : 'auto'} !important;
+            min-height: auto !important;
+            height: auto !important;
             margin: 0 !important;
             padding: 0 !important;
             ${isThermal1Up() 
               ? `transform: none;` 
               : `transform: scale(${(printScale / 100) * getAutoFitScale()});`}
             transform-origin: top left;
-            overflow: visible;
+            overflow: visible !important;
           }
           
-          .label-grid {
+          #printArea .label-grid {
             ${isThermal1Up() ? `
               display: block !important;
               width: ${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm !important;
               height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm !important;
               min-height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm !important;
+              max-height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm !important;
+              page-break-before: auto !important;
+              break-before: auto !important;
               page-break-after: always !important;
               break-after: page !important;
+              page-break-inside: avoid !important;
+              break-inside: avoid-page !important;
               padding: 0 !important;
               margin: 0 !important;
-              overflow: hidden !important;
+              box-sizing: border-box !important;
             ` : `
               page-break-after: auto;
             `}
           }
 
-          .label-grid:last-child {
+          #printArea .label-grid:last-child {
             page-break-after: auto !important;
             break-after: auto !important;
           }
           
-          .label-cell {
+          #printArea .label-cell {
             page-break-inside: avoid;
-            break-inside: avoid;
+            break-inside: avoid-page;
             ${isThermal1Up() ? `
               width: ${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm !important;
               height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm !important;
