@@ -1,0 +1,1 @@
+ALTER TABLE public.student_fees ALTER COLUMN payment_receipt_id TYPE text;
