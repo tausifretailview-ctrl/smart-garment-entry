@@ -92,6 +92,7 @@ const ProductEntry = () => {
   const [fieldSettings, setFieldSettings] = useState<any>(null);
   const [showMrp, setShowMrp] = useState(false);
   const productNameInputRef = useRef<HTMLInputElement>(null);
+  const variantsSectionRef = useRef<HTMLDivElement>(null);
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showCreateSizeGroup, setShowCreateSizeGroup] = useState(false);
   const [newSizeGroup, setNewSizeGroup] = useState({ group_name: "", sizes: "" });
@@ -754,6 +755,7 @@ const ProductEntry = () => {
       }];
       setVariants(newVariants);
       setShowVariants(true);
+      setTimeout(() => variantsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
       return;
     }
 
@@ -794,6 +796,7 @@ const ProductEntry = () => {
     // Merge with existing variants
     setVariants([...variants, ...newVariants]);
     setShowVariants(true);
+    setTimeout(() => variantsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   };
 
   const handleAutoGenerateBarcodes = async () => {
@@ -2156,7 +2159,7 @@ const ProductEntry = () => {
 
             {/* Size Variants Table */}
             {showVariants && variants.length > 0 && (
-              <div className="space-y-2">
+              <div ref={variantsSectionRef} className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold">
                     {formData.product_type === 'service' ? 'Service Details' : `Variants (${variants.length})`}
