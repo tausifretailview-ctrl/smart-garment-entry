@@ -2434,7 +2434,7 @@ export default function POSSales() {
     product.product_variants?.map((variant: any) => ({
       product,
       variant,
-      searchText: `${product.product_name} ${variant.size} ${variant.barcode || ''} ${product.brand || ''} ${product.category || ''}`.toLowerCase()
+      searchText: `${product.product_name} ${variant.size} ${variant.color || ''} ${variant.barcode || ''} ${product.brand || ''} ${product.category || ''}`.toLowerCase()
     })).filter((item: any) => 
       item.searchText.includes(searchInput.toLowerCase())
     ) || []
@@ -2866,7 +2866,7 @@ export default function POSSales() {
                       
                       const extraParts = [];
                       if (product.brand) extraParts.push(product.brand);
-                      if (product.color) extraParts.push(product.color);
+                      if (item.variant.color && item.variant.color !== '-') extraParts.push(item.variant.color);
                       
                       if (extraParts.length > 0) {
                         displayName += ',' + extraParts.join('-');
