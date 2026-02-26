@@ -13,6 +13,7 @@ import { RetailTemplate } from './invoice-templates/RetailTemplate';
 import { RetailERPTemplate } from './invoice-templates/RetailERPTemplate';
 import { A5HorizontalBillFormat } from './A5HorizontalBillFormat';
 import { ThermalPrint80mm } from './ThermalPrint80mm';
+import { ThermalReceiptCompact } from './ThermalReceiptCompact';
 import QRCode from 'qrcode';
 
 interface InvoiceItem {
@@ -328,10 +329,12 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
 
     // Select template component based on settings
     const renderTemplate = () => {
-      // Use ThermalPrint80mm for thermal format (handles both 'thermal' and 'thermal-receipt')
+      // Use thermal format (handles both 'thermal' and 'thermal-receipt')
       if (format === 'thermal-receipt' || format === 'thermal') {
+        const thermalStyle = (settings?.sale_settings as any)?.thermal_receipt_style || 'classic';
+        const ThermalComponent = thermalStyle === 'compact' ? ThermalReceiptCompact : ThermalPrint80mm;
         return (
-          <ThermalPrint80mm
+          <ThermalComponent
             billNo={props.billNo}
             date={props.date}
             customerName={props.customerName}
