@@ -93,6 +93,28 @@ const DailyCashierReport = () => {
     enabled: !!currentOrganization?.id,
   });
 
+  // Fetch student fee collections for selected period (school ERP)
+  const { data: feeCollectionData, isLoading: feesLoading } = useQuery({
+    queryKey: ["cashier-report-fee-collections", currentOrganization?.id, selectedDate, period],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const startDateStr = format(startDate, 'yyyy-MM-dd');
+      const endDateStr = format(endDate, 'yyyy-MM-dd');
+      try {
+        const { data, error } = await supabase
+          .from("student_fees")
+          .select("id, paid_amount, paid_date, payment_method, payment_receipt_id, students!inner(student_name)")
+          .eq("organization_id", currentOrganization.id)
+          .gte("paid_date", startDateStr + "T00:00:00")
+          .lte("paid_date", endDateStr + "T23:59:59")
+          .in("status", ["paid", "partial"]);
+        if (error) { console.error("Fee collection query error:", error); return []; }
+        return data || [];
+      } catch (e) { console.error("Fee collection query failed:", e); return []; }
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
   // Fetch cash refund sale returns for selected period
   const { data: cashRefundData, isLoading: refundsLoading } = useQuery({
     queryKey: ["cashier-report-cash-refunds", currentOrganization?.id, selectedDate, period],
@@ -125,7 +147,7 @@ const DailyCashierReport = () => {
     enabled: !!currentOrganization?.id,
   });
 
-  const isLoading = salesLoading || receiptsLoading || refundsLoading;
+  const isLoading = salesLoading || receiptsLoading || refundsLoading || feesLoading;
 
   // Fetch settings for business name
   const { data: settings } = useQuery({
@@ -274,6 +296,25 @@ const DailyCashierReport = () => {
 
     const rcpTotalCollection = rcpCashCollection + rcpUpiCollection + rcpCardCollection + rcpOtherCollection;
 
+    // Process student fee collections
+    let feeCashCollection = 0;
+    let feeUpiCollection = 0;
+    let feeCardCollection = 0;
+    let feeBankCollection = 0;
+    let feeTotalCollection = 0;
+    
+    if (feeCollectionData) {
+      feeCollectionData.forEach((fee: any) => {
+        const amount = Number(fee.paid_amount) || 0;
+        const method = (fee.payment_method || '').toLowerCase();
+        if (method === 'upi') feeUpiCollection += amount;
+        else if (method === 'card') feeCardCollection += amount;
+        else if (method === 'bank transfer') feeBankCollection += amount;
+        else feeCashCollection += amount;
+      });
+      feeTotalCollection = feeCashCollection + feeUpiCollection + feeCardCollection + feeBankCollection;
+    }
+
     // Calculate cash refund total from sale returns
     let cashRefundTotal = 0;
     if (cashRefundData) {
@@ -314,6 +355,13 @@ const DailyCashierReport = () => {
       // Cash refunds
       cashRefundTotal,
       cashRefundCount: cashRefundData?.length || 0,
+      // Student fee collections
+      feeCashCollection,
+      feeUpiCollection,
+      feeCardCollection,
+      feeBankCollection,
+      feeTotalCollection,
+      feeCount: feeCollectionData?.length || 0,
     };
   };
 
@@ -655,8 +703,8 @@ const DailyCashierReport = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold text-white">{formatCurrency(totals.netReceivable - totals.totalBalance + totals.rcpTotalCollection)}</p>
-                <p className="text-xs text-white/70">Net - Balance + Old Receipts</p>
+                <p className="text-2xl font-bold text-white">{formatCurrency(totals.netReceivable - totals.totalBalance + totals.rcpTotalCollection + totals.feeTotalCollection)}</p>
+                <p className="text-xs text-white/70">Net - Balance + Receipts + Fees</p>
               </CardContent>
             </Card>
           </div>
@@ -783,14 +831,46 @@ const DailyCashierReport = () => {
                         <TableCell className="font-bold">Total RCP Collection</TableCell>
                         <TableCell className="text-right font-bold">{formatCurrency(totals.rcpTotalCollection)}</TableCell>
                       </TableRow>
-                      <TableRow className="bg-primary/10">
-                        <TableCell className="font-bold text-primary">GRAND TOTAL (Sales + RCP)</TableCell>
-                        <TableCell className="text-right font-bold text-lg text-primary">
-                          {formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.rcpTotalCollection - totals.totalRefund - totals.cashRefundTotal)}
+                    </>
+                  )}
+                  {/* Student Fee Collections Section */}
+                  {totals.feeTotalCollection > 0 && (
+                    <>
+                      <TableRow className="bg-amber-50 dark:bg-amber-950">
+                        <TableCell colSpan={2} className="font-semibold text-amber-700 dark:text-amber-300">
+                          📚 Student Fee Collections - {totals.feeCount} receipts
                         </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="pl-8">Fee Cash</TableCell>
+                        <TableCell className="text-right">{formatCurrency(totals.feeCashCollection)}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="pl-8">Fee UPI</TableCell>
+                        <TableCell className="text-right">{formatCurrency(totals.feeUpiCollection)}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="pl-8">Fee Card</TableCell>
+                        <TableCell className="text-right">{formatCurrency(totals.feeCardCollection)}</TableCell>
+                      </TableRow>
+                      {totals.feeBankCollection > 0 && (
+                        <TableRow>
+                          <TableCell className="pl-8">Fee Bank Transfer</TableCell>
+                          <TableCell className="text-right">{formatCurrency(totals.feeBankCollection)}</TableCell>
+                        </TableRow>
+                      )}
+                      <TableRow className="bg-amber-100 dark:bg-amber-900">
+                        <TableCell className="font-bold">Total Fee Collection</TableCell>
+                        <TableCell className="text-right font-bold">{formatCurrency(totals.feeTotalCollection)}</TableCell>
                       </TableRow>
                     </>
                   )}
+                  <TableRow className="bg-primary/10">
+                    <TableCell className="font-bold text-primary">GRAND TOTAL (Sales + RCP + Fees)</TableCell>
+                    <TableCell className="text-right font-bold text-lg text-primary">
+                      {formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.rcpTotalCollection + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal)}
+                    </TableCell>
+                  </TableRow>
                   <TableRow>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -822,7 +902,7 @@ const DailyCashierReport = () => {
                         <span className="font-bold text-green-700 dark:text-green-300">Actual Net Receivable</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-bold text-lg text-green-700 dark:text-green-300">{formatCurrency(totals.netReceivable - totals.totalBalance + totals.rcpTotalCollection)}</TableCell>
+                    <TableCell className="text-right font-bold text-lg text-green-700 dark:text-green-300">{formatCurrency(totals.netReceivable - totals.totalBalance + totals.rcpTotalCollection + totals.feeTotalCollection)}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
@@ -862,7 +942,7 @@ const DailyCashierReport = () => {
                 </div>
                 <div className="flex justify-between py-2 border-b-2 border-double text-lg font-bold bg-green-100 dark:bg-green-900/30 px-2 -mx-2 rounded">
                   <span className="text-green-700 dark:text-green-400">Actual Net Receivable</span>
-                  <span className="text-green-700 dark:text-green-400">{formatCurrency(totals.netReceivable - totals.totalBalance + totals.rcpTotalCollection)}</span>
+                  <span className="text-green-700 dark:text-green-400">{formatCurrency(totals.netReceivable - totals.totalBalance + totals.rcpTotalCollection + totals.feeTotalCollection)}</span>
                 </div>
                 <div className="pt-2 space-y-1">
                   <div className="flex justify-between">
@@ -891,10 +971,16 @@ const DailyCashierReport = () => {
                       <span>- {formatCurrency(totals.cashRefundTotal)}</span>
                     </div>
                   )}
+                  {totals.feeTotalCollection > 0 && (
+                    <div className="flex justify-between text-amber-600">
+                      <span className="text-muted-foreground">📚 Fee Collection ({totals.feeCount})</span>
+                      <span>{formatCurrency(totals.feeTotalCollection)}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex justify-between py-2 border-t mt-2 font-bold text-green-600">
                   <span>Total Collected</span>
-                  <span>{formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted - totals.totalRefund - totals.cashRefundTotal)}</span>
+                  <span>{formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal)}</span>
                 </div>
                 <div className="pt-2 space-y-1 border-t mt-2">
                   <div className="flex justify-between">

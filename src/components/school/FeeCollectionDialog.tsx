@@ -188,7 +188,11 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
       const selectedItems = feeItems.filter(i => i.selected && i.paying > 0);
       if (selectedItems.length === 0) throw new Error("No fees selected");
 
-      const receiptNumber = `RCP-${Date.now().toString(36).toUpperCase()}`;
+      // Generate financial year based receipt number via DB function
+      const { data: receiptResult, error: receiptError } = await supabase
+        .rpc("generate_fee_receipt_number", { p_organization_id: currentOrganization.id });
+      if (receiptError) throw receiptError;
+      const receiptNumber = receiptResult as string;
       const paidDate = new Date().toISOString();
 
       for (const item of selectedItems) {
@@ -209,6 +213,33 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           status: newStatus,
         });
         if (error) throw error;
+      }
+
+      // Create voucher entry in accounts ledger for this fee collection
+      try {
+        const voucherNumber = receiptNumber; // Use same receipt number as voucher
+        const paymentMethodLower = paymentMethod.toLowerCase();
+        const mappedMethod = paymentMethodLower === 'upi' ? 'upi' 
+          : paymentMethodLower === 'card' ? 'card'
+          : paymentMethodLower === 'bank transfer' ? 'bank_transfer'
+          : 'cash';
+        
+        const feeHeadNames = selectedItems.map(i => i.head_name).join(', ');
+        const description = `Fee Collection - ${student.student_name} (${student.admission_number}) | ${feeHeadNames} | ${paymentMethod}${transactionId ? ` | Txn: ${transactionId}` : ''}`;
+
+        await supabase.from("voucher_entries").insert({
+          organization_id: currentOrganization.id,
+          voucher_type: "receipt",
+          voucher_number: voucherNumber,
+          voucher_date: format(new Date(), 'yyyy-MM-dd'),
+          total_amount: totalPaying,
+          description,
+          reference_type: "student_fee",
+          reference_id: student.id,
+          payment_method: mappedMethod,
+        });
+      } catch (voucherErr) {
+        console.error("Voucher entry creation failed (non-blocking):", voucherErr);
       }
 
       return {
