@@ -82,6 +82,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           console.log("Rate limited on token refresh, keeping existing session");
           return;
         }
+        
+        // Chrome-specific: refresh_token_not_found means the token was revoked
+        // (tab suspension, bfcache, aggressive cleanup). Clean up locally.
+        const errorMsg = (error.message || '').toLowerCase();
+        if (errorMsg.includes('refresh_token_not_found') || errorMsg.includes('refresh token not found')) {
+          console.warn("Refresh token revoked (common in Chrome). Clearing local session.");
+          await supabase.auth.signOut({ scope: 'local' });
+          localStorage.removeItem(REFRESH_LOCK_KEY);
+          setSession(null);
+          setUser(null);
+          return;
+        }
+        
         console.error("Token refresh error:", error);
       } else if (data.session) {
         setSession(data.session);
@@ -144,6 +157,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
         
+        // Handle SIGNED_OUT triggered by refresh_token_not_found in Chrome
+        // Preserve org slug so user lands on the correct org login page
+        if (event === 'SIGNED_OUT') {
+          const orgSlug = localStorage.getItem("selectedOrgSlug");
+          if (orgSlug) {
+            sessionStorage.setItem("selectedOrgSlug", orgSlug);
+          }
+        }
+        
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         setLoading(false);
@@ -167,7 +189,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } catch (refreshErr) {
           console.error("Refresh also failed:", refreshErr);
         }
-        // Only sign out if refresh also failed
+        // Refresh failed - clean up stale tokens to prevent Chrome from caching bad state
+        await supabase.auth.signOut({ scope: 'local' });
+        localStorage.removeItem(REFRESH_LOCK_KEY);
         setSession(null);
         setUser(null);
         setLoading(false);
@@ -192,6 +216,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           } catch (refreshErr) {
             console.error("Refresh failed for expired session:", refreshErr);
           }
+          // Clean up stale local auth data (Chrome caches aggressively)
+          await supabase.auth.signOut({ scope: 'local' });
+          localStorage.removeItem(REFRESH_LOCK_KEY);
           setSession(null);
           setUser(null);
           setLoading(false);
