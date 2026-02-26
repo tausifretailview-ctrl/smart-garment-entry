@@ -1,27 +1,44 @@
 
 
-## Remove Extra ADJ Entry from Saba Latif's Ledger
+## Add Delete and Reverse Actions to Balance Adjustment History
 
 ### Problem
-Saba Latif's customer ledger shows an extra ADJ entry with outstanding_difference of -202,500 (appearing as a debit of 2,02,500). This needs to be removed from the ledger display only, while keeping the current balances (opening_balance = 0, advance = 81,800) unchanged.
+When an incorrect balance adjustment is made, there's no way to fix it from the UI. Currently it requires manual database intervention.
 
 ### Solution
-Delete the specific adjustment record from `customer_balance_adjustments` table so it no longer appears in the ledger. Since you confirmed balances should stay as-is, only the adjustment record itself will be removed.
+Add two action buttons (Delete and Reverse) to each row in the "Recent Adjustments" history table within the Customer Balance Adjustment dialog.
+
+### How It Works
+
+**Delete**: Removes the adjustment record from the database AND reverses its financial effects (restores opening_balance, removes/restores advance entries). The entry disappears completely from the ledger.
+
+**Reverse**: Creates a new counter-adjustment entry with opposite values (e.g., if original was -202,500 outstanding, reverse creates +202,500). Both entries remain visible in the audit trail for accountability.
 
 ### Technical Details
 
-**Database Change (via migration):**
-```sql
-DELETE FROM customer_balance_adjustments 
-WHERE id = 'ffc7a325-e5c1-4d35-b2ed-c47f6e658eb6';
-```
+**File: `src/components/CustomerBalanceAdjustmentDialog.tsx`**
 
-This removes the single adjustment record for Saba Latif (customer_id: `22d75b78-1a84-4b5b-b2f7-a506b11e9b61`) created on 25 Feb 2026.
+1. Add an "Actions" column to the adjustment history table header
+2. Add Delete and Reverse icon buttons to each history row
+3. Add a confirmation dialog (AlertDialog) before executing either action
 
-**What stays unchanged:**
-- Customer opening_balance remains 0
-- Customer advance of 81,800 (ADV/25-26/0607) remains active
-- All invoices and other ledger entries remain intact
+**Delete mutation logic:**
+- Remove the adjustment record from `customer_balance_adjustments`
+- Reverse the `opening_balance` change on the customer (subtract the `outstanding_difference`)
+- If `advance_difference > 0`: find and delete the advance entry created by this adjustment
+- If `advance_difference < 0`: restore the used amounts on advances (reverse FIFO deductions)
+- Invalidate all related query caches
 
-**Impact:** The ADJ row with 2,02,500 will no longer appear in the customer ledger view.
+**Reverse mutation logic:**
+- Insert a new `customer_balance_adjustments` record with negated differences
+- Apply the reverse outstanding change to `opening_balance`
+- Apply the reverse advance change (create/reduce advances as needed)
+- Set reason as "Reversal of: [original reason]"
+- Invalidate all related query caches
+
+**UI additions:**
+- Import `Trash2`, `Undo2` icons from lucide-react
+- Import `AlertDialog` components for confirmation
+- Add state for tracking which adjustment is being acted on and which action type
+- Confirmation dialog shows the adjustment details and asks to confirm delete or reverse
 
