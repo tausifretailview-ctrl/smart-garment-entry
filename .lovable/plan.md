@@ -1,79 +1,59 @@
 
 
-# Fix Barcode Label Print Alignment for 38x25mm Thermal Labels
+# Fix Thermal Label Print: Small Font and Top-Left Shift
 
 ## Problem
-The label preview looks correct, but the actual printed output on the TSC TL240 printer is misaligned and doesn't fill the 38x25mm label properly. Content appears smaller/shifted compared to the preview.
+For 38x25mm thermal labels, the preview renders correctly but the actual printed output has:
+1. **Smaller fonts** than the preview shows
+2. **Content shifted to top-left** instead of matching preview positioning
 
 ## Root Cause
-The `#printArea` container is hardcoded to `width: 210mm; min-height: 297mm` (A4 dimensions) even when printing thermal 1UP labels. When the browser prints with `@page { size: 38mm 25mm }`, it tries to fit a 210mm-wide container into a 38mm page, causing the content to shrink dramatically. The `@media print` rules override `label-grid` and `label-cell` sizes but the parent `#printArea` container remains at 210mm, creating a mismatch.
+Two CSS conflicts in the print stylesheet:
+
+1. **Base CSS overrides inline styles**: The stylesheet rule `#printArea .label-cell` applies `display: flex; flex-direction: column; align-items: center; font-size: 9px;` which persists during printing. The absolute-positioned label cells set `position: relative` via inline styles, but the stylesheet's flex properties and tiny `font-size: 9px` still apply, interfering with the rendered layout.
+
+2. **Missing `position: relative`** in print CSS: The `@media print` block for thermal `.label-cell` doesn't enforce `position: relative !important`, so absolute-positioned child elements may lose their positioning context.
+
+3. **No display override for thermal cells**: The absolute-layout cells need `display: block` but the CSS keeps `display: flex` from the base styles, causing layout conflicts.
 
 ## Solution
-Update the CSS in `src/pages/BarcodePrinting.tsx` to make the `#printArea` dimensions dynamic based on whether we're printing thermal or A4 labels.
 
-### Changes to `src/pages/BarcodePrinting.tsx`
+### File: `src/pages/BarcodePrinting.tsx`
 
-**1. Fix `#printArea` base styles (lines 4306-4312)**
-Make the `#printArea` dimensions conditional -- for thermal 1UP labels, use the actual label dimensions instead of A4.
+**1. Update the base `#printArea .label-cell` styles (around line 4341)** to not conflict with absolute positioning:
 
-```css
-#printArea {
-  /* For thermal: use label width; for A4: use 210mm */
-  width: ${isThermal1Up() ? labelWidthMm + 'mm' : '210mm'};
-  min-height: ${isThermal1Up() ? labelHeightMm + 'mm' : '297mm'};
-  padding: 0;
-  margin: 0;
-}
-```
+- Wrap the `display: flex` and related properties in a `:not(.absolute-layout)` selector, OR
+- Simply add a thermal-specific override in the print CSS
 
-**2. Fix `@media print` `#printArea` rules (lines 4409-4418)**
-For thermal labels, explicitly set the width/height to match the label size and remove any extra space:
+**2. Update `@media print` `.label-cell` rules for thermal (around line 4482)** to add:
 
 ```css
-#printArea {
-  position: absolute;
-  left: 0;
-  top: 0;
-  display: block !important;
-  width: ${isThermal1Up() ? labelWidthMm + 'mm' : '210mm'} !important;
-  min-height: auto !important;
-  transform: none;
-  transform-origin: top left;
-  overflow: visible;
-}
-```
-
-**3. Fix `.label-grid` print styles for thermal**
-Remove the fixed height constraint on `.label-grid` for thermal so content flows naturally within the label:
-
-```css
-.label-grid {
-  /* For thermal: no extra gap, display flex instead of grid */
-  width: ${labelWidthMm}mm;
+#printArea .label-cell {
+  position: relative !important;
+  display: block !important;     /* Override flex for absolute-positioned children */
+  font-size: inherit !important; /* Don't force 9px on thermal labels */
+  overflow: visible !important;  /* Allow content to render fully */
+  width: 38mm !important;
+  height: 25mm !important;
   padding: 0 !important;
   margin: 0 !important;
 }
 ```
 
-**4. Fix `.label-cell` print styles for thermal**
-Ensure the cell uses the full label area with no extra padding:
+**3. Ensure child absolute-positioned divs use `!important` on key properties** in the print CSS:
 
 ```css
-.label-cell {
-  width: ${labelWidthMm}mm !important;
-  height: ${labelHeightMm}mm !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  overflow: hidden;
-  box-sizing: border-box;
+#printArea .label-cell > div {
+  position: absolute !important;  /* Ensure children stay absolute */
 }
 ```
 
-These changes will compute the label width/height values from the current sheet type selection (38mm and 25mm for the `thermal_38x25_1up` preset) and apply them consistently to `#printArea`, `.label-grid`, and `.label-cell` in the `@media print` block so the browser renders the content at the exact physical label size.
+**4. Add explicit `font-size: initial` reset** so the 9px base doesn't shrink all text in thermal labels.
+
+These 4 changes ensure the print engine renders thermal label cells identically to the preview -- with correct font sizes from inline styles and proper absolute positioning of all fields.
 
 ## Impact
 - Only `src/pages/BarcodePrinting.tsx` is modified
-- Only affects the `@media print` and base CSS for `#printArea`
-- Preview rendering is unchanged
-- A4 sheet printing is unchanged (conditional logic)
-- All thermal label sizes benefit from this fix, not just 38x25mm
+- Only the `@media print` CSS block for thermal labels is affected
+- Preview rendering stays unchanged
+- A4 sheet label printing stays unchanged (conditional logic)
