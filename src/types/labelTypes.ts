@@ -49,6 +49,7 @@ export interface LabelItem {
   sale_price: number;
   mrp?: number;
   pur_price?: number;
+  gst_per?: number;
   purchase_code?: string;
   bill_date?: string;
   barcode: string;

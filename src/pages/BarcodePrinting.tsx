@@ -15,7 +15,7 @@ import JsBarcode from "jsbarcode";
 import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-import { encodePurchasePrice } from "@/utils/purchaseCodeEncoder";
+import { encodePurchasePrice, getEffectivePurchasePrice } from "@/utils/purchaseCodeEncoder";
 import {
   DndContext,
   closestCenter,
@@ -1161,6 +1161,7 @@ export default function BarcodePrinting() {
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
   const [purchaseCodeAlphabet, setPurchaseCodeAlphabet] = useState("ABCDEFGHIK");
   const [showPurchaseCode, setShowPurchaseCode] = useState(false);
+  const [purchaseCodeIncludeGst, setPurchaseCodeIncludeGst] = useState(false);
   const [isDirectPrintDialogOpen, setIsDirectPrintDialogOpen] = useState(false);
 
   // Helper function to check if a template is the current default
@@ -1359,8 +1360,11 @@ export default function BarcodePrinting() {
                 ...prev,
                 purchaseCode: { ...prev.purchaseCode, show: true }
               }));
-            }
           }
+          if (purchaseSettings.purchase_code_include_gst !== undefined) {
+            setPurchaseCodeIncludeGst(purchaseSettings.purchase_code_include_gst);
+          }
+        }
         }
       } catch (error) {
         console.error("Failed to fetch business name:", error);
@@ -1376,11 +1380,11 @@ export default function BarcodePrinting() {
       setLabelItems(prev => prev.map(item => ({
         ...item,
         purchase_code: item.pur_price && item.pur_price > 0 
-          ? encodePurchasePrice(item.pur_price, purchaseCodeAlphabet, item.bill_date) 
+          ? encodePurchasePrice(getEffectivePurchasePrice(item.pur_price, item.gst_per || 0, purchaseCodeIncludeGst), purchaseCodeAlphabet, item.bill_date) 
           : item.purchase_code
       })));
     }
-  }, [purchaseCodeAlphabet]);
+  }, [purchaseCodeAlphabet, purchaseCodeIncludeGst]);
 
   // Fetch recent bills
   useEffect(() => {
@@ -1414,10 +1418,12 @@ export default function BarcodePrinting() {
       
       const items: LabelItem[] = purchaseItems.map((item: any) => {
         const purPrice = item.pur_price || 0;
+        const gstPer = item.gst_per || 0;
         // Always calculate purchase code if pur_price exists
         const billDateStr = item.bill_date || undefined;
+        const effectivePrice = getEffectivePurchasePrice(purPrice, gstPer, purchaseCodeIncludeGst);
         const purchaseCode = purPrice > 0 
-          ? encodePurchasePrice(purPrice, purchaseCodeAlphabet, billDateStr) 
+          ? encodePurchasePrice(effectivePrice, purchaseCodeAlphabet, billDateStr) 
           : undefined;
         
         if (purPrice > 0) {
@@ -1435,6 +1441,7 @@ export default function BarcodePrinting() {
           sale_price: item.sale_price,
           mrp: item.mrp || 0,
           pur_price: purPrice,
+          gst_per: gstPer,
           purchase_code: purchaseCode,
           bill_date: item.bill_date || undefined,
           barcode: item.barcode,
@@ -1646,7 +1653,7 @@ export default function BarcodePrinting() {
       sale_price: result.sale_price,
       mrp: result.mrp || result.sale_price,
       pur_price: purPrice,
-      purchase_code: purPrice > 0 ? encodePurchasePrice(purPrice, purchaseCodeAlphabet) : '', // no bill_date for manual add
+      purchase_code: purPrice > 0 ? encodePurchasePrice(getEffectivePurchasePrice(purPrice, 0, purchaseCodeIncludeGst), purchaseCodeAlphabet) : '', // no bill_date for manual add
       barcode: result.barcode,
       bill_number: '',
       qty: 1,
@@ -1796,7 +1803,8 @@ export default function BarcodePrinting() {
           sale_price,
           pur_price,
           mrp,
-          size
+          size,
+          gst_per
         `)
         .eq("bill_id", billData.id);
 
@@ -1876,6 +1884,8 @@ export default function BarcodePrinting() {
         .map(item => {
           const variantInfo = variantMap.get(item.sku_id);
           const purPrice = item.pur_price || 0;
+          const gstPer = (item as any).gst_per || 0;
+          const effectivePrice = getEffectivePurchasePrice(purPrice, gstPer, purchaseCodeIncludeGst);
           return {
             sku_id: item.sku_id,
             product_name: variantInfo.product_name,
@@ -1887,7 +1897,8 @@ export default function BarcodePrinting() {
             sale_price: item.sale_price || variantInfo.sale_price,
             mrp: item.mrp || variantInfo.mrp || 0,
             pur_price: purPrice,
-            purchase_code: purPrice > 0 ? encodePurchasePrice(purPrice, purchaseCodeAlphabet, billData.bill_date) : '',
+            gst_per: gstPer,
+            purchase_code: purPrice > 0 ? encodePurchasePrice(effectivePrice, purchaseCodeAlphabet, billData.bill_date) : '',
             bill_date: billData.bill_date || undefined,
             barcode: item.barcode || variantInfo.barcode,
             bill_number: billData.software_bill_no || '',
