@@ -7,6 +7,7 @@ import QRCode from 'qrcode';
 interface ThermalItem {
   sr: number;
   particulars: string;
+  barcode?: string;
   qty: number;
   rate: number;
   total: number;
@@ -175,17 +176,18 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
       maxWidth: '70mm',
       padding: '2mm',
       backgroundColor: 'white',
-      fontFamily: '"Courier New", Courier, monospace',
+      fontFamily: 'Arial, Helvetica, sans-serif',
       fontSize: '11px',
       lineHeight: '1.4',
       color: '#000000',
-      fontWeight: 700,
+      fontWeight: 800,
       WebkitFontSmoothing: 'none',
       boxSizing: 'border-box',
       WebkitPrintColorAdjust: 'exact',
       printColorAdjust: 'exact',
       letterSpacing: '0.1px',
       overflow: 'hidden',
+      WebkitTextStroke: '0.3px #000',
     };
 
     const centerStyle: React.CSSProperties = {
@@ -322,7 +324,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
             <div key={index} style={{ fontSize: '10px', marginBottom: '3px' }}>
               {/* Item name on its own line for readability */}
               <div style={{ 
-                fontWeight: 700, 
+                fontWeight: 800, 
                 fontSize: '10px',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -331,6 +333,10 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
               }}>
                 {truncateText(item.particulars, 40)}
               </div>
+              {/* Barcode number for sale returns */}
+              {item.barcode && (
+                <div style={{ fontSize: '9px', color: '#000', fontWeight: 700 }}>BC: {item.barcode}</div>
+              )}
               {/* Qty, Rate, Amount */}
               <div style={{ display: 'flex' }}>
                 <div style={{ width: '48%', textAlign: 'left' }}></div>
@@ -534,7 +540,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         )}
 
         {/* Powered By / Software info - optional */}
-        <div style={{ ...centerStyle, fontSize: '8px', marginTop: '6px', color: '#666' }}>
+        <div style={{ ...centerStyle, fontSize: '8px', marginTop: '6px', color: '#000' }}>
           {format(date, 'dd-MM-yyyy HH:mm:ss')}
         </div>
       </div>
