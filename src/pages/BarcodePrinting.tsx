@@ -4447,7 +4447,7 @@ export default function BarcodePrinting() {
 
         @page { 
           size: ${isThermal1Up() 
-            ? `${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm` 
+            ? `${(sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)) + leftOffset + rightOffset}mm ${(sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)) + topOffset + bottomOffset}mm` 
             : 'A4'}; 
           margin: 0;
         }
@@ -4470,7 +4470,7 @@ export default function BarcodePrinting() {
             left: 0; 
             top: 0;
             display: block !important;
-            width: ${isThermal1Up() ? `${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm` : '210mm'} !important;
+            width: ${isThermal1Up() ? `${(sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)) + leftOffset + rightOffset}mm` : '210mm'} !important;
             min-height: auto !important;
             height: auto !important;
             margin: 0 !important;
@@ -4484,17 +4484,20 @@ export default function BarcodePrinting() {
           #printArea .label-grid {
             ${isThermal1Up() ? `
               display: block !important;
-              width: ${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm !important;
-              height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm !important;
-              min-height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm !important;
-              max-height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm !important;
+              width: ${(sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)) + leftOffset + rightOffset}mm !important;
+              height: ${(sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)) + topOffset + bottomOffset}mm !important;
+              min-height: ${(sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)) + topOffset + bottomOffset}mm !important;
+              max-height: ${(sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)) + topOffset + bottomOffset}mm !important;
               page-break-before: auto !important;
               break-before: auto !important;
               page-break-after: always !important;
               break-after: page !important;
               page-break-inside: avoid !important;
               break-inside: avoid-page !important;
-              padding: 0 !important;
+              padding-top: ${topOffset}mm !important;
+              padding-left: ${leftOffset}mm !important;
+              padding-bottom: ${bottomOffset}mm !important;
+              padding-right: ${rightOffset}mm !important;
               margin: 0 !important;
               overflow: visible !important;
               box-sizing: border-box !important;
