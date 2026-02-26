@@ -7,6 +7,7 @@ import QRCode from 'qrcode';
 interface ThermalItem {
   sr: number;
   particulars: string;
+  barcode?: string;
   qty: number;
   rate: number;
   total: number;
@@ -99,8 +100,10 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
       width: '70mm', maxWidth: '70mm', padding: '2mm',
       backgroundColor: 'white', fontFamily: 'Arial, Helvetica, sans-serif',
       fontSize: '11px', lineHeight: '1.35', color: '#000',
+      fontWeight: 700,
       boxSizing: 'border-box', WebkitPrintColorAdjust: 'exact',
       printColorAdjust: 'exact', overflow: 'hidden',
+      WebkitTextStroke: '0.2px #000',
     };
 
     const center: React.CSSProperties = { textAlign: 'center', width: '100%' };
@@ -162,9 +165,10 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
           </thead>
           <tbody>
             {items.map((item, i) => (
-              <tr key={i} style={{ borderBottom: '0.5px dotted #ccc' }}>
+              <tr key={i} style={{ borderBottom: '0.5px dotted #000' }}>
                 <td style={{ padding: '2px 0', lineHeight: '1.2', wordBreak: 'break-word' }}>
                   {item.particulars.length > 22 ? item.particulars.substring(0, 20) + '..' : item.particulars}
+                  {item.barcode && <div style={{ fontSize: '8px', fontWeight: 600 }}>BC: {item.barcode}</div>}
                 </td>
                 <td style={{ textAlign: 'center', padding: '2px 0', fontWeight: 700 }}>{item.qty}</td>
                 <td style={{ textAlign: 'right', padding: '2px 0' }}>{fmtAmt(item.rate)}</td>
@@ -253,7 +257,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
           <div style={{ ...center, fontSize: '8px', marginTop: '3px', whiteSpace: 'pre-wrap' }}>{settings.bill_barcode_settings.footer_text}</div>
         )}
 
-        <div style={{ ...center, fontSize: '7px', marginTop: '4px', color: '#888' }}>{format(date, 'dd-MM-yyyy HH:mm:ss')}</div>
+        <div style={{ ...center, fontSize: '7px', marginTop: '4px', color: '#000' }}>{format(date, 'dd-MM-yyyy HH:mm:ss')}</div>
       </div>
     );
   }
