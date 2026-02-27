@@ -1,44 +1,59 @@
 
 
-## Add Delete and Reverse Actions to Balance Adjustment History
+## Student Account Ledger in Customer Ledger
 
 ### Problem
-When an incorrect balance adjustment is made, there's no way to fix it from the UI. Currently it requires manual database intervention.
+In School ERP, students are synced to the `customers` table via a database trigger, so they appear in the Customer Ledger list. However, their fee transactions (stored in `student_fees` and `voucher_entries` with `reference_type: "student_fee"`) are not displayed because the ledger only looks at `sales` and sale-related vouchers.
 
 ### Solution
-Add two action buttons (Delete and Reverse) to each row in the "Recent Adjustments" history table within the Customer Balance Adjustment dialog.
+Enhance the `CustomerLedger.tsx` component to detect school organizations and include student fee transactions in the ledger view.
 
-### How It Works
+### Changes
 
-**Delete**: Removes the adjustment record from the database AND reverses its financial effects (restores opening_balance, removes/restores advance entries). The entry disappears completely from the ledger.
+**File: `src/components/CustomerLedger.tsx`**
 
-**Reverse**: Creates a new counter-adjustment entry with opposite values (e.g., if original was -202,500 outstanding, reverse creates +202,500). Both entries remain visible in the audit trail for accountability.
+1. **Import `useSchoolFeatures` hook** to detect if the current org is a school
 
-### Technical Details
+2. **Modify the customer list query** (lines ~79-161):
+   - For school orgs, also fetch each customer's linked `student_id` from the `students` table (via `customer_id` foreign key)
+   - Include student fee totals (from `student_fees`) in the balance calculation for school customers
+   - For school orgs: Balance = closing_fees_balance - total_fees_paid (instead of sales-based calculation)
 
-**File: `src/components/CustomerBalanceAdjustmentDialog.tsx`**
+3. **Modify the transaction detail query** (lines ~174-496):
+   - When a customer is selected and org is a school, look up the linked student record using `customer_id`
+   - Fetch `student_fees` for that student (with fee head names via join to `fee_heads`)
+   - Fetch `voucher_entries` where `reference_type = 'student_fee'` and `reference_id = student.id`
+   - Add fee entries as **debit** transactions (fees charged) -- using the fee `amount` field
+   - Add fee payment vouchers as **credit** transactions (fees paid) -- using `paid_amount`
+   - Use `closing_fees_balance` as the opening balance for school students
+   - Sort all entries chronologically alongside any existing sales transactions
 
-1. Add an "Actions" column to the adjustment history table header
-2. Add Delete and Reverse icon buttons to each history row
-3. Add a confirmation dialog (AlertDialog) before executing either action
+4. **Update the customer summary card** (shown when a customer is selected):
+   - For school orgs, show "Total Fees" instead of "Total Sales"
+   - Show "Fees Paid" instead of "Total Paid"
+   - Show student details (admission number, class) if available
 
-**Delete mutation logic:**
-- Remove the adjustment record from `customer_balance_adjustments`
-- Reverse the `opening_balance` change on the customer (subtract the `outstanding_difference`)
-- If `advance_difference > 0`: find and delete the advance entry created by this adjustment
-- If `advance_difference < 0`: restore the used amounts on advances (reverse FIFO deductions)
-- Invalidate all related query caches
+5. **Transaction type handling**:
+   - Add a new transaction type `'fee'` to the Transaction interface
+   - Fee charge entries: type='fee', reference=receipt number, description includes fee head name
+   - Fee payment entries: already handled via voucher_entries (reference_type='student_fee')
+   - Ensure proper running balance calculation with fee entries
 
-**Reverse mutation logic:**
-- Insert a new `customer_balance_adjustments` record with negated differences
-- Apply the reverse outstanding change to `opening_balance`
-- Apply the reverse advance change (create/reduce advances as needed)
-- Set reason as "Reversal of: [original reason]"
-- Invalidate all related query caches
+### How the Data Flows
 
-**UI additions:**
-- Import `Trash2`, `Undo2` icons from lucide-react
-- Import `AlertDialog` components for confirmation
-- Add state for tracking which adjustment is being acted on and which action type
-- Confirmation dialog shows the adjustment details and asks to confirm delete or reverse
+```text
+Student (students table)
+  |-- customer_id --> Customer (customers table) <-- shown in Customer Ledger
+  |-- student_fees --> Fee charges (debit entries)
+  |-- voucher_entries (reference_type='student_fee') --> Fee payments (credit entries)
+```
+
+### Balance Formula for School Students
+- Opening Balance = `closing_fees_balance` from student record
+- Debit = Fee amounts charged (from `student_fees.amount`)
+- Credit = Fee payments (from `student_fees.paid_amount` or voucher entries)
+- Running Balance = Opening + Sum(Debits) - Sum(Credits)
+
+### Files to Modify
+- `src/components/CustomerLedger.tsx` -- main changes to support student fee transactions
 
