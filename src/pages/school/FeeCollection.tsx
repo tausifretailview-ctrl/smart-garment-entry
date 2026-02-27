@@ -9,12 +9,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Receipt, Loader2, IndianRupee, Calendar, User, MessageCircle, Pencil, CreditCard, Banknote, Smartphone, Building2 } from "lucide-react";
+import { Search, Receipt, Loader2, IndianRupee, Calendar, User, MessageCircle, Pencil, CreditCard, Banknote, Smartphone, Building2, Printer } from "lucide-react";
 import { FeeCollectionDialog } from "@/components/school/FeeCollectionDialog";
 import { StudentHistoryDialog } from "@/components/school/StudentHistoryDialog";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { BalanceEditDialog } from "@/components/school/BalanceEditDialog";
+import { FeeReceiptReprintDialog } from "@/components/school/FeeReceiptReprintDialog";
 import { toast } from "sonner";
 import { format, startOfDay, endOfDay, startOfMonth, startOfQuarter, startOfYear, subDays } from "date-fns";
 
@@ -32,6 +33,8 @@ const FeeCollection = () => {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [balanceEditStudent, setBalanceEditStudent] = useState<any>(null);
   const [balanceEditOpen, setBalanceEditOpen] = useState(false);
+  const [reprintReceiptId, setReprintReceiptId] = useState<string | null>(null);
+  const [reprintOpen, setReprintOpen] = useState(false);
   const { settings: whatsAppSettings, sendMessageAsync } = useWhatsAppAPI();
   const { sendWhatsApp } = useWhatsAppSend();
   const [activeTab, setActiveTab] = useState("collect");
@@ -752,6 +755,7 @@ const FeeCollection = () => {
                       <TableHead>Fee Head</TableHead>
                       <TableHead>Payment</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="w-14 text-center">Print</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -768,6 +772,19 @@ const FeeCollection = () => {
                           <Badge variant="secondary">{fee.payment_method || "Cash"}</Badge>
                         </TableCell>
                         <TableCell className="text-right font-medium">₹{(fee.paid_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
+                        <TableCell className="text-center">
+                          {fee.payment_receipt_id && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              title="View & Reprint Receipt"
+                              onClick={() => { setReprintReceiptId(fee.payment_receipt_id); setReprintOpen(true); }}
+                            >
+                              <Printer className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -806,6 +823,12 @@ const FeeCollection = () => {
         open={balanceEditOpen}
         onOpenChange={setBalanceEditOpen}
         student={balanceEditStudent}
+      />
+
+      <FeeReceiptReprintDialog
+        open={reprintOpen}
+        onOpenChange={setReprintOpen}
+        receiptId={reprintReceiptId}
       />
     </div>
   );
