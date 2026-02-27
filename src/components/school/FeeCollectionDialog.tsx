@@ -242,6 +242,12 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         console.error("Voucher entry creation failed (non-blocking):", voucherErr);
       }
 
+      // Calculate remaining balance after this payment
+      const totalStructureBalance = feeItems
+        .filter(i => i.balance > 0)
+        .reduce((sum, i) => sum + i.balance, 0);
+      const remainingBalance = Math.max(0, totalStructureBalance - totalPaying);
+
       return {
         receiptNumber,
         paidDate,
@@ -249,6 +255,8 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         paymentMethod,
         transactionId,
         totalPaying,
+        remainingBalance,
+        academicYear: currentYear.year_name,
       };
     },
     onSuccess: async (data) => {
@@ -320,42 +328,67 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
               <Receipt className="h-5 w-5" /> Fee Receipt
             </DialogTitle>
           </DialogHeader>
-          <div ref={receiptRef} className="p-4 border rounded-md bg-white text-black">
-            <div className="text-center mb-4">
+          <div ref={receiptRef} className="p-5 border rounded-md bg-white text-black" style={{ fontFamily: "Arial, sans-serif" }}>
+            {/* Header */}
+            <div className="text-center mb-3 border-b-2 border-gray-800 pb-2">
               <h2 className="text-lg font-bold">{currentOrganization?.name}</h2>
-              <p className="text-sm text-gray-600">Fee Receipt</p>
+              <p className="text-xs text-gray-600">Fee Receipt</p>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-sm mb-4">
+
+            {/* Student & Receipt Info */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mb-3">
               <div><strong>Receipt #:</strong> {receiptData.receiptNumber}</div>
               <div><strong>Date:</strong> {format(new Date(receiptData.paidDate), "dd/MM/yyyy")}</div>
-              <div><strong>Student:</strong> {student.student_name}</div>
+              <div><strong>Student Name:</strong> {student.student_name}</div>
               <div><strong>Adm. No:</strong> {student.admission_number}</div>
+              {student.parent_name && <div><strong>Parent Name:</strong> {student.parent_name}</div>}
               <div><strong>Class:</strong> {student.school_classes?.class_name || "-"}</div>
+              {receiptData.academicYear && <div><strong>Academic Year:</strong> {receiptData.academicYear}</div>}
               <div><strong>Payment:</strong> {receiptData.paymentMethod}</div>
               {receiptData.transactionId && <div className="col-span-2"><strong>Txn ID:</strong> {receiptData.transactionId}</div>}
             </div>
-            <table className="w-full text-sm border-collapse mb-4">
+
+            {/* Fee Details Table */}
+            <table className="w-full text-xs border-collapse mb-3 border border-gray-300">
               <thead>
-                <tr className="border-b">
-                  <th className="text-left py-1">Fee Head</th>
-                  <th className="text-right py-1">Amount</th>
+                <tr className="bg-gray-100">
+                  <th className="text-left py-1.5 px-2 border border-gray-300 font-semibold">Fee Head</th>
+                  <th className="text-right py-1.5 px-2 border border-gray-300 font-semibold">Amount</th>
                 </tr>
               </thead>
               <tbody>
                 {receiptData.selectedItems.map((item: any, idx: number) => (
-                  <tr key={idx} className="border-b">
-                    <td className="py-1">{item.head_name}</td>
-                    <td className="text-right py-1">₹{item.paying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+                  <tr key={idx}>
+                    <td className="py-1.5 px-2 border border-gray-300">{item.head_name}</td>
+                    <td className="text-right py-1.5 px-2 border border-gray-300">₹{item.paying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr className="font-bold">
-                  <td className="py-2">Total</td>
-                  <td className="text-right py-2">₹{receiptData.totalPaying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+                <tr className="font-bold bg-gray-50">
+                  <td className="py-2 px-2 border border-gray-300">Total</td>
+                  <td className="text-right py-2 px-2 border border-gray-300">₹{receiptData.totalPaying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+                </tr>
+                <tr>
+                  <td className="py-1.5 px-2 border border-gray-300 font-semibold">Balance</td>
+                  <td className="text-right py-1.5 px-2 border border-gray-300 font-semibold text-red-600">
+                    ₹{(receiptData.remainingBalance ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </td>
                 </tr>
               </tfoot>
             </table>
+
+            {/* Signature */}
+            <div className="flex justify-between items-end mt-6 text-xs">
+              <div>
+                <p className="text-gray-500">Receiver</p>
+              </div>
+              <div className="text-center">
+                <div className="border-t border-gray-800 pt-1 w-32">
+                  <p className="text-gray-600">Auth. Signature</p>
+                </div>
+              </div>
+            </div>
           </div>
           <div className="flex justify-end gap-2 mt-2">
             <Button variant="outline" onClick={() => { setShowReceipt(false); setReceiptData(null); onOpenChange(false); }}>Close</Button>
@@ -366,7 +399,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
                 const phone = student.parent_phone;
                 if (!phone) { toast.error("No phone number found for this student"); return; }
                 const feeLines = receiptData.selectedItems.map((item: any) => `- ${item.head_name}: Rs.${item.paying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`).join("\n");
-                const msg = `Dear ${student.student_name},\n\nFee Receipt - ${currentOrganization?.name || "School"}\nReceipt #: ${receiptData.receiptNumber}\nDate: ${format(new Date(receiptData.paidDate), "dd/MM/yyyy")}\n\nFee Details:\n${feeLines}\n\nTotal Paid: Rs.${receiptData.totalPaying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}\nPayment Mode: ${receiptData.paymentMethod}\n\nThank you!`;
+                const msg = `Dear ${student.parent_name || student.student_name},\n\nFee Receipt - ${currentOrganization?.name || "School"}\nReceipt #: ${receiptData.receiptNumber}\nDate: ${format(new Date(receiptData.paidDate), "dd/MM/yyyy")}\nStudent: ${student.student_name}\nClass: ${student.school_classes?.class_name || "-"}\nAdm No: ${student.admission_number}\n\nFee Details:\n${feeLines}\n\nTotal Paid: Rs.${receiptData.totalPaying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}\nBalance: Rs.${(receiptData.remainingBalance ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}\nPayment Mode: ${receiptData.paymentMethod}\n\nThank you!`;
                 sendWhatsApp(phone, msg);
               }}
             >
