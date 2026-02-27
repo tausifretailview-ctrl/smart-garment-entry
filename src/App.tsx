@@ -648,6 +648,16 @@ const App = () => {
                   }
                 />
                 <Route
+                  path="sale-return-entry/:editId"
+                  element={
+                    <ProtectedRoute>
+                      <FullScreenLayout>
+                        <SaleReturnEntry />
+                      </FullScreenLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="sale-returns"
                   element={
                     <ProtectedRoute>

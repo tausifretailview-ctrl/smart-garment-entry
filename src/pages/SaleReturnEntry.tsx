@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
@@ -55,8 +55,11 @@ interface ReturnItem {
 
 export default function SaleReturnEntry() {
   const navigate = useNavigate();
+  const { editId } = useParams<{ editId?: string }>();
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+
+  const isEditMode = !!editId;
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<string>("");
@@ -76,7 +79,11 @@ export default function SaleReturnEntry() {
   const [barcodeInput, setBarcodeInput] = useState<string>("");
   
   const [saving, setSaving] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+
+  // Store original item IDs for edit mode (to delete them on resave)
+  const [originalItemIds, setOriginalItemIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!currentOrganization) return;
@@ -91,14 +98,96 @@ export default function SaleReturnEntry() {
       .limit(50)
       .then(({ data }) => setCustomers(data || []));
 
-    // Fetch next return number
-    supabase.rpc('generate_sale_return_number', {
-      p_organization_id: currentOrganization.id
-    }).then(({ data }) => { if (data) setNextReturnNumber(data); });
+    // Only generate new return number if not editing
+    if (!isEditMode) {
+      supabase.rpc('generate_sale_return_number', {
+        p_organization_id: currentOrganization.id
+      }).then(({ data }) => { if (data) setNextReturnNumber(data); });
+    }
 
     // Fetch all products
     fetchAllProducts();
   }, [currentOrganization]);
+
+  // Load existing return data when in edit mode
+  useEffect(() => {
+    if (!editId || !currentOrganization) return;
+    loadReturnForEdit(editId);
+  }, [editId, currentOrganization]);
+
+  const loadReturnForEdit = async (returnId: string) => {
+    setEditLoading(true);
+    try {
+      // Fetch return header
+      const { data: returnData, error: returnError } = await supabase
+        .from("sale_returns")
+        .select("*")
+        .eq("id", returnId)
+        .eq("organization_id", currentOrganization?.id)
+        .single();
+
+      if (returnError || !returnData) {
+        toast({ title: "Error", description: "Sale return not found", variant: "destructive" });
+        navigate("/sale-returns");
+        return;
+      }
+
+      // Set header fields
+      setNextReturnNumber(returnData.return_number || "");
+      setSelectedCustomer(returnData.customer_id || "");
+      setReturnDate(returnData.return_date?.split("T")[0] || new Date().toISOString().split("T")[0]);
+      setOriginalSaleNumber(returnData.original_sale_number || "");
+      setNotes(returnData.notes || "");
+
+      // If customer exists, make sure it's in the customers list
+      if (returnData.customer_id) {
+        const { data: custData } = await supabase
+          .from("customers")
+          .select("id, customer_name, phone")
+          .eq("id", returnData.customer_id)
+          .single();
+        if (custData) {
+          setCustomers(prev => {
+            const exists = prev.some(c => c.id === custData.id);
+            return exists ? prev : [custData, ...prev];
+          });
+        }
+      }
+
+      // Fetch return items
+      const { data: items, error: itemsError } = await supabase
+        .from("sale_return_items")
+        .select("*")
+        .eq("return_id", returnId);
+
+      if (itemsError) throw itemsError;
+
+      // Store original item IDs
+      setOriginalItemIds((items || []).map(i => i.id));
+
+      // Map to ReturnItem interface
+      const mappedItems: ReturnItem[] = (items || []).map(item => ({
+        productId: item.product_id || "",
+        variantId: item.variant_id || "",
+        productName: item.product_name,
+        size: item.size,
+        color: (item as any).color || undefined,
+        barcode: item.barcode,
+        quantity: item.quantity,
+        unitPrice: item.unit_price,
+        gstPercent: item.gst_percent,
+        lineTotal: item.line_total,
+        hsnCode: item.hsn_code || "",
+      }));
+
+      setReturnItems(mappedItems);
+    } catch (error) {
+      console.error("Error loading sale return:", error);
+      toast({ title: "Error", description: "Failed to load sale return", variant: "destructive" });
+    } finally {
+      setEditLoading(false);
+    }
+  };
 
   const fetchAllProducts = async () => {
     try {
@@ -404,55 +493,110 @@ export default function SaleReturnEntry() {
       const customer = customers.find((c) => c.id === selectedCustomer);
       const totals = calculateTotals();
 
-      // Generate sale return number
-      const { data: returnNumber, error: returnNumberError } = await supabase
-        .rpc('generate_sale_return_number', { p_organization_id: currentOrganization?.id });
+      if (isEditMode && editId) {
+        // ===== EDIT MODE =====
+        // Step 1: Delete old items (triggers will reverse stock for each deleted item)
+        for (const itemId of originalItemIds) {
+          const { error: delError } = await supabase
+            .from("sale_return_items")
+            .delete()
+            .eq("id", itemId);
+          if (delError) throw delError;
+        }
 
-      if (returnNumberError) throw returnNumberError;
+        // Step 2: Insert new items (triggers will add stock for each new item)
+        const itemsToInsert = returnItems.map((item) => ({
+          return_id: editId,
+          product_id: item.productId,
+          variant_id: item.variantId,
+          product_name: item.productName,
+          size: item.size,
+          barcode: item.barcode,
+          color: item.color || null,
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+          gst_percent: item.gstPercent,
+          line_total: item.lineTotal,
+          hsn_code: item.hsnCode || null,
+        }));
 
-      // Insert sale return
-      const { data: returnData, error: returnError } = await supabase
-        .from("sale_returns")
-        .insert({
-          return_number: returnNumber,
-          organization_id: currentOrganization?.id,
-          customer_id: selectedCustomer || null,
-          customer_name: customer?.customer_name || "Walk-in Customer",
-          original_sale_number: originalSaleNumber || null,
-          return_date: returnDate,
-          gross_amount: totals.grossAmount,
-          gst_amount: totals.gstAmount,
-          net_amount: totals.netAmount,
-          notes,
-        })
-        .select()
-        .single();
+        const { error: insertError } = await supabase
+          .from("sale_return_items")
+          .insert(itemsToInsert);
 
-      if (returnError) throw returnError;
+        if (insertError) throw insertError;
 
-      // Insert return items
-      const itemsToInsert = returnItems.map((item) => ({
-        return_id: returnData.id,
-        product_id: item.productId,
-        variant_id: item.variantId,
-        product_name: item.productName,
-        size: item.size,
-        barcode: item.barcode,
-        color: item.color || null,
-        quantity: item.quantity,
-        unit_price: item.unitPrice,
-        gst_percent: item.gstPercent,
-        line_total: item.lineTotal,
-        hsn_code: item.hsnCode || null,
-      }));
+        // Step 3: Update return header
+        const { error: updateError } = await supabase
+          .from("sale_returns")
+          .update({
+            customer_id: selectedCustomer || null,
+            customer_name: customer?.customer_name || "Walk-in Customer",
+            original_sale_number: originalSaleNumber || null,
+            return_date: returnDate,
+            gross_amount: totals.grossAmount,
+            gst_amount: totals.gstAmount,
+            net_amount: totals.netAmount,
+            notes,
+          })
+          .eq("id", editId);
 
-      const { error: itemsError } = await supabase
-        .from("sale_return_items")
-        .insert(itemsToInsert);
+        if (updateError) throw updateError;
 
-      if (itemsError) throw itemsError;
+        toast({ title: "Success", description: `Sale return ${nextReturnNumber} updated successfully` });
+      } else {
+        // ===== NEW MODE =====
+        // Generate sale return number
+        const { data: returnNumber, error: returnNumberError } = await supabase
+          .rpc('generate_sale_return_number', { p_organization_id: currentOrganization?.id });
 
-      toast({ title: "Success", description: `Sale return ${returnData.return_number} saved successfully` });
+        if (returnNumberError) throw returnNumberError;
+
+        // Insert sale return
+        const { data: returnData, error: returnError } = await supabase
+          .from("sale_returns")
+          .insert({
+            return_number: returnNumber,
+            organization_id: currentOrganization?.id,
+            customer_id: selectedCustomer || null,
+            customer_name: customer?.customer_name || "Walk-in Customer",
+            original_sale_number: originalSaleNumber || null,
+            return_date: returnDate,
+            gross_amount: totals.grossAmount,
+            gst_amount: totals.gstAmount,
+            net_amount: totals.netAmount,
+            notes,
+          })
+          .select()
+          .single();
+
+        if (returnError) throw returnError;
+
+        // Insert return items
+        const itemsToInsert = returnItems.map((item) => ({
+          return_id: returnData.id,
+          product_id: item.productId,
+          variant_id: item.variantId,
+          product_name: item.productName,
+          size: item.size,
+          barcode: item.barcode,
+          color: item.color || null,
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+          gst_percent: item.gstPercent,
+          line_total: item.lineTotal,
+          hsn_code: item.hsnCode || null,
+        }));
+
+        const { error: itemsError } = await supabase
+          .from("sale_return_items")
+          .insert(itemsToInsert);
+
+        if (itemsError) throw itemsError;
+
+        toast({ title: "Success", description: `Sale return ${returnData.return_number} saved successfully` });
+      }
+
       navigate("/sale-returns");
     } catch (error) {
       console.error("Error saving sale return:", error);
@@ -464,10 +608,20 @@ export default function SaleReturnEntry() {
 
   const totals = calculateTotals();
 
+  if (editLoading) {
+    return (
+      <div className="w-full px-6 py-6 flex items-center justify-center min-h-[400px]">
+        <p className="text-muted-foreground">Loading sale return...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full px-6 py-6 space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Sale Return Entry</h1>
+          <h1 className="text-3xl font-bold">
+            {isEditMode ? "Edit Sale Return" : "Sale Return Entry"}
+          </h1>
           <Button variant="outline" onClick={() => navigate("/sale-returns")}>
             Back to Dashboard
           </Button>
@@ -754,7 +908,7 @@ export default function SaleReturnEntry() {
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Saving..." : "Save Return"}
+            {saving ? "Saving..." : isEditMode ? "Update Return" : "Save Return"}
           </Button>
         </div>
       </div>
