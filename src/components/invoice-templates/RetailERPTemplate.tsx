@@ -151,8 +151,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
   // Sub Total = sum of rate * qty (before any discount)
   const subTotalBeforeDiscount = items.reduce((s, i) => s + (i.rate * i.qty), 0);
-  // Total discount = subTotalBeforeDiscount - grandTotal (includes line discounts + flat discount + round off)
-  const totalDiscount = subTotalBeforeDiscount - grandTotal;
+  // Total discount = subTotalBeforeDiscount - grandTotal - saleReturnAdjust (exclude S/R from discount)
+  const totalDiscount = subTotalBeforeDiscount - grandTotal - saleReturnAdjust;
   const billTotal = grandTotal;
   const receivedToday = paidAmount;
   const currentBalance = billTotal - receivedToday;
