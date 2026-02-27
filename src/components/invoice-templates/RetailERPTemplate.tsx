@@ -362,7 +362,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                 </div>
               )}
               {notes && (
-                <div style={{ marginTop: "4px", fontSize: isA4 ? "10px" : "8px" }}>
+                <div style={{ marginTop: "4px", fontSize: isA4 ? "13px" : "11px", fontWeight: "600" }}>
                   <strong>Note:</strong> {notes}
                 </div>
               )}
