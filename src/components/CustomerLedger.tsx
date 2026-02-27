@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -36,12 +37,17 @@ interface Customer {
   totalSales: number;
   totalPaid: number;
   balance: number;
+  // School-specific fields
+  studentId?: string;
+  admissionNumber?: string;
+  className?: string;
+  division?: string;
 }
 
 interface Transaction {
   id: string;
   date: string;
-  type: 'invoice' | 'payment' | 'advance' | 'adjustment';
+  type: 'invoice' | 'payment' | 'advance' | 'adjustment' | 'fee';
   reference: string;
   description: string;
   debit: number;
@@ -66,6 +72,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
   
   const isMobile = useIsMobile();
   const { sendWhatsApp } = useWhatsAppSend();
+  const { isSchool } = useSchoolFeatures();
+
 
   // Sync external filter with internal state
   useEffect(() => {
@@ -77,11 +85,73 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
   // Fetch all customers with their transaction summary using pagination
   const { data: customers, isLoading } = useQuery({
-    queryKey: ["customer-ledger", organizationId],
+    queryKey: ["customer-ledger", organizationId, isSchool],
     queryFn: async () => {
       // Fetch ALL customers using range pagination (bypasses 1000-row limit)
       const customersData = await fetchAllCustomers(organizationId);
 
+      // For school orgs, fetch linked student data
+      let studentMap = new Map<string, any>(); // customer_id -> student record
+      if (isSchool) {
+        const { data: students } = await supabase
+          .from('students')
+          .select('id, customer_id, admission_number, closing_fees_balance, class_id, division, school_classes(class_name)')
+          .eq('organization_id', organizationId)
+          .is('deleted_at', null);
+        
+        students?.forEach((s: any) => {
+          if (s.customer_id) {
+            studentMap.set(s.customer_id, s);
+          }
+        });
+
+        // Fetch fee totals per student
+        const { data: feeTotals } = await supabase
+          .from('student_fees')
+          .select('student_id, amount, paid_amount, status')
+          .eq('organization_id', organizationId);
+
+        const studentFeeTotals = new Map<string, { totalFees: number; totalPaid: number }>();
+        feeTotals?.forEach((f: any) => {
+          const existing = studentFeeTotals.get(f.student_id) || { totalFees: 0, totalPaid: 0 };
+          existing.totalFees += f.amount || 0;
+          existing.totalPaid += f.paid_amount || 0;
+          studentFeeTotals.set(f.student_id, existing);
+        });
+
+        // Build school customer totals
+        const customerTotals = customersData.map((customer: any) => {
+          const student = studentMap.get(customer.id);
+          if (student) {
+            const feeTot = studentFeeTotals.get(student.id) || { totalFees: 0, totalPaid: 0 };
+            const openingBalance = student.closing_fees_balance || 0;
+            const balance = Math.round(openingBalance + feeTot.totalFees - feeTot.totalPaid);
+            return {
+              ...customer,
+              opening_balance: Math.round(openingBalance),
+              totalSales: Math.round(feeTot.totalFees),
+              totalPaid: Math.round(feeTot.totalPaid),
+              balance,
+              studentId: student.id,
+              admissionNumber: student.admission_number,
+              className: (student as any).school_classes?.class_name || '',
+              division: student.division || '',
+            };
+          }
+          // Non-student customer in school org - show with zero balance
+          return {
+            ...customer,
+            opening_balance: Math.round(customer.opening_balance || 0),
+            totalSales: 0,
+            totalPaid: 0,
+            balance: Math.round(customer.opening_balance || 0),
+          };
+        });
+
+        return customerTotals;
+      }
+
+      // --- Business org logic (unchanged) ---
       // Fetch ALL sales using range pagination (bypasses 1000-row limit)
       const salesData = await fetchAllSalesSummary(organizationId);
 
@@ -172,9 +242,132 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
   // Fetch detailed transactions for selected customer
   const { data: transactions } = useQuery({
-    queryKey: ["customer-transactions", selectedCustomer?.id, startDate, endDate],
+    queryKey: ["customer-transactions", selectedCustomer?.id, startDate, endDate, isSchool],
     queryFn: async () => {
       if (!selectedCustomer) return [];
+
+      // --- School org: student fee-based transactions ---
+      if (isSchool && selectedCustomer.studentId) {
+        const studentId = selectedCustomer.studentId;
+
+        // Fetch student fees with fee head names
+        let feesQuery = supabase
+          .from('student_fees')
+          .select('*, fee_heads(head_name)')
+          .eq('student_id', studentId)
+          .eq('organization_id', organizationId);
+        
+        if (startDate) feesQuery = feesQuery.gte('created_at', format(startDate, 'yyyy-MM-dd'));
+        if (endDate) feesQuery = feesQuery.lte('created_at', format(endDate, 'yyyy-MM-dd') + 'T23:59:59');
+        
+        const { data: feesData, error: feesError } = await feesQuery.order('created_at', { ascending: true });
+        if (feesError) throw feesError;
+
+        // Fetch voucher payments for this student's fees
+        let vouchersQuery = supabase
+          .from('voucher_entries')
+          .select('*')
+          .eq('voucher_type', 'receipt')
+          .eq('reference_type', 'student_fee')
+          .eq('reference_id', studentId)
+          .is('deleted_at', null);
+        
+        if (startDate) vouchersQuery = vouchersQuery.gte('voucher_date', format(startDate, 'yyyy-MM-dd'));
+        if (endDate) vouchersQuery = vouchersQuery.lte('voucher_date', format(endDate, 'yyyy-MM-dd'));
+        
+        const { data: vouchersData, error: vouchersError } = await vouchersQuery.order('voucher_date', { ascending: true });
+        if (vouchersError) throw vouchersError;
+
+        const allTransactions: Transaction[] = [];
+        const openingBalance = selectedCustomer.opening_balance || 0;
+        let runningBalance = openingBalance;
+
+        // Opening balance entry
+        if (openingBalance !== 0) {
+          allTransactions.push({
+            id: 'opening-balance',
+            date: '1900-01-01',
+            type: 'fee',
+            reference: 'Opening',
+            description: 'Opening Fees Balance (Carried Forward)',
+            debit: openingBalance > 0 ? openingBalance : 0,
+            credit: openingBalance < 0 ? Math.abs(openingBalance) : 0,
+            balance: runningBalance,
+          });
+        }
+
+        // Combine fees (debit) and voucher payments (credit) chronologically
+        const combined = [
+          ...(feesData || []).map((fee: any) => ({
+            date: fee.paid_date || fee.created_at?.substring(0, 10) || fee.due_date || '2000-01-01',
+            type: 'fee_charge' as const,
+            data: fee,
+          })),
+          ...(vouchersData || []).map((v: any) => ({
+            date: v.voucher_date,
+            type: 'fee_payment' as const,
+            data: v,
+          })),
+        ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        combined.forEach((item) => {
+          if (item.type === 'fee_charge') {
+            const fee = item.data as any;
+            const feeAmount = fee.amount || 0;
+            const feeHeadName = fee.fee_heads?.head_name || 'Fee';
+            runningBalance += feeAmount;
+
+            allTransactions.push({
+              id: fee.id,
+              date: fee.paid_date || fee.created_at?.substring(0, 10) || fee.due_date || '',
+              type: 'fee',
+              reference: fee.payment_receipt_id || '-',
+              description: `${feeHeadName}${fee.period_month ? ` (${fee.period_month}/${fee.period_year})` : ''}`,
+              debit: feeAmount,
+              credit: 0,
+              balance: runningBalance,
+            });
+
+            // If fee has paid_amount, add as credit (payment at collection)
+            const paidAmount = fee.paid_amount || 0;
+            if (paidAmount > 0) {
+              runningBalance -= paidAmount;
+              const methodText = fee.payment_method ? ` - ${fee.payment_method.charAt(0).toUpperCase() + fee.payment_method.slice(1)}` : '';
+              allTransactions.push({
+                id: `${fee.id}-payment`,
+                date: fee.paid_date || fee.created_at?.substring(0, 10) || '',
+                type: 'payment',
+                reference: fee.payment_receipt_id || '-',
+                description: `Fee Payment${methodText} - ${feeHeadName}`,
+                debit: 0,
+                credit: paidAmount,
+                balance: runningBalance,
+                paymentBreakdown: fee.payment_method ? { method: fee.payment_method } : undefined,
+              });
+            }
+          } else {
+            // Voucher payment
+            const voucher = item.data as any;
+            const totalCredit = (voucher.total_amount || 0) + (voucher.discount_amount || 0);
+            runningBalance -= totalCredit;
+
+            allTransactions.push({
+              id: voucher.id,
+              date: voucher.voucher_date,
+              type: 'payment',
+              reference: voucher.voucher_number,
+              description: voucher.description || 'Fee payment received',
+              debit: 0,
+              credit: totalCredit,
+              balance: runningBalance,
+              paymentBreakdown: voucher.metadata?.paymentMethod ? { method: voucher.metadata.paymentMethod } : undefined,
+            });
+          }
+        });
+
+        return allTransactions;
+      }
+
 
       // First, get ALL sales for this customer (without date filter) to get all possible reference_ids
       const { data: allCustomerSales, error: allSalesError } = await supabase
@@ -729,8 +922,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 👤 *${selectedCustomer.customer_name}*${dateRange}
 
 💰 Opening Balance: ₹${Math.round(openingBalance).toLocaleString("en-IN")}
-📈 Total Sales: ₹${Math.round(selectedCustomer.totalSales).toLocaleString("en-IN")}
-✅ Total Paid: ₹${Math.round(selectedCustomer.totalPaid).toLocaleString("en-IN")}
+📈 ${isSchool ? 'Total Fees' : 'Total Sales'}: ₹${Math.round(selectedCustomer.totalSales).toLocaleString("en-IN")}
+✅ ${isSchool ? 'Fees Paid' : 'Total Paid'}: ₹${Math.round(selectedCustomer.totalPaid).toLocaleString("en-IN")}
 ────────────────
 💵 *Outstanding: ₹${Math.abs(Math.round(selectedCustomer.balance)).toLocaleString("en-IN")}${selectedCustomer.balance < 0 ? " (Advance)" : ""}*${txnSummary}
 
@@ -1006,6 +1199,17 @@ Please clear your dues at the earliest. Thank you!`;
               <div className="space-y-2">
                 <CardTitle className="text-2xl">{selectedCustomer.customer_name}</CardTitle>
                 <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                  {isSchool && selectedCustomer.admissionNumber && (
+                    <div className="flex items-center gap-1">
+                      <FileText className="h-3 w-3" />
+                      Adm: {selectedCustomer.admissionNumber}
+                    </div>
+                  )}
+                  {isSchool && selectedCustomer.className && (
+                    <div className="flex items-center gap-1">
+                      Class: {selectedCustomer.className}{selectedCustomer.division ? ` - ${selectedCustomer.division}` : ''}
+                    </div>
+                  )}
                   {selectedCustomer.phone && (
                     <div className="flex items-center gap-1">
                       <Phone className="h-3 w-3" />
@@ -1066,7 +1270,7 @@ Please clear your dues at the earliest. Thank you!`;
               )}
               <Card>
                 <CardContent className="pt-6">
-                  <div className="text-sm text-muted-foreground mb-1">Total Sales</div>
+                  <div className="text-sm text-muted-foreground mb-1">{isSchool ? 'Total Fees' : 'Total Sales'}</div>
                   <div className="text-2xl font-bold">
                     ₹{selectedCustomer.totalSales.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
@@ -1074,7 +1278,7 @@ Please clear your dues at the earliest. Thank you!`;
               </Card>
               <Card>
                 <CardContent className="pt-6">
-                  <div className="text-sm text-muted-foreground mb-1">Total Paid</div>
+                  <div className="text-sm text-muted-foreground mb-1">{isSchool ? 'Fees Paid' : 'Total Paid'}</div>
                   <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                     ₹{selectedCustomer.totalPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
@@ -1153,6 +1357,10 @@ Please clear your dues at the earliest. Thank you!`;
                                   ) : transaction.type === 'adjustment' ? (
                                     <Badge className="bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-500/30">
                                       ADJ
+                                    </Badge>
+                                  ) : transaction.type === 'fee' ? (
+                                    <Badge className="bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30">
+                                      <FileText className="h-3 w-3 mr-1" /> FEE
                                     </Badge>
                                   ) : (
                                     <Badge variant={transaction.type === 'invoice' ? 'default' : 'secondary'}>
@@ -1393,11 +1601,11 @@ Please clear your dues at the earliest. Thank you!`;
           onClick={() => setPaymentStatusFilter("all")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
+            <CardTitle className="text-sm font-medium">{isSchool ? 'Total Students' : 'Total Customers'}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{summary.totalCustomers}</div>
-            <p className="text-xs text-muted-foreground mt-1">Active customer accounts</p>
+            <p className="text-xs text-muted-foreground mt-1">{isSchool ? 'Active student accounts' : 'Active customer accounts'}</p>
           </CardContent>
         </Card>
 
@@ -1406,13 +1614,13 @@ Please clear your dues at the earliest. Thank you!`;
           onClick={() => setPaymentStatusFilter("outstanding")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Outstanding</CardTitle>
+            <CardTitle className="text-sm font-medium">{isSchool ? 'Total Fees Due' : 'Total Outstanding'}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-red-600 dark:text-red-400">
               ₹{summary.totalOutstanding.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Amount pending collection</p>
+            <p className="text-xs text-muted-foreground mt-1">{isSchool ? 'Fees pending collection' : 'Amount pending collection'}</p>
           </CardContent>
         </Card>
 
@@ -1421,13 +1629,13 @@ Please clear your dues at the earliest. Thank you!`;
           onClick={() => setPaymentStatusFilter("all")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Receivable</CardTitle>
+            <CardTitle className="text-sm font-medium">{isSchool ? 'Total Fees Charged' : 'Total Receivable'}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
               ₹{summary.totalReceivable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Total sales value</p>
+            <p className="text-xs text-muted-foreground mt-1">{isSchool ? 'Total fees value' : 'Total sales value'}</p>
           </CardContent>
         </Card>
       </div>
@@ -1435,8 +1643,8 @@ Please clear your dues at the earliest. Thank you!`;
       {/* Customer List */}
       <Card>
         <CardHeader>
-          <CardTitle>Customer Ledger</CardTitle>
-          <CardDescription>View detailed transaction history for each customer</CardDescription>
+          <CardTitle>{isSchool ? 'Student Account Ledger' : 'Customer Ledger'}</CardTitle>
+          <CardDescription>{isSchool ? 'View detailed fee and payment history for each student' : 'View detailed transaction history for each customer'}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col md:flex-row items-start md:items-center gap-4 mb-6">
@@ -1553,7 +1761,7 @@ Please clear your dues at the earliest. Thank you!`;
                       
                       <div className="flex items-center justify-between mt-3 pt-3 border-t">
                         <div className="text-center">
-                          <div className="text-xs text-muted-foreground">Sales</div>
+                          <div className="text-xs text-muted-foreground">{isSchool ? 'Fees' : 'Sales'}</div>
                           <div className="font-medium text-sm">₹{customer.totalSales.toLocaleString("en-IN")}</div>
                         </div>
                         <div className="text-center">
@@ -1593,10 +1801,10 @@ Please clear your dues at the earliest. Thank you!`;
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Customer Name</TableHead>
+                    <TableHead>{isSchool ? 'Student Name' : 'Customer Name'}</TableHead>
                     <TableHead>Contact</TableHead>
-                    <TableHead className="text-right">Total Sales</TableHead>
-                    <TableHead className="text-right">Total Paid</TableHead>
+                    <TableHead className="text-right">{isSchool ? 'Total Fees' : 'Total Sales'}</TableHead>
+                    <TableHead className="text-right">{isSchool ? 'Fees Paid' : 'Total Paid'}</TableHead>
                     <TableHead className="text-right">Balance</TableHead>
                     <TableHead className="text-center">Status</TableHead>
                     <TableHead className="text-right">Action</TableHead>
