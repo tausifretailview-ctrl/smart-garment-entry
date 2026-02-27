@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Loader2, AlertCircle, Clock, Coins, BarChart3, Package, History } from "lucide-react";
+import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, ChevronDown, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Loader2, AlertCircle, Clock, Coins, BarChart3, Package, History } from "lucide-react";
 import { MobilePOSLayout } from "@/components/mobile/MobilePOSLayout";
 import { FloatingPOSReports } from "@/components/FloatingPOSReports";
 import { FloatingSaleReturn } from "@/components/FloatingSaleReturn";
@@ -114,6 +114,8 @@ export default function POSSales() {
   const [isHeldSale, setIsHeldSale] = useState(false);
   const [availableCreditBalance, setAvailableCreditBalance] = useState(0);
   const [creditApplied, setCreditApplied] = useState(0);
+  const [pendingSaleReturnCredits, setPendingSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; credit_note_id: string | null }>>([]);
+  const [showSRCreditDropdown, setShowSRCreditDropdown] = useState(false);
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -789,15 +791,29 @@ export default function POSSales() {
   
   const { getCustomerBalance, getCustomerAdvance } = useCustomerBalances();
 
-  // Fetch credit balance when customer changes
+  // Fetch credit balance and pending sale return credit notes when customer changes
   useEffect(() => {
     const fetchCreditBalance = async () => {
       if (customerId) {
         const balance = await getAvailableCreditBalance(customerId);
         setAvailableCreditBalance(balance);
+        // Fetch pending sale return credit notes for this customer
+        if (currentOrganization?.id) {
+          const { data: pendingReturns } = await supabase
+            .from("sale_returns")
+            .select("id, return_number, net_amount, credit_note_id")
+            .eq("organization_id", currentOrganization.id)
+            .eq("customer_id", customerId)
+            .is("deleted_at", null)
+            .in("credit_status", ["pending"])
+            .eq("refund_type", "credit_note")
+            .order("return_date", { ascending: false });
+          setPendingSaleReturnCredits(pendingReturns || []);
+        }
       } else {
         setAvailableCreditBalance(0);
         setCreditApplied(0);
+        setPendingSaleReturnCredits([]);
       }
     };
     fetchCreditBalance();
@@ -3529,16 +3545,45 @@ export default function POSSales() {
               </div>
               <div className="text-xs md:text-sm mt-1">Flat Discount</div>
             </div>
-            <div className="text-center">
-              <Input 
-                type="number"
-                className="w-20 h-8 bg-white text-black text-center text-base font-semibold mx-auto" 
-                value={saleReturnAdjust || ""}
-                placeholder="0"
-                onChange={(e) => setSaleReturnAdjust(parseFloat(e.target.value) || 0)}
-                step="0.01"
-              />
-              <div className="text-xs md:text-sm mt-1">S/R Adjust</div>
+            <div className="text-center relative">
+              <div className="flex items-center justify-center gap-0.5">
+                <Input 
+                  type="number"
+                  className="w-20 h-8 bg-white text-black text-center text-base font-semibold" 
+                  value={saleReturnAdjust || ""}
+                  placeholder="0"
+                  onChange={(e) => setSaleReturnAdjust(parseFloat(e.target.value) || 0)}
+                  step="0.01"
+                />
+                {customerId && pendingSaleReturnCredits.length > 0 && (
+                  <Popover open={showSRCreditDropdown} onOpenChange={setShowSRCreditDropdown}>
+                    <PopoverTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/20 p-0">
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 p-2" align="center" side="top">
+                      <div className="text-xs font-semibold text-muted-foreground mb-1.5">Pending Credit Notes</div>
+                      <div className="space-y-1 max-h-40 overflow-y-auto">
+                        {pendingSaleReturnCredits.map((sr) => (
+                          <button
+                            key={sr.id}
+                            className="w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-accent text-sm text-left"
+                            onClick={() => {
+                              setSaleReturnAdjust(sr.net_amount);
+                              setShowSRCreditDropdown(false);
+                            }}
+                          >
+                            <span className="font-medium truncate">{sr.return_number || "S/R"}</span>
+                            <Badge variant="secondary" className="ml-2 shrink-0">₹{sr.net_amount.toLocaleString('en-IN')}</Badge>
+                          </button>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
+              <div className="text-xs md:text-sm mt-1">S/R Adjust{customerId && pendingSaleReturnCredits.length > 0 ? ` (${pendingSaleReturnCredits.length})` : ''}</div>
             </div>
             {/* Credit Applied Field - Only show if customer has credit balance */}
             {(availableCreditBalance > 0 || creditApplied > 0) && (
