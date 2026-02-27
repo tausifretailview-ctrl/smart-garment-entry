@@ -2963,7 +2963,7 @@ export default function BarcodePrinting() {
     setTimeout(() => {
       window.print();
       document.title = originalTitle;
-    }, 50);
+    }, 200);
   };
 
   const handleExportPDF = async () => {
@@ -4460,7 +4460,7 @@ export default function BarcodePrinting() {
           size: ${isThermal1Up() 
             ? `${(sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)) + leftOffset + rightOffset}mm ${(sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)) + topOffset + bottomOffset}mm` 
             : 'A4'}; 
-          margin: 0;
+          margin: 0 !important;
         }
         
         @media print {
@@ -4525,6 +4525,9 @@ export default function BarcodePrinting() {
           #printArea .label-cell {
             page-break-inside: avoid;
             break-inside: avoid-page;
+            overflow: visible !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
             ${isThermal1Up() ? `
               position: relative !important;
               display: block !important;
