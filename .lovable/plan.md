@@ -1,89 +1,45 @@
 
 
-# Fix: "Create Organization" Showing for All Existing Users
+# Fix: Customer Search Not Finding Results
 
-## Root Cause (NOT network related)
+## Problem
 
-The real problem is a **stale JWT + RLS interaction**:
+The "Ella Noor" organization reports that customer search is not finding customers. There are two issues:
 
-1. User's session token expires (Chrome suspends tab, login expires naturally, Chrome clears storage)
-2. `AuthContext` still has `user` object briefly (from cached state), so the user appears "logged in"
-3. `OrganizationContext.fetchOrganizations()` runs with an **expired/invalid JWT**
-4. The `organization_members` query does NOT throw an error -- it returns **empty results** because RLS silently filters out rows when the JWT is invalid
-5. Code sees `organizations.length === 0` + `hasResolvedOrganizations = true` + `fetchError = false`
-6. Result: "Create Your Organization" form appears for an existing user
+1. **Query limit of 101 rows**: The search query uses `.limit(101)`, meaning if the search term matches more than 100 customers, results are truncated and the specific customer may not appear.
 
-This is why it affects ALL organizations regardless of network -- it's a JWT validity issue, not connectivity.
+2. **Special characters in search terms break PostgREST filters**: If a customer name or phone contains special characters (like `.`, `,`, `(`, `)`), the `.or()` filter string can break silently and return 0 results instead of throwing an error.
+
+3. **No sanitization of search input**: The search term is directly interpolated into the PostgREST filter string without escaping special characters.
 
 ## Solution
 
-### 1. Detect suspicious empty results in OrganizationContext
-**File: `src/contexts/OrganizationContext.tsx`**
+### 1. Increase limit and add proper input sanitization (src/hooks/useCustomerSearch.tsx)
 
-After fetching organizations, if the result is empty BUT the user previously had organizations (from cache), treat it as a potential stale-session issue:
-- Try refreshing the auth session first
-- Re-fetch organizations with the fresh token
-- Only accept "0 organizations" if the session is confirmed fresh AND there's no cached org history
+- Increase the query limit from 101 to 201 (show up to 200 results)
+- Sanitize the search term to escape PostgREST special characters (commas, parentheses, dots in filter context)
+- Add a fallback: if the `.or()` filter returns 0 results, retry with just `customer_name.ilike` to catch cases where the combined filter breaks
 
-### 2. Force session refresh before accepting empty org list
-**File: `src/contexts/OrganizationContext.tsx`**
+### 2. Improve search ordering for relevance
 
-When `memberships` returns empty for a logged-in user:
-- Call `supabase.auth.refreshSession()` to get a fresh JWT
-- If refresh succeeds, retry the organization query once with the new token
-- If refresh fails (token truly revoked), sign out locally and redirect to org login using stored slug
-- This catches the case where RLS returns empty due to expired JWT
-
-### 3. Auto-redirect to org login instead of showing Create form
-**File: `src/components/OrganizationSetup.tsx`**
-
-For authenticated users with 0 organizations but a stored slug (from cookie/localStorage/cache):
-- Instead of showing the "Create Organization" form, automatically redirect to `/:storedSlug`
-- The `OrgLayout` will detect the user isn't a member and show the proper login page
-- Only show the Create form if there is genuinely NO stored slug AND no cached orgs AND session is fresh
-
-### 4. Add session-freshness check before org fetch
-**File: `src/contexts/OrganizationContext.tsx`**
-
-Before running the org membership query, verify the current session token is not expired:
-- Check `session.expires_at` against current time
-- If expired, refresh first, then fetch orgs
-- This prevents the "empty results from expired JWT" scenario entirely
+- Order results so exact matches and "starts with" matches appear first, before "contains" matches
+- This ensures the most relevant customer appears in the top results even with the limit
 
 ## Technical Details
 
-### OrganizationContext changes
-```text
-fetchOrganizations():
-  1. Get current session via supabase.auth.getSession()
-  2. If session expired -> refreshSession() first
-  3. Run membership query
-  4. If results empty AND cachedOrgs exist for this user:
-     a. Try refreshSession() + re-query once
-     b. If still empty after fresh token -> accept as genuine
-     c. If refresh fails -> set fetchError, show retry UI
-  5. Only set hasResolvedOrganizations=true when we trust the result
-```
+### File: `src/hooks/useCustomerSearch.tsx`
 
-### OrganizationSetup changes
-```text
-When authenticated + hasResolved + organizations.length === 0:
-  - If storedSlug OR cachedOrgs exist:
-    -> Auto-redirect to /${slug} (don't show create form)
-  - If NO slug AND NO cache:
-    -> Show create form (genuinely new user)
-```
+Changes:
+- Sanitize search term by escaping characters that are special in PostgREST filter syntax (commas become encoded, parentheses escaped)
+- Increase `.limit(101)` to `.limit(201)` and adjust `hasMore` threshold from 100 to 200
+- Add proper error handling so if the `.or()` query fails, fallback to a simpler `customer_name.ilike` only query
 
-## File Summary
-
+### Files affected
 | File | Change |
-|---|---|
-| `src/contexts/OrganizationContext.tsx` | Refresh session before org fetch; retry on suspicious empty results |
-| `src/components/OrganizationSetup.tsx` | Auto-redirect to org login when slug exists instead of showing create form |
+|------|--------|
+| `src/hooks/useCustomerSearch.tsx` | Sanitize search input, increase limit to 200, add fallback query |
 
 ## Expected Outcome
-- Users with expired sessions will get their token refreshed automatically before the org query runs
-- If token refresh works: user sees their dashboard normally
-- If token is truly revoked: user lands on their org's login page (not "Create Organization")
-- Only genuinely new users (no slug, no cache, fresh session) see the create form
-
+- Customers will be found even in organizations with 2000+ customers
+- Search terms with special characters will not break the query
+- Users see up to 200 matching results instead of 100
