@@ -24,7 +24,9 @@ interface OrganizationContextType {
   organizations: Organization[];
   organizationRole: "admin" | "manager" | "user" | null;
   loading: boolean;
+  fetchError: boolean;
   switchOrganization: (orgId: string) => void;
+  refetchOrganizations: () => void;
   hasFeature: (featureName: string) => boolean;
   canAccessFeature: (featureName: string, requiredTier?: string) => boolean;
 }
@@ -34,7 +36,9 @@ const OrganizationContext = createContext<OrganizationContextType>({
   organizations: [],
   organizationRole: null,
   loading: true,
+  fetchError: false,
   switchOrganization: () => {},
+  refetchOrganizations: () => {},
   hasFeature: () => false,
   canAccessFeature: () => false,
 });
@@ -47,6 +51,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [organizationRole, setOrganizationRole] = useState<"admin" | "manager" | "user" | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -66,6 +71,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
     if (!user) return;
 
     try {
+      setFetchError(false);
       // Fetch all organizations the user is a member of
       const { data: memberships, error: membershipError } = await supabase
         .from("organization_members")
@@ -129,6 +135,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (error) {
       console.error("Error fetching organizations:", error);
+      setFetchError(true);
     } finally {
       setLoading(false);
     }
@@ -190,7 +197,9 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
         organizations,
         organizationRole,
         loading,
+        fetchError,
         switchOrganization,
+        refetchOrganizations: fetchOrganizations,
         hasFeature,
         canAccessFeature,
       }}

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { storeOrgSlug } from "@/lib/orgSlug";
 
 // Global constants for cross-tab refresh coordination
 const REFRESH_LOCK_KEY = 'auth_refresh_lock';
@@ -167,7 +168,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (event === 'SIGNED_OUT') {
           const orgSlug = localStorage.getItem("selectedOrgSlug");
           if (orgSlug) {
-            sessionStorage.setItem("selectedOrgSlug", orgSlug);
+            storeOrgSlug(orgSlug); // persist to all layers including cookie
           }
         }
         
@@ -286,7 +287,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Store org slug before signing out for PWA recovery
     const orgSlug = localStorage.getItem("selectedOrgSlug");
     if (orgSlug) {
-      sessionStorage.setItem("selectedOrgSlug", orgSlug);
+      storeOrgSlug(orgSlug); // persist to all layers including cookie
     }
     
     await supabase.auth.signOut();
