@@ -8,7 +8,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Search, RefreshCw, Check, ArrowRight } from "lucide-react";
+import { AlertTriangle, Search, RefreshCw, Check, ArrowRight, ChevronsUpDown } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   useBulkProductUpdate, 
@@ -214,17 +216,34 @@ export default function BulkProductUpdate() {
                 </div>
                 <div className="space-y-2">
                   <Label>Product Name</Label>
-                  <Select value={filters.productName || "__all__"} onValueChange={(v) => setFilters({ ...filters, productName: v === "__all__" ? undefined : v })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Products" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-60">
-                      <SelectItem value="__all__">All Products</SelectItem>
-                      {filterOptions.productNames.map(name => (
-                        <SelectItem key={name} value={name}>{name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" role="combobox" className="w-full justify-between h-11 font-medium text-[15px]">
+                        {filters.productName || "All Products"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Search product..." />
+                        <CommandList className="max-h-60">
+                          <CommandEmpty>No product found.</CommandEmpty>
+                          <CommandGroup>
+                            <CommandItem value="__all__" onSelect={() => setFilters({ ...filters, productName: undefined })}>
+                              <Check className={`mr-2 h-4 w-4 ${!filters.productName ? "opacity-100" : "opacity-0"}`} />
+                              All Products
+                            </CommandItem>
+                            {filterOptions.productNames.map(name => (
+                              <CommandItem key={name} value={name} onSelect={() => setFilters({ ...filters, productName: name })}>
+                                <Check className={`mr-2 h-4 w-4 ${filters.productName === name ? "opacity-100" : "opacity-0"}`} />
+                                {name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div className="space-y-2">
                   <Label>Style</Label>
