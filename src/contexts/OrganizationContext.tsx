@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
 
@@ -12,24 +12,21 @@ interface Organization {
   organization_type: "business" | "school";
 }
 
-interface OrganizationMember {
-  id: string;
-  organization_id: string;
-  user_id: string;
-  role: "admin" | "manager" | "user";
-}
-
 interface OrganizationContextType {
   currentOrganization: Organization | null;
   organizations: Organization[];
   organizationRole: "admin" | "manager" | "user" | null;
   loading: boolean;
   fetchError: boolean;
+  hasResolvedOrganizations: boolean;
   switchOrganization: (orgId: string) => void;
   refetchOrganizations: () => void;
   hasFeature: (featureName: string) => boolean;
   canAccessFeature: (featureName: string, requiredTier?: string) => boolean;
 }
+
+const ORG_FETCH_TIMEOUT = 10000; // 10 seconds
+const ORG_CACHE_KEY_PREFIX = "cachedOrgs_";
 
 const OrganizationContext = createContext<OrganizationContextType>({
   currentOrganization: null,
@@ -37,6 +34,7 @@ const OrganizationContext = createContext<OrganizationContextType>({
   organizationRole: null,
   loading: true,
   fetchError: false,
+  hasResolvedOrganizations: false,
   switchOrganization: () => {},
   refetchOrganizations: () => {},
   hasFeature: () => false,
@@ -45,6 +43,23 @@ const OrganizationContext = createContext<OrganizationContextType>({
 
 export const useOrganization = () => useContext(OrganizationContext);
 
+// Lightweight cache helpers
+const cacheOrgs = (userId: string, orgs: { id: string; slug: string; name: string }[]) => {
+  try {
+    localStorage.setItem(`${ORG_CACHE_KEY_PREFIX}${userId}`, JSON.stringify(orgs));
+  } catch { /* quota exceeded — ignore */ }
+};
+
+const getCachedOrgs = (userId: string): { id: string; slug: string; name: string }[] | null => {
+  try {
+    const raw = localStorage.getItem(`${ORG_CACHE_KEY_PREFIX}${userId}`);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+};
+
 export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
   const [currentOrganization, setCurrentOrganization] = useState<Organization | null>(null);
@@ -52,6 +67,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
   const [organizationRole, setOrganizationRole] = useState<"admin" | "manager" | "user" | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
+  const [hasResolvedOrganizations, setHasResolvedOrganizations] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -59,20 +75,32 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       setOrganizations([]);
       setOrganizationRole(null);
       setLoading(false);
-      // Keep selectedOrgSlug in localStorage for PWA redirect support
-      // This allows the app to redirect to org-specific login after logout
+      setHasResolvedOrganizations(false);
       return;
     }
 
     fetchOrganizations();
   }, [user]);
 
-  const fetchOrganizations = async () => {
+  const fetchOrganizations = useCallback(async () => {
     if (!user) return;
 
+    // Reset state at the START of every fetch
+    setLoading(true);
+    setFetchError(false);
+    setHasResolvedOrganizations(false);
+
+    // Race the actual fetch against a timeout
+    let didTimeout = false;
+    const timeoutId = setTimeout(() => {
+      didTimeout = true;
+      console.warn("Organization fetch timed out after", ORG_FETCH_TIMEOUT, "ms");
+      setFetchError(true);
+      setLoading(false);
+      // Don't set hasResolved — we haven't confirmed the org list
+    }, ORG_FETCH_TIMEOUT);
+
     try {
-      setFetchError(false);
-      // Fetch all organizations the user is a member of
       const { data: memberships, error: membershipError } = await supabase
         .from("organization_members")
         .select(`
@@ -92,6 +120,9 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
         `)
         .eq("user_id", user.id);
 
+      clearTimeout(timeoutId);
+      if (didTimeout) return; // timeout already handled UI state
+
       if (membershipError) throw membershipError;
 
       const orgs = memberships
@@ -100,9 +131,14 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
 
       setOrganizations(orgs || []);
 
-      // Check if there's a pre-selected organization slug from login (highest priority)
+      // Cache lightweight org list for fallback
+      if (orgs && orgs.length > 0) {
+        cacheOrgs(user.id, orgs.map(o => ({ id: o.id, slug: o.slug, name: o.name })));
+      }
+
+      // Select the right organization
       const selectedOrgSlug = localStorage.getItem("selectedOrgSlug");
-      
+
       let selectedOrg = orgs?.[0];
       let selectedMembership = memberships?.[0];
 
@@ -112,11 +148,9 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
         if (foundOrg && foundMembership) {
           selectedOrg = foundOrg;
           selectedMembership = foundMembership;
-          // Only clear from sessionStorage - keep in localStorage for resilience
           sessionStorage.removeItem("selectedOrgSlug");
         }
       } else {
-        // Fall back to stored organization ID
         const storedOrgId = localStorage.getItem(`currentOrgId_${user.id}`);
         if (storedOrgId) {
           const foundOrg = orgs?.find((o) => o.id === storedOrgId);
@@ -133,13 +167,19 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
         setOrganizationRole(selectedMembership.role as any);
         localStorage.setItem(`currentOrgId_${user.id}`, selectedOrg.id);
       }
+
+      setHasResolvedOrganizations(true);
     } catch (error) {
+      clearTimeout(timeoutId);
+      if (didTimeout) return;
       console.error("Error fetching organizations:", error);
       setFetchError(true);
     } finally {
-      setLoading(false);
+      if (!didTimeout) {
+        setLoading(false);
+      }
     }
-  };
+  }, [user]);
 
   const switchOrganization = async (orgId: string) => {
     if (!user) return;
@@ -147,7 +187,6 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
     const org = organizations.find((o) => o.id === orgId);
     if (!org) return;
 
-    // Fetch the user's role in this organization
     const { data: membership } = await supabase
       .from("organization_members")
       .select("role")
@@ -176,17 +215,12 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
 
   const canAccessFeature = (featureName: string, requiredTier?: string): boolean => {
     if (!currentOrganization) return false;
-
-    // Check if feature is explicitly enabled
     if (hasFeature(featureName)) return true;
-
-    // Check tier-based access
     if (requiredTier) {
       const currentTierLevel = tierHierarchy[currentOrganization.subscription_tier];
       const requiredTierLevel = tierHierarchy[requiredTier as keyof typeof tierHierarchy];
       return currentTierLevel >= requiredTierLevel;
     }
-
     return false;
   };
 
@@ -198,6 +232,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
         organizationRole,
         loading,
         fetchError,
+        hasResolvedOrganizations,
         switchOrganization,
         refetchOrganizations: fetchOrganizations,
         hasFeature,

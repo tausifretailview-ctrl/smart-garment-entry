@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { getStoredOrgSlug } from "@/lib/orgSlug";
+import { getStoredOrgSlug, storeOrgSlug } from "@/lib/orgSlug";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,13 +14,30 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Building2, Loader2, LogIn, Shield, WifiOff, RefreshCw } from "lucide-react";
+import { Building2, Loader2, LogIn, Shield, WifiOff, RefreshCw, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+
+// Try to get cached org slugs for this user
+const getCachedOrgSlugs = (userId: string): { id: string; slug: string; name: string }[] | null => {
+  try {
+    const raw = localStorage.getItem(`cachedOrgs_${userId}`);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+};
 
 export const OrganizationSetup = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const { organizations, loading: orgLoading, fetchError, refetchOrganizations } = useOrganization();
+  const {
+    organizations,
+    loading: orgLoading,
+    fetchError,
+    hasResolvedOrganizations,
+    refetchOrganizations,
+  } = useOrganization();
   const [orgName, setOrgName] = useState("");
   const [orgSlug, setOrgSlug] = useState("");
   const [loading, setLoading] = useState(false);
@@ -37,13 +54,13 @@ export const OrganizationSetup = () => {
   const handleGoToOrgLogin = (e: React.FormEvent) => {
     e.preventDefault();
     const slug = orgSlug.trim().toLowerCase();
-    
+
     if (!slug) {
       toast.error("Please enter your organization URL");
       return;
     }
-    
-    localStorage.setItem("selectedOrgSlug", slug);
+
+    storeOrgSlug(slug);
     navigate(`/${slug}`, { replace: true });
   };
 
@@ -57,36 +74,36 @@ export const OrganizationSetup = () => {
         .from("organization_members")
         .select("organization_id")
         .eq("user_id", user.id);
-      
+
       if (checkError) throw checkError;
-      
+
       if (existingOrgs && existingOrgs.length > 0) {
         toast.error("You already have an organization. Redirecting to dashboard...");
         navigate("/", { replace: true });
         return;
       }
-      
-      const { data: orgData, error } = await supabase.rpc('create_organization', {
+
+      const { data: orgData, error } = await supabase.rpc("create_organization", {
         p_name: orgName.trim(),
-        p_user_id: user.id
+        p_user_id: user.id,
       });
 
       if (error) throw error;
-      
+
       const org = orgData as { id: string; name: string };
       toast.success("Organization created successfully! Redirecting to dashboard...");
-      
+
       localStorage.setItem(`currentOrgId_${user.id}`, org.id);
-      
+
       const { data: newOrg } = await supabase
         .from("organizations")
         .select("slug")
         .eq("id", org.id)
         .single();
-      
+
       setTimeout(() => {
         const slug = newOrg?.slug || org.id;
-        localStorage.setItem("selectedOrgSlug", slug);
+        storeOrgSlug(slug);
         navigate(`/${slug}`, { replace: true });
         window.location.reload();
       }, 500);
@@ -133,7 +150,9 @@ export const OrganizationSetup = () => {
                     type="text"
                     placeholder="your-org-name"
                     value={orgSlug}
-                    onChange={(e) => setOrgSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
+                    onChange={(e) =>
+                      setOrgSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"))
+                    }
                     required
                     className="flex-1"
                   />
@@ -147,20 +166,18 @@ export const OrganizationSetup = () => {
                 Go to Login
               </Button>
             </form>
-            
+
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">
-                  Or
-                </span>
+                <span className="bg-card px-2 text-muted-foreground">Or</span>
               </div>
             </div>
-            
-            <Button 
-              variant="outline" 
+
+            <Button
+              variant="outline"
               className="w-full"
               onClick={() => navigate("/auth")}
             >
@@ -173,8 +190,22 @@ export const OrganizationSetup = () => {
     );
   }
 
-  // Authenticated user: check if org fetch failed (network issue)
-  if (fetchError && organizations.length === 0) {
+  // --- Authenticated user below ---
+
+  // Still loading orgs — show spinner, never the create form
+  if (orgLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Fetch failed or timed out — show Connection Problem with retry + cached shortcuts
+  if (fetchError) {
+    const storedSlug = getStoredOrgSlug();
+    const cachedOrgs = getCachedOrgSlugs(user.id);
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <div className="text-center p-6 max-w-sm mx-auto">
@@ -187,31 +218,55 @@ export const OrganizationSetup = () => {
             <RefreshCw className="h-4 w-4" />
             Retry
           </Button>
-          {(() => {
-            const storedSlug = getStoredOrgSlug();
-            if (storedSlug) {
-              return (
+
+          {/* Show cached org shortcuts */}
+          {cachedOrgs && cachedOrgs.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <p className="text-xs text-muted-foreground">Or go to your organization directly:</p>
+              {cachedOrgs.map((org) => (
                 <Button
+                  key={org.id}
                   variant="outline"
-                  className="w-full mt-3"
-                  onClick={() => navigate(`/${storedSlug}`, { replace: true })}
+                  className="w-full"
+                  onClick={() => navigate(`/${org.slug}`, { replace: true })}
                 >
                   <LogIn className="mr-2 h-4 w-4" />
-                  Go to {storedSlug}
+                  Go to {org.name}
                 </Button>
-              );
-            }
-            return null;
-          })()}
+              ))}
+            </div>
+          )}
+
+          {/* Fallback: stored slug */}
+          {!cachedOrgs?.length && storedSlug && (
+            <Button
+              variant="outline"
+              className="w-full mt-3"
+              onClick={() => navigate(`/${storedSlug}`, { replace: true })}
+            >
+              <LogIn className="mr-2 h-4 w-4" />
+              Go to {storedSlug}
+            </Button>
+          )}
         </div>
       </div>
     );
   }
 
-  // Authenticated user with a stored slug but no orgs loaded yet — offer shortcut
+  // Orgs haven't been confirmed yet (shouldn't normally reach here, but guard)
+  if (!hasResolvedOrganizations) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // --- hasResolvedOrganizations === true && organizations.length === 0 ---
+  // This is a genuinely new user with no organization.
+
   const storedSlug = getStoredOrgSlug();
 
-  // For authenticated users without organizations, show create form
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
       <Card className="w-full max-w-md">
@@ -227,6 +282,12 @@ export const OrganizationSetup = () => {
         <CardContent>
           {storedSlug && (
             <div className="mb-4">
+              <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 border border-border mb-3">
+                <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0" />
+                <p className="text-xs text-muted-foreground">
+                  If you already have an organization, tap the button below instead of creating a new one.
+                </p>
+              </div>
               <Button
                 variant="outline"
                 className="w-full"
