@@ -1,45 +1,52 @@
 
 
-# Fix: Customer Search Not Finding Results
+# Performance Optimization: POS Billing and Sales Invoice
 
 ## Problem
+Users running POS in 2-3 browser tabs experience severe slowness: customers not showing after selection, products not appearing after barcode scan, and overall lag. Root causes are heavy polling, oversized query payloads, and unnecessary re-searching after customer selection.
 
-The "Ella Noor" organization reports that customer search is not finding customers. There are two issues:
+## Changes
 
-1. **Query limit of 101 rows**: The search query uses `.limit(101)`, meaning if the search term matches more than 100 customers, results are truncated and the specific customer may not appear.
+### File 1: `src/pages/POSSales.tsx`
 
-2. **Special characters in search terms break PostgREST filters**: If a customer name or phone contains special characters (like `.`, `,`, `(`, `)`), the `.or()` filter string can break silently and return 0 results instead of throwing an error.
+**1a. Remove `batch_stock` from POS product query (line ~728)**
+Remove the nested `batch_stock (bill_number, quantity, purchase_date)` from the product variants select. This data is only needed for stock reports, not for billing. This significantly reduces payload size.
 
-3. **No sanitization of search input**: The search term is directly interpolated into the PostgREST filter string without escaping special characters.
+**1b. Trim today's sales query payload (line ~636)**
+Replace `*, sale_items (*)` with only the header columns needed for the sales navigation sidebar:
+`id, sale_number, sale_date, net_amount, paid_amount, payment_status, customer_name, customer_phone, payment_method, created_at, sale_type, customer_id, round_off, flat_discount_percent, flat_discount_amount, sale_return_adjust, salesman, notes`
+Remove the `sale_items` join entirely.
 
-## Solution
+**1c. Increase caching intervals**
+- POS products query: `staleTime` from 60s to 300s (5 min), add `refetchOnWindowFocus: false`
+- Today's sales query: `staleTime` from 30s to 120s (2 min), add `refetchOnWindowFocus: false`
+- Change `posRefetchInterval` base from 60s to 300s (5 min)
 
-### 1. Increase limit and add proper input sanitization (src/hooks/useCustomerSearch.tsx)
+**1d. Fix customer search UI freeze**
+- Add a `customerJustSelected` useRef
+- Set it to `true` when a customer is picked from the dropdown
+- Pass `enabled: !customerJustSelected.current` option to `useCustomerSearch` so the hook skips querying when the name was just populated from a selection (not typed)
+- Reset the ref after 500ms
 
-- Increase the query limit from 101 to 201 (show up to 200 results)
-- Sanitize the search term to escape PostgREST special characters (commas, parentheses, dots in filter context)
-- Add a fallback: if the `.or()` filter returns 0 results, retry with just `customer_name.ilike` to catch cases where the combined filter breaks
+### File 2: `src/hooks/useCustomerSearch.tsx`
 
-### 2. Improve search ordering for relevance
+No changes needed -- the hook already accepts `options.enabled` which can be used to suppress queries.
 
-- Order results so exact matches and "starts with" matches appear first, before "contains" matches
-- This ensures the most relevant customer appears in the top results even with the limit
+## Technical Summary
 
-## Technical Details
-
-### File: `src/hooks/useCustomerSearch.tsx`
-
-Changes:
-- Sanitize search term by escaping characters that are special in PostgREST filter syntax (commas become encoded, parentheses escaped)
-- Increase `.limit(101)` to `.limit(201)` and adjust `hasMore` threshold from 100 to 200
-- Add proper error handling so if the `.or()` query fails, fallback to a simpler `customer_name.ilike` only query
-
-### Files affected
-| File | Change |
-|------|--------|
-| `src/hooks/useCustomerSearch.tsx` | Sanitize search input, increase limit to 200, add fallback query |
+| Area | Before | After |
+|------|--------|-------|
+| Product payload | Includes `batch_stock` nested data | Removed -- only variant billing fields |
+| Sales payload | `*, sale_items (*)` (all columns + all line items) | Header columns only, no line items |
+| Product staleTime | 60s | 5 min |
+| Sales staleTime | 30s | 2 min |
+| Polling interval | 60s per tab | 5 min per tab |
+| Window focus refetch | Yes (default) | Disabled |
+| Customer re-search | Fires on every name change (including selection) | Skipped for 500ms after dropdown selection |
 
 ## Expected Outcome
-- Customers will be found even in organizations with 2000+ customers
-- Search terms with special characters will not break the query
-- Users see up to 200 matching results instead of 100
+- 5x fewer background queries per tab (3 tabs = 15x reduction total)
+- Dramatically smaller payloads (no batch_stock, no sale_items)
+- Customer appears instantly after selection without triggering a re-search
+- Multi-tab POS usage becomes smooth
+
