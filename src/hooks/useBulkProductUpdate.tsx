@@ -314,10 +314,49 @@ export const useBulkProductUpdate = () => {
     }
   };
 
+  const logUpdateHistory = async (
+    updateType: UpdateType,
+    config: FindReplaceConfig | UpdateFieldConfig | DiscountConfig | GSTConfig | PriceConfig,
+    filters: FilterCriteria,
+    items: PreviewItem[]
+  ) => {
+    if (!currentOrganization) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    const summary = items.slice(0, 20).map(i => ({
+      name: i.productName,
+      from: i.currentValue,
+      to: i.newValue,
+      type: i.type,
+      barcode: i.barcode,
+      size: i.size,
+    }));
+    await supabase.from("bulk_update_history" as any).insert({
+      organization_id: currentOrganization.id,
+      update_type: updateType,
+      filters: filters as any,
+      config: config as any,
+      items_count: items.length,
+      items_summary: summary as any,
+      created_by: user?.id,
+    } as any);
+  };
+
+  const fetchHistory = async () => {
+    if (!currentOrganization) return [];
+    const { data } = await (supabase
+      .from("bulk_update_history" as any)
+      .select("*")
+      .eq("organization_id", currentOrganization.id)
+      .order("created_at", { ascending: false })
+      .limit(20) as any);
+    return data || [];
+  };
+
   const applyUpdates = async (
     updateType: UpdateType,
     config: FindReplaceConfig | UpdateFieldConfig | DiscountConfig | GSTConfig | PriceConfig,
-    items: PreviewItem[]
+    items: PreviewItem[],
+    filters?: FilterCriteria
   ) => {
     if (!currentOrganization || !items.length) return false;
 
@@ -383,6 +422,9 @@ export const useBulkProductUpdate = () => {
         }
       }
 
+      // Log history
+      await logUpdateHistory(updateType, config, filters || {}, items);
+
       toast.success(`Successfully updated ${items.length} items`);
       setPreviewItems([]);
       return true;
@@ -403,6 +445,7 @@ export const useBulkProductUpdate = () => {
     fetchMatchingVariants,
     generatePreview,
     applyUpdates,
+    fetchHistory,
     clearPreview: () => setPreviewItems([]),
   };
 };

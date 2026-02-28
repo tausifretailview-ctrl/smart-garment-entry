@@ -8,7 +8,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Search, RefreshCw, Check, ArrowRight, ChevronsUpDown } from "lucide-react";
+import { AlertTriangle, Search, RefreshCw, Check, ArrowRight, ChevronsUpDown, History, Clock } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -37,8 +37,25 @@ export default function BulkProductUpdate() {
     fetchFilterOptions,
     generatePreview,
     applyUpdates,
+    fetchHistory,
     clearPreview,
   } = useBulkProductUpdate();
+
+  const [updateHistory, setUpdateHistory] = useState<any[]>([]);
+  // Filter state
+  const [filters, setFilters] = useState<FilterCriteria>({});
+  const [filterOptions, setFilterOptions] = useState<{ productNames: string[]; categories: string[]; brands: string[]; styles: string[] }>({ productNames: [], categories: [], brands: [], styles: [] });
+  const [updateType, setUpdateType] = useState<UpdateType>("find_replace");
+  const [frConfig, setFrConfig] = useState<FindReplaceConfig>({ field: "category", find: "", replace: "", exactMatch: true });
+  const [ufConfig, setUfConfig] = useState<UpdateFieldConfig>({ field: "category", value: "" });
+  const [discConfig, setDiscConfig] = useState<DiscountConfig>({ discountType: "percentage", value: 0, applyTo: "sale_price" });
+  const [gstConfig, setGstConfig] = useState<GSTConfig>({ currentGst: null, newGst: 5 });
+  const [priceConfig, setPriceConfig] = useState<PriceConfig>({ priceType: "sale_price", updateMethod: "set", value: 0 });
+
+  useEffect(() => {
+    loadFilterOptions();
+    loadHistory();
+  }, []);
 
   // Show loading state while organization data is loading
   if (orgLoading || !currentOrganization) {
@@ -49,54 +66,14 @@ export default function BulkProductUpdate() {
     );
   }
 
-  // Filter state
-  const [filters, setFilters] = useState<FilterCriteria>({});
-  const [filterOptions, setFilterOptions] = useState<{ productNames: string[]; categories: string[]; brands: string[]; styles: string[] }>({ productNames: [], categories: [], brands: [], styles: [] });
-
-  // Update type
-  const [updateType, setUpdateType] = useState<UpdateType>("find_replace");
-
-  // Find & Replace config
-  const [frConfig, setFrConfig] = useState<FindReplaceConfig>({
-    field: "category",
-    find: "",
-    replace: "",
-    exactMatch: true,
-  });
-
-  // Update Field config
-  const [ufConfig, setUfConfig] = useState<UpdateFieldConfig>({
-    field: "category",
-    value: "",
-  });
-
-  // Discount config
-  const [discConfig, setDiscConfig] = useState<DiscountConfig>({
-    discountType: "percentage",
-    value: 0,
-    applyTo: "sale_price",
-  });
-
-  // GST config
-  const [gstConfig, setGstConfig] = useState<GSTConfig>({
-    currentGst: null,
-    newGst: 5,
-  });
-
-  // Price config
-  const [priceConfig, setPriceConfig] = useState<PriceConfig>({
-    priceType: "sale_price",
-    updateMethod: "set",
-    value: 0,
-  });
-
-  useEffect(() => {
-    loadFilterOptions();
-  }, []);
-
   const loadFilterOptions = async () => {
     const options = await fetchFilterOptions();
     setFilterOptions(options);
+  };
+
+  const loadHistory = async () => {
+    const data = await fetchHistory();
+    setUpdateHistory(data);
   };
 
   const handlePreview = async () => {
@@ -144,9 +121,10 @@ export default function BulkProductUpdate() {
         break;
     }
 
-    const success = await applyUpdates(updateType, config, previewItems);
+    const success = await applyUpdates(updateType, config, previewItems, filters);
     if (success) {
-      loadFilterOptions(); // Refresh filter options after update
+      loadFilterOptions();
+      loadHistory();
     }
   };
 
@@ -622,6 +600,68 @@ export default function BulkProductUpdate() {
               )}
             </CardContent>
           </Card>
+
+          {/* Update History */}
+          {updateHistory.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <History className="h-5 w-5" />
+                  Update History
+                </CardTitle>
+                <CardDescription>Recent bulk update operations</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-md border max-h-[400px] overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Items</TableHead>
+                        <TableHead>Details</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {updateHistory.map((h: any) => (
+                        <TableRow key={h.id}>
+                          <TableCell className="whitespace-nowrap">
+                            <div className="flex items-center gap-1.5 text-sm">
+                              <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                              {new Date(h.created_at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">
+                              {h.update_type === "find_replace" ? "Find & Replace" :
+                               h.update_type === "update_field" ? "Update Field" :
+                               h.update_type === "apply_discount" ? "Discount" :
+                               h.update_type === "update_gst" ? "GST Update" :
+                               h.update_type === "update_prices" ? "Price Update" : h.update_type}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{h.items_count} items</Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground max-w-[300px] truncate">
+                            {h.config && (() => {
+                              const c = h.config;
+                              if (h.update_type === "find_replace") return `"${c.find}" → "${c.replace}" in ${c.field}`;
+                              if (h.update_type === "update_field") return `Set ${c.field} = "${c.value}"`;
+                              if (h.update_type === "apply_discount") return `${c.value}${c.discountType === "percentage" ? "%" : "₹"} off on ${c.applyTo}`;
+                              if (h.update_type === "update_gst") return `GST ${c.currentGst ?? "any"}% → ${c.newGst}%`;
+                              if (h.update_type === "update_prices") return `${c.priceType}: ${c.updateMethod} ${c.value}${c.updateMethod !== "set" ? "%" : ""}`;
+                              return JSON.stringify(c);
+                            })()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>
