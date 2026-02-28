@@ -1,7 +1,7 @@
 import { Navigate, useParams, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2, WifiOff, RefreshCw } from "lucide-react";
-import { getStoredOrgSlug, isValidOrgSlug, normalizeOrgSlug, getOrgSlugFromUrl } from "@/lib/orgSlug";
+import { getStoredOrgSlug, isValidOrgSlug, normalizeOrgSlug, getOrgSlugFromUrl, storeOrgSlug } from "@/lib/orgSlug";
 
 // Check if this is a Field Sales PWA context
 const isFieldSalesPWA = (): boolean => {
@@ -56,15 +56,24 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (!user) {
-    // Get org slug from URL params or storage (check both localStorage and sessionStorage)
+    // Let organization setup render for logged-out users (avoid self-redirect loop)
+    if (location.pathname === "/organization-setup") {
+      return <>{children}</>;
+    }
+
+    // Get org slug from URL params or storage
     const normalizedUrlSlug = isValidOrgSlug(urlOrgSlug) ? normalizeOrgSlug(urlOrgSlug) : null;
+    if (normalizedUrlSlug) {
+      storeOrgSlug(normalizedUrlSlug); // persist latest known slug across layers
+    }
+
     const orgSlug = normalizedUrlSlug || getStoredOrgSlug() || getOrgSlugFromUrl();
 
     if (orgSlug) {
       // Redirect to organization-specific login
       return <Navigate to={`/${orgSlug}`} replace />;
     }
-    
+
     // Last resort: send to organization setup where they can enter their slug
     return <Navigate to="/organization-setup" replace />;
   }
