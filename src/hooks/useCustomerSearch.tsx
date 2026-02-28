@@ -42,6 +42,13 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
     return phone.replace(/\D/g, '');
   }, []);
 
+  // Sanitize search term for PostgREST filter syntax
+  const sanitizeForPostgREST = useCallback((term: string) => {
+    // Escape characters that are special in PostgREST .or() filter syntax
+    // Commas separate filters, parentheses group them, backslashes escape
+    return term.replace(/[\\,()]/g, '\\$&');
+  }, []);
+
   // Server-side search query - fetches matching customers from database
   const {
     data: customers = [],
@@ -65,50 +72,84 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
       
       // If search term exists, filter on server side
       if (term) {
+        const safeTerm = sanitizeForPostgREST(term);
+        
         // Build OR filter for name, phone, and email
         const filters: string[] = [];
         
         // Name search (case insensitive)
-        filters.push(`customer_name.ilike.%${term}%`);
+        filters.push(`customer_name.ilike.%${safeTerm}%`);
         
         // Phone search - search both raw and normalized
-        filters.push(`phone.ilike.%${term}%`);
+        filters.push(`phone.ilike.%${safeTerm}%`);
         if (normalizedPhone && normalizedPhone !== term) {
           filters.push(`phone.ilike.%${normalizedPhone}%`);
         }
         
         // Email search
-        filters.push(`email.ilike.%${term}%`);
+        filters.push(`email.ilike.%${safeTerm}%`);
         
         query = query.or(filters.join(','));
       }
       
       // Order and limit results
-      const { data, error } = await query
+      const { data, error: queryError } = await query
         .order("customer_name")
         .order("id") // Secondary sort for deterministic pagination
-        .limit(101); // Fetch 101 to detect if more results exist
+        .limit(201); // Fetch 201 to detect if more results exist
       
-      if (error) {
-        console.error("Customer fetch error:", error);
-        throw error;
+      if (queryError) {
+        console.error("Customer fetch error:", queryError);
+        
+        // Fallback: if .or() filter broke, retry with simple name-only search
+        if (term) {
+          console.warn("Retrying with simple name search fallback");
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from("customers")
+            .select("*")
+            .eq("organization_id", currentOrganization.id)
+            .is("deleted_at", null)
+            .ilike("customer_name", `%${term}%`)
+            .order("customer_name")
+            .limit(201);
+          
+          if (fallbackError) throw fallbackError;
+          return (fallbackData || []) as Customer[];
+        }
+        throw queryError;
+      }
+      
+      // If .or() returned 0 results but we had a search term, try fallback
+      if (term && (!data || data.length === 0)) {
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from("customers")
+          .select("*")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .ilike("customer_name", `%${term}%`)
+          .order("customer_name")
+          .limit(201);
+        
+        if (!fallbackError && fallbackData && fallbackData.length > 0) {
+          return fallbackData as Customer[];
+        }
       }
       
       return (data || []) as Customer[];
     },
     enabled: !!currentOrganization?.id && options.enabled !== false,
-    staleTime: 30 * 1000, // Cache for 30 seconds
-    gcTime: 60 * 1000, // Keep in cache for 1 minute
+    staleTime: 30 * 1000,
+    gcTime: 60 * 1000,
     refetchOnWindowFocus: false,
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 
   // Detect hasMore from the extra row, then trim to display limit
-  const hasMore = customers.length > 100;
+  const hasMore = customers.length > 200;
   
   const filteredCustomers = useMemo(() => {
-    return hasMore ? customers.slice(0, 100) : customers;
+    return hasMore ? customers.slice(0, 200) : customers;
   }, [customers, hasMore]);
 
   return {
