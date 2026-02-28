@@ -378,6 +378,8 @@ export default function SalesInvoice() {
       return data;
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 300000,
+    refetchOnWindowFocus: false,
   });
 
   // Direct print hook
@@ -401,8 +403,11 @@ export default function SalesInvoice() {
         const { data, error } = await supabase
           .from('products')
           .select(`
-            *,
-            product_variants (*),
+            id, product_name, brand, hsn_code, gst_per, product_type, status, category, style, color,
+            product_variants (
+              id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, deleted_at,
+              last_purchase_sale_price, last_purchase_mrp, last_purchase_date
+            ),
             size_groups (id, group_name, sizes)
           `)
           .eq('organization_id', currentOrganization.id)
@@ -440,6 +445,8 @@ export default function SalesInvoice() {
       });
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 300000, // 5 minutes - reduces multi-tab load
+    refetchOnWindowFocus: false,
   });
 
   // Fetch employees for Salesman dropdown
@@ -459,6 +466,8 @@ export default function SalesInvoice() {
       return data || [];
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 300000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch last saved invoice
