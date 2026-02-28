@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { getStoredOrgSlug } from "@/lib/orgSlug";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,17 +14,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Building2, Loader2, LogIn, Shield } from "lucide-react";
+import { Building2, Loader2, LogIn, Shield, WifiOff, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 export const OrganizationSetup = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const { organizations, loading: orgLoading } = useOrganization();
+  const { organizations, loading: orgLoading, fetchError, refetchOrganizations } = useOrganization();
   const [orgName, setOrgName] = useState("");
   const [orgSlug, setOrgSlug] = useState("");
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<"login" | "create">("login");
 
   // Redirect to org-specific dashboard if user already has organizations
   useEffect(() => {
@@ -43,10 +43,7 @@ export const OrganizationSetup = () => {
       return;
     }
     
-    // Store the slug for future use
     localStorage.setItem("selectedOrgSlug", slug);
-    
-    // Navigate to org-specific login
     navigate(`/${slug}`, { replace: true });
   };
 
@@ -56,9 +53,6 @@ export const OrganizationSetup = () => {
 
     setLoading(true);
     try {
-      console.log("Creating organization with user:", user.id);
-      
-      // Check if user already has organizations
       const { data: existingOrgs, error: checkError } = await supabase
         .from("organization_members")
         .select("organization_id")
@@ -72,38 +66,29 @@ export const OrganizationSetup = () => {
         return;
       }
       
-      // Create organization atomically using database function
       const { data: orgData, error } = await supabase.rpc('create_organization', {
         p_name: orgName.trim(),
         p_user_id: user.id
       });
 
-      if (error) {
-        console.error("Organization creation error:", error);
-        throw error;
-      }
+      if (error) throw error;
       
       const org = orgData as { id: string; name: string };
-      console.log("Organization created:", org);
-
       toast.success("Organization created successfully! Redirecting to dashboard...");
       
-      // Store the organization ID
       localStorage.setItem(`currentOrgId_${user.id}`, org.id);
       
-      // Need to fetch the full org data with slug to redirect properly
       const { data: newOrg } = await supabase
         .from("organizations")
         .select("slug")
         .eq("id", org.id)
         .single();
       
-      // Wait a moment for the database to update, then navigate
       setTimeout(() => {
         const slug = newOrg?.slug || org.id;
         localStorage.setItem("selectedOrgSlug", slug);
         navigate(`/${slug}`, { replace: true });
-        window.location.reload(); // Reload to fetch organization data
+        window.location.reload();
       }, 500);
     } catch (error: any) {
       console.error("Error creating organization:", error);
@@ -113,7 +98,6 @@ export const OrganizationSetup = () => {
     }
   };
 
-  // Show loading while checking auth state
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -189,6 +173,44 @@ export const OrganizationSetup = () => {
     );
   }
 
+  // Authenticated user: check if org fetch failed (network issue)
+  if (fetchError && organizations.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="text-center p-6 max-w-sm mx-auto">
+          <WifiOff className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <h2 className="text-lg font-semibold text-foreground mb-2">Connection Problem</h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            Unable to load your organization data. Please check your internet connection and try again.
+          </p>
+          <Button onClick={refetchOrganizations} className="gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Retry
+          </Button>
+          {(() => {
+            const storedSlug = getStoredOrgSlug();
+            if (storedSlug) {
+              return (
+                <Button
+                  variant="outline"
+                  className="w-full mt-3"
+                  onClick={() => navigate(`/${storedSlug}`, { replace: true })}
+                >
+                  <LogIn className="mr-2 h-4 w-4" />
+                  Go to {storedSlug}
+                </Button>
+              );
+            }
+            return null;
+          })()}
+        </div>
+      </div>
+    );
+  }
+
+  // Authenticated user with a stored slug but no orgs loaded yet — offer shortcut
+  const storedSlug = getStoredOrgSlug();
+
   // For authenticated users without organizations, show create form
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
@@ -203,6 +225,26 @@ export const OrganizationSetup = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {storedSlug && (
+            <div className="mb-4">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => navigate(`/${storedSlug}`, { replace: true })}
+              >
+                <LogIn className="mr-2 h-4 w-4" />
+                Go to {storedSlug} instead
+              </Button>
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">Or create new</span>
+                </div>
+              </div>
+            </div>
+          )}
           <form onSubmit={handleCreateOrganization} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="orgName">Organization Name</Label>
