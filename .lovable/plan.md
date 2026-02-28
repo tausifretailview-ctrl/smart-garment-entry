@@ -1,87 +1,89 @@
 
-I agree you need a stronger fix. The current behavior can still show “Create Your Organization” for existing users under unstable networks or auth transitions.
 
-What I found in your code:
-- `OrganizationSetup` shows the create form whenever:
-  - user is logged in
-  - `organizations.length === 0`
-  - and `fetchError` is false
-- In `OrganizationContext`, `fetchOrganizations()` does not set `loading=true` at the start of each fetch.  
-  This can create a false state (`orgLoading=false` + temporary empty org list) and incorrectly show the create screen.
-- If the org fetch hangs/slowly resolves, users can stay on wrong UI state and think all orgs are broken.
-- Platform-admin users can also end up on `/organization-setup` and see create-org UI, which is confusing.
+# Fix: "Create Organization" Showing for All Existing Users
 
-Implementation approach (recommended “other solution”):
+## Root Cause (NOT network related)
 
-1) Fix organization-loading state machine (primary root fix)
-- File: `src/contexts/OrganizationContext.tsx`
-- At start of each `fetchOrganizations()`:
-  - set `loading=true`
-  - reset transient flags (`fetchError=false`)
-- Ensure `loading=false` only after success/failure completion.
-- Add a request timeout (e.g. 8–10s) for org membership fetch:
-  - on timeout: set `fetchError=true`, keep create flow blocked
-  - expose timeout/retry state cleanly to UI
+The real problem is a **stale JWT + RLS interaction**:
 
-2) Add “confirmed empty” guard before showing Create Organization
-- File: `src/contexts/OrganizationContext.tsx` + `src/components/OrganizationSetup.tsx`
-- Add a boolean in context like `hasResolvedOrganizations`.
-- In `OrganizationSetup`, show create form only when:
-  - user logged in
-  - `hasResolvedOrganizations === true`
-  - `fetchError === false`
-  - `organizations.length === 0`
-- If orgs are unresolved/timeout, show only:
-  - Connection Problem + Retry
-  - “Go to [stored org]” action
-  - never show create form yet
+1. User's session token expires (Chrome suspends tab, login expires naturally, Chrome clears storage)
+2. `AuthContext` still has `user` object briefly (from cached state), so the user appears "logged in"
+3. `OrganizationContext.fetchOrganizations()` runs with an **expired/invalid JWT**
+4. The `organization_members` query does NOT throw an error -- it returns **empty results** because RLS silently filters out rows when the JWT is invalid
+5. Code sees `organizations.length === 0` + `hasResolvedOrganizations = true` + `fetchError = false`
+6. Result: "Create Your Organization" form appears for an existing user
 
-3) Add last-known org fallback cache for unstable networks
-- File: `src/contexts/OrganizationContext.tsx`
-- After successful fetch with orgs, cache lightweight org list in localStorage (id/slug/name per user).
-- On fetch timeout/error:
-  - keep `fetchError=true`
-  - provide cached org shortcut(s) so user can enter org login directly
-- This prevents “all orgs gone” perception when network is flaky.
+This is why it affects ALL organizations regardless of network -- it's a JWT validity issue, not connectivity.
 
-4) Prevent platform-admin misrouting to organization setup
-- Files: `src/App.tsx`, optionally `AuthContext` (or helper)
-- Update root redirect logic:
-  - if logged-in user is platform admin, route to `/platform-admin`
-  - do not route platform-admin accounts into org create flow
-- This removes one major false-positive path to the create-org screen.
+## Solution
 
-5) Harden OrganizationSetup actions to use unified slug persistence
-- File: `src/components/OrganizationSetup.tsx`
-- Replace direct `localStorage.setItem("selectedOrgSlug", slug)` calls with `storeOrgSlug(slug)` so all layers stay synced (local/session/cookie).
-- Reduce chances of root redirect ambiguity across devices/tabs.
+### 1. Detect suspicious empty results in OrganizationContext
+**File: `src/contexts/OrganizationContext.tsx`**
 
-6) UX safety improvement (to avoid accidental duplicate org creation)
-- File: `src/components/OrganizationSetup.tsx`
-- Add warning text before create form:
-  - “If you already have an organization, tap Go to [org] or Retry first.”
-- Optionally require one explicit confirmation tap before allowing create when network was recently unstable.
+After fetching organizations, if the result is empty BUT the user previously had organizations (from cache), treat it as a potential stale-session issue:
+- Try refreshing the auth session first
+- Re-fetch organizations with the fresh token
+- Only accept "0 organizations" if the session is confirmed fresh AND there's no cached org history
 
-Technical rollout sequence:
-1. `OrganizationContext` loading + timeout + resolved-state
-2. `OrganizationSetup` UI guard logic
-3. cache fallback
-4. root/platform-admin redirect correction
-5. unified slug persistence cleanup
+### 2. Force session refresh before accepting empty org list
+**File: `src/contexts/OrganizationContext.tsx`**
 
-Validation checklist (end-to-end):
-- Existing org user on slow/unstable data:
-  - should see Retry/Go-to-org, not create form prematurely
-- Existing org user with cleared storage:
-  - should still recover via URL/cookie/cache and reach org login
-- Truly new logged-in user (no org):
-  - should still reach create flow
-- Platform admin login:
-  - should go to `/platform-admin`, never create-org page
-- Mobile browser repeat refresh test:
-  - no random fallback to create-org page across 5–10 reloads
+When `memberships` returns empty for a logged-in user:
+- Call `supabase.auth.refreshSession()` to get a fresh JWT
+- If refresh succeeds, retry the organization query once with the new token
+- If refresh fails (token truly revoked), sign out locally and redirect to org login using stored slug
+- This catches the case where RLS returns empty due to expired JWT
 
-Expected outcome:
-- Existing organizations will no longer appear as “missing”
-- Users won’t be pushed into accidental org creation
-- Login flow remains stable even on poor Jio/mobile connectivity
+### 3. Auto-redirect to org login instead of showing Create form
+**File: `src/components/OrganizationSetup.tsx`**
+
+For authenticated users with 0 organizations but a stored slug (from cookie/localStorage/cache):
+- Instead of showing the "Create Organization" form, automatically redirect to `/:storedSlug`
+- The `OrgLayout` will detect the user isn't a member and show the proper login page
+- Only show the Create form if there is genuinely NO stored slug AND no cached orgs AND session is fresh
+
+### 4. Add session-freshness check before org fetch
+**File: `src/contexts/OrganizationContext.tsx`**
+
+Before running the org membership query, verify the current session token is not expired:
+- Check `session.expires_at` against current time
+- If expired, refresh first, then fetch orgs
+- This prevents the "empty results from expired JWT" scenario entirely
+
+## Technical Details
+
+### OrganizationContext changes
+```text
+fetchOrganizations():
+  1. Get current session via supabase.auth.getSession()
+  2. If session expired -> refreshSession() first
+  3. Run membership query
+  4. If results empty AND cachedOrgs exist for this user:
+     a. Try refreshSession() + re-query once
+     b. If still empty after fresh token -> accept as genuine
+     c. If refresh fails -> set fetchError, show retry UI
+  5. Only set hasResolvedOrganizations=true when we trust the result
+```
+
+### OrganizationSetup changes
+```text
+When authenticated + hasResolved + organizations.length === 0:
+  - If storedSlug OR cachedOrgs exist:
+    -> Auto-redirect to /${slug} (don't show create form)
+  - If NO slug AND NO cache:
+    -> Show create form (genuinely new user)
+```
+
+## File Summary
+
+| File | Change |
+|---|---|
+| `src/contexts/OrganizationContext.tsx` | Refresh session before org fetch; retry on suspicious empty results |
+| `src/components/OrganizationSetup.tsx` | Auto-redirect to org login when slug exists instead of showing create form |
+
+## Expected Outcome
+- Users with expired sessions will get their token refreshed automatically before the org query runs
+- If token refresh works: user sees their dashboard normally
+- If token is truly revoked: user lands on their org's login page (not "Create Organization")
+- Only genuinely new users (no slug, no cache, fresh session) see the create form
+
