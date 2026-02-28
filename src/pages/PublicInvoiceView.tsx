@@ -111,8 +111,20 @@ export default function PublicInvoiceView() {
           </Button>
         </div>
 
-        {/* Invoice Content */}
-        <div ref={printRef} className="bg-white rounded-lg shadow-lg">
+        {/* Invoice Content - multi-page print support */}
+        <style>{`
+          @media print {
+            @page { size: A4 portrait; margin: 5mm; }
+            body { margin: 0; padding: 0; }
+            .public-invoice-print-wrap {
+              box-shadow: none !important;
+              border-radius: 0 !important;
+              background: white !important;
+              overflow: visible !important;
+            }
+          }
+        `}</style>
+        <div ref={printRef} className="public-invoice-print-wrap bg-white rounded-lg shadow-lg" style={{ overflow: 'visible' }}>
           <ProfessionalTemplate
             businessName={settings?.business_name || "Business"}
             address={settings?.address || ""}
