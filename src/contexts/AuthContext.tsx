@@ -7,11 +7,14 @@ const REFRESH_LOCK_KEY = 'auth_refresh_lock';
 const REFRESH_COOLDOWN = 5000; // 5 seconds cooldown between refreshes
 const SESSION_EXPIRY_BUFFER = 600; // 10 minutes buffer before expiry
 const PERIODIC_CHECK_INTERVAL = 4 * 60 * 1000; // Check every 4 minutes
+const SESSION_TIMEOUT = 10000; // 10 seconds timeout for initial session fetch
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  connectionTimedOut: boolean;
+  retryConnection: () => void;
   signOut: () => Promise<void>;
 }
 
@@ -19,6 +22,8 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
   loading: true,
+  connectionTimedOut: false,
+  retryConnection: () => {},
   signOut: async () => {},
 });
 
@@ -54,7 +59,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  
+  const [connectionTimedOut, setConnectionTimedOut] = useState(false);
   // Use ref to track current session for visibility handler without triggering re-runs
   const sessionRef = useRef<Session | null>(null);
   
@@ -172,8 +177,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     );
 
-    // Check for existing session with stale state recovery
-    supabase.auth.getSession().then(async ({ data: { session: existingSession }, error }) => {
+    // Check for existing session with timeout for slow networks
+    const sessionPromise = supabase.auth.getSession().then(async ({ data: { session: existingSession }, error }) => {
       // If there's an error getting session, try to refresh instead of signing out
       if (error) {
         console.warn("Error getting session, attempting refresh:", error);
@@ -231,6 +236,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
     });
 
+    // Timeout: if getSession takes too long (slow Jio networks), show retry UI
+    const timeoutId = setTimeout(() => {
+      setConnectionTimedOut(true);
+      setLoading(false);
+    }, SESSION_TIMEOUT);
+
+    sessionPromise.finally(() => clearTimeout(timeoutId));
+
     // Visibility change handler - use ref to access current session without stale closure
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && sessionRef.current && isSessionNeedsRefresh(sessionRef.current)) {
@@ -256,6 +269,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [safelyRefreshSession]); // Remove session from deps - use ref instead
 
+  const retryConnection = useCallback(() => {
+    setConnectionTimedOut(false);
+    setLoading(true);
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      setSession(s);
+      setUser(s?.user ?? null);
+      setLoading(false);
+    }).catch(() => {
+      setConnectionTimedOut(true);
+      setLoading(false);
+    });
+  }, []);
+
   const signOut = async () => {
     // Store org slug before signing out for PWA recovery
     const orgSlug = localStorage.getItem("selectedOrgSlug");
@@ -269,7 +295,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, connectionTimedOut, retryConnection, signOut }}>
       {children}
     </AuthContext.Provider>
   );

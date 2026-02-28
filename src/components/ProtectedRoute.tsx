@@ -1,6 +1,6 @@
 import { Navigate, useParams, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Loader2 } from "lucide-react";
+import { Loader2, WifiOff, RefreshCw } from "lucide-react";
 import { getStoredOrgSlug, isValidOrgSlug, normalizeOrgSlug } from "@/lib/orgSlug";
 
 // Check if this is a Field Sales PWA context
@@ -14,13 +14,35 @@ const isFieldSalesPWA = (): boolean => {
 };
 
 export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading } = useAuth();
+  const { user, loading, connectionTimedOut, retryConnection } = useAuth();
   const { orgSlug: urlOrgSlug } = useParams<{ orgSlug: string }>();
   const location = useLocation();
 
   // Preserve Field Sales PWA context if navigating to salesman routes
   if (location.pathname.includes('/salesman')) {
     sessionStorage.setItem('fieldSalesPWA', 'true');
+  }
+
+  // Connection timeout - show retry screen
+  if (connectionTimedOut) {
+    return (
+      <div className="min-h-screen flex items-center justify-content-center bg-background">
+        <div className="text-center p-6 max-w-sm mx-auto">
+          <WifiOff className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <h2 className="text-lg font-semibold text-foreground mb-2">Connection Problem</h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            Unable to connect to the server. Please check your internet connection and try again.
+          </p>
+          <button
+            onClick={retryConnection}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Retry
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (loading) {

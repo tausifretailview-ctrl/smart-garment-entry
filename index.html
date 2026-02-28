@@ -2,12 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!-- QZ Tray for Direct Thermal Printing -->
-    <script src="https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.min.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>EzzyERP - Easy Billing, Smart Business</title>
     <meta name="description" content="EzzyERP - Easy Billing, Smart Business" />
     <meta name="author" content="EzzyERP" />
+    
+    <!-- DNS Prefetch for critical domains -->
+    <link rel="dns-prefetch" href="https://lkbbrqcsbhqjvsxiorvp.supabase.co" />
+    <link rel="preconnect" href="https://lkbbrqcsbhqjvsxiorvp.supabase.co" crossorigin />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
     
     <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#6366F1" />
@@ -24,10 +27,14 @@
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     
-    <!-- Fonts -->
+    <!-- Critical Font (Inter only) - loaded immediately -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Sora:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500;600&family=Playfair+Display:wght@400;700&family=Merriweather:wght@400;700&family=Lora:wght@400;700&family=Montserrat:wght@400;600;700&family=Open+Sans:wght@400;600;700&family=Raleway:wght@400;600;700&family=Poppins:wght@400;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    
+    <!-- Non-critical fonts - loaded after page render -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500;600&family=Playfair+Display:wght@400;700&family=Merriweather:wght@400;700&family=Lora:wght@400;700&family=Montserrat:wght@400;600;700&family=Open+Sans:wght@400;600;700&family=Raleway:wght@400;600;700&family=Poppins:wght@400;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500;600&family=Playfair+Display:wght@400;700&family=Merriweather:wght@400;700&family=Lora:wght@400;700&family=Montserrat:wght@400;600;700&family=Open+Sans:wght@400;600;700&family=Raleway:wght@400;600;700&family=Poppins:wght@400;600;700&display=swap" rel="stylesheet" /></noscript>
 
     <!-- Open Graph -->
     <meta property="og:title" content="EzzyERP" />
@@ -104,6 +111,8 @@
         </div>
       </div>
     </noscript>
+    <!-- QZ Tray - loaded async so it never blocks rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.min.js" async onerror="console.warn('QZ Tray CDN unavailable - direct printing disabled')"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
