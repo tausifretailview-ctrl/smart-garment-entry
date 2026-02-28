@@ -62,19 +62,20 @@ export const useBulkProductUpdate = () => {
   const [previewItems, setPreviewItems] = useState<PreviewItem[]>([]);
 
   const fetchFilterOptions = async () => {
-    if (!currentOrganization) return { categories: [], brands: [], styles: [] };
+    if (!currentOrganization) return { productNames: [], categories: [], brands: [], styles: [] };
 
     const { data: products } = await supabase
       .from("products")
-      .select("category, brand, style")
+      .select("product_name, category, brand, style")
       .eq("organization_id", currentOrganization.id)
       .is("deleted_at", null);
 
+    const productNames = [...new Set(products?.map(p => p.product_name).filter(Boolean) as string[])].sort();
     const categories = [...new Set(products?.map(p => p.category).filter(Boolean) as string[])].sort();
     const brands = [...new Set(products?.map(p => p.brand).filter(Boolean) as string[])].sort();
     const styles = [...new Set(products?.map(p => p.style).filter(Boolean) as string[])].sort();
 
-    return { categories, brands, styles };
+    return { productNames, categories, brands, styles };
   };
 
   const fetchMatchingProducts = async (filters: FilterCriteria) => {
