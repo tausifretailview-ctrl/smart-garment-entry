@@ -1,67 +1,82 @@
 
 
-# Fix: Application Not Loading on Jio Mobile Data and Wi-Fi
+# Fix: Users Landing on "Create Organisation" Instead of Their Login Page
 
 ## Problem
 
-Users on Jio mobile data and Wi-Fi cannot load the application. The root cause is a **render-blocking external script** and heavy font loading that stalls on Jio's network (known for DNS/CDN throttling in India).
+The screenshot shows a user at a shop seeing "Create Your Organization" instead of their dashboard or org login page. This happens when:
+1. The user IS logged in, but the organization membership fetch fails (network issue on Jio) -- so `organizations.length === 0` and `OrganizationSetup` shows the create form
+2. OR the user is NOT logged in and the stored org slug was lost from localStorage/sessionStorage -- so `ProtectedRoute` redirects to `/organization-setup` instead of `/:orgSlug`
+
+## Root Cause
+
+- `OrganizationSetup` assumes "no organizations = new user" but it could also mean "fetch failed"
+- `ProtectedRoute` falls back to `/organization-setup` when no slug is found, but the slug can be extracted from the URL path itself
+- `localStorage`/`sessionStorage` can be cleared by the browser, losing the org slug with no backup
 
 ## Changes
 
-### 1. Make QZ Tray Script Non-Blocking
+### 1. Add cookie-based fallback for org slug persistence
+**File: `src/lib/orgSlug.ts`**
+- Add `getOrgSlugFromCookie()` and `setOrgSlugCookie()` helper functions
+- Update `getStoredOrgSlug()` to check cookie as a third fallback after localStorage and sessionStorage
+- Update `storeOrgSlug()` to also write to a cookie (30-day expiry)
 
-**File: `index.html` (line 6)**
+### 2. Extract org slug from URL path before falling back
+**File: `src/components/ProtectedRoute.tsx`**
+- When `!user` and no stored slug found, parse `window.location.pathname` to extract the first path segment
+- Validate it with `isValidOrgSlug()` -- if valid, redirect to `/:slug` instead of `/organization-setup`
+- This catches cases where user is at `/:orgSlug/dashboard` and session expires
 
-Change the synchronous QZ Tray script to load asynchronously with a fallback timeout. This prevents the entire page from freezing if `cdn.jsdelivr.net` is unreachable.
+### 3. Handle failed org fetch in OrganizationSetup
+**File: `src/components/OrganizationSetup.tsx`**
+- Add retry logic to `OrganizationContext` fetch -- if organization fetch fails due to network, show "Connection Problem" with retry instead of "Create Organization"
+- Check if a stored org slug exists: if so, show a "Go to your organization" button instead of only the create form
+- This prevents existing users from accidentally creating duplicate organizations
 
-- Add `async` attribute to the script tag
-- Move it to the bottom of `<body>` (before the main app script)
-- Add an `onerror` handler so the app still loads even if QZ Tray fails
+### 4. Add org fetch error state to OrganizationContext
+**File: `src/contexts/OrganizationContext.tsx`**
+- Add `fetchError` state to track when the organization membership query fails
+- Expose `fetchError` and `refetchOrganizations` in the context
+- `OrganizationSetup` uses these to distinguish "no orgs" vs "fetch failed"
 
-### 2. Reduce Font Loading Impact
+## Technical Details
 
-**File: `index.html` (line 30)**
-
-- Add `loading="lazy"` approach: split into critical fonts (Inter only) loaded immediately, and the remaining 10 fonts loaded after the app renders
-- Add `font-display: swap` via the Google Fonts URL parameter (already included via `&display=swap` but ensure it's preserved)
-
-### 3. Add Network Timeout for Backend Connection
-
-**File: `src/integrations/supabase/client.ts`** -- CANNOT edit (auto-generated)
-
-Instead, add a connection health check in `src/App.tsx` or `src/contexts/AuthContext.tsx`:
-- Add a 10-second timeout wrapper around the initial `getSession()` call
-- If it times out, show a "Connection Problem" screen with retry (similar to what `OrgAuth.tsx` already does)
-
-### 4. Add DNS Prefetch Hints for Critical Domains
-
-**File: `index.html`**
-
-Add DNS prefetch and preconnect hints for the backend domain so browsers on slow networks start DNS resolution early:
-
-```html
-<link rel="dns-prefetch" href="https://lkbbrqcsbhqjvsxiorvp.supabase.co" />
-<link rel="preconnect" href="https://lkbbrqcsbhqjvsxiorvp.supabase.co" />
+### Cookie helper (orgSlug.ts)
+```text
+- setOrgSlugCookie(slug, days=30): document.cookie = `orgSlug=${slug}; path=/; max-age=...`
+- getOrgSlugFromCookie(): parse document.cookie for "orgSlug" value
+- getStoredOrgSlug(): localStorage -> sessionStorage -> cookie fallback
 ```
 
-### 5. Service Worker Update Strategy
+### ProtectedRoute URL extraction
+```text
+When !user and no stored slug:
+  1. const segments = window.location.pathname.split('/').filter(Boolean)
+  2. const firstSegment = segments[0]
+  3. if (isValidOrgSlug(firstSegment)) redirect to /${firstSegment}
+  4. else redirect to /organization-setup
+```
 
-**File: `vite.config.ts`**
+### OrganizationSetup guard
+```text
+When user is authenticated and organizations.length === 0:
+  - If fetchError: show "Connection Problem" with retry button
+  - If storedOrgSlug exists: show "Go to [slug]" button alongside create form
+  - Only show pure "Create Organization" if no error AND no stored slug
+```
 
-Add `skipWaiting: true` and `clientsClaim: true` to the workbox config to ensure users on Jio (who may have stale caches) get the latest version immediately on refresh.
-
-## Summary of File Changes
+## File Summary
 
 | File | Change |
 |---|---|
-| `index.html` | Make QZ Tray async, split font loading, add DNS prefetch |
-| `vite.config.ts` | Add `skipWaiting` and `clientsClaim` to workbox config |
-| `src/App.tsx` or auth layer | Add connection timeout with retry UI |
+| `src/lib/orgSlug.ts` | Add cookie-based fallback persistence |
+| `src/components/ProtectedRoute.tsx` | Extract org slug from URL path before fallback |
+| `src/contexts/OrganizationContext.tsx` | Add fetchError state and refetch method |
+| `src/components/OrganizationSetup.tsx` | Handle fetch errors, show "go to org" when slug exists |
 
 ## Expected Outcome
-
-- App loads immediately even if CDN is blocked by Jio
-- Fonts load progressively without blocking render
-- Users see a helpful "retry" screen instead of a blank page on slow connections
-- Stale service worker caches are replaced automatically
+- Users on Jio/unstable networks see "Connection Problem - Retry" instead of "Create Organization"
+- The org slug survives localStorage/sessionStorage clearing via cookie backup
+- Users at org-scoped URLs always redirect back to their org login, never to organization-setup
 
