@@ -224,7 +224,10 @@ export default function POSSales() {
   const dropdownDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Visibility-based polling - pauses when tab is hidden
-  const posRefetchInterval = useVisibilityRefetch(60000); // 1 minute
+  const posRefetchInterval = useVisibilityRefetch(300000); // 5 minutes (reduced from 1 min for multi-tab perf)
+  
+  // Ref to skip customer re-search after dropdown selection
+  const customerJustSelected = useRef(false);
 
   // Load sale data if saleId is in URL (edit mode)
   useEffect(() => {
@@ -633,10 +636,7 @@ export default function POSSales() {
       
       const { data, error } = await (supabase as any)
         .from('sales')
-        .select(`
-          *,
-          sale_items (*)
-        `)
+        .select('id, sale_number, sale_date, net_amount, paid_amount, payment_status, customer_name, customer_phone, payment_method, created_at, sale_type, customer_id, round_off, flat_discount_percent, flat_discount_amount, sale_return_adjust, salesman, notes')
         .eq('organization_id', currentOrganization.id)
         .eq('sale_type', 'pos')
         .is('deleted_at', null)
@@ -648,8 +648,9 @@ export default function POSSales() {
       return data || [];
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 30000, // Cache for 30 seconds
-    refetchInterval: posRefetchInterval, // Pauses when tab hidden
+    staleTime: 120000, // Cache for 2 minutes
+    refetchInterval: posRefetchInterval,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch employees for salesman dropdown
@@ -724,12 +725,7 @@ export default function POSSales() {
             id, product_name, brand, hsn_code, gst_per, product_type, status, category, style, color,
             product_variants (
               id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, deleted_at,
-              last_purchase_sale_price, last_purchase_mrp, last_purchase_date,
-              batch_stock (
-                bill_number,
-                quantity,
-                purchase_date
-              )
+              last_purchase_sale_price, last_purchase_mrp, last_purchase_date
             )
           `)
           .eq('organization_id', currentOrganization.id)
@@ -775,8 +771,9 @@ export default function POSSales() {
       }) || [];
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 60000, // Cache for 60 seconds (was 30s)
-    refetchInterval: posRefetchInterval, // Pauses when tab hidden
+    staleTime: 300000, // Cache for 5 minutes
+    refetchInterval: posRefetchInterval,
+    refetchOnWindowFocus: false,
   });
 
   // Use reliable customer search hook - pass customerName directly as search term
@@ -787,7 +784,7 @@ export default function POSSales() {
     isError: isCustomersError,
     refetch: refetchCustomers,
     hasMore: hasMoreCustomers,
-  } = useCustomerSearch(customerName);
+  } = useCustomerSearch(customerName, { enabled: !customerJustSelected.current });
   
   const { getCustomerBalance, getCustomerAdvance } = useCustomerBalances();
 
@@ -3042,10 +3039,12 @@ export default function POSSales() {
                               key={customer.id}
                               value={`${customer.customer_name} ${customer.phone || ''} ${customer.email || ''}`}
                             onSelect={() => {
+                                customerJustSelected.current = true;
                                 setCustomerId(customer.id);
                                 setCustomerName(customer.customer_name);
                                 setCustomerPhone(customer.phone || "");
                                 setOpenCustomerSearch(false);
+                                setTimeout(() => { customerJustSelected.current = false; }, 500);
                               }}
                               className="cursor-pointer"
                             >
