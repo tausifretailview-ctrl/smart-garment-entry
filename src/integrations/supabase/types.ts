@@ -504,6 +504,57 @@ export type Database = {
           },
         ]
       }
+      bulk_update_history: {
+        Row: {
+          config: Json | null
+          created_at: string
+          created_by: string | null
+          filters: Json | null
+          id: string
+          items_count: number
+          items_summary: Json | null
+          organization_id: string
+          update_type: string
+        }
+        Insert: {
+          config?: Json | null
+          created_at?: string
+          created_by?: string | null
+          filters?: Json | null
+          id?: string
+          items_count?: number
+          items_summary?: Json | null
+          organization_id: string
+          update_type: string
+        }
+        Update: {
+          config?: Json | null
+          created_at?: string
+          created_by?: string | null
+          filters?: Json | null
+          id?: string
+          items_count?: number
+          items_summary?: Json | null
+          organization_id?: string
+          update_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_update_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_update_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       cheque_formats: {
         Row: {
           account_number: string | null
