@@ -25,7 +25,7 @@ interface OrganizationContextType {
   canAccessFeature: (featureName: string, requiredTier?: string) => boolean;
 }
 
-const ORG_FETCH_TIMEOUT = 10000; // 10 seconds
+const ORG_FETCH_TIMEOUT = 10000;
 const ORG_CACHE_KEY_PREFIX = "cachedOrgs_";
 
 const OrganizationContext = createContext<OrganizationContextType>({
@@ -43,11 +43,10 @@ const OrganizationContext = createContext<OrganizationContextType>({
 
 export const useOrganization = () => useContext(OrganizationContext);
 
-// Lightweight cache helpers
 const cacheOrgs = (userId: string, orgs: { id: string; slug: string; name: string }[]) => {
   try {
     localStorage.setItem(`${ORG_CACHE_KEY_PREFIX}${userId}`, JSON.stringify(orgs));
-  } catch { /* quota exceeded — ignore */ }
+  } catch { /* quota exceeded */ }
 };
 
 const getCachedOrgs = (userId: string): { id: string; slug: string; name: string }[] | null => {
@@ -78,67 +77,104 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       setHasResolvedOrganizations(false);
       return;
     }
-
     fetchOrganizations();
   }, [user]);
+
+  // Helper: run the membership query
+  const queryMemberships = async (userId: string) => {
+    return supabase
+      .from("organization_members")
+      .select(`
+        id, organization_id, user_id, role,
+        organizations (id, name, slug, subscription_tier, enabled_features, settings, organization_type)
+      `)
+      .eq("user_id", userId);
+  };
+
+  // Helper: ensure the session JWT is fresh before querying
+  const ensureFreshSession = async (): Promise<boolean> => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return false;
+      const expiresAt = session.expires_at ?? 0;
+      const nowSec = Math.floor(Date.now() / 1000);
+      if (expiresAt - nowSec < 60) {
+        console.log("Session token near-expiry, refreshing…");
+        const { error } = await supabase.auth.refreshSession();
+        if (error) {
+          console.warn("Session refresh failed:", error.message);
+          return false;
+        }
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  };
 
   const fetchOrganizations = useCallback(async () => {
     if (!user) return;
 
-    // Reset state at the START of every fetch
     setLoading(true);
     setFetchError(false);
     setHasResolvedOrganizations(false);
 
-    // Race the actual fetch against a timeout
     let didTimeout = false;
     const timeoutId = setTimeout(() => {
       didTimeout = true;
       console.warn("Organization fetch timed out after", ORG_FETCH_TIMEOUT, "ms");
       setFetchError(true);
       setLoading(false);
-      // Don't set hasResolved — we haven't confirmed the org list
     }, ORG_FETCH_TIMEOUT);
 
     try {
-      const { data: memberships, error: membershipError } = await supabase
-        .from("organization_members")
-        .select(`
-          id,
-          organization_id,
-          user_id,
-          role,
-          organizations (
-            id,
-            name,
-            slug,
-            subscription_tier,
-            enabled_features,
-            settings,
-            organization_type
-          )
-        `)
-        .eq("user_id", user.id);
+      // Step 1: Ensure session JWT is fresh BEFORE querying
+      const sessionOk = await ensureFreshSession();
+      if (!sessionOk) {
+        clearTimeout(timeoutId);
+        if (didTimeout) return;
+        console.warn("Session invalid/expired, cannot fetch orgs");
+        setFetchError(true);
+        setLoading(false);
+        return;
+      }
 
+      // Step 2: Query memberships
+      const { data: memberships, error: membershipError } = await queryMemberships(user.id);
       clearTimeout(timeoutId);
-      if (didTimeout) return; // timeout already handled UI state
-
+      if (didTimeout) return;
       if (membershipError) throw membershipError;
 
-      const orgs = memberships
+      let orgs = memberships
         ?.map((m: any) => m.organizations)
         .filter(Boolean) as Organization[];
 
+      // Step 3: Suspicious empty check — if cache says user HAD orgs, retry once with forced refresh
+      if ((!orgs || orgs.length === 0) && getCachedOrgs(user.id)?.length) {
+        console.warn("Empty org result but cache exists — forcing session refresh and retrying…");
+        const { error: refreshErr } = await supabase.auth.refreshSession();
+        if (refreshErr) {
+          console.warn("Refresh failed, signing out:", refreshErr.message);
+          await supabase.auth.signOut();
+          setFetchError(true);
+          setLoading(false);
+          return;
+        }
+        const { data: retryMemberships, error: retryErr } = await queryMemberships(user.id);
+        if (retryErr) throw retryErr;
+        orgs = retryMemberships
+          ?.map((m: any) => m.organizations)
+          .filter(Boolean) as Organization[];
+      }
+
       setOrganizations(orgs || []);
 
-      // Cache lightweight org list for fallback
       if (orgs && orgs.length > 0) {
         cacheOrgs(user.id, orgs.map(o => ({ id: o.id, slug: o.slug, name: o.name })));
       }
 
       // Select the right organization
       const selectedOrgSlug = localStorage.getItem("selectedOrgSlug");
-
       let selectedOrg = orgs?.[0];
       let selectedMembership = memberships?.[0];
 
@@ -183,17 +219,14 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
 
   const switchOrganization = async (orgId: string) => {
     if (!user) return;
-
     const org = organizations.find((o) => o.id === orgId);
     if (!org) return;
-
     const { data: membership } = await supabase
       .from("organization_members")
       .select("role")
       .eq("organization_id", orgId)
       .eq("user_id", user.id)
       .single();
-
     if (membership) {
       setCurrentOrganization(org);
       setOrganizationRole(membership.role as any);
@@ -206,12 +239,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
     return currentOrganization.enabled_features.includes(featureName);
   };
 
-  const tierHierarchy = {
-    free: 0,
-    basic: 1,
-    professional: 2,
-    enterprise: 3,
-  };
+  const tierHierarchy = { free: 0, basic: 1, professional: 2, enterprise: 3 };
 
   const canAccessFeature = (featureName: string, requiredTier?: string): boolean => {
     if (!currentOrganization) return false;
