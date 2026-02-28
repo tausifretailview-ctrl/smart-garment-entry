@@ -10,6 +10,7 @@ import { Loader2, AlertCircle, ArrowRight, MapPin, ShoppingBag, Users } from "lu
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { validateAuth } from "@/lib/validations";
+import { storeOrgSlug } from "@/lib/orgSlug";
 
 const FIELD_SALES_COLOR = "#F97316"; // Orange-500
 
@@ -115,8 +116,7 @@ export default function FieldSalesAuth() {
           .maybeSingle();
 
         if (fieldSalesEmployee) {
-          localStorage.setItem("selectedOrgSlug", organization.slug);
-          sessionStorage.setItem("selectedOrgSlug", organization.slug);
+          storeOrgSlug(organization.slug);
           sessionStorage.setItem('fieldSalesPWA', 'true');
           navigate(`/${organization.slug}/salesman`);
         } else {
@@ -232,8 +232,7 @@ export default function FieldSalesAuth() {
       }
 
       // Set context and navigate
-      localStorage.setItem("selectedOrgSlug", organization.slug);
-      sessionStorage.setItem("selectedOrgSlug", organization.slug);
+      storeOrgSlug(organization.slug);
       sessionStorage.setItem('fieldSalesPWA', 'true');
       
       toast.success(`Welcome, ${fieldSalesEmployee.employee_name || 'Salesman'}!`);

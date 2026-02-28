@@ -206,15 +206,8 @@ const App = () => {
                 }
               />
               
-              {/* Organization setup - accessible without org context */}
-              <Route
-                path="/organization-setup"
-                element={
-                  <ProtectedRoute>
-                    <OrganizationSetup />
-                  </ProtectedRoute>
-                }
-              />
+              {/* Organization setup - public page (also used when session expires) */}
+              <Route path="/organization-setup" element={<OrganizationSetup />} />
 
               {/* Redirect root to org-specific URL */}
               <Route path="/" element={<ProtectedRoute><RootRedirect /></ProtectedRoute>} />
