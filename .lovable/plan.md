@@ -1,61 +1,67 @@
-# Barcode Browser Printing - Review of Gemini Suggestion
 
-## Analysis
 
-Your current barcode printing system in `BarcodePrinting.tsx` (lines 4459-4555) already has a **much more sophisticated** print CSS implementation than what Gemini suggested. Here's the comparison:
+# Fix: Application Not Loading on Jio Mobile Data and Wi-Fi
 
-### What Gemini Suggested (Basic)
+## Problem
 
-- Fixed `@page { size: 50mm 25mm }` - hardcoded single size
-- Simple `body` width/height constraints
-- Basic `page-break-inside: avoid`
+Users on Jio mobile data and Wi-Fi cannot load the application. The root cause is a **render-blocking external script** and heavy font loading that stalls on Jio's network (known for DNS/CDN throttling in India).
 
-### What You Already Have (Advanced)
+## Changes
 
-- **Dynamic `@page` size** based on selected sheet type (thermal 1UP, custom, A4)
-- **Calibration offsets** (top, left, bottom, right) built into page dimensions
-- **Scale compensation** (`transform: scale(1.05)` for thermal, dynamic `printScale` for A4)
-- **Per-label page breaks** for thermal 1UP (`break-after: page`)
-- **Visibility isolation** (`body * { visibility: hidden }; #printArea * { visibility: visible }`)
-- **Auto-fit scaling** for A4 sheets
-- **Browser header suppression** by clearing `document.title`
+### 1. Make QZ Tray Script Non-Blocking
 
-### Verdict: Do NOT apply Gemini's suggestion
+**File: `index.html` (line 6)**
 
-The Gemini code would **downgrade** your print system by:
+Change the synchronous QZ Tray script to load asynchronously with a fallback timeout. This prevents the entire page from freezing if `cdn.jsdelivr.net` is unreachable.
 
-1. Hardcoding label size to 50x25mm (yours supports any size dynamically)
-2. Removing calibration offset support
-3. Removing scale compensation
-4. Breaking multi-format support (A4 sheets, custom sizes, thermal 1UP)
+- Add `async` attribute to the script tag
+- Move it to the bottom of `<body>` (before the main app script)
+- Add an `onerror` handler so the app still loads even if QZ Tray fails
 
-## Recommended Improvements Instead
+### 2. Reduce Font Loading Impact
 
-If you're experiencing specific browser printing issues, here are targeted fixes:
+**File: `index.html` (line 30)**
 
-### 1. Increase print render delay (50ms may be too fast for some browsers)
+- Add `loading="lazy"` approach: split into critical fonts (Inter only) loaded immediately, and the remaining 10 fonts loaded after the app renders
+- Add `font-display: swap` via the Google Fonts URL parameter (already included via `&display=swap` but ensure it's preserved)
 
-Change the `setTimeout` in `handlePrint()` from 50ms to 200ms for more reliable rendering before `window.print()` fires.
+### 3. Add Network Timeout for Backend Connection
 
-### 2. Add `margin: 0` explicitly to `@page` for Chrome/Edge compatibility
+**File: `src/integrations/supabase/client.ts`** -- CANNOT edit (auto-generated)
 
-Add `!important` to the existing `@page { margin: 0 }` rule to override browser defaults more aggressively.
+Instead, add a connection health check in `src/App.tsx` or `src/contexts/AuthContext.tsx`:
+- Add a 10-second timeout wrapper around the initial `getSession()` call
+- If it times out, show a "Connection Problem" screen with retry (similar to what `OrgAuth.tsx` already does)
 
-### 3. Add `-webkit-print-color-adjust: exact` to label cells
+### 4. Add DNS Prefetch Hints for Critical Domains
 
-Ensure barcode contrast is preserved during printing on all WebKit browsers.
+**File: `index.html`**
 
-### 4. Force `overflow: visible` on label cells during print
+Add DNS prefetch and preconnect hints for the backend domain so browsers on slow networks start DNS resolution early:
 
-The current preview uses `overflow: hidden` on cells (line 2938), which can clip barcodes. The print CSS already handles this for thermal 1UP but could be extended to all formats.
+```html
+<link rel="dns-prefetch" href="https://lkbbrqcsbhqjvsxiorvp.supabase.co" />
+<link rel="preconnect" href="https://lkbbrqcsbhqjvsxiorvp.supabase.co" />
+```
 
-## Technical Changes
+### 5. Service Worker Update Strategy
 
-**File: `src/pages/BarcodePrinting.tsx**`
+**File: `vite.config.ts`**
 
-1. `**handlePrint()` function** (~line 2963): Increase setTimeout from 50ms to 200ms for reliability
-2. `**@page` rule** (~line 4459): Add `!important` to `margin: 0`
-3. **Print CSS `#printArea .label-cell**` (~line 4525): Add `overflow: visible !important` for all formats (not just thermal)
-4. **Print CSS `body**` (~line 4472): Add `color-adjust: exact` alongside existing `-webkit-print-color-adjust`
+Add `skipWaiting: true` and `clientsClaim: true` to the workbox config to ensure users on Jio (who may have stale caches) get the latest version immediately on refresh.
 
-These are small, targeted fixes that maintain your existing architecture while improving browser print reliability.User want label size we set in barcode printing page as par label print & user suggest font size increase & dark whole label cover, changes as per our existing invornment 
+## Summary of File Changes
+
+| File | Change |
+|---|---|
+| `index.html` | Make QZ Tray async, split font loading, add DNS prefetch |
+| `vite.config.ts` | Add `skipWaiting` and `clientsClaim` to workbox config |
+| `src/App.tsx` or auth layer | Add connection timeout with retry UI |
+
+## Expected Outcome
+
+- App loads immediately even if CDN is blocked by Jio
+- Fonts load progressively without blocking render
+- Users see a helpful "retry" screen instead of a blank page on slow connections
+- Stale service worker caches are replaced automatically
+
