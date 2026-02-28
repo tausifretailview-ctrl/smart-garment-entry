@@ -49,7 +49,7 @@ export default function BulkProductUpdate() {
 
   // Filter state
   const [filters, setFilters] = useState<FilterCriteria>({});
-  const [filterOptions, setFilterOptions] = useState<{ categories: string[]; brands: string[]; styles: string[] }>({ categories: [], brands: [], styles: [] });
+  const [filterOptions, setFilterOptions] = useState<{ productNames: string[]; categories: string[]; brands: string[]; styles: string[] }>({ productNames: [], categories: [], brands: [], styles: [] });
 
   // Update type
   const [updateType, setUpdateType] = useState<UpdateType>("find_replace");
@@ -214,11 +214,17 @@ export default function BulkProductUpdate() {
                 </div>
                 <div className="space-y-2">
                   <Label>Product Name</Label>
-                  <Input 
-                    placeholder="Search by name..." 
-                    value={filters.productName || ""} 
-                    onChange={(e) => setFilters({ ...filters, productName: e.target.value || undefined })}
-                  />
+                  <Select value={filters.productName || "__all__"} onValueChange={(v) => setFilters({ ...filters, productName: v === "__all__" ? undefined : v })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Products" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      <SelectItem value="__all__">All Products</SelectItem>
+                      {filterOptions.productNames.map(name => (
+                        <SelectItem key={name} value={name}>{name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Style</Label>
