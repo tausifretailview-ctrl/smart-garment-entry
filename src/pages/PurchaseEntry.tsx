@@ -270,6 +270,8 @@ const PurchaseEntry = () => {
       return data;
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 300000,
+    refetchOnWindowFocus: false,
   });
 
   const showMrp = (settings?.purchase_settings as any)?.show_mrp || false;
@@ -313,6 +315,8 @@ const PurchaseEntry = () => {
       return allSuppliers;
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 300000, // 5 minutes - reduces multi-tab load
+    refetchOnWindowFocus: false,
   });
 
   // Fetch last purchase bill for reference
