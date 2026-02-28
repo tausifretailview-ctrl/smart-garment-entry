@@ -130,6 +130,9 @@ function RootRedirect() {
     return <Navigate to={`/${savedOrgSlug}`} replace />;
   }
 
+  // Check if user might be a platform admin (no org slug but authenticated)
+  // The ProtectedRoute will handle the auth check; this just avoids
+  // sending potential admins to /organization-setup unnecessarily
   return <Navigate to="/organization-setup" replace />;
 }
 
