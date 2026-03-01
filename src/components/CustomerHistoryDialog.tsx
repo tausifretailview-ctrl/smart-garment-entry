@@ -139,6 +139,7 @@ export function CustomerHistoryDialog({
         .select('*')
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
+        .is('deleted_at', null)
         .order('return_date', { ascending: false });
       if (error) throw error;
       return data || [];
