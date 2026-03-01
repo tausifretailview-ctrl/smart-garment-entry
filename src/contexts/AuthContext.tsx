@@ -103,8 +103,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         console.error("Token refresh error:", error);
       } else if (data.session) {
-        setSession(data.session);
-        setUser(data.session.user);
+        // Only update state if user actually changed (prevents re-render cascade on tab switch)
+        if (data.session.user?.id !== sessionRef.current?.user?.id) {
+          setSession(data.session);
+          setUser(data.session.user);
+        } else {
+          // Silently update the ref without triggering re-renders
+          sessionRef.current = data.session;
+        }
       }
     } catch (err) {
       console.error("Unexpected error during token refresh:", err);
@@ -172,9 +178,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         }
         
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
-        setLoading(false);
+        // Only update state if user ID actually changed (prevents cascade re-renders from TOKEN_REFRESHED)
+        const newUserId = currentSession?.user?.id ?? null;
+        const currentUserId = sessionRef.current?.user?.id ?? null;
+        if (newUserId !== currentUserId || event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+          setSession(currentSession);
+          setUser(currentSession?.user ?? null);
+          setLoading(false);
+        } else {
+          // Silently update ref for token refreshes without triggering re-renders
+          sessionRef.current = currentSession;
+          setLoading(false);
+        }
       }
     );
 

@@ -78,7 +78,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     fetchOrganizations();
-  }, [user]);
+  }, [user?.id]);
 
   // Helper: run the membership query
   const queryMemberships = async (userId: string) => {
