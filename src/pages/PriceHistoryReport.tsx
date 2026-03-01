@@ -196,6 +196,7 @@ const PriceHistoryReport = () => {
         supabase
           .from("audit_logs")
           .select("*")
+          .eq("organization_id", currentOrganization.id)
           .in("entity_type", ["product_variant", "product"])
           .order("created_at", { ascending: false })
           .limit(500),
@@ -262,18 +263,21 @@ const PriceHistoryReport = () => {
       setPurchaseHistory(mergedPurchaseData);
 
       // Fetch and process sale items
-      const { data: saleItems } = await supabase
-        .from("sale_items")
-        .select(`
-          id, barcode, product_name, size, quantity,
-          unit_price, mrp, gst_percent, discount_percent, line_total,
-          sale_id
-        `)
-        .order("created_at", { ascending: false });
-
       const sales = salesResult.data || [];
       const salesMap = new Map(sales.map(s => [s.id, s]));
-      const orgSaleItems = saleItems?.filter(item => salesMap.has(item.sale_id)) || [];
+      const saleIds = sales.map(s => s.id);
+      const { data: saleItems } = saleIds.length > 0
+        ? await supabase
+            .from("sale_items")
+            .select(`
+              id, barcode, product_name, size, quantity,
+              unit_price, mrp, gst_percent, discount_percent, line_total,
+              sale_id
+            `)
+            .in("sale_id", saleIds)
+            .order("created_at", { ascending: false })
+        : { data: [] };
+      const orgSaleItems = saleItems || [];
 
       const mergedSalesData: SalesHistoryItem[] = orgSaleItems.map(item => {
         const sale = salesMap.get(item.sale_id);
