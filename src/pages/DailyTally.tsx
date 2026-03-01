@@ -76,6 +76,8 @@ const DailyTally = () => {
   const startISO = `${dateStr}T00:00:00`;
   const endISO = `${dateStr}T23:59:59`;
 
+  const REPORT_CACHE = { staleTime: 5 * 60 * 1000, gcTime: 30 * 60 * 1000, refetchOnWindowFocus: false as const };
+
   // Sales (POS + Invoice)
   const { data: salesData, isLoading: salesLoading, refetch: refetchSales } = useQuery({
     queryKey: ["daily-tally-sales", orgId, dateStr],
@@ -84,6 +86,7 @@ const DailyTally = () => {
       return fetchAllSalesWithFilters(orgId!, { startDate: startISO, endDate: endISO });
     },
     enabled: !!orgId,
+    ...REPORT_CACHE,
   });
 
   // Voucher entries (all types for the date)
@@ -101,6 +104,7 @@ const DailyTally = () => {
       return data || [];
     },
     enabled: !!orgId,
+    ...REPORT_CACHE,
   });
 
   // Customer advances
@@ -116,6 +120,7 @@ const DailyTally = () => {
       return data || [];
     },
     enabled: !!orgId,
+    ...REPORT_CACHE,
   });
 
   // Sale returns (cash refunds)
@@ -134,6 +139,7 @@ const DailyTally = () => {
       } catch { return []; }
     },
     enabled: !!orgId,
+    ...REPORT_CACHE,
   });
 
   // Snapshot
@@ -142,7 +148,7 @@ const DailyTally = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("daily_tally_snapshot")
-        .select("*")
+        .select("id, tally_date, opening_cash, expected_cash, physical_cash, difference_amount, leave_in_drawer, deposit_to_bank, handover_to_owner, notes, created_by, denomination_data, created_at")
         .eq("organization_id", orgId!)
         .eq("tally_date", dateStr)
         .maybeSingle();
@@ -150,6 +156,7 @@ const DailyTally = () => {
       return data;
     },
     enabled: !!orgId,
+    ...REPORT_CACHE,
   });
 
   // Yesterday's snapshot (for opening cash = yesterday's closing)
@@ -172,16 +179,18 @@ const DailyTally = () => {
       return data;
     },
     enabled: !!orgId,
+    ...REPORT_CACHE,
   });
 
   // Settings (business name)
   const { data: settings } = useQuery({
     queryKey: ["settings", orgId],
     queryFn: async () => {
-      const { data } = await supabase.from("settings").select("*").eq("organization_id", orgId!).maybeSingle();
+      const { data } = await supabase.from("settings").select("business_name").eq("organization_id", orgId!).maybeSingle();
       return data;
     },
     enabled: !!orgId,
+    ...REPORT_CACHE,
   });
 
   const isLoading = salesLoading || vouchersLoading || advancesLoading || refundsLoading || snapshotLoading;

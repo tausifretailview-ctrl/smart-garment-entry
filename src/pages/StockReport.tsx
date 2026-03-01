@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -111,12 +112,83 @@ export default function StockReport() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Fetch settings and filter options on mount
+  const REPORT_CACHE = { staleTime: 5 * 60 * 1000, gcTime: 30 * 60 * 1000, refetchOnWindowFocus: false as const };
+
+  // Fetch global totals with useQuery for caching
+  const { data: cachedGlobalTotals } = useQuery({
+    queryKey: ["stock-report-global-totals", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+      const allVariants: any[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("product_variants")
+          .select("id, stock_qty, sale_price, pur_price, products!inner(product_type, deleted_at)")
+          .eq("organization_id", currentOrganization.id)
+          .eq("active", true)
+          .is("deleted_at", null)
+          .is("products.deleted_at", null)
+          .neq("products.product_type", "service")
+          .range(offset, offset + PAGE_SIZE - 1);
+        if (error) throw error;
+        if (data && data.length > 0) { allVariants.push(...data); offset += PAGE_SIZE; hasMore = data.length === PAGE_SIZE; } else { hasMore = false; }
+      }
+      return allVariants.reduce((acc, item) => ({
+        totalStock: acc.totalStock + (item.stock_qty || 0),
+        stockValue: acc.stockValue + ((item.pur_price || 0) * (item.stock_qty || 0)),
+        saleValue: acc.saleValue + ((item.sale_price || 0) * (item.stock_qty || 0)),
+        variantCount: acc.variantCount + 1,
+      }), { totalStock: 0, stockValue: 0, saleValue: 0, variantCount: 0 });
+    },
+    enabled: !!currentOrganization?.id,
+    ...REPORT_CACHE,
+  });
+
+  // Fetch filter options with useQuery for caching
+  const { data: cachedFilterOptions } = useQuery({
+    queryKey: ["stock-report-filter-options", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+      const [{ data: products }, { data: variants }, { data: batchData }] = await Promise.all([
+        supabase.from("products").select("product_name, brand, category, style").eq("organization_id", currentOrganization.id).is("deleted_at", null).neq("product_type", "service"),
+        supabase.from("product_variants").select("size, color").eq("organization_id", currentOrganization.id).eq("active", true).is("deleted_at", null),
+        supabase.from("batch_stock").select("purchase_bills(supplier_name, supplier_invoice_no)").eq("organization_id", currentOrganization.id),
+      ]);
+      return {
+        brands: [...new Set((products || []).map(p => p.brand).filter(Boolean))].sort() as string[],
+        categories: [...new Set((products || []).map(p => p.category).filter(Boolean))].sort() as string[],
+        departments: [...new Set((products || []).map(p => p.style).filter(Boolean))].sort() as string[],
+        sizes: [...new Set((variants || []).map(v => v.size).filter(Boolean))].sort() as string[],
+        colors: [...new Set((variants || []).map(v => v.color).filter(Boolean))].sort() as string[],
+        suppliers: [...new Set((batchData || []).map((b: any) => b.purchase_bills?.supplier_name).filter(Boolean))].sort() as string[],
+        supplierInvoices: [...new Set((batchData || []).map((b: any) => b.purchase_bills?.supplier_invoice_no).filter(Boolean))].sort() as string[],
+        productNames: [...new Set((products || []).map(p => p.product_name).filter(Boolean))].sort() as string[],
+      };
+    },
+    enabled: !!currentOrganization?.id,
+    ...REPORT_CACHE,
+  });
+
+  // Sync cached data to state
+  useEffect(() => {
+    if (cachedGlobalTotals) {
+      setGlobalTotals({ ...cachedGlobalTotals, isLoading: false });
+    }
+  }, [cachedGlobalTotals]);
+
+  useEffect(() => {
+    if (cachedFilterOptions) {
+      setFilterOptions(cachedFilterOptions);
+    }
+  }, [cachedFilterOptions]);
+
+  // Fetch settings on mount
   useEffect(() => {
     if (currentOrganization?.id) {
       fetchSettings();
-      fetchGlobalTotals();
-      fetchFilterOptions();
     }
   }, [currentOrganization?.id]);
 
