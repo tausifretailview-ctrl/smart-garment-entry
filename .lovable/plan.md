@@ -1,46 +1,41 @@
 
 
-# Fix Google OAuth on Custom Domain (Vercel)
+# Fix Google OAuth Login on Custom Domain
 
 ## Problem
-Google sign-in triggers a redirect to `/~oauth` on `app.inventoryshop.in`. The `vercel.json` catch-all rewrite intercepts this path and sends it to `index.html`, which renders the React Router "Not Found" page instead of letting Lovable's OAuth handler process it.
+After clicking "Sign in with Google", users see "Oops! Page not found" on the custom domain. The `vercel.json` already has the correct rewrite rules, but when the OAuth callback reaches the React app (which can happen depending on hosting setup), the catch-all `Route path="*"` renders the NotFound page.
 
 ## Root Cause
-```json
-// Current vercel.json - catches EVERYTHING including /~oauth
-{
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
-}
+The `vercel.json` rewrite rules are correctly configured, but:
+1. If the app is served via Lovable's custom domain (not Vercel), `vercel.json` has no effect
+2. When the `/~oauth` callback reaches the browser, React Router's catch-all route (`path="*"`) renders `<NotFound />` instead of letting the platform handle the OAuth callback
+
+## Solution
+
+### 1. Add `/~oauth` route guard in React Router (App.tsx)
+Add a route before the catch-all that intercepts any `/~oauth*` path and shows a loading spinner instead of "Not Found". This handles the brief moment when the OAuth callback URL is visible in the browser:
+
+```tsx
+{/* OAuth callback handler - prevent NotFound for /~oauth paths */}
+<Route path="/~oauth/*" element={
+  <div className="min-h-screen flex items-center justify-center">
+    <Loader2 className="h-8 w-8 animate-spin" />
+    <span className="ml-2">Completing sign-in...</span>
+  </div>
+} />
+
+{/* Catch-all for 404 */}
+<Route path="*" element={<NotFound />} />
 ```
 
-## Fix
+### 2. Keep vercel.json as-is
+The current `vercel.json` with both `/~oauth` and `/~oauth/:path*` rules is already correct for Vercel deployments. No changes needed.
 
-### File: `vercel.json`
-Add a negative lookahead to exclude the `/~oauth` path from the SPA rewrite so it passes through to Lovable's infrastructure:
+## Files to Modify
+- **src/App.tsx** -- Add a `/~oauth/*` route before the catch-all `*` route (around line 1057)
 
-```json
-{
-  "rewrites": [
-    { "source": "/~oauth", "destination": "/~oauth" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
-}
-```
-
-Vercel processes rewrites top-to-bottom, so the first rule ensures `/~oauth` is NOT rewritten to `index.html`. It stays as-is and gets handled by the platform's OAuth callback.
-
-## What Already Works
-- Email/password login: works fine (no redirect needed)
-- Google OAuth code in `OrgAuth.tsx`: correctly implemented using `lovable.auth.signInWithOAuth("google")`
-- PWA service worker: already excludes `/~oauth` via `navigateFallbackDenylist`
-
-## After Fix
-1. User clicks "Sign in with Google" on `app.inventoryshop.in/demo`
-2. Redirected to Google consent screen
-3. Google redirects back to `app.inventoryshop.in/~oauth`
-4. Lovable's OAuth handler processes the callback (no longer intercepted by Vercel)
-5. User is authenticated and redirected to the org dashboard
-
-## Risk
-None -- this is a single-line addition to `vercel.json` that only affects the `/~oauth` path. All other routes continue working as before.
+## Why This Works
+- On Vercel: The rewrite rules handle `/~oauth` at the server level (never reaches React)
+- On Lovable custom domain: The platform handles `/~oauth` at infrastructure level
+- Edge case fallback: If the path ever reaches React Router, users see "Completing sign-in..." instead of "Page not found"
 
