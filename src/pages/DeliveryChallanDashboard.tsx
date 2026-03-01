@@ -33,6 +33,7 @@ import { format, startOfMonth, endOfMonth } from "date-fns";
 import { Search, Plus, Calendar as CalendarIcon, FileText, Trash2, ArrowRight, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 
 export default function DeliveryChallanDashboard() {
   const { toast } = useToast();
@@ -47,6 +48,8 @@ export default function DeliveryChallanDashboard() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [convertConfirm, setConvertConfirm] = useState<any | null>(null);
   const [isConverting, setIsConverting] = useState(false);
+  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
+  const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
 
   const { data: challansData, isLoading, refetch } = useQuery({
     queryKey: ['delivery-challans', currentOrganization?.id, dateFrom, dateTo, statusFilter],
@@ -336,7 +339,18 @@ export default function DeliveryChallanDashboard() {
                     <TableCell className="font-medium">{challan.challan_number}</TableCell>
                     <TableCell>{format(new Date(challan.challan_date), 'dd/MM/yyyy')}</TableCell>
                     <TableCell>
-                      <div>{challan.customer_name}</div>
+                      <div>
+                        <button
+                          className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-inherit text-left"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedCustomerForHistory({ id: challan.customer_id, name: challan.customer_name });
+                            setShowCustomerHistory(true);
+                          }}
+                        >
+                          {challan.customer_name}
+                        </button>
+                      </div>
                       <div className="text-xs text-muted-foreground">{challan.customer_phone}</div>
                     </TableCell>
                     <TableCell className="text-center">
@@ -401,6 +415,14 @@ export default function DeliveryChallanDashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CustomerHistoryDialog
+        open={showCustomerHistory}
+        onOpenChange={setShowCustomerHistory}
+        customerId={selectedCustomerForHistory?.id || null}
+        customerName={selectedCustomerForHistory?.name || ''}
+        organizationId={currentOrganization?.id || ''}
+      />
     </div>
   );
 }

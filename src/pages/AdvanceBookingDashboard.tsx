@@ -16,6 +16,7 @@ import { format, startOfDay, startOfWeek, startOfMonth } from "date-fns";
 import { toast } from "sonner";
 import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
 import { useAuth } from "@/contexts/AuthContext";
+import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 
 const PAGE_SIZE = 50;
 
@@ -45,6 +46,8 @@ export default function AdvanceBookingDashboard() {
    const [editDescription, setEditDescription] = useState("");
    const [editChequeNumber, setEditChequeNumber] = useState("");
    const [editTransactionId, setEditTransactionId] = useState("");
+   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
+   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
 
   // Debounced search
   const handleSearch = useCallback((value: string) => {
@@ -374,7 +377,18 @@ export default function AdvanceBookingDashboard() {
                 return (
                   <TableRow key={adv.id}>
                     <TableCell className="font-medium text-sm">{adv.advance_number}</TableCell>
-                    <TableCell className="text-sm">{adv.customers?.customer_name || "-"}</TableCell>
+                    <TableCell className="text-sm">
+                      <button
+                        className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-inherit text-left"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedCustomerForHistory({ id: adv.customer_id, name: adv.customers?.customer_name || "-" });
+                          setShowCustomerHistory(true);
+                        }}
+                      >
+                        {adv.customers?.customer_name || "-"}
+                      </button>
+                    </TableCell>
                     <TableCell className="text-sm">{adv.customers?.phone || "-"}</TableCell>
                     <TableCell className="text-sm">{adv.advance_date ? format(new Date(adv.advance_date), "dd/MM/yy") : "-"}</TableCell>
                     <TableCell className="text-right text-sm font-medium">₹{fmt(adv.amount || 0)}</TableCell>
@@ -597,6 +611,14 @@ export default function AdvanceBookingDashboard() {
            </DialogFooter>
          </DialogContent>
        </Dialog>
+
+       <CustomerHistoryDialog
+         open={showCustomerHistory}
+         onOpenChange={setShowCustomerHistory}
+         customerId={selectedCustomerForHistory?.id || null}
+         customerName={selectedCustomerForHistory?.name || ''}
+         organizationId={currentOrganization?.id || ''}
+       />
      </div>
    );
 }

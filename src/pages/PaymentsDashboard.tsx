@@ -24,6 +24,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { PaymentLinkDialog } from "@/components/PaymentLinkDialog";
+import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 
 interface Invoice {
   id: string;
@@ -96,7 +97,9 @@ export default function PaymentsDashboard() {
   // Payment link dialog state
   const [showPaymentLinkDialog, setShowPaymentLinkDialog] = useState(false);
   const [paymentLinkInvoice, setPaymentLinkInvoice] = useState<Invoice | null>(null);
-  
+  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
+  const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
+
   const receiptRef = useRef<HTMLDivElement>(null);
 
   const { columnSettings, updateColumnSetting } = useDashboardColumnSettings(
@@ -702,7 +705,16 @@ Thank you for your business!`;
                           {columnSettings.customer && (
                             <TableCell>
                               <div>
-                                <div className="font-medium">{invoice.customer_name}</div>
+                                <button
+                                  className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-medium text-left"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedCustomerForHistory({ id: invoice.customer_id, name: invoice.customer_name });
+                                    setShowCustomerHistory(true);
+                                  }}
+                                >
+                                  {invoice.customer_name}
+                                </button>
                                 {invoice.customer_phone && (
                                   <div className="text-sm text-muted-foreground">{invoice.customer_phone}</div>
                                 )}
@@ -1042,6 +1054,14 @@ Thank you for your business!`;
           invoiceNumber={paymentLinkInvoice.sale_number}
         />
       )}
+
+      <CustomerHistoryDialog
+        open={showCustomerHistory}
+        onOpenChange={setShowCustomerHistory}
+        customerId={selectedCustomerForHistory?.id || null}
+        customerName={selectedCustomerForHistory?.name || ''}
+        organizationId={currentOrganization?.id || ''}
+      />
     </div>
   );
 }

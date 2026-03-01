@@ -32,6 +32,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
+import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 
 export default function QuotationDashboard() {
   const { toast } = useToast();
@@ -51,6 +52,8 @@ export default function QuotationDashboard() {
   const { formatQuotationMessage } = useWhatsAppTemplates();
   const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
   const [toDate, setToDate] = useState<Date | undefined>(undefined);
+  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
+  const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
 
   // Fetch settings for print
   const { data: settings } = useQuery({
@@ -427,7 +430,18 @@ export default function QuotationDashboard() {
                     <TableCell>{format(new Date(quotation.quotation_date), 'dd/MM/yyyy')}</TableCell>
                     <TableCell>{quotation.valid_until ? format(new Date(quotation.valid_until), 'dd/MM/yyyy') : '-'}</TableCell>
                     <TableCell>
-                      <div>{quotation.customer_name}</div>
+                      <div>
+                        <button
+                          className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-inherit text-left"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedCustomerForHistory({ id: quotation.customer_id, name: quotation.customer_name });
+                            setShowCustomerHistory(true);
+                          }}
+                        >
+                          {quotation.customer_name}
+                        </button>
+                      </div>
                       <div className="text-sm text-muted-foreground">{quotation.customer_phone}</div>
                     </TableCell>
                     <TableCell className="font-medium">₹{quotation.net_amount?.toFixed(2)}</TableCell>
@@ -536,6 +550,14 @@ export default function QuotationDashboard() {
           onClose={() => setQuotationToPrint(null)}
         />
       )}
+
+      <CustomerHistoryDialog
+        open={showCustomerHistory}
+        onOpenChange={setShowCustomerHistory}
+        customerId={selectedCustomerForHistory?.id || null}
+        customerName={selectedCustomerForHistory?.name || ''}
+        organizationId={currentOrganization?.id || ''}
+      />
     </div>
   );
 }
