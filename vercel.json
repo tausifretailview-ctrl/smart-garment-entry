@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/~oauth", "destination": "/~oauth" },
+    { "source": "/~oauth/:path*", "destination": "/~oauth/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
