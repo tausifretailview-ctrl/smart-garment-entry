@@ -20,6 +20,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 
 interface CustomerLedgerProps {
   organizationId: string;
@@ -73,6 +74,13 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
   const isMobile = useIsMobile();
   const { sendWhatsApp } = useWhatsAppSend();
   const { isSchool } = useSchoolFeatures();
+  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
+  const [customerForHistory, setCustomerForHistory] = useState<{ id: string; name: string } | null>(null);
+
+  const openHistory = (id: string, name: string) => {
+    setCustomerForHistory({ id, name });
+    setShowCustomerHistory(true);
+  };
 
 
   // Sync external filter with internal state
@@ -1197,7 +1205,14 @@ Please clear your dues at the earliest. Thank you!`;
           <CardHeader>
             <div className="flex items-start justify-between">
               <div className="space-y-2">
-                <CardTitle className="text-2xl">{selectedCustomer.customer_name}</CardTitle>
+                <CardTitle className="text-2xl">
+                  <button
+                    className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-2xl font-bold"
+                    onClick={() => openHistory(selectedCustomer.id, selectedCustomer.customer_name)}
+                  >
+                    {selectedCustomer.customer_name}
+                  </button>
+                </CardTitle>
                 <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                   {isSchool && selectedCustomer.admissionNumber && (
                     <div className="flex items-center gap-1">
@@ -1588,6 +1603,15 @@ Please clear your dues at the earliest. Thank you!`;
             </Tabs>
           </CardContent>
         </Card>
+        {customerForHistory && (
+          <CustomerHistoryDialog
+            open={showCustomerHistory}
+            onOpenChange={setShowCustomerHistory}
+            customerId={customerForHistory.id}
+            customerName={customerForHistory.name}
+            organizationId={organizationId}
+          />
+        )}
       </div>
     );
   }
@@ -1740,7 +1764,17 @@ Please clear your dues at the earliest. Thank you!`;
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex-1">
-                          <h3 className="font-semibold text-base">{customer.customer_name}</h3>
+                          <h3 className="font-semibold text-base">
+                            <button
+                              className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-semibold text-base"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openHistory(customer.id, customer.customer_name);
+                              }}
+                            >
+                              {customer.customer_name}
+                            </button>
+                          </h3>
                           {customer.phone && (
                             <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
                               <Phone className="h-3 w-3" />
@@ -1830,7 +1864,17 @@ Please clear your dues at the earliest. Thank you!`;
                         className="cursor-pointer hover:bg-muted/50"
                         onClick={() => setSelectedCustomer(customer)}
                       >
-                        <TableCell className="font-medium">{customer.customer_name}</TableCell>
+                        <TableCell className="font-medium">
+                          <button
+                            className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-medium"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openHistory(customer.id, customer.customer_name);
+                            }}
+                          >
+                            {customer.customer_name}
+                          </button>
+                        </TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1 text-sm text-muted-foreground">
                             {customer.phone && (
@@ -1893,6 +1937,15 @@ Please clear your dues at the earliest. Thank you!`;
           )}
         </CardContent>
       </Card>
+      {customerForHistory && (
+        <CustomerHistoryDialog
+          open={showCustomerHistory}
+          onOpenChange={setShowCustomerHistory}
+          customerId={customerForHistory.id}
+          customerName={customerForHistory.name}
+          organizationId={organizationId}
+        />
+      )}
     </div>
   );
 }

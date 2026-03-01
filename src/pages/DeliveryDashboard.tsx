@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
+import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 
 const DeliveryDashboard = () => {
   const { currentOrganization } = useOrganization();
@@ -37,6 +38,8 @@ const DeliveryDashboard = () => {
   const [statusNarration, setStatusNarration] = useState("");
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
   const [isExporting, setIsExporting] = useState(false);
+  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
+  const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{ id: string; name: string } | null>(null);
 
   // Fetch delivery statistics
   const { data: deliveryStats } = useQuery({
@@ -660,7 +663,18 @@ const DeliveryDashboard = () => {
                       <TableCell className="font-medium">{invoice.sale_number}</TableCell>
                       <TableCell>
                         <div className="flex flex-col">
-                          <span>{invoice.customer_name}</span>
+                          <button
+                            className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-left font-medium"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (invoice.customer_id) {
+                                setSelectedCustomerForHistory({ id: invoice.customer_id, name: invoice.customer_name });
+                                setShowCustomerHistory(true);
+                              }
+                            }}
+                          >
+                            {invoice.customer_name}
+                          </button>
                           {invoice.customer_phone && (
                             <span className="text-xs text-muted-foreground">{invoice.customer_phone}</span>
                           )}
@@ -800,6 +814,16 @@ const DeliveryDashboard = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {selectedCustomerForHistory && (
+          <CustomerHistoryDialog
+            open={showCustomerHistory}
+            onOpenChange={setShowCustomerHistory}
+            customerId={selectedCustomerForHistory.id}
+            customerName={selectedCustomerForHistory.name}
+            organizationId={currentOrganization?.id || ""}
+          />
+        )}
       </div>
   );
 };
