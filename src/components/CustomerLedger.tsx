@@ -643,19 +643,25 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         } else if (item.type === 'adjustment') {
           const adj = item.data as any;
           const outDiff = adj.outstanding_difference || 0;
-          // Advance difference is NOT included here because advance adjustments
-          // already create/modify separate customer_advances records that appear
-          // as their own ADVANCE rows in the ledger.
-          const netDebit = outDiff > 0 ? outDiff : 0;
+          const advDiff = adj.advance_difference || 0;
+          // When advance is reduced (advDiff < 0), show as debit (advance credit reversed)
+          // When advance is increased (advDiff > 0), skip here (new advance record handles it)
+          const advanceConsumed = advDiff < 0 ? Math.abs(advDiff) : 0;
+          const netDebit = (outDiff > 0 ? outDiff : 0) + advanceConsumed;
           const netCredit = outDiff < 0 ? Math.abs(outDiff) : 0;
           runningBalance += netDebit - netCredit;
+          
+          let adjDescription = `Balance Adjustment: ${adj.reason}`;
+          if (advanceConsumed > 0) {
+            adjDescription += ` (Advance Refund: ₹${advanceConsumed.toLocaleString('en-IN')})`;
+          }
           
           allTransactions.push({
             id: adj.id,
             date: adj.adjustment_date,
             type: 'adjustment',
             reference: 'ADJ',
-            description: `Balance Adjustment: ${adj.reason}`,
+            description: adjDescription,
             debit: netDebit,
             credit: netCredit,
             balance: runningBalance,
