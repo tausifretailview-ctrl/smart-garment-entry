@@ -70,6 +70,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [activeTab, setActiveTab] = useState("transactions");
+  const [customerPage, setCustomerPage] = useState(0);
+  const CUSTOMERS_PER_PAGE = 20;
   
   const isMobile = useIsMobile();
   const { sendWhatsApp } = useWhatsAppSend();
@@ -885,6 +887,19 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       return matchesSearch && matchesPaymentStatus;
     });
   }, [customers, searchQuery, paymentStatusFilter]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCustomerPage(0);
+  }, [searchQuery, paymentStatusFilter]);
+
+  // Paginated customers
+  const paginatedCustomers = useMemo(() => {
+    const start = customerPage * CUSTOMERS_PER_PAGE;
+    return filteredCustomers.slice(start, start + CUSTOMERS_PER_PAGE);
+  }, [filteredCustomers, customerPage]);
+
+  const totalPages = Math.ceil(filteredCustomers.length / CUSTOMERS_PER_PAGE);
 
   // Calculate summary statistics
   const summary = useMemo(() => {
@@ -1764,7 +1779,7 @@ Please clear your dues at the earliest. Thank you!`;
                   No customers found
                 </div>
               ) : (
-                filteredCustomers.map((customer) => (
+                paginatedCustomers.map((customer) => (
                   <Card 
                     key={customer.id}
                     className="cursor-pointer hover:shadow-md transition-shadow"
@@ -1867,7 +1882,7 @@ Please clear your dues at the earliest. Thank you!`;
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredCustomers.map((customer) => (
+                    paginatedCustomers.map((customer) => (
                       <TableRow 
                         key={customer.id}
                         className="cursor-pointer hover:bg-muted/50"
@@ -1942,6 +1957,36 @@ Please clear your dues at the earliest. Thank you!`;
                   )}
                 </TableBody>
               </Table>
+            </div>
+          )}
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-4">
+              <span className="text-sm text-muted-foreground">
+                Showing {customerPage * CUSTOMERS_PER_PAGE + 1}–{Math.min((customerPage + 1) * CUSTOMERS_PER_PAGE, filteredCustomers.length)} of {filteredCustomers.length}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={customerPage === 0}
+                  onClick={() => setCustomerPage(p => p - 1)}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {customerPage + 1} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={customerPage >= totalPages - 1}
+                  onClick={() => setCustomerPage(p => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
