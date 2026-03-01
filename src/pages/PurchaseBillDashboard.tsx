@@ -1006,11 +1006,6 @@ const PurchaseBillDashboard = () => {
             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => handlePrintBarcodes(bill.id, e)} disabled={printingBill === bill.id} title="Print Barcodes">
               {printingBill === bill.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
             </Button>
-            {canDelete && (
-              <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => handleDeleteClick(bill, e)} disabled={isDeleting} title="Delete">
-                {isDeleting && billToDelete?.id === bill.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-              </Button>
-            )}
           </div>
         );
       },
