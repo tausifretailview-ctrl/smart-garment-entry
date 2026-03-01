@@ -48,8 +48,12 @@ export function CustomerHistoryDialog({
   const { orgNavigate: navigate } = useOrgNavigation();
 
   const handleViewTransaction = (path: string) => {
-    onOpenChange(false);
-    setTimeout(() => navigate(path), 100);
+    try {
+      onOpenChange(false);
+      setTimeout(() => navigate(path), 100);
+    } catch (error) {
+      console.error("Error navigating to transaction:", error);
+    }
   };
 
   // Get customer balance
@@ -371,7 +375,7 @@ export function CustomerHistoryDialog({
                                 title="View Invoice"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleViewTransaction(`/sales-invoice/${sale.id}`);
+                                  handleViewTransaction(`/sales-invoice-dashboard`);
                                 }}
                               >
                                 <Eye className="h-4 w-4" />
@@ -639,7 +643,7 @@ export function CustomerHistoryDialog({
                             size="icon"
                             className="h-7 w-7"
                             title="View Invoice"
-                            onClick={() => handleViewTransaction(`/sales-invoice/${sale.id}`)}
+                            onClick={() => handleViewTransaction(`/sales-invoice-dashboard`)}
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
