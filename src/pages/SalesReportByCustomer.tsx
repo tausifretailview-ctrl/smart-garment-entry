@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchAllCustomers, fetchAllSalesWithFilters } from "@/utils/fetchAllRows";
+import { fetchAllCustomers } from "@/utils/fetchAllRows";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,8 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { CalendarIcon, TrendingUp } from "lucide-react";
-import { format } from "date-fns";
+import { CalendarIcon, TrendingUp, ChevronLeft, ChevronRight } from "lucide-react";
+import { format, startOfMonth } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Pie, PieChart, Cell } from "recharts";
 import { Badge } from "@/components/ui/badge";
@@ -31,13 +31,62 @@ interface Sale {
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', '#8884d8', '#82ca9d', '#ffc658'];
 
+const REPORT_QUERY_OPTIONS = {
+  staleTime: 5 * 60 * 1000,
+  gcTime: 30 * 60 * 1000,
+  refetchOnWindowFocus: false as const,
+};
+
+const ITEMS_PER_PAGE = 100;
+
+/**
+ * Lightweight sales fetch for report - only 9 columns instead of 19
+ */
+async function fetchSalesForReport(
+  organizationId: string,
+  filters: { startDate?: string; endDate?: string; customerId?: string }
+) {
+  const allRows: Sale[] = [];
+  let offset = 0;
+  const pageSize = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from("sales")
+      .select("id, sale_date, sale_number, customer_name, gross_amount, discount_amount, net_amount, payment_method, payment_status")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .order("sale_date", { ascending: false })
+      .range(offset, offset + pageSize - 1);
+
+    if (filters.startDate) query = query.gte("sale_date", filters.startDate);
+    if (filters.endDate) query = query.lte("sale_date", filters.endDate);
+    if (filters.customerId) query = query.eq("customer_id", filters.customerId);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allRows.push(...(data as Sale[]));
+      offset += pageSize;
+      hasMore = data.length === pageSize;
+    } else {
+      hasMore = false;
+    }
+  }
+  return allRows;
+}
+
 const SalesReportByCustomer = () => {
   const { currentOrganization } = useOrganization();
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("all");
-  const [startDate, setStartDate] = useState<Date>();
-  const [endDate, setEndDate] = useState<Date>();
+  // Default to current month start
+  const [startDate, setStartDate] = useState<Date>(startOfMonth(new Date()));
+  const [endDate, setEndDate] = useState<Date>(new Date());
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // Fetch customers using paginated fetch to bypass 1000 limit
+  // Fetch customers with caching
   const { data: customers = [] } = useQuery({
     queryKey: ["customers-all", currentOrganization?.id],
     queryFn: async () => {
@@ -45,9 +94,10 @@ const SalesReportByCustomer = () => {
       return await fetchAllCustomers(currentOrganization.id);
     },
     enabled: !!currentOrganization?.id,
+    ...REPORT_QUERY_OPTIONS,
   });
 
-  // Fetch sales using paginated fetch to bypass 1000 limit
+  // Fetch sales with lightweight query + caching
   const { data: sales = [], isLoading } = useQuery({
     queryKey: ["sales-report", currentOrganization?.id, selectedCustomerId, startDate, endDate],
     queryFn: async () => {
@@ -58,48 +108,54 @@ const SalesReportByCustomer = () => {
       if (endDate) filters.endDate = format(endDate, "yyyy-MM-dd");
       if (selectedCustomerId !== "all") filters.customerId = selectedCustomerId;
       
-      const allSales = await fetchAllSalesWithFilters(currentOrganization.id, filters);
-      return allSales as Sale[];
+      return await fetchSalesForReport(currentOrganization.id, filters);
     },
     enabled: !!currentOrganization?.id,
+    ...REPORT_QUERY_OPTIONS,
   });
 
+  // Reset page when filters change
+  const resetPage = () => setCurrentPage(1);
+
   // Calculate totals
-  const totals = {
+  const totals = useMemo(() => ({
     grossAmount: sales.reduce((sum, sale) => sum + (sale.gross_amount || 0), 0),
     discountAmount: sales.reduce((sum, sale) => sum + (sale.discount_amount || 0), 0),
     netAmount: sales.reduce((sum, sale) => sum + (sale.net_amount || 0), 0),
     saleCount: sales.length,
-  };
+  }), [sales]);
 
   // Group by customer for chart
-  const customerData = sales.reduce((acc: any, sale) => {
-    const customerName = sale.customer_name || "Walk in Customer";
-    if (!acc[customerName]) {
-      acc[customerName] = {
-        name: customerName,
-        amount: 0,
-        count: 0,
-      };
-    }
-    acc[customerName].amount += sale.net_amount || 0;
-    acc[customerName].count += 1;
-    return acc;
-  }, {});
-
-  const chartData = Object.values(customerData).sort((a: any, b: any) => b.amount - a.amount).slice(0, 10);
+  const chartData = useMemo(() => {
+    const customerData = sales.reduce((acc: any, sale) => {
+      const customerName = sale.customer_name || "Walk in Customer";
+      if (!acc[customerName]) {
+        acc[customerName] = { name: customerName, amount: 0, count: 0 };
+      }
+      acc[customerName].amount += sale.net_amount || 0;
+      acc[customerName].count += 1;
+      return acc;
+    }, {});
+    return Object.values(customerData).sort((a: any, b: any) => b.amount - a.amount).slice(0, 10);
+  }, [sales]);
 
   // Payment method breakdown
-  const paymentMethodData = sales.reduce((acc: any, sale) => {
-    const method = sale.payment_method || "Unknown";
-    if (!acc[method]) {
-      acc[method] = { name: method, value: 0 };
-    }
-    acc[method].value += sale.net_amount || 0;
-    return acc;
-  }, {});
+  const pieChartData = useMemo(() => {
+    const paymentMethodData = sales.reduce((acc: any, sale) => {
+      const method = sale.payment_method || "Unknown";
+      if (!acc[method]) acc[method] = { name: method, value: 0 };
+      acc[method].value += sale.net_amount || 0;
+      return acc;
+    }, {});
+    return Object.values(paymentMethodData);
+  }, [sales]);
 
-  const pieChartData = Object.values(paymentMethodData);
+  // Pagination
+  const totalPages = Math.ceil(sales.length / ITEMS_PER_PAGE);
+  const paginatedSales = useMemo(() => 
+    sales.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE),
+    [sales, currentPage]
+  );
 
   return (
     <div className="w-full px-6 py-6 space-y-6">
@@ -118,7 +174,7 @@ const SalesReportByCustomer = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Customer</Label>
-              <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+              <Select value={selectedCustomerId} onValueChange={(v) => { setSelectedCustomerId(v); resetPage(); }}>
                 <SelectTrigger>
                   <SelectValue placeholder="All Customers" />
                 </SelectTrigger>
@@ -146,7 +202,7 @@ const SalesReportByCustomer = () => {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 bg-background z-50" align="start">
-                  <Calendar mode="single" selected={startDate} onSelect={setStartDate} initialFocus />
+                  <Calendar mode="single" selected={startDate} onSelect={(d) => { setStartDate(d!); resetPage(); }} initialFocus />
                 </PopoverContent>
               </Popover>
             </div>
@@ -164,7 +220,7 @@ const SalesReportByCustomer = () => {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 bg-background z-50" align="start">
-                  <Calendar mode="single" selected={endDate} onSelect={setEndDate} initialFocus />
+                  <Calendar mode="single" selected={endDate} onSelect={(d) => { setEndDate(d!); resetPage(); }} initialFocus />
                 </PopoverContent>
               </Popover>
             </div>
@@ -269,7 +325,7 @@ const SalesReportByCustomer = () => {
       {/* Sales Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Sales Transactions</CardTitle>
+          <CardTitle>Sales Transactions ({sales.length} total)</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="border rounded-lg">
@@ -300,7 +356,7 @@ const SalesReportByCustomer = () => {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  sales.map((sale) => (
+                  paginatedSales.map((sale) => (
                     <TableRow key={sale.id}>
                       <TableCell>{format(new Date(sale.sale_date), "dd/MM/yyyy")}</TableCell>
                       <TableCell>{sale.sale_number}</TableCell>
@@ -320,6 +376,38 @@ const SalesReportByCustomer = () => {
               </TableBody>
             </Table>
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <p className="text-sm text-muted-foreground">
+                Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, sales.length)} of {sales.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

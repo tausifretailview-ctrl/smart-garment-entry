@@ -71,39 +71,38 @@ export default function ItemWiseSalesReport() {
     customers: [],
   });
 
-  // Fetch filter options on mount
+  const REPORT_CACHE = { staleTime: 5 * 60 * 1000, gcTime: 30 * 60 * 1000, refetchOnWindowFocus: false as const };
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 100;
+
+  // Fetch filter options with caching
+  const { data: filterOptionsData } = useQuery({
+    queryKey: ["item-wise-filter-options", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return { brands: [], categories: [], departments: [], customers: [] };
+
+      const [{ data: products }, { data: sales }] = await Promise.all([
+        supabase.from("products").select("brand, category, style").eq("organization_id", currentOrganization.id).is("deleted_at", null),
+        supabase.from("sales").select("customer_name").eq("organization_id", currentOrganization.id).is("deleted_at", null),
+      ]);
+
+      return {
+        brands: [...new Set((products || []).map(p => p.brand).filter(Boolean))].sort() as string[],
+        categories: [...new Set((products || []).map(p => p.category).filter(Boolean))].sort() as string[],
+        departments: [...new Set((products || []).map(p => p.style).filter(Boolean))].sort() as string[],
+        customers: [...new Set((sales || []).map(s => s.customer_name).filter(Boolean))].sort() as string[],
+      };
+    },
+    enabled: !!currentOrganization?.id,
+    ...REPORT_CACHE,
+  });
+
+  // Sync filter options from query
   useEffect(() => {
-    const fetchFilterOptions = async () => {
-      if (!currentOrganization?.id) return;
-
-      try {
-        // Fetch unique brands, categories, departments from products
-        const { data: products } = await supabase
-          .from("products")
-          .select("brand, category, style")
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null);
-
-        // Fetch unique customer names from sales
-        const { data: sales } = await supabase
-          .from("sales")
-          .select("customer_name")
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null);
-
-        const brands = [...new Set((products || []).map(p => p.brand).filter(Boolean))].sort() as string[];
-        const categories = [...new Set((products || []).map(p => p.category).filter(Boolean))].sort() as string[];
-        const departments = [...new Set((products || []).map(p => p.style).filter(Boolean))].sort() as string[];
-        const customers = [...new Set((sales || []).map(s => s.customer_name).filter(Boolean))].sort() as string[];
-
-        setFilterOptions({ brands, categories, departments, customers });
-      } catch (error) {
-        console.error("Error fetching filter options:", error);
-      }
-    };
-
-    fetchFilterOptions();
-  }, [currentOrganization?.id]);
+    if (filterOptionsData) setFilterOptions(filterOptionsData);
+  }, [filterOptionsData]);
 
   // Calculate date range based on period type
   const dateRange = useMemo(() => {
@@ -191,6 +190,7 @@ export default function ItemWiseSalesReport() {
       }));
     },
     enabled: !!currentOrganization?.id,
+    ...REPORT_CACHE,
   });
 
   // Aggregate data by product
@@ -676,23 +676,45 @@ export default function ItemWiseSalesReport() {
                       No sales data found for the selected period
                     </TableCell>
                   </TableRow>
-                ) : (
-                  filteredData.map((item, idx) => (
-                    <TableRow key={idx} className="hover:bg-muted/30">
-                      <TableCell className="font-mono text-sm">{item.barcode || "-"}</TableCell>
-                      <TableCell className="font-medium">{item.product_name}</TableCell>
-                      <TableCell>{item.brand || "-"}</TableCell>
-                      <TableCell>{item.category || "-"}</TableCell>
-                      <TableCell>{item.color || "-"}</TableCell>
-                      <TableCell>{item.size}</TableCell>
-                      <TableCell className="text-right font-medium">{item.total_qty}</TableCell>
-                      <TableCell className="text-right">₹{item.avg_price.toFixed(2)}</TableCell>
-                      <TableCell className="text-right font-semibold text-primary">
-                        ₹{item.total_amount.toLocaleString()}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
+                ) : (() => {
+                  const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+                  const paginatedData = filteredData.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+                  return (
+                    <>
+                      {paginatedData.map((item, idx) => (
+                        <TableRow key={idx} className="hover:bg-muted/30">
+                          <TableCell className="font-mono text-sm">{item.barcode || "-"}</TableCell>
+                          <TableCell className="font-medium">{item.product_name}</TableCell>
+                          <TableCell>{item.brand || "-"}</TableCell>
+                          <TableCell>{item.category || "-"}</TableCell>
+                          <TableCell>{item.color || "-"}</TableCell>
+                          <TableCell>{item.size}</TableCell>
+                          <TableCell className="text-right font-medium">{item.total_qty}</TableCell>
+                          <TableCell className="text-right">₹{item.avg_price.toFixed(2)}</TableCell>
+                          <TableCell className="text-right font-semibold text-primary">
+                            ₹{item.total_amount.toLocaleString()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {totalPages > 1 && (
+                        <TableRow>
+                          <TableCell colSpan={9}>
+                            <div className="flex items-center justify-between py-2">
+                              <p className="text-sm text-muted-foreground">
+                                Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} of {filteredData.length}
+                              </p>
+                              <div className="flex items-center gap-2">
+                                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
+                                <span className="text-sm text-muted-foreground">Page {currentPage} of {totalPages}</span>
+                                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Next</Button>
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
+                  );
+                })()}
               </TableBody>
             </Table>
           </div>
