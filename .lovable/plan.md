@@ -1,39 +1,57 @@
 
+# Fix: Prevent Page Re-render When Switching Browser Tabs
 
-# Add Duplicate Barcode Detection to Purchase Entry and Quick Add Product
+## Problem
+When users operate multiple browser tabs (common for fast billing), switching between tabs triggers a cascade:
+1. Tab becomes visible → auth session refresh fires
+2. Session refresh calls `setUser(data.session.user)` with a new object reference
+3. OrganizationContext depends on `user` and calls `fetchOrganizations()`, setting `loading: true`
+4. The loading state causes the entire page to re-render with a spinner, losing any in-progress work (selected customer, cart items, etc.)
 
-## Overview
-Currently, only the full Product Entry page validates barcode uniqueness before saving. The Purchase Entry and Quick Add Product dialogs skip this check, allowing duplicate barcodes to slip into the database. This plan adds barcode uniqueness validation to both entry points.
+## Root Cause
+The `user` dependency in OrganizationContext (line 81) triggers a full org re-fetch whenever the user object reference changes, even if the actual user ID hasn't changed. Session refreshes create new object references every time.
 
 ## Changes
 
-### 1. Create a shared barcode validation utility
-**New file: `src/utils/barcodeValidation.ts`**
+### 1. AuthContext -- Skip state update when user hasn't changed
+**File: `src/contexts/AuthContext.tsx`**
 
-Extract a reusable async function that checks if a barcode already exists in `product_variants` (excluding a given variant ID for edit scenarios):
-
+In the `safelyRefreshSession` callback (around line 105-108), only update state if the user ID actually changed:
 ```typescript
-export async function checkBarcodeExists(barcode: string, excludeVariantId?: string): Promise<{exists: boolean, productName?: string}>
+} else if (data.session) {
+  // Only update state if user actually changed (prevents re-render cascade on tab switch)
+  if (data.session.user?.id !== sessionRef.current?.user?.id) {
+    setSession(data.session);
+    setUser(data.session.user);
+  } else {
+    // Silently update the ref without triggering re-renders
+    sessionRef.current = data.session;
+  }
+}
 ```
 
-This queries the database for any active variant with the same barcode and returns the conflicting product name if found.
+### 2. OrganizationContext -- Track user ID instead of user object
+**File: `src/contexts/OrganizationContext.tsx`**
 
-### 2. Quick Add Product Dialog
-**File: `src/components/mobile/QuickAddProductDialog.tsx`**
+Change the useEffect dependency from `user` (object reference) to `user?.id` (stable string):
+```typescript
+useEffect(() => {
+  if (!user) { ... return; }
+  fetchOrganizations();
+}, [user?.id]); // Was [user] -- object reference changed on every refresh
+```
 
-Before inserting the new variant, call `checkBarcodeExists(barcode)`. If a duplicate is found, show a toast error like: *"Barcode X already exists in product Y. Please use a unique barcode."* and abort the save.
+This ensures organizations are only re-fetched when the user actually logs in/out, not on every session token refresh.
 
-### 3. Purchase Entry -- New variant creation path
-**File: `src/pages/PurchaseEntry.tsx`**
+### 3. Auth onAuthStateChange -- Same user ID guard
+**File: `src/contexts/AuthContext.tsx`**
 
-In the Excel import flow and manual entry flow where new variants are created with user-provided barcodes, add a `checkBarcodeExists()` call before inserting. If a conflict is found, warn the user but allow them to proceed (since Purchase Entry often works with existing barcodes for receiving stock).
+In the `onAuthStateChange` handler, apply the same optimization: only call `setUser` if the user ID has actually changed, to prevent cascade re-renders from `TOKEN_REFRESHED` events.
 
 ---
 
-## Technical Details
-
-- The utility will query `product_variants` with `deleted_at IS NULL` filter and join to `products` to get the product name
-- Organization-scoped: filter by `organization_id` to only flag duplicates within the same organization
-- The check is lightweight (single indexed query) and won't slow down the entry flow
-- Purchase Entry will show a warning toast (non-blocking) since receiving goods against existing barcodes is valid; Quick Add will block the save since it's creating a brand new product
-
+## Impact
+- Multi-tab billing will work smoothly without page refresh on tab switch
+- Session tokens will still be refreshed silently in the background
+- No impact on login/logout flows (those change the user ID)
+- Existing session security (Chrome token revocation, expiry checks) remains intact
