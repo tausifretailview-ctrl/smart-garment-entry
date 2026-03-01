@@ -26,7 +26,7 @@ import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
 import { CustomerBalanceAdjustmentDialog } from "@/components/CustomerBalanceAdjustmentDialog";
 import { RecentBalanceAdjustments } from "@/components/RecentBalanceAdjustments";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { fetchAllCustomers } from "@/utils/fetchAllRows";
+import { fetchAllCustomers, fetchAllSalesSummary, fetchAllSuppliers } from "@/utils/fetchAllRows";
 
 // Extracted tab components
 import { AccountsDashboardCards } from "@/components/accounts/AccountsDashboardCards";
@@ -96,7 +96,7 @@ export default function Accounts() {
       while (hasMore) {
         const { data, error } = await supabase
           .from("voucher_entries")
-          .select("*")
+          .select("id, voucher_number, voucher_date, voucher_type, total_amount, description, reference_type, reference_id, payment_method, discount_amount, discount_reason")
           .eq("organization_id", currentOrganization?.id)
           .is("deleted_at", null)
           .order("created_at", { ascending: false })
@@ -111,21 +111,19 @@ export default function Accounts() {
       return allVouchers;
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch sales (shared for dashboard metrics + customer payment tab)
   const { data: sales } = useQuery({
-    queryKey: ["sales", currentOrganization?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sales")
-        .select("*")
-        .eq("organization_id", currentOrganization?.id)
-        .is("deleted_at", null);
-      if (error) throw error;
-      return data;
-    },
+    queryKey: ["sales-summary-accounts", currentOrganization?.id],
+    queryFn: async () => fetchAllSalesSummary(currentOrganization!.id),
     enabled: !!currentOrganization?.id,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch customers (shared for reconciliation + customer payment tab)
@@ -133,34 +131,19 @@ export default function Accounts() {
     queryKey: ["customers", currentOrganization?.id],
     queryFn: async () => fetchAllCustomers(currentOrganization!.id),
     enabled: !!currentOrganization?.id,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch suppliers
   const { data: suppliers } = useQuery({
     queryKey: ["suppliers", currentOrganization?.id],
-    queryFn: async () => {
-      const allSuppliers: any[] = [];
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from("suppliers")
-          .select("*")
-          .eq("organization_id", currentOrganization?.id)
-          .is("deleted_at", null)
-          .order("supplier_name")
-          .range(offset, offset + PAGE_SIZE - 1);
-        if (error) throw error;
-        if (data && data.length > 0) {
-          allSuppliers.push(...data);
-          offset += PAGE_SIZE;
-          hasMore = data.length === PAGE_SIZE;
-        } else { hasMore = false; }
-      }
-      return allSuppliers;
-    },
+    queryFn: async () => fetchAllSuppliers(currentOrganization!.id),
     enabled: !!currentOrganization?.id,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // Dashboard metrics
