@@ -206,8 +206,8 @@ const defaultManagerPermissions: Record<string, boolean> = {
     gst_reports: true,
     hourly_sales_analysis: true,
     settings_view: true,
-    recycle_bin: false,
-    user_rights: false,
+    recycle_bin: true,
+    user_rights: true,
     stock_adjustment: true,
 };
 
