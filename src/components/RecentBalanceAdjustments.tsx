@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,13 +6,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
-import { History, Loader2, Pencil, Printer, ChevronLeft, ChevronRight } from "lucide-react";
+import { History, Loader2, Pencil, Printer, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 
 const PAGE_SIZE = 10;
 
@@ -25,6 +26,9 @@ export function RecentBalanceAdjustments({ organizationId }: Props) {
   const [page, setPage] = useState(0);
   const [editAdj, setEditAdj] = useState<any>(null);
   const [editReason, setEditReason] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [customerForHistory, setCustomerForHistory] = useState<{ id: string; name: string } | null>(null);
+  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading } = useQuery({
@@ -42,9 +46,27 @@ export function RecentBalanceAdjustments({ organizationId }: Props) {
     enabled: !!organizationId,
   });
 
-  const adjustments = data || [];
-  const totalPages = Math.max(1, Math.ceil(adjustments.length / PAGE_SIZE));
-  const paged = adjustments.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const allAdjustments = data || [];
+  
+  const filteredAdjustments = useMemo(() => {
+    if (!searchQuery.trim()) return allAdjustments;
+    const q = searchQuery.toLowerCase();
+    return allAdjustments.filter((adj: any) => {
+      const name = adj.customers?.customer_name?.toLowerCase() || "";
+      const phone = adj.customers?.phone || "";
+      const reason = adj.reason?.toLowerCase() || "";
+      return name.includes(q) || phone.includes(q) || reason.includes(q);
+    });
+  }, [allAdjustments, searchQuery]);
+
+  // Reset page when search changes
+  const handleSearch = (val: string) => {
+    setSearchQuery(val);
+    setPage(0);
+  };
+
+  const totalPages = Math.max(1, Math.ceil(filteredAdjustments.length / PAGE_SIZE));
+  const paged = filteredAdjustments.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
@@ -112,12 +134,22 @@ export function RecentBalanceAdjustments({ organizationId }: Props) {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Search Bar */}
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by customer name, phone or reason..."
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="pl-9 max-w-sm"
+            />
+          </div>
           {isLoading ? (
             <div className="flex items-center justify-center h-20">
               <Loader2 className="h-5 w-5 animate-spin" />
             </div>
-          ) : !adjustments.length ? (
-            <p className="text-sm text-muted-foreground text-center py-6">No adjustments made yet.</p>
+          ) : !filteredAdjustments.length ? (
+            <p className="text-sm text-muted-foreground text-center py-6">{searchQuery ? "No matching adjustments found." : "No adjustments made yet."}</p>
           ) : (
             <>
               <div className="overflow-x-auto">
@@ -142,7 +174,17 @@ export function RecentBalanceAdjustments({ organizationId }: Props) {
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="font-medium text-sm">{adj.customers?.customer_name || "—"}</p>
+                            <button
+                              className="font-medium text-sm text-primary hover:underline cursor-pointer text-left"
+                              onClick={() => {
+                                if (adj.customer_id) {
+                                  setCustomerForHistory({ id: adj.customer_id, name: adj.customers?.customer_name || "Customer" });
+                                  setShowCustomerHistory(true);
+                                }
+                              }}
+                            >
+                              {adj.customers?.customer_name || "—"}
+                            </button>
                             {adj.customers?.phone && (
                               <p className="text-xs text-muted-foreground">{adj.customers.phone}</p>
                             )}
@@ -191,7 +233,7 @@ export function RecentBalanceAdjustments({ organizationId }: Props) {
               {totalPages > 1 && (
                 <div className="flex items-center justify-between pt-4">
                   <p className="text-sm text-muted-foreground">
-                    Page {page + 1} of {totalPages} ({adjustments.length} records)
+                    Page {page + 1} of {totalPages} ({filteredAdjustments.length} records)
                   </p>
                   <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
@@ -237,6 +279,18 @@ export function RecentBalanceAdjustments({ organizationId }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {customerForHistory && (
+        <CustomerHistoryDialog
+          customerId={customerForHistory.id}
+          customerName={customerForHistory.name}
+          organizationId={organizationId}
+          open={showCustomerHistory}
+          onOpenChange={(v) => {
+            setShowCustomerHistory(v);
+            if (!v) setCustomerForHistory(null);
+          }}
+        />
+      )}
     </>
   );
 }
