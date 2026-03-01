@@ -257,14 +257,31 @@ export default function ItemWiseSalesReport() {
     return data;
   }, [aggregatedData, searchQuery, selectedBrand, selectedCategory, selectedDepartment]);
 
-  // Summary statistics
-  const summary = useMemo(() => {
-    const totalQty = filteredData.reduce((sum, item) => sum + item.total_qty, 0);
-    const totalAmount = filteredData.reduce((sum, item) => sum + item.total_amount, 0);
-    const uniqueProducts = filteredData.length;
-    const avgPrice = totalQty > 0 ? totalAmount / totalQty : 0;
-    return { totalQty, totalAmount, uniqueProducts, avgPrice };
-  }, [filteredData]);
+  // Summary via RPC (single JSON instead of client-side aggregation)
+  const { data: rpcSummary } = useQuery({
+    queryKey: ["item-sales-summary-rpc", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+      const params: any = {
+        p_organization_id: currentOrganization.id,
+        p_start_date: dateRange.from.toISOString(),
+        p_end_date: dateRange.to.toISOString(),
+      };
+      if (selectedCustomer !== "all") params.p_customer_name = selectedCustomer;
+      const { data, error } = await supabase.rpc("get_item_sales_summary", params);
+      if (error) throw error;
+      return data as any;
+    },
+    enabled: !!currentOrganization?.id,
+    ...REPORT_CACHE,
+  });
+
+  const summary = useMemo(() => ({
+    totalQty: rpcSummary?.total_qty ?? 0,
+    totalAmount: rpcSummary?.total_amount ?? 0,
+    uniqueProducts: rpcSummary?.unique_products ?? 0,
+    avgPrice: rpcSummary?.avg_price ?? 0,
+  }), [rpcSummary]);
 
   // Chart data - Top 10 products
   const topProductsData = useMemo(() => {

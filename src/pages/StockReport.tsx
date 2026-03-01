@@ -114,34 +114,22 @@ export default function StockReport() {
 
   const REPORT_CACHE = { staleTime: 5 * 60 * 1000, gcTime: 30 * 60 * 1000, refetchOnWindowFocus: false as const };
 
-  // Fetch global totals with useQuery for caching
+  // Fetch global totals via RPC (single JSON instead of downloading all variants)
   const { data: cachedGlobalTotals } = useQuery({
-    queryKey: ["stock-report-global-totals", currentOrganization?.id],
+    queryKey: ["stock-report-global-totals-rpc", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
-      const allVariants: any[] = [];
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from("product_variants")
-          .select("id, stock_qty, sale_price, pur_price, products!inner(product_type, deleted_at)")
-          .eq("organization_id", currentOrganization.id)
-          .eq("active", true)
-          .is("deleted_at", null)
-          .is("products.deleted_at", null)
-          .neq("products.product_type", "service")
-          .range(offset, offset + PAGE_SIZE - 1);
-        if (error) throw error;
-        if (data && data.length > 0) { allVariants.push(...data); offset += PAGE_SIZE; hasMore = data.length === PAGE_SIZE; } else { hasMore = false; }
-      }
-      return allVariants.reduce((acc, item) => ({
-        totalStock: acc.totalStock + (item.stock_qty || 0),
-        stockValue: acc.stockValue + ((item.pur_price || 0) * (item.stock_qty || 0)),
-        saleValue: acc.saleValue + ((item.sale_price || 0) * (item.stock_qty || 0)),
-        variantCount: acc.variantCount + 1,
-      }), { totalStock: 0, stockValue: 0, saleValue: 0, variantCount: 0 });
+      const { data, error } = await supabase.rpc("get_stock_report_totals", {
+        p_organization_id: currentOrganization.id,
+      });
+      if (error) throw error;
+      const result = data as any;
+      return {
+        totalStock: result?.total_stock ?? 0,
+        stockValue: result?.stock_value ?? 0,
+        saleValue: result?.sale_value ?? 0,
+        variantCount: result?.variant_count ?? 0,
+      };
     },
     enabled: !!currentOrganization?.id,
     ...REPORT_CACHE,

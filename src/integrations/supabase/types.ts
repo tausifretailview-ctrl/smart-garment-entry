@@ -5882,6 +5882,15 @@ export type Database = {
         Args: { p_date?: string; p_type: string }
         Returns: string
       }
+      get_item_sales_summary: {
+        Args: {
+          p_customer_name?: string
+          p_end_date: string
+          p_organization_id: string
+          p_start_date: string
+        }
+        Returns: Json
+      }
       get_org_public_info: { Args: { p_slug: string }; Returns: Json }
       get_org_whatsapp_stats: {
         Args: { p_end_date?: string; p_start_date?: string }
@@ -5904,6 +5913,15 @@ export type Database = {
           sample_references: string[]
         }[]
       }
+      get_sales_report_summary: {
+        Args: {
+          p_customer_id?: string
+          p_end_date?: string
+          p_organization_id: string
+          p_start_date?: string
+        }
+        Returns: Json
+      }
       get_stock_at_time: {
         Args: { p_timestamp: string; p_variant_id: string }
         Returns: number
@@ -5914,6 +5932,10 @@ export type Database = {
           stock_at_time: number
           variant_id: string
         }[]
+      }
+      get_stock_report_totals: {
+        Args: { p_organization_id: string }
+        Returns: Json
       }
       get_user_organization_ids: {
         Args: { user_id: string }
