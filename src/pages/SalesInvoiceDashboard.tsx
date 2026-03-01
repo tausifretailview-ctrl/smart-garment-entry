@@ -72,7 +72,7 @@ interface ColumnSettings {
 }
 
 const defaultColumnSettings: ColumnSettings = {
-  phone: false,  // Hidden by default
+  phone: true,  // Visible by default
   status: true,
   delivery: true,
   whatsapp: true,
