@@ -45,6 +45,7 @@ import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { Check, FileText, X } from "lucide-react";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { formatDistanceToNow } from "date-fns";
+import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 
 interface ConversionItem {
   id: string;
@@ -92,6 +93,8 @@ export default function SaleOrderDashboard() {
   
   // Draft save hook
   const { hasDraft, draftData, deleteDraft, lastSaved } = useDraftSave('sale_order');
+  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
+  const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
 
   // Fetch settings for print
   const { data: settings } = useQuery({
@@ -700,7 +703,18 @@ export default function SaleOrderDashboard() {
                         <TableCell>{format(new Date(order.order_date), 'dd/MM/yyyy')}</TableCell>
                         <TableCell>{order.expected_delivery_date ? format(new Date(order.expected_delivery_date), 'dd/MM/yyyy') : '-'}</TableCell>
                         <TableCell>
-                          <div>{order.customer_name}</div>
+                          <div>
+                            <button
+                              className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-inherit text-left"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedCustomerForHistory({ id: order.customer_id, name: order.customer_name });
+                                setShowCustomerHistory(true);
+                              }}
+                            >
+                              {order.customer_name}
+                            </button>
+                          </div>
                           <div className="text-sm text-muted-foreground">{order.customer_phone}</div>
                         </TableCell>
                         <TableCell>
@@ -962,6 +976,14 @@ export default function SaleOrderDashboard() {
           onClose={() => setOrderToPrint(null)}
         />
       )}
+
+      <CustomerHistoryDialog
+        open={showCustomerHistory}
+        onOpenChange={setShowCustomerHistory}
+        customerId={selectedCustomerForHistory?.id || null}
+        customerName={selectedCustomerForHistory?.name || ''}
+        organizationId={currentOrganization?.id || ''}
+      />
     </div>
   );
 }

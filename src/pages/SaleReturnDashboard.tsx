@@ -14,6 +14,7 @@ import { useReactToPrint } from "react-to-print";
 import { SaleReturnPrint } from "@/components/SaleReturnPrint";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { AdjustCustomerCreditNoteDialog } from "@/components/AdjustCustomerCreditNoteDialog";
+import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 
 interface SaleReturn {
   id: string;
@@ -71,6 +72,8 @@ export default function SaleReturnDashboard() {
   // Credit note adjustment dialog states
   const [showAdjustDialog, setShowAdjustDialog] = useState(false);
   const [selectedReturnForAdjust, setSelectedReturnForAdjust] = useState<SaleReturn | null>(null);
+  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
+  const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -300,7 +303,18 @@ export default function SaleReturnDashboard() {
                           <Badge variant="secondary">{ret.return_number || "-"}</Badge>
                         </TableCell>
                         <TableCell>{new Date(ret.return_date).toLocaleDateString()}</TableCell>
-                        <TableCell>{ret.customer_name}</TableCell>
+                        <TableCell>
+                          <button
+                            className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-inherit text-left"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedCustomerForHistory({ id: ret.customer_id, name: ret.customer_name });
+                              setShowCustomerHistory(true);
+                            }}
+                          >
+                            {ret.customer_name}
+                          </button>
+                        </TableCell>
                         <TableCell>
                           {ret.original_sale_number ? (
                             <Badge variant="outline">{ret.original_sale_number}</Badge>
@@ -488,6 +502,14 @@ export default function SaleReturnDashboard() {
             />
           )}
         </div>
+
+        <CustomerHistoryDialog
+          open={showCustomerHistory}
+          onOpenChange={setShowCustomerHistory}
+          customerId={selectedCustomerForHistory?.id || null}
+          customerName={selectedCustomerForHistory?.name || ''}
+          organizationId={currentOrganization?.id || ''}
+        />
       </div>
   );
 }
