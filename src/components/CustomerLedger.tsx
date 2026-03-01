@@ -236,6 +236,9 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       return customerTotals;
     },
     enabled: !!organizationId,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // Auto-select customer when preSelectedCustomerId is provided and data is loaded
