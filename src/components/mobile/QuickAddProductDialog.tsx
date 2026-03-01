@@ -9,6 +9,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, Package, ScanBarcode } from "lucide-react";
+import { checkBarcodeExists } from "@/utils/barcodeValidation";
 
 interface QuickAddProductDialogProps {
   open: boolean;
@@ -95,6 +96,16 @@ export const QuickAddProductDialog = ({
     setIsLoading(true);
 
     try {
+      // Check for duplicate barcode before saving
+      if (barcode.trim()) {
+        const { exists, productName } = await checkBarcodeExists(barcode.trim(), currentOrganization.id);
+        if (exists) {
+          toast.error(`Barcode "${barcode.trim()}" already exists in product "${productName}". Please use a unique barcode.`);
+          setIsLoading(false);
+          return;
+        }
+      }
+
       // Create product
       const { data: product, error: productError } = await supabase
         .from("products")
