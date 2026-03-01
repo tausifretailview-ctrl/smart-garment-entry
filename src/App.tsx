@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -15,92 +15,99 @@ import { OrganizationSetup } from "@/components/OrganizationSetup";
 import { Layout } from "@/components/Layout";
 import { FullScreenLayout } from "@/components/FullScreenLayout";
 import { POSLayout } from "@/components/POSLayout";
-import OrganizationManagement from "./pages/OrganizationManagement";
-import Index from "./pages/Index";
-import ProductDashboard from "./pages/ProductDashboard";
-import ProductEntry from "./pages/ProductEntry";
-import PurchaseEntry from "./pages/PurchaseEntry";
-import PurchaseBillDashboard from "./pages/PurchaseBillDashboard";
-import PurchaseReturnDashboard from "./pages/PurchaseReturnDashboard";
-import PurchaseReturnEntry from "./pages/PurchaseReturnEntry";
-import BarcodePrinting from "./pages/BarcodePrinting";
-import StockReport from "./pages/StockReport";
-import Settings from "./pages/Settings";
-import Profile from "./pages/Profile";
-import POSSales from "./pages/POSSales";
-import POSDashboard from "./pages/POSDashboard";
-import SalesInvoice from "./pages/SalesInvoice";
-import SalesInvoiceDashboard from "./pages/SalesInvoiceDashboard";
-import SaleReturnEntry from "./pages/SaleReturnEntry";
-import SaleReturnDashboard from "./pages/SaleReturnDashboard";
-import QuotationEntry from "./pages/QuotationEntry";
-import QuotationDashboard from "./pages/QuotationDashboard";
-import SaleOrderEntry from "./pages/SaleOrderEntry";
-import SaleOrderDashboard from "./pages/SaleOrderDashboard";
-import PurchaseOrderEntry from "./pages/PurchaseOrderEntry";
-import PurchaseOrderDashboard from "./pages/PurchaseOrderDashboard";
-import CustomerMaster from "./pages/CustomerMaster";
-import SupplierMaster from "./pages/SupplierMaster";
-import EmployeeMaster from "./pages/EmployeeMaster";
-import PurchaseReportBySupplier from "./pages/PurchaseReportBySupplier";
-import SalesReportByCustomer from "./pages/SalesReportByCustomer";
-import ProductTrackingReport from "./pages/ProductTrackingReport";
-import DailyCashierReport from "./pages/DailyCashierReport";
-import DailyTally from "./pages/DailyTally";
-import AuditLog from "./pages/AuditLog";
-import Accounts from "./pages/Accounts";
-import DeliveryDashboard from "./pages/DeliveryDashboard";
-import PaymentsDashboard from "./pages/PaymentsDashboard";
-import UserRights from "./pages/UserRights";
-import Auth from "./pages/Auth";
-import OrgAuth from "./pages/OrgAuth";
-import FieldSalesAuth from "./pages/FieldSalesAuth";
-import NotFound from "./pages/NotFound";
-import PlatformAdmin from "./pages/PlatformAdmin";
-import PublicInvoiceView from "./pages/PublicInvoiceView";
-import PublicPaymentPage from "./pages/PublicPaymentPage";
-import ItemWiseSalesReport from "./pages/ItemWiseSalesReport";
-import ItemWiseStockReport from "./pages/ItemWiseStockReport";
-import PriceHistoryReport from "./pages/PriceHistoryReport";
-import GSTSalePurchaseRegister from "./pages/GSTSalePurchaseRegister";
-import GSTReports from "./pages/GSTReports";
-import TallyExport from "./pages/TallyExport";
-import SalesAnalyticsDashboard from "./pages/SalesAnalyticsDashboard";
-import AccountingReports from "./pages/AccountingReports";
-import NetProfitAnalysis from "./pages/NetProfitAnalysis";
-import HourlySalesAnalysis from "./pages/HourlySalesAnalysis";
-import RecycleBin from "./pages/RecycleBin";
-import StockAdjustment from "./pages/StockAdjustment";
-import StockAnalysis from "./pages/StockAnalysis";
-import StockAgeingReport from "./pages/StockAgeingReport";
-import BulkProductUpdate from "./pages/BulkProductUpdate";
-import DeliveryChallanEntry from "./pages/DeliveryChallanEntry";
-import DeliveryChallanDashboard from "./pages/DeliveryChallanDashboard";
-import AdvanceBookingDashboard from "./pages/AdvanceBookingDashboard";
-import SalesmanLayout from "./layouts/SalesmanLayout";
-import SalesmanDashboard from "./pages/salesman/SalesmanDashboard";
-import SalesmanCustomers from "./pages/salesman/SalesmanCustomers";
-import SalesmanOrderEntry from "./pages/salesman/SalesmanOrderEntry";
-import SalesmanOrderView from "./pages/salesman/SalesmanOrderView";
-import SalesmanCustomerAccount from "./pages/salesman/SalesmanCustomerAccount";
-import SalesmanOrders from "./pages/salesman/SalesmanOrders";
-import SalesmanOutstanding from "./pages/salesman/SalesmanOutstanding";
-import WhatsAppLogs from "./pages/WhatsAppLogs";
-import WhatsAppInbox from "./pages/WhatsAppInbox";
-import MobileMoreMenu from "./pages/mobile/MobileMoreMenu";
-import MobileReportsHub from "./pages/mobile/MobileReportsHub";
-// School Module imports
-import StudentMaster from "./pages/school/StudentMaster";
-import StudentEntry from "./pages/school/StudentEntry";
-import AcademicYearSetup from "./pages/school/AcademicYearSetup";
-import ClassSectionSetup from "./pages/school/ClassSectionSetup";
-import FeeHeadsSetup from "./pages/school/FeeHeadsSetup";
-import FeeCollection from "./pages/school/FeeCollection";
-import FeeStructureSetup from "./pages/school/FeeStructureSetup";
-import TeacherMaster from "./pages/school/TeacherMaster";
-import StudentReports from "./pages/school/StudentReports";
 import { SchoolFeatureGate } from "./components/school/SchoolFeatureGate";
 import { getStoredOrgSlug } from "@/lib/orgSlug";
+
+// Lazy-loaded page components for code splitting
+const OrganizationManagement = lazy(() => import("./pages/OrganizationManagement"));
+const Index = lazy(() => import("./pages/Index"));
+const ProductDashboard = lazy(() => import("./pages/ProductDashboard"));
+const ProductEntry = lazy(() => import("./pages/ProductEntry"));
+const PurchaseEntry = lazy(() => import("./pages/PurchaseEntry"));
+const PurchaseBillDashboard = lazy(() => import("./pages/PurchaseBillDashboard"));
+const PurchaseReturnDashboard = lazy(() => import("./pages/PurchaseReturnDashboard"));
+const PurchaseReturnEntry = lazy(() => import("./pages/PurchaseReturnEntry"));
+const BarcodePrinting = lazy(() => import("./pages/BarcodePrinting"));
+const StockReport = lazy(() => import("./pages/StockReport"));
+const Settings = lazy(() => import("./pages/Settings"));
+const Profile = lazy(() => import("./pages/Profile"));
+const POSSales = lazy(() => import("./pages/POSSales"));
+const POSDashboard = lazy(() => import("./pages/POSDashboard"));
+const SalesInvoice = lazy(() => import("./pages/SalesInvoice"));
+const SalesInvoiceDashboard = lazy(() => import("./pages/SalesInvoiceDashboard"));
+const SaleReturnEntry = lazy(() => import("./pages/SaleReturnEntry"));
+const SaleReturnDashboard = lazy(() => import("./pages/SaleReturnDashboard"));
+const QuotationEntry = lazy(() => import("./pages/QuotationEntry"));
+const QuotationDashboard = lazy(() => import("./pages/QuotationDashboard"));
+const SaleOrderEntry = lazy(() => import("./pages/SaleOrderEntry"));
+const SaleOrderDashboard = lazy(() => import("./pages/SaleOrderDashboard"));
+const PurchaseOrderEntry = lazy(() => import("./pages/PurchaseOrderEntry"));
+const PurchaseOrderDashboard = lazy(() => import("./pages/PurchaseOrderDashboard"));
+const CustomerMaster = lazy(() => import("./pages/CustomerMaster"));
+const SupplierMaster = lazy(() => import("./pages/SupplierMaster"));
+const EmployeeMaster = lazy(() => import("./pages/EmployeeMaster"));
+const PurchaseReportBySupplier = lazy(() => import("./pages/PurchaseReportBySupplier"));
+const SalesReportByCustomer = lazy(() => import("./pages/SalesReportByCustomer"));
+const ProductTrackingReport = lazy(() => import("./pages/ProductTrackingReport"));
+const DailyCashierReport = lazy(() => import("./pages/DailyCashierReport"));
+const DailyTally = lazy(() => import("./pages/DailyTally"));
+const AuditLog = lazy(() => import("./pages/AuditLog"));
+const Accounts = lazy(() => import("./pages/Accounts"));
+const DeliveryDashboard = lazy(() => import("./pages/DeliveryDashboard"));
+const PaymentsDashboard = lazy(() => import("./pages/PaymentsDashboard"));
+const UserRights = lazy(() => import("./pages/UserRights"));
+const Auth = lazy(() => import("./pages/Auth"));
+const OrgAuth = lazy(() => import("./pages/OrgAuth"));
+const FieldSalesAuth = lazy(() => import("./pages/FieldSalesAuth"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const PlatformAdmin = lazy(() => import("./pages/PlatformAdmin"));
+const PublicInvoiceView = lazy(() => import("./pages/PublicInvoiceView"));
+const PublicPaymentPage = lazy(() => import("./pages/PublicPaymentPage"));
+const ItemWiseSalesReport = lazy(() => import("./pages/ItemWiseSalesReport"));
+const ItemWiseStockReport = lazy(() => import("./pages/ItemWiseStockReport"));
+const PriceHistoryReport = lazy(() => import("./pages/PriceHistoryReport"));
+const GSTSalePurchaseRegister = lazy(() => import("./pages/GSTSalePurchaseRegister"));
+const GSTReports = lazy(() => import("./pages/GSTReports"));
+const TallyExport = lazy(() => import("./pages/TallyExport"));
+const SalesAnalyticsDashboard = lazy(() => import("./pages/SalesAnalyticsDashboard"));
+const AccountingReports = lazy(() => import("./pages/AccountingReports"));
+const NetProfitAnalysis = lazy(() => import("./pages/NetProfitAnalysis"));
+const HourlySalesAnalysis = lazy(() => import("./pages/HourlySalesAnalysis"));
+const RecycleBin = lazy(() => import("./pages/RecycleBin"));
+const StockAdjustment = lazy(() => import("./pages/StockAdjustment"));
+const StockAnalysis = lazy(() => import("./pages/StockAnalysis"));
+const StockAgeingReport = lazy(() => import("./pages/StockAgeingReport"));
+const BulkProductUpdate = lazy(() => import("./pages/BulkProductUpdate"));
+const DeliveryChallanEntry = lazy(() => import("./pages/DeliveryChallanEntry"));
+const DeliveryChallanDashboard = lazy(() => import("./pages/DeliveryChallanDashboard"));
+const AdvanceBookingDashboard = lazy(() => import("./pages/AdvanceBookingDashboard"));
+const SalesmanLayout = lazy(() => import("./layouts/SalesmanLayout"));
+const SalesmanDashboard = lazy(() => import("./pages/salesman/SalesmanDashboard"));
+const SalesmanCustomers = lazy(() => import("./pages/salesman/SalesmanCustomers"));
+const SalesmanOrderEntry = lazy(() => import("./pages/salesman/SalesmanOrderEntry"));
+const SalesmanOrderView = lazy(() => import("./pages/salesman/SalesmanOrderView"));
+const SalesmanCustomerAccount = lazy(() => import("./pages/salesman/SalesmanCustomerAccount"));
+const SalesmanOrders = lazy(() => import("./pages/salesman/SalesmanOrders"));
+const SalesmanOutstanding = lazy(() => import("./pages/salesman/SalesmanOutstanding"));
+const WhatsAppLogs = lazy(() => import("./pages/WhatsAppLogs"));
+const WhatsAppInbox = lazy(() => import("./pages/WhatsAppInbox"));
+const MobileMoreMenu = lazy(() => import("./pages/mobile/MobileMoreMenu"));
+const MobileReportsHub = lazy(() => import("./pages/mobile/MobileReportsHub"));
+const StudentMaster = lazy(() => import("./pages/school/StudentMaster"));
+const StudentEntry = lazy(() => import("./pages/school/StudentEntry"));
+const AcademicYearSetup = lazy(() => import("./pages/school/AcademicYearSetup"));
+const ClassSectionSetup = lazy(() => import("./pages/school/ClassSectionSetup"));
+const FeeHeadsSetup = lazy(() => import("./pages/school/FeeHeadsSetup"));
+const FeeCollection = lazy(() => import("./pages/school/FeeCollection"));
+const FeeStructureSetup = lazy(() => import("./pages/school/FeeStructureSetup"));
+const TeacherMaster = lazy(() => import("./pages/school/TeacherMaster"));
+const StudentReports = lazy(() => import("./pages/school/StudentReports"));
+
+const LazyFallback = () => (
+  <div className="min-h-screen flex items-center justify-center">
+    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+  </div>
+);
 
 // Check if this is a Field Sales PWA launch (check URL param or sessionStorage)
 function isFieldSalesPWA(): boolean {
@@ -180,6 +187,7 @@ const App = () => {
         <AuthProvider>
           <OrganizationProvider>
             <WindowTabsProvider>
+            <Suspense fallback={<LazyFallback />}>
             <Routes>
               {/* Public routes - No org context needed */}
               <Route path="/auth" element={<Auth />} />
@@ -1065,6 +1073,7 @@ const App = () => {
               {/* Catch-all for 404 */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
             </WindowTabsProvider>
           </OrganizationProvider>
         </AuthProvider>
