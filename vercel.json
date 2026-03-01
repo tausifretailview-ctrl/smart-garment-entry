@@ -1,7 +1,6 @@
 {
   "rewrites": [
-    { "source": "/~oauth", "destination": "/~oauth" },
-    { "source": "/~oauth/:path*", "destination": "/~oauth/:path*" },
+    { "source": "/~oauth/:path*", "destination": "https://5542c4f6-5687-49fc-a3ae-a105152e96ae.lovableproject.com/~oauth/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
