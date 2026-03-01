@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { format } from "date-fns";
 import { Loader2, IndianRupee } from "lucide-react";
+import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 
 interface AdjustCustomerCreditNoteDialogProps {
   open: boolean;
@@ -40,6 +41,7 @@ export function AdjustCustomerCreditNoteDialog({
   const [selectedSaleId, setSelectedSaleId] = useState<string>("");
   const [refundMode, setRefundMode] = useState<"cash" | "bank">("cash");
   const [loading, setLoading] = useState(false);
+  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
 
   // Fetch unpaid/partially paid sales for this customer
   const { data: unpaidSales = [], isLoading: salesLoading } = useQuery({
@@ -222,7 +224,7 @@ export function AdjustCustomerCreditNoteDialog({
         <DialogHeader>
           <DialogTitle>Adjust Credit Note</DialogTitle>
           <DialogDescription>
-            Return: <strong>{returnNumber}</strong> | Customer: <strong>{customerName}</strong>
+            Return: <strong>{returnNumber}</strong> | Customer: <button className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-bold" onClick={() => setShowCustomerHistory(true)}>{customerName}</button>
           </DialogDescription>
         </DialogHeader>
 
@@ -322,6 +324,16 @@ export function AdjustCustomerCreditNoteDialog({
             Apply Adjustment
           </Button>
         </DialogFooter>
+
+        {customerId && (
+          <CustomerHistoryDialog
+            open={showCustomerHistory}
+            onOpenChange={setShowCustomerHistory}
+            customerId={customerId}
+            customerName={customerName}
+            organizationId={currentOrganization?.id || ""}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );
