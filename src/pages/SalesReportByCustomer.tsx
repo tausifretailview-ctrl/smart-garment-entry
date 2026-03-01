@@ -117,38 +117,32 @@ const SalesReportByCustomer = () => {
   // Reset page when filters change
   const resetPage = () => setCurrentPage(1);
 
-  // Calculate totals
+  // RPC-powered summary (single JSON response instead of downloading all rows)
+  const { data: summary } = useQuery({
+    queryKey: ["sales-report-summary-rpc", currentOrganization?.id, startDate, endDate, selectedCustomerId],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+      const params: any = { p_organization_id: currentOrganization.id };
+      if (startDate) params.p_start_date = format(startDate, "yyyy-MM-dd");
+      if (endDate) params.p_end_date = format(endDate, "yyyy-MM-dd");
+      if (selectedCustomerId !== "all") params.p_customer_id = selectedCustomerId;
+      const { data, error } = await supabase.rpc("get_sales_report_summary", params);
+      if (error) throw error;
+      return data as any;
+    },
+    enabled: !!currentOrganization?.id,
+    ...REPORT_QUERY_OPTIONS,
+  });
+
   const totals = useMemo(() => ({
-    grossAmount: sales.reduce((sum, sale) => sum + (sale.gross_amount || 0), 0),
-    discountAmount: sales.reduce((sum, sale) => sum + (sale.discount_amount || 0), 0),
-    netAmount: sales.reduce((sum, sale) => sum + (sale.net_amount || 0), 0),
-    saleCount: sales.length,
-  }), [sales]);
+    grossAmount: summary?.gross_amount ?? 0,
+    discountAmount: summary?.discount_amount ?? 0,
+    netAmount: summary?.net_amount ?? 0,
+    saleCount: summary?.sale_count ?? 0,
+  }), [summary]);
 
-  // Group by customer for chart
-  const chartData = useMemo(() => {
-    const customerData = sales.reduce((acc: any, sale) => {
-      const customerName = sale.customer_name || "Walk in Customer";
-      if (!acc[customerName]) {
-        acc[customerName] = { name: customerName, amount: 0, count: 0 };
-      }
-      acc[customerName].amount += sale.net_amount || 0;
-      acc[customerName].count += 1;
-      return acc;
-    }, {});
-    return Object.values(customerData).sort((a: any, b: any) => b.amount - a.amount).slice(0, 10);
-  }, [sales]);
-
-  // Payment method breakdown
-  const pieChartData = useMemo(() => {
-    const paymentMethodData = sales.reduce((acc: any, sale) => {
-      const method = sale.payment_method || "Unknown";
-      if (!acc[method]) acc[method] = { name: method, value: 0 };
-      acc[method].value += sale.net_amount || 0;
-      return acc;
-    }, {});
-    return Object.values(paymentMethodData);
-  }, [sales]);
+  const chartData = useMemo(() => (summary?.top_customers || []) as any[], [summary]);
+  const pieChartData = useMemo(() => (summary?.payment_methods || []) as any[], [summary]);
 
   // Pagination
   const totalPages = Math.ceil(sales.length / ITEMS_PER_PAGE);

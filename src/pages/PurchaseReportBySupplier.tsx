@@ -31,6 +31,8 @@ const PurchaseReportBySupplier = () => {
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
 
+  const REPORT_CACHE = { staleTime: 5 * 60 * 1000, gcTime: 30 * 60 * 1000, refetchOnWindowFocus: false as const };
+
   // Fetch suppliers using paginated fetch to bypass 1000 limit
   const { data: suppliers = [] } = useQuery({
     queryKey: ["suppliers-all", currentOrganization?.id],
@@ -39,6 +41,7 @@ const PurchaseReportBySupplier = () => {
       return await fetchAllSuppliers(currentOrganization.id);
     },
     enabled: !!currentOrganization?.id,
+    ...REPORT_CACHE,
   });
 
   // Fetch purchase bills using paginated fetch to bypass 1000 limit
@@ -56,6 +59,7 @@ const PurchaseReportBySupplier = () => {
       return allBills as PurchaseBill[];
     },
     enabled: !!currentOrganization?.id,
+    ...REPORT_CACHE,
   });
 
   // Calculate totals
