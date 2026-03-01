@@ -34,6 +34,7 @@ import { PriceUpdateConfirmDialog } from "@/components/PriceUpdateConfirmDialog"
 import { AddSupplierDialog } from "@/components/AddSupplierDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
+import { checkBarcodeExists } from "@/utils/barcodeValidation";
 
 interface PriceChange {
   sku_id: string;
@@ -2170,6 +2171,18 @@ const PurchaseEntry = () => {
             if (existingVariant) {
               newVariantId = existingVariant.id;
             } else {
+              // Check for duplicate barcode before inserting new variant
+              if (barcode) {
+                const { exists, productName: conflictProduct } = await checkBarcodeExists(barcode, currentOrganization.id);
+                if (exists) {
+                  toast({
+                    title: "Duplicate Barcode Warning",
+                    description: `Barcode "${barcode}" already exists in "${conflictProduct}". Proceeding with import.`,
+                    variant: "destructive",
+                  });
+                }
+              }
+
               const { data: inserted, error: insertErr } = await supabase
                 .from('product_variants')
                 .insert({
