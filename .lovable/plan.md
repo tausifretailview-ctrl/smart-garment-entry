@@ -1,57 +1,51 @@
 
-# Fix: Prevent Page Re-render When Switching Browser Tabs
 
-## Problem
-When users operate multiple browser tabs (common for fast billing), switching between tabs triggers a cascade:
-1. Tab becomes visible → auth session refresh fires
-2. Session refresh calls `setUser(data.session.user)` with a new object reference
-3. OrganizationContext depends on `user` and calls `fetchOrganizations()`, setting `loading: true`
-4. The loading state causes the entire page to re-render with a spinner, losing any in-progress work (selected customer, cart items, etc.)
+## Fix: Double Entry in Customer Ledger After Advance Balance Adjustment
 
-## Root Cause
-The `user` dependency in OrganizationContext (line 81) triggers a full org re-fetch whenever the user object reference changes, even if the actual user ID hasn't changed. Session refreshes create new object references every time.
+### Problem
+When a balance adjustment reduces a customer's advance (e.g., cash refund of ₹2,000 advance), the ledger shows:
+- ADVANCE row: ₹2,000 credit (full original amount)
+- ADJ row: ₹0 (advance_difference is excluded from calculation)
+- Result: Balance shows ₹2,000 credit, but actual balance is ₹0
 
-## Changes
+### Root Cause
+In `CustomerLedger.tsx`, the adjustment entry processing (around line 643-662) intentionally excludes `advance_difference` with a comment saying "advance adjustments already create/modify separate customer_advances records that appear as their own ADVANCE rows." However, when an advance is **reduced** (negative advance_difference), no new advance row is created -- the existing record is modified (used_amount increased). The original advance row still displays at full credit value, so the "consumption" of the advance is never reflected.
 
-### 1. AuthContext -- Skip state update when user hasn't changed
-**File: `src/contexts/AuthContext.tsx`**
+### Fix (1 file)
 
-In the `safelyRefreshSession` callback (around line 105-108), only update state if the user ID actually changed:
-```typescript
-} else if (data.session) {
-  // Only update state if user actually changed (prevents re-render cascade on tab switch)
-  if (data.session.user?.id !== sessionRef.current?.user?.id) {
-    setSession(data.session);
-    setUser(data.session.user);
-  } else {
-    // Silently update the ref without triggering re-renders
-    sessionRef.current = data.session;
-  }
+**`src/components/CustomerLedger.tsx`** -- Adjustment entry calculation (lines 643-662):
+
+Update the ledger's adjustment entry to include **negative** advance_difference as a debit (representing advance consumption/refund). Positive advance_difference is still excluded since it creates a new advance record that appears as its own row.
+
+Current logic:
+```
+const outDiff = adj.outstanding_difference || 0;
+// Advance difference is NOT included...
+const netDebit = outDiff > 0 ? outDiff : 0;
+const netCredit = outDiff < 0 ? Math.abs(outDiff) : 0;
+```
+
+New logic:
+```
+const outDiff = adj.outstanding_difference || 0;
+const advDiff = adj.advance_difference || 0;
+// When advance is reduced (advDiff < 0), show as debit (advance credit reversed)
+// When advance is increased (advDiff > 0), skip here (new advance record handles it)
+const advanceConsumed = advDiff < 0 ? Math.abs(advDiff) : 0;
+const netDebit = (outDiff > 0 ? outDiff : 0) + advanceConsumed;
+const netCredit = outDiff < 0 ? Math.abs(outDiff) : 0;
+```
+
+Also update the description to mention the advance refund when applicable:
+```
+let adjDescription = `Balance Adjustment: ${adj.reason}`;
+if (advanceConsumed > 0) {
+  adjDescription += ` (Advance Refund: ₹${advanceConsumed.toLocaleString('en-IN')})`;
 }
 ```
 
-### 2. OrganizationContext -- Track user ID instead of user object
-**File: `src/contexts/OrganizationContext.tsx`**
+### Expected Result for Zeba Rokadia
+- ADVANCE row: ₹2,000 credit, balance ₹2,000
+- ADJ row: ₹2,000 debit (advance consumed), balance ₹0
+- TOTAL: Debit ₹2,000, Credit ₹2,000, Balance ₹0 (matches actual)
 
-Change the useEffect dependency from `user` (object reference) to `user?.id` (stable string):
-```typescript
-useEffect(() => {
-  if (!user) { ... return; }
-  fetchOrganizations();
-}, [user?.id]); // Was [user] -- object reference changed on every refresh
-```
-
-This ensures organizations are only re-fetched when the user actually logs in/out, not on every session token refresh.
-
-### 3. Auth onAuthStateChange -- Same user ID guard
-**File: `src/contexts/AuthContext.tsx`**
-
-In the `onAuthStateChange` handler, apply the same optimization: only call `setUser` if the user ID has actually changed, to prevent cascade re-renders from `TOKEN_REFRESHED` events.
-
----
-
-## Impact
-- Multi-tab billing will work smoothly without page refresh on tab switch
-- Session tokens will still be refreshed silently in the background
-- No impact on login/logout flows (those change the user ID)
-- Existing session security (Chrome token revocation, expiry checks) remains intact
