@@ -380,12 +380,30 @@ export const generateInvoiceFromHTML = async (data: InvoiceData): Promise<void> 
     });
     
     // Calculate dimensions to fit A5 (148mm x 210mm)
-    const pageWidth = 148;
-    const imgWidth = pageWidth;
-    const imgHeight = (canvas.height * pageWidth) / canvas.width;
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const scaledWidth = pdfWidth;
+    const scaledHeight = (canvas.height * pdfWidth) / canvas.width;
     
-    // Add image to PDF
-    pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+    if (scaledHeight <= pdfHeight) {
+      pdf.addImage(imgData, 'PNG', 0, 0, scaledWidth, scaledHeight);
+    } else {
+      const totalPages = Math.ceil(scaledHeight / pdfHeight);
+      for (let page = 0; page < totalPages; page++) {
+        if (page > 0) pdf.addPage();
+        const sourceY = page * (canvas.height / totalPages);
+        const sourceH = canvas.height / totalPages;
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = Math.ceil(sourceH);
+        const ctx = pageCanvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceH, 0, 0, canvas.width, sourceH);
+          const pageImgData = pageCanvas.toDataURL('image/png');
+          pdf.addImage(pageImgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        }
+      }
+    }
     
     // Download PDF
     const fileName = `invoice-${data.billNo}-${Date.now()}.pdf`;

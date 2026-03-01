@@ -785,21 +785,48 @@ export default function SalesInvoiceDashboard() {
           });
           
           const imgData = canvas.toDataURL('image/png');
+          const pageFormat = billFormat === 'a5' || billFormat === 'a5-horizontal' ? 'a5' : 'a4';
           const pdf = new jsPDF({
             orientation: 'portrait',
             unit: 'mm',
-            format: billFormat === 'a5' || billFormat === 'a5-horizontal' ? 'a5' : 'a4',
+            format: pageFormat,
           });
           
           const pdfWidth = pdf.internal.pageSize.getWidth();
           const pdfHeight = pdf.internal.pageSize.getHeight();
           const imgWidth = canvas.width;
           const imgHeight = canvas.height;
-          const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-          const imgX = (pdfWidth - imgWidth * ratio) / 2;
-          const imgY = 0;
           
-          pdf.addImage(imgData, 'PNG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
+          // Scale image width to fit PDF page width
+          const scaledWidth = pdfWidth;
+          const scaledHeight = (imgHeight * pdfWidth) / imgWidth;
+          
+          if (scaledHeight <= pdfHeight) {
+            // Content fits on a single page
+            pdf.addImage(imgData, 'PNG', 0, 0, scaledWidth, scaledHeight);
+          } else {
+            // Multi-page: slice the canvas into page-sized chunks
+            const totalPages = Math.ceil(scaledHeight / pdfHeight);
+            for (let page = 0; page < totalPages; page++) {
+              if (page > 0) pdf.addPage();
+              
+              // Calculate which portion of the source canvas to draw
+              const sourceY = page * (imgHeight / totalPages);
+              const sourceH = imgHeight / totalPages;
+              
+              // Create a temporary canvas for this page slice
+              const pageCanvas = document.createElement('canvas');
+              pageCanvas.width = imgWidth;
+              pageCanvas.height = Math.ceil(sourceH);
+              const ctx = pageCanvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(canvas, 0, sourceY, imgWidth, sourceH, 0, 0, imgWidth, sourceH);
+                const pageImgData = pageCanvas.toDataURL('image/png');
+                pdf.addImage(pageImgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+              }
+            }
+          }
+          
           pdf.save(`Invoice_${invoice.sale_number}_${format(new Date(invoice.sale_date), 'ddMMyyyy')}.pdf`);
           
           toast({
@@ -1346,11 +1373,30 @@ export default function SalesInvoiceDashboard() {
         const pdfHeight = pdf.internal.pageSize.getHeight();
         const imgWidth = canvas.width;
         const imgHeight = canvas.height;
-        const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-        const imgX = (pdfWidth - imgWidth * ratio) / 2;
-        const imgY = 0;
-
-        pdf.addImage(imgData, "PNG", imgX, imgY, imgWidth * ratio, imgHeight * ratio);
+        
+        const scaledWidth = pdfWidth;
+        const scaledHeight = (imgHeight * pdfWidth) / imgWidth;
+        
+        if (scaledHeight <= pdfHeight) {
+          pdf.addImage(imgData, "PNG", 0, 0, scaledWidth, scaledHeight);
+        } else {
+          const totalPages = Math.ceil(scaledHeight / pdfHeight);
+          for (let page = 0; page < totalPages; page++) {
+            if (page > 0) pdf.addPage();
+            const sourceY = page * (imgHeight / totalPages);
+            const sourceH = imgHeight / totalPages;
+            const pageCanvas = document.createElement('canvas');
+            pageCanvas.width = imgWidth;
+            pageCanvas.height = Math.ceil(sourceH);
+            const ctx = pageCanvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(canvas, 0, sourceY, imgWidth, sourceH, 0, 0, imgWidth, sourceH);
+              const pageImgData = pageCanvas.toDataURL('image/png');
+              pdf.addImage(pageImgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+            }
+          }
+        }
+        
         pdf.save(`e-Invoice_${invoice.sale_number}.pdf`);
 
         toast({
