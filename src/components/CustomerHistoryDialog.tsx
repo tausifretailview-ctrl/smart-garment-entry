@@ -6,11 +6,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, IndianRupee, ShoppingCart, CreditCard, RotateCcw, FileText, Receipt, ChevronDown, ChevronRight, History } from "lucide-react";
+import { Loader2, IndianRupee, ShoppingCart, CreditCard, RotateCcw, FileText, Receipt, ChevronDown, ChevronRight, History, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerAdvanceBalance } from "@/hooks/useCustomerAdvances";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 
 interface SaleItem {
   id: string;
@@ -43,6 +45,12 @@ export function CustomerHistoryDialog({
   const [expandedSaleId, setExpandedSaleId] = useState<string | null>(null);
   const [selectedLegacyIndex, setSelectedLegacyIndex] = useState<number>(0);
   const legacyRowRefs = useRef<(HTMLTableRowElement | null)[]>([]);
+  const { orgNavigate: navigate } = useOrgNavigation();
+
+  const handleViewTransaction = (path: string) => {
+    onOpenChange(false);
+    setTimeout(() => navigate(path), 100);
+  };
 
   // Get customer balance
   const { balance, openingBalance, totalSales, totalPaid, isLoading: balanceLoading } = useCustomerBalance(
@@ -321,6 +329,7 @@ export function CustomerHistoryDialog({
                       <TableHead>Amount</TableHead>
                       <TableHead>Paid</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead className="w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -354,10 +363,24 @@ export function CustomerHistoryDialog({
                                 {sale.payment_status}
                               </Badge>
                             </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                title="View Invoice"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleViewTransaction(`/sales-invoice/${sale.id}`);
+                                }}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
                           </TableRow>
                           {isExpanded && items.length > 0 && (
                             <TableRow key={`${sale.id}-items`}>
-                              <TableCell colSpan={7} className="p-0 bg-muted/30">
+                              <TableCell colSpan={8} className="p-0 bg-muted/30">
                                 <div className="p-3">
                                   <p className="text-xs font-medium text-muted-foreground mb-2">
                                     Purchased Items ({items.length})
@@ -463,6 +486,7 @@ export function CustomerHistoryDialog({
                       <TableHead>Date</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Description</TableHead>
+                      <TableHead className="w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -472,6 +496,17 @@ export function CustomerHistoryDialog({
                         <TableCell>{format(new Date(payment.voucher_date), 'dd/MM/yyyy')}</TableCell>
                         <TableCell className="text-green-600 font-semibold">₹{payment.total_amount.toFixed(2)}</TableCell>
                         <TableCell className="text-muted-foreground">{payment.description || '-'}</TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            title="View in Accounts"
+                            onClick={() => handleViewTransaction(`/accounts`)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -495,6 +530,7 @@ export function CustomerHistoryDialog({
                       <TableHead>Date</TableHead>
                       <TableHead>Original Invoice</TableHead>
                       <TableHead>Amount</TableHead>
+                      <TableHead className="w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -504,6 +540,17 @@ export function CustomerHistoryDialog({
                         <TableCell>{format(new Date(ret.return_date), 'dd/MM/yyyy')}</TableCell>
                         <TableCell>{ret.original_sale_number || '-'}</TableCell>
                         <TableCell className="text-red-600 font-semibold">₹{ret.net_amount.toFixed(2)}</TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            title="View Return"
+                            onClick={() => handleViewTransaction(`/sale-return-dashboard`)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -528,6 +575,7 @@ export function CustomerHistoryDialog({
                       <TableHead>Amount</TableHead>
                       <TableHead>Used</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead className="w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -544,6 +592,17 @@ export function CustomerHistoryDialog({
                           >
                             {cn.status}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            title="View Credit Note"
+                            onClick={() => handleViewTransaction(`/sale-return-dashboard`)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -564,6 +623,7 @@ export function CustomerHistoryDialog({
                       <TableHead>Date</TableHead>
                       <TableHead>Sale Amount</TableHead>
                       <TableHead>Refund Amount</TableHead>
+                      <TableHead className="w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -573,6 +633,17 @@ export function CustomerHistoryDialog({
                         <TableCell>{format(new Date(sale.sale_date), 'dd/MM/yyyy')}</TableCell>
                         <TableCell>₹{sale.net_amount.toFixed(2)}</TableCell>
                         <TableCell className="text-red-600 font-semibold">₹{(sale.refund_amount || 0).toFixed(2)}</TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            title="View Invoice"
+                            onClick={() => handleViewTransaction(`/sales-invoice/${sale.id}`)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
