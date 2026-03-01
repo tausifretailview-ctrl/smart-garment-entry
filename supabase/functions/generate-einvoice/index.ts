@@ -172,6 +172,21 @@ Deno.serve(async (req) => {
 
     const { saleId, organizationId, testMode = true }: InvoiceRequest = await req.json();
 
+    // Input validation
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!saleId || !uuidRegex.test(saleId)) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid saleId format' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    if (!organizationId || !uuidRegex.test(organizationId)) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid organizationId format' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.log(`Generating e-Invoice for sale: ${saleId}, org: ${organizationId}, testMode: ${testMode}`);
 
     // Initialize Supabase client

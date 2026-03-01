@@ -60,7 +60,34 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { organizationId, phoneNumber, templateType, placeholders, referenceId, referenceType }: SendSMSRequest = await req.json();
 
-    console.log(`Processing SMS request for org: ${organizationId}, type: ${templateType}, phone: ${phoneNumber}`);
+    // Input validation
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!organizationId || !uuidRegex.test(organizationId)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid organizationId format" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (!phoneNumber || !/^\+?\d{7,15}$/.test(phoneNumber.replace(/[\s\-()]/g, ""))) {
+      return new Response(
+        JSON.stringify({ error: "Invalid phone number format" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (!templateType || typeof templateType !== "string" || templateType.length > 100) {
+      return new Response(
+        JSON.stringify({ error: "Invalid templateType" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (referenceId && !uuidRegex.test(referenceId)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid referenceId format" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`Processing SMS request for org: ${organizationId}, type: ${templateType}`);
 
     // Get SMS settings for the organization
     const { data: smsSettings, error: settingsError } = await supabase

@@ -750,9 +750,22 @@ serve(async (req) => {
 
     const { message, organizationId, conversationHistory } = await req.json();
     
-    if (!message || !organizationId) {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!message || typeof message !== "string" || message.length > 2000) {
       return new Response(
-        JSON.stringify({ error: "Message and organizationId are required" }),
+        JSON.stringify({ error: "Message is required and must be under 2000 characters" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (!organizationId || !uuidRegex.test(organizationId)) {
+      return new Response(
+        JSON.stringify({ error: "Valid organizationId is required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (conversationHistory && (!Array.isArray(conversationHistory) || conversationHistory.length > 20)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid conversationHistory" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

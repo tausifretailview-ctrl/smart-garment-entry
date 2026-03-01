@@ -59,9 +59,26 @@ Deno.serve(async (req) => {
     }
     const { email, role, organizationId }: AddExistingUserRequest = await req.json()
 
-    if (!email || !role || !organizationId) {
+    // Input validation
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const validRoles = ['admin', 'manager', 'user']
+
+    if (!email || !emailRegex.test(email) || email.length > 255) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields' }),
+        JSON.stringify({ error: 'Valid email address is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    if (!role || !validRoles.includes(role)) {
+      return new Response(
+        JSON.stringify({ error: 'Valid role is required (admin, manager, or user)' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    if (!organizationId || !uuidRegex.test(organizationId)) {
+      return new Response(
+        JSON.stringify({ error: 'Valid organizationId is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }

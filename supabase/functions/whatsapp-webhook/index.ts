@@ -432,7 +432,39 @@ Deno.serve(async (req) => {
   // Handle webhook events (POST request from Meta)
   if (req.method === 'POST') {
     try {
-      const body = await req.json();
+      const rawBody = await req.text();
+
+      // Validate Meta webhook signature
+      const appSecret = Deno.env.get('META_APP_SECRET');
+      if (appSecret) {
+        const signature = req.headers.get('x-hub-signature-256');
+        if (!signature) {
+          console.error('Missing x-hub-signature-256 header');
+          return new Response('Unauthorized', { status: 401 });
+        }
+
+        const encoder = new TextEncoder();
+        const key = await crypto.subtle.importKey(
+          'raw',
+          encoder.encode(appSecret),
+          { name: 'HMAC', hash: 'SHA-256' },
+          false,
+          ['sign']
+        );
+        const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(rawBody));
+        const expectedSig = 'sha256=' + Array.from(new Uint8Array(sig))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('');
+
+        if (signature !== expectedSig) {
+          console.error('Invalid webhook signature');
+          return new Response('Unauthorized', { status: 401 });
+        }
+      } else {
+        console.warn('META_APP_SECRET not configured - skipping webhook signature validation');
+      }
+
+      const body = JSON.parse(rawBody);
       console.log('Webhook received:', JSON.stringify(body, null, 2));
 
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
