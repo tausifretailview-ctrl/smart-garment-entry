@@ -806,23 +806,25 @@ export default function SalesInvoiceDashboard() {
             pdf.addImage(imgData, 'PNG', 0, 0, scaledWidth, scaledHeight);
           } else {
             // Multi-page: slice the canvas into page-sized chunks
+            // Calculate how many source pixels correspond to one PDF page height
+            const pixelsPerPage = (pdfHeight / scaledHeight) * imgHeight;
             const totalPages = Math.ceil(scaledHeight / pdfHeight);
+            
             for (let page = 0; page < totalPages; page++) {
               if (page > 0) pdf.addPage();
               
-              // Calculate which portion of the source canvas to draw
-              const sourceY = page * (imgHeight / totalPages);
-              const sourceH = imgHeight / totalPages;
+              const sourceY = page * pixelsPerPage;
+              const sourceH = Math.min(pixelsPerPage, imgHeight - sourceY);
+              const sliceScaledHeight = (sourceH * pdfWidth) / imgWidth;
               
-              // Create a temporary canvas for this page slice
               const pageCanvas = document.createElement('canvas');
               pageCanvas.width = imgWidth;
               pageCanvas.height = Math.ceil(sourceH);
               const ctx = pageCanvas.getContext('2d');
               if (ctx) {
-                ctx.drawImage(canvas, 0, sourceY, imgWidth, sourceH, 0, 0, imgWidth, sourceH);
+                ctx.drawImage(canvas, 0, sourceY, imgWidth, sourceH, 0, 0, imgWidth, Math.ceil(sourceH));
                 const pageImgData = pageCanvas.toDataURL('image/png');
-                pdf.addImage(pageImgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                pdf.addImage(pageImgData, 'PNG', 0, 0, pdfWidth, sliceScaledHeight);
               }
             }
           }
@@ -1380,19 +1382,21 @@ export default function SalesInvoiceDashboard() {
         if (scaledHeight <= pdfHeight) {
           pdf.addImage(imgData, "PNG", 0, 0, scaledWidth, scaledHeight);
         } else {
+          const pixelsPerPage = (pdfHeight / scaledHeight) * imgHeight;
           const totalPages = Math.ceil(scaledHeight / pdfHeight);
           for (let page = 0; page < totalPages; page++) {
             if (page > 0) pdf.addPage();
-            const sourceY = page * (imgHeight / totalPages);
-            const sourceH = imgHeight / totalPages;
+            const sourceY = page * pixelsPerPage;
+            const sourceH = Math.min(pixelsPerPage, imgHeight - sourceY);
+            const sliceScaledHeight = (sourceH * pdfWidth) / imgWidth;
             const pageCanvas = document.createElement('canvas');
             pageCanvas.width = imgWidth;
             pageCanvas.height = Math.ceil(sourceH);
             const ctx = pageCanvas.getContext('2d');
             if (ctx) {
-              ctx.drawImage(canvas, 0, sourceY, imgWidth, sourceH, 0, 0, imgWidth, sourceH);
+              ctx.drawImage(canvas, 0, sourceY, imgWidth, sourceH, 0, 0, imgWidth, Math.ceil(sourceH));
               const pageImgData = pageCanvas.toDataURL('image/png');
-              pdf.addImage(pageImgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+              pdf.addImage(pageImgData, "PNG", 0, 0, pdfWidth, sliceScaledHeight);
             }
           }
         }
