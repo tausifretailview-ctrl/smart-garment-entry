@@ -222,11 +222,14 @@ const ProductTrackingReport = () => {
       }
 
       if (searchBarcode) {
-        // Search across barcode and product name via the join
-        query = query.or(
-          `barcode.ilike.%${searchBarcode}%,products.product_name.ilike.%${searchBarcode}%`,
-          { referencedTable: "product_variants" }
-        );
+        const isNumeric = /^\d+$/.test(searchBarcode.trim());
+        if (isNumeric) {
+          // Barcode search: filter directly on variant barcode
+          query = query.ilike("product_variants.barcode", `%${searchBarcode}%`);
+        } else {
+          // Text search: filter on product name
+          query = query.ilike("product_variants.products.product_name", `%${searchBarcode}%`);
+        }
       }
 
       if (categoryFilter !== "all") {

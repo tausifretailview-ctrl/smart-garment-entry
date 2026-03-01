@@ -404,8 +404,29 @@ const ProductDashboard = () => {
       
       // Server-side search
       const term = debouncedSearch.trim();
-      if (term) {
+      const isNumericTerm = term && /^\d+$/.test(term);
+      
+      if (term && !isNumericTerm) {
+        // Text search: search product-level fields
         query = query.or(`product_name.ilike.%${term}%,brand.ilike.%${term}%,category.ilike.%${term}%,style.ilike.%${term}%`);
+      }
+      
+      // If numeric (barcode), find matching product IDs first via barcode lookup
+      let barcodeProductIds: string[] = [];
+      if (isNumericTerm) {
+        const { data: barcodeMatches } = await supabase
+          .from("product_variants")
+          .select("product_id")
+          .ilike("barcode", `%${term}%`);
+        barcodeProductIds = [...new Set((barcodeMatches || []).map((v: any) => v.product_id))];
+        
+        if (barcodeProductIds.length > 0) {
+          // Filter products to those matching barcode OR text fields
+          query = query.or(`id.in.(${barcodeProductIds.join(',')}),product_name.ilike.%${term}%,brand.ilike.%${term}%,category.ilike.%${term}%,style.ilike.%${term}%`);
+        } else {
+          // No barcode match, fallback to text search
+          query = query.or(`product_name.ilike.%${term}%,brand.ilike.%${term}%,category.ilike.%${term}%,style.ilike.%${term}%`);
+        }
       }
       
       // Server-side filters
