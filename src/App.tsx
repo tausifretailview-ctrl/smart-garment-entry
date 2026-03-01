@@ -1054,6 +1054,14 @@ const App = () => {
                 </Route>
               </Route>
 
+              {/* OAuth callback guard - prevent NotFound for /~oauth paths */}
+              <Route path="/~oauth/*" element={
+                <div className="min-h-screen flex items-center justify-center gap-2">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                  <span className="text-muted-foreground">Completing sign-in...</span>
+                </div>
+              } />
+
               {/* Catch-all for 404 */}
               <Route path="*" element={<NotFound />} />
             </Routes>
