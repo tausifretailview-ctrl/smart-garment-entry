@@ -388,19 +388,23 @@ export const generateInvoiceFromHTML = async (data: InvoiceData): Promise<void> 
     if (scaledHeight <= pdfHeight) {
       pdf.addImage(imgData, 'PNG', 0, 0, scaledWidth, scaledHeight);
     } else {
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const pixelsPerPage = (pdfHeight / scaledHeight) * imgHeight;
       const totalPages = Math.ceil(scaledHeight / pdfHeight);
       for (let page = 0; page < totalPages; page++) {
         if (page > 0) pdf.addPage();
-        const sourceY = page * (canvas.height / totalPages);
-        const sourceH = canvas.height / totalPages;
+        const sourceY = page * pixelsPerPage;
+        const sourceH = Math.min(pixelsPerPage, imgHeight - sourceY);
+        const sliceScaledHeight = (sourceH * pdfWidth) / imgWidth;
         const pageCanvas = document.createElement('canvas');
-        pageCanvas.width = canvas.width;
+        pageCanvas.width = imgWidth;
         pageCanvas.height = Math.ceil(sourceH);
         const ctx = pageCanvas.getContext('2d');
         if (ctx) {
-          ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceH, 0, 0, canvas.width, sourceH);
+          ctx.drawImage(canvas, 0, sourceY, imgWidth, sourceH, 0, 0, imgWidth, Math.ceil(sourceH));
           const pageImgData = pageCanvas.toDataURL('image/png');
-          pdf.addImage(pageImgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+          pdf.addImage(pageImgData, 'PNG', 0, 0, pdfWidth, sliceScaledHeight);
         }
       }
     }
