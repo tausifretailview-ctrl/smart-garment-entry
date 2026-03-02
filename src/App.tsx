@@ -154,6 +154,33 @@ function NonOrgRedirect({ path }: { path: string }) {
   return <Navigate to="/organization-setup" replace />;
 }
 
+// Startup health check: clear corrupted auth tokens before React mounts
+(function cleanupCorruptedAuthTokens() {
+  try {
+    const authKeys = Object.keys(localStorage).filter(
+      (k) => k.startsWith('sb-') && k.endsWith('-auth-token')
+    );
+    for (const key of authKeys) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      try {
+        const parsed = JSON.parse(raw);
+        // Must have access_token and refresh_token to be valid
+        if (!parsed?.access_token || !parsed?.refresh_token) {
+          console.warn('[Auth Health] Removing malformed auth token (missing fields):', key);
+          localStorage.removeItem(key);
+        }
+      } catch {
+        console.warn('[Auth Health] Removing corrupted auth token (invalid JSON):', key);
+        localStorage.removeItem(key);
+      }
+    }
+  } catch (e) {
+    // localStorage may be unavailable in rare cases
+    console.error('[Auth Health] Startup check failed:', e);
+  }
+})();
+
 const App = () => {
   // Global unhandled rejection handler
   useEffect(() => {
