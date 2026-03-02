@@ -1,14 +1,15 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Save, RotateCcw } from "lucide-react";
+import { Save, RotateCcw, ZoomIn, ZoomOut, Move } from "lucide-react";
 import { LabelDesignConfig, LabelFieldConfig, FieldKey } from "@/types/labelTypes";
-import { PrecisionLabelPreview } from "./PrecisionLabelPreview";
+import { DraggableLabelCanvas } from "./DraggableLabelCanvas";
 
 interface PrecisionLabelDesignerProps {
   labelWidth: number;
@@ -81,6 +82,7 @@ export function PrecisionLabelDesigner({
   onSave,
 }: PrecisionLabelDesignerProps) {
   const [activeField, setActiveField] = useState<FieldKey | null>(null);
+  const [zoom, setZoom] = useState(3);
 
   const updateField = useCallback(
     (key: FieldKey, updates: Partial<LabelFieldConfig>) => {
@@ -92,10 +94,16 @@ export function PrecisionLabelDesigner({
     [config, onConfigChange]
   );
 
+  const handleFieldDrag = useCallback(
+    (key: FieldKey, x: number, y: number) => {
+      updateField(key, { x: Math.round(x * 2) / 2, y: Math.round(y * 2) / 2 });
+    },
+    [updateField]
+  );
+
   const resetToDefault = () => {
     onConfigChange({
       ...DEFAULT_PRECISION_CONFIG,
-      // Scale default positions proportionally to current label size
       brand: { ...DEFAULT_PRECISION_CONFIG.brand, width: labelWidth - 2 },
       productName: { ...DEFAULT_PRECISION_CONFIG.productName, width: labelWidth - 2 },
       barcodeText: { ...DEFAULT_PRECISION_CONFIG.barcodeText, width: labelWidth - 2 },
@@ -179,7 +187,6 @@ export function PrecisionLabelDesigner({
                   onClick={() => setActiveField(isActive ? null : key)}
                 >
                   <CardContent className="p-2.5 space-y-2">
-                    {/* Header row: toggle + label */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Switch
@@ -191,13 +198,13 @@ export function PrecisionLabelDesigner({
                         <span className="text-xs font-medium">{FIELD_LABELS[key]}</span>
                       </div>
                       {field.show && (
-                        <span className="text-[10px] text-muted-foreground">
+                        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                          <Move className="h-2.5 w-2.5" />
                           ({field.x ?? 0}, {field.y ?? 0}) mm
                         </span>
                       )}
                     </div>
 
-                    {/* Detail controls - shown when active and field is visible */}
                     {isActive && field.show && (
                       <div className="grid grid-cols-4 gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
                         <div className="space-y-0.5">
@@ -288,22 +295,34 @@ export function PrecisionLabelDesigner({
         </ScrollArea>
       </div>
 
-      {/* Live Preview */}
+      {/* Live Preview with Drag */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold">Live Preview</h3>
-        <div className="border rounded-lg p-4 bg-white flex items-center justify-center min-h-[200px]">
-          <div style={{ transform: "scale(2.5)", transformOrigin: "center" }}>
-            <PrecisionLabelPreview
-              item={SAMPLE_ITEM}
-              width={labelWidth}
-              height={labelHeight}
-              config={config}
-              showBorder
-            />
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Live Preview (drag fields to reposition)</h3>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.max(1, z - 0.5))}>
+              <ZoomOut className="h-3.5 w-3.5" />
+            </Button>
+            <span className="text-xs text-muted-foreground w-8 text-center">{zoom}×</span>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.min(6, z + 0.5))}>
+              <ZoomIn className="h-3.5 w-3.5" />
+            </Button>
           </div>
         </div>
+
+        <DraggableLabelCanvas
+          item={SAMPLE_ITEM}
+          width={labelWidth}
+          height={labelHeight}
+          config={config}
+          zoom={zoom}
+          activeField={activeField}
+          onFieldSelect={setActiveField}
+          onFieldDrag={handleFieldDrag}
+        />
+
         <div className="text-xs text-muted-foreground text-center">
-          Preview at 2.5× zoom • Actual size: {labelWidth}mm × {labelHeight}mm
+          Actual size: {labelWidth}mm × {labelHeight}mm • Click a field to select, drag to move
         </div>
       </div>
     </div>
