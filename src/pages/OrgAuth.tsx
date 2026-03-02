@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Building2, AlertCircle, Phone, ArrowRight, Check, Globe, Facebook, Instagram, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { Loader2, Building2, AlertCircle, Phone, ArrowRight, Check, Globe, Facebook, Instagram, Eye, EyeOff, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { validateAuth } from "@/lib/validations";
@@ -57,25 +57,9 @@ export default function OrgAuth() {
   const [inputSlug, setInputSlug] = useState(orgSlug || "");
   const [orgFetchErrorType, setOrgFetchErrorType] = useState<"none" | "not_found" | "network" | "invalid_slug">("none");
   const [orgFetchRetryKey, setOrgFetchRetryKey] = useState(0);
-  const [orgFetchTimedOut, setOrgFetchTimedOut] = useState(false);
 
-  // Safety timeout: if org fetch takes too long (6s), stop showing spinner
-  useEffect(() => {
-    if (!orgLoading) {
-      setOrgFetchTimedOut(false);
-      return;
-    }
-    const timer = setTimeout(() => {
-      if (orgLoading) {
-        console.warn("OrgAuth: Org fetch timeout, forcing render");
-        setOrgFetchTimedOut(true);
-        setOrgLoading(false);
-        setOrgFetchErrorType("network");
-        setError("Connection is slow. Please check your internet and retry.");
-      }
-    }, 6000);
-    return () => clearTimeout(timer);
-  }, [orgLoading]);
+  // Request lifecycle guard: prevent stale async fetches from updating state
+  const fetchTokenRef = useRef(0);
 
   // Check and clear lockout on mount
   useEffect(() => {
@@ -91,8 +75,12 @@ export default function OrgAuth() {
   }, [orgSlug]);
 
   useEffect(() => {
+    const currentToken = ++fetchTokenRef.current;
+
     const fetchOrganization = async () => {
       const normalizedSlug = normalizeOrgSlug(orgSlug);
+
+      if (currentToken !== fetchTokenRef.current) return;
       setError("");
       setOrgFetchErrorType("none");
       setOrganization(null);
@@ -111,10 +99,13 @@ export default function OrgAuth() {
       let lastError: unknown = null;
 
       for (let attempt = 1; attempt <= MAX_ORG_FETCH_RETRIES; attempt += 1) {
+        if (currentToken !== fetchTokenRef.current) return; // abort if stale
         try {
           const { data, error } = await supabase.rpc("get_org_public_info", {
             p_slug: normalizedSlug,
           });
+
+          if (currentToken !== fetchTokenRef.current) return;
 
           if (error) {
             const errorMessage = (error.message || "").toLowerCase();
@@ -150,6 +141,8 @@ export default function OrgAuth() {
         }
       }
 
+      if (currentToken !== fetchTokenRef.current) return;
+
       if (resolvedOrgData) {
         setOrganization({
           id: resolvedOrgData.id,
@@ -167,7 +160,7 @@ export default function OrgAuth() {
       } else {
         if (failureType === "none") {
           failureType = "network";
-          failureMessage = "Unable to connect. Please check your internet and try again.";
+          failureMessage = "Unable to connect. You can still sign in below.";
           console.error("Error fetching organization:", lastError);
         }
 
@@ -212,8 +205,15 @@ export default function OrgAuth() {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!organization) {
+
+    const normalizedSlug = normalizeOrgSlug(orgSlug);
+
+    // Only block if slug itself is invalid or org was confirmed not found
+    if (!isValidOrgSlug(normalizedSlug)) {
+      toast.error("Invalid organization URL");
+      return;
+    }
+    if (orgFetchErrorType === "not_found") {
       toast.error("Organization not found");
       return;
     }
@@ -243,7 +243,6 @@ export default function OrgAuth() {
 
     try {
       // CRITICAL: Clear any existing stale session before login attempt
-      // This prevents "Refresh Token Not Found" errors from corrupted/expired tokens
       await supabase.auth.signOut({ scope: 'local' });
       localStorage.removeItem('auth_refresh_lock');
 
@@ -253,11 +252,9 @@ export default function OrgAuth() {
       });
 
       if (authError) {
-        // Increment failed attempts
         const newAttempts = loginAttempts + 1;
         setLoginAttempts(newAttempts);
         
-        // Check if lockout threshold reached
         if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
           const lockoutDate = new Date(Date.now() + LOCKOUT_DURATION_MS);
           setLockoutUntil(lockoutDate);
@@ -277,7 +274,6 @@ export default function OrgAuth() {
         return;
       }
       
-      // Reset attempts on successful auth
       setLoginAttempts(0);
       localStorage.removeItem(`org_auth_lockout_${orgSlug}`);
 
@@ -287,43 +283,76 @@ export default function OrgAuth() {
         return;
       }
 
-      const { data: membership, error: membershipError } = await supabase
-        .from("organization_members")
-        .select("id, role")
-        .eq("user_id", authData.user.id)
-        .eq("organization_id", organization.id)
-        .single();
+      // Resolve organization: use pre-fetched org if available, otherwise resolve post-auth via slug
+      let resolvedOrg = organization;
 
-      if (membershipError || !membership) {
-        setError("You are not a member of this organization. Please contact your administrator.");
-        await supabase.auth.signOut();
-        setLoading(false);
-        return;
+      if (!resolvedOrg) {
+        // Fallback: resolve org membership by slug after authentication
+        const { data: membershipRows, error: membershipQueryError } = await supabase
+          .from("organization_members")
+          .select(`
+            id, role, organization_id,
+            organizations (id, name, slug, settings)
+          `)
+          .eq("user_id", authData.user.id);
+
+        if (membershipQueryError) {
+          console.error("Membership query failed:", membershipQueryError);
+          setError("Unable to verify organization membership. Please try again.");
+          await supabase.auth.signOut();
+          setLoading(false);
+          return;
+        }
+
+        const matchingMembership = membershipRows?.find(
+          (m: any) => m.organizations?.slug === normalizedSlug
+        );
+
+        if (!matchingMembership || !matchingMembership.organizations) {
+          setError("You are not a member of this organization. Please contact your administrator.");
+          await supabase.auth.signOut();
+          setLoading(false);
+          return;
+        }
+
+        resolvedOrg = matchingMembership.organizations as unknown as Organization;
+      } else {
+        // Standard path: verify membership using pre-fetched org
+        const { data: membership, error: membershipError } = await supabase
+          .from("organization_members")
+          .select("id, role")
+          .eq("user_id", authData.user.id)
+          .eq("organization_id", resolvedOrg.id)
+          .single();
+
+        if (membershipError || !membership) {
+          setError("You are not a member of this organization. Please contact your administrator.");
+          await supabase.auth.signOut();
+          setLoading(false);
+          return;
+        }
       }
 
-      // Check if user has field sales access - if so, redirect to salesman dashboard
+      // Check if user has field sales access
       const { data: fieldSalesEmployee } = await supabase
         .from("employees")
         .select("id")
-        .eq("organization_id", organization.id)
+        .eq("organization_id", resolvedOrg.id)
         .eq("user_id", authData.user.id)
         .eq("field_sales_access", true)
         .is("deleted_at", null)
         .maybeSingle();
 
-      // Store in both localStorage and sessionStorage for PWA resilience
-      storeOrgSlug(organization.slug);
+      storeOrgSlug(resolvedOrg.slug);
 
       if (fieldSalesEmployee) {
-        // Set Field Sales PWA context flag for persistent routing
         sessionStorage.setItem('fieldSalesPWA', 'true');
-        toast.success(`Welcome to Field Sales, ${organization.name}!`);
-        navigate(`/${organization.slug}/salesman`);
+        toast.success(`Welcome to Field Sales, ${resolvedOrg.name}!`);
+        navigate(`/${resolvedOrg.slug}/salesman`);
       } else {
-        // Clear any stale Field Sales context
         sessionStorage.removeItem('fieldSalesPWA');
-        toast.success(`Welcome to ${organization.name}!`);
-        navigate(`/${organization.slug}`);
+        toast.success(`Welcome to ${resolvedOrg.name}!`);
+        navigate(`/${resolvedOrg.slug}`);
       }
     } catch (err) {
       setError("An unexpected error occurred. Please try again.");
@@ -332,13 +361,24 @@ export default function OrgAuth() {
     }
   };
 
-  if (orgLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  // Chrome cache/SW recovery action
+  const handleClearCacheAndRetry = async () => {
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const registration of registrations) {
+          await registration.unregister();
+        }
+      }
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+      }
+    } catch (e) {
+      console.error('Error clearing cache:', e);
+    }
+    window.location.reload();
+  };
 
   const handleGoToOrgLogin = () => {
     const normalizedSlug = normalizeOrgSlug(inputSlug).replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
@@ -352,24 +392,21 @@ export default function OrgAuth() {
     setOrgFetchRetryKey((prev) => prev + 1);
   };
 
-  if (!organization) {
-    const isNetworkError = orgFetchErrorType === "network";
+  // For invalid_slug and not_found: show blocking error card (no login possible)
+  if (orgFetchErrorType === "invalid_slug" || orgFetchErrorType === "not_found") {
     const isInvalidSlug = orgFetchErrorType === "invalid_slug";
-
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md shadow-elevated">
           <div className="p-6 text-center space-y-4">
             <AlertCircle className="h-12 w-12 text-destructive mx-auto" />
             <h2 className="text-xl font-semibold text-card-foreground">
-              {isNetworkError ? "Connection Problem" : "Organization Not Found"}
+              Organization Not Found
             </h2>
             <p className="text-muted-foreground text-sm">
-              {isNetworkError
-                ? "We're unable to connect right now. Please retry, then try organization login if needed."
-                : isInvalidSlug
-                  ? "The organization URL format is invalid. Enter the correct organization code below."
-                  : "The organization URL you're trying to access doesn't exist. Enter the correct organization code below."}
+              {isInvalidSlug
+                ? "The organization URL format is invalid. Enter the correct organization code below."
+                : "The organization URL you're trying to access doesn't exist. Enter the correct organization code below."}
             </p>
 
             <div className="space-y-2 text-left">
@@ -388,25 +425,13 @@ export default function OrgAuth() {
             </div>
 
             <Button
-              onClick={isNetworkError ? handleRetryOrganizationLoad : handleGoToOrgLogin}
+              onClick={handleGoToOrgLogin}
               className="w-full"
-              disabled={isNetworkError ? orgLoading : !inputSlug.trim()}
+              disabled={!inputSlug.trim()}
             >
-              {isNetworkError ? "Retry Connection" : "Go to Organization Login"}
-              {isNetworkError ? <RefreshCw className="ml-2 h-4 w-4" /> : <ArrowRight className="ml-2 h-4 w-4" />}
+              Go to Organization Login
+              <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
-
-            {isNetworkError && (
-              <Button
-                onClick={handleGoToOrgLogin}
-                variant="outline"
-                className="w-full"
-                disabled={!inputSlug.trim()}
-              >
-                Try Organization Login
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            )}
 
             <Button
               onClick={() => navigate("/auth")}
@@ -421,11 +446,16 @@ export default function OrgAuth() {
     );
   }
 
+  // Derive branding — works whether org loaded or not
   const displayName = orgSettings?.bill_barcode_settings?.login_display_name 
     || orgSettings?.business_name 
-    || organization.name;
+    || organization?.name
+    || normalizeOrgSlug(orgSlug).replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   const logoUrl = orgSettings?.bill_barcode_settings?.logo_url;
   const brandColor = orgSettings?.bill_barcode_settings?.brand_color || BRAND_COLOR;
+
+  // Network error banner (shown inside the login form, not blocking)
+  const showNetworkWarning = orgFetchErrorType === "network" && !organization;
 
   return (
     <div className="h-screen flex w-full bg-background overflow-hidden">
@@ -438,14 +468,12 @@ export default function OrgAuth() {
             background: 'linear-gradient(180deg, #E8F4FC 0%, #D4E8F5 25%, #C5DCF0 50%, #B8D4EC 75%, #AAC8E5 100%)'
           }}
         />
-        {/* Window frame overlay effect */}
         <div 
           className="absolute inset-0"
           style={{
             background: 'radial-gradient(ellipse at 50% 20%, rgba(255,255,255,0.4) 0%, transparent 60%)'
           }}
         />
-        {/* Subtle city/horizon silhouette at bottom */}
         <div 
           className="absolute bottom-0 left-0 right-0 h-32"
           style={{
@@ -453,9 +481,7 @@ export default function OrgAuth() {
           }}
         />
 
-        {/* Content - POS Hero Image centered */}
         <div className="relative z-10 h-full flex items-center justify-center px-6 py-4">
-          {/* Desk surface shadow */}
           <div 
             className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[85%] h-8 rounded-[100%]"
             style={{
@@ -502,7 +528,11 @@ export default function OrgAuth() {
           <div className="space-y-4">
             {/* Organization Branding */}
             <div className="text-center">
-              {logoUrl ? (
+              {orgLoading ? (
+                <div className="mx-auto w-16 h-16 rounded-xl flex items-center justify-center mb-3 shadow-lg animate-pulse bg-muted">
+                  <Building2 className="h-8 w-8 text-muted-foreground" />
+                </div>
+              ) : logoUrl ? (
                 <img 
                   src={logoUrl} 
                   alt={displayName} 
@@ -533,7 +563,39 @@ export default function OrgAuth() {
             {/* Login Form Card */}
             <Card className="shadow-elevated border-border bg-card rounded-md">
               <CardContent className="p-5 space-y-4">
-                {error && (
+                {/* Network warning banner — non-blocking */}
+                {showNetworkWarning && (
+                  <Alert className="rounded-md py-2 border-yellow-500/50 bg-yellow-50 dark:bg-yellow-900/20">
+                    <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+                    <AlertDescription className="text-sm text-yellow-800 dark:text-yellow-200">
+                      Connection issue detected. You can still sign in — we'll verify your access after login.
+                      <div className="flex gap-2 mt-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={handleRetryOrganizationLoad}
+                        >
+                          <RefreshCw className="mr-1 h-3 w-3" />
+                          Retry
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={handleClearCacheAndRetry}
+                        >
+                          <Trash2 className="mr-1 h-3 w-3" />
+                          Reset Cache & Reload
+                        </Button>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {error && !showNetworkWarning && (
                   <Alert variant="destructive" className="rounded-md py-2">
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription className="text-sm">{error}</AlertDescription>
