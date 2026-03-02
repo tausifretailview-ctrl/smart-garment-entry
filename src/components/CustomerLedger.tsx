@@ -276,21 +276,12 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         const { data: feesData, error: feesError } = await feesQuery.order('created_at', { ascending: true });
         if (feesError) throw feesError;
 
-        // Fetch voucher payments for this student's fees
-        let vouchersQuery = supabase
-          .from('voucher_entries')
-          .select('*')
-          .eq('voucher_type', 'receipt')
-          .eq('reference_type', 'student_fee')
-          .eq('reference_id', studentId)
-          .is('deleted_at', null);
+        // Fetch student fees with fee head names
+        // NOTE: We do NOT fetch voucher_entries here because fee collections
+        // already create student_fees records with paid_amount. Vouchers are
+        // auto-generated for the accounts module but would cause double-counting
+        // if included in the student ledger.
         
-        if (startDate) vouchersQuery = vouchersQuery.gte('voucher_date', format(startDate, 'yyyy-MM-dd'));
-        if (endDate) vouchersQuery = vouchersQuery.lte('voucher_date', format(endDate, 'yyyy-MM-dd'));
-        
-        const { data: vouchersData, error: vouchersError } = await vouchersQuery.order('voucher_date', { ascending: true });
-        if (vouchersError) throw vouchersError;
-
         const allTransactions: Transaction[] = [];
         const openingBalance = selectedCustomer.opening_balance || 0;
         let runningBalance = openingBalance;
@@ -309,71 +300,44 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           });
         }
 
-        // Combine fees (debit) and voucher payments (credit) chronologically
-        const combined = [
-          ...(feesData || []).map((fee: any) => ({
-            date: fee.paid_date || fee.created_at?.substring(0, 10) || fee.due_date || '2000-01-01',
-            type: 'fee_charge' as const,
-            data: fee,
-          })),
-          ...(vouchersData || []).map((v: any) => ({
-            date: v.voucher_date,
-            type: 'fee_payment' as const,
-            data: v,
-          })),
-        ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        // Sort fees chronologically
+        const sortedFees = [...(feesData || [])].sort((a: any, b: any) => {
+          const dateA = a.paid_date || a.created_at?.substring(0, 10) || a.due_date || '2000-01-01';
+          const dateB = b.paid_date || b.created_at?.substring(0, 10) || b.due_date || '2000-01-01';
+          return new Date(dateA).getTime() - new Date(dateB).getTime();
+        });
 
-        combined.forEach((item) => {
-          if (item.type === 'fee_charge') {
-            const fee = item.data as any;
-            const feeAmount = fee.amount || 0;
-            const feeHeadName = fee.fee_heads?.head_name || 'Fee';
-            runningBalance += feeAmount;
+        sortedFees.forEach((fee: any) => {
+          const feeAmount = fee.amount || 0;
+          const feeHeadName = fee.fee_heads?.head_name || 'Fee';
+          runningBalance += feeAmount;
 
+          allTransactions.push({
+            id: fee.id,
+            date: fee.paid_date || fee.created_at?.substring(0, 10) || fee.due_date || '',
+            type: 'fee',
+            reference: fee.payment_receipt_id || '-',
+            description: `${feeHeadName}${fee.period_month ? ` (${fee.period_month}/${fee.period_year})` : ''}`,
+            debit: feeAmount,
+            credit: 0,
+            balance: runningBalance,
+          });
+
+          // If fee has paid_amount, add as credit (payment at collection)
+          const paidAmount = fee.paid_amount || 0;
+          if (paidAmount > 0) {
+            runningBalance -= paidAmount;
+            const methodText = fee.payment_method ? ` - ${fee.payment_method.charAt(0).toUpperCase() + fee.payment_method.slice(1)}` : '';
             allTransactions.push({
-              id: fee.id,
-              date: fee.paid_date || fee.created_at?.substring(0, 10) || fee.due_date || '',
-              type: 'fee',
-              reference: fee.payment_receipt_id || '-',
-              description: `${feeHeadName}${fee.period_month ? ` (${fee.period_month}/${fee.period_year})` : ''}`,
-              debit: feeAmount,
-              credit: 0,
-              balance: runningBalance,
-            });
-
-            // If fee has paid_amount, add as credit (payment at collection)
-            const paidAmount = fee.paid_amount || 0;
-            if (paidAmount > 0) {
-              runningBalance -= paidAmount;
-              const methodText = fee.payment_method ? ` - ${fee.payment_method.charAt(0).toUpperCase() + fee.payment_method.slice(1)}` : '';
-              allTransactions.push({
-                id: `${fee.id}-payment`,
-                date: fee.paid_date || fee.created_at?.substring(0, 10) || '',
-                type: 'payment',
-                reference: fee.payment_receipt_id || '-',
-                description: `Fee Payment${methodText} - ${feeHeadName}`,
-                debit: 0,
-                credit: paidAmount,
-                balance: runningBalance,
-                paymentBreakdown: fee.payment_method ? { method: fee.payment_method } : undefined,
-              });
-            }
-          } else {
-            // Voucher payment
-            const voucher = item.data as any;
-            const totalCredit = (voucher.total_amount || 0) + (voucher.discount_amount || 0);
-            runningBalance -= totalCredit;
-
-            allTransactions.push({
-              id: voucher.id,
-              date: voucher.voucher_date,
+              id: `${fee.id}-payment`,
+              date: fee.paid_date || fee.created_at?.substring(0, 10) || '',
               type: 'payment',
-              reference: voucher.voucher_number,
-              description: voucher.description || 'Fee payment received',
+              reference: fee.payment_receipt_id || '-',
+              description: `Fee Payment${methodText} - ${feeHeadName}`,
               debit: 0,
-              credit: totalCredit,
+              credit: paidAmount,
               balance: runningBalance,
-              paymentBreakdown: voucher.metadata?.paymentMethod ? { method: voucher.metadata.paymentMethod } : undefined,
+              paymentBreakdown: fee.payment_method ? { method: fee.payment_method } : undefined,
             });
           }
         });
