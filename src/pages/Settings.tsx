@@ -188,6 +188,15 @@ interface BillBarcodeSettings {
   direct_print_sale_printer?: string;
   direct_print_pos_printer?: string;
   direct_print_auto_print?: boolean;
+  // Precision Pro Barcode Settings
+  precision_pro_enabled?: boolean;
+  precision_x_offset?: number;
+  precision_y_offset?: number;
+  precision_v_gap?: number;
+  precision_label_width?: number;
+  precision_label_height?: number;
+  precision_a4_cols?: number;
+  precision_a4_rows?: number;
 }
 
 interface ReportSettings {
@@ -3566,6 +3575,190 @@ export default function Settings() {
                           </ul>
                         </div>
                       </>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Precision Pro Barcode Printing */}
+                <Card className="border-dashed">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      🎯 Precision Pro Barcode Printing
+                    </CardTitle>
+                    <CardDescription>
+                      High-precision mm-based positioning for pixel-perfect label alignment on thermal and laser printers
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="precision_pro_enabled" className="cursor-pointer">
+                          Enable Precision Pro Mode
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Uses absolute mm positioning instead of browser-scaled CSS
+                        </p>
+                      </div>
+                      <Switch
+                        id="precision_pro_enabled"
+                        checked={settings.bill_barcode_settings?.precision_pro_enabled === true}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              precision_pro_enabled: checked,
+                            },
+                          })
+                        }
+                      />
+                    </div>
+
+                    {settings.bill_barcode_settings?.precision_pro_enabled && (
+                      <div className="space-y-4 pt-2">
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">X-Offset (mm)</Label>
+                            <Input
+                              type="number"
+                              step="0.5"
+                              value={settings.bill_barcode_settings?.precision_x_offset ?? 0}
+                              onChange={(e) =>
+                                setSettings({
+                                  ...settings,
+                                  bill_barcode_settings: {
+                                    ...settings.bill_barcode_settings,
+                                    precision_x_offset: parseFloat(e.target.value) || 0,
+                                  },
+                                })
+                              }
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Y-Offset (mm)</Label>
+                            <Input
+                              type="number"
+                              step="0.5"
+                              value={settings.bill_barcode_settings?.precision_y_offset ?? 0}
+                              onChange={(e) =>
+                                setSettings({
+                                  ...settings,
+                                  bill_barcode_settings: {
+                                    ...settings.bill_barcode_settings,
+                                    precision_y_offset: parseFloat(e.target.value) || 0,
+                                  },
+                                })
+                              }
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Vertical Gap (mm)</Label>
+                            <Input
+                              type="number"
+                              step="0.5"
+                              value={settings.bill_barcode_settings?.precision_v_gap ?? 2}
+                              onChange={(e) =>
+                                setSettings({
+                                  ...settings,
+                                  bill_barcode_settings: {
+                                    ...settings.bill_barcode_settings,
+                                    precision_v_gap: parseFloat(e.target.value) || 0,
+                                  },
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Label Width (mm)</Label>
+                            <Input
+                              type="number"
+                              step="1"
+                              value={settings.bill_barcode_settings?.precision_label_width ?? 50}
+                              onChange={(e) =>
+                                setSettings({
+                                  ...settings,
+                                  bill_barcode_settings: {
+                                    ...settings.bill_barcode_settings,
+                                    precision_label_width: parseFloat(e.target.value) || 50,
+                                  },
+                                })
+                              }
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Label Height (mm)</Label>
+                            <Input
+                              type="number"
+                              step="1"
+                              value={settings.bill_barcode_settings?.precision_label_height ?? 25}
+                              onChange={(e) =>
+                                setSettings({
+                                  ...settings,
+                                  bill_barcode_settings: {
+                                    ...settings.bill_barcode_settings,
+                                    precision_label_height: parseFloat(e.target.value) || 25,
+                                  },
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+
+                        <div className="border-t pt-3">
+                          <p className="text-xs font-medium mb-2">A4 Sheet Grid (for laser printers)</p>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Labels Per Row</Label>
+                              <Input
+                                type="number"
+                                min="1"
+                                max="10"
+                                value={settings.bill_barcode_settings?.precision_a4_cols ?? 4}
+                                onChange={(e) =>
+                                  setSettings({
+                                    ...settings,
+                                    bill_barcode_settings: {
+                                      ...settings.bill_barcode_settings,
+                                      precision_a4_cols: parseInt(e.target.value) || 4,
+                                    },
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Labels Per Column</Label>
+                              <Input
+                                type="number"
+                                min="1"
+                                max="20"
+                                value={settings.bill_barcode_settings?.precision_a4_rows ?? 12}
+                                onChange={(e) =>
+                                  setSettings({
+                                    ...settings,
+                                    bill_barcode_settings: {
+                                      ...settings.bill_barcode_settings,
+                                      precision_a4_rows: parseInt(e.target.value) || 12,
+                                    },
+                                  })
+                                }
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-1">
+                          <p className="font-medium text-xs">How it works:</p>
+                          <ul className="list-disc list-inside text-muted-foreground text-xs space-y-0.5">
+                            <li>Labels use absolute mm dimensions for pixel-perfect alignment</li>
+                            <li>X/Y offsets let you compensate for printer tray misalignment</li>
+                            <li>Barcodes render as sharp SVGs (not blurry images)</li>
+                            <li>Thermal mode: 1 label per page. A4 mode: grid layout</li>
+                          </ul>
+                        </div>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
