@@ -1,4 +1,5 @@
 import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { Button } from "@/components/ui/button";
@@ -158,12 +159,12 @@ export const Header = () => {
                 if (isInstallable) {
                   promptInstall();
                 } else {
-                  // Show manual install instructions for browsers that don't support beforeinstallprompt
                   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-                  const message = isIOS 
-                    ? "Tap the Share button, then 'Add to Home Screen'" 
-                    : "Open browser menu (⋮) and tap 'Install App' or 'Add to Home Screen'";
-                  alert(message);
+                  if (isIOS) {
+                    toast.info("Tap the Share button, then 'Add to Home Screen'");
+                  } else {
+                    toast.info("Click the app icon (🔲) in the address bar, or go to Settings → Apps → Install this site as an app");
+                  }
                 }
               }}
               className="relative text-primary border-primary/30 hover:bg-muted hover:text-primary gap-1"
