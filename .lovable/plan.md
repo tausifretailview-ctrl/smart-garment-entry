@@ -1,58 +1,71 @@
 
+# Precision Pro Barcode Printing System
 
-## Create `get_erp_dashboard_stats` RPC for Faster Dashboard Loading
+## Overview
+Add a new "Precision Pro" barcode printing mode alongside the existing (Classic) system. This mode uses absolute mm-based positioning for pixel-perfect label alignment on both thermal sticker printers and laser A4 sheet printers.
 
-### Problem
-The desktop dashboard currently fires **8-10 separate queries** to different views/tables on every load. Each query is a round-trip to the backend, adding latency -- especially on slow connections (Jio, etc.).
+## What Gets Built
 
-### Solution
-Create a single server-side database function `get_erp_dashboard_stats` that returns all dashboard metrics in **one RPC call**, then update the desktop and mobile dashboards to use it.
+### 1. New Settings Sub-Section in "Bill & Barcode" Tab
+A new card titled "Precision Pro Barcode Printing" will be added inside the existing Bill & Barcode settings tab (`Settings.tsx`), containing:
+- **Printing Mode Toggle**: Switch between "Classic Browser" (current system) and "Precision Pro"
+- **Calibration Fields**: X-Offset (mm), Y-Offset (mm), Vertical Gap (mm) -- stored in `bill_barcode_settings`
+- **Label Size Inputs**: Width (mm) and Height (mm) for thermal sticker mode
+- **A4 Sheet Grid Config**: Labels per row, Labels per column
 
-### What the RPC Will Return (single JSON object)
+### 2. New Component: `PrecisionLabelPreview.tsx`
+A reusable component that renders a single barcode label using absolute mm positioning:
+- Container DIV with exact physical dimensions (e.g., `width: 50mm; height: 25mm`)
+- All sub-elements (product name, barcode SVG, price, size) absolutely positioned within the container
+- X/Y offset applied as CSS `transform: translate()` on the container for manual centering
+- SVG barcodes rendered via JsBarcode for thermal sharpness
+- CSS `image-rendering: pixelated` applied to barcode elements
+
+### 3. New Component: `PrecisionThermalPrint.tsx` (Sticker Mode)
+- Renders a single label per page using `@page { size: [width]mm [height]mm; margin: 0 }`
+- Uses `PrecisionLabelPreview` for the label content
+- Applies user calibration offsets
+
+### 4. New Component: `PrecisionA4SheetPrint.tsx` (Laser Mode)
+- Renders a fixed `210mm x 297mm` container
+- CSS Grid layout: `grid-template-columns: repeat(cols, 1fr)` and matching rows
+- Each cell contains a `PrecisionLabelPreview`
+- X/Y offset adjusts the sheet's padding to compensate for printer tray misalignment
+- Vertical Gap setting controls `row-gap` in the grid
+
+### 5. Integration with Barcode Printing Page
+- `BarcodePrinting.tsx` will check the `precision_pro_enabled` setting
+- When Precision Pro is active, it uses the new components instead of the classic rendering path
+- Existing classic system remains completely untouched
+
+## Settings Storage
+New fields added to `BillBarcodeSettings` interface:
+
 ```text
-{
-  total_sales, invoice_count, sold_qty,
-  total_purchase, purchase_count, purchase_qty,
-  customer_count, supplier_count, product_count,
-  total_stock_qty, total_stock_value,
-  total_receivables, pending_count,
-  gross_profit,
-  cash_collection,
-  sale_return_total, sale_return_count, sale_return_qty,
-  purchase_return_total, purchase_return_count, purchase_return_qty
-}
+precision_pro_enabled: boolean
+precision_x_offset: number (mm)
+precision_y_offset: number (mm)  
+precision_v_gap: number (mm)
+precision_label_width: number (mm, default 50)
+precision_label_height: number (mm, default 25)
+precision_a4_cols: number (default 4)
+precision_a4_rows: number (default 12)
 ```
 
-### Technical Steps
+All stored in the existing `bill_barcode_settings` JSON column -- no database migration needed.
 
-**1. Database Migration -- Create `get_erp_dashboard_stats` function**
-- Input parameters: `p_org_id UUID`, `p_start_date DATE`, `p_end_date DATE`
-- Aggregates data from the existing views (`v_dashboard_sales_summary`, `v_dashboard_purchase_summary`, `v_dashboard_counts`, `v_dashboard_stock_summary`, `v_dashboard_receivables`, `v_dashboard_gross_profit`) and from `sale_returns`/`purchase_returns` tables
-- Returns a single JSON row
-- Uses `SECURITY DEFINER` with `search_path = public` for RLS compatibility
+## Files to Create
+1. `src/components/precision-barcode/PrecisionLabelPreview.tsx` -- Single label renderer with absolute mm positioning
+2. `src/components/precision-barcode/PrecisionThermalPrint.tsx` -- Thermal sticker print wrapper
+3. `src/components/precision-barcode/PrecisionA4SheetPrint.tsx` -- A4 grid sheet print wrapper
+4. `src/components/precision-barcode/PrecisionPrintCSS.tsx` -- Print-specific CSS styles component
 
-**2. Update `src/pages/Index.tsx` (Desktop Dashboard)**
-- Replace the 8 separate `useQuery` hooks (`total-sales`, `purchase-total`, `stock-summary`, `dashboard-counts`, `receivables`, `profit-data-cogs`, `sale-returns`, `purchase-returns`, `cash-collection`) with a single `useQuery` that calls `supabase.rpc('get_erp_dashboard_stats', { ... })`
-- Extract individual metrics from the returned JSON object
-- Keep the same `AnimatedMetricCard` rendering logic
-- Keep tier-based refresh and manual refresh support
+## Files to Modify
+1. `src/pages/Settings.tsx` -- Add Precision Pro settings card in the Bill & Barcode tab with mode toggle and calibration inputs
+2. `src/pages/BarcodePrinting.tsx` -- Add conditional rendering to use Precision Pro components when enabled
+3. `src/types/labelTypes.ts` -- Add precision settings type (optional, may just use inline types)
 
-**3. Update `src/components/mobile/MobileDashboard.tsx`**
-- Replace the 4 separate queries (`mobile-today-sales`, `mobile-month-sales`, `mobile-stock-value`, `mobile-receivables`) with a single RPC call using today's date range
-- Map returned fields to existing `MobileDashboardCard` props
-
-**4. Update `src/components/mobile/MobileDashboardSummary.tsx`**
-- Replace the 2 queries (sales summary + receivables) with the same RPC data (pass down via props or use shared query key)
-
-### Benefits
-- **~80% fewer network round-trips** on dashboard load (1 call instead of 8-10)
-- Server-side aggregation is faster than client-side row processing
-- Reduces cloud egress significantly
-- Single point of failure/retry instead of partial load states
-
-### Files to Modify
-1. **Database migration** -- new `get_erp_dashboard_stats` function
-2. `src/pages/Index.tsx` -- consolidate queries into single RPC
-3. `src/components/mobile/MobileDashboard.tsx` -- use RPC
-4. `src/components/mobile/MobileDashboardSummary.tsx` -- use shared RPC data
-
+## Barcode Sharpness Strategy
+- All barcodes rendered as inline SVGs using JsBarcode's `SVG` element mode (not canvas/image)
+- CSS rule: `image-rendering: pixelated; -webkit-print-color-adjust: exact`
+- SVG preserves vector quality at any DPI, ensuring sharp thermal printing
