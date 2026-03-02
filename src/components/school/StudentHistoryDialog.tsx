@@ -96,7 +96,8 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
 
   // Mirror fee collection logic: use structures OR imported balance, not both
   const totalExpected = hasStructures ? structureTotal : importedBalance;
-  const totalPaid = student.totalPaid || 0;
+  // Calculate totalPaid from actual fetched fee payments (source of truth)
+  const totalPaid = (feePayments || []).reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
   const totalDue = Math.max(0, totalExpected - totalPaid);
 
   // Head-wise summary
