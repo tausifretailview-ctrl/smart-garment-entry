@@ -40,6 +40,8 @@ import { BarTenderLabelDesigner } from "@/components/BarTenderLabelDesigner";
 import { DirectPrintDialog } from "@/components/DirectPrintDialog";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey } from "@/types/labelTypes";
+import { PrecisionThermalPrint } from "@/components/precision-barcode/PrecisionThermalPrint";
+import { PrecisionA4SheetPrint } from "@/components/precision-barcode/PrecisionA4SheetPrint";
 
 // Utility function to sort items by size, barcode, or keep original order (Sr No)
 const sortItemsBySize = (items: LabelItem[], order: SizeSortOrder): LabelItem[] => {
@@ -1163,7 +1165,17 @@ export default function BarcodePrinting() {
   const [showPurchaseCode, setShowPurchaseCode] = useState(false);
   const [purchaseCodeIncludeGst, setPurchaseCodeIncludeGst] = useState(false);
   const [isDirectPrintDialogOpen, setIsDirectPrintDialogOpen] = useState(false);
-
+  const [precisionSettings, setPrecisionSettings] = useState({
+    enabled: false,
+    xOffset: 0,
+    yOffset: 0,
+    vGap: 2,
+    labelWidth: 50,
+    labelHeight: 25,
+    a4Cols: 4,
+    a4Rows: 12,
+  });
+  const precisionPrintRef = useRef<HTMLDivElement>(null);
   // Helper function to check if a template is the current default
   const getDefaultTemplateName = (): string | null => {
     try {
@@ -1315,7 +1327,7 @@ export default function BarcodePrinting() {
       try {
         const { data, error } = await supabase
           .from("settings")
-          .select("business_name, purchase_settings, product_settings")
+          .select("business_name, purchase_settings, product_settings, bill_barcode_settings")
           .eq("organization_id", currentOrganization.id)
           .maybeSingle();
 
@@ -1365,6 +1377,21 @@ export default function BarcodePrinting() {
             setPurchaseCodeIncludeGst(purchaseSettings.purchase_code_include_gst);
           }
         }
+        }
+
+        // Load precision pro settings
+        if (data?.bill_barcode_settings && typeof data.bill_barcode_settings === 'object') {
+          const bbs = data.bill_barcode_settings as any;
+          setPrecisionSettings({
+            enabled: bbs.precision_pro_enabled === true,
+            xOffset: bbs.precision_x_offset ?? 0,
+            yOffset: bbs.precision_y_offset ?? 0,
+            vGap: bbs.precision_v_gap ?? 2,
+            labelWidth: bbs.precision_label_width ?? 50,
+            labelHeight: bbs.precision_label_height ?? 25,
+            a4Cols: bbs.precision_a4_cols ?? 4,
+            a4Rows: bbs.precision_a4_rows ?? 12,
+          });
         }
       } catch (error) {
         console.error("Failed to fetch business name:", error);
@@ -2952,7 +2979,18 @@ export default function BarcodePrinting() {
   };
 
   const handlePrint = () => {
-    // Generate labels in the print area
+    if (precisionSettings.enabled) {
+      // Precision Pro mode: just trigger print, React components handle rendering
+      const originalTitle = document.title;
+      document.title = ' ';
+      setTimeout(() => {
+        window.print();
+        document.title = originalTitle;
+      }, 300);
+      return;
+    }
+
+    // Classic mode: Generate labels in the print area
     generatePreview("printArea");
     
     // Suppress browser headers/footers by clearing document title during print
@@ -4361,7 +4399,34 @@ export default function BarcodePrinting() {
       />
 
       {/* Print Area (hidden, used for printing) */}
-      <div id="printArea" className="hidden"></div>
+      {precisionSettings.enabled ? (
+        <div className="hidden print:block">
+          {isThermal1Up() ? (
+            <PrecisionThermalPrint
+              ref={precisionPrintRef}
+              items={labelItems}
+              labelWidth={precisionSettings.labelWidth}
+              labelHeight={precisionSettings.labelHeight}
+              xOffset={precisionSettings.xOffset}
+              yOffset={precisionSettings.yOffset}
+            />
+          ) : (
+            <PrecisionA4SheetPrint
+              ref={precisionPrintRef}
+              items={labelItems}
+              labelWidth={precisionSettings.labelWidth}
+              labelHeight={precisionSettings.labelHeight}
+              cols={precisionSettings.a4Cols}
+              rows={precisionSettings.a4Rows}
+              xOffset={precisionSettings.xOffset}
+              yOffset={precisionSettings.yOffset}
+              vGap={precisionSettings.vGap}
+            />
+          )}
+        </div>
+      ) : (
+        <div id="printArea" className="hidden"></div>
+      )}
 
       <style>{`
         #printArea {
@@ -4476,6 +4541,18 @@ export default function BarcodePrinting() {
 
           body * { visibility: hidden; }
           #printArea, #printArea * { visibility: visible; }
+          .precision-print-area, .precision-print-area * { visibility: visible !important; }
+          .precision-print-area {
+            position: absolute;
+            left: 0;
+            top: 0;
+            display: block !important;
+          }
+          .precision-barcode-svg {
+            image-rendering: pixelated;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
           #printArea { 
             position: absolute;
             left: 0; 
