@@ -764,7 +764,26 @@ const FeeCollection = () => {
                         <TableCell className="text-muted-foreground">{(collectedPage - 1) * pageSize + index + 1}</TableCell>
                         <TableCell>{fee.paid_date ? format(new Date(fee.paid_date), "dd/MM/yyyy") : "-"}</TableCell>
                         <TableCell className="font-medium">{fee.payment_receipt_id || "-"}</TableCell>
-                        <TableCell className="font-medium">{fee.students?.student_name || "-"}</TableCell>
+                        <TableCell>
+                          <button
+                            className="text-primary hover:underline font-medium text-left cursor-pointer bg-transparent border-none p-0"
+                            onClick={() => {
+                              if (fee.students) {
+                                setHistoryStudent({
+                                  id: fee.student_id,
+                                  student_name: fee.students.student_name,
+                                  admission_number: fee.students.admission_number,
+                                  class_id: fee.students.class_id,
+                                  parent_phone: fee.students.parent_phone,
+                                  school_classes: fee.students.school_classes,
+                                });
+                                setHistoryOpen(true);
+                              }
+                            }}
+                          >
+                            {fee.students?.student_name || "-"}
+                          </button>
+                        </TableCell>
                         <TableCell>{fee.students?.admission_number || "-"}</TableCell>
                         <TableCell>{fee.students?.school_classes?.class_name || "-"}</TableCell>
                         <TableCell>{fee.fee_heads?.head_name || "General"}</TableCell>
