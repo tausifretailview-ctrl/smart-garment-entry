@@ -210,9 +210,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } catch (refreshErr) {
           console.error("Refresh also failed:", refreshErr);
         }
-        // Refresh failed - clean up stale tokens to prevent Chrome from caching bad state
+        // Aggressive cleanup: wipe ALL sb-* keys to clear corrupted Chrome state
+        try {
+          const sbKeys = Object.keys(localStorage).filter(k => k.startsWith('sb-'));
+          sbKeys.forEach(k => localStorage.removeItem(k));
+          console.warn("Cleared all sb-* localStorage keys after session error");
+        } catch (cleanupErr) {
+          console.error("Failed to clean sb-* keys:", cleanupErr);
+        }
         await supabase.auth.signOut({ scope: 'local' });
-        localStorage.removeItem(REFRESH_LOCK_KEY);
         setSession(null);
         setUser(null);
         setLoading(false);
@@ -237,9 +243,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           } catch (refreshErr) {
             console.error("Refresh failed for expired session:", refreshErr);
           }
-          // Clean up stale local auth data (Chrome caches aggressively)
+          // Aggressive cleanup of all sb-* keys for Chrome edge cases
+          try {
+            const sbKeys = Object.keys(localStorage).filter(k => k.startsWith('sb-'));
+            sbKeys.forEach(k => localStorage.removeItem(k));
+            console.warn("Cleared all sb-* localStorage keys after expired session");
+          } catch (cleanupErr) {
+            console.error("Failed to clean sb-* keys:", cleanupErr);
+          }
           await supabase.auth.signOut({ scope: 'local' });
-          localStorage.removeItem(REFRESH_LOCK_KEY);
           setSession(null);
           setUser(null);
           setLoading(false);
