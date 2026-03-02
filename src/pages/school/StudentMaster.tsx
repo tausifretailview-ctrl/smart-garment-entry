@@ -44,6 +44,7 @@ import { useToast } from "@/hooks/use-toast";
 import { StudentExcelImportDialog } from "@/components/school/StudentExcelImportDialog";
 import { StudentBulkUpdateDialog } from "@/components/school/StudentBulkUpdateDialog";
 import { FeesBalanceImportDialog } from "@/components/school/FeesBalanceImportDialog";
+import { StudentHistoryDialog } from "@/components/school/StudentHistoryDialog";
 
 const PAGE_SIZE = 50;
 
@@ -59,6 +60,8 @@ const StudentMaster = () => {
   const [studentToDelete, setStudentToDelete] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [historyStudent, setHistoryStudent] = useState<any>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // Reset to page 1 when search changes
   const handleSearchChange = (value: string) => {
@@ -295,8 +298,13 @@ const StudentMaster = () => {
                     <TableCell className="font-mono text-sm">
                       {student.admission_number}
                     </TableCell>
-                    <TableCell className="font-medium">
-                      {student.student_name}
+                    <TableCell>
+                      <button
+                        className="text-primary hover:underline font-medium text-left cursor-pointer bg-transparent border-none p-0"
+                        onClick={() => { setHistoryStudent(student); setHistoryOpen(true); }}
+                      >
+                        {student.student_name}
+                      </button>
                     </TableCell>
                     <TableCell>
                       {student.school_classes ? (
@@ -435,6 +443,12 @@ const StudentMaster = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <StudentHistoryDialog
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        student={historyStudent}
+      />
     </div>
   );
 };

@@ -14,6 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { GraduationCap, Search, Download, Users, Eye } from "lucide-react";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
+import { StudentHistoryDialog } from "@/components/school/StudentHistoryDialog";
 
 const StudentReports = () => {
   const { currentOrganization } = useOrganization();
@@ -22,6 +23,8 @@ const StudentReports = () => {
   const [divisionFilter, setDivisionFilter] = useState("all");
   const [yearFilter, setYearFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [historyStudent, setHistoryStudent] = useState<any>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // Fetch academic years
   const { data: academicYears = [] } = useQuery({
@@ -285,7 +288,14 @@ const StudentReports = () => {
                           <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                           <TableCell className="font-medium">{s.admission_number || "-"}</TableCell>
                           <TableCell>{s.roll_number || "-"}</TableCell>
-                          <TableCell className="font-medium">{s.student_name}</TableCell>
+                          <TableCell>
+                            <button
+                              className="text-primary hover:underline font-medium text-left cursor-pointer bg-transparent border-none p-0"
+                              onClick={() => { setHistoryStudent(s); setHistoryOpen(true); }}
+                            >
+                              {s.student_name}
+                            </button>
+                          </TableCell>
                           <TableCell>
                             <Badge variant="outline" className={s.gender?.toLowerCase() === "male" ? "text-blue-600 border-blue-300" : "text-pink-600 border-pink-300"}>
                               {s.gender || "-"}
@@ -376,6 +386,12 @@ const StudentReports = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <StudentHistoryDialog
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        student={historyStudent}
+      />
     </div>
   );
 };
