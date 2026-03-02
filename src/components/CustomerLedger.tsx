@@ -115,37 +115,72 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           }
         });
 
-        // Fetch fee totals per student
-        const { data: feeTotals } = await supabase
-          .from('student_fees')
-          .select('student_id, amount, paid_amount, status')
-          .eq('organization_id', organizationId);
+        // Fetch current academic year
+        const { data: currentYear } = await supabase
+          .from('academic_years')
+          .select('id')
+          .eq('organization_id', organizationId)
+          .eq('is_current', true)
+          .single();
 
-        const studentFeeTotals = new Map<string, { totalFees: number; totalPaid: number }>();
+        // Fetch fee structures for current year to determine expected totals per class
+        let classExpectedMap = new Map<string, number>();
+        if (currentYear?.id) {
+          const { data: feeStructures } = await supabase
+            .from('fee_structures')
+            .select('class_id, amount, frequency')
+            .eq('organization_id', organizationId)
+            .eq('academic_year_id', currentYear.id);
+
+          feeStructures?.forEach((s: any) => {
+            const mult = s.frequency === 'monthly' ? 12 : s.frequency === 'quarterly' ? 4 : 1;
+            const total = s.amount * mult;
+            classExpectedMap.set(s.class_id, (classExpectedMap.get(s.class_id) || 0) + total);
+          });
+        }
+
+        // Fetch fee payment totals per student (only paid_amount matters)
+        const feesQuery: any = supabase
+          .from('student_fees')
+          .select('student_id, paid_amount')
+          .eq('organization_id', organizationId);
+        if (currentYear?.id) {
+          feesQuery.eq('academic_year_id', currentYear.id);
+        }
+        const { data: feeTotals } = await feesQuery;
+
+        const studentPaidTotals = new Map<string, number>();
         feeTotals?.forEach((f: any) => {
-          const existing = studentFeeTotals.get(f.student_id) || { totalFees: 0, totalPaid: 0 };
-          existing.totalFees += f.amount || 0;
-          existing.totalPaid += f.paid_amount || 0;
-          studentFeeTotals.set(f.student_id, existing);
+          studentPaidTotals.set(f.student_id, (studentPaidTotals.get(f.student_id) || 0) + (f.paid_amount || 0));
         });
 
-        // Build school customer totals
+        // Build school customer totals — mirror fee collection logic:
+        // If fee structures exist for student's class, use structure total as expected
+        // Otherwise fall back to closing_fees_balance
         const customerTotals = customersData.map((customer: any) => {
           const student = studentMap.get(customer.id);
           if (student) {
-            const feeTot = studentFeeTotals.get(student.id) || { totalFees: 0, totalPaid: 0 };
-            const openingBalance = student.closing_fees_balance || 0;
-            const balance = Math.round(openingBalance + feeTot.totalFees - feeTot.totalPaid);
+            const structureTotal = classExpectedMap.get(student.class_id) || 0;
+            const hasStructures = structureTotal > 0;
+            const importedBalance = student.closing_fees_balance || 0;
+            const totalPaid = studentPaidTotals.get(student.id) || 0;
+
+            // Match fee collection logic: structures OR imported balance, never both
+            const expectedTotal = hasStructures ? structureTotal : importedBalance;
+            const openingBalance = hasStructures ? 0 : importedBalance;
+            const balance = Math.round(expectedTotal - totalPaid);
+
             return {
               ...customer,
               opening_balance: Math.round(openingBalance),
-              totalSales: Math.round(feeTot.totalFees),
-              totalPaid: Math.round(feeTot.totalPaid),
+              totalSales: Math.round(expectedTotal),
+              totalPaid: Math.round(totalPaid),
               balance,
               studentId: student.id,
               admissionNumber: student.admission_number,
               className: (student as any).school_classes?.class_name || '',
               division: student.division || '',
+              hasStructures,
             };
           }
           // Non-student customer in school org - show with zero balance
@@ -262,8 +297,45 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // --- School org: student fee-based transactions ---
       if (isSchool && selectedCustomer.studentId) {
         const studentId = selectedCustomer.studentId;
+        const hasStructures = (selectedCustomer as any).hasStructures;
 
-        // Fetch student fees with fee head names
+        // Fetch current academic year
+        const { data: currentYear } = await supabase
+          .from('academic_years')
+          .select('id')
+          .eq('organization_id', organizationId)
+          .eq('is_current', true)
+          .single();
+
+        // Fetch fee structures for the student's class (to show as debit entries)
+        let feeStructureDebits: Array<{ head_name: string; total: number }> = [];
+        if (hasStructures && selectedCustomer.className && currentYear?.id) {
+          // Get the class_id from the student record
+          const { data: studentRec } = await supabase
+            .from('students')
+            .select('class_id')
+            .eq('id', studentId)
+            .single();
+          
+          if (studentRec?.class_id) {
+            const { data: structures } = await supabase
+              .from('fee_structures')
+              .select('amount, frequency, fee_heads(head_name)')
+              .eq('organization_id', organizationId)
+              .eq('academic_year_id', currentYear.id)
+              .eq('class_id', studentRec.class_id);
+
+            feeStructureDebits = (structures || []).map((s: any) => {
+              const mult = s.frequency === 'monthly' ? 12 : s.frequency === 'quarterly' ? 4 : 1;
+              return {
+                head_name: s.fee_heads?.head_name || 'Fee',
+                total: s.amount * mult,
+              };
+            });
+          }
+        }
+
+        // Fetch student fees (payments)
         let feesQuery = supabase
           .from('student_fees')
           .select('*, fee_heads(head_name)')
@@ -276,18 +348,13 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         const { data: feesData, error: feesError } = await feesQuery.order('created_at', { ascending: true });
         if (feesError) throw feesError;
 
-        // Fetch student fees with fee head names
-        // NOTE: We do NOT fetch voucher_entries here because fee collections
-        // already create student_fees records with paid_amount. Vouchers are
-        // auto-generated for the accounts module but would cause double-counting
-        // if included in the student ledger.
-        
         const allTransactions: Transaction[] = [];
         const openingBalance = selectedCustomer.opening_balance || 0;
-        let runningBalance = openingBalance;
+        let runningBalance = 0;
 
-        // Opening balance entry
-        if (openingBalance !== 0) {
+        // Opening balance entry - only when NO fee structures exist
+        if (!hasStructures && openingBalance !== 0) {
+          runningBalance = openingBalance;
           allTransactions.push({
             id: 'opening-balance',
             date: '1900-01-01',
@@ -300,33 +367,65 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           });
         }
 
-        // Sort fees chronologically
+        if (hasStructures && feeStructureDebits.length > 0) {
+          // Show fee structure totals as debit entries (the expected fees)
+          feeStructureDebits.forEach((structure, idx) => {
+            runningBalance += structure.total;
+            allTransactions.push({
+              id: `structure-${idx}`,
+              date: currentYear?.id ? '' : '',
+              type: 'fee',
+              reference: 'Fee Structure',
+              description: structure.head_name,
+              debit: structure.total,
+              credit: 0,
+              balance: runningBalance,
+            });
+          });
+        } else if (!hasStructures) {
+          // No structures - fee records act as both charge and payment
+          const sortedFees = [...(feesData || [])].sort((a: any, b: any) => {
+            const dateA = a.paid_date || a.created_at?.substring(0, 10) || '2000-01-01';
+            const dateB = b.paid_date || b.created_at?.substring(0, 10) || '2000-01-01';
+            return new Date(dateA).getTime() - new Date(dateB).getTime();
+          });
+
+          // Show payments as credits against opening balance
+          sortedFees.forEach((fee: any) => {
+            const paidAmount = fee.paid_amount || 0;
+            if (paidAmount > 0) {
+              runningBalance -= paidAmount;
+              const feeHeadName = fee.fee_heads?.head_name || 'Fee';
+              const methodText = fee.payment_method ? ` - ${fee.payment_method.charAt(0).toUpperCase() + fee.payment_method.slice(1)}` : '';
+              allTransactions.push({
+                id: `${fee.id}-payment`,
+                date: fee.paid_date || fee.created_at?.substring(0, 10) || '',
+                type: 'payment',
+                reference: fee.payment_receipt_id || '-',
+                description: `Fee Payment${methodText} - ${feeHeadName}`,
+                debit: 0,
+                credit: paidAmount,
+                balance: runningBalance,
+                paymentBreakdown: fee.payment_method ? { method: fee.payment_method } : undefined,
+              });
+            }
+          });
+
+          return allTransactions;
+        }
+
+        // When structures exist: show payments as credits
         const sortedFees = [...(feesData || [])].sort((a: any, b: any) => {
-          const dateA = a.paid_date || a.created_at?.substring(0, 10) || a.due_date || '2000-01-01';
-          const dateB = b.paid_date || b.created_at?.substring(0, 10) || b.due_date || '2000-01-01';
+          const dateA = a.paid_date || a.created_at?.substring(0, 10) || '2000-01-01';
+          const dateB = b.paid_date || b.created_at?.substring(0, 10) || '2000-01-01';
           return new Date(dateA).getTime() - new Date(dateB).getTime();
         });
 
         sortedFees.forEach((fee: any) => {
-          const feeAmount = fee.amount || 0;
-          const feeHeadName = fee.fee_heads?.head_name || 'Fee';
-          runningBalance += feeAmount;
-
-          allTransactions.push({
-            id: fee.id,
-            date: fee.paid_date || fee.created_at?.substring(0, 10) || fee.due_date || '',
-            type: 'fee',
-            reference: fee.payment_receipt_id || '-',
-            description: `${feeHeadName}${fee.period_month ? ` (${fee.period_month}/${fee.period_year})` : ''}`,
-            debit: feeAmount,
-            credit: 0,
-            balance: runningBalance,
-          });
-
-          // If fee has paid_amount, add as credit (payment at collection)
           const paidAmount = fee.paid_amount || 0;
           if (paidAmount > 0) {
             runningBalance -= paidAmount;
+            const feeHeadName = fee.fee_heads?.head_name || 'Fee';
             const methodText = fee.payment_method ? ` - ${fee.payment_method.charAt(0).toUpperCase() + fee.payment_method.slice(1)}` : '';
             allTransactions.push({
               id: `${fee.id}-payment`,
