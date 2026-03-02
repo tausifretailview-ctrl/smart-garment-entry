@@ -57,6 +57,7 @@ export default function OrgAuth() {
   const [inputSlug, setInputSlug] = useState(orgSlug || "");
   const [orgFetchErrorType, setOrgFetchErrorType] = useState<"none" | "not_found" | "network" | "invalid_slug">("none");
   const [orgFetchRetryKey, setOrgFetchRetryKey] = useState(0);
+  const [showCacheRecovery, setShowCacheRecovery] = useState(false);
 
   // Request lifecycle guard: prevent stale async fetches from updating state
   const fetchTokenRef = useRef(0);
@@ -240,11 +241,16 @@ export default function OrgAuth() {
 
     setLoading(true);
     setError("");
+    setShowCacheRecovery(false);
 
     try {
       // CRITICAL: Clear any existing stale session before login attempt
-      await supabase.auth.signOut({ scope: 'local' });
-      localStorage.removeItem('auth_refresh_lock');
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+        localStorage.removeItem('auth_refresh_lock');
+      } catch (_signOutErr) {
+        // Ignore - local signOut failing should not block sign-in
+      }
 
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
@@ -354,8 +360,16 @@ export default function OrgAuth() {
         toast.success(`Welcome to ${resolvedOrg.name}!`);
         navigate(`/${resolvedOrg.slug}`);
       }
-    } catch (err) {
-      setError("An unexpected error occurred. Please try again.");
+    } catch (err: any) {
+      const isNetworkError = err instanceof TypeError && 
+        (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError'));
+      
+      if (isNetworkError) {
+        setError("Network connection failed. Your browser may have a stale cache. Try clearing the app cache below, or check your internet connection.");
+        setShowCacheRecovery(true);
+      } else {
+        setError("An unexpected error occurred. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -596,9 +610,23 @@ export default function OrgAuth() {
                 )}
 
                 {error && !showNetworkWarning && (
-                  <Alert variant="destructive" className="rounded-md py-2">
+                  <Alert variant={showCacheRecovery ? "default" : "destructive"} className={`rounded-md py-2 ${showCacheRecovery ? 'border-yellow-500/50 bg-yellow-50 dark:bg-yellow-900/20' : ''}`}>
                     <AlertCircle className="h-4 w-4" />
-                    <AlertDescription className="text-sm">{error}</AlertDescription>
+                    <AlertDescription className="text-sm">
+                      {error}
+                      {showCacheRecovery && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="mt-2 h-7 text-xs w-full"
+                          onClick={handleClearCacheAndRetry}
+                        >
+                          <Trash2 className="mr-1 h-3 w-3" />
+                          Clear App Cache & Retry
+                        </Button>
+                      )}
+                    </AlertDescription>
                   </Alert>
                 )}
                 
