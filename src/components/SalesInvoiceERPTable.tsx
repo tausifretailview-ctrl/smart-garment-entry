@@ -54,6 +54,7 @@ interface SalesInvoiceERPTableProps {
   productsById: Record<string, any> | undefined;
   deliveryHistory: Record<string, any[]>;
   saleReturns: Record<string, any[]>;
+  cnAdjustedMap: Record<string, any[]>;
   renderToolbar?: (toolbar: React.ReactNode) => React.ReactNode;
 }
 
@@ -102,6 +103,7 @@ export function SalesInvoiceERPTable({
   productsById,
   deliveryHistory,
   saleReturns,
+  cnAdjustedMap,
   renderToolbar,
 }: SalesInvoiceERPTableProps) {
   const columns = useMemo<ColumnDef<any, any>[]>(() => {
@@ -229,8 +231,9 @@ export function SalesInvoiceERPTable({
           header: "Pay Status",
           cell: ({ row }) => {
             const invoice = row.original;
+            const cnAdjusted = cnAdjustedMap[invoice.id];
             return (
-              <div className="text-center">
+              <div className="text-center space-y-1">
                 <Badge
                   className={`min-w-[80px] justify-center whitespace-nowrap ${
                     invoice.payment_status === 'completed'
@@ -242,6 +245,14 @@ export function SalesInvoiceERPTable({
                 >
                   {invoice.payment_status === 'completed' ? 'Paid' : invoice.payment_status === 'partial' ? 'Partial' : 'Not Paid'}
                 </Badge>
+                {cnAdjusted && cnAdjusted.length > 0 && (
+                  <Badge
+                    variant="outline"
+                    className="bg-purple-50 text-purple-700 border-purple-300 text-[10px] px-1.5 py-0 block dark:bg-purple-950 dark:text-purple-300 dark:border-purple-700"
+                  >
+                    CN Adjusted
+                  </Badge>
+                )}
               </div>
             );
           },

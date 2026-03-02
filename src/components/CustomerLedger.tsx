@@ -459,12 +459,43 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
       if (adjustmentsError) throw adjustmentsError;
 
+      // Fetch sale returns with CN adjustments for this customer
+      let saleReturnsQuery = supabase
+        .from("sale_returns")
+        .select("id, return_number, return_date, net_amount, credit_status, linked_sale_id, refund_type")
+        .eq("customer_id", selectedCustomer.id)
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null)
+        .in("credit_status", ["adjusted", "refunded", "adjusted_outstanding"]);
+
+      if (startDate) {
+        saleReturnsQuery = saleReturnsQuery.gte("return_date", format(startDate, 'yyyy-MM-dd'));
+      }
+      if (endDate) {
+        saleReturnsQuery = saleReturnsQuery.lte("return_date", format(endDate, 'yyyy-MM-dd'));
+      }
+
+      const { data: saleReturnsData, error: saleReturnsError } = await saleReturnsQuery.order("return_date", { ascending: true });
+      if (saleReturnsError) throw saleReturnsError;
+
+      // Get linked sale numbers for display
+      const linkedSaleIds = (saleReturnsData || []).filter((sr: any) => sr.linked_sale_id).map((sr: any) => sr.linked_sale_id);
+      let linkedSaleMap: Record<string, string> = {};
+      if (linkedSaleIds.length > 0) {
+        const { data: linkedSales } = await supabase
+          .from("sales")
+          .select("id, sale_number")
+          .in("id", linkedSaleIds);
+        linkedSales?.forEach((s: any) => { linkedSaleMap[s.id] = s.sale_number; });
+      }
+
       console.log('Sales for customer:', salesData?.length || 0);
       console.log('All customer sale IDs:', allSaleIds.length);
       console.log('Invoice payments found:', vouchersData?.length || 0);
       console.log('Opening balance payments found:', openingBalancePayments?.length || 0);
       console.log('Advances found:', advancesData?.length || 0);
       console.log('Adjustments found:', adjustmentsData?.length || 0);
+      console.log('CN Adjustments found:', saleReturnsData?.length || 0);
 
       // Calculate total voucher payments per sale to exclude from "payment at sale"
       const voucherPaymentsBySaleId: Record<string, number> = {};
@@ -517,6 +548,11 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           date: adj.adjustment_date,
           type: 'adjustment' as const,
           data: adj,
+        })),
+        ...(saleReturnsData || []).map((sr: any) => ({
+          date: sr.return_date,
+          type: 'cn_adjustment' as const,
+          data: { ...sr, linkedSaleNumber: linkedSaleMap[sr.linked_sale_id] || null },
         })),
       ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -630,6 +666,30 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             description: adjDescription,
             debit: netDebit,
             credit: netCredit,
+            balance: runningBalance,
+          });
+        } else if (item.type === 'cn_adjustment') {
+          const sr = item.data as any;
+          const amount = sr.net_amount || 0;
+          runningBalance -= amount;
+          
+          let description = `Credit Note - ${sr.return_number}`;
+          if (sr.credit_status === 'adjusted' && sr.linkedSaleNumber) {
+            description += ` (Adjusted against ${sr.linkedSaleNumber})`;
+          } else if (sr.credit_status === 'refunded') {
+            description += ` (Refunded)`;
+          } else if (sr.credit_status === 'adjusted_outstanding') {
+            description += ` (Adjusted to Outstanding)`;
+          }
+          
+          allTransactions.push({
+            id: `cn-${sr.id}`,
+            date: sr.return_date,
+            type: 'payment',
+            reference: sr.return_number,
+            description,
+            debit: 0,
+            credit: amount,
             balance: runningBalance,
           });
         } else {
