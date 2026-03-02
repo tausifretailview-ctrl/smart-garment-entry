@@ -15,6 +15,7 @@ import { format } from "date-fns";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { useReactToPrint } from "react-to-print";
+import { SchoolFeeReceipt } from "./SchoolFeeReceipt";
 
 interface Student {
   id: string;
@@ -328,68 +329,26 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
               <Receipt className="h-5 w-5" /> Fee Receipt
             </DialogTitle>
           </DialogHeader>
-          <div ref={receiptRef} className="p-5 border rounded-md bg-white text-black" style={{ fontFamily: "Arial, sans-serif" }}>
-            {/* Header */}
-            <div className="text-center mb-3 border-b-2 border-gray-800 pb-2">
-              <h2 className="text-lg font-bold">{currentOrganization?.name}</h2>
-              <p className="text-xs text-gray-600">Fee Receipt</p>
-            </div>
-
-            {/* Student & Receipt Info */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mb-3">
-              <div><strong>Receipt #:</strong> {receiptData.receiptNumber}</div>
-              <div><strong>Date:</strong> {format(new Date(receiptData.paidDate), "dd/MM/yyyy")}</div>
-              <div><strong>Student Name:</strong> {student.student_name}</div>
-              <div><strong>Adm. No:</strong> {student.admission_number}</div>
-              {student.parent_name && <div><strong>Parent Name:</strong> {student.parent_name}</div>}
-              <div><strong>Class:</strong> {student.school_classes?.class_name || "-"}</div>
-              {receiptData.academicYear && <div><strong>Academic Year:</strong> {receiptData.academicYear}</div>}
-              <div><strong>Payment:</strong> {receiptData.paymentMethod}</div>
-              {receiptData.transactionId && <div className="col-span-2"><strong>Txn ID:</strong> {receiptData.transactionId}</div>}
-            </div>
-
-            {/* Fee Details Table */}
-            <table className="w-full text-xs border-collapse mb-3 border border-gray-300">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="text-left py-1.5 px-2 border border-gray-300 font-semibold">Fee Head</th>
-                  <th className="text-right py-1.5 px-2 border border-gray-300 font-semibold">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {receiptData.selectedItems.map((item: any, idx: number) => (
-                  <tr key={idx}>
-                    <td className="py-1.5 px-2 border border-gray-300">{item.head_name}</td>
-                    <td className="text-right py-1.5 px-2 border border-gray-300">₹{item.paying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="font-bold bg-gray-50">
-                  <td className="py-2 px-2 border border-gray-300">Total</td>
-                  <td className="text-right py-2 px-2 border border-gray-300">₹{receiptData.totalPaying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                </tr>
-                <tr>
-                  <td className="py-1.5 px-2 border border-gray-300 font-semibold">Balance</td>
-                  <td className="text-right py-1.5 px-2 border border-gray-300 font-semibold text-red-600">
-                    ₹{(receiptData.remainingBalance ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-
-            {/* Signature */}
-            <div className="flex justify-between items-end mt-6 text-xs">
-              <div>
-                <p className="text-gray-500">Receiver</p>
-              </div>
-              <div className="text-center">
-                <div className="border-t border-gray-800 pt-1 w-32">
-                  <p className="text-gray-600">Auth. Signature</p>
-                </div>
-              </div>
-            </div>
-          </div>
+          <SchoolFeeReceipt
+            ref={receiptRef}
+            receiptNumber={receiptData.receiptNumber}
+            paidDate={receiptData.paidDate}
+            paymentMethod={receiptData.paymentMethod}
+            transactionId={receiptData.transactionId}
+            academicYear={receiptData.academicYear}
+            student={{
+              student_name: student.student_name,
+              admission_number: student.admission_number,
+              parent_name: student.parent_name,
+              class_name: student.school_classes?.class_name || "-",
+            }}
+            items={receiptData.selectedItems.map((item: any) => ({
+              head_name: item.head_name,
+              paying: item.paying,
+            }))}
+            totalPaying={receiptData.totalPaying}
+            remainingBalance={receiptData.remainingBalance ?? 0}
+          />
           <div className="flex justify-end gap-2 mt-2">
             <Button variant="outline" onClick={() => { setShowReceipt(false); setReceiptData(null); onOpenChange(false); }}>Close</Button>
             <Button
