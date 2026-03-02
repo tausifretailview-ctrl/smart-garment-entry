@@ -1,98 +1,54 @@
 
-# Precision Pro Label Designer
+
+# Precision Pro Label Calibration UI Enhancement
 
 ## Overview
-Enhance the existing Precision Pro barcode system with a full visual label designer. Users will be able to toggle fields on/off, set exact X/Y coordinates (in mm), font sizes, and barcode dimensions -- all rendered with absolute positioning for pixel-perfect prints.
+The Precision Pro system already exists with all the core features (absolute mm positioning, field customization, thermal/A4 modes, SVG barcodes, label designer). This plan enhances the calibration experience by adding a dedicated `LabelCalibrationUI` component with nudge buttons and sliders, and adding a preset save/load system for calibration profiles.
 
 ## What Changes
 
-### 1. New Component: `PrecisionLabelDesigner.tsx`
-A configuration panel (sidebar-style) that lets users design their precision label layout:
+### 1. New Component: `LabelCalibrationUI.tsx`
+A polished calibration panel replacing the plain number inputs in Settings. For each calibration value (X-Offset, Y-Offset, Vertical Gap, Label Width, Label Height):
+- **Slider** for smooth adjustment (range-appropriate, e.g. -10 to +10mm for offsets, 10-100mm for dimensions)
+- **Nudge buttons** (+0.5mm / -0.5mm) flanking the numeric input for fine-tuning
+- **Current value display** in mm
+- Live preview of a sample label that updates as values change
 
-**Per-field controls** (Product Name, Brand, Size, Price/MRP, Barcode, Barcode Text, Custom Text, Bill Number, Supplier Code, Purchase Code):
-- Toggle show/hide
-- X position (mm from left edge)
-- Y position (mm from top edge)
-- Font size (pt)
-- Bold toggle
-- Width (mm) for text truncation
-- Text alignment (left/center/right)
+### 2. Calibration Presets
+- "Save Preset" button that stores the current calibration values (offsets + dimensions) as a named preset
+- "Load Preset" dropdown to recall saved presets
+- Presets stored in the existing `bill_barcode_settings` JSON column as `precision_presets` array
+- Common built-in presets: "50x25mm Thermal", "38x25mm Jewellery", "100x50mm Shipping"
 
-**Barcode-specific controls:**
-- Barcode height (mm)
-- Barcode width (line thickness)
-
-**Template save/load** using existing `useBarcodeLabelSettings` hook (label_template type with mm-based config).
-
-### 2. Update `PrecisionLabelPreview.tsx`
-Replace the current hardcoded layout with a config-driven renderer:
-- Accept a `LabelDesignConfig` prop (reuses the existing type which already has `x`, `y`, `width` fields)
-- Each field renders as an absolutely positioned `div` using `top: {y}mm; left: {x}mm`
-- Barcode renders as SVG via JsBarcode with `image-rendering: pixelated`
-- The container uses `transform: translate(xOffset, yOffset)` for calibration
-
-### 3. Update Settings Page (`Settings.tsx`)
-Add to the existing Precision Pro card:
-- A "Design Label Layout" button that opens the designer inline or in a dialog
-- The designer will show a live preview of the label at the configured dimensions
-- Field positions are saved as part of the precision settings in `bill_barcode_settings`
-
-### 4. Update `BarcodePrinting.tsx`
-- When Precision Pro is enabled, pass the stored field config to `PrecisionLabelPreview`
-- Add a "Designer" button/tab in the barcode printing page for quick access to adjust layout
-- Both thermal and A4 print paths use the same config-driven preview
-
-### 5. Update Print Components
-- `PrecisionThermalPrint.tsx` and `PrecisionA4SheetPrint.tsx` will pass the label config through to `PrecisionLabelPreview`
-
-## Data Storage
-No database migration needed. The field layout config will be stored in the existing `bill_barcode_settings` JSON column as `precision_label_config` (a `LabelDesignConfig` object). Templates are saved via the existing `useBarcodeLabelSettings` hook.
+### 3. Integration
+- Replace the plain input fields in Settings.tsx Precision Pro section with the new `LabelCalibrationUI` component
+- Also embed a compact version in the BarcodePrinting page for quick adjustments before printing
 
 ## Files to Create
-1. `src/components/precision-barcode/PrecisionLabelDesigner.tsx` -- The designer panel with per-field X/Y/font/toggle controls and live preview
+1. `src/components/precision-barcode/LabelCalibrationUI.tsx` -- Calibration panel with sliders, nudge buttons, presets, and live preview
 
 ## Files to Modify
-1. `src/components/precision-barcode/PrecisionLabelPreview.tsx` -- Make config-driven instead of hardcoded layout
-2. `src/components/precision-barcode/PrecisionThermalPrint.tsx` -- Pass label config through
-3. `src/components/precision-barcode/PrecisionA4SheetPrint.tsx` -- Pass label config through
-4. `src/pages/Settings.tsx` -- Add precision label config storage and designer button
-5. `src/pages/BarcodePrinting.tsx` -- Load and pass precision label config; add designer access
+1. `src/pages/Settings.tsx` -- Replace plain offset/dimension inputs with the new `LabelCalibrationUI` component
+2. `src/pages/BarcodePrinting.tsx` -- Add a compact calibration panel accessible via a "Calibrate" button
 
 ## Technical Details
 
-### PrecisionLabelPreview Config-Driven Rendering
+### Nudge Button Pattern
 ```text
-Container: width={labelWidth}mm, height={labelHeight}mm, position=relative, overflow=hidden
-  transform: translate(xOffset mm, yOffset mm)
-
-For each field in config where show=true:
-  <div style="position:absolute; top:{field.y}mm; left:{field.x}mm; 
-       width:{field.width}mm; font-size:{field.fontSize}pt;
-       font-weight:{field.bold ? 700 : 400}; text-align:{field.textAlign}">
-    {field content}
-  </div>
-
-Barcode SVG:
-  position:absolute; top:{barcode.y}mm; left:{barcode.x}mm
-  JsBarcode SVG with image-rendering: pixelated
+[ -0.5 ] [ input: 2.5 mm ] [ +0.5 ]
+|=========[====]==================| slider
 ```
 
-### PrecisionLabelDesigner Layout
+Each field row contains: minus button, numeric input, plus button, and a slider below. Clicking nudge buttons adjusts value by 0.5mm. Slider provides continuous adjustment.
+
+### Presets Data Shape
 ```text
-+---------------------------+-------------------+
-| Field Controls (scroll)   | Live Preview      |
-|                           |                   |
-| [x] Product Name          | +---------------+ |
-|   X: [10] Y: [2] Size:[9]| | Brand         | |
-|   Bold: [x] Align: [C]   | | Product Name  | |
-|                           | | Size  Price   | |
-| [x] Brand                 | | ||||||||||||| | |
-|   X: [5]  Y: [0] Size:[8]| | 12345678      | |
-|                           | +---------------+ |
-| [x] Barcode               |                   |
-|   X: [5] Y: [12] H: [8]  |                   |
-+---------------------------+-------------------+
+precision_presets: [
+  { name: "50x25 Thermal", xOffset: 0, yOffset: 0, vGap: 2, width: 50, height: 25 },
+  { name: "38x25 Jewellery", xOffset: 1, yOffset: 0.5, vGap: 1, width: 38, height: 25 }
+]
 ```
 
-### Default Precision Config
-A sensible default layout matching the current hardcoded preview will be provided so existing users see no change until they customize.
+### No Database Migration Needed
+All data is stored in the existing `bill_barcode_settings` JSON column, which already holds precision settings.
+
