@@ -57,6 +57,25 @@ export default function OrgAuth() {
   const [inputSlug, setInputSlug] = useState(orgSlug || "");
   const [orgFetchErrorType, setOrgFetchErrorType] = useState<"none" | "not_found" | "network" | "invalid_slug">("none");
   const [orgFetchRetryKey, setOrgFetchRetryKey] = useState(0);
+  const [orgFetchTimedOut, setOrgFetchTimedOut] = useState(false);
+
+  // Safety timeout: if org fetch takes too long (6s), stop showing spinner
+  useEffect(() => {
+    if (!orgLoading) {
+      setOrgFetchTimedOut(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (orgLoading) {
+        console.warn("OrgAuth: Org fetch timeout, forcing render");
+        setOrgFetchTimedOut(true);
+        setOrgLoading(false);
+        setOrgFetchErrorType("network");
+        setError("Connection is slow. Please check your internet and retry.");
+      }
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [orgLoading]);
 
   // Check and clear lockout on mount
   useEffect(() => {
