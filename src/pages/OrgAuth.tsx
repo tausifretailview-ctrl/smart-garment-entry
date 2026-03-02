@@ -710,12 +710,36 @@ export default function OrgAuth() {
                   onClick={async () => {
                     setLoading(true);
                     setError("");
-                    const { error } = await lovable.auth.signInWithOAuth("google", {
-                      redirect_uri: window.location.origin,
-                    });
-                    if (error) {
-                      setError(error.message || "Google sign-in failed");
-                      setLoading(false);
+                    
+                    // Detect custom domain - auth bridge only works on *.lovable.app
+                    const isCustomDomain =
+                      !window.location.hostname.includes("lovable.app") &&
+                      !window.location.hostname.includes("lovableproject.com") &&
+                      !window.location.hostname.includes("localhost");
+                    
+                    if (isCustomDomain) {
+                      // Bypass Lovable auth bridge for custom domains
+                      const { data, error } = await supabase.auth.signInWithOAuth({
+                        provider: "google",
+                        options: {
+                          redirectTo: window.location.origin + "/" + (orgSlug || ""),
+                          skipBrowserRedirect: true,
+                        },
+                      });
+                      if (error) {
+                        setError(error.message || "Google sign-in failed");
+                        setLoading(false);
+                      } else if (data?.url) {
+                        window.location.href = data.url;
+                      }
+                    } else {
+                      const { error } = await lovable.auth.signInWithOAuth("google", {
+                        redirect_uri: window.location.origin,
+                      });
+                      if (error) {
+                        setError(error.message || "Google sign-in failed");
+                        setLoading(false);
+                      }
                     }
                   }}
                 >
