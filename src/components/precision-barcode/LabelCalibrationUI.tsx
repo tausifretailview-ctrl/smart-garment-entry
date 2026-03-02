@@ -273,16 +273,19 @@ export function LabelCalibrationUI({
           </div>
         </div>
 
-        {/* Live Preview */}
+        {/* Live Preview - uses px conversion for accurate mm representation */}
         {!compact && (
           <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Live Preview ({previewScale}×)</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Live Preview ({previewScale}× • {values.labelWidth}×{values.labelHeight}mm)
+            </p>
             <Card className="overflow-hidden">
-              <CardContent className="p-3 flex items-center justify-center bg-muted/30" style={{ minHeight: 120 }}>
+              <CardContent className="p-3 flex items-center justify-center bg-muted/30 overflow-auto" style={{ minHeight: 120 }}>
                 <div
                   style={{
-                    transform: `scale(${previewScale})`,
-                    transformOrigin: "center center",
+                    width: values.labelWidth * 3.7795 * previewScale,
+                    height: values.labelHeight * 3.7795 * previewScale,
+                    flexShrink: 0,
                   }}
                 >
                   <PrecisionLabelPreview
@@ -293,6 +296,7 @@ export function LabelCalibrationUI({
                     yOffset={values.yOffset}
                     showBorder
                     config={labelConfig}
+                    scaleFactor={previewScale}
                   />
                 </div>
               </CardContent>

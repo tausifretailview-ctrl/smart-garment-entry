@@ -10,6 +10,7 @@ interface PrecisionLabelPreviewProps {
   yOffset?: number; // mm
   showBorder?: boolean;
   config?: LabelDesignConfig;
+  scaleFactor?: number; // multiplier for px-based preview (1mm = 3.7795px * scaleFactor)
 }
 
 // Map field keys to item data
@@ -41,6 +42,7 @@ export function PrecisionLabelPreview({
   yOffset = 0,
   showBorder = false,
   config,
+  scaleFactor,
 }: PrecisionLabelPreviewProps) {
   const barcodeRef = useRef<SVGSVGElement>(null);
 
@@ -65,34 +67,37 @@ export function PrecisionLabelPreview({
     }
   }, [item.barcode, barcodeHeight, barcodeLineWidth]);
 
+  // Unit helper: when scaleFactor is set, use px-based sizing instead of CSS mm
+  const u = (mm: number) => scaleFactor ? `${mm * 3.7795 * scaleFactor}px` : `${mm}mm`;
+
   // If no config provided, render legacy hardcoded layout
   if (!config) {
     return (
       <div
         className="precision-label-container"
         style={{
-          width: `${width}mm`,
-          height: `${height}mm`,
+          width: u(width),
+          height: u(height),
           position: "relative",
           overflow: "hidden",
-          transform: `translate(${xOffset}mm, ${yOffset}mm)`,
+          transform: `translate(${u(xOffset)}, ${u(yOffset)})`,
           border: showBorder ? "0.5px dashed #ccc" : "none",
           boxSizing: "border-box",
         }}
       >
-        <div style={{ position: "absolute", top: "1mm", left: "1mm", right: "1mm", fontSize: `${Math.max(7, Math.min(10, width * 0.18))}pt`, fontWeight: 700, textAlign: "center", lineHeight: 1.1, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+        <div style={{ position: "absolute", top: u(1), left: u(1), right: u(1), fontSize: scaleFactor ? `${Math.max(7, Math.min(10, width * 0.18)) * scaleFactor}px` : `${Math.max(7, Math.min(10, width * 0.18))}pt`, fontWeight: 700, textAlign: "center", lineHeight: 1.1, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
           {item.product_name}
         </div>
-        <div style={{ position: "absolute", top: `${height * 0.2}mm`, left: "1mm", right: "1mm", display: "flex", justifyContent: "space-between", fontSize: `${Math.max(7, Math.min(9, width * 0.16))}pt`, fontWeight: 600 }}>
+        <div style={{ position: "absolute", top: u(height * 0.2), left: u(1), right: u(1), display: "flex", justifyContent: "space-between", fontSize: scaleFactor ? `${Math.max(7, Math.min(9, width * 0.16)) * scaleFactor}px` : `${Math.max(7, Math.min(9, width * 0.16))}pt`, fontWeight: 600 }}>
           <span>Size: {item.size}</span>
           <span>₹{item.sale_price}</span>
         </div>
         {item.barcode && (
-          <div style={{ position: "absolute", top: `${height * 0.35}mm`, left: "1mm", right: "1mm", display: "flex", justifyContent: "center" }}>
-            <svg ref={barcodeRef} className="precision-barcode-svg" style={{ maxWidth: `${width - 2}mm`, imageRendering: "pixelated" }} />
+          <div style={{ position: "absolute", top: u(height * 0.35), left: u(1), right: u(1), display: "flex", justifyContent: "center" }}>
+            <svg ref={barcodeRef} className="precision-barcode-svg" style={{ maxWidth: u(width - 2), imageRendering: "pixelated" }} />
           </div>
         )}
-        <div style={{ position: "absolute", bottom: "0.5mm", left: "1mm", right: "1mm", fontSize: `${Math.max(6, Math.min(8, width * 0.14))}pt`, textAlign: "center", letterSpacing: "0.5px" }}>
+        <div style={{ position: "absolute", bottom: u(0.5), left: u(1), right: u(1), fontSize: scaleFactor ? `${Math.max(6, Math.min(8, width * 0.14)) * scaleFactor}px` : `${Math.max(6, Math.min(8, width * 0.14))}pt`, textAlign: "center", letterSpacing: "0.5px" }}>
           {item.barcode}
         </div>
       </div>
@@ -111,11 +116,11 @@ export function PrecisionLabelPreview({
     <div
       className="precision-label-container"
       style={{
-        width: `${width}mm`,
-        height: `${height}mm`,
+        width: u(width),
+        height: u(height),
         position: "relative",
         overflow: "hidden",
-        transform: `translate(${xOffset}mm, ${yOffset}mm)`,
+        transform: `translate(${u(xOffset)}, ${u(yOffset)})`,
         border: showBorder ? "0.5px dashed #ccc" : "none",
         boxSizing: "border-box",
         fontFamily: "Arial, Helvetica, sans-serif",
@@ -133,10 +138,10 @@ export function PrecisionLabelPreview({
             key={key}
             style={{
               position: "absolute",
-              top: `${field.y ?? 0}mm`,
-              left: `${field.x ?? 0}mm`,
-              width: field.width ? `${field.width}mm` : "auto",
-              fontSize: `${field.fontSize}pt`,
+              top: u(field.y ?? 0),
+              left: u(field.x ?? 0),
+              width: field.width ? u(field.width) : "auto",
+              fontSize: scaleFactor ? `${field.fontSize * scaleFactor}px` : `${field.fontSize}pt`,
               fontWeight: field.bold ? 700 : 400,
               textAlign: (field.textAlign as any) || "left",
               lineHeight: 1.15,
@@ -155,9 +160,9 @@ export function PrecisionLabelPreview({
         <div
           style={{
             position: "absolute",
-            top: `${barcodeConfig.y ?? height * 0.35}mm`,
-            left: `${barcodeConfig.x ?? 1}mm`,
-            width: barcodeConfig.width ? `${barcodeConfig.width}mm` : "auto",
+            top: u(barcodeConfig.y ?? height * 0.35),
+            left: u(barcodeConfig.x ?? 1),
+            width: barcodeConfig.width ? u(barcodeConfig.width) : "auto",
             display: "flex",
             justifyContent: "center",
           }}
@@ -166,7 +171,7 @@ export function PrecisionLabelPreview({
             ref={barcodeRef}
             className="precision-barcode-svg"
             style={{
-              maxWidth: barcodeConfig.width ? `${barcodeConfig.width}mm` : `${width - 2}mm`,
+              maxWidth: barcodeConfig.width ? u(barcodeConfig.width) : u(width - 2),
               imageRendering: "pixelated",
             }}
           />
