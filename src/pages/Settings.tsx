@@ -24,6 +24,7 @@ import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { useEffect as useEffectForSizeGroups } from "react";
 import { printBarcodesDirectly } from "@/utils/barcodePrinter";
 import { PrecisionLabelDesigner, DEFAULT_PRECISION_CONFIG } from "@/components/precision-barcode/PrecisionLabelDesigner";
+import { LabelCalibrationUI, CalibrationPreset } from "@/components/precision-barcode/LabelCalibrationUI";
 import { validatePurchaseCodeAlphabet } from "@/utils/purchaseCodeEncoder";
 import BackupSettings from "@/components/BackupSettings";
 import { GiftRewardsManagement } from "@/components/GiftRewardsManagement";
@@ -3618,96 +3619,39 @@ export default function Settings() {
 
                     {settings.bill_barcode_settings?.precision_pro_enabled && (
                       <div className="space-y-4 pt-2">
-                        <div className="grid grid-cols-3 gap-3">
-                          <div className="space-y-1">
-                            <Label className="text-xs">X-Offset (mm)</Label>
-                            <Input
-                              type="number"
-                              step="0.5"
-                              value={settings.bill_barcode_settings?.precision_x_offset ?? 0}
-                              onChange={(e) =>
-                                setSettings({
-                                  ...settings,
-                                  bill_barcode_settings: {
-                                    ...settings.bill_barcode_settings,
-                                    precision_x_offset: parseFloat(e.target.value) || 0,
-                                  },
-                                })
-                              }
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Y-Offset (mm)</Label>
-                            <Input
-                              type="number"
-                              step="0.5"
-                              value={settings.bill_barcode_settings?.precision_y_offset ?? 0}
-                              onChange={(e) =>
-                                setSettings({
-                                  ...settings,
-                                  bill_barcode_settings: {
-                                    ...settings.bill_barcode_settings,
-                                    precision_y_offset: parseFloat(e.target.value) || 0,
-                                  },
-                                })
-                              }
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Vertical Gap (mm)</Label>
-                            <Input
-                              type="number"
-                              step="0.5"
-                              value={settings.bill_barcode_settings?.precision_v_gap ?? 2}
-                              onChange={(e) =>
-                                setSettings({
-                                  ...settings,
-                                  bill_barcode_settings: {
-                                    ...settings.bill_barcode_settings,
-                                    precision_v_gap: parseFloat(e.target.value) || 0,
-                                  },
-                                })
-                              }
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <Label className="text-xs">Label Width (mm)</Label>
-                            <Input
-                              type="number"
-                              step="1"
-                              value={settings.bill_barcode_settings?.precision_label_width ?? 50}
-                              onChange={(e) =>
-                                setSettings({
-                                  ...settings,
-                                  bill_barcode_settings: {
-                                    ...settings.bill_barcode_settings,
-                                    precision_label_width: parseFloat(e.target.value) || 50,
-                                  },
-                                })
-                              }
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Label Height (mm)</Label>
-                            <Input
-                              type="number"
-                              step="1"
-                              value={settings.bill_barcode_settings?.precision_label_height ?? 25}
-                              onChange={(e) =>
-                                setSettings({
-                                  ...settings,
-                                  bill_barcode_settings: {
-                                    ...settings.bill_barcode_settings,
-                                    precision_label_height: parseFloat(e.target.value) || 25,
-                                  },
-                                })
-                              }
-                            />
-                          </div>
-                        </div>
+                        <LabelCalibrationUI
+                          values={{
+                            xOffset: settings.bill_barcode_settings?.precision_x_offset ?? 0,
+                            yOffset: settings.bill_barcode_settings?.precision_y_offset ?? 0,
+                            vGap: settings.bill_barcode_settings?.precision_v_gap ?? 2,
+                            labelWidth: settings.bill_barcode_settings?.precision_label_width ?? 50,
+                            labelHeight: settings.bill_barcode_settings?.precision_label_height ?? 25,
+                          }}
+                          onChange={(vals) =>
+                            setSettings({
+                              ...settings,
+                              bill_barcode_settings: {
+                                ...settings.bill_barcode_settings,
+                                precision_x_offset: vals.xOffset,
+                                precision_y_offset: vals.yOffset,
+                                precision_v_gap: vals.vGap,
+                                precision_label_width: vals.labelWidth,
+                                precision_label_height: vals.labelHeight,
+                              },
+                            })
+                          }
+                          presets={(settings.bill_barcode_settings as any)?.precision_presets || []}
+                          onPresetsChange={(presets) =>
+                            setSettings({
+                              ...settings,
+                              bill_barcode_settings: {
+                                ...settings.bill_barcode_settings,
+                                precision_presets: presets,
+                              } as any,
+                            })
+                          }
+                          labelConfig={settings.bill_barcode_settings?.precision_label_config || undefined}
+                        />
 
                         <div className="border-t pt-3">
                           <p className="text-xs font-medium mb-2">A4 Sheet Grid (for laser printers)</p>

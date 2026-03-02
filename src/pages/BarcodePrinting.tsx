@@ -42,6 +42,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey } from "@/types/labelTypes";
 import { PrecisionThermalPrint } from "@/components/precision-barcode/PrecisionThermalPrint";
 import { PrecisionA4SheetPrint } from "@/components/precision-barcode/PrecisionA4SheetPrint";
+import { LabelCalibrationUI } from "@/components/precision-barcode/LabelCalibrationUI";
 
 // Utility function to sort items by size, barcode, or keep original order (Sr No)
 const sortItemsBySize = (items: LabelItem[], order: SizeSortOrder): LabelItem[] => {
@@ -4305,6 +4306,41 @@ export default function BarcodePrinting() {
         <Button onClick={handlePrint} variant="outline">
           Print
         </Button>
+        {precisionSettings.enabled && (
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="default">
+                🎯 Calibrate
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="text-sm">Quick Calibration</DialogTitle>
+              </DialogHeader>
+              <LabelCalibrationUI
+                compact
+                values={{
+                  xOffset: precisionSettings.xOffset,
+                  yOffset: precisionSettings.yOffset,
+                  vGap: precisionSettings.vGap,
+                  labelWidth: precisionSettings.labelWidth,
+                  labelHeight: precisionSettings.labelHeight,
+                }}
+                onChange={(vals) =>
+                  setPrecisionSettings((prev) => ({
+                    ...prev,
+                    xOffset: vals.xOffset,
+                    yOffset: vals.yOffset,
+                    vGap: vals.vGap,
+                    labelWidth: vals.labelWidth,
+                    labelHeight: vals.labelHeight,
+                  }))
+                }
+                labelConfig={precisionSettings.labelConfig || undefined}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
         {(sheetType.startsWith('thermal') || sheetType === 'custom') && (
           <Button 
             onClick={() => setIsDirectPrintDialogOpen(true)} 
