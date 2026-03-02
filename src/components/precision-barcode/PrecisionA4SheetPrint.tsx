@@ -1,7 +1,7 @@
 import { forwardRef } from "react";
 import { PrecisionLabelPreview } from "./PrecisionLabelPreview";
 import { PrecisionPrintCSS } from "./PrecisionPrintCSS";
-import { LabelItem } from "@/types/labelTypes";
+import { LabelItem, LabelDesignConfig } from "@/types/labelTypes";
 
 interface PrecisionA4SheetPrintProps {
   items: LabelItem[];
@@ -12,11 +12,11 @@ interface PrecisionA4SheetPrintProps {
   xOffset: number;
   yOffset: number;
   vGap: number;
+  config?: LabelDesignConfig;
 }
 
 export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4SheetPrintProps>(
-  ({ items, labelWidth, labelHeight, cols, rows, xOffset, yOffset, vGap }, ref) => {
-    // Expand items by qty
+  ({ items, labelWidth, labelHeight, cols, rows, xOffset, yOffset, vGap, config }, ref) => {
     const expandedItems: LabelItem[] = [];
     items.forEach((item) => {
       const qty = item.qty || 1;
@@ -62,6 +62,7 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
                     width={labelWidth}
                     height={labelHeight}
                     showBorder
+                    config={config}
                   />
                 ))}
               </div>

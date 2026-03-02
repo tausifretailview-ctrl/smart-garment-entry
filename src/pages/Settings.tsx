@@ -23,6 +23,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { useEffect as useEffectForSizeGroups } from "react";
 import { printBarcodesDirectly } from "@/utils/barcodePrinter";
+import { PrecisionLabelDesigner, DEFAULT_PRECISION_CONFIG } from "@/components/precision-barcode/PrecisionLabelDesigner";
 import { validatePurchaseCodeAlphabet } from "@/utils/purchaseCodeEncoder";
 import BackupSettings from "@/components/BackupSettings";
 import { GiftRewardsManagement } from "@/components/GiftRewardsManagement";
@@ -197,6 +198,7 @@ interface BillBarcodeSettings {
   precision_label_height?: number;
   precision_a4_cols?: number;
   precision_a4_rows?: number;
+  precision_label_config?: any; // LabelDesignConfig stored as JSON
 }
 
 interface ReportSettings {
@@ -3747,6 +3749,43 @@ export default function Settings() {
                               />
                             </div>
                           </div>
+                        </div>
+
+                        <div className="border-t pt-3">
+                          <p className="text-xs font-medium mb-2">📐 Label Designer</p>
+                          <p className="text-xs text-muted-foreground mb-2">
+                            Design your precision label layout with exact field positions
+                          </p>
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="outline" size="sm" className="w-full">
+                                <Pencil className="h-3.5 w-3.5 mr-2" />
+                                Open Label Designer
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+                              <DialogHeader>
+                                <DialogTitle>Precision Pro Label Designer</DialogTitle>
+                                <DialogDescription>
+                                  Configure exact field positions (in mm) for pixel-perfect label printing
+                                </DialogDescription>
+                              </DialogHeader>
+                              <PrecisionLabelDesigner
+                                labelWidth={settings.bill_barcode_settings?.precision_label_width ?? 50}
+                                labelHeight={settings.bill_barcode_settings?.precision_label_height ?? 25}
+                                config={settings.bill_barcode_settings?.precision_label_config || DEFAULT_PRECISION_CONFIG}
+                                onConfigChange={(cfg) =>
+                                  setSettings({
+                                    ...settings,
+                                    bill_barcode_settings: {
+                                      ...settings.bill_barcode_settings,
+                                      precision_label_config: cfg,
+                                    },
+                                  })
+                                }
+                              />
+                            </DialogContent>
+                          </Dialog>
                         </div>
 
                         <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-1">

@@ -1,7 +1,7 @@
 import { forwardRef } from "react";
 import { PrecisionLabelPreview } from "./PrecisionLabelPreview";
 import { PrecisionPrintCSS } from "./PrecisionPrintCSS";
-import { LabelItem } from "@/types/labelTypes";
+import { LabelItem, LabelDesignConfig } from "@/types/labelTypes";
 
 interface PrecisionThermalPrintProps {
   items: LabelItem[];
@@ -9,11 +9,11 @@ interface PrecisionThermalPrintProps {
   labelHeight: number;
   xOffset: number;
   yOffset: number;
+  config?: LabelDesignConfig;
 }
 
 export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermalPrintProps>(
-  ({ items, labelWidth, labelHeight, xOffset, yOffset }, ref) => {
-    // Expand items by qty
+  ({ items, labelWidth, labelHeight, xOffset, yOffset, config }, ref) => {
     const expandedItems: LabelItem[] = [];
     items.forEach((item) => {
       const qty = item.qty || 1;
@@ -41,6 +41,7 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
                 height={labelHeight}
                 xOffset={xOffset}
                 yOffset={yOffset}
+                config={config}
               />
             </div>
           ))}
