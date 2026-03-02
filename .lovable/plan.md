@@ -1,51 +1,43 @@
 
 
-# Fix: PWA Install Prompt Not Captured in Edge/Chrome
+## Fix: Chrome Session Stability - Startup Health Check
 
-## Problem
-The `beforeinstallprompt` event fires once early during page load, often before the React component tree mounts. The `useInstallPrompt` hook registers its listener inside a `useEffect`, which runs after mount -- by then the event is gone. So `isInstallable` remains `false` and the button shows a generic alert instead of triggering the real install prompt.
+### Problem
+Chrome's aggressive caching and tracking protection can sometimes leave corrupted auth tokens in localStorage, causing users to get stuck in a "logged out but can't log back in" state.
 
-## Solution
-Capture the `beforeinstallprompt` event at the global level in `main.tsx` (before React renders), then consume it from the hook.
+### What's Already Handled (No Changes Needed)
+- Session persistence via localStorage
+- Chrome-specific `refresh_token_not_found` recovery
+- Cross-tab refresh locking to prevent 429 errors
+- Expired session auto-refresh
+- Visibility-change token refresh
 
-### File: `src/main.tsx`
-- Add a small script block **before** `ReactDOM.createRoot` that listens for `beforeinstallprompt` on `window` and stores it on a global property (`window.__pwaInstallPrompt`).
+### What We'll Add
 
-### File: `src/hooks/useInstallPrompt.tsx`
-- On mount, check if `window.__pwaInstallPrompt` already exists (event fired before hook mounted). If so, use it immediately.
-- Still register the event listener as fallback for late-firing scenarios.
-- Clear the global reference after consuming it.
+**1. Startup Session Health Check in `App.tsx`**
+- On app mount (before AuthProvider renders), check if localStorage contains auth tokens
+- If tokens exist but are malformed/corrupted (can't be parsed as valid JSON), clear them immediately
+- This prevents the "stuck login" scenario where Chrome preserves bad tokens across sessions
 
-### File: `src/components/Header.tsx`
-- Remove the `alert()` fallback for non-iOS browsers. Instead, if `isInstallable` is false and it's not iOS, show a toast with specific Edge instructions ("Click the app icon in the address bar or go to Settings > Apps > Install this site as an app") rather than a generic browser alert.
+**2. Storage Key Collision Guard in `AuthContext.tsx`**
+- Since we can't set a custom `storageKey` in client.ts, add a guard that detects if multiple Supabase instances are competing for the same localStorage key
+- On session errors, do a clean wipe of all `sb-*` keys in localStorage before retrying
 
-## Technical Detail
+### Technical Details
 
-```typescript
-// src/main.tsx (add before createRoot)
-declare global {
-  interface Window {
-    __pwaInstallPrompt?: Event;
-  }
-}
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  window.__pwaInstallPrompt = e;
-});
-```
+**File: `src/App.tsx`**
+- Add a top-level effect (or inline script before providers) that:
+  - Scans localStorage for keys matching `sb-*-auth-token`
+  - Validates the stored value is valid JSON with expected fields (`access_token`, `refresh_token`)
+  - If corrupted, removes the key so AuthProvider starts fresh
+  - Logs a warning for debugging
 
-```typescript
-// src/hooks/useInstallPrompt.tsx - in useEffect
-// Check if event was already captured globally
-if (window.__pwaInstallPrompt) {
-  setDeferredPrompt(window.__pwaInstallPrompt as BeforeInstallPromptEvent);
-  setIsInstallable(true);
-  window.__pwaInstallPrompt = undefined;
-}
-```
+**File: `src/contexts/AuthContext.tsx`**
+- In the `getSession` error handler, add a more aggressive cleanup:
+  - Remove all `sb-*` keys from localStorage (not just calling `signOut({ scope: 'local' })`)
+  - This handles edge cases where Supabase's own cleanup misses corrupted entries
 
-## What This Fixes
-- Install prompt is never missed regardless of component mount timing
-- "Install App" button in Edge and Chrome will trigger the native install dialog
-- Fallback instructions become browser-specific and helpful (toast instead of alert)
+### Files to Modify
+1. `src/App.tsx` -- Add startup token health check
+2. `src/contexts/AuthContext.tsx` -- Enhance error cleanup to clear all `sb-*` keys
 
