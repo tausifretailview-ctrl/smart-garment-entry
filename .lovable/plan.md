@@ -1,54 +1,51 @@
 
 
-# Fix: Sign-In Failing Due to Chrome Network Deadlock
+# Fix: PWA Install Prompt Not Captured in Edge/Chrome
 
 ## Problem
-The login form now renders correctly (render-first fix is working), but clicking "Sign In" fails because the `signInWithPassword` request also throws `TypeError: Failed to fetch`. ALL requests to the backend are being blocked at Chrome's network layer (Service Worker corruption, DNS cache, or extension interference). The current catch block shows a generic "unexpected error" message with no recovery path.
+The `beforeinstallprompt` event fires once early during page load, often before the React component tree mounts. The `useInstallPrompt` hook registers its listener inside a `useEffect`, which runs after mount -- by then the event is gone. So `isInstallable` remains `false` and the button shows a generic alert instead of triggering the real install prompt.
 
-## Root Cause
-When Chrome's network stack is in a deadlocked state (stale Service Worker, corrupted DNS cache, or aggressive extension blocking), every `fetch()` call to the backend fails before reaching the server. The sign-in handler catches this but:
-1. Shows a generic unhelpful error message
-2. Doesn't offer any recovery action (clear cache button)
-3. Counts network failures as "login attempts", eventually locking the user out unfairly
+## Solution
+Capture the `beforeinstallprompt` event at the global level in `main.tsx` (before React renders), then consume it from the hook.
 
-## Changes (single file: `src/pages/OrgAuth.tsx`)
+### File: `src/main.tsx`
+- Add a small script block **before** `ReactDOM.createRoot` that listens for `beforeinstallprompt` on `window` and stores it on a global property (`window.__pwaInstallPrompt`).
 
-### 1. Detect network errors specifically in handleSignIn
-In the `catch` block (line 357), detect `TypeError: Failed to fetch` and show a network-specific error message with retry guidance, instead of the generic "unexpected error" message.
+### File: `src/hooks/useInstallPrompt.tsx`
+- On mount, check if `window.__pwaInstallPrompt` already exists (event fired before hook mounted). If so, use it immediately.
+- Still register the event listener as fallback for late-firing scenarios.
+- Clear the global reference after consuming it.
 
-### 2. Don't count network failures as login attempts
-Currently, if `signInWithPassword` returns an auth error (wrong password), that's correctly counted. But if the entire request fails at the network layer (thrown TypeError), it hits the catch block. Network failures should NOT increment the login attempt counter or trigger lockout.
+### File: `src/components/Header.tsx`
+- Remove the `alert()` fallback for non-iOS browsers. Instead, if `isInstallable` is false and it's not iOS, show a toast with specific Edge instructions ("Click the app icon in the address bar or go to Settings > Apps > Install this site as an app") rather than a generic browser alert.
 
-### 3. Show "Clear Cache and Retry" button when network errors occur during sign-in
-When the catch block detects a network-level failure, set a state flag that renders the existing "Reset App Cache" recovery button prominently near the error message, giving users a one-click fix for Chrome's stuck state.
-
-### 4. Wrap pre-login signOut in try-catch
-The `signOut({ scope: 'local' })` call at line 246 should be safe (local-only), but wrap it in its own try-catch to prevent any edge case from blocking the sign-in flow.
-
-## Technical Details
+## Technical Detail
 
 ```typescript
-// In catch block of handleSignIn:
-catch (err: any) {
-  const isNetworkError = err instanceof TypeError && 
-    (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError'));
-  
-  if (isNetworkError) {
-    setError("Network connection failed. Your browser may have a stale cache. Try clearing the app cache below, or check your internet connection.");
-    setShowCacheRecovery(true); // New state flag
-  } else {
-    setError("An unexpected error occurred. Please try again.");
+// src/main.tsx (add before createRoot)
+declare global {
+  interface Window {
+    __pwaInstallPrompt?: Event;
   }
+}
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  window.__pwaInstallPrompt = e;
+});
+```
+
+```typescript
+// src/hooks/useInstallPrompt.tsx - in useEffect
+// Check if event was already captured globally
+if (window.__pwaInstallPrompt) {
+  setDeferredPrompt(window.__pwaInstallPrompt as BeforeInstallPromptEvent);
+  setIsInstallable(true);
+  window.__pwaInstallPrompt = undefined;
 }
 ```
 
-- Add `showCacheRecovery` state that triggers rendering a prominent "Clear App Cache & Retry" button alongside the error
-- Reset `showCacheRecovery` when user retries
-- Wrap line 246 (`signOut`) in try-catch so it can't block sign-in
-- The `handleClearCacheAndRetry` function already exists (line 365) -- just need to surface it in the sign-in error UI
-
 ## What This Fixes
-- Users stuck in Chrome with dead network get a clear explanation and one-click recovery
-- Network failures don't count toward the login lockout timer
-- The pre-login signOut can't block the flow even in edge cases
-- Error messages are specific and actionable instead of generic
+- Install prompt is never missed regardless of component mount timing
+- "Install App" button in Edge and Chrome will trigger the native install dialog
+- Fallback instructions become browser-specific and helpful (toast instead of alert)
+
