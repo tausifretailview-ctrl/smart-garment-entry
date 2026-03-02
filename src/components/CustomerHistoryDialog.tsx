@@ -13,6 +13,7 @@ import { Loader2, IndianRupee, ShoppingCart, CreditCard, RotateCcw, FileText, Re
 import { format } from "date-fns";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerAdvanceBalance } from "@/hooks/useCustomerAdvances";
+import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 
 interface SaleItem {
   id: string;
@@ -208,8 +209,9 @@ export function CustomerHistoryDialog({
   const [selectedLegacyIndex, setSelectedLegacyIndex] = useState<number>(0);
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const legacyRowRefs = useRef<(HTMLTableRowElement | null)[]>([]);
+  const { isSchool } = useSchoolFeatures();
 
-  // Get customer balance
+  // Get customer balance (business mode)
   const { balance, openingBalance, totalSales, totalPaid, isLoading: balanceLoading } = useCustomerBalance(
     customerId,
     organizationId
@@ -220,6 +222,61 @@ export function CustomerHistoryDialog({
     customerId,
     organizationId
   );
+
+  // School: fetch student linked to this customer and their fee data
+  const { data: schoolFeeData } = useQuery({
+    queryKey: ['school-customer-fees', customerId, organizationId],
+    queryFn: async () => {
+      if (!customerId || !organizationId) return null;
+      // Find student linked to this customer
+      const { data: student } = await supabase
+        .from('students')
+        .select('id, closing_fees_balance, class_id')
+        .eq('customer_id', customerId)
+        .eq('organization_id', organizationId)
+        .maybeSingle();
+      if (!student) return null;
+
+      // Get current academic year
+      const { data: currentYear } = await supabase
+        .from('academic_years')
+        .select('id')
+        .eq('organization_id', organizationId)
+        .eq('is_current', true)
+        .maybeSingle();
+
+      // Get fee structures for the class
+      let structureTotal = 0;
+      if (student.class_id && currentYear?.id) {
+        const { data: structures } = await supabase
+          .from('fee_structures')
+          .select('amount, frequency')
+          .eq('organization_id', organizationId)
+          .eq('academic_year_id', currentYear.id)
+          .eq('class_id', student.class_id);
+        structureTotal = (structures || []).reduce((sum, fs) => {
+          const mult = fs.frequency === 'monthly' ? 12 : fs.frequency === 'quarterly' ? 4 : 1;
+          return sum + fs.amount * mult;
+        }, 0);
+      }
+
+      // Get all fee payments
+      const { data: payments } = await supabase
+        .from('student_fees')
+        .select('paid_amount')
+        .eq('student_id', student.id)
+        .eq('organization_id', organizationId);
+      const feesPaid = (payments || []).reduce((sum, p) => sum + (p.paid_amount || 0), 0);
+
+      const hasStructures = structureTotal > 0;
+      const importedBalance = student.closing_fees_balance || 0;
+      const feesExpected = hasStructures ? structureTotal : importedBalance;
+      const feesDue = Math.max(0, feesExpected - feesPaid);
+
+      return { feesExpected, feesPaid, feesDue, hasStructures, importedBalance };
+    },
+    enabled: open && isSchool && !!customerId && !!organizationId,
+  });
 
   // Fetch sales history with items
   const { data: salesHistory, isLoading: salesLoading } = useQuery({
@@ -371,6 +428,49 @@ export function CustomerHistoryDialog({
 
           {/* Summary Cards */}
           {(() => {
+            // For school orgs with linked student fee data, show school-specific cards
+            if (isSchool && schoolFeeData) {
+              return (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3 py-3">
+                  <Card className={`border-l-4 ${schoolFeeData.hasStructures ? 'border-l-blue-500' : 'border-l-orange-500'}`}>
+                    <CardContent className="p-2 sm:p-3">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
+                        {schoolFeeData.hasStructures ? 'Total Fees' : 'Opening Balance'}
+                      </p>
+                      <p className={`text-sm sm:text-base font-bold truncate ${schoolFeeData.hasStructures ? 'text-blue-600' : 'text-orange-600'}`}>
+                        ₹{schoolFeeData.feesExpected.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-l-4 border-l-green-500">
+                    <CardContent className="p-2 sm:p-3">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Paid</p>
+                      <p className="text-sm sm:text-base font-bold text-green-600 truncate">
+                        ₹{schoolFeeData.feesPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-l-4 border-l-red-500">
+                    <CardContent className="p-2 sm:p-3">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Pending Due</p>
+                      <p className="text-sm sm:text-base font-bold text-red-600 truncate">
+                        ₹{schoolFeeData.feesDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-l-4 border-l-blue-400">
+                    <CardContent className="p-2 sm:p-3">
+                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Collection Rate</p>
+                      <p className="text-sm sm:text-base font-bold text-blue-600 truncate">
+                        {schoolFeeData.feesExpected > 0 ? `${((schoolFeeData.feesPaid / schoolFeeData.feesExpected) * 100).toFixed(1)}%` : '0%'}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+              );
+            }
+
+            // Business mode: original 6-card layout
             const crPending = (creditNotes || []).reduce((sum, cn) => {
               if (cn.status === 'active' || cn.status === 'partially_used') {
                 return sum + Math.max(0, (cn.credit_amount || 0) - (cn.used_amount || 0));
