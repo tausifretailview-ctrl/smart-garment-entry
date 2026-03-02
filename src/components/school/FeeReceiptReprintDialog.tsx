@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Printer, X } from "lucide-react";
 import { format } from "date-fns";
 import { useReactToPrint } from "react-to-print";
+import { SchoolFeeReceipt } from "./SchoolFeeReceipt";
 
 interface FeeReceiptReprintDialogProps {
   open: boolean;
@@ -100,66 +101,18 @@ export function FeeReceiptReprintDialog({ open, onOpenChange, receiptId }: FeeRe
         ) : !data ? (
           <div className="text-center py-8 text-muted-foreground">Receipt not found.</div>
         ) : (
-          <div ref={receiptRef} className="p-5 border rounded-md bg-white text-black" style={{ fontFamily: "Arial, sans-serif" }}>
-            {/* Header */}
-            <div className="text-center mb-3 border-b-2 border-gray-800 pb-2">
-              <h2 className="text-lg font-bold">{currentOrganization?.name}</h2>
-              <p className="text-xs text-gray-600">Fee Receipt</p>
-            </div>
-
-            {/* Student & Receipt Info */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mb-3">
-              <div><strong>Receipt #:</strong> {data.receiptNumber}</div>
-              <div><strong>Date:</strong> {data.paidDate ? format(new Date(data.paidDate), "dd/MM/yyyy") : "-"}</div>
-              <div><strong>Student Name:</strong> {data.student.student_name}</div>
-              <div><strong>Adm. No:</strong> {data.student.admission_number}</div>
-              {data.student.parent_name && <div><strong>Parent Name:</strong> {data.student.parent_name}</div>}
-              <div><strong>Class:</strong> {data.student.class_name}</div>
-              {data.academicYear && <div><strong>Academic Year:</strong> {data.academicYear}</div>}
-              <div><strong>Payment:</strong> {data.paymentMethod}</div>
-              {data.transactionId && <div className="col-span-2"><strong>Txn ID:</strong> {data.transactionId}</div>}
-            </div>
-
-            {/* Fee Details Table */}
-            <table className="w-full text-xs border-collapse mb-3 border border-gray-300">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="text-left py-1.5 px-2 border border-gray-300 font-semibold">Fee Head</th>
-                  <th className="text-right py-1.5 px-2 border border-gray-300 font-semibold">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.items.map((item: any, idx: number) => (
-                  <tr key={idx}>
-                    <td className="py-1.5 px-2 border border-gray-300">{item.head_name}</td>
-                    <td className="text-right py-1.5 px-2 border border-gray-300">₹{item.paying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="font-bold bg-gray-50">
-                  <td className="py-2 px-2 border border-gray-300">Total</td>
-                  <td className="text-right py-2 px-2 border border-gray-300">₹{data.totalPaying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                </tr>
-                <tr>
-                  <td className="py-1.5 px-2 border border-gray-300 font-semibold">Balance</td>
-                  <td className="text-right py-1.5 px-2 border border-gray-300 font-semibold text-red-600">
-                    ₹{data.remainingBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-
-            {/* Signature */}
-            <div className="flex justify-between items-end mt-6 text-xs">
-              <div><p className="text-gray-500">Receiver</p></div>
-              <div className="text-center">
-                <div className="border-t border-gray-800 pt-1 w-32">
-                  <p className="text-gray-600">Auth. Signature</p>
-                </div>
-              </div>
-            </div>
-          </div>
+          <SchoolFeeReceipt
+            ref={receiptRef}
+            receiptNumber={data.receiptNumber}
+            paidDate={data.paidDate}
+            paymentMethod={data.paymentMethod}
+            transactionId={data.transactionId}
+            academicYear={data.academicYear}
+            student={data.student}
+            items={data.items}
+            totalPaying={data.totalPaying}
+            remainingBalance={data.remainingBalance}
+          />
         )}
 
         <DialogFooter className="gap-2">
