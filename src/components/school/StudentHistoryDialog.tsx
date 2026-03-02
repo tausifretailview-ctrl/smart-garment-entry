@@ -86,10 +86,18 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
 
   if (!student) return null;
 
-  const totalExpected = student.totalExpected || 0;
-  const totalPaid = student.totalPaid || 0;
-  const totalDue = student.totalDue || 0;
+  // Calculate structure-based expected total
+  const structureTotal = (feeStructures || []).reduce((sum: number, fs: any) => {
+    const mult = fs.frequency === "monthly" ? 12 : fs.frequency === "quarterly" ? 4 : 1;
+    return sum + fs.amount * mult;
+  }, 0);
+  const hasStructures = structureTotal > 0;
   const importedBalance = student.closing_fees_balance || 0;
+
+  // Mirror fee collection logic: use structures OR imported balance, not both
+  const totalExpected = hasStructures ? structureTotal : importedBalance;
+  const totalPaid = student.totalPaid || 0;
+  const totalDue = Math.max(0, totalExpected - totalPaid);
 
   // Head-wise summary
   const headSummary = (feeStructures || []).map((fs: any) => {
@@ -121,14 +129,25 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 py-3">
-          <Card className="border-l-4 border-l-blue-500">
-            <CardContent className="p-2 sm:p-3">
-              <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Fees</p>
-              <p className="text-sm sm:text-base font-bold text-blue-600 truncate">
-                ₹{totalExpected.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-              </p>
-            </CardContent>
-          </Card>
+          {hasStructures ? (
+            <Card className="border-l-4 border-l-blue-500">
+              <CardContent className="p-2 sm:p-3">
+                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Fees</p>
+                <p className="text-sm sm:text-base font-bold text-blue-600 truncate">
+                  ₹{totalExpected.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-l-4 border-l-orange-500">
+              <CardContent className="p-2 sm:p-3">
+                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Opening Balance</p>
+                <p className="text-sm sm:text-base font-bold text-orange-600 truncate">
+                  ₹{importedBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </p>
+              </CardContent>
+            </Card>
+          )}
           <Card className="border-l-4 border-l-green-500">
             <CardContent className="p-2 sm:p-3">
               <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Paid</p>
@@ -145,11 +164,11 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
               </p>
             </CardContent>
           </Card>
-          <Card className="border-l-4 border-l-orange-500">
+          <Card className="border-l-4 border-l-blue-400">
             <CardContent className="p-2 sm:p-3">
-              <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Imported Bal</p>
-              <p className="text-sm sm:text-base font-bold text-orange-600 truncate">
-                ₹{importedBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Collection Rate</p>
+              <p className="text-sm sm:text-base font-bold text-blue-600 truncate">
+                {totalExpected > 0 ? `${((totalPaid / totalExpected) * 100).toFixed(1)}%` : '0%'}
               </p>
             </CardContent>
           </Card>
