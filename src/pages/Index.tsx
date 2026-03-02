@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-// fetchAllSaleItems removed - sold_qty now comes from v_dashboard_sales_summary view
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
@@ -264,18 +263,10 @@ const DesktopDashboard = () => {
   
   const { start: startDate, end: endDate, label: dateLabel } = getDateRange(dateRange);
 
-  // Manual refresh all
+  // Manual refresh all - single RPC query key
   const handleRefreshAll = async () => {
     setIsRefreshing(true);
-    await queryClient.invalidateQueries({ queryKey: ["total-sales"] });
-    await queryClient.invalidateQueries({ queryKey: ["purchase-total"] });
-    await queryClient.invalidateQueries({ queryKey: ["stock-summary"] });
-    await queryClient.invalidateQueries({ queryKey: ["dashboard-counts"] });
-    await queryClient.invalidateQueries({ queryKey: ["receivables"] });
-    await queryClient.invalidateQueries({ queryKey: ["profit-data-cogs"] });
-    await queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
-    await queryClient.invalidateQueries({ queryKey: ["purchase-returns"] });
-    await queryClient.invalidateQueries({ queryKey: ["cash-collection"] });
+    await queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     await queryClient.invalidateQueries({ queryKey: ["sales-trend"] });
     await queryClient.invalidateQueries({ queryKey: ["purchase-trend"] });
     await queryClient.invalidateQueries({ queryKey: ["top-products"] });
@@ -283,243 +274,61 @@ const DesktopDashboard = () => {
     setTimeout(() => setIsRefreshing(false), 500);
   };
 
-  // Update lastUpdated on successful fetches
-  const onSuccessUpdate = () => setLastUpdated(new Date());
-
-  // Fetch total sales for selected period - using aggregation view with sold_qty
-  const { data: salesData, isFetching: salesFetching } = useQuery({
-    queryKey: ["total-sales", currentOrganization?.id, startDate, endDate],
+  // Single RPC call replaces 8-10 separate queries
+  const { data: dashStats, isFetching: isLoading } = useQuery({
+    queryKey: ["dashboard-stats", currentOrganization?.id, startDate, endDate],
     queryFn: async () => {
-      if (!currentOrganization) return { total: 0, count: 0, soldQty: 0 };
+      if (!currentOrganization) return null;
       
-      const { data, error } = await supabase
-        .from("v_dashboard_sales_summary")
-        .select("invoice_count, total_sales, total_paid, total_cash, sold_qty")
-        .eq("organization_id", currentOrganization.id)
-        .gte("sale_day", startDate)
-        .lte("sale_day", endDate);
+      const { data, error } = await supabase.rpc('get_erp_dashboard_stats', {
+        p_org_id: currentOrganization.id,
+        p_start_date: startDate,
+        p_end_date: endDate,
+      });
       if (error) throw error;
-      
-      const total = data?.reduce((sum, row) => sum + (Number(row.total_sales) || 0), 0) || 0;
-      const count = data?.reduce((sum, row) => sum + (Number(row.invoice_count) || 0), 0) || 0;
-      const soldQty = data?.reduce((sum, row) => sum + (Number(row.sold_qty) || 0), 0) || 0;
-      
-      return { total, count, soldQty };
-    },
-    enabled: !!currentOrganization,
-    refetchInterval: getRefreshInterval('fast'), // Tier-based polling
-  });
-
-  // Fetch counts (customers, suppliers, products) - single view query replaces 3 separate queries
-  const { data: countsData } = useQuery({
-    queryKey: ["dashboard-counts", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization) return { customer_count: 0, supplier_count: 0, product_count: 0 };
-      
-      const { data, error } = await supabase
-        .from("v_dashboard_counts")
-        .select("customer_count, supplier_count, product_count")
-        .eq("organization_id", currentOrganization.id)
-        .single();
-      if (error) throw error;
-      return data || { customer_count: 0, supplier_count: 0, product_count: 0 };
-    },
-    enabled: !!currentOrganization,
-    staleTime: 300000, // 5 minutes - counts change rarely
-    refetchInterval: false, // No auto-refresh - on-demand only
-  });
-
-  const customersCount = Number(countsData?.customer_count) || 0;
-  const productsCount = Number(countsData?.product_count) || 0;
-  
-  // Fetch stock summary - single view query replaces paginated variant fetch
-  const { data: stockSummary } = useQuery({
-    queryKey: ["stock-summary", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization) return { total_stock_qty: 0, total_stock_value: 0 };
-      
-      const { data, error } = await supabase
-        .from("v_dashboard_stock_summary")
-        .select("total_stock_qty, total_stock_value")
-        .eq("organization_id", currentOrganization.id)
-        .single();
-      if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows
-      return data || { total_stock_qty: 0, total_stock_value: 0 };
-    },
-    enabled: !!currentOrganization,
-    refetchInterval: getRefreshInterval('medium'), // Tier-based polling
-  });
-
-  const stockData = Number(stockSummary?.total_stock_qty) || 0;
-
-  // Fetch total purchase for selected period - using aggregation view
-  const { data: purchaseData, isFetching: purchaseFetching } = useQuery({
-    queryKey: ["purchase-total", currentOrganization?.id, startDate, endDate],
-    queryFn: async () => {
-      if (!currentOrganization) return { total: 0, count: 0, purchaseQty: 0 };
-      
-      const { data, error } = await supabase
-        .from("v_dashboard_purchase_summary")
-        .select("bill_count, total_purchase_amount, total_items_purchased")
-        .eq("organization_id", currentOrganization.id)
-        .gte("purchase_day", startDate)
-        .lte("purchase_day", endDate);
-      if (error) throw error;
-      
-      const total = data?.reduce((sum, row) => sum + (Number(row.total_purchase_amount) || 0), 0) || 0;
-      const count = data?.reduce((sum, row) => sum + (Number(row.bill_count) || 0), 0) || 0;
-      const purchaseQty = data?.reduce((sum, row) => sum + (Number(row.total_items_purchased) || 0), 0) || 0;
-      
-      return { total, count, purchaseQty };
-    },
-    enabled: !!currentOrganization,
-    refetchInterval: getRefreshInterval('fast'), // Tier-based polling
-  });
-  
-  const isLoading = salesFetching || purchaseFetching;
-
-  // Fetch sale returns for selected period
-  const { data: saleReturnData } = useQuery({
-    queryKey: ["sale-returns", currentOrganization?.id, startDate, endDate],
-    queryFn: async () => {
-      if (!currentOrganization) return { total: 0, count: 0, returnQty: 0 };
-      
-      const { data, error } = await supabase
-        .from("sale_returns")
-        .select("net_amount, id")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .gte("return_date", startDate)
-        .lte("return_date", endDate);
-      if (error) throw error;
-      
-      const total = data?.reduce((sum, item) => sum + (item.net_amount || 0), 0) || 0;
-      const count = data?.length || 0;
-      
-      // Fetch return quantity
-      const returnIds = data?.map(r => r.id) || [];
-      let returnQty = 0;
-      if (returnIds.length > 0) {
-        const { data: itemsData } = await supabase
-          .from("sale_return_items")
-          .select("quantity")
-          .in("return_id", returnIds);
-        returnQty = itemsData?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
-      }
-      
-      return { total, count, returnQty };
-    },
-    enabled: !!currentOrganization,
-    refetchInterval: getRefreshInterval('fast'), // Tier-based polling
-  });
-
-  // Fetch purchase returns for selected period
-  const { data: purchaseReturnData } = useQuery({
-    queryKey: ["purchase-returns", currentOrganization?.id, startDate, endDate],
-    queryFn: async () => {
-      if (!currentOrganization) return { total: 0, count: 0, returnQty: 0 };
-      
-      const { data, error } = await supabase
-        .from("purchase_returns")
-        .select("net_amount, id")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .gte("return_date", startDate)
-        .lte("return_date", endDate);
-      if (error) throw error;
-      
-      const total = data?.reduce((sum, item) => sum + (item.net_amount || 0), 0) || 0;
-      const count = data?.length || 0;
-      
-      // Fetch return quantity
-      const returnIds = data?.map(r => r.id) || [];
-      let returnQty = 0;
-      if (returnIds.length > 0) {
-        const { data: itemsData } = await supabase
-          .from("purchase_return_items")
-          .select("qty")
-          .in("return_id", returnIds);
-        returnQty = itemsData?.reduce((sum, item) => sum + (item.qty || 0), 0) || 0;
-      }
-      
-      return { total, count, returnQty };
-    },
-    enabled: !!currentOrganization,
-    refetchInterval: getRefreshInterval('fast'), // Tier-based polling
-  });
-
-  // Suppliers count now comes from countsData (v_dashboard_counts view)
-  const suppliersCount = Number(countsData?.supplier_count) || 0;
-
-  // Stock value now comes from stockSummary (v_dashboard_stock_summary view)
-  const stockValue = Number(stockSummary?.total_stock_value) || 0;
-
-  // Calculate Gross Profit using database-level COGS view
-  const { data: profitData } = useQuery({
-    queryKey: ["profit-data-cogs", currentOrganization?.id, startDate, endDate],
-    queryFn: async () => {
-      if (!currentOrganization) return 0;
-      
-      const { data, error } = await supabase
-        .from("v_dashboard_gross_profit")
-        .select("gross_profit")
-        .eq("organization_id", currentOrganization.id)
-        .gte("sale_day", startDate)
-        .lte("sale_day", endDate);
-      if (error) throw error;
-      
-      return data?.reduce((sum, row) => sum + (Number(row.gross_profit) || 0), 0) || 0;
-    },
-    enabled: !!currentOrganization,
-    refetchInterval: getRefreshInterval('medium'), // Tier-based polling
-  });
-
-  // Cash collection now derived from sales summary view
-  const { data: cashCollection } = useQuery({
-    queryKey: ["cash-collection", currentOrganization?.id, startDate, endDate],
-    queryFn: async () => {
-      if (!currentOrganization) return 0;
-      
-      const { data, error } = await supabase
-        .from("v_dashboard_sales_summary")
-        .select("total_cash, total_paid")
-        .eq("organization_id", currentOrganization.id)
-        .gte("sale_day", startDate)
-        .lte("sale_day", endDate);
-      if (error) throw error;
-      
-      // Sum cash from all days; fall back to paid if cash is 0
-      return data?.reduce((sum, row) => {
-        const cash = Number(row.total_cash) || 0;
-        const paid = Number(row.total_paid) || 0;
-        return sum + (cash || paid);
-      }, 0) || 0;
-    },
-    enabled: !!currentOrganization,
-    refetchInterval: getRefreshInterval('medium'),
-  });
-
-  // Receivables now from view
-  const { data: receivablesData } = useQuery({
-    queryKey: ["receivables", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization) return { total: 0, count: 0 };
-      
-      const { data, error } = await supabase
-        .from("v_dashboard_receivables")
-        .select("pending_count, total_receivables")
-        .eq("organization_id", currentOrganization.id)
-        .single();
-      if (error && error.code !== 'PGRST116') throw error;
-      
-      return {
-        total: Number(data?.total_receivables) || 0,
-        count: Number(data?.pending_count) || 0,
+      setLastUpdated(new Date());
+      return data as {
+        total_sales: number;
+        invoice_count: number;
+        sold_qty: number;
+        total_purchase: number;
+        purchase_count: number;
+        purchase_qty: number;
+        customer_count: number;
+        supplier_count: number;
+        product_count: number;
+        total_stock_qty: number;
+        total_stock_value: number;
+        total_receivables: number;
+        pending_count: number;
+        gross_profit: number;
+        cash_collection: number;
+        sale_return_total: number;
+        sale_return_count: number;
+        sale_return_qty: number;
+        purchase_return_total: number;
+        purchase_return_count: number;
+        purchase_return_qty: number;
       };
     },
     enabled: !!currentOrganization,
-    refetchInterval: getRefreshInterval('medium'),
+    staleTime: 60000,
+    refetchInterval: getRefreshInterval('fast'),
   });
+
+  // Extract metrics from single RPC result
+  const salesData = { total: dashStats?.total_sales || 0, count: dashStats?.invoice_count || 0, soldQty: dashStats?.sold_qty || 0 };
+  const purchaseData = { total: dashStats?.total_purchase || 0, count: dashStats?.purchase_count || 0, purchaseQty: dashStats?.purchase_qty || 0 };
+  const customersCount = dashStats?.customer_count || 0;
+  const productsCount = dashStats?.product_count || 0;
+  const suppliersCount = dashStats?.supplier_count || 0;
+  const stockData = dashStats?.total_stock_qty || 0;
+  const stockValue = dashStats?.total_stock_value || 0;
+  const profitData = dashStats?.gross_profit || 0;
+  const cashCollection = dashStats?.cash_collection || 0;
+  const receivablesData = { total: dashStats?.total_receivables || 0, count: dashStats?.pending_count || 0 };
+  const saleReturnData = { total: dashStats?.sale_return_total || 0, count: dashStats?.sale_return_count || 0, returnQty: dashStats?.sale_return_qty || 0 };
+  const purchaseReturnData = { total: dashStats?.purchase_return_total || 0, count: dashStats?.purchase_return_count || 0, returnQty: dashStats?.purchase_return_qty || 0 };
 
   // New Updates Panel Component - Maximized height to show all updates
   const NewUpdatesPanel = () => {

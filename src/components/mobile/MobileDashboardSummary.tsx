@@ -2,107 +2,58 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar, RefreshCw, AlertCircle } from "lucide-react";
+import { Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
-import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 
-export const MobileDashboardSummary = () => {
+interface MobileDashboardSummaryProps {
+  invoiceCount: number;
+  itemsSold: number;
+  pendingCount: number;
+  isLoading: boolean;
+}
+
+export const MobileDashboardSummary = ({ 
+  invoiceCount, 
+  itemsSold, 
+  pendingCount, 
+  isLoading 
+}: MobileDashboardSummaryProps) => {
   const { currentOrganization } = useOrganization();
   const { isOnline } = useNetworkStatus();
-  const { getRefreshInterval } = useTierBasedRefresh();
   
   const today = format(new Date(), "yyyy-MM-dd");
 
-  // Fetch today's stats using aggregation views
-  const { data: todayStats, isLoading, isError, refetch } = useQuery({
-    queryKey: ["mobile-dashboard-summary", currentOrganization?.id, today],
+  // Only fetch customers served (unique customer_ids) - the rest comes from parent RPC
+  const { data: customersServed, isLoading: customersLoading } = useQuery({
+    queryKey: ["mobile-customers-served", currentOrganization?.id, today],
     queryFn: async () => {
-      if (!currentOrganization) return { invoiceCount: 0, customersServed: 0, itemsSold: 0, pendingCount: 0 };
+      if (!currentOrganization || invoiceCount === 0) return 0;
       
-      // Get today's sales summary from view (includes sold_qty now)
-      const { data: salesSummary, error: salesError } = await supabase
-        .from("v_dashboard_sales_summary")
-        .select("invoice_count, total_sales, sold_qty")
+      const { data: sales } = await supabase
+        .from("sales")
+        .select("customer_id")
         .eq("organization_id", currentOrganization.id)
-        .eq("sale_day", today)
-        .single();
+        .is("deleted_at", null)
+        .gte("sale_date", today)
+        .lte("sale_date", today + "T23:59:59");
       
-      // PGRST116 = no rows (no sales today), not an error
-      if (salesError && salesError.code !== 'PGRST116') throw salesError;
-      
-      const invoiceCount = Number(salesSummary?.invoice_count) || 0;
-      const itemsSold = Number(salesSummary?.sold_qty) || 0;
-      
-      // For customers served, we still need detail query
-      let customersServed = 0;
-      
-      if (invoiceCount > 0) {
-        const { data: sales } = await supabase
-          .from("sales")
-          .select("customer_id")
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null)
-          .gte("sale_date", today)
-          .lte("sale_date", today + "T23:59:59");
-        
-        const uniqueCustomers = new Set(sales?.map(s => s.customer_id).filter(Boolean));
-        customersServed = uniqueCustomers.size;
-      }
-      
-      // Get pending payments from receivables view (1 query)
-      const { data: receivables } = await supabase
-        .from("v_dashboard_receivables")
-        .select("pending_count")
-        .eq("organization_id", currentOrganization.id)
-        .single();
-      
-      return {
-        invoiceCount,
-        customersServed,
-        itemsSold,
-        pendingCount: Number(receivables?.pending_count) || 0
-      };
+      const uniqueCustomers = new Set(sales?.map(s => s.customer_id).filter(Boolean));
+      return uniqueCustomers.size;
     },
-    enabled: !!currentOrganization && isOnline,
+    enabled: !!currentOrganization && isOnline && invoiceCount > 0,
     staleTime: 60000,
-    refetchInterval: getRefreshInterval('fast'),
-    retry: 2,
   });
 
   const stats = [
-    { label: "Invoices Created", value: todayStats?.invoiceCount || 0 },
-    { label: "Customers Served", value: todayStats?.customersServed || 0 },
-    { label: "Items Sold", value: todayStats?.itemsSold || 0 },
-    { label: "Pending Payments", value: todayStats?.pendingCount || 0, highlight: true },
+    { label: "Invoices Created", value: invoiceCount },
+    { label: "Customers Served", value: customersServed || 0 },
+    { label: "Items Sold", value: itemsSold },
+    { label: "Pending Payments", value: pendingCount, highlight: true },
   ];
 
-  // Error state
-  if (isError) {
-    return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 text-destructive" />
-            Failed to load summary
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => refetch()}
-            className="w-full h-10 touch-manipulation"
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Retry
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
+  const loading = isLoading || customersLoading;
 
   return (
     <Card>
@@ -119,7 +70,7 @@ export const MobileDashboardSummary = () => {
             className={`flex justify-between items-center py-2.5 ${index < stats.length - 1 ? 'border-b border-border' : ''}`}
           >
             <span className="text-sm text-muted-foreground">{stat.label}</span>
-            {isLoading ? (
+            {loading ? (
               <Skeleton className="h-5 w-12" />
             ) : (
               <span className={`text-sm font-semibold ${stat.highlight ? 'text-warning' : ''}`}>

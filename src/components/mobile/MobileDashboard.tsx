@@ -8,7 +8,7 @@ import { MobileDashboardCard } from "./MobileDashboardCard";
 import { MobileDashboardSummary } from "./MobileDashboardSummary";
 import { MobileQuickActions } from "./MobileQuickActions";
 import { TrendingUp, BarChart3, Package, AlertCircle, WifiOff, RefreshCw, Info } from "lucide-react";
-import { format, startOfDay, endOfDay, startOfMonth, endOfMonth } from "date-fns";
+import { format, startOfDay, endOfDay } from "date-fns";
 import { useRef, useState, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,18 +42,13 @@ export const MobileDashboard = () => {
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // Tier-based polling - reduces cloud usage based on subscription tier
   const { getRefreshInterval, isManualRefreshOnly } = useTierBasedRefresh();
   
   // Lazy loading for summary section
   const [summaryVisible, setSummaryVisible] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
   
-  // Use ISO timestamps for proper UTC comparison
-  const todayStart = startOfDay(new Date()).toISOString();
-  const todayEnd = endOfDay(new Date()).toISOString();
-  const monthStart = startOfMonth(new Date()).toISOString();
-  const monthEnd = endOfMonth(new Date()).toISOString();
+  const today = format(new Date(), "yyyy-MM-dd");
   
   // Intersection Observer for lazy loading summary
   useEffect(() => {
@@ -77,11 +72,7 @@ export const MobileDashboard = () => {
   // Manual refresh handler
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
-    await queryClient.invalidateQueries({ queryKey: ["mobile-today-sales"] });
-    await queryClient.invalidateQueries({ queryKey: ["mobile-month-sales"] });
-    await queryClient.invalidateQueries({ queryKey: ["mobile-stock-value"] });
-    await queryClient.invalidateQueries({ queryKey: ["mobile-receivables"] });
-    await queryClient.invalidateQueries({ queryKey: ["mobile-dashboard-summary"] });
+    await queryClient.invalidateQueries({ queryKey: ["mobile-dashboard-stats"] });
     setTimeout(() => setIsRefreshing(false), 500);
   };
   
@@ -93,120 +84,58 @@ export const MobileDashboard = () => {
     return "Good Evening";
   };
 
-  // Optimized: Today's sales using SUM aggregate
+  // Single RPC call replaces 4 separate queries
   const { 
-    data: todaysSales, 
-    isLoading: todaySalesLoading,
-    isError: todaySalesError,
-    refetch: refetchTodaySales
+    data: dashStats, 
+    isLoading,
+    isError,
+    refetch
   } = useQuery({
-    queryKey: ["mobile-today-sales", currentOrganization?.id, format(new Date(), "yyyy-MM-dd")],
+    queryKey: ["mobile-dashboard-stats", currentOrganization?.id, today],
     queryFn: async () => {
-      if (!currentOrganization) return 0;
+      if (!currentOrganization) return null;
       
-      const { data, error } = await supabase
-        .from("sales")
-        .select("net_amount")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .gte("sale_date", todayStart)
-        .lte("sale_date", todayEnd);
-      
+      const { data, error } = await supabase.rpc('get_erp_dashboard_stats', {
+        p_org_id: currentOrganization.id,
+        p_start_date: today,
+        p_end_date: today,
+      });
       if (error) throw error;
-      return data?.reduce((sum, item) => sum + (item.net_amount || 0), 0) || 0;
+      return data as {
+        total_sales: number;
+        invoice_count: number;
+        sold_qty: number;
+        total_stock_qty: number;
+        total_stock_value: number;
+        total_receivables: number;
+        pending_count: number;
+      };
     },
     enabled: !!currentOrganization && isOnline,
-    staleTime: 60000, // 1 minute
-    refetchInterval: getRefreshInterval('fast'), // Tier-based polling
+    staleTime: 60000,
+    refetchInterval: getRefreshInterval('fast'),
     retry: 2,
   });
 
-  // Optimized: Month's sales
-  const { 
-    data: monthSales, 
-    isLoading: monthSalesLoading,
-    isError: monthSalesError,
-    refetch: refetchMonthSales
-  } = useQuery({
-    queryKey: ["mobile-month-sales", currentOrganization?.id, format(new Date(), "yyyy-MM")],
+  // Also fetch month stats with a separate RPC call (different date range)
+  const monthStart = format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), "yyyy-MM-dd");
+  const monthEnd = format(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0), "yyyy-MM-dd");
+  
+  const { data: monthStats, isLoading: monthLoading, isError: monthError, refetch: refetchMonth } = useQuery({
+    queryKey: ["mobile-month-stats", currentOrganization?.id, monthStart],
     queryFn: async () => {
-      if (!currentOrganization) return 0;
-      
-      const { data, error } = await supabase
-        .from("sales")
-        .select("net_amount")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .gte("sale_date", monthStart)
-        .lte("sale_date", monthEnd);
-      
+      if (!currentOrganization) return null;
+      const { data, error } = await supabase.rpc('get_erp_dashboard_stats', {
+        p_org_id: currentOrganization.id,
+        p_start_date: monthStart,
+        p_end_date: monthEnd,
+      });
       if (error) throw error;
-      return data?.reduce((sum, item) => sum + (item.net_amount || 0), 0) || 0;
+      return data as { total_sales: number };
     },
     enabled: !!currentOrganization && isOnline,
-    staleTime: 120000, // 2 minutes
-    refetchInterval: getRefreshInterval('medium'), // Tier-based polling
-    retry: 2,
-  });
-
-  // Optimized: Stock value - limited query for performance
-  const { 
-    data: stockValue, 
-    isLoading: stockValueLoading,
-    isError: stockValueError,
-    refetch: refetchStockValue
-  } = useQuery({
-    queryKey: ["mobile-stock-value", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization) return 0;
-      
-      // Limit to top items for performance on mobile
-      const { data, error } = await supabase
-        .from("product_variants")
-        .select("stock_qty, pur_price")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .gt("stock_qty", 0)
-        .limit(1000); // Limit for mobile performance
-      
-      if (error) throw error;
-      return data?.reduce(
-        (sum, item) => sum + (item.stock_qty || 0) * (Number(item.pur_price) || 0),
-        0
-      ) || 0;
-    },
-    enabled: !!currentOrganization && isOnline,
-    staleTime: 300000, // 5 minutes - stock doesn't change often
-    retry: 2,
-  });
-
-  // Optimized: Receivables using COUNT where possible
-  const { 
-    data: receivables, 
-    isLoading: receivablesLoading,
-    isError: receivablesError,
-    refetch: refetchReceivables
-  } = useQuery({
-    queryKey: ["mobile-receivables", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization) return 0;
-      
-      const { data, error } = await supabase
-        .from("sales")
-        .select("net_amount, paid_amount")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .in("payment_status", ["pending", "partial"]);
-      
-      if (error) throw error;
-      return data?.reduce((sum, item) => {
-        const balance = (Number(item.net_amount) || 0) - (Number(item.paid_amount) || 0);
-        return sum + Math.max(0, balance);
-      }, 0) || 0;
-    },
-    enabled: !!currentOrganization && isOnline,
-    staleTime: 120000, // 2 minutes
-    refetchInterval: getRefreshInterval('medium'), // Tier-based polling
+    staleTime: 120000,
+    refetchInterval: getRefreshInterval('medium'),
     retry: 2,
   });
 
@@ -258,51 +187,51 @@ export const MobileDashboard = () => {
         <div className="grid grid-cols-2 gap-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
           <MobileDashboardCard
             title="Today's Sales"
-            value={todaysSales ?? 0}
+            value={dashStats?.total_sales ?? 0}
             icon={TrendingUp}
             color="text-success"
             bgColor="bg-success/10"
             onClick={() => orgNavigate("/sales-invoice-dashboard")}
             isCurrency
-            isLoading={todaySalesLoading}
-            isError={todaySalesError}
-            onRetry={() => refetchTodaySales()}
+            isLoading={isLoading}
+            isError={isError}
+            onRetry={() => refetch()}
           />
           <MobileDashboardCard
             title="This Month"
-            value={monthSales ?? 0}
+            value={monthStats?.total_sales ?? 0}
             icon={BarChart3}
             color="text-primary"
             bgColor="bg-primary/10"
             onClick={() => orgNavigate("/daily-cashier-report")}
             isCurrency
-            isLoading={monthSalesLoading}
-            isError={monthSalesError}
-            onRetry={() => refetchMonthSales()}
+            isLoading={monthLoading}
+            isError={monthError}
+            onRetry={() => refetchMonth()}
           />
           <MobileDashboardCard
             title="Stock Value"
-            value={stockValue ?? 0}
+            value={dashStats?.total_stock_value ?? 0}
             icon={Package}
             color="text-warning"
             bgColor="bg-warning/10"
             onClick={() => orgNavigate("/stock-report")}
             isCurrency
-            isLoading={stockValueLoading}
-            isError={stockValueError}
-            onRetry={() => refetchStockValue()}
+            isLoading={isLoading}
+            isError={isError}
+            onRetry={() => refetch()}
           />
           <MobileDashboardCard
             title="Receivables"
-            value={receivables ?? 0}
+            value={dashStats?.total_receivables ?? 0}
             icon={AlertCircle}
             color="text-destructive"
             bgColor="bg-destructive/10"
             onClick={() => orgNavigate("/payments-dashboard")}
             isCurrency
-            isLoading={receivablesLoading}
-            isError={receivablesError}
-            onRetry={() => refetchReceivables()}
+            isLoading={isLoading}
+            isError={isError}
+            onRetry={() => refetch()}
           />
         </div>
       </div>
@@ -313,9 +242,16 @@ export const MobileDashboard = () => {
         <MobileQuickActions />
       </div>
 
-      {/* Today's Summary - Lazy Loaded */}
+      {/* Today's Summary - Lazy Loaded, passes RPC data */}
       <div ref={summaryRef} className="px-4 py-3">
-        {summaryVisible ? <MobileDashboardSummary /> : <SummarySkeleton />}
+        {summaryVisible ? (
+          <MobileDashboardSummary 
+            invoiceCount={dashStats?.invoice_count ?? 0}
+            itemsSold={dashStats?.sold_qty ?? 0}
+            pendingCount={dashStats?.pending_count ?? 0}
+            isLoading={isLoading}
+          />
+        ) : <SummarySkeleton />}
       </div>
     </div>
   );
