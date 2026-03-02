@@ -2227,7 +2227,7 @@ export default function POSSales() {
     }
   };
 
-  const handlePreviousInvoice = () => {
+  const handlePreviousInvoice = async () => {
     if (!todaysSales || todaysSales.length === 0) {
       toast({
         title: "No Invoices",
@@ -2247,10 +2247,10 @@ export default function POSSales() {
       return;
     }
     setCurrentInvoiceIndex(newIndex);
-    loadInvoice(todaysSales[newIndex]);
+    await loadSaleForEdit(todaysSales[newIndex].id);
   };
 
-  const handleNextInvoice = () => {
+  const handleNextInvoice = async () => {
     if (!todaysSales || todaysSales.length === 0) {
       toast({
         title: "No Invoices",
@@ -2270,10 +2270,10 @@ export default function POSSales() {
       return;
     }
     setCurrentInvoiceIndex(newIndex);
-    loadInvoice(todaysSales[newIndex]);
+    await loadSaleForEdit(todaysSales[newIndex].id);
   };
 
-  const handleLastInvoice = () => {
+  const handleLastInvoice = async () => {
     if (!todaysSales || todaysSales.length === 0) {
       toast({
         title: "No Invoices",
@@ -2284,7 +2284,7 @@ export default function POSSales() {
     }
 
     setCurrentInvoiceIndex(0);
-    loadInvoice(todaysSales[0]);
+    await loadSaleForEdit(todaysSales[0].id);
   };
 
   const handleClearAll = () => {
