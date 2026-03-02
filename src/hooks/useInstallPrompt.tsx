@@ -17,6 +17,13 @@ export function useInstallPrompt() {
       return;
     }
 
+    // Check if event was already captured globally (fired before hook mounted)
+    if (window.__pwaInstallPrompt) {
+      setDeferredPrompt(window.__pwaInstallPrompt as BeforeInstallPromptEvent);
+      setIsInstallable(true);
+      window.__pwaInstallPrompt = undefined;
+    }
+
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
