@@ -409,6 +409,34 @@ export default function SalesInvoiceDashboard() {
     enabled: !!currentOrganization?.id && productIdsForLookup.length > 0,
   });
 
+  // Fetch sale returns with credit_status = 'adjusted' linked to invoices
+  const { data: cnAdjustedMap } = useQuery({
+    queryKey: ['cn-adjusted-returns', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return {} as Record<string, any>;
+      const { data, error } = await supabase
+        .from('sale_returns')
+        .select('id, return_number, net_amount, linked_sale_id, credit_status')
+        .eq('organization_id', currentOrganization.id)
+        .is('deleted_at', null)
+        .in('credit_status', ['adjusted', 'refunded', 'adjusted_outstanding']);
+
+      if (error) throw error;
+
+      // Map by linked_sale_id for quick lookup
+      const map: Record<string, any[]> = {};
+      (data || []).forEach((sr: any) => {
+        if (sr.linked_sale_id) {
+          if (!map[sr.linked_sale_id]) map[sr.linked_sale_id] = [];
+          map[sr.linked_sale_id].push(sr);
+        }
+      });
+      return map;
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 2 * 60 * 1000,
+  });
+
   // Get item display settings from settings
   const saleSettings = settings?.sale_settings as any;
   const showItemBrand = saleSettings?.show_item_brand ?? false;
@@ -1740,6 +1768,7 @@ export default function SalesInvoiceDashboard() {
                 productsById={productsById}
                 deliveryHistory={deliveryHistory}
                 saleReturns={saleReturns}
+                cnAdjustedMap={cnAdjustedMap || {}}
                 renderToolbar={(toolbar) => {
                   const portalTarget = document.getElementById('erp-toolbar-portal');
                   if (portalTarget) {
