@@ -140,7 +140,7 @@ export const OrganizationSetup = () => {
               <div className="space-y-2">
                 <Label htmlFor="orgSlug">Organization URL</Label>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground whitespace-nowrap">inventoryshop.in/</span>
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">app.inventoryshop.in/</span>
                   <Input
                     id="orgSlug"
                     type="text"
