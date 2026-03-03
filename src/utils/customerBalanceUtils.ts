@@ -26,32 +26,48 @@
   * @param invoiceVoucherPayments - Map of sale_id -> total voucher payment amount
   * @param openingBalancePayments - Total payments against opening balance (reference_type='customer')
   */
- export function calculateCustomerBalance(
-   openingBalance: number,
-   sales: SaleData[],
-   invoiceVoucherPayments: Map<string, number>,
-   openingBalancePayments: number = 0
- ): CustomerBalanceResult {
-   let totalSales = 0;
-   let totalPaidOnSales = 0;
- 
-   sales.forEach(sale => {
-     totalSales += sale.net_amount || 0;
-     const salePaidAmount = sale.paid_amount || 0;
-     const voucherAmount = invoiceVoucherPayments.get(sale.id) || 0;
-     // Use max to avoid double-counting but also catch old unsynced data
-     totalPaidOnSales += Math.max(salePaidAmount, voucherAmount);
-   });
- 
-   const totalPaid = totalPaidOnSales + openingBalancePayments;
-   const balance = Math.round(openingBalance + totalSales - totalPaid);
- 
-   return {
-     balance,
-     totalSales: Math.round(totalSales),
-     totalPaid: Math.round(totalPaid),
-   };
- }
+/**
+ * Calculate customer balance from sales, voucher, adjustment and advance data.
+ * Uses Math.max() to avoid double-counting when voucher payments exist.
+ * 
+ * @param openingBalance - Customer's opening balance
+ * @param sales - Array of sales with id, net_amount, paid_amount
+ * @param invoiceVoucherPayments - Map of sale_id -> total voucher payment amount
+ * @param openingBalancePayments - Total payments against opening balance (reference_type='customer')
+ * @param adjustmentTotal - Net total from customer_balance_adjustments (outstanding_difference sum)
+ * @param unusedAdvanceTotal - Total unused advance balance (amount - used_amount) for active/partially_used advances
+ */
+export function calculateCustomerBalance(
+  openingBalance: number,
+  sales: SaleData[],
+  invoiceVoucherPayments: Map<string, number>,
+  openingBalancePayments: number = 0,
+  adjustmentTotal: number = 0,
+  unusedAdvanceTotal: number = 0
+): CustomerBalanceResult {
+  let totalSales = 0;
+  let totalPaidOnSales = 0;
+
+  sales.forEach(sale => {
+    totalSales += sale.net_amount || 0;
+    const salePaidAmount = sale.paid_amount || 0;
+    const voucherAmount = invoiceVoucherPayments.get(sale.id) || 0;
+    // Use max to avoid double-counting but also catch old unsynced data
+    totalPaidOnSales += Math.max(salePaidAmount, voucherAmount);
+  });
+
+  const totalPaid = totalPaidOnSales + openingBalancePayments;
+  // Balance = Opening + Sales - Paid + Adjustments - Unused Advances
+  // adjustmentTotal: positive = increased outstanding, negative = decreased outstanding
+  // unusedAdvanceTotal: money already received but not applied to invoices (credit)
+  const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - unusedAdvanceTotal);
+
+  return {
+    balance,
+    totalSales: Math.round(totalSales),
+    totalPaid: Math.round(totalPaid),
+  };
+}
  
  /**
   * Build a map of sale_id -> total voucher payment amount from voucher entries.
