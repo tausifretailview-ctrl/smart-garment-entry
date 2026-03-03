@@ -706,7 +706,7 @@ export default function OrgAuth() {
                       const { data, error } = await supabase.auth.signInWithOAuth({
                         provider: "google",
                         options: {
-                          redirectTo: window.location.origin + "/" + (orgSlug || ""),
+                          redirectTo: "https://app.inventoryshop.in/" + (orgSlug || ""),
                           skipBrowserRedirect: true,
                         },
                       });
@@ -718,7 +718,7 @@ export default function OrgAuth() {
                       }
                     } else {
                       const { error } = await lovable.auth.signInWithOAuth("google", {
-                        redirect_uri: window.location.origin,
+                        redirect_uri: "https://app.inventoryshop.in",
                       });
                       if (error) {
                         setError(error.message || "Google sign-in failed");
