@@ -6,6 +6,8 @@ interface CustomerBalanceResult {
   openingBalance: number;
   totalSales: number;
   totalPaid: number;
+  adjustmentTotal: number;
+  unusedAdvanceTotal: number;
   isLoading: boolean;
 }
 
@@ -14,13 +16,15 @@ interface CustomerBalanceResult {
  * - Opening balance from customer record
  * - All sales net_amount
  * - All payments: at-sale (paid_amount) + voucher receipts (including invoice payments)
+ * - Balance adjustments (outstanding_difference)
+ * - Unused advances (active/partially_used)
  */
 export function useCustomerBalance(customerId: string | null, organizationId: string | null): CustomerBalanceResult {
   const { data, isLoading } = useQuery({
     queryKey: ['customer-balance', customerId, organizationId],
     queryFn: async () => {
       if (!customerId || !organizationId) {
-        return { balance: 0, openingBalance: 0, totalSales: 0, totalPaid: 0 };
+        return { balance: 0, openingBalance: 0, totalSales: 0, totalPaid: 0, adjustmentTotal: 0, unusedAdvanceTotal: 0 };
       }
 
       // Fetch customer opening balance
@@ -63,11 +67,9 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
       allVouchers?.forEach(v => {
         if (!v.reference_id) return;
         
-        // Check if this is a payment for one of this customer's invoices
         if (saleIds.includes(v.reference_id)) {
           invoiceVoucherPayments[v.reference_id] = (invoiceVoucherPayments[v.reference_id] || 0) + (Number(v.total_amount) || 0);
         } 
-        // Check if this is an opening balance payment for this customer
         else if (v.reference_type === 'customer' && v.reference_id === customerId) {
           openingBalanceVoucherPayments += Number(v.total_amount) || 0;
         }
@@ -76,32 +78,55 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
       // Calculate totals
       const totalSales = sales?.reduce((sum, sale) => sum + (sale.net_amount || 0), 0) || 0;
       
-      // For each sale, use the MAX of paid_amount or voucher payments to handle:
-      // - Old data where paid_amount wasn't updated when voucher was created
-      // - New data where paid_amount is properly updated
       let totalPaidOnSales = 0;
       sales?.forEach(sale => {
         const salePaidAmount = sale.paid_amount || 0;
         const voucherAmount = invoiceVoucherPayments[sale.id] || 0;
-        // Use max to avoid double-counting but also catch old unsynced data
         totalPaidOnSales += Math.max(salePaidAmount, voucherAmount);
       });
 
-      // Total paid = payments on sales + opening balance voucher payments
       const totalPaid = totalPaidOnSales + openingBalanceVoucherPayments;
 
-      // Balance = Opening Balance + Total Sales - Total Paid (rounded to whole number)
-      const balance = Math.round(openingBalance + totalSales - totalPaid);
+      // Fetch balance adjustments
+      const { data: adjustments, error: adjError } = await supabase
+        .from('customer_balance_adjustments')
+        .select('outstanding_difference')
+        .eq('customer_id', customerId)
+        .eq('organization_id', organizationId);
+
+      if (adjError) throw adjError;
+
+      // Sum outstanding_difference: positive = increased outstanding, negative = decreased
+      const adjustmentTotal = adjustments?.reduce((sum, adj) => sum + (adj.outstanding_difference || 0), 0) || 0;
+
+      // Fetch unused advances
+      const { data: advances, error: advError } = await supabase
+        .from('customer_advances')
+        .select('amount, used_amount')
+        .eq('customer_id', customerId)
+        .eq('organization_id', organizationId)
+        .in('status', ['active', 'partially_used']);
+
+      if (advError) throw advError;
+
+      const unusedAdvanceTotal = advances?.reduce((sum, adv) => {
+        return sum + Math.max(0, (adv.amount || 0) - (adv.used_amount || 0));
+      }, 0) || 0;
+
+      // Balance = Opening + Sales - Paid + Adjustments - Unused Advances
+      const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - unusedAdvanceTotal);
 
       return {
         balance,
         openingBalance: Math.round(openingBalance),
         totalSales: Math.round(totalSales),
         totalPaid: Math.round(totalPaid),
+        adjustmentTotal: Math.round(adjustmentTotal),
+        unusedAdvanceTotal: Math.round(unusedAdvanceTotal),
       };
     },
     enabled: !!customerId && !!organizationId,
-    staleTime: 60000, // Cache for 60 seconds (was 30s)
+    staleTime: 60000,
   });
 
   return {
@@ -109,6 +134,8 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
     openingBalance: data?.openingBalance || 0,
     totalSales: data?.totalSales || 0,
     totalPaid: data?.totalPaid || 0,
+    adjustmentTotal: data?.adjustmentTotal || 0,
+    unusedAdvanceTotal: data?.unusedAdvanceTotal || 0,
     isLoading,
   };
 }

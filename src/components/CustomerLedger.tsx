@@ -196,7 +196,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         return customerTotals;
       }
 
-      // --- Business org logic (unchanged) ---
+      // --- Business org logic ---
       // Fetch ALL sales using range pagination (bypasses 1000-row limit)
       const salesData = await fetchAllSalesSummary(organizationId);
 
@@ -211,6 +211,40 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       if (voucherError) {
         console.error('Error fetching voucher payments:', voucherError);
       }
+
+      // Fetch ALL balance adjustments
+      const { data: allAdjustments, error: adjError } = await supabase
+        .from('customer_balance_adjustments')
+        .select('customer_id, outstanding_difference')
+        .eq('organization_id', organizationId);
+
+      if (adjError) console.error('Error fetching adjustments:', adjError);
+
+      // Build adjustment totals per customer
+      const customerAdjustments = new Map<string, number>();
+      allAdjustments?.forEach((adj: any) => {
+        customerAdjustments.set(adj.customer_id, 
+          (customerAdjustments.get(adj.customer_id) || 0) + (adj.outstanding_difference || 0));
+      });
+
+      // Fetch ALL unused advances
+      const { data: allAdvances, error: advError } = await supabase
+        .from('customer_advances')
+        .select('customer_id, amount, used_amount')
+        .eq('organization_id', organizationId)
+        .in('status', ['active', 'partially_used']);
+
+      if (advError) console.error('Error fetching advances:', advError);
+
+      // Build unused advance totals per customer
+      const customerUnusedAdvances = new Map<string, number>();
+      allAdvances?.forEach((adv: any) => {
+        const unused = Math.max(0, (adv.amount || 0) - (adv.used_amount || 0));
+        if (unused > 0) {
+          customerUnusedAdvances.set(adv.customer_id, 
+            (customerUnusedAdvances.get(adv.customer_id) || 0) + unused);
+        }
+      });
 
       // Build sale_id -> customer_id map for invoice vouchers
       const saleToCustomerMap = new Map<string, string>();
@@ -227,26 +261,23 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       allVouchers?.forEach((v: any) => {
         if (!v.reference_id) return;
         
-        // Check if this is an invoice payment (reference_type='sale' or reference_id is a sale)
         const customerId = saleToCustomerMap.get(v.reference_id);
         if (v.reference_type === 'sale' || customerId) {
           invoiceVoucherPayments.set(v.reference_id, 
             (invoiceVoucherPayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
         } else if (v.reference_type === 'customer') {
-          // This is an opening balance payment (reference_id = customer_id)
           openingBalancePayments.set(v.reference_id, 
             (openingBalancePayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
         }
       });
 
-      console.log(`CustomerLedger: Fetched ${customersData.length} customers, ${salesData.length} sales, ${allVouchers?.length || 0} voucher payments`);
+      console.log(`CustomerLedger: Fetched ${customersData.length} customers, ${salesData.length} sales, ${allVouchers?.length || 0} voucher payments, ${allAdjustments?.length || 0} adjustments, ${allAdvances?.length || 0} advances`);
 
       // Calculate totals per customer using Math.max to avoid double-counting
       const customerTotals = customersData.map((customer: any) => {
         const customerSales = salesData.filter((s: any) => s.customer_id === customer.id);
         const totalSales = customerSales.reduce((sum: number, s: any) => sum + (s.net_amount || 0), 0);
         
-        // For each sale, use MAX of paid_amount or voucher payments to avoid double-counting
         let totalPaidOnSales = 0;
         customerSales.forEach((sale: any) => {
           const salePaidAmount = sale.paid_amount || 0;
@@ -254,12 +285,13 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           totalPaidOnSales += Math.max(salePaidAmount, voucherAmount);
         });
         
-        // Add opening balance payments
         const openingBalancePaymentTotal = openingBalancePayments.get(customer.id) || 0;
         const totalPaid = totalPaidOnSales + openingBalancePaymentTotal;
         const openingBalance = customer.opening_balance || 0;
-        // Balance = Opening Balance + Total Sales - Total Paid (rounded to whole number)
-        const balance = Math.round(openingBalance + totalSales - totalPaid);
+        const adjustmentTotal = customerAdjustments.get(customer.id) || 0;
+        const unusedAdvanceTotal = customerUnusedAdvances.get(customer.id) || 0;
+        // Balance = Opening + Sales - Paid + Adjustments - Unused Advances
+        const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - unusedAdvanceTotal);
 
         return {
           ...customer,
@@ -633,11 +665,14 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           type: 'invoice' as const,
           data: sale,
         })),
-        ...allVouchers.map((voucher) => ({
-          date: voucher.voucher_date,
-          type: 'payment' as const,
-          data: voucher,
-        })),
+        // Filter out advance-application vouchers (internal transfers - advance already credited)
+        ...allVouchers
+          .filter((voucher: any) => !voucher.description?.startsWith('Adjusted from advance balance'))
+          .map((voucher) => ({
+            date: voucher.voucher_date,
+            type: 'payment' as const,
+            data: voucher,
+          })),
         ...(advancesData || []).map((advance) => ({
           date: advance.advance_date,
           type: 'advance' as const,
