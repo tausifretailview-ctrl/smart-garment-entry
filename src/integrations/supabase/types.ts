@@ -2428,6 +2428,72 @@ export type Database = {
         }
         Relationships: []
       }
+      printer_presets: {
+        Row: {
+          a4_cols: number | null
+          a4_rows: number | null
+          created_at: string | null
+          id: string
+          is_default: boolean | null
+          label_config: Json | null
+          label_height: number
+          label_width: number
+          name: string
+          organization_id: string
+          updated_at: string | null
+          v_gap: number
+          x_offset: number
+          y_offset: number
+        }
+        Insert: {
+          a4_cols?: number | null
+          a4_rows?: number | null
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          label_config?: Json | null
+          label_height?: number
+          label_width?: number
+          name: string
+          organization_id: string
+          updated_at?: string | null
+          v_gap?: number
+          x_offset?: number
+          y_offset?: number
+        }
+        Update: {
+          a4_cols?: number | null
+          a4_rows?: number | null
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          label_config?: Json | null
+          label_height?: number
+          label_width?: number
+          name?: string
+          organization_id?: string
+          updated_at?: string | null
+          v_gap?: number
+          x_offset?: number
+          y_offset?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "printer_presets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "printer_presets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       product_images: {
         Row: {
           created_at: string
