@@ -1,31 +1,45 @@
 
 
-# Add Advances & Adjustments Tabs to Customer History Dialog
+# Fix A5 Vertical Invoice Print Layout — ModernWholesaleTemplate
 
 ## Current State
-The CustomerHistoryDialog has 6 tabs: Sales, Legacy, Payments, Returns, C/Notes, Refunds. It shows advance balance in the summary card but has no detail view for individual advance entries or balance adjustments.
+The template already has A5 vertical support (`format='a5-vertical'`) with 148mm × 210mm sizing. However, the print CSS uses only `size: A5 portrait; margin: 5mm` and the internal padding/alignment needs tuning per the user's screenshot.
 
-## Plan
+## Changes — `src/components/invoice-templates/ModernWholesaleTemplate.tsx`
 
-### 1. Add two new tabs to `src/components/CustomerHistoryDialog.tsx`
+### 1. Print CSS update (line 577-578)
+Change A5 vertical `@page` to explicit dimensions with 0 margin (padding handled internally):
+```css
+@page { size: 148mm 210mm; margin: 0; }
+```
+Update the page container padding from `5mm` to `10mm` for A5 vertical.
 
-**New data queries:**
-- **Advances query**: Fetch from `customer_advances` for this customer, ordered by `advance_date` desc. Fields: `advance_number`, `advance_date`, `amount`, `used_amount`, `status`, `payment_method`, `description`
-- **Adjustments query**: Fetch from `customer_balance_adjustments` for this customer, ordered by `adjustment_date` desc. Fields: `adjustment_date`, `reason`, `previous_outstanding`, `new_outstanding`, `outstanding_difference`, `previous_advance`, `new_advance`, `advance_difference`
+### 2. Header layout fix (lines 243-323)
+- Logo stays top-left (already correct)
+- "TAX INVOICE" stays top-right (already correct)
+- Company details centered (already correct)
+- No structural changes needed — layout matches the screenshot
 
-**Tab bar changes:**
-- Expand from 6 to 8 columns: `sm:grid-cols-8`
-- Add "Advances (N)" tab with `Wallet` icon
-- Add "Adjustments (N)" tab with `Scale` icon (from lucide)
+### 3. Table column widths (lines 331-341)
+Simplify columns for A5 to reduce cramping. For `a5-vertical`, adjust widths:
+- **SR**: 18px → 16px  
+- **PARTICULARS**: 80px → keep
+- **HSN**: 35px → 30px
+- **SIZE/QTY**: 75px → expand (use remaining space)
+- Remove fixed width on SIZE/QTY to let it flex with `tableLayout: fixed`
 
-**Advances tab content:**
-| Advance # | Date | Amount | Used | Unused | Method | Status |
-Shows each advance with status badge (active=green, partially_used=orange, fully_used=secondary). "Unused" column = `amount - used_amount`.
+### 4. Total Qty / Sub Total row alignment (lines 388-401)
+The `colSpan` values already align with the header columns. Ensure the TOTAL QTY label spans correctly to the QTY column.
 
-**Adjustments tab content:**
-| Date | Reason | Prev O/S | New O/S | Diff | Prev Adv | New Adv | Adv Diff |
-Shows each balance adjustment entry with outstanding_difference colored (positive=red debit, negative=green credit) and advance_difference similarly colored.
+### 5. Footer / Summary section (lines 406-512)
+- Amount in Words + QR code on left — already correct
+- Grand Total breakdown on right — already correct  
+- "Authorised Signatory" at bottom right — already correct
+- Reduce the signature gap (`marginBottom`) from 15px to 20px for A5 to push it closer to page bottom
 
-### File changes
-- **`src/components/CustomerHistoryDialog.tsx`** — Add 2 queries, 2 tabs, 2 tab content sections
+### 6. Page container height
+Change `minHeight` for a5-vertical from `210mm` to `auto`, and set the inner border wrapper to fill `calc(210mm - 20mm)` (accounting for 10mm padding on each side) to ensure content fills the page and signature stays at bottom.
+
+### Files to modify
+- **`src/components/invoice-templates/ModernWholesaleTemplate.tsx`** — Print CSS, padding, column widths, signature spacing
 
