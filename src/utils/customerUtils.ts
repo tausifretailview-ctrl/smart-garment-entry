@@ -10,6 +10,7 @@ export interface CreateCustomerParams {
   organization_id: string;
   opening_balance?: number;
   discount_percent?: number;
+  transport_details?: string;
 }
 
 export interface CreateCustomerResult {
@@ -68,7 +69,7 @@ export async function createOrGetCustomer(params: CreateCustomerParams): Promise
   }
   
   // Create new customer with NORMALIZED phone
-  const customerData = {
+  const customerData: any = {
     customer_name: params.customer_name?.trim() || normalizedPhone,
     phone: normalizedPhone, // Store normalized
     email: params.email || null,
@@ -76,6 +77,7 @@ export async function createOrGetCustomer(params: CreateCustomerParams): Promise
     gst_number: params.gst_number || null,
     opening_balance: params.opening_balance || 0,
     discount_percent: params.discount_percent || 0,
+    transport_details: params.transport_details || null,
     organization_id: params.organization_id,
   };
   

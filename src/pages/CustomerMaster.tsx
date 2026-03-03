@@ -66,6 +66,7 @@ const CustomerMaster = () => {
     gst_number: "",
     opening_balance: "",
     discount_percent: "",
+    transport_details: "",
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -288,7 +289,7 @@ const CustomerMaster = () => {
       const duplicate = existingCustomers?.find(c => normalizePhoneNumber(c.phone) === normalizedPhone);
       if (duplicate) throw new Error(`Customer with this phone already exists: ${duplicate.customer_name || duplicate.phone}`);
       
-      const customerData = {
+      const customerData: any = {
         customer_name: data.customer_name.trim() || normalizedPhone,
         phone: normalizedPhone,
         email: data.email,
@@ -296,6 +297,7 @@ const CustomerMaster = () => {
         gst_number: data.gst_number,
         opening_balance: data.opening_balance ? parseFloat(data.opening_balance) : 0,
         discount_percent: data.discount_percent ? parseFloat(data.discount_percent) : 0,
+        transport_details: data.transport_details || null,
         organization_id: currentOrganization.id
       };
       const { error } = await supabase.from("customers").insert([customerData]);
@@ -330,7 +332,7 @@ const CustomerMaster = () => {
       const duplicate = existingCustomers?.find(c => normalizePhoneNumber(c.phone) === normalizedPhone);
       if (duplicate) throw new Error(`Customer with this phone already exists: ${duplicate.customer_name || duplicate.phone}`);
       
-      const customerData = {
+      const customerData: any = {
         customer_name: data.customer_name.trim() || normalizedPhone,
         phone: normalizedPhone,
         email: data.email,
@@ -338,6 +340,7 @@ const CustomerMaster = () => {
         gst_number: data.gst_number,
         opening_balance: data.opening_balance ? parseFloat(data.opening_balance) : 0,
         discount_percent: data.discount_percent ? parseFloat(data.discount_percent) : 0,
+        transport_details: data.transport_details || null,
       };
       const { error } = await supabase.from("customers").update(customerData).eq("id", id);
       if (error) throw error;
@@ -386,7 +389,7 @@ const CustomerMaster = () => {
   });
 
   const resetForm = () => {
-    setFormData({ customer_name: "", phone: "", email: "", address: "", gst_number: "", opening_balance: "", discount_percent: "" });
+    setFormData({ customer_name: "", phone: "", email: "", address: "", gst_number: "", opening_balance: "", discount_percent: "", transport_details: "" });
     setEditingCustomer(null);
   };
 
@@ -409,6 +412,7 @@ const CustomerMaster = () => {
       gst_number: customer.gst_number || "",
       opening_balance: customer.opening_balance?.toString() || "",
       discount_percent: customer.discount_percent?.toString() || "",
+      transport_details: (customer as any).transport_details || "",
     });
     setIsDialogOpen(true);
   };
@@ -739,6 +743,10 @@ const CustomerMaster = () => {
                       <Label htmlFor="discount_percent">Discount %</Label>
                       <Input id="discount_percent" type="number" step="0.01" min="0" max="100" value={formData.discount_percent} onChange={(e) => setFormData({ ...formData, discount_percent: e.target.value })} placeholder="Fixed discount for this customer" />
                       <p className="text-xs text-muted-foreground mt-1">Auto-applied on POS & invoices</p>
+                    </div>
+                    <div>
+                      <Label htmlFor="transport_details">Transport Details</Label>
+                      <Input id="transport_details" value={formData.transport_details} onChange={(e) => setFormData({ ...formData, transport_details: e.target.value })} placeholder="e.g., VRL Logistics, Navi Mumbai" />
                     </div>
                     <Button type="submit" className="w-full">{editingCustomer ? "Update" : "Create"} Customer</Button>
                   </form>

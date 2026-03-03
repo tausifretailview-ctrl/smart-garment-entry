@@ -97,6 +97,7 @@ const customerSchema = z.object({
   email: z.string().trim().email("Invalid email").max(255).optional().or(z.literal("")),
   address: z.string().trim().max(500).optional(),
   gst_number: z.string().trim().max(15).optional(),
+  transport_details: z.string().trim().max(200).optional().or(z.literal("")),
 });
 
 export default function SalesInvoice() {
@@ -344,6 +345,7 @@ export default function SalesInvoice() {
       email: "",
       address: "",
       gst_number: "",
+      transport_details: "",
     },
   });
 
@@ -1280,6 +1282,7 @@ export default function SalesInvoice() {
         email: values.email,
         address: values.address,
         gst_number: values.gst_number,
+        transport_details: values.transport_details,
         organization_id: currentOrganization.id,
       });
       
@@ -2183,6 +2186,12 @@ Thank you for choosing us!`;
                   ) : null}
                 </div>
               )}
+              {selectedCustomer?.transport_details && (
+                <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="font-medium">Transport:</span>
+                  <span>{selectedCustomer.transport_details}</span>
+                </div>
+              )}
             </div>
 
             {/* Invoice No */}
@@ -2735,6 +2744,20 @@ Thank you for choosing us!`;
                     <FormLabel>GST Number</FormLabel>
                     <FormControl>
                       <Input {...field} placeholder="Enter GST number" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={customerForm.control}
+                name="transport_details"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Transport Details</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="e.g., VRL Logistics, Navi Mumbai" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
