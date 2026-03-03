@@ -3727,6 +3727,7 @@ export default function Settings() {
                                     },
                                   })
                                 }
+                                onSave={handleSave}
                               />
                             </DialogContent>
                           </Dialog>
