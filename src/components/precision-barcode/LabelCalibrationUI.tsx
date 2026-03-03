@@ -137,8 +137,12 @@ export function LabelCalibrationUI({
 }: LabelCalibrationUIProps) {
   const [savePresetOpen, setSavePresetOpen] = useState(false);
   const [newPresetName, setNewPresetName] = useState("");
+  const [activePresetName, setActivePresetName] = useState<string | null>(null);
 
   const allPresets = [...BUILT_IN_PRESETS, ...presets];
+
+  // Check if active preset is a user preset (not built-in)
+  const isUserPreset = activePresetName ? presets.some((p) => p.name === activePresetName) : false;
 
   const update = (partial: Partial<CalibrationValues>) => {
     onChange({ ...values, ...partial });
@@ -154,7 +158,18 @@ export function LabelCalibrationUI({
         labelWidth: preset.width,
         labelHeight: preset.height,
       });
+      setActivePresetName(name);
     }
+  };
+
+  const updatePreset = () => {
+    if (!activePresetName || !onPresetsChange || !isUserPreset) return;
+    const updated = presets.map((p) =>
+      p.name === activePresetName
+        ? { ...p, xOffset: values.xOffset, yOffset: values.yOffset, vGap: values.vGap, width: values.labelWidth, height: values.labelHeight }
+        : p
+    );
+    onPresetsChange(updated);
   };
 
   const savePreset = () => {
@@ -204,6 +219,13 @@ export function LabelCalibrationUI({
             </SelectContent>
           </Select>
         </div>
+
+        {isUserPreset && onPresetsChange && (
+          <Button type="button" variant="outline" size="xs" className="h-8" onClick={updatePreset}>
+            <Save className="h-3 w-3 mr-1" />
+            Update
+          </Button>
+        )}
 
         {onPresetsChange && (
           <Dialog open={savePresetOpen} onOpenChange={setSavePresetOpen}>
