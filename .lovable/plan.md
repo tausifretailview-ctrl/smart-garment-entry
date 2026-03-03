@@ -1,54 +1,67 @@
 
 
-# Precision Pro Label Calibration UI Enhancement
+# Precision Pro: Database-Backed Printer Presets
 
 ## Overview
-The Precision Pro system already exists with all the core features (absolute mm positioning, field customization, thermal/A4 modes, SVG barcodes, label designer). This plan enhances the calibration experience by adding a dedicated `LabelCalibrationUI` component with nudge buttons and sliders, and adding a preset save/load system for calibration profiles.
+Move calibration presets from the `bill_barcode_settings` JSON blob to a dedicated `printer_presets` table. This gives each organization persistent, shareable presets that survive across sessions and devices.
 
 ## What Changes
 
-### 1. New Component: `LabelCalibrationUI.tsx`
-A polished calibration panel replacing the plain number inputs in Settings. For each calibration value (X-Offset, Y-Offset, Vertical Gap, Label Width, Label Height):
-- **Slider** for smooth adjustment (range-appropriate, e.g. -10 to +10mm for offsets, 10-100mm for dimensions)
-- **Nudge buttons** (+0.5mm / -0.5mm) flanking the numeric input for fine-tuning
-- **Current value display** in mm
-- Live preview of a sample label that updates as values change
+### 1. New Database Table: `printer_presets`
+Create a dedicated table to store calibration presets per organization:
 
-### 2. Calibration Presets
-- "Save Preset" button that stores the current calibration values (offsets + dimensions) as a named preset
-- "Load Preset" dropdown to recall saved presets
-- Presets stored in the existing `bill_barcode_settings` JSON column as `precision_presets` array
-- Common built-in presets: "50x25mm Thermal", "38x25mm Jewellery", "100x50mm Shipping"
+```text
+printer_presets
+  id              uuid (PK, default gen_random_uuid())
+  organization_id uuid (FK -> organizations, NOT NULL)
+  name            text NOT NULL
+  label_width     numeric NOT NULL (default 50)
+  label_height    numeric NOT NULL (default 25)
+  x_offset        numeric NOT NULL (default 0)
+  y_offset        numeric NOT NULL (default 0)
+  v_gap           numeric NOT NULL (default 2)
+  a4_cols         integer (default 4)
+  a4_rows         integer (default 12)
+  label_config    jsonb (stores the full field design: positions, fonts, visibility)
+  is_default      boolean (default false)
+  created_at      timestamptz (default now())
+  updated_at      timestamptz (default now())
+  UNIQUE(organization_id, name)
+```
 
-### 3. Integration
-- Replace the plain input fields in Settings.tsx Precision Pro section with the new `LabelCalibrationUI` component
-- Also embed a compact version in the BarcodePrinting page for quick adjustments before printing
+RLS policies: authenticated users can SELECT/INSERT/UPDATE/DELETE rows matching their organization.
+
+### 2. Barcode Printing Page Updates
+- Fetch presets from `printer_presets` table instead of `bill_barcode_settings.precision_presets`
+- Add a **"Save Current Preset"** button that upserts to the database (name + all calibration values + label design config)
+- When a preset is loaded, apply its `label_config` (field positions/fonts) alongside calibration values
+- "Delete Preset" removes from the database
+
+### 3. Settings Page Updates
+- Update the `LabelCalibrationUI` integration in Settings to also read/write presets from `printer_presets` table
+- Keep the label designer's Save button writing to `bill_barcode_settings` for the active working config, but presets go to the new table
+
+### 4. LabelCalibrationUI Component Updates
+- Update preset loading to include `label_config` (field design) alongside calibration offsets
+- The "Save Preset" action now includes the current label design config in the saved preset
+- "Load Preset" restores both calibration values AND label design config
+- Update preset also saves the full config
+
+### 5. Print Output (no changes needed)
+The existing print system already produces clean output -- `PrecisionPrintCSS` hides everything except `.precision-print-area`, sets `@page { margin: 0 }`, and the document title is cleared to suppress browser headers. No changes required here.
 
 ## Files to Create
-1. `src/components/precision-barcode/LabelCalibrationUI.tsx` -- Calibration panel with sliders, nudge buttons, presets, and live preview
+None (component already exists)
+
+## Database Migration
+1. Create `printer_presets` table with RLS policies
 
 ## Files to Modify
-1. `src/pages/Settings.tsx` -- Replace plain offset/dimension inputs with the new `LabelCalibrationUI` component
-2. `src/pages/BarcodePrinting.tsx` -- Add a compact calibration panel accessible via a "Calibrate" button
+1. **`src/components/precision-barcode/LabelCalibrationUI.tsx`** -- Update preset types to include `label_config`, change save/load/update/delete to call parent handlers that talk to DB
+2. **`src/pages/BarcodePrinting.tsx`** -- Fetch presets from `printer_presets` table, wire save/delete handlers, apply loaded preset's `label_config`
+3. **`src/pages/Settings.tsx`** -- Same DB integration for presets in the Settings calibration UI
 
-## Technical Details
-
-### Nudge Button Pattern
-```text
-[ -0.5 ] [ input: 2.5 mm ] [ +0.5 ]
-|=========[====]==================| slider
-```
-
-Each field row contains: minus button, numeric input, plus button, and a slider below. Clicking nudge buttons adjusts value by 0.5mm. Slider provides continuous adjustment.
-
-### Presets Data Shape
-```text
-precision_presets: [
-  { name: "50x25 Thermal", xOffset: 0, yOffset: 0, vGap: 2, width: 50, height: 25 },
-  { name: "38x25 Jewellery", xOffset: 1, yOffset: 0.5, vGap: 1, width: 38, height: 25 }
-]
-```
-
-### No Database Migration Needed
-All data is stored in the existing `bill_barcode_settings` JSON column, which already holds precision settings.
-
+## Technical Notes
+- Presets include the full `LabelDesignConfig` so loading a preset restores the exact label layout
+- The `is_default` flag allows one preset per org to be auto-loaded on page open
+- Existing JSON-based presets will be migrated: on first load, if `precision_presets` exist in `bill_barcode_settings` but no rows in `printer_presets`, they get inserted automatically
