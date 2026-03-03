@@ -306,15 +306,15 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           )}
         </div>
         <div style={{ width: isA5 ? "140px" : "180px", padding: isA5 ? "4px 6px" : "6px 8px", background: colors.light, boxSizing: "border-box" }}>
-          <table style={{ width: "100%", fontSize: isA5 ? "7.5pt" : "9pt" }}>
+          <table style={{ width: "100%", fontSize: isA5 ? "6.5pt" : "9pt" }}>
             <tbody>
               <tr>
-                <td>Inv No:</td>
-                <td style={{ fontWeight: "500" }}>{invoiceNumber}</td>
+                <td style={{ whiteSpace: "nowrap", paddingRight: "4px" }}>Inv No:</td>
+                <td style={{ fontWeight: "500", textAlign: "right", wordBreak: "break-all", fontSize: isA5 ? "6.5pt" : "9pt" }}>{invoiceNumber}</td>
               </tr>
               <tr>
-                <td>Date:</td>
-                <td style={{ fontWeight: "500" }}>{invoiceDate.toLocaleDateString("en-IN")}</td>
+                <td style={{ whiteSpace: "nowrap", paddingRight: "4px" }}>Date:</td>
+                <td style={{ fontWeight: "500", textAlign: "right", fontSize: isA5 ? "6.5pt" : "9pt" }}>{invoiceDate.toLocaleDateString("en-IN")}</td>
               </tr>
             </tbody>
           </table>
@@ -440,43 +440,43 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           </div>
         )}
 
-        <div style={{ width: isA5 ? "200px" : "280px", flexShrink: 0, padding: isA5 ? "5px 6px" : "8px 10px", background: colors.light, boxSizing: "border-box", overflow: "visible" }}>
-          <table style={{ width: "100%", fontSize: isA5 ? "7.5pt" : "9pt", fontWeight: "500", borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}>
+        <div style={{ width: isA5 ? "200px" : "280px", flexShrink: 0, padding: isA5 ? "4px 5px" : "8px 10px", background: colors.light, boxSizing: "border-box", overflow: "visible" }}>
+          <table style={{ width: "100%", fontSize: isA5 ? "6.5pt" : "9pt", fontWeight: "500", borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}>
             <colgroup>
               <col style={{ width: "45%" }} />
               <col style={{ width: "55%" }} />
             </colgroup>
             <tbody>
               <tr>
-                <td style={{ padding: isA5 ? "2px 2px 2px 0" : "4px 4px 4px 0", whiteSpace: "nowrap" }}>Sub Total:</td>
-                <td style={{ textAlign: "right", padding: isA5 ? "2px 0 2px 2px" : "4px 0 4px 4px" }}>{formatCurrency(subtotal)}</td>
+                <td style={{ padding: isA5 ? "1px 2px 1px 0" : "4px 4px 4px 0", whiteSpace: "nowrap" }}>Sub Total:</td>
+                <td style={{ textAlign: "right", padding: isA5 ? "1px 0 1px 2px" : "4px 0 4px 4px" }}>{formatCurrency(subtotal)}</td>
               </tr>
               {discount > 0 && (
                 <tr>
-                  <td style={{ padding: isA5 ? "2px 2px 2px 0" : "4px 4px 4px 0", whiteSpace: "nowrap" }}>Total Discount:</td>
-                  <td style={{ textAlign: "right", padding: isA5 ? "2px 0 2px 2px" : "4px 0 4px 4px" }}>-{formatCurrency(discount)}</td>
+                  <td style={{ padding: isA5 ? "1px 2px 1px 0" : "4px 4px 4px 0", whiteSpace: "nowrap" }}>Total Discount:</td>
+                  <td style={{ textAlign: "right", padding: isA5 ? "1px 0 1px 2px" : "4px 0 4px 4px" }}>-{formatCurrency(discount)}</td>
                 </tr>
               )}
               <tr>
-                <td style={{ padding: isA5 ? "2px 2px 2px 0" : "4px 4px 4px 0", whiteSpace: "nowrap" }}>Taxable Amt:</td>
-                <td style={{ textAlign: "right", padding: isA5 ? "2px 0 2px 2px" : "4px 0 4px 4px" }}>{formatCurrency(calculatedTaxableAmount)}</td>
+                <td style={{ padding: isA5 ? "1px 2px 1px 0" : "4px 4px 4px 0", whiteSpace: "nowrap" }}>Taxable Amt:</td>
+                <td style={{ textAlign: "right", padding: isA5 ? "1px 0 1px 2px" : "4px 0 4px 4px" }}>{formatCurrency(calculatedTaxableAmount)}</td>
               </tr>
               {cgstAmount > 0 && (
                 <tr>
-                  <td style={{ padding: isA5 ? "2px 2px 2px 0" : "4px 4px 4px 0", whiteSpace: "nowrap" }}>CGST:</td>
-                  <td style={{ textAlign: "right", padding: isA5 ? "2px 0 2px 2px" : "4px 0 4px 4px" }}>{formatCurrency(cgstAmount)}</td>
+                  <td style={{ padding: isA5 ? "1px 2px 1px 0" : "4px 4px 4px 0", whiteSpace: "nowrap" }}>CGST:</td>
+                  <td style={{ textAlign: "right", padding: isA5 ? "1px 0 1px 2px" : "4px 0 4px 4px" }}>{formatCurrency(cgstAmount)}</td>
                 </tr>
               )}
               {sgstAmount > 0 && (
                 <tr>
-                  <td style={{ padding: isA5 ? "2px 2px 2px 0" : "4px 4px 4px 0", whiteSpace: "nowrap" }}>SGST:</td>
-                  <td style={{ textAlign: "right", padding: isA5 ? "2px 0 2px 2px" : "4px 0 4px 4px" }}>{formatCurrency(sgstAmount)}</td>
+                  <td style={{ padding: isA5 ? "1px 2px 1px 0" : "4px 4px 4px 0", whiteSpace: "nowrap" }}>SGST:</td>
+                  <td style={{ textAlign: "right", padding: isA5 ? "1px 0 1px 2px" : "4px 0 4px 4px" }}>{formatCurrency(sgstAmount)}</td>
                 </tr>
               )}
-              <tr style={{ fontSize: isA5 ? "9pt" : "11pt", color: colors.primary }}>
-                <td style={{ paddingTop: isA5 ? "4px" : "6px", borderTop: "1.5px solid #374151", whiteSpace: "nowrap", fontWeight: "600" }}>GRAND TOTAL:</td>
+              <tr style={{ fontSize: isA5 ? "7.5pt" : "11pt", color: colors.primary }}>
+                <td style={{ paddingTop: isA5 ? "3px" : "6px", borderTop: "1.5px solid #374151", whiteSpace: "nowrap", fontWeight: "600" }}>GRAND TOTAL:</td>
                 <td
-                  style={{ paddingTop: isA5 ? "4px" : "6px", borderTop: "1.5px solid #374151", textAlign: "right", fontWeight: "700" }}
+                  style={{ paddingTop: isA5 ? "3px" : "6px", borderTop: "1.5px solid #374151", textAlign: "right", fontWeight: "700" }}
                 >
                   {formatCurrency(grandTotal)}
                 </td>
