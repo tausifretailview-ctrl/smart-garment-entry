@@ -1176,6 +1176,7 @@ export default function BarcodePrinting() {
     a4Cols: 4,
     a4Rows: 12,
     labelConfig: null as any,
+    presets: [] as any[],
   });
   const precisionPrintRef = useRef<HTMLDivElement>(null);
   // Helper function to check if a template is the current default
@@ -1394,6 +1395,7 @@ export default function BarcodePrinting() {
             a4Cols: bbs.precision_a4_cols ?? 4,
             a4Rows: bbs.precision_a4_rows ?? 12,
             labelConfig: bbs.precision_label_config || null,
+            presets: bbs.precision_presets || [],
           });
         }
       } catch (error) {
@@ -4336,6 +4338,7 @@ export default function BarcodePrinting() {
                     labelHeight: vals.labelHeight,
                   }))
                 }
+                presets={precisionSettings.presets}
                 labelConfig={precisionSettings.labelConfig || undefined}
               />
             </DialogContent>
