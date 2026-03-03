@@ -2829,6 +2829,7 @@ Thank you for choosing us!`;
           customerAddress={savedInvoiceData?.customer.address || selectedCustomer?.address || ""}
           customerMobile={savedInvoiceData?.customer.phone || selectedCustomer?.phone || ""}
           customerGSTIN={savedInvoiceData?.customer.gst_number || selectedCustomer?.gst_number || ""}
+          customerTransportDetails={(savedInvoiceData?.customer as any)?.transport_details || (selectedCustomer as any)?.transport_details || ""}
           items={(savedInvoiceData?.filledItems || lineItems.filter(item => item.productId)).map((item: any, index: number) => ({
               sr: index + 1,
               particulars: item.productName,
