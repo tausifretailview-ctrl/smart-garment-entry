@@ -6,7 +6,7 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Minus, Plus, Save, Download } from "lucide-react";
+import { Minus, Plus, Save, Trash2 } from "lucide-react";
 import { PrecisionLabelPreview } from "./PrecisionLabelPreview";
 import { LabelDesignConfig, LabelItem } from "@/types/labelTypes";
 
@@ -19,12 +19,17 @@ export interface CalibrationValues {
 }
 
 export interface CalibrationPreset {
+  id?: string;
   name: string;
   xOffset: number;
   yOffset: number;
   vGap: number;
   width: number;
   height: number;
+  a4Cols?: number;
+  a4Rows?: number;
+  labelConfig?: LabelDesignConfig | null;
+  isDefault?: boolean;
 }
 
 const BUILT_IN_PRESETS: CalibrationPreset[] = [
@@ -122,15 +127,22 @@ interface LabelCalibrationUIProps {
   values: CalibrationValues;
   onChange: (values: CalibrationValues) => void;
   presets?: CalibrationPreset[];
-  onPresetsChange?: (presets: CalibrationPreset[]) => void;
+  onSavePreset?: (preset: CalibrationPreset) => Promise<void> | void;
+  onDeletePreset?: (presetId: string) => Promise<void> | void;
+  onLoadPreset?: (preset: CalibrationPreset) => void;
   labelConfig?: LabelDesignConfig;
   compact?: boolean;
+  /** @deprecated Use onSavePreset/onDeletePreset instead */
+  onPresetsChange?: (presets: CalibrationPreset[]) => void;
 }
 
 export function LabelCalibrationUI({
   values,
   onChange,
   presets = [],
+  onSavePreset,
+  onDeletePreset,
+  onLoadPreset,
   onPresetsChange,
   labelConfig,
   compact = false,
@@ -138,10 +150,10 @@ export function LabelCalibrationUI({
   const [savePresetOpen, setSavePresetOpen] = useState(false);
   const [newPresetName, setNewPresetName] = useState("");
   const [activePresetName, setActivePresetName] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const allPresets = [...BUILT_IN_PRESETS, ...presets];
 
-  // Check if active preset is a user preset (not built-in)
   const isUserPreset = activePresetName ? presets.some((p) => p.name === activePresetName) : false;
 
   const update = (partial: Partial<CalibrationValues>) => {
@@ -159,21 +171,36 @@ export function LabelCalibrationUI({
         labelHeight: preset.height,
       });
       setActivePresetName(name);
+      onLoadPreset?.(preset);
     }
   };
 
-  const updatePreset = () => {
-    if (!activePresetName || !onPresetsChange || !isUserPreset) return;
-    const updated = presets.map((p) =>
-      p.name === activePresetName
-        ? { ...p, xOffset: values.xOffset, yOffset: values.yOffset, vGap: values.vGap, width: values.labelWidth, height: values.labelHeight }
-        : p
-    );
-    onPresetsChange(updated);
+  const updatePreset = async () => {
+    if (!activePresetName || !isUserPreset) return;
+    const existing = presets.find((p) => p.name === activePresetName);
+    if (!existing) return;
+
+    const updatedPreset: CalibrationPreset = {
+      ...existing,
+      xOffset: values.xOffset,
+      yOffset: values.yOffset,
+      vGap: values.vGap,
+      width: values.labelWidth,
+      height: values.labelHeight,
+      labelConfig: labelConfig || null,
+    };
+
+    if (onSavePreset) {
+      setSaving(true);
+      try { await onSavePreset(updatedPreset); } finally { setSaving(false); }
+    } else if (onPresetsChange) {
+      const updated = presets.map((p) => p.name === activePresetName ? updatedPreset : p);
+      onPresetsChange(updated);
+    }
   };
 
-  const savePreset = () => {
-    if (!newPresetName.trim() || !onPresetsChange) return;
+  const savePreset = async () => {
+    if (!newPresetName.trim()) return;
     const newPreset: CalibrationPreset = {
       name: newPresetName.trim(),
       xOffset: values.xOffset,
@@ -181,18 +208,35 @@ export function LabelCalibrationUI({
       vGap: values.vGap,
       width: values.labelWidth,
       height: values.labelHeight,
+      labelConfig: labelConfig || null,
     };
-    // Replace if same name exists
-    const updated = presets.filter((p) => p.name !== newPreset.name);
-    updated.push(newPreset);
-    onPresetsChange(updated);
-    setNewPresetName("");
-    setSavePresetOpen(false);
+
+    if (onSavePreset) {
+      setSaving(true);
+      try {
+        await onSavePreset(newPreset);
+        setNewPresetName("");
+        setSavePresetOpen(false);
+      } finally { setSaving(false); }
+    } else if (onPresetsChange) {
+      const updated = presets.filter((p) => p.name !== newPreset.name);
+      updated.push(newPreset);
+      onPresetsChange(updated);
+      setNewPresetName("");
+      setSavePresetOpen(false);
+    }
   };
 
-  const deletePreset = (name: string) => {
-    if (!onPresetsChange) return;
-    onPresetsChange(presets.filter((p) => p.name !== name));
+  const deletePreset = async (name: string) => {
+    const preset = presets.find((p) => p.name === name);
+    if (!preset) return;
+
+    if (onDeletePreset && preset.id) {
+      await onDeletePreset(preset.id);
+    } else if (onPresetsChange) {
+      onPresetsChange(presets.filter((p) => p.name !== name));
+    }
+    if (activePresetName === name) setActivePresetName(null);
   };
 
   const previewScale = compact ? 2 : 2.5;
@@ -220,14 +264,14 @@ export function LabelCalibrationUI({
           </Select>
         </div>
 
-        {isUserPreset && onPresetsChange && (
-          <Button type="button" variant="outline" size="xs" className="h-8" onClick={updatePreset}>
+        {isUserPreset && (onSavePreset || onPresetsChange) && (
+          <Button type="button" variant="outline" size="xs" className="h-8" onClick={updatePreset} disabled={saving}>
             <Save className="h-3 w-3 mr-1" />
             Update
           </Button>
         )}
 
-        {onPresetsChange && (
+        {(onSavePreset || onPresetsChange) && (
           <Dialog open={savePresetOpen} onOpenChange={setSavePresetOpen}>
             <DialogTrigger asChild>
               <Button type="button" variant="outline" size="xs" className="h-8">
@@ -250,18 +294,19 @@ export function LabelCalibrationUI({
                 />
                 <p className="text-[10px] text-muted-foreground">
                   Saves: {values.labelWidth}×{values.labelHeight}mm, offset ({values.xOffset}, {values.yOffset}), gap {values.vGap}mm
+                  {labelConfig ? " + label design" : ""}
                 </p>
               </div>
               <DialogFooter>
-                <Button type="button" size="xs" onClick={savePreset} disabled={!newPresetName.trim()}>
-                  Save Preset
+                <Button type="button" size="xs" onClick={savePreset} disabled={!newPresetName.trim() || saving}>
+                  {saving ? "Saving..." : "Save Preset"}
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
         )}
 
-        {presets.length > 0 && (
+        {presets.length > 0 && (onDeletePreset || onPresetsChange) && (
           <Select onValueChange={deletePreset}>
             <SelectTrigger className="h-8 text-xs w-auto min-w-[100px]">
               <SelectValue placeholder="Delete..." />
@@ -295,7 +340,7 @@ export function LabelCalibrationUI({
           </div>
         </div>
 
-        {/* Live Preview - uses px conversion for accurate mm representation */}
+        {/* Live Preview */}
         {!compact && (
           <div className="space-y-2">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">

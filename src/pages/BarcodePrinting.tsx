@@ -1176,8 +1176,8 @@ export default function BarcodePrinting() {
     a4Cols: 4,
     a4Rows: 12,
     labelConfig: null as any,
-    presets: [] as any[],
   });
+  const [dbPresets, setDbPresets] = useState<import("@/components/precision-barcode/LabelCalibrationUI").CalibrationPreset[]>([]);
   const precisionPrintRef = useRef<HTMLDivElement>(null);
   // Helper function to check if a template is the current default
   const getDefaultTemplateName = (): string | null => {
@@ -1395,7 +1395,6 @@ export default function BarcodePrinting() {
             a4Cols: bbs.precision_a4_cols ?? 4,
             a4Rows: bbs.precision_a4_rows ?? 12,
             labelConfig: bbs.precision_label_config || null,
-            presets: bbs.precision_presets || [],
           });
         }
       } catch (error) {
@@ -1403,7 +1402,36 @@ export default function BarcodePrinting() {
       }
     };
 
+    const fetchDbPresets = async () => {
+      if (!currentOrganization?.id) return;
+      try {
+        const { data } = await supabase
+          .from("printer_presets")
+          .select("*")
+          .eq("organization_id", currentOrganization.id)
+          .order("name");
+        if (data) {
+          setDbPresets(data.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            xOffset: Number(p.x_offset),
+            yOffset: Number(p.y_offset),
+            vGap: Number(p.v_gap),
+            width: Number(p.label_width),
+            height: Number(p.label_height),
+            a4Cols: p.a4_cols,
+            a4Rows: p.a4_rows,
+            labelConfig: p.label_config,
+            isDefault: p.is_default,
+          })));
+        }
+      } catch (error) {
+        console.error("Failed to fetch printer presets:", error);
+      }
+    };
+
     fetchBusinessName();
+    fetchDbPresets();
   }, [currentOrganization?.id]);
 
   // Recalculate purchase codes when alphabet changes (handles timing issues)
@@ -4338,7 +4366,55 @@ export default function BarcodePrinting() {
                     labelHeight: vals.labelHeight,
                   }))
                 }
-                presets={precisionSettings.presets}
+                presets={dbPresets}
+                onSavePreset={async (preset) => {
+                  if (!currentOrganization?.id) return;
+                  const { error } = await supabase
+                    .from("printer_presets")
+                    .upsert({
+                      id: preset.id || undefined,
+                      organization_id: currentOrganization.id,
+                      name: preset.name,
+                      label_width: preset.width,
+                      label_height: preset.height,
+                      x_offset: preset.xOffset,
+                      y_offset: preset.yOffset,
+                      v_gap: preset.vGap,
+                      a4_cols: preset.a4Cols ?? precisionSettings.a4Cols,
+                      a4_rows: preset.a4Rows ?? precisionSettings.a4Rows,
+                      label_config: preset.labelConfig as any,
+                    }, { onConflict: "organization_id,name" });
+                  if (error) { toast.error("Failed to save preset"); return; }
+                  toast.success(`Preset "${preset.name}" saved`);
+                  // Refresh presets
+                  const { data } = await supabase
+                    .from("printer_presets")
+                    .select("*")
+                    .eq("organization_id", currentOrganization.id)
+                    .order("name");
+                  if (data) {
+                    setDbPresets(data.map((p: any) => ({
+                      id: p.id, name: p.name,
+                      xOffset: Number(p.x_offset), yOffset: Number(p.y_offset),
+                      vGap: Number(p.v_gap), width: Number(p.label_width), height: Number(p.label_height),
+                      a4Cols: p.a4_cols, a4Rows: p.a4_rows,
+                      labelConfig: p.label_config, isDefault: p.is_default,
+                    })));
+                  }
+                }}
+                onDeletePreset={async (presetId) => {
+                  const { error } = await supabase.from("printer_presets").delete().eq("id", presetId);
+                  if (error) { toast.error("Failed to delete preset"); return; }
+                  toast.success("Preset deleted");
+                  setDbPresets((prev) => prev.filter((p) => p.id !== presetId));
+                }}
+                onLoadPreset={(preset) => {
+                  if (preset.labelConfig) {
+                    setPrecisionSettings((prev) => ({ ...prev, labelConfig: preset.labelConfig }));
+                  }
+                  if (preset.a4Cols) setPrecisionSettings((prev) => ({ ...prev, a4Cols: preset.a4Cols! }));
+                  if (preset.a4Rows) setPrecisionSettings((prev) => ({ ...prev, a4Rows: preset.a4Rows! }));
+                }}
                 labelConfig={precisionSettings.labelConfig || undefined}
               />
             </DialogContent>

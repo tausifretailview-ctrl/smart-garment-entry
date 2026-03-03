@@ -356,11 +356,35 @@ export default function Settings() {
     gstin: '24AABCS1234D1ZP'
   };
 
+  const [settingsDbPresets, setSettingsDbPresets] = useState<import("@/components/precision-barcode/LabelCalibrationUI").CalibrationPreset[]>([]);
+
+  const fetchDbPresets = async () => {
+    if (!currentOrganization?.id) return;
+    try {
+      const { data } = await supabase
+        .from("printer_presets")
+        .select("*")
+        .eq("organization_id", currentOrganization.id)
+        .order("name");
+      if (data) {
+        setSettingsDbPresets(data.map((p: any) => ({
+          id: p.id, name: p.name,
+          xOffset: Number(p.x_offset), yOffset: Number(p.y_offset),
+          vGap: Number(p.v_gap), width: Number(p.label_width), height: Number(p.label_height),
+          a4Cols: p.a4_cols, a4Rows: p.a4_rows,
+          labelConfig: p.label_config, isDefault: p.is_default,
+        })));
+      }
+    } catch (error) {
+      console.error("Failed to fetch printer presets:", error);
+    }
+  };
 
   useEffect(() => {
     if (currentOrganization?.id) {
       fetchSettings();
       fetchSizeGroups();
+      fetchDbPresets();
     }
   }, [currentOrganization?.id]);
 
@@ -3640,16 +3664,45 @@ export default function Settings() {
                               },
                             })
                           }
-                          presets={(settings.bill_barcode_settings as any)?.precision_presets || []}
-                          onPresetsChange={(presets) =>
-                            setSettings({
-                              ...settings,
-                              bill_barcode_settings: {
-                                ...settings.bill_barcode_settings,
-                                precision_presets: presets,
-                              } as any,
-                            })
-                          }
+                          presets={settingsDbPresets}
+                          onSavePreset={async (preset) => {
+                            if (!currentOrganization?.id) return;
+                            const { error } = await supabase
+                              .from("printer_presets")
+                              .upsert({
+                                id: preset.id || undefined,
+                                organization_id: currentOrganization.id,
+                                name: preset.name,
+                                label_width: preset.width,
+                                label_height: preset.height,
+                                x_offset: preset.xOffset,
+                                y_offset: preset.yOffset,
+                                v_gap: preset.vGap,
+                                a4_cols: preset.a4Cols ?? (settings.bill_barcode_settings as any)?.precision_a4_cols ?? 4,
+                                a4_rows: preset.a4Rows ?? (settings.bill_barcode_settings as any)?.precision_a4_rows ?? 12,
+                                label_config: preset.labelConfig as any,
+                              }, { onConflict: "organization_id,name" });
+                            if (error) { toast({ title: "Error", description: "Failed to save preset", variant: "destructive" }); return; }
+                            toast({ title: "Preset saved", description: `"${preset.name}" saved successfully` });
+                            fetchDbPresets();
+                          }}
+                          onDeletePreset={async (presetId) => {
+                            const { error } = await supabase.from("printer_presets").delete().eq("id", presetId);
+                            if (error) { toast({ title: "Error", description: "Failed to delete preset", variant: "destructive" }); return; }
+                            toast({ title: "Preset deleted" });
+                            setSettingsDbPresets((prev) => prev.filter((p) => p.id !== presetId));
+                          }}
+                          onLoadPreset={(preset) => {
+                            if (preset.labelConfig) {
+                              setSettings({
+                                ...settings,
+                                bill_barcode_settings: {
+                                  ...settings.bill_barcode_settings,
+                                  precision_label_config: preset.labelConfig,
+                                },
+                              });
+                            }
+                          }}
                           labelConfig={settings.bill_barcode_settings?.precision_label_config || undefined}
                         />
 
