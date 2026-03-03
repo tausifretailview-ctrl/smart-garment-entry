@@ -181,12 +181,12 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
             <h3 className="text-sm font-semibold mb-2 text-muted-foreground">Fee Head Breakdown</h3>
             <div className="border rounded-md overflow-hidden">
               <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Fee Head</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-right">Paid</TableHead>
-                    <TableHead className="text-right">Balance</TableHead>
+                <TableHeader className="bg-background">
+                  <TableRow className="border-b-2 border-border">
+                    <TableHead className="text-foreground font-bold">Fee Head</TableHead>
+                    <TableHead className="text-right text-foreground font-bold">Total</TableHead>
+                    <TableHead className="text-right text-foreground font-bold">Paid</TableHead>
+                    <TableHead className="text-right text-foreground font-bold">Balance</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -220,14 +220,14 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
             </div>
           ) : feePayments && feePayments.length > 0 ? (
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Receipt #</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Fee Head</TableHead>
-                  <TableHead>Method</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
+              <TableHeader className="bg-background">
+                <TableRow className="border-b-2 border-border">
+                  <TableHead className="text-foreground font-bold">Receipt #</TableHead>
+                  <TableHead className="text-foreground font-bold">Date</TableHead>
+                  <TableHead className="text-foreground font-bold">Fee Head</TableHead>
+                  <TableHead className="text-foreground font-bold">Method</TableHead>
+                  <TableHead className="text-right text-foreground font-bold">Amount</TableHead>
+                  <TableHead className="text-center text-foreground font-bold">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
