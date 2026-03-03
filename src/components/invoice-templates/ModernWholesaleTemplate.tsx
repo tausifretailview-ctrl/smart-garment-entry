@@ -328,10 +328,10 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
     <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
       <thead>
         <tr>
-          <th style={{ ...headerCellStyle, width: isA5 ? "18px" : "22px" }}>SR</th>
+          <th style={{ ...headerCellStyle, width: isA5 ? "16px" : "22px" }}>SR</th>
           <th style={{ ...headerCellStyle, width: isA5 ? "80px" : "100px" }}>PARTICULARS</th>
-          <th style={{ ...headerCellStyle, width: isA5 ? "35px" : "45px" }}>HSN</th>
-          <th style={{ ...headerCellStyle, width: isA5 ? "75px" : "100px" }}>SIZE / QTY</th>
+          <th style={{ ...headerCellStyle, width: isA5 ? "30px" : "45px" }}>HSN</th>
+          <th style={{ ...headerCellStyle }}>SIZE / QTY</th>
           <th style={{ ...headerCellStyle, width: isA5 ? "26px" : "32px" }}>QTY</th>
           <th style={{ ...headerCellStyle, width: isA5 ? "38px" : "45px" }}>MRP</th>
           <th style={{ ...headerCellStyle, width: isA5 ? "38px" : "45px" }}>RATE</th>
@@ -503,7 +503,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           </p>
         </div>
         <div style={{ textAlign: "center", width: isA5 ? "150px" : "200px" }}>
-          <div style={{ fontSize: isA5 ? "6.5pt" : "8pt", marginBottom: isA5 ? "15px" : "30px" }}>
+          <div style={{ fontSize: isA5 ? "6.5pt" : "8pt", marginBottom: isA5 ? "20px" : "30px" }}>
             For <strong>{businessName}</strong>
           </div>
           <div style={{ borderTop: "1px solid #000", fontSize: isA5 ? "6.5pt" : "8pt" }}>Authorised Signatory</div>
@@ -538,9 +538,9 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         className="invoice-page"
         style={{
           width: format === 'a4' ? "210mm" : format === 'a5-horizontal' ? "210mm" : "148mm",
-          minHeight: format === 'a4' ? "297mm" : format === 'a5-horizontal' ? "148mm" : "210mm",
+          minHeight: format === 'a4' ? "297mm" : format === 'a5-horizontal' ? "148mm" : "auto",
           margin: "0 auto",
-          padding: "5mm",
+          padding: format === 'a5-vertical' ? "10mm" : "5mm",
           fontFamily: font,
           backgroundColor: "#fff",
           boxSizing: "border-box",
@@ -551,7 +551,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         {/* Main Border Wrapper */}
         <div style={{ 
           border: "1.5px solid #374151", 
-          minHeight: format === 'a4' ? "calc(297mm - 10mm)" : format === 'a5-horizontal' ? "calc(148mm - 10mm)" : "calc(210mm - 10mm)",
+          minHeight: format === 'a4' ? "calc(297mm - 10mm)" : format === 'a5-horizontal' ? "calc(148mm - 10mm)" : "calc(210mm - 20mm)",
           boxSizing: "border-box",
           display: "flex",
           flexDirection: "column",
@@ -575,7 +575,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       <style>
         {`
           @media print {
-            @page { size: ${format === 'a5-vertical' ? 'A5 portrait' : format === 'a5-horizontal' ? 'A5 landscape' : 'A4'}; margin: 5mm; }
+            @page { size: ${format === 'a5-vertical' ? '148mm 210mm' : format === 'a5-horizontal' ? 'A5 landscape' : 'A4'}; margin: ${format === 'a5-vertical' ? '0' : '5mm'}; }
             body { margin: 0; padding: 0; }
             .invoice-page { 
               box-shadow: none !important; 
