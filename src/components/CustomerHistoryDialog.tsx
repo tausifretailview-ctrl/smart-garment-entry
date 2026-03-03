@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, IndianRupee, ShoppingCart, CreditCard, RotateCcw, FileText, Receipt, ChevronDown, ChevronRight, History, Eye, X } from "lucide-react";
+import { Loader2, IndianRupee, ShoppingCart, CreditCard, RotateCcw, FileText, Receipt, ChevronDown, ChevronRight, History, Eye, X, Wallet, Scale } from "lucide-react";
 import { format } from "date-fns";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerAdvanceBalance } from "@/hooks/useCustomerAdvances";
@@ -379,6 +379,40 @@ export function CustomerHistoryDialog({
     enabled: open && !!organizationId && !!customerId,
   });
 
+  // Fetch customer advances
+  const { data: customerAdvances, isLoading: advancesLoading } = useQuery({
+    queryKey: ['customer-advances-history', customerId, organizationId],
+    queryFn: async () => {
+      if (!customerId || !organizationId) return [];
+      const { data, error } = await supabase
+        .from('customer_advances')
+        .select('*')
+        .eq('customer_id', customerId)
+        .eq('organization_id', organizationId)
+        .order('advance_date', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open && !!customerId && !!organizationId,
+  });
+
+  // Fetch balance adjustments
+  const { data: balanceAdjustments, isLoading: adjustmentsLoading } = useQuery({
+    queryKey: ['customer-adjustments-history', customerId, organizationId],
+    queryFn: async () => {
+      if (!customerId || !organizationId) return [];
+      const { data, error } = await supabase
+        .from('customer_balance_adjustments')
+        .select('*')
+        .eq('customer_id', customerId)
+        .eq('organization_id', organizationId)
+        .order('adjustment_date', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open && !!customerId && !!organizationId,
+  });
+
   const refunds = salesHistory?.filter(s => (s.refund_amount || 0) > 0) || [];
   const isLoading = balanceLoading || salesLoading;
 
@@ -525,7 +559,7 @@ export function CustomerHistoryDialog({
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 overflow-hidden flex flex-col">
             <div className="overflow-x-auto -mx-1 px-1">
-              <TabsList className="inline-flex w-auto min-w-full sm:grid sm:grid-cols-6 sm:w-full">
+              <TabsList className="inline-flex w-auto min-w-full sm:grid sm:grid-cols-8 sm:w-full">
                 <TabsTrigger value="sales" className="gap-1 text-xs whitespace-nowrap">
                   <Receipt className="h-3 w-3 hidden sm:block" />
                   Sales ({salesHistory?.length || 0})
@@ -549,6 +583,14 @@ export function CustomerHistoryDialog({
                 <TabsTrigger value="refunds" className="gap-1 text-xs whitespace-nowrap">
                   <CreditCard className="h-3 w-3 hidden sm:block" />
                   Refunds ({refunds.length})
+                </TabsTrigger>
+                <TabsTrigger value="advances" className="gap-1 text-xs whitespace-nowrap">
+                  <Wallet className="h-3 w-3 hidden sm:block" />
+                  Advances ({customerAdvances?.length || 0})
+                </TabsTrigger>
+                <TabsTrigger value="adjustments" className="gap-1 text-xs whitespace-nowrap">
+                  <Scale className="h-3 w-3 hidden sm:block" />
+                  Adj ({balanceAdjustments?.length || 0})
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -829,6 +871,96 @@ export function CustomerHistoryDialog({
                   </Table>
                 ) : (
                   <p className="text-center text-muted-foreground py-8">No refunds found</p>
+                )}
+              </TabsContent>
+
+              {/* Advances Tab */}
+              <TabsContent value="advances" className="mt-0">
+                {advancesLoading ? (
+                  <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+                ) : customerAdvances && customerAdvances.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Advance #</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead className="text-right">Used</TableHead>
+                        <TableHead className="text-right">Unused</TableHead>
+                        <TableHead>Method</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {customerAdvances.map((adv) => {
+                        const unused = Math.max(0, (adv.amount || 0) - (adv.used_amount || 0));
+                        return (
+                          <TableRow key={adv.id}>
+                            <TableCell className="font-medium">{adv.advance_number}</TableCell>
+                            <TableCell>{format(new Date(adv.advance_date), 'dd/MM/yyyy')}</TableCell>
+                            <TableCell className="text-right font-semibold tabular-nums">₹{adv.amount.toFixed(2)}</TableCell>
+                            <TableCell className="text-right tabular-nums">₹{adv.used_amount.toFixed(2)}</TableCell>
+                            <TableCell className={`text-right font-semibold tabular-nums ${unused > 0 ? 'text-green-600' : 'text-muted-foreground'}`}>
+                              ₹{unused.toFixed(2)}
+                            </TableCell>
+                            <TableCell className="capitalize">{adv.payment_method || '-'}</TableCell>
+                            <TableCell>
+                              <Badge variant={
+                                adv.status === 'active' ? 'success' :
+                                adv.status === 'partially_used' ? 'warning' : 'secondary'
+                              }>
+                                {adv.status?.replace('_', ' ')}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-center text-muted-foreground py-8">No advances found</p>
+                )}
+              </TabsContent>
+
+              {/* Balance Adjustments Tab */}
+              <TabsContent value="adjustments" className="mt-0">
+                {adjustmentsLoading ? (
+                  <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+                ) : balanceAdjustments && balanceAdjustments.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Reason</TableHead>
+                        <TableHead className="text-right">Prev O/S</TableHead>
+                        <TableHead className="text-right">New O/S</TableHead>
+                        <TableHead className="text-right">O/S Diff</TableHead>
+                        <TableHead className="text-right">Prev Adv</TableHead>
+                        <TableHead className="text-right">New Adv</TableHead>
+                        <TableHead className="text-right">Adv Diff</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {balanceAdjustments.map((adj) => (
+                        <TableRow key={adj.id}>
+                          <TableCell>{format(new Date(adj.adjustment_date), 'dd/MM/yyyy')}</TableCell>
+                          <TableCell className="font-medium max-w-[200px] truncate" title={adj.reason}>{adj.reason}</TableCell>
+                          <TableCell className="text-right tabular-nums">₹{adj.previous_outstanding.toFixed(2)}</TableCell>
+                          <TableCell className="text-right tabular-nums">₹{adj.new_outstanding.toFixed(2)}</TableCell>
+                          <TableCell className={`text-right font-semibold tabular-nums ${adj.outstanding_difference > 0 ? 'text-red-600' : adj.outstanding_difference < 0 ? 'text-green-600' : ''}`}>
+                            {adj.outstanding_difference > 0 ? '+' : ''}₹{adj.outstanding_difference.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">₹{adj.previous_advance.toFixed(2)}</TableCell>
+                          <TableCell className="text-right tabular-nums">₹{adj.new_advance.toFixed(2)}</TableCell>
+                          <TableCell className={`text-right font-semibold tabular-nums ${adj.advance_difference > 0 ? 'text-green-600' : adj.advance_difference < 0 ? 'text-red-600' : ''}`}>
+                            {adj.advance_difference > 0 ? '+' : ''}₹{adj.advance_difference.toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-center text-muted-foreground py-8">No balance adjustments found</p>
                 )}
               </TabsContent>
             </ScrollArea>
