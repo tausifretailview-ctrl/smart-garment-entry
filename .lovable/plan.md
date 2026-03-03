@@ -1,67 +1,53 @@
 
 
-# Precision Pro: Database-Backed Printer Presets
+# Add "Print Test Label" Calibration Feature
 
 ## Overview
-Move calibration presets from the `bill_barcode_settings` JSON blob to a dedicated `printer_presets` table. This gives each organization persistent, shareable presets that survive across sessions and devices.
+Add a dedicated "Print Test Label" button next to the existing print/calibrate buttons that prints a special alignment crosshair label (no product data) and auto-saves the calibration to the database.
 
-## What Changes
+## Changes
 
-### 1. New Database Table: `printer_presets`
-Create a dedicated table to store calibration presets per organization:
+### 1. New Component: `TestLabelPrint`
+**File**: `src/components/precision-barcode/TestLabelPrint.tsx`
 
-```text
-printer_presets
-  id              uuid (PK, default gen_random_uuid())
-  organization_id uuid (FK -> organizations, NOT NULL)
-  name            text NOT NULL
-  label_width     numeric NOT NULL (default 50)
-  label_height    numeric NOT NULL (default 25)
-  x_offset        numeric NOT NULL (default 0)
-  y_offset        numeric NOT NULL (default 0)
-  v_gap           numeric NOT NULL (default 2)
-  a4_cols         integer (default 4)
-  a4_rows         integer (default 12)
-  label_config    jsonb (stores the full field design: positions, fonts, visibility)
-  is_default      boolean (default false)
-  created_at      timestamptz (default now())
-  updated_at      timestamptz (default now())
-  UNIQUE(organization_id, name)
-```
+A print-only component that renders an alignment crosshair label:
+- Red vertical line at horizontal center
+- Red horizontal line at vertical center
+- Black "L" bracket at the (0,0) top-left corner
+- "CENTER" text at the intersection point
+- Label dimensions shown in small text at the bottom
+- Uses `PrecisionPrintCSS` for clean print output (no browser headers)
 
-RLS policies: authenticated users can SELECT/INSERT/UPDATE/DELETE rows matching their organization.
+### 2. Update `BarcodePrinting.tsx` -- Add Test Print Button and Logic
 
-### 2. Barcode Printing Page Updates
-- Fetch presets from `printer_presets` table instead of `bill_barcode_settings.precision_presets`
-- Add a **"Save Current Preset"** button that upserts to the database (name + all calibration values + label design config)
-- When a preset is loaded, apply its `label_config` (field positions/fonts) alongside calibration values
-- "Delete Preset" removes from the database
+**Location**: Next to the existing "Print" and "Calibrate" buttons (around line 4330)
 
-### 3. Settings Page Updates
-- Update the `LabelCalibrationUI` integration in Settings to also read/write presets from `printer_presets` table
-- Keep the label designer's Save button writing to `bill_barcode_settings` for the active working config, but presets go to the new table
+- Add a `testPrintRef` for the hidden test label print area
+- Add a `handleTestPrint` function that:
+  1. Auto-saves the current calibration (width, height, X/Y offsets) to the `printer_presets` table as an "Auto-Calibration" preset (upsert)
+  2. Shows a toast confirming the save
+  3. Triggers `window.print()` with the test label
+- Render the `TestLabelPrint` component in a hidden div (same pattern as existing precision print area)
+- Button appears only when Precision Pro mode is enabled (same condition as the Calibrate button)
 
-### 4. LabelCalibrationUI Component Updates
-- Update preset loading to include `label_config` (field design) alongside calibration offsets
-- The "Save Preset" action now includes the current label design config in the saved preset
-- "Load Preset" restores both calibration values AND label design config
-- Update preset also saves the full config
+### 3. Update `LabelCalibrationUI.tsx` -- Add Help Tooltip
 
-### 5. Print Output (no changes needed)
-The existing print system already produces clean output -- `PrecisionPrintCSS` hides everything except `.precision-print-area`, sets `@page { margin: 0 }`, and the document title is cleared to suppress browser headers. No changes required here.
+Add a help tooltip next to the "Offsets & Gap" heading with calibration instructions:
+> "Instructions: Print the Test Label. If the red crosshair is not centered on your sticker, use the X and Y offsets to nudge the print. Positive X moves right, positive Y moves down. 1mm = 1 unit."
 
-## Files to Create
-None (component already exists)
+Uses the existing Tooltip component from the UI library.
 
-## Database Migration
-1. Create `printer_presets` table with RLS policies
+## Technical Details
 
-## Files to Modify
-1. **`src/components/precision-barcode/LabelCalibrationUI.tsx`** -- Update preset types to include `label_config`, change save/load/update/delete to call parent handlers that talk to DB
-2. **`src/pages/BarcodePrinting.tsx`** -- Fetch presets from `printer_presets` table, wire save/delete handlers, apply loaded preset's `label_config`
-3. **`src/pages/Settings.tsx`** -- Same DB integration for presets in the Settings calibration UI
+- The test label renders using pure CSS absolute positioning in `mm` units, matching the existing Precision Pro approach
+- Auto-save uses the same `supabase.from("printer_presets").upsert()` pattern already in the calibration dialog
+- The preset is named based on the dimensions (e.g., "Auto-Cal 50x25mm") so repeated test prints update the same row
+- Print isolation: the test label area uses the same `precision-print-area` class and `PrecisionPrintCSS` component for clean output
 
-## Technical Notes
-- Presets include the full `LabelDesignConfig` so loading a preset restores the exact label layout
-- The `is_default` flag allows one preset per org to be auto-loaded on page open
-- Existing JSON-based presets will be migrated: on first load, if `precision_presets` exist in `bill_barcode_settings` but no rows in `printer_presets`, they get inserted automatically
+## Files
+| Action | File |
+|--------|------|
+| Create | `src/components/precision-barcode/TestLabelPrint.tsx` |
+| Modify | `src/pages/BarcodePrinting.tsx` |
+| Modify | `src/components/precision-barcode/LabelCalibrationUI.tsx` |
+
