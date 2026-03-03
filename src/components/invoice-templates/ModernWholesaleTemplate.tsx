@@ -305,11 +305,11 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <tbody>
               <tr>
                 <td>Inv No:</td>
-                <td style={{ fontWeight: "700" }}>{invoiceNumber}</td>
+                <td style={{ fontWeight: "500" }}>{invoiceNumber}</td>
               </tr>
               <tr>
                 <td>Date:</td>
-                <td style={{ fontWeight: "700" }}>{invoiceDate.toLocaleDateString("en-IN")}</td>
+                <td style={{ fontWeight: "500" }}>{invoiceDate.toLocaleDateString("en-IN")}</td>
               </tr>
             </tbody>
           </table>
