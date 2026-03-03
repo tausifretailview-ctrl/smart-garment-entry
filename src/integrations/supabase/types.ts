@@ -1105,6 +1105,7 @@ export type Database = {
           points_balance: number | null
           points_redeemed: number | null
           total_points_earned: number | null
+          transport_details: string | null
           updated_at: string | null
         }
         Insert: {
@@ -1123,6 +1124,7 @@ export type Database = {
           points_balance?: number | null
           points_redeemed?: number | null
           total_points_earned?: number | null
+          transport_details?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -1141,6 +1143,7 @@ export type Database = {
           points_balance?: number | null
           points_redeemed?: number | null
           total_points_earned?: number | null
+          transport_details?: string | null
           updated_at?: string | null
         }
         Relationships: [
