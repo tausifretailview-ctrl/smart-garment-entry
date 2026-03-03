@@ -44,6 +44,7 @@ interface InvoiceWrapperProps {
   customerAddress?: string;
   customerMobile?: string;
   customerGSTIN?: string;
+  customerTransportDetails?: string;
   
   // Items
   items: InvoiceItem[];
@@ -258,6 +259,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       customerAddress: props.customerAddress,
       customerMobile: props.customerMobile,
       customerGSTIN: props.customerGSTIN,
+      customerTransportDetails: props.customerTransportDetails,
       
       items: props.items,
       
