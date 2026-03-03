@@ -43,6 +43,8 @@ import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey
 import { PrecisionThermalPrint } from "@/components/precision-barcode/PrecisionThermalPrint";
 import { PrecisionA4SheetPrint } from "@/components/precision-barcode/PrecisionA4SheetPrint";
 import { LabelCalibrationUI } from "@/components/precision-barcode/LabelCalibrationUI";
+import { TestLabelPrint } from "@/components/precision-barcode/TestLabelPrint";
+import { PrecisionPrintCSS } from "@/components/precision-barcode/PrecisionPrintCSS";
 
 // Utility function to sort items by size, barcode, or keep original order (Sr No)
 const sortItemsBySize = (items: LabelItem[], order: SizeSortOrder): LabelItem[] => {
@@ -1179,6 +1181,8 @@ export default function BarcodePrinting() {
   });
   const [dbPresets, setDbPresets] = useState<import("@/components/precision-barcode/LabelCalibrationUI").CalibrationPreset[]>([]);
   const precisionPrintRef = useRef<HTMLDivElement>(null);
+  const testPrintRef = useRef<HTMLDivElement>(null);
+  const [testPrintActive, setTestPrintActive] = useState(false);
   // Helper function to check if a template is the current default
   const getDefaultTemplateName = (): string | null => {
     try {
@@ -3037,6 +3041,56 @@ export default function BarcodePrinting() {
     }, 200);
   };
 
+  const handleTestPrint = async () => {
+    // Auto-save calibration to printer_presets
+    if (currentOrganization?.id) {
+      const presetName = `Auto-Cal ${precisionSettings.labelWidth}x${precisionSettings.labelHeight}mm`;
+      const { error } = await supabase
+        .from("printer_presets")
+        .upsert({
+          organization_id: currentOrganization.id,
+          name: presetName,
+          label_width: precisionSettings.labelWidth,
+          label_height: precisionSettings.labelHeight,
+          x_offset: precisionSettings.xOffset,
+          y_offset: precisionSettings.yOffset,
+          v_gap: precisionSettings.vGap,
+          a4_cols: precisionSettings.a4Cols,
+          a4_rows: precisionSettings.a4Rows,
+        }, { onConflict: "organization_id,name" });
+      if (error) {
+        toast.error("Failed to save calibration");
+      } else {
+        toast.success(`Calibration saved as "${presetName}"`);
+        // Refresh presets
+        const { data } = await supabase
+          .from("printer_presets")
+          .select("*")
+          .eq("organization_id", currentOrganization.id)
+          .order("name");
+        if (data) {
+          setDbPresets(data.map((p: any) => ({
+            id: p.id, name: p.name,
+            xOffset: Number(p.x_offset), yOffset: Number(p.y_offset),
+            vGap: Number(p.v_gap), width: Number(p.label_width), height: Number(p.label_height),
+            a4Cols: p.a4_cols, a4Rows: p.a4_rows,
+            labelConfig: p.label_config, isDefault: p.is_default,
+          })));
+        }
+      }
+    }
+
+    // Activate test print area and trigger print
+    setTestPrintActive(true);
+    const originalTitle = document.title;
+    document.title = ' ';
+    setTimeout(() => {
+      window.print();
+      document.title = originalTitle;
+      setTestPrintActive(false);
+    }, 300);
+  };
+
   const handleExportPDF = async () => {
     const hasLabels = labelItems.some((item) => item.qty > 0);
     if (!hasLabels) {
@@ -4420,6 +4474,11 @@ export default function BarcodePrinting() {
             </DialogContent>
           </Dialog>
         )}
+        {precisionSettings.enabled && (
+          <Button variant="outline" onClick={handleTestPrint}>
+            🖨️ Print Test Label
+          </Button>
+        )}
         {(sheetType.startsWith('thermal') || sheetType === 'custom') && (
           <Button 
             onClick={() => setIsDirectPrintDialogOpen(true)} 
@@ -4515,8 +4574,26 @@ export default function BarcodePrinting() {
         onDeletePRNTemplate={deletePRNTemplate}
       />
 
+      {/* Test Label Print Area (hidden, shown only during test print) */}
+      {testPrintActive && (
+        <div className="hidden print:block">
+          <PrecisionPrintCSS
+            labelWidth={precisionSettings.labelWidth}
+            labelHeight={precisionSettings.labelHeight}
+            mode="thermal"
+          />
+          <TestLabelPrint
+            ref={testPrintRef}
+            width={precisionSettings.labelWidth}
+            height={precisionSettings.labelHeight}
+            xOffset={precisionSettings.xOffset}
+            yOffset={precisionSettings.yOffset}
+          />
+        </div>
+      )}
+
       {/* Print Area (hidden, used for printing) */}
-      {precisionSettings.enabled ? (
+      {!testPrintActive && precisionSettings.enabled ? (
         <div className="hidden print:block">
           {isThermal1Up() ? (
             <PrecisionThermalPrint

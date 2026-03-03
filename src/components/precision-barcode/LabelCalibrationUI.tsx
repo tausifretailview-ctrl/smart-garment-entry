@@ -6,7 +6,8 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Minus, Plus, Save, Trash2 } from "lucide-react";
+import { HelpCircle, Minus, Plus, Save, Trash2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PrecisionLabelPreview } from "./PrecisionLabelPreview";
 import { LabelDesignConfig, LabelItem } from "@/types/labelTypes";
 
@@ -326,7 +327,19 @@ export function LabelCalibrationUI({
       <div className={compact ? "space-y-3" : "grid grid-cols-1 md:grid-cols-2 gap-4"}>
         {/* Controls */}
         <div className="space-y-3">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Offsets & Gap</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Offsets & Gap</p>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-[260px] text-xs">
+                  Print the Test Label. If the red crosshair is not centered on your sticker, use X and Y offsets to nudge the print. Positive X moves right, positive Y moves down. 1mm = 1 unit.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
           <div className="grid grid-cols-3 gap-2">
             <NudgeField label="X-Offset" value={values.xOffset} onChange={(v) => update({ xOffset: v })} min={-15} max={15} />
             <NudgeField label="Y-Offset" value={values.yOffset} onChange={(v) => update({ yOffset: v })} min={-15} max={15} />
