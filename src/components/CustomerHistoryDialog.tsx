@@ -602,16 +602,16 @@ export function CustomerHistoryDialog({
                   <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
                 ) : salesHistory && salesHistory.length > 0 ? (
                   <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-8"></TableHead>
-                        <TableHead>Invoice #</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Paid</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="w-10"></TableHead>
+                    <TableHeader className="bg-background">
+                      <TableRow className="border-b-2 border-border">
+                        <TableHead className="w-8 text-foreground font-bold"></TableHead>
+                        <TableHead className="text-foreground font-bold">Invoice #</TableHead>
+                        <TableHead className="text-foreground font-bold">Date</TableHead>
+                        <TableHead className="text-foreground font-bold">Type</TableHead>
+                        <TableHead className="text-foreground font-bold">Amount</TableHead>
+                        <TableHead className="text-foreground font-bold">Paid</TableHead>
+                        <TableHead className="text-foreground font-bold">Status</TableHead>
+                        <TableHead className="w-10 text-foreground font-bold"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -694,14 +694,14 @@ export function CustomerHistoryDialog({
                       </p>
                     </div>
                     <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Invoice #</TableHead>
-                          <TableHead>Date</TableHead>
-                          <TableHead className="text-right">Amount</TableHead>
-                          <TableHead>Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
+                    <TableHeader className="bg-background">
+                      <TableRow className="border-b-2 border-border">
+                        <TableHead className="text-foreground font-bold">Invoice #</TableHead>
+                        <TableHead className="text-foreground font-bold">Date</TableHead>
+                        <TableHead className="text-right text-foreground font-bold">Amount</TableHead>
+                        <TableHead className="text-foreground font-bold">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
                       <TableBody>
                         {legacyInvoices.map((inv, index) => (
                           <TableRow
@@ -732,13 +732,13 @@ export function CustomerHistoryDialog({
                   <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
                 ) : paymentHistory && paymentHistory.length > 0 ? (
                   <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Voucher #</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Description</TableHead>
-                        <TableHead className="w-10"></TableHead>
+                    <TableHeader className="bg-background">
+                      <TableRow className="border-b-2 border-border">
+                        <TableHead className="text-foreground font-bold">Voucher #</TableHead>
+                        <TableHead className="text-foreground font-bold">Date</TableHead>
+                        <TableHead className="text-foreground font-bold">Amount</TableHead>
+                        <TableHead className="text-foreground font-bold">Description</TableHead>
+                        <TableHead className="w-10 text-foreground font-bold"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -768,13 +768,13 @@ export function CustomerHistoryDialog({
                   <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
                 ) : saleReturns && saleReturns.length > 0 ? (
                   <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Return #</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Original Invoice</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead className="w-10"></TableHead>
+                    <TableHeader className="bg-background">
+                      <TableRow className="border-b-2 border-border">
+                        <TableHead className="text-foreground font-bold">Return #</TableHead>
+                        <TableHead className="text-foreground font-bold">Date</TableHead>
+                        <TableHead className="text-foreground font-bold">Original Invoice</TableHead>
+                        <TableHead className="text-foreground font-bold">Amount</TableHead>
+                        <TableHead className="w-10 text-foreground font-bold"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -804,14 +804,14 @@ export function CustomerHistoryDialog({
                   <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
                 ) : creditNotes && creditNotes.length > 0 ? (
                   <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Credit Note #</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Used</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="w-10"></TableHead>
+                    <TableHeader className="bg-background">
+                      <TableRow className="border-b-2 border-border">
+                        <TableHead className="text-foreground font-bold">Credit Note #</TableHead>
+                        <TableHead className="text-foreground font-bold">Date</TableHead>
+                        <TableHead className="text-foreground font-bold">Amount</TableHead>
+                        <TableHead className="text-foreground font-bold">Used</TableHead>
+                        <TableHead className="text-foreground font-bold">Status</TableHead>
+                        <TableHead className="w-10 text-foreground font-bold"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -844,13 +844,13 @@ export function CustomerHistoryDialog({
               <TabsContent value="refunds" className="mt-0">
                 {refunds.length > 0 ? (
                   <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Invoice #</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Sale Amount</TableHead>
-                        <TableHead>Refund Amount</TableHead>
-                        <TableHead className="w-10"></TableHead>
+                    <TableHeader className="bg-background">
+                      <TableRow className="border-b-2 border-border">
+                        <TableHead className="text-foreground font-bold">Invoice #</TableHead>
+                        <TableHead className="text-foreground font-bold">Date</TableHead>
+                        <TableHead className="text-foreground font-bold">Sale Amount</TableHead>
+                        <TableHead className="text-foreground font-bold">Refund Amount</TableHead>
+                        <TableHead className="w-10 text-foreground font-bold"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -880,15 +880,15 @@ export function CustomerHistoryDialog({
                   <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
                 ) : customerAdvances && customerAdvances.length > 0 ? (
                   <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Advance #</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
-                        <TableHead className="text-right">Used</TableHead>
-                        <TableHead className="text-right">Unused</TableHead>
-                        <TableHead>Method</TableHead>
-                        <TableHead>Status</TableHead>
+                    <TableHeader className="bg-background">
+                      <TableRow className="border-b-2 border-border">
+                        <TableHead className="text-foreground font-bold">Advance #</TableHead>
+                        <TableHead className="text-foreground font-bold">Date</TableHead>
+                        <TableHead className="text-right text-foreground font-bold">Amount</TableHead>
+                        <TableHead className="text-right text-foreground font-bold">Used</TableHead>
+                        <TableHead className="text-right text-foreground font-bold">Unused</TableHead>
+                        <TableHead className="text-foreground font-bold">Method</TableHead>
+                        <TableHead className="text-foreground font-bold">Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -928,16 +928,16 @@ export function CustomerHistoryDialog({
                   <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
                 ) : balanceAdjustments && balanceAdjustments.length > 0 ? (
                   <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Reason</TableHead>
-                        <TableHead className="text-right">Prev O/S</TableHead>
-                        <TableHead className="text-right">New O/S</TableHead>
-                        <TableHead className="text-right">O/S Diff</TableHead>
-                        <TableHead className="text-right">Prev Adv</TableHead>
-                        <TableHead className="text-right">New Adv</TableHead>
-                        <TableHead className="text-right">Adv Diff</TableHead>
+                    <TableHeader className="bg-background">
+                      <TableRow className="border-b-2 border-border">
+                        <TableHead className="text-foreground font-bold">Date</TableHead>
+                        <TableHead className="text-foreground font-bold">Reason</TableHead>
+                        <TableHead className="text-right text-foreground font-bold">Prev O/S</TableHead>
+                        <TableHead className="text-right text-foreground font-bold">New O/S</TableHead>
+                        <TableHead className="text-right text-foreground font-bold">O/S Diff</TableHead>
+                        <TableHead className="text-right text-foreground font-bold">Prev Adv</TableHead>
+                        <TableHead className="text-right text-foreground font-bold">New Adv</TableHead>
+                        <TableHead className="text-right text-foreground font-bold">Adv Diff</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
