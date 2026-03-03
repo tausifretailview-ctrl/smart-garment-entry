@@ -28,7 +28,7 @@ interface SaleItem {
 }
 
 // Types for preview
-type PreviewType = "sale" | "payment" | "return" | "credit-note" | "refund";
+type PreviewType = "sale" | "payment" | "return" | "credit-note" | "refund" | "advance" | "adjustment";
 
 interface PreviewData {
   type: PreviewType;
@@ -190,6 +190,78 @@ function TransactionDetailPreview({ preview, onClose, customerName }: { preview:
             </div>
           </>
         )}
+      </div>
+    );
+  }
+
+  if (preview.type === "advance") {
+    const unused = Math.max(0, (d.amount || 0) - (d.used_amount || 0));
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold">Advance: {d.advance_number}</h3>
+          <Badge variant={d.status === 'active' ? 'default' : d.status === 'partially_used' ? 'warning' : 'secondary'}>
+            {d.status?.replace('_', ' ')}
+          </Badge>
+        </div>
+        <Separator />
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div><span className="text-muted-foreground">Customer:</span> <span className="font-medium">{customerName}</span></div>
+          <div><span className="text-muted-foreground">Date:</span> <span className="font-medium">{format(new Date(d.advance_date), "dd/MM/yyyy")}</span></div>
+          <div><span className="text-muted-foreground">Amount:</span> <span className="font-bold">₹{d.amount?.toFixed(2)}</span></div>
+          <div><span className="text-muted-foreground">Used:</span> <span className="font-medium">₹{(d.used_amount || 0).toFixed(2)}</span></div>
+          <div><span className="text-muted-foreground">Unused:</span> <span className={`font-bold ${unused > 0 ? 'text-green-600' : 'text-muted-foreground'}`}>₹{unused.toFixed(2)}</span></div>
+          <div><span className="text-muted-foreground">Payment Mode:</span> <span className="font-medium capitalize">{d.payment_method || "-"}</span></div>
+          {d.cheque_number && (
+            <div><span className="text-muted-foreground">Cheque No:</span> <span className="font-medium">{d.cheque_number}</span></div>
+          )}
+          {d.transaction_id && (
+            <div><span className="text-muted-foreground">Transaction ID:</span> <span className="font-medium">{d.transaction_id}</span></div>
+          )}
+        </div>
+        {d.description && (
+          <>
+            <Separator />
+            <div className="text-sm">
+              <span className="text-muted-foreground">Description:</span>
+              <p className="mt-1">{d.description}</p>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  if (preview.type === "adjustment") {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold">Balance Adjustment</h3>
+          <Badge>Adjustment</Badge>
+        </div>
+        <Separator />
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div><span className="text-muted-foreground">Customer:</span> <span className="font-medium">{customerName}</span></div>
+          <div><span className="text-muted-foreground">Date:</span> <span className="font-medium">{format(new Date(d.adjustment_date), "dd/MM/yyyy")}</span></div>
+        </div>
+        <Separator />
+        <p className="text-sm font-semibold text-muted-foreground">Outstanding Change</p>
+        <div className="grid grid-cols-3 gap-3 text-sm">
+          <div><span className="text-muted-foreground">Previous:</span> <span className="font-medium">₹{d.previous_outstanding?.toFixed(2)}</span></div>
+          <div><span className="text-muted-foreground">New:</span> <span className="font-medium">₹{d.new_outstanding?.toFixed(2)}</span></div>
+          <div><span className="text-muted-foreground">Diff:</span> <span className={`font-bold ${d.outstanding_difference > 0 ? 'text-red-600' : d.outstanding_difference < 0 ? 'text-green-600' : ''}`}>{d.outstanding_difference > 0 ? '+' : ''}₹{d.outstanding_difference?.toFixed(2)}</span></div>
+        </div>
+        <p className="text-sm font-semibold text-muted-foreground">Advance Change</p>
+        <div className="grid grid-cols-3 gap-3 text-sm">
+          <div><span className="text-muted-foreground">Previous:</span> <span className="font-medium">₹{d.previous_advance?.toFixed(2)}</span></div>
+          <div><span className="text-muted-foreground">New:</span> <span className="font-medium">₹{d.new_advance?.toFixed(2)}</span></div>
+          <div><span className="text-muted-foreground">Diff:</span> <span className={`font-bold ${d.advance_difference > 0 ? 'text-green-600' : d.advance_difference < 0 ? 'text-red-600' : ''}`}>{d.advance_difference > 0 ? '+' : ''}₹{d.advance_difference?.toFixed(2)}</span></div>
+        </div>
+        <Separator />
+        <div className="text-sm">
+          <span className="text-muted-foreground">Reason:</span>
+          <p className="mt-1 font-medium">{d.reason}</p>
+        </div>
       </div>
     );
   }
@@ -889,6 +961,7 @@ export function CustomerHistoryDialog({
                         <TableHead className="text-right text-foreground font-bold">Unused</TableHead>
                         <TableHead className="text-foreground font-bold">Method</TableHead>
                         <TableHead className="text-foreground font-bold">Status</TableHead>
+                        <TableHead className="text-center text-foreground font-bold w-[50px]">View</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -911,6 +984,11 @@ export function CustomerHistoryDialog({
                               }>
                                 {adv.status?.replace('_', ' ')}
                               </Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" title="View Advance" onClick={() => setPreview({ type: "advance", data: adv })}>
+                                <Eye className="h-4 w-4" />
+                              </Button>
                             </TableCell>
                           </TableRow>
                         );
@@ -938,6 +1016,7 @@ export function CustomerHistoryDialog({
                         <TableHead className="text-right text-foreground font-bold">Prev Adv</TableHead>
                         <TableHead className="text-right text-foreground font-bold">New Adv</TableHead>
                         <TableHead className="text-right text-foreground font-bold">Adv Diff</TableHead>
+                        <TableHead className="text-center text-foreground font-bold w-[50px]">View</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -954,6 +1033,11 @@ export function CustomerHistoryDialog({
                           <TableCell className="text-right tabular-nums">₹{adj.new_advance.toFixed(2)}</TableCell>
                           <TableCell className={`text-right font-semibold tabular-nums ${adj.advance_difference > 0 ? 'text-green-600' : adj.advance_difference < 0 ? 'text-red-600' : ''}`}>
                             {adj.advance_difference > 0 ? '+' : ''}₹{adj.advance_difference.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" title="View Adjustment" onClick={() => setPreview({ type: "adjustment", data: adj })}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
