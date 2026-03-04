@@ -1,38 +1,24 @@
 
 
-## Issues Found & Plan
+## Plan: Support Merging 3+ Suppliers
 
-### Issue 1: Business Name Not Showing in Precision Pro Preview/Print
+The current merge feature only works with exactly 2 selected suppliers. The user has 3 duplicate "SONAKSHI CREATION" entries and needs to merge all 3 into one.
 
-**Root cause**: In three places, `getFieldContent("businessName", ...)` returns empty string `""`:
-- `PrecisionLabelPreview.tsx` line 33
-- `DraggableLabelCanvas.tsx` line 31
+### Changes Required
 
-The business name is fetched from the `settings` table and stored in a `businessName` state variable in `BarcodePrinting.tsx`, but it's never passed to the Precision components. The Standard mode handles it correctly via `DraggablePreviewField`, but the Precision engine ignores it.
+**1. `src/pages/SupplierMaster.tsx`** (2 changes)
+- Line 513: Change condition from `selectedSuppliers.size === 2` to `selectedSuppliers.size >= 2` to show the Merge button when 2 or more suppliers are selected
+- Line 633: Change condition from `mergeSuppliers.length === 2` to `mergeSuppliers.length >= 2` to open the dialog for 3+ suppliers
 
-**Fix**: 
-1. Add a `businessName` field to `LabelItem` type (optional string)
-2. When building `labelItems` array in `BarcodePrinting.tsx`, inject the `businessName` value from settings into each item
-3. Update `getFieldContent` in both `PrecisionLabelPreview.tsx` and `DraggableLabelCanvas.tsx` to read `item.businessName` instead of returning `""`
-4. Update the `SAMPLE_ITEM` in `PrecisionLabelDesigner.tsx` to include a sample business name (e.g., "My Store")
+**2. `src/components/MergeSuppliersDialog.tsx`** (major rework)
+- Update `getDefaultTarget` to work with any number of suppliers (score all, pick highest)
+- Change `source` from a single supplier to an array of all non-target suppliers
+- Update `handleMerge` to loop through all source suppliers, calling `merge_suppliers` RPC sequentially for each source into the target
+- Update the UI layout: show a vertical list of supplier cards instead of a 2-column grid; each card is clickable to select as the "Keep" target; all others show "Will merge" badge
+- Update the summary section to show consolidated opening balance across all suppliers and list all sources being merged
+- Remove the `if (suppliers.length !== 2) return null` guard -- allow 2+
 
-### Issue 2: How to Print Labels in Precision Pro Mode
+### Technical Details
 
-This is a user question -- I'll include a clear explanation in the response. The flow is:
-1. Select products/variants and add to label list
-2. Switch to "Precision Pro" tab for calibration or "Label Designer" tab for layout
-3. Click "Print Labels" button -- uses browser print with exact mm-based `@page` sizing
-4. Alternatively, use QZ Tray for direct thermal printing
-
-No code changes needed for this -- just documentation/guidance.
-
----
-
-### Files to Modify
-
-1. **`src/types/labelTypes.ts`** -- Add optional `businessName?: string` to `LabelItem`
-2. **`src/components/precision-barcode/PrecisionLabelPreview.tsx`** -- Update `getFieldContent` for `businessName` to return `item.businessName || ""`
-3. **`src/components/precision-barcode/DraggableLabelCanvas.tsx`** -- Same fix
-4. **`src/components/precision-barcode/PrecisionLabelDesigner.tsx`** -- Add `businessName: "My Store"` to `SAMPLE_ITEM`
-5. **`src/pages/BarcodePrinting.tsx`** -- Inject `businessName` into each label item when building the `labelItems` array
+The existing `merge_suppliers` database function accepts one source and one target. Rather than creating a new DB function, the dialog will call it multiple times in sequence (e.g., for 3 suppliers: merge source1 into target, then merge source2 into target). This is safe because each call is atomic and the target accumulates all transactions.
 
