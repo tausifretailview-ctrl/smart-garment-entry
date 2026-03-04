@@ -37,7 +37,8 @@ import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import {
   Form,
   FormControl,
@@ -83,7 +84,9 @@ export default function QuotationEntry() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const location = useLocation();
-  const navigate = useNavigate();
+  const { navigate } = useOrgNavigation();
+  const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
+  const [customerSearchInput, setCustomerSearchInput] = useState("");
   const [quotationDate, setQuotationDate] = useState<Date>(new Date());
   const [validUntil, setValidUntil] = useState<Date>(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
   const [quotationNumber, setQuotationNumber] = useState<string>("");
@@ -1063,22 +1066,47 @@ export default function QuotationEntry() {
           <div>
             <Label>Customer</Label>
             <div className="flex gap-2">
-              <Select value={selectedCustomerId} onValueChange={(value) => {
-                setSelectedCustomerId(value);
-                const customer = customersData?.find(c => c.id === value);
-                setSelectedCustomer(customer);
-              }}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Select customer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customersData?.map(customer => (
-                    <SelectItem key={customer.id} value={customer.id}>
-                      {customer.customer_name} - {customer.phone}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" className="flex-1 justify-between font-normal">
+                    {selectedCustomer ? `${selectedCustomer.customer_name}${selectedCustomer.phone ? ` - ${selectedCustomer.phone}` : ''}` : "Select customer"}
+                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[350px] p-0" align="start">
+                  <Command>
+                    <CommandInput 
+                      placeholder="Search by name or phone..." 
+                      value={customerSearchInput}
+                      onValueChange={setCustomerSearchInput}
+                    />
+                    <CommandList>
+                      <CommandEmpty>No customer found.</CommandEmpty>
+                      <CommandGroup>
+                        {customersData?.filter(c => {
+                          if (!customerSearchInput) return true;
+                          const q = customerSearchInput.toLowerCase();
+                          return c.customer_name?.toLowerCase().includes(q) || c.phone?.toLowerCase().includes(q);
+                        }).slice(0, 50).map(customer => (
+                          <CommandItem
+                            key={customer.id}
+                            value={`${customer.customer_name} ${customer.phone || ''}`}
+                            onSelect={() => {
+                              setSelectedCustomerId(customer.id);
+                              setSelectedCustomer(customer);
+                              setOpenCustomerSearch(false);
+                              setCustomerSearchInput("");
+                            }}
+                          >
+                            <span className="font-medium">{customer.customer_name}</span>
+                            {customer.phone && <span className="ml-2 text-muted-foreground text-xs">{customer.phone}</span>}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
               <Button variant="outline" size="icon" onClick={() => setOpenCustomerDialog(true)}>
                 <Plus className="h-4 w-4" />
               </Button>
