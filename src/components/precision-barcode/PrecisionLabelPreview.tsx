@@ -29,7 +29,7 @@ const getFieldContent = (key: FieldKey, item: LabelItem, customTextValue?: strin
     case "supplierCode": return item.supplier_code || "";
     case "purchaseCode": return item.purchase_code || "";
     case "customText": return customTextValue || "";
-    case "businessName": return ""; // filled from settings externally
+    case "businessName": return item.businessName || "";
     default: return "";
   }
 };

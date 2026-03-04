@@ -62,6 +62,7 @@ const DEFAULT_PRECISION_CONFIG: LabelDesignConfig = {
 const SAMPLE_ITEM = {
   product_name: "Cotton T-Shirt Premium",
   brand: "StyleMax",
+  businessName: "My Store",
   category: "Clothing",
   color: "Blue",
   style: "Casual",
