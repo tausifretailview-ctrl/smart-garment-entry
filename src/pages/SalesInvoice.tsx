@@ -899,12 +899,7 @@ export default function SalesInvoice() {
     // Update state once with all changes
     setLineItems(updatedItems);
     
-    if (addedCount > 0) {
-      toast({
-        title: "Products Added",
-        description: `${addedCount} size(s) added to invoice`,
-      });
-    }
+    // Toast removed - was interrupting workflow
     
     setTimeout(() => {
       tableContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1153,10 +1148,7 @@ export default function SalesInvoice() {
     // Return focus to barcode input for continuous scanning
     setTimeout(() => barcodeInputRef.current?.focus(), 50);
     
-    toast({
-      title: "Product Added",
-      description: `${product.product_name} (${variant.size}) added to invoice`,
-    });
+    // Toast removed - was interrupting workflow
   };
 
 
