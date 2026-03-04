@@ -1434,7 +1434,8 @@ export default function POSSales() {
     
     setSavedInvoiceData(estimateData);
     
-    // Print after render
+    // Show print preview after invoice content has rendered
+    // Use a longer delay to ensure InvoiceWrapper finishes loading org settings
     setTimeout(async () => {
       if (isDirectPrintEnabled) {
         const paperSize = posBillFormat === 'thermal' ? '80mm' : posBillFormat === 'a5' || posBillFormat === 'a5-horizontal' ? 'A5' : 'A4';
@@ -1450,11 +1451,9 @@ export default function POSSales() {
           },
         });
       } else {
-        // Browser print - handlePrint is defined later via useReactToPrint
-        // We'll set showPrintPreview to trigger it
         setShowPrintPreview(true);
       }
-    }, 500);
+    }, 1200);
   }, [items, totals, flatDiscountAmount, saleReturnAdjust, finalAmount, customerName, customerPhone, customerId, roundOff, creditApplied, saleNotes, customerBalance, isDirectPrintEnabled, posBillFormat]);
 
   // Register estimate print in POS header and ref for keyboard shortcut
