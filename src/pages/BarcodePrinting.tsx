@@ -4964,7 +4964,7 @@ export default function BarcodePrinting() {
             margin: 0 !important;
             padding: 0 !important;
             ${isThermal1Up() 
-              ? `transform: scale(1.05); transform-origin: center center;` 
+              ? `transform: scale(1.0); transform-origin: top left;` 
               : `transform: scale(${(printScale / 100) * getAutoFitScale()}); transform-origin: top left;`}
             overflow: visible !important;
           }
@@ -4989,6 +4989,7 @@ export default function BarcodePrinting() {
               margin: 0 !important;
               overflow: visible !important;
               box-sizing: border-box !important;
+              position: relative !important;
             ` : `
               page-break-after: auto;
             `}
@@ -5008,9 +5009,8 @@ export default function BarcodePrinting() {
             ${isThermal1Up() ? `
               position: relative !important;
               display: block !important;
-              font-size: inherit !important;
+              -webkit-text-stroke: 0.3px black;
               line-height: inherit !important;
-              text-align: initial !important;
               width: ${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm !important;
               height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm !important;
               min-height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm !important;
