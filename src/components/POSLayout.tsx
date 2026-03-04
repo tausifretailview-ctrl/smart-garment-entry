@@ -1,5 +1,5 @@
 import { ReactNode, useState } from "react";
-import { Menu, Home, Package, ShoppingCart, FileText, Settings, LogOut, Store, PlusCircle, Trash2, Keyboard, LayoutGrid, BarChart3, Package as PackageIcon, RotateCcw, Wallet, Banknote } from "lucide-react";
+import { Menu, Home, Package, ShoppingCart, FileText, Settings, LogOut, Store, PlusCircle, Trash2, Keyboard, LayoutGrid, BarChart3, Package as PackageIcon, RotateCcw, Wallet, Banknote, Save, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -39,7 +39,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const { signOut } = useAuth();
   const { currentOrganization } = useOrganization();
   const { orgNavigate, orgSlug } = useOrgNavigation();
-  const { onNewSale, onClearCart, onOpenCashierReport, onOpenStockReport, onOpenSaleReturn, hasItems } = usePOS();
+  const { onNewSale, onClearCart, onOpenCashierReport, onOpenStockReport, onOpenSaleReturn, onSaveChanges, hasItems, isEditing, isSavingChanges } = usePOS();
   const { isOpen, setIsOpen } = useKeyboardShortcuts("pos");
   const [showSizeStock, setShowSizeStock] = useState(false);
   const [showCashTally, setShowCashTally] = useState(false);
@@ -142,6 +142,25 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
                   <p>Clear cart <kbd className="ml-1 px-1 py-0.5 bg-muted rounded text-xs">Esc</kbd></p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {isEditing && onSaveChanges && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={onSaveChanges}
+                    disabled={isSavingChanges}
+                    className="text-primary-foreground hover:bg-green-600/80 gap-1 bg-green-600/40"
+                  >
+                    {isSavingChanges ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    <span className="hidden sm:inline">{isSavingChanges ? 'Saving...' : 'Save Changes'}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
+                  <p>Save customer, salesman & notes changes</p>
                 </TooltipContent>
               </Tooltip>
             )}
