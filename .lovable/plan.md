@@ -1,24 +1,43 @@
 
 
-## Plan: Support Merging 3+ Suppliers
+## Plan: Add "Estimate Print" Button to POS Top Bar
 
-The current merge feature only works with exactly 2 selected suppliers. The user has 3 duplicate "SONAKSHI CREATION" entries and needs to merge all 3 into one.
+### What it does
+Allows printing a draft/estimate invoice (without saving to database) so the customer can verify products and quantities before the actual payment and final invoice save. This is a common retail workflow for customer verification.
 
-### Changes Required
+### Changes
 
-**1. `src/pages/SupplierMaster.tsx`** (2 changes)
-- Line 513: Change condition from `selectedSuppliers.size === 2` to `selectedSuppliers.size >= 2` to show the Merge button when 2 or more suppliers are selected
-- Line 633: Change condition from `mergeSuppliers.length === 2` to `mergeSuppliers.length >= 2` to open the dialog for 3+ suppliers
+**1. POSContext (`src/contexts/POSContext.tsx`)**
+- Add `onEstimatePrint` callback and `setOnEstimatePrint` setter to the context
 
-**2. `src/components/MergeSuppliersDialog.tsx`** (major rework)
-- Update `getDefaultTarget` to work with any number of suppliers (score all, pick highest)
-- Change `source` from a single supplier to an array of all non-target suppliers
-- Update `handleMerge` to loop through all source suppliers, calling `merge_suppliers` RPC sequentially for each source into the target
-- Update the UI layout: show a vertical list of supplier cards instead of a 2-column grid; each card is clickable to select as the "Keep" target; all others show "Will merge" badge
-- Update the summary section to show consolidated opening balance across all suppliers and list all sources being merged
-- Remove the `if (suppliers.length !== 2) return null` guard -- allow 2+
+**2. POSLayout (`src/components/POSLayout.tsx`)**
+- Add an "Estimate" button in the top bar (between Clear and Save Changes), with `FileText` icon
+- Show it only when cart has items (`hasItems`) and not in editing mode
+- Tooltip: "Print Estimate (without saving) — F9"
 
-### Technical Details
+**3. POSSales (`src/pages/POSSales.tsx`)**
+- Create `handleEstimatePrint` function that:
+  - Builds `invoiceDataForPrint` from current cart state (same structure as saved invoice data) but with invoice number showing "ESTIMATE" or the current preview number
+  - Sets `savedInvoiceData` with this estimate data and marks it as estimate
+  - Triggers browser print via `useReactToPrint` (or direct print if configured)
+  - Does NOT save to database, does NOT clear the cart, does NOT modify stock
+  - After print, clears `savedInvoiceData` but keeps cart intact
+- Register `onEstimatePrint` in POSContext via `setOnEstimatePrint`
+- Add **F9** keyboard shortcut to trigger estimate print
 
-The existing `merge_suppliers` database function accepts one source and one target. Rather than creating a new DB function, the dialog will call it multiple times in sequence (e.g., for 3 suppliers: merge source1 into target, then merge source2 into target). This is safe because each call is atomic and the target accumulates all transactions.
+**4. KeyboardShortcutsModal (`src/components/KeyboardShortcutsModal.tsx`)**
+- Add `{ keys: ["F9"], description: "Print Estimate (no save)" }` to POS shortcuts
+
+**5. Invoice rendering**
+- When printing estimate, add a visible "ESTIMATE" watermark/header text on the printed invoice to distinguish it from final invoices
+- Reuse the existing `InvoiceWrapper` and `invoicePrintRef` for rendering
+
+### Keyboard Shortcut
+- **F9** — Print Estimate (available, not currently assigned)
+
+### Key Behavior
+- Cart remains intact after estimate print (no form reset)
+- No database write, no stock movement, no payment recorded
+- Invoice clearly marked as "ESTIMATE" on print
+- Works with both browser print and QZ Tray direct print
 
