@@ -107,7 +107,7 @@ interface CartItem {
 export default function POSSales() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
-  const { setOnNewSale, setOnClearCart, setOnOpenCashierReport, setOnOpenStockReport, setOnOpenSaleReturn, setHasItems } = usePOS();
+  const { setOnNewSale, setOnClearCart, setOnOpenCashierReport, setOnOpenStockReport, setOnOpenSaleReturn, setOnSaveChanges, setHasItems, setIsEditing, setIsSavingChanges } = usePOS();
   const { saveSale, updateSale, holdSale, resumeHeldSale, isSaving } = useSaveSale();
   const { createCreditNote, getAvailableCreditBalance, applyCredit, isCreating: isCreatingCreditNote, isApplying: isApplyingCredit } = useCreditNotes();
   const isMobile = useIsMobile();
@@ -603,6 +603,54 @@ export default function POSSales() {
   useEffect(() => {
     setHasItems(items.length > 0);
   }, [items.length, setHasItems]);
+
+  // Update isEditing state when currentSaleId changes
+  useEffect(() => {
+    setIsEditing(!!currentSaleId);
+  }, [currentSaleId, setIsEditing]);
+
+  // Save metadata changes handler (customer, salesman, notes only)
+  const handleSaveMetadataChanges = useCallback(async () => {
+    if (!currentSaleId || !currentOrganization?.id) return;
+    
+    setIsSavingChanges(true);
+    try {
+      const { error } = await supabase
+        .from('sales')
+        .update({
+          customer_id: customerId || null,
+          customer_name: customerName || 'Walk-in Customer',
+          customer_phone: customerPhone || null,
+          salesman: selectedSalesman || null,
+          notes: saleNotes || null,
+        })
+        .eq('id', currentSaleId)
+        .eq('organization_id', currentOrganization.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Changes Saved",
+        description: "Customer, salesman & notes updated successfully.",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['todaysSales'] });
+    } catch (error: any) {
+      toast({
+        title: "Save Failed",
+        description: error.message || "Failed to save changes",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingChanges(false);
+    }
+  }, [currentSaleId, currentOrganization?.id, customerId, customerName, customerPhone, selectedSalesman, saleNotes, toast, queryClient, setIsSavingChanges]);
+
+  // Register save changes handler
+  useEffect(() => {
+    setOnSaveChanges(() => handleSaveMetadataChanges);
+    return () => setOnSaveChanges(null);
+  }, [setOnSaveChanges, handleSaveMetadataChanges]);
 
   // Preview next invoice number when not editing existing sale
   useEffect(() => {
