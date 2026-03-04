@@ -41,6 +41,16 @@ const BUILT_IN_PRESETS: CalibrationPreset[] = [
   { name: "60×40mm Standard", xOffset: 0, yOffset: 0, vGap: 2, width: 60, height: 40 },
 ];
 
+const A4_SHEET_PRESETS = [
+  { name: "Novajet 40 (52×30mm, 4×10)", width: 52, height: 30, cols: 4, rows: 10, xOffset: 1, yOffset: 5, vGap: 0 },
+  { name: "Novajet 24 (64×34mm, 3×8)", width: 64, height: 34, cols: 3, rows: 8, xOffset: 5, yOffset: 5, vGap: 0 },
+  { name: "Novajet 12 (100×44mm, 2×6)", width: 100, height: 44, cols: 2, rows: 6, xOffset: 5, yOffset: 5, vGap: 0 },
+  { name: "39×35mm (4×7)", width: 39, height: 35, cols: 4, rows: 7, xOffset: 13, yOffset: 11, vGap: 3.5 },
+  { name: "48×25mm (4×11)", width: 48, height: 25, cols: 4, rows: 11, xOffset: 5, yOffset: 5, vGap: 0 },
+  { name: "65×38mm (3×7)", width: 65, height: 38, cols: 3, rows: 7, xOffset: 5, yOffset: 10, vGap: 2 },
+  { name: "A4 Custom", width: 50, height: 25, cols: 4, rows: 12, xOffset: 5, yOffset: 5, vGap: 2 },
+];
+
 const SAMPLE_ITEM: LabelItem = {
   product_name: "Cotton Casual Shirt",
   brand: "StyleWear",
@@ -135,6 +145,12 @@ interface LabelCalibrationUIProps {
   compact?: boolean;
   sampleItem?: LabelItem;
   savedTemplates?: LabelTemplate[];
+  printMode?: 'thermal' | 'a4';
+  a4Cols?: number;
+  a4Rows?: number;
+  onPrintModeChange?: (mode: 'thermal' | 'a4') => void;
+  onA4ColsChange?: (cols: number) => void;
+  onA4RowsChange?: (rows: number) => void;
   /** @deprecated Use onSavePreset/onDeletePreset instead */
   onPresetsChange?: (presets: CalibrationPreset[]) => void;
 }
@@ -151,6 +167,12 @@ export function LabelCalibrationUI({
   compact = false,
   sampleItem,
   savedTemplates = [],
+  printMode = 'thermal',
+  a4Cols = 4,
+  a4Rows = 12,
+  onPrintModeChange,
+  onA4ColsChange,
+  onA4RowsChange,
 }: LabelCalibrationUIProps) {
   const [savePresetOpen, setSavePresetOpen] = useState(false);
   const [newPresetName, setNewPresetName] = useState("");
@@ -360,6 +382,82 @@ export function LabelCalibrationUI({
           </Select>
         )}
       </div>
+
+      {/* Print Mode Toggle */}
+      {!compact && onPrintModeChange && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Print Mode</p>
+            <div className="flex rounded-md border border-border overflow-hidden">
+              <button
+                type="button"
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                  printMode === 'thermal'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted/30 text-muted-foreground hover:bg-muted/50'
+                }`}
+                onClick={() => onPrintModeChange('thermal')}
+              >
+                🖨️ Thermal (1-Up)
+              </button>
+              <button
+                type="button"
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                  printMode === 'a4'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted/30 text-muted-foreground hover:bg-muted/50'
+                }`}
+                onClick={() => onPrintModeChange('a4')}
+              >
+                📄 A4 Sheet
+              </button>
+            </div>
+          </div>
+
+          {printMode === 'a4' && (
+            <div className="border rounded-lg p-3 space-y-3 bg-muted/10">
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex-1 min-w-[160px] space-y-1">
+                  <Label className="text-xs">A4 Sheet Preset</Label>
+                  <Select onValueChange={(name) => {
+                    const preset = A4_SHEET_PRESETS.find(p => p.name === name);
+                    if (preset) {
+                      onChange({
+                        ...values,
+                        labelWidth: preset.width,
+                        labelHeight: preset.height,
+                        xOffset: preset.xOffset,
+                        yOffset: preset.yOffset,
+                        vGap: preset.vGap,
+                      });
+                      onA4ColsChange?.(preset.cols);
+                      onA4RowsChange?.(preset.rows);
+                    }
+                  }}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Select A4 sheet format..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {A4_SHEET_PRESETS.map((p) => (
+                        <SelectItem key={p.name} value={p.name} className="text-xs">
+                          📄 {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <NudgeField label="Columns" value={a4Cols} onChange={(v) => onA4ColsChange?.(v)} min={1} max={8} step={1} unit="cols" />
+                <NudgeField label="Rows" value={a4Rows} onChange={(v) => onA4RowsChange?.(v)} min={1} max={20} step={1} unit="rows" />
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                📋 {a4Cols} × {a4Rows} = {a4Cols * a4Rows} labels per A4 sheet • Label: {values.labelWidth}×{values.labelHeight}mm
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Calibration Fields + Preview */}
       <div className={compact ? "space-y-3" : "grid grid-cols-1 md:grid-cols-2 gap-4"}>
