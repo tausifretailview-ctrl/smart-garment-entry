@@ -545,8 +545,9 @@ export default function POSSales() {
     return () => clearInterval(timer);
   }, []);
 
-  // Ref for estimate print (to avoid hoisting issues in keyboard handler)
+  // Refs for print handlers (to avoid hoisting issues)
   const handleEstimatePrintRef = useRef<(() => void) | null>(null);
+  const handlePrintRef = useRef<(() => void) | null>(null);
 
   // Register POS header actions
   useEffect(() => {
@@ -1434,27 +1435,40 @@ export default function POSSales() {
     
     setSavedInvoiceData(estimateData);
     
-    // Show print preview after invoice content has rendered
-    // Use a longer delay to ensure InvoiceWrapper finishes loading org settings
-    setTimeout(async () => {
-      if (isDirectPrintEnabled) {
-        const paperSize = posBillFormat === 'thermal' ? '80mm' : posBillFormat === 'a5' || posBillFormat === 'a5-horizontal' ? 'A5' : 'A4';
-        await directPrint(invoicePrintRef.current, {
-          context: 'pos',
-          paperSize,
-          onFallback: () => {
-            setShowPrintPreview(true);
-          },
-          onSuccess: () => {
-            setSavedInvoiceData(null);
-            setTimeout(() => barcodeInputRef.current?.focus(), 100);
-          },
-        });
-      } else {
-        setShowPrintPreview(true);
+    // Wait for invoice to render, then directly open print dialog (no preview)
+    const waitForContent = () => {
+      const el = invoicePrintRef.current;
+      if (!el) return false;
+      const text = (el.textContent || '').trim();
+      if (!text || text.length < 30) return false;
+      if (/^loading\.?\.?\.?$/i.test(text) || /loading preview/i.test(text)) return false;
+      return true;
+    };
+
+    const startedAt = Date.now();
+    const pollInterval = setInterval(async () => {
+      if (waitForContent() || Date.now() - startedAt > 5000) {
+        clearInterval(pollInterval);
+        if (isDirectPrintEnabled) {
+          const paperSize = posBillFormat === 'thermal' ? '80mm' : posBillFormat === 'a5' || posBillFormat === 'a5-horizontal' ? 'A5' : 'A4';
+          await directPrint(invoicePrintRef.current, {
+            context: 'pos',
+            paperSize,
+            onFallback: () => {
+              handlePrintRef.current?.();
+            },
+            onSuccess: () => {
+              setSavedInvoiceData(null);
+              setTimeout(() => barcodeInputRef.current?.focus(), 100);
+            },
+          });
+        } else {
+          // Directly trigger browser print dialog without showing preview
+          handlePrintRef.current?.();
+        }
       }
-    }, 1200);
-  }, [items, totals, flatDiscountAmount, saleReturnAdjust, finalAmount, customerName, customerPhone, customerId, roundOff, creditApplied, saleNotes, customerBalance, isDirectPrintEnabled, posBillFormat]);
+    }, 150);
+  }, [items, totals, flatDiscountAmount, saleReturnAdjust, finalAmount, customerName, customerPhone, customerId, roundOff, creditApplied, saleNotes, customerBalance, isDirectPrintEnabled, posBillFormat, directPrint]);
 
   // Register estimate print in POS header and ref for keyboard shortcut
   useEffect(() => {
@@ -1999,8 +2013,10 @@ export default function POSSales() {
     },
   });
 
+  // Keep ref in sync for estimate print (handlePrint defined after estimate handler)
+  handlePrintRef.current = handlePrint;
+
   const handlePrintFromDialog = async () => {
-    if (!savedInvoiceData) return;
 
     setShowPrintConfirmDialog(false);
     
