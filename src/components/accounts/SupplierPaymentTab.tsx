@@ -152,7 +152,7 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
       const { data: voucherNumber, error: numberError } = await supabase.rpc("generate_voucher_number", { p_type: "payment", p_date: format(voucherDate, "yyyy-MM-dd") });
       if (numberError) throw numberError;
 
-      const billNumbers = processedBills.map(p => p.bill.software_bill_no || p.bill.supplier_invoice_no || p.bill.id.slice(0, 8)).join(', ');
+      const billNumbers = processedBills.map(p => p.bill.supplier_invoice_no || p.bill.software_bill_no || p.bill.id.slice(0, 8)).join(', ');
       let paymentDetails = '';
       if (paymentMethod === 'cheque' && chequeNumber) {
         paymentDetails = ` | Cheque No: ${chequeNumber}`;
@@ -377,7 +377,7 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
                                   }} />
                                 </div>
                               </TableCell>
-                              <TableCell className="font-medium">{bill.software_bill_no || bill.supplier_invoice_no || bill.id.slice(0, 8)}</TableCell>
+                              <TableCell className="font-medium">{bill.supplier_invoice_no || bill.software_bill_no || bill.id.slice(0, 8)}</TableCell>
                               <TableCell>{billDateText}</TableCell>
                               <TableCell className="text-right">₹{netAmount.toFixed(2)}</TableCell>
                               <TableCell className="text-right text-muted-foreground">₹{paidAmount.toFixed(2)}</TableCell>
