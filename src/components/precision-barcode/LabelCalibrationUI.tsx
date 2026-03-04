@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { HelpCircle, Minus, Plus, Save, Trash2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PrecisionLabelPreview } from "./PrecisionLabelPreview";
-import { LabelDesignConfig, LabelItem } from "@/types/labelTypes";
+import { LabelDesignConfig, LabelItem, LabelTemplate } from "@/types/labelTypes";
 
 export interface CalibrationValues {
   xOffset: number;
@@ -134,6 +134,7 @@ interface LabelCalibrationUIProps {
   labelConfig?: LabelDesignConfig;
   compact?: boolean;
   sampleItem?: LabelItem;
+  savedTemplates?: LabelTemplate[];
   /** @deprecated Use onSavePreset/onDeletePreset instead */
   onPresetsChange?: (presets: CalibrationPreset[]) => void;
 }
@@ -149,6 +150,7 @@ export function LabelCalibrationUI({
   labelConfig,
   compact = false,
   sampleItem,
+  savedTemplates = [],
 }: LabelCalibrationUIProps) {
   const [savePresetOpen, setSavePresetOpen] = useState(false);
   const [newPresetName, setNewPresetName] = useState("");
@@ -164,6 +166,25 @@ export function LabelCalibrationUI({
   };
 
   const loadPreset = (name: string) => {
+    // Check if it's a saved label template
+    if (name.startsWith("template_")) {
+      const templateName = name.replace("template_", "");
+      const template = savedTemplates.find((t) => t.name === templateName);
+      if (template) {
+        // Apply template's label config; if template has dimensions, also apply those
+        if (template.labelWidth && template.labelHeight) {
+          onChange({
+            ...values,
+            labelWidth: template.labelWidth,
+            labelHeight: template.labelHeight,
+          });
+        }
+        onLoadPreset?.({ name: templateName, xOffset: values.xOffset, yOffset: values.yOffset, vGap: values.vGap, width: template.labelWidth || values.labelWidth, height: template.labelHeight || values.labelHeight, labelConfig: template.config });
+        setActivePresetName(null);
+      }
+      return;
+    }
+
     const preset = allPresets.find((p) => p.name === name);
     if (preset) {
       onChange({
@@ -263,6 +284,21 @@ export function LabelCalibrationUI({
                   </span>
                 </SelectItem>
               ))}
+              {savedTemplates.length > 0 && (
+                <>
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">💾 My Label Templates</div>
+                  {savedTemplates.map((t) => (
+                    <SelectItem key={`template_${t.name}`} value={`template_${t.name}`} className="text-xs">
+                      📐 {t.name}
+                      {t.labelWidth && t.labelHeight && (
+                        <span className="ml-1 text-muted-foreground">
+                          ({t.labelWidth}×{t.labelHeight})
+                        </span>
+                      )}
+                    </SelectItem>
+                  ))}
+                </>
+              )}
             </SelectContent>
           </Select>
         </div>
