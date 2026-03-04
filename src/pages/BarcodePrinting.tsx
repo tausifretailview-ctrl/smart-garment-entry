@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import JsBarcode from "jsbarcode";
 import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer } from "lucide-react";
@@ -3561,6 +3563,18 @@ export default function BarcodePrinting() {
         </div>
       )}
 
+      {/* Printing Mode Tabs */}
+      <Tabs 
+        value={precisionSettings.enabled ? "precision" : "standard"} 
+        onValueChange={(v) => setPrecisionSettings(prev => ({ ...prev, enabled: v === "precision" }))}
+        className="w-full"
+      >
+        <TabsList className="mb-4">
+          <TabsTrigger value="standard">Standard Printing</TabsTrigger>
+          <TabsTrigger value="precision">🎯 Precision Pro</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="standard" className="space-y-6">
       {/* Layout & Style Panel */}
       <div className="border rounded-lg p-4 space-y-4">
         <h2 className="text-xl font-semibold">Layout & Style</h2>
@@ -4508,8 +4522,105 @@ export default function BarcodePrinting() {
           )}
         </Button>
       </div>
+        </TabsContent>
 
-      {/* Preview Dialog */}
+        <TabsContent value="precision" className="space-y-6">
+          {/* Precision Pro Calibration & Actions */}
+          <div className="border rounded-lg p-4 space-y-4">
+            <h2 className="text-xl font-semibold">🎯 Precision Pro Settings</h2>
+            <p className="text-sm text-muted-foreground">
+              Coordinate-based label printing with pixel-perfect positioning. Configure label dimensions, field positions, and calibration offsets.
+            </p>
+            <LabelCalibrationUI
+              values={{
+                xOffset: precisionSettings.xOffset,
+                yOffset: precisionSettings.yOffset,
+                vGap: precisionSettings.vGap,
+                labelWidth: precisionSettings.labelWidth,
+                labelHeight: precisionSettings.labelHeight,
+              }}
+              onChange={(vals) =>
+                setPrecisionSettings((prev) => ({
+                  ...prev,
+                  xOffset: vals.xOffset,
+                  yOffset: vals.yOffset,
+                  vGap: vals.vGap,
+                  labelWidth: vals.labelWidth,
+                  labelHeight: vals.labelHeight,
+                }))
+              }
+              presets={dbPresets}
+              onSavePreset={async (preset) => {
+                if (!currentOrganization?.id) return;
+                const { error } = await supabase
+                  .from("printer_presets")
+                  .upsert({
+                    id: preset.id || undefined,
+                    organization_id: currentOrganization.id,
+                    name: preset.name,
+                    label_width: preset.width,
+                    label_height: preset.height,
+                    x_offset: preset.xOffset,
+                    y_offset: preset.yOffset,
+                    v_gap: preset.vGap,
+                    a4_cols: preset.a4Cols ?? precisionSettings.a4Cols,
+                    a4_rows: preset.a4Rows ?? precisionSettings.a4Rows,
+                    label_config: preset.labelConfig as any,
+                  }, { onConflict: "organization_id,name" });
+                if (error) { toast.error("Failed to save preset"); return; }
+                toast.success(`Preset "${preset.name}" saved`);
+                const { data } = await supabase
+                  .from("printer_presets")
+                  .select("*")
+                  .eq("organization_id", currentOrganization.id)
+                  .order("name");
+                if (data) {
+                  setDbPresets(data.map((p: any) => ({
+                    id: p.id, name: p.name,
+                    xOffset: Number(p.x_offset), yOffset: Number(p.y_offset),
+                    vGap: Number(p.v_gap), width: Number(p.label_width), height: Number(p.label_height),
+                    a4Cols: p.a4_cols, a4Rows: p.a4_rows,
+                    labelConfig: p.label_config, isDefault: p.is_default,
+                  })));
+                }
+              }}
+              onDeletePreset={async (presetId) => {
+                const { error } = await supabase.from("printer_presets").delete().eq("id", presetId);
+                if (error) { toast.error("Failed to delete preset"); return; }
+                toast.success("Preset deleted");
+                setDbPresets((prev) => prev.filter((p) => p.id !== presetId));
+              }}
+              onLoadPreset={(preset) => {
+                if (preset.labelConfig) {
+                  setPrecisionSettings((prev) => ({ ...prev, labelConfig: preset.labelConfig }));
+                }
+                if (preset.a4Cols) setPrecisionSettings((prev) => ({ ...prev, a4Cols: preset.a4Cols! }));
+                if (preset.a4Rows) setPrecisionSettings((prev) => ({ ...prev, a4Rows: preset.a4Rows! }));
+              }}
+              labelConfig={precisionSettings.labelConfig || undefined}
+            />
+          </div>
+
+          {/* Precision Pro Action Buttons */}
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={handlePreview}>
+              <Eye className="h-4 w-4 mr-2" />
+              Preview Labels
+            </Button>
+            <Button onClick={handlePrint} variant="outline">
+              Print
+            </Button>
+            <Button variant="outline" onClick={handleTestPrint}>
+              🖨️ Print Test Label
+            </Button>
+            <Button onClick={handleExportPDF} variant="outline">
+              <Download className="h-4 w-4 mr-2" />
+              Export PDF
+            </Button>
+          </div>
+        </TabsContent>
+      </Tabs>
+
       <Dialog open={isPreviewDialogOpen} onOpenChange={setIsPreviewDialogOpen}>
         <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-auto">
           <DialogHeader>
