@@ -1,43 +1,39 @@
 
 
-## Plan: Add "Estimate Print" Button to POS Top Bar
+## Plan: Fix Browser Print for 38x25 1-Up Thermal Labels
 
-### What it does
-Allows printing a draft/estimate invoice (without saving to database) so the customer can verify products and quantities before the actual payment and final invoice save. This is a common retail workflow for customer verification.
+### Problem Analysis
+From the photos: the preview looks correct, but browser print output has two issues:
+1. **Font is too small / not bold enough** compared to preview
+2. **Labels after the first one shift upward** — content drifts toward the top edge on subsequent labels
 
-### Changes
+### Root Cause
+In the `@media print` CSS for thermal 1-up labels:
 
-**1. POSContext (`src/contexts/POSContext.tsx`)**
-- Add `onEstimatePrint` callback and `setOnEstimatePrint` setter to the context
+1. **Scaling issue**: `transform: scale(1.05); transform-origin: center center;` on `#printArea` — scaling from center causes cumulative vertical shift across multiple page breaks. Each label-grid is a separate page, but the transform displaces them all relative to center of the entire container.
 
-**2. POSLayout (`src/components/POSLayout.tsx`)**
-- Add an "Estimate" button in the top bar (between Clear and Save Changes), with `FileText` icon
-- Show it only when cart has items (`hasItems`) and not in editing mode
-- Tooltip: "Print Estimate (without saving) — F9"
+2. **Font size**: The base `.label-cell` style sets `font-size: 9px` which is too small for 38x25mm. The print CSS overrides with `font-size: inherit !important` but the inherited size is still small. Bold fields use inline `font-weight: bold` but the print CSS override `text-align: initial !important` may interfere with rendering.
 
-**3. POSSales (`src/pages/POSSales.tsx`)**
-- Create `handleEstimatePrint` function that:
-  - Builds `invoiceDataForPrint` from current cart state (same structure as saved invoice data) but with invoice number showing "ESTIMATE" or the current preview number
-  - Sets `savedInvoiceData` with this estimate data and marks it as estimate
-  - Triggers browser print via `useReactToPrint` (or direct print if configured)
-  - Does NOT save to database, does NOT clear the cart, does NOT modify stock
-  - After print, clears `savedInvoiceData` but keeps cart intact
-- Register `onEstimatePrint` in POSContext via `setOnEstimatePrint`
-- Add **F9** keyboard shortcut to trigger estimate print
+### Changes to `src/pages/BarcodePrinting.tsx`
 
-**4. KeyboardShortcutsModal (`src/components/KeyboardShortcutsModal.tsx`)**
-- Add `{ keys: ["F9"], description: "Print Estimate (no save)" }` to POS shortcuts
+**1. Fix the transform scaling for thermal 1-up**
+- Change `transform-origin: center center` to `transform-origin: top left` so scaling does not shift content
+- Remove or reduce the `scale(1.05)` — it was meant to compensate for browser print margins but causes drift on multi-label jobs. Set to `scale(1.0)` (no scaling) since `@page { margin: 0 }` already handles margins
 
-**5. Invoice rendering**
-- When printing estimate, add a visible "ESTIMATE" watermark/header text on the printed invoice to distinguish it from final invoices
-- Reuse the existing `InvoiceWrapper` and `invoicePrintRef` for rendering
+**2. Ensure each label-grid is self-contained for page breaks**
+- Add `position: relative` to each `.label-grid` in print mode so page breaks work cleanly without accumulated offset
 
-### Keyboard Shortcut
-- **F9** — Print Estimate (available, not currently assigned)
+**3. Fix font rendering in print**
+- Remove `font-size: inherit !important` override from `.label-cell` print CSS — let inline font sizes from the designer take effect
+- Add `-webkit-text-stroke: 0.3px black` to `.label-cell` in print mode to ensure bold text appears darker on print (matching how thermal receipts handle this)
+- Ensure `font-weight` from inline styles is not overridden
 
-### Key Behavior
-- Cart remains intact after estimate print (no form reset)
-- No database write, no stock movement, no payment recorded
-- Invoice clearly marked as "ESTIMATE" on print
-- Works with both browser print and QZ Tray direct print
+**4. For the label-cell > div (absolute positioned fields)**
+- Keep `position: absolute !important` but ensure the parent `.label-cell` has proper dimensions without the `font-size: inherit` override interfering
+
+### Summary
+- Remove `scale(1.05)` transform (or use `1.0`) and fix transform-origin to `top left`
+- Remove `font-size: inherit !important` from print `.label-cell` to respect designer font sizes
+- Add text stroke for bolder print output
+- These are CSS-only changes in the `<style>` block at bottom of BarcodePrinting.tsx
 
