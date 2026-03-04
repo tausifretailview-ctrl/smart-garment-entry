@@ -56,6 +56,20 @@ export const AddSupplierDialog = ({
   const createSupplier = useMutation({
     mutationFn: async (data: typeof formData) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
+      
+      // Check for duplicate supplier name
+      const { data: existing } = await supabase
+        .from("suppliers")
+        .select("id")
+        .eq("organization_id", currentOrganization.id)
+        .ilike("supplier_name", data.supplier_name.trim())
+        .is("deleted_at", null)
+        .limit(1);
+      
+      if (existing && existing.length > 0) {
+        throw new Error("Supplier Already Created");
+      }
+      
       const { data: newSupplier, error } = await supabase
         .from("suppliers")
         .insert([
