@@ -141,7 +141,7 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
           const amountToApply = Math.min(remainingAmount, outstanding);
           if (amountToApply <= 0) continue;
           const newPaidAmount = currentPaid + amountToApply;
-          const newStatus = newPaidAmount >= (bill.net_amount || 0) ? 'completed' : newPaidAmount > 0 ? 'partial' : 'unpaid';
+          const newStatus = newPaidAmount >= (bill.net_amount || 0) ? 'paid' : newPaidAmount > 0 ? 'partial' : 'unpaid';
           const { error: updateError } = await supabase.from('purchase_bills').update({ paid_amount: newPaidAmount, payment_status: newStatus }).eq('id', billId);
           if (updateError) throw updateError;
           processedBills.push({ bill, amountApplied: amountToApply });
