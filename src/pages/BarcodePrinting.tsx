@@ -1189,6 +1189,8 @@ export default function BarcodePrinting() {
   const testPrintRef = useRef<HTMLDivElement>(null);
   const [testPrintActive, setTestPrintActive] = useState(false);
   const [activeBarTab, setActiveBarTab] = useState<string>("standard");
+  const [activePrecisionTemplateName, setActivePrecisionTemplateName] = useState<string | null>(null);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   // Helper function to check if a template is the current default
   const getDefaultTemplateName = (): string | null => {
     try {
@@ -1218,6 +1220,33 @@ export default function BarcodePrinting() {
   // Track whether defaults have been loaded to prevent re-runs
   const hasLoadedDefaultsRef = useRef(false);
 
+  // Auto-save precision label config changes to active template (debounced)
+  useEffect(() => {
+    if (!activePrecisionTemplateName || !precisionSettings.labelConfig) return;
+    
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    
+    autoSaveTimerRef.current = setTimeout(async () => {
+      const template = savedLabelTemplates.find(t => t.name === activePrecisionTemplateName);
+      if (!template) return;
+      
+      const updatedTemplate: LabelTemplate = {
+        name: activePrecisionTemplateName,
+        config: { ...precisionSettings.labelConfig },
+        labelWidth: precisionSettings.labelWidth,
+        labelHeight: precisionSettings.labelHeight,
+      };
+      
+      const success = await saveTemplateToDb(updatedTemplate);
+      if (success) {
+        console.log(`Auto-saved template "${activePrecisionTemplateName}"`);
+      }
+    }, 1500);
+    
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [precisionSettings.labelConfig, activePrecisionTemplateName]);
 
   // Sync database settings with local state
   useEffect(() => {
@@ -4494,6 +4523,8 @@ export default function BarcodePrinting() {
                   }
                   if (preset.a4Cols) setPrecisionSettings((prev) => ({ ...prev, a4Cols: preset.a4Cols! }));
                   if (preset.a4Rows) setPrecisionSettings((prev) => ({ ...prev, a4Rows: preset.a4Rows! }));
+                  const isLabelTemplate = savedLabelTemplates.some(t => t.name === preset.name);
+                  setActivePrecisionTemplateName(isLabelTemplate ? preset.name : null);
                 }}
                 labelConfig={precisionSettings.labelConfig || undefined}
                 sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
@@ -4609,6 +4640,9 @@ export default function BarcodePrinting() {
                 }
                 if (preset.a4Cols) setPrecisionSettings((prev) => ({ ...prev, a4Cols: preset.a4Cols! }));
                 if (preset.a4Rows) setPrecisionSettings((prev) => ({ ...prev, a4Rows: preset.a4Rows! }));
+                // Track active template for auto-save (only for saved label templates, not built-in presets)
+                const isLabelTemplate = savedLabelTemplates.some(t => t.name === preset.name);
+                setActivePrecisionTemplateName(isLabelTemplate ? preset.name : null);
               }}
               labelConfig={precisionSettings.labelConfig || undefined}
               savedTemplates={savedLabelTemplates}
@@ -4644,6 +4678,14 @@ export default function BarcodePrinting() {
         <TabsContent value="designer" className="space-y-6">
           <div className="border rounded-lg p-4 space-y-4">
             <h2 className="text-xl font-semibold">📐 Precision Pro Label Designer</h2>
+            {activePrecisionTemplateName && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                  ✏️ Editing: {activePrecisionTemplateName}
+                </span>
+                <span className="text-muted-foreground text-xs">(changes auto-save)</span>
+              </div>
+            )}
             <p className="text-sm text-muted-foreground">
               Configure exact field positions (in mm) for pixel-perfect label printing. Drag fields to reposition them on the live preview.
             </p>
@@ -4658,6 +4700,7 @@ export default function BarcodePrinting() {
               onSave={async () => {
                 if (!currentOrganization?.id) return;
                 try {
+                  // Save to organization settings
                   const { data: existing } = await (supabase
                     .from("organization_settings" as any)
                     .select("bill_barcode_settings")
@@ -4675,7 +4718,19 @@ export default function BarcodePrinting() {
                     .update({ bill_barcode_settings: updatedBbs })
                     .eq("organization_id", currentOrganization.id);
 
-                  toast.success("Label design saved successfully");
+                  // Also save to active template if one is loaded
+                  if (activePrecisionTemplateName) {
+                    const updatedTemplate: LabelTemplate = {
+                      name: activePrecisionTemplateName,
+                      config: { ...(precisionSettings.labelConfig || DEFAULT_PRECISION_CONFIG) },
+                      labelWidth: precisionSettings.labelWidth,
+                      labelHeight: precisionSettings.labelHeight,
+                    };
+                    await saveTemplateToDb(updatedTemplate);
+                    toast.success(`Design saved & template "${activePrecisionTemplateName}" updated`);
+                  } else {
+                    toast.success("Label design saved successfully");
+                  }
                 } catch (error) {
                   console.error("Failed to save label design:", error);
                   toast.error("Failed to save label design");
