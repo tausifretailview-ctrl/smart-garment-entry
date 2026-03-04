@@ -4494,6 +4494,7 @@ export default function BarcodePrinting() {
                   if (preset.a4Rows) setPrecisionSettings((prev) => ({ ...prev, a4Rows: preset.a4Rows! }));
                 }}
                 labelConfig={precisionSettings.labelConfig || undefined}
+                sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
               />
             </DialogContent>
           </Dialog>
@@ -4608,6 +4609,7 @@ export default function BarcodePrinting() {
                 if (preset.a4Rows) setPrecisionSettings((prev) => ({ ...prev, a4Rows: preset.a4Rows! }));
               }}
               labelConfig={precisionSettings.labelConfig || undefined}
+              sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
             />
           </div>
 
@@ -4643,6 +4645,7 @@ export default function BarcodePrinting() {
               onConfigChange={(cfg) =>
                 setPrecisionSettings((prev) => ({ ...prev, labelConfig: cfg }))
               }
+              sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
               onSave={async () => {
                 if (!currentOrganization?.id) return;
                 try {

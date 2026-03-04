@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Save, RotateCcw, ZoomIn, ZoomOut, Move } from "lucide-react";
-import { LabelDesignConfig, LabelFieldConfig, FieldKey } from "@/types/labelTypes";
+import { LabelDesignConfig, LabelFieldConfig, FieldKey, LabelItem } from "@/types/labelTypes";
 import { DraggableLabelCanvas } from "./DraggableLabelCanvas";
 
 interface PrecisionLabelDesignerProps {
@@ -17,6 +17,7 @@ interface PrecisionLabelDesignerProps {
   config: LabelDesignConfig;
   onConfigChange: (config: LabelDesignConfig) => void;
   onSave?: () => void;
+  sampleItem?: LabelItem;
 }
 
 const FIELD_LABELS: Record<FieldKey, string> = {
@@ -81,6 +82,7 @@ export function PrecisionLabelDesigner({
   config,
   onConfigChange,
   onSave,
+  sampleItem,
 }: PrecisionLabelDesignerProps) {
   const [activeField, setActiveField] = useState<FieldKey | null>(null);
   const [zoom, setZoom] = useState(3);
@@ -312,7 +314,7 @@ export function PrecisionLabelDesigner({
         </div>
 
         <DraggableLabelCanvas
-          item={SAMPLE_ITEM}
+          item={sampleItem || SAMPLE_ITEM}
           width={labelWidth}
           height={labelHeight}
           config={config}
