@@ -1,39 +1,29 @@
 
 
-## Plan: Fix Browser Print for 38x25 1-Up Thermal Labels
+## Plan: Fix Extra Blank Labels in Precision Pro Print
 
-### Problem Analysis
-From the photos: the preview looks correct, but browser print output has two issues:
-1. **Font is too small / not bold enough** compared to preview
-2. **Labels after the first one shift upward** — content drifts toward the top edge on subsequent labels
+### Problem
+When printing from Precision Pro (thermal mode), extra blank labels appear in the printed output even though the preview shows the correct quantity. The user's screenshot shows this in the print preview dialog.
 
 ### Root Cause
-In the `@media print` CSS for thermal 1-up labels:
+Two conflicting print stylesheets are active simultaneously:
 
-1. **Scaling issue**: `transform: scale(1.05); transform-origin: center center;` on `#printArea` — scaling from center causes cumulative vertical shift across multiple page breaks. Each label-grid is a separate page, but the transform displaces them all relative to center of the entire container.
+1. **`PrecisionPrintCSS` component** — injected by `PrecisionThermalPrint`, sets `@page { size: 38mm 25mm; margin: 0 }` and makes `.precision-print-area` visible.
+2. **Inline `<style>` block** at the bottom of `BarcodePrinting.tsx` — always present, sets its own `@page` size based on standard mode settings, AND makes `#printArea` visible with `page-break-after: always` on `.label-grid`.
 
-2. **Font size**: The base `.label-cell` style sets `font-size: 9px` which is too small for 38x25mm. The print CSS overrides with `font-size: inherit !important` but the inherited size is still small. Bold fields use inline `font-weight: bold` but the print CSS override `text-align: initial !important` may interfere with rendering.
+Even though `#printArea` is an empty `<div className="hidden">` when Precision Pro is active, the conflicting `@page` sizes and the `body * { visibility: hidden }` / `#printArea * { visibility: visible }` rules from BOTH stylesheets cause the browser to generate extra blank pages.
 
-### Changes to `src/pages/BarcodePrinting.tsx`
+### Fix (in `src/pages/BarcodePrinting.tsx`)
 
-**1. Fix the transform scaling for thermal 1-up**
-- Change `transform-origin: center center` to `transform-origin: top left` so scaling does not shift content
-- Remove or reduce the `scale(1.05)` — it was meant to compensate for browser print margins but causes drift on multi-label jobs. Set to `scale(1.0)` (no scaling) since `@page { margin: 0 }` already handles margins
+**1. Conditionally render the inline `<style>` block only when Precision Pro is NOT active**
 
-**2. Ensure each label-grid is self-contained for page breaks**
-- Add `position: relative` to each `.label-grid` in print mode so page breaks work cleanly without accumulated offset
+Wrap the entire `<style>{...}</style>` block (lines ~4897–5102) so it only renders when `!precisionSettings.enabled`. This prevents conflicting `@page` and visibility rules. The `PrecisionPrintCSS` component already handles everything needed for Precision Pro printing.
 
-**3. Fix font rendering in print**
-- Remove `font-size: inherit !important` override from `.label-cell` print CSS — let inline font sizes from the designer take effect
-- Add `-webkit-text-stroke: 0.3px black` to `.label-cell` in print mode to ensure bold text appears darker on print (matching how thermal receipts handle this)
-- Ensure `font-weight` from inline styles is not overridden
+**2. Alternative (if the style block is needed for non-print styling):**
 
-**4. For the label-cell > div (absolute positioned fields)**
-- Keep `position: absolute !important` but ensure the parent `.label-cell` has proper dimensions without the `font-size: inherit` override interfering
+Split the style block — keep non-print styles always rendered, but wrap the `@media print` section in a condition:
+- When `precisionSettings.enabled` is true: skip the `@media print` block entirely (PrecisionPrintCSS handles it)
+- When false: render the standard print CSS as before
 
-### Summary
-- Remove `scale(1.05)` transform (or use `1.0`) and fix transform-origin to `top left`
-- Remove `font-size: inherit !important` from print `.label-cell` to respect designer font sizes
-- Add text stroke for bolder print output
-- These are CSS-only changes in the `<style>` block at bottom of BarcodePrinting.tsx
+This is a single conditional change in the JSX render section.
 
