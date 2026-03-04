@@ -70,6 +70,11 @@ export function PrecisionLabelPreview({
   // Unit helper: when scaleFactor is set, use px-based sizing instead of CSS mm
   const u = (mm: number) => scaleFactor ? `${mm * 3.7795 * scaleFactor}px` : `${mm}mm`;
 
+  // Font size helper: ensures WYSIWYG between preview and print
+  // In preview: fontSize * scaleFactor px, where 1mm = 3.7795 * scaleFactor px
+  // In print: convert fontSize to mm using the same ratio so proportions match exactly
+  const fs = (fontSize: number) => scaleFactor ? `${fontSize * scaleFactor}px` : `${fontSize / 3.7795}mm`;
+
   // If no config provided, render legacy hardcoded layout
   if (!config) {
     return (
@@ -85,10 +90,10 @@ export function PrecisionLabelPreview({
           boxSizing: "border-box",
         }}
       >
-        <div style={{ position: "absolute", top: u(1), left: u(1), right: u(1), fontSize: scaleFactor ? `${Math.max(7, Math.min(10, width * 0.18)) * scaleFactor}px` : `${Math.max(7, Math.min(10, width * 0.18))}pt`, fontWeight: 700, textAlign: "center", lineHeight: 1.1, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+        <div style={{ position: "absolute", top: u(1), left: u(1), right: u(1), fontSize: fs(Math.max(7, Math.min(10, width * 0.18))), fontWeight: 700, textAlign: "center", lineHeight: 1.1, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
           {item.product_name}
         </div>
-        <div style={{ position: "absolute", top: u(height * 0.2), left: u(1), right: u(1), display: "flex", justifyContent: "space-between", fontSize: scaleFactor ? `${Math.max(7, Math.min(9, width * 0.16)) * scaleFactor}px` : `${Math.max(7, Math.min(9, width * 0.16))}pt`, fontWeight: 600 }}>
+        <div style={{ position: "absolute", top: u(height * 0.2), left: u(1), right: u(1), display: "flex", justifyContent: "space-between", fontSize: fs(Math.max(7, Math.min(9, width * 0.16))), fontWeight: 600 }}>
           <span>Size: {item.size}</span>
           <span>₹{item.sale_price}</span>
         </div>
@@ -97,7 +102,7 @@ export function PrecisionLabelPreview({
             <svg ref={barcodeRef} className="precision-barcode-svg" style={{ maxWidth: u(width - 2), imageRendering: "pixelated" }} />
           </div>
         )}
-        <div style={{ position: "absolute", bottom: u(0.5), left: u(1), right: u(1), fontSize: scaleFactor ? `${Math.max(6, Math.min(8, width * 0.14)) * scaleFactor}px` : `${Math.max(6, Math.min(8, width * 0.14))}pt`, textAlign: "center", letterSpacing: "0.5px" }}>
+        <div style={{ position: "absolute", bottom: u(0.5), left: u(1), right: u(1), fontSize: fs(Math.max(6, Math.min(8, width * 0.14))), textAlign: "center", letterSpacing: "0.5px" }}>
           {item.barcode}
         </div>
       </div>
@@ -141,7 +146,7 @@ export function PrecisionLabelPreview({
               top: u(field.y ?? 0),
               left: u(field.x ?? 0),
               width: field.width ? u(field.width) : "auto",
-              fontSize: scaleFactor ? `${field.fontSize * scaleFactor}px` : `${field.fontSize}pt`,
+              fontSize: fs(field.fontSize),
               fontWeight: field.bold ? 700 : 400,
               textAlign: (field.textAlign as any) || "left",
               lineHeight: 1.15,
