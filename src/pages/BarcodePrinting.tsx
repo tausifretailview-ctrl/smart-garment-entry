@@ -44,6 +44,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey } from "@/types/labelTypes";
 import { PrecisionThermalPrint } from "@/components/precision-barcode/PrecisionThermalPrint";
 import { PrecisionA4SheetPrint } from "@/components/precision-barcode/PrecisionA4SheetPrint";
+import { PrecisionLabelPreview } from "@/components/precision-barcode/PrecisionLabelPreview";
 import { LabelCalibrationUI } from "@/components/precision-barcode/LabelCalibrationUI";
 import { TestLabelPrint } from "@/components/precision-barcode/TestLabelPrint";
 import { PrecisionPrintCSS } from "@/components/precision-barcode/PrecisionPrintCSS";
@@ -4681,15 +4682,52 @@ export default function BarcodePrinting() {
               Review your labels before printing. This is how they will appear on the sheet.
             </DialogDescription>
           </DialogHeader>
-          <div 
-            id="previewArea" 
-            className="mt-4 border rounded-md p-4 bg-white"
-            ref={(el) => {
-              if (el && isPreviewDialogOpen) {
-                generatePreview("previewArea");
-              }
-            }}
-          />
+          {precisionSettings.enabled ? (
+            <div className="mt-4 border rounded-md p-4 bg-white overflow-auto">
+              <div className="mb-3 p-3 rounded-lg text-center font-bold text-sm" style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--primary))" }}>
+                Total: {labelItems.reduce((s, i) => s + (i.qty || 0), 0)} labels
+              </div>
+              {isThermal1Up() ? (
+                <div className="flex flex-col items-center gap-4">
+                  {labelItems.filter(i => (i.qty || 0) > 0).flatMap((item, idx) =>
+                    Array.from({ length: item.qty || 1 }, (_, qi) => (
+                      <div key={`${idx}-${qi}`} className="border border-dashed border-border">
+                        <PrecisionLabelPreview
+                          item={{ ...item, businessName }}
+                          width={precisionSettings.labelWidth}
+                          height={precisionSettings.labelHeight}
+                          config={precisionSettings.labelConfig || undefined}
+                          scaleFactor={2}
+                        />
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : (
+                <PrecisionA4SheetPrint
+                  items={labelItems.filter(i => (i.qty || 0) > 0).map(i => ({ ...i, businessName }))}
+                  labelWidth={precisionSettings.labelWidth}
+                  labelHeight={precisionSettings.labelHeight}
+                  cols={precisionSettings.a4Cols}
+                  rows={precisionSettings.a4Rows}
+                  xOffset={precisionSettings.xOffset}
+                  yOffset={precisionSettings.yOffset}
+                  vGap={precisionSettings.vGap}
+                  config={precisionSettings.labelConfig || undefined}
+                />
+              )}
+            </div>
+          ) : (
+            <div 
+              id="previewArea" 
+              className="mt-4 border rounded-md p-4 bg-white"
+              ref={(el) => {
+                if (el && isPreviewDialogOpen) {
+                  generatePreview("previewArea");
+                }
+              }}
+            />
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsPreviewDialogOpen(false)}>
               Close
