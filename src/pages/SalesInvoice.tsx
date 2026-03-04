@@ -176,8 +176,9 @@ export default function SalesInvoice() {
   const [roundOff, setRoundOff] = useState<number>(0);
   const [nextInvoicePreview, setNextInvoicePreview] = useState<string>("");
   
-  // Size grid entry mode
-  const [entryMode, setEntryMode] = useState<"grid" | "inline">("inline");
+  // Size grid entry mode - default to grid, will be overridden by settings
+  const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
+  const [sizeGridEnabled, setSizeGridEnabled] = useState(true);
   const [showSizeGrid, setShowSizeGrid] = useState(false);
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
@@ -383,6 +384,18 @@ export default function SalesInvoice() {
     staleTime: 300000,
     refetchOnWindowFocus: false,
   });
+
+  // Read size grid setting from settings
+  useEffect(() => {
+    if (settingsData) {
+      const saleSettings = settingsData.sale_settings as any;
+      const enabled = saleSettings?.enable_size_grid_sales !== false; // default true
+      setSizeGridEnabled(enabled);
+      if (!enabled) {
+        setEntryMode("inline");
+      }
+    }
+  }, [settingsData]);
 
   // Direct print hook
   const { isDirectPrintEnabled, directPrint } = useDirectPrint(
@@ -2259,7 +2272,8 @@ Thank you for choosing us!`;
       <div className="bg-card rounded-lg border shadow-sm p-3">
           <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">Product Entry</div>
           <div className="flex items-center gap-3 flex-wrap">
-            {/* Entry Mode Toggle */}
+            {/* Entry Mode Toggle - only show if size grid enabled in settings */}
+            {sizeGridEnabled && (
             <div className="flex items-center gap-2">
               <Label className="text-sm">Entry Mode:</Label>
               <div className="flex items-center gap-2">
@@ -2275,6 +2289,7 @@ Thank you for choosing us!`;
                 </span>
               </div>
             </div>
+            )}
 
             {/* Barcode Scan Input - Direct scan like POS */}
             <div className="relative w-[200px]">
