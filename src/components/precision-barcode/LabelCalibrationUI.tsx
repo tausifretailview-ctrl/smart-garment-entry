@@ -133,6 +133,7 @@ interface LabelCalibrationUIProps {
   onLoadPreset?: (preset: CalibrationPreset) => void;
   labelConfig?: LabelDesignConfig;
   compact?: boolean;
+  sampleItem?: LabelItem;
   /** @deprecated Use onSavePreset/onDeletePreset instead */
   onPresetsChange?: (presets: CalibrationPreset[]) => void;
 }
@@ -147,6 +148,7 @@ export function LabelCalibrationUI({
   onPresetsChange,
   labelConfig,
   compact = false,
+  sampleItem,
 }: LabelCalibrationUIProps) {
   const [savePresetOpen, setSavePresetOpen] = useState(false);
   const [newPresetName, setNewPresetName] = useState("");
@@ -369,7 +371,7 @@ export function LabelCalibrationUI({
                   }}
                 >
                   <PrecisionLabelPreview
-                    item={SAMPLE_ITEM}
+                    item={sampleItem || SAMPLE_ITEM}
                     width={values.labelWidth}
                     height={values.labelHeight}
                     xOffset={values.xOffset}
