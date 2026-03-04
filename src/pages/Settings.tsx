@@ -200,6 +200,7 @@ interface BillBarcodeSettings {
   precision_label_height?: number;
   precision_a4_cols?: number;
   precision_a4_rows?: number;
+  precision_print_mode?: 'thermal' | 'a4';
   precision_label_config?: any; // LabelDesignConfig stored as JSON
 }
 

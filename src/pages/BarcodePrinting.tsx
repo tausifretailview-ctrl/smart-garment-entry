@@ -1181,6 +1181,7 @@ export default function BarcodePrinting() {
     labelHeight: 25,
     a4Cols: 4,
     a4Rows: 12,
+    printMode: 'thermal' as 'thermal' | 'a4',
     labelConfig: null as any,
   });
   const [dbPresets, setDbPresets] = useState<import("@/components/precision-barcode/LabelCalibrationUI").CalibrationPreset[]>([]);
@@ -1403,6 +1404,7 @@ export default function BarcodePrinting() {
             labelHeight: bbs.precision_label_height ?? 25,
             a4Cols: bbs.precision_a4_cols ?? 4,
             a4Rows: bbs.precision_a4_rows ?? 12,
+            printMode: bbs.precision_print_mode ?? 'thermal',
             labelConfig: bbs.precision_label_config || null,
           });
           if (bbs.precision_pro_enabled === true) {
@@ -4610,6 +4612,12 @@ export default function BarcodePrinting() {
               }}
               labelConfig={precisionSettings.labelConfig || undefined}
               savedTemplates={savedLabelTemplates}
+              printMode={precisionSettings.printMode}
+              a4Cols={precisionSettings.a4Cols}
+              a4Rows={precisionSettings.a4Rows}
+              onPrintModeChange={(mode) => setPrecisionSettings((prev) => ({ ...prev, printMode: mode }))}
+              onA4ColsChange={(cols) => setPrecisionSettings((prev) => ({ ...prev, a4Cols: cols }))}
+              onA4RowsChange={(rows) => setPrecisionSettings((prev) => ({ ...prev, a4Rows: rows }))}
               sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
             />
           </div>
@@ -4691,7 +4699,7 @@ export default function BarcodePrinting() {
               <div className="mb-3 p-3 rounded-lg text-center font-bold text-sm" style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--primary))" }}>
                 Total: {labelItems.reduce((s, i) => s + (i.qty || 0), 0)} labels
               </div>
-              {isThermal1Up() ? (
+              {precisionSettings.printMode === 'thermal' ? (
                 <div className="flex flex-col items-center gap-4">
                   {labelItems.filter(i => (i.qty || 0) > 0).flatMap((item, idx) =>
                     Array.from({ length: item.qty || 1 }, (_, qi) => (
@@ -4800,7 +4808,7 @@ export default function BarcodePrinting() {
       {/* Print Area (hidden, used for printing) */}
       {!testPrintActive && precisionSettings.enabled ? (
         <div className="hidden print:block">
-          {isThermal1Up() ? (
+          {precisionSettings.printMode === 'thermal' ? (
             <PrecisionThermalPrint
               ref={precisionPrintRef}
               items={labelItems.map(i => ({ ...i, businessName }))}
