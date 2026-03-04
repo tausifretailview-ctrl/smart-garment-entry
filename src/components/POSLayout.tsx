@@ -39,7 +39,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const { signOut } = useAuth();
   const { currentOrganization } = useOrganization();
   const { orgNavigate, orgSlug } = useOrgNavigation();
-  const { onNewSale, onClearCart, onOpenCashierReport, onOpenStockReport, onOpenSaleReturn, onSaveChanges, hasItems, isEditing, isSavingChanges } = usePOS();
+  const { onNewSale, onClearCart, onOpenCashierReport, onOpenStockReport, onOpenSaleReturn, onSaveChanges, onEstimatePrint, hasItems, isEditing, isSavingChanges } = usePOS();
   const { isOpen, setIsOpen } = useKeyboardShortcuts("pos");
   const [showSizeStock, setShowSizeStock] = useState(false);
   const [showCashTally, setShowCashTally] = useState(false);
@@ -142,6 +142,24 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
                   <p>Clear cart <kbd className="ml-1 px-1 py-0.5 bg-muted rounded text-xs">Esc</kbd></p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {onEstimatePrint && hasItems && !isEditing && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={onEstimatePrint}
+                    className="text-primary-foreground hover:bg-primary/80 gap-1"
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span className="hidden sm:inline">Estimate</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
+                  <p>Print Estimate without saving <kbd className="ml-1 px-1 py-0.5 bg-muted rounded text-xs">F9</kbd></p>
                 </TooltipContent>
               </Tooltip>
             )}
