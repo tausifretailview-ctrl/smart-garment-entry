@@ -510,7 +510,7 @@ const SupplierMaster = () => {
           </Button>
         )}
 
-        {selectedSuppliers.size === 2 && (
+        {selectedSuppliers.size >= 2 && (
           <Button variant="outline" size="sm" className="h-9 shrink-0" onClick={() => {
             const selected = suppliers.filter(s => selectedSuppliers.has(s.id));
             setMergeSuppliers(selected);
@@ -630,7 +630,7 @@ const SupplierMaster = () => {
       )}
 
       <MergeSuppliersDialog
-        open={mergeSuppliers.length === 2}
+        open={mergeSuppliers.length >= 2}
         onOpenChange={(open) => { if (!open) setMergeSuppliers([]); }}
         suppliers={mergeSuppliers}
         onMergeComplete={() => {

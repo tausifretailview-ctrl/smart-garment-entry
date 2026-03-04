@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ArrowRight, Check } from "lucide-react";
+import { Loader2, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SupplierInfo {
@@ -42,31 +42,36 @@ export const MergeSuppliersDialog = ({
   const [isMerging, setIsMerging] = useState(false);
 
   const getDefaultTarget = () => {
-    if (suppliers.length !== 2) return "";
-    // Prefer the one with more data (opening balance, GST, etc.)
+    if (suppliers.length < 2) return "";
     const score = (s: SupplierInfo) =>
       (s.opening_balance ? 1 : 0) + (s.gst_number ? 1 : 0) + (s.phone ? 1 : 0) + (s.email ? 1 : 0);
-    return score(suppliers[0]) >= score(suppliers[1]) ? suppliers[0].id : suppliers[1].id;
+    return suppliers.reduce((best, s) => (score(s) > score(best) ? s : best), suppliers[0]).id;
   };
 
   const effectiveTargetId = targetId || getDefaultTarget();
   const target = suppliers.find((s) => s.id === effectiveTargetId);
-  const source = suppliers.find((s) => s.id !== effectiveTargetId);
+  const sources = suppliers.filter((s) => s.id !== effectiveTargetId);
 
   const handleMerge = async () => {
-    if (!target || !source) return;
+    if (!target || sources.length === 0) return;
     setIsMerging(true);
     try {
-      const { data, error } = await supabase.rpc("merge_suppliers", {
-        p_target_supplier_id: target.id,
-        p_source_supplier_id: source.id,
-      });
+      let totalPurchases = 0, totalOrders = 0, totalReturns = 0;
 
-      if (error) throw error;
+      for (const source of sources) {
+        const { data, error } = await supabase.rpc("merge_suppliers", {
+          p_target_supplier_id: target.id,
+          p_source_supplier_id: source.id,
+        });
+        if (error) throw error;
+        const result = data as any;
+        totalPurchases += result.purchases_moved || 0;
+        totalOrders += result.orders_moved || 0;
+        totalReturns += result.returns_moved || 0;
+      }
 
-      const result = data as any;
       toast.success(
-        `Merged "${source.supplier_name}" into "${target.supplier_name}" — ${result.purchases_moved} purchases, ${result.orders_moved} orders, ${result.returns_moved} returns reassigned`
+        `Merged ${sources.length} supplier(s) into "${target.supplier_name}" — ${totalPurchases} purchases, ${totalOrders} orders, ${totalReturns} returns reassigned`
       );
       onOpenChange(false);
       onMergeComplete();
@@ -77,73 +82,71 @@ export const MergeSuppliersDialog = ({
     }
   };
 
-  if (suppliers.length !== 2) return null;
+  if (suppliers.length < 2) return null;
+
+  const consolidatedBalance = suppliers.reduce((sum, s) => sum + (s.opening_balance || 0), 0);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Merge Suppliers</DialogTitle>
+          <DialogTitle>Merge {suppliers.length} Suppliers</DialogTitle>
           <DialogDescription>
-            Select which supplier to keep. The other will be merged into it — all purchases, orders, and returns will be reassigned.
+            Select which supplier to keep. All others will be merged into it — purchases, orders, returns, and payments will be reassigned.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-start py-4">
-          {suppliers.map((supplier, idx) => {
+        <div className="space-y-2 py-4 max-h-[40vh] overflow-y-auto">
+          {suppliers.map((supplier) => {
             const isTarget = supplier.id === effectiveTargetId;
             return (
-              <div key={supplier.id} className="contents">
-                {idx === 1 && (
-                  <div className="flex items-center justify-center self-center">
-                    <ArrowRight className="h-6 w-6 text-muted-foreground" />
-                  </div>
+              <button
+                key={supplier.id}
+                type="button"
+                onClick={() => setTargetId(supplier.id)}
+                className={cn(
+                  "w-full rounded-lg border-2 p-4 text-left transition-all",
+                  isTarget
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-muted-foreground/50"
                 )}
-                <button
-                  type="button"
-                  onClick={() => setTargetId(supplier.id)}
-                  className={cn(
-                    "rounded-lg border-2 p-4 text-left transition-all",
-                    isTarget
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-muted-foreground/50"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold text-foreground">{supplier.supplier_name}</span>
+                  {isTarget ? (
+                    <Badge className="gap-1"><Check className="h-3 w-3" /> Keep</Badge>
+                  ) : (
+                    <Badge variant="secondary">Will merge</Badge>
                   )}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-semibold text-foreground">{supplier.supplier_name}</span>
-                    {isTarget ? (
-                      <Badge className="gap-1"><Check className="h-3 w-3" /> Keep</Badge>
-                    ) : (
-                      <Badge variant="secondary">Will merge</Badge>
-                    )}
-                  </div>
-                  <div className="space-y-1 text-sm text-muted-foreground">
-                    {supplier.contact_person && <p>Contact: {supplier.contact_person}</p>}
-                    {supplier.phone && <p>Phone: {supplier.phone}</p>}
-                    {supplier.gst_number && <p>GST: {supplier.gst_number}</p>}
-                    {supplier.supplier_code && <p>Code: {supplier.supplier_code}</p>}
-                    <p className="font-medium text-foreground">
-                      Opening Bal: ₹{(supplier.opening_balance || 0).toLocaleString()}
-                    </p>
-                  </div>
-                </button>
-              </div>
+                </div>
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  {supplier.contact_person && <p>Contact: {supplier.contact_person}</p>}
+                  {supplier.phone && <p>Phone: {supplier.phone}</p>}
+                  {supplier.gst_number && <p>GST: {supplier.gst_number}</p>}
+                  {supplier.supplier_code && <p>Code: {supplier.supplier_code}</p>}
+                  <p className="font-medium text-foreground">
+                    Opening Bal: ₹{(supplier.opening_balance || 0).toLocaleString()}
+                  </p>
+                </div>
+              </button>
             );
           })}
         </div>
 
-        {target && source && (
+        {target && sources.length > 0 && (
           <div className="rounded-md bg-muted/50 p-3 text-sm space-y-1">
-            <p>All purchase bills, orders, and returns from "{source.supplier_name}" will be reassigned to "{target.supplier_name}".</p>
-            <p>Opening balances will be consolidated (₹{((target.opening_balance || 0) + (source.opening_balance || 0)).toLocaleString()}).</p>
-            <p className="text-destructive font-medium">"{source.supplier_name}" will be soft-deleted after merge.</p>
+            <p>All purchase bills, orders, payments, and returns from {sources.length} supplier(s) will be reassigned to "{target.supplier_name}".</p>
+            <p>Opening balances will be consolidated (₹{consolidatedBalance.toLocaleString()}).</p>
+            <p className="text-destructive font-medium">
+              {sources.map(s => `"${s.supplier_name}"`).join(", ")} will be soft-deleted after merge.
+            </p>
           </div>
         )}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isMerging}>Cancel</Button>
-          <Button onClick={handleMerge} disabled={isMerging || !target || !source}>
-            {isMerging ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Merging...</>) : "Confirm Merge"}
+          <Button onClick={handleMerge} disabled={isMerging || !target || sources.length === 0}>
+            {isMerging ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Merging...</>) : `Merge ${sources.length} into Target`}
           </Button>
         </DialogFooter>
       </DialogContent>
