@@ -47,6 +47,7 @@ import { PrecisionA4SheetPrint } from "@/components/precision-barcode/PrecisionA
 import { LabelCalibrationUI } from "@/components/precision-barcode/LabelCalibrationUI";
 import { TestLabelPrint } from "@/components/precision-barcode/TestLabelPrint";
 import { PrecisionPrintCSS } from "@/components/precision-barcode/PrecisionPrintCSS";
+import { PrecisionLabelDesigner, DEFAULT_PRECISION_CONFIG } from "@/components/precision-barcode/PrecisionLabelDesigner";
 
 // Utility function to sort items by size, barcode, or keep original order (Sr No)
 const sortItemsBySize = (items: LabelItem[], order: SizeSortOrder): LabelItem[] => {
@@ -1185,6 +1186,7 @@ export default function BarcodePrinting() {
   const precisionPrintRef = useRef<HTMLDivElement>(null);
   const testPrintRef = useRef<HTMLDivElement>(null);
   const [testPrintActive, setTestPrintActive] = useState(false);
+  const [activeBarTab, setActiveBarTab] = useState<string>("standard");
   // Helper function to check if a template is the current default
   const getDefaultTemplateName = (): string | null => {
     try {
@@ -1402,6 +1404,9 @@ export default function BarcodePrinting() {
             a4Rows: bbs.precision_a4_rows ?? 12,
             labelConfig: bbs.precision_label_config || null,
           });
+          if (bbs.precision_pro_enabled === true) {
+            setActiveBarTab("precision");
+          }
         }
       } catch (error) {
         console.error("Failed to fetch business name:", error);
@@ -3565,13 +3570,17 @@ export default function BarcodePrinting() {
 
       {/* Printing Mode Tabs */}
       <Tabs 
-        value={precisionSettings.enabled ? "precision" : "standard"} 
-        onValueChange={(v) => setPrecisionSettings(prev => ({ ...prev, enabled: v === "precision" }))}
+        value={activeBarTab} 
+        onValueChange={(v) => {
+          setActiveBarTab(v);
+          setPrecisionSettings(prev => ({ ...prev, enabled: v === "precision" }));
+        }}
         className="w-full"
       >
         <TabsList className="mb-4">
           <TabsTrigger value="standard">Standard Printing</TabsTrigger>
           <TabsTrigger value="precision">🎯 Precision Pro</TabsTrigger>
+          <TabsTrigger value="designer">📐 Label Designer</TabsTrigger>
         </TabsList>
 
         <TabsContent value="standard" className="space-y-6">
@@ -4617,6 +4626,49 @@ export default function BarcodePrinting() {
               <Download className="h-4 w-4 mr-2" />
               Export PDF
             </Button>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="designer" className="space-y-6">
+          <div className="border rounded-lg p-4 space-y-4">
+            <h2 className="text-xl font-semibold">📐 Precision Pro Label Designer</h2>
+            <p className="text-sm text-muted-foreground">
+              Configure exact field positions (in mm) for pixel-perfect label printing. Drag fields to reposition them on the live preview.
+            </p>
+            <PrecisionLabelDesigner
+              labelWidth={precisionSettings.labelWidth}
+              labelHeight={precisionSettings.labelHeight}
+              config={precisionSettings.labelConfig || DEFAULT_PRECISION_CONFIG}
+              onConfigChange={(cfg) =>
+                setPrecisionSettings((prev) => ({ ...prev, labelConfig: cfg }))
+              }
+              onSave={async () => {
+                if (!currentOrganization?.id) return;
+                try {
+                  const { data: existing } = await (supabase
+                    .from("organization_settings" as any)
+                    .select("bill_barcode_settings")
+                    .eq("organization_id", currentOrganization.id)
+                    .maybeSingle() as any);
+                  
+                  const currentBbs = (existing?.bill_barcode_settings as any) || {};
+                  const updatedBbs = {
+                    ...currentBbs,
+                    precision_label_config: precisionSettings.labelConfig || DEFAULT_PRECISION_CONFIG,
+                  };
+
+                  await (supabase
+                    .from("organization_settings" as any) as any)
+                    .update({ bill_barcode_settings: updatedBbs })
+                    .eq("organization_id", currentOrganization.id);
+
+                  toast.success("Label design saved successfully");
+                } catch (error) {
+                  console.error("Failed to save label design:", error);
+                  toast.error("Failed to save label design");
+                }
+              }}
+            />
           </div>
         </TabsContent>
       </Tabs>
