@@ -5873,6 +5873,10 @@ export type Database = {
         }
         Returns: number
       }
+      delete_fee_receipt: {
+        Args: { p_organization_id: string; p_receipt_id: string }
+        Returns: undefined
+      }
       detect_stock_discrepancies: {
         Args: { p_organization_id?: string }
         Returns: {

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Receipt, Loader2, IndianRupee, Calendar, User, MessageCircle, Pencil, CreditCard, Banknote, Smartphone, Building2, Printer } from "lucide-react";
+import { Search, Receipt, Loader2, IndianRupee, Calendar, User, MessageCircle, Pencil, CreditCard, Banknote, Smartphone, Building2, Printer, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { FeeCollectionDialog } from "@/components/school/FeeCollectionDialog";
 import { StudentHistoryDialog } from "@/components/school/StudentHistoryDialog";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
@@ -20,6 +21,7 @@ import { toast } from "sonner";
 import { format, startOfDay, endOfDay, startOfMonth, startOfQuarter, startOfYear, subDays } from "date-fns";
 
 const FeeCollection = () => {
+  const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -38,6 +40,30 @@ const FeeCollection = () => {
   const { settings: whatsAppSettings, sendMessageAsync } = useWhatsAppAPI();
   const { sendWhatsApp } = useWhatsAppSend();
   const [activeTab, setActiveTab] = useState("collect");
+  const [deletingReceipt, setDeletingReceipt] = useState<string | null>(null);
+
+  const deleteReceiptMutation = useMutation({
+    mutationFn: async (receiptId: string) => {
+      setDeletingReceipt(receiptId);
+      const { error } = await supabase.rpc("delete_fee_receipt", {
+        p_receipt_id: receiptId,
+        p_organization_id: currentOrganization!.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Receipt deleted and fees reversed successfully");
+      queryClient.invalidateQueries({ queryKey: ["fees-collected"] });
+      queryClient.invalidateQueries({ queryKey: ["fee-collection-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["students-fee-collection"] });
+      queryClient.invalidateQueries({ queryKey: ["student-fee-details"] });
+      setDeletingReceipt(null);
+    },
+    onError: (err: any) => {
+      toast.error("Delete failed: " + err.message);
+      setDeletingReceipt(null);
+    },
+  });
 
   // Fees Collected tab state
   const [collectedPeriod, setCollectedPeriod] = useState("today");
@@ -756,6 +782,7 @@ const FeeCollection = () => {
                       <TableHead>Payment</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
                       <TableHead className="w-14 text-center">Print</TableHead>
+                      <TableHead className="w-14 text-center">Delete</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -802,6 +829,44 @@ const FeeCollection = () => {
                             >
                               <Printer className="h-4 w-4" />
                             </Button>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {fee.payment_receipt_id && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  title="Delete Receipt"
+                                  disabled={deletingReceipt === fee.payment_receipt_id}
+                                >
+                                  {deletingReceipt === fee.payment_receipt_id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete Fee Receipt?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This will permanently delete receipt <strong>{fee.payment_receipt_id}</strong> for student <strong>{fee.students?.student_name}</strong> (₹{(fee.paid_amount || 0).toLocaleString("en-IN")}). The fees will be reversed in the student's account. This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    onClick={() => deleteReceiptMutation.mutate(fee.payment_receipt_id)}
+                                  >
+                                    Delete & Reverse
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           )}
                         </TableCell>
                       </TableRow>
