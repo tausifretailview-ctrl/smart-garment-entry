@@ -109,6 +109,7 @@ interface SaleSettings {
   sales_bill_format?: 'a4' | 'a5' | 'thermal';  // Sales bill format
   pos_bill_format?: 'a4' | 'a5' | 'a5-horizontal' | 'thermal';  // POS bill format
   defaultEntryMode?: 'grid' | 'inline';  // Default entry mode for Sale Order
+  enable_size_grid_sales?: boolean; // Enable/disable size grid in Sales Invoice
   sales_tax_rate?: number;
   invoice_template?: 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'retail' | 'retail-erp';
   invoice_color_scheme?: string;
@@ -1513,6 +1514,30 @@ export default function Settings() {
                   <p className="text-xs text-muted-foreground">
                     Size Grid allows entering multiple sizes at once, Inline adds one variant at a time
                   </p>
+                </div>
+
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="enable_size_grid_sales" className="text-sm font-medium">
+                      Size Grid in Sales Invoice
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Show Size Grid / Inline entry mode toggle in Sales Invoice
+                    </p>
+                  </div>
+                  <Switch
+                    id="enable_size_grid_sales"
+                    checked={(settings.sale_settings as any)?.enable_size_grid_sales !== false}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          enable_size_grid_sales: checked,
+                        } as any,
+                      })
+                    }
+                  />
                 </div>
                 
                 <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
