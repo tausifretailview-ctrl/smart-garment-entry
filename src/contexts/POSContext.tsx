@@ -7,6 +7,7 @@ interface POSContextType {
   onOpenStockReport: (() => void) | null;
   onOpenSaleReturn: (() => void) | null;
   onSaveChanges: (() => void) | null;
+  onEstimatePrint: (() => void) | null;
   hasItems: boolean;
   isEditing: boolean;
   isSavingChanges: boolean;
@@ -16,6 +17,7 @@ interface POSContextType {
   setOnOpenStockReport: (fn: (() => void) | null) => void;
   setOnOpenSaleReturn: (fn: (() => void) | null) => void;
   setOnSaveChanges: (fn: (() => void) | null) => void;
+  setOnEstimatePrint: (fn: (() => void) | null) => void;
   setHasItems: (has: boolean) => void;
   setIsEditing: (editing: boolean) => void;
   setIsSavingChanges: (saving: boolean) => void;
@@ -30,6 +32,7 @@ export const POSProvider = ({ children }: { children: ReactNode }) => {
   const [onOpenStockReport, setOnOpenStockReport] = useState<(() => void) | null>(null);
   const [onOpenSaleReturn, setOnOpenSaleReturn] = useState<(() => void) | null>(null);
   const [onSaveChanges, setOnSaveChanges] = useState<(() => void) | null>(null);
+  const [onEstimatePrint, setOnEstimatePrint] = useState<(() => void) | null>(null);
   const [hasItems, setHasItems] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSavingChanges, setIsSavingChanges] = useState(false);
@@ -42,6 +45,7 @@ export const POSProvider = ({ children }: { children: ReactNode }) => {
       onOpenStockReport,
       onOpenSaleReturn,
       onSaveChanges,
+      onEstimatePrint,
       hasItems, 
       isEditing,
       isSavingChanges,
@@ -51,6 +55,7 @@ export const POSProvider = ({ children }: { children: ReactNode }) => {
       setOnOpenStockReport,
       setOnOpenSaleReturn,
       setOnSaveChanges,
+      setOnEstimatePrint,
       setHasItems,
       setIsEditing,
       setIsSavingChanges,
@@ -70,6 +75,7 @@ export const usePOS = () => {
       onOpenStockReport: null,
       onOpenSaleReturn: null,
       onSaveChanges: null,
+      onEstimatePrint: null,
       hasItems: false,
       isEditing: false,
       isSavingChanges: false,
@@ -79,6 +85,7 @@ export const usePOS = () => {
       setOnOpenStockReport: () => {},
       setOnOpenSaleReturn: () => {},
       setOnSaveChanges: () => {},
+      setOnEstimatePrint: () => {},
       setHasItems: () => {},
       setIsEditing: () => {},
       setIsSavingChanges: () => {},

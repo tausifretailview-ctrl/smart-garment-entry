@@ -107,7 +107,7 @@ interface CartItem {
 export default function POSSales() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
-  const { setOnNewSale, setOnClearCart, setOnOpenCashierReport, setOnOpenStockReport, setOnOpenSaleReturn, setOnSaveChanges, setHasItems, setIsEditing, setIsSavingChanges } = usePOS();
+  const { setOnNewSale, setOnClearCart, setOnOpenCashierReport, setOnOpenStockReport, setOnOpenSaleReturn, setOnSaveChanges, setOnEstimatePrint, setHasItems, setIsEditing, setIsSavingChanges } = usePOS();
   const { saveSale, updateSale, holdSale, resumeHeldSale, isSaving } = useSaveSale();
   const { createCreditNote, getAvailableCreditBalance, applyCredit, isCreating: isCreatingCreditNote, isApplying: isApplyingCredit } = useCreditNotes();
   const isMobile = useIsMobile();
@@ -498,6 +498,13 @@ export default function POSSales() {
         e.preventDefault();
         setShowFloatingCashierReport(true);
       }
+      // F9 - Print Estimate (no save)
+      else if (e.key === 'F9') {
+        e.preventDefault();
+        if (items.length > 0) {
+          handleEstimatePrintRef.current?.();
+        }
+      }
       // Esc - Clear items
       else if (e.key === 'Escape') {
         e.preventDefault();
@@ -537,6 +544,9 @@ export default function POSSales() {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Ref for estimate print (to avoid hoisting issues in keyboard handler)
+  const handleEstimatePrintRef = useRef<(() => void) | null>(null);
 
   // Register POS header actions
   useEffect(() => {
@@ -1398,7 +1408,63 @@ export default function POSSales() {
   // Calculate effective discount percentage for customer display (after final amount adjustment)
   const effectiveDiscountPercent = totals.mrp > 0 ? ((totals.mrp - finalAmount) / totals.mrp) * 100 : 0;
 
-  // Handle applying credit from credit notes
+  // Handle Estimate Print (no save, cart stays intact)
+  const handleEstimatePrint = useCallback(() => {
+    if (items.length === 0) return;
+    
+    const estimateData = {
+      invoiceNumber: "ESTIMATE",
+      saleId: null,
+      items: items,
+      totals: totals,
+      flatDiscountAmount: flatDiscountAmount,
+      saleReturnAdjust: saleReturnAdjust,
+      finalAmount: finalAmount,
+      method: 'estimate',
+      customerName: customerName || "Walk-in Customer",
+      customerPhone: customerPhone,
+      customerId: customerId,
+      roundOff: roundOff,
+      creditApplied: creditApplied,
+      notes: saleNotes || null,
+      paidAmount: 0,
+      previousBalance: customerBalance || 0,
+      isEstimate: true,
+    };
+    
+    setSavedInvoiceData(estimateData);
+    
+    // Print after render
+    setTimeout(async () => {
+      if (isDirectPrintEnabled) {
+        const paperSize = posBillFormat === 'thermal' ? '80mm' : posBillFormat === 'a5' || posBillFormat === 'a5-horizontal' ? 'A5' : 'A4';
+        await directPrint(invoicePrintRef.current, {
+          context: 'pos',
+          paperSize,
+          onFallback: () => {
+            setShowPrintPreview(true);
+          },
+          onSuccess: () => {
+            setSavedInvoiceData(null);
+            setTimeout(() => barcodeInputRef.current?.focus(), 100);
+          },
+        });
+      } else {
+        // Browser print - handlePrint is defined later via useReactToPrint
+        // We'll set showPrintPreview to trigger it
+        setShowPrintPreview(true);
+      }
+    }, 500);
+  }, [items, totals, flatDiscountAmount, saleReturnAdjust, finalAmount, customerName, customerPhone, customerId, roundOff, creditApplied, saleNotes, customerBalance, isDirectPrintEnabled, posBillFormat]);
+
+  // Register estimate print in POS header and ref for keyboard shortcut
+  useEffect(() => {
+    handleEstimatePrintRef.current = handleEstimatePrint;
+    setOnEstimatePrint(() => handleEstimatePrint);
+    return () => { setOnEstimatePrint(null); };
+  }, [setOnEstimatePrint, handleEstimatePrint]);
+
+
   const handleApplyCredit = (amount: number) => {
     if (!customerId) {
       toast({
@@ -2836,7 +2902,18 @@ export default function POSSales() {
             <span>Cashier</span>
           </Button>
           
-          {/* 9. New */}
+          {/* 9. Estimate F9 */}
+          <Button
+            onClick={handleEstimatePrint}
+            disabled={items.length === 0}
+            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-sky-500 hover:bg-sky-600 text-white shadow-none disabled:opacity-50"
+            title="Print Estimate - No Save (F9)"
+          >
+            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F9</Badge>
+            <FileText className="h-4 w-4" />
+            <span>Estimate</span>
+          </Button>
+          
           <Button
             onClick={handleNewInvoice}
             className="h-14 flex flex-col items-center justify-center gap-1 text-xs w-full bg-none from-transparent to-transparent bg-emerald-500 hover:bg-emerald-600 text-white shadow-none"
@@ -3953,54 +4030,72 @@ export default function POSSales() {
           overflow: 'hidden'
         }}>
           {(items.length > 0 || savedInvoiceData) && (
-            <InvoiceWrapper
-              ref={invoicePrintRef}
-              format={posBillFormat}
-              billNo={savedInvoiceData?.invoiceNumber || currentInvoiceNumber || nextInvoicePreview || "DRAFT"}
-              date={new Date()}
-              customerName={savedInvoiceData?.customerName || customerName || "Walk-in Customer"}
-              customerAddress=""
-              customerMobile={savedInvoiceData?.customerPhone || customerPhone || ""}
-              template={posInvoiceTemplate}
-              items={savedInvoiceData ? savedInvoiceData.items.map((item: any, index: number) => ({
-                sr: index + 1,
-                particulars: item.productName,
-                size: item.size,
-                barcode: item.barcode || "",
-                hsn: item.hsnCode || "",
-                color: item.color || "",
-                sp: item.unitCost,
-                mrp: item.originalMrp || item.mrp,
-                qty: item.quantity,
-                rate: item.unitCost,
-                total: item.netAmount,
-                gstPercent: item.gstPer || 0,
-              })) : items.map((item, index) => ({
-                sr: index + 1,
-                particulars: item.productName,
-                size: item.size,
-                barcode: item.barcode || "",
-                hsn: item.hsnCode || "",
-                color: item.color || "",
-                sp: item.unitCost,
-                mrp: item.originalMrp || item.mrp,
-                qty: item.quantity,
-                rate: item.unitCost,
-                total: item.netAmount,
-                gstPercent: item.gstPer || 0,
-              }))}
-              subTotal={savedInvoiceData?.totals.subtotal || totals.subtotal}
-              discount={savedInvoiceData ? (savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount) : (totals.discount + flatDiscountAmount)}
-              saleReturnAdjust={savedInvoiceData?.saleReturnAdjust || saleReturnAdjust || 0}
-              grandTotal={savedInvoiceData?.finalAmount || finalAmount}
-              cashPaid={savedInvoiceData?.method === 'cash' ? savedInvoiceData.finalAmount : paymentMethod === 'cash' ? finalAmount : 0}
-              upiPaid={savedInvoiceData?.method === 'upi' ? savedInvoiceData.finalAmount : paymentMethod === 'upi' ? finalAmount : 0}
-              paymentMethod={savedInvoiceData?.method || paymentMethod}
-              notes={savedInvoiceData?.notes || saleNotes}
-              paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === 'pay_later' ? 0 : finalAmount)}
-              previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
-              roundOff={savedInvoiceData?.roundOff ?? roundOff}
-            />
+            <div ref={invoicePrintRef} style={{ position: 'relative' }}>
+              {savedInvoiceData?.isEstimate && (
+                <div style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%) rotate(-30deg)',
+                  fontSize: posBillFormat === 'thermal' ? '28px' : '60px',
+                  fontWeight: 'bold',
+                  color: 'rgba(0, 0, 0, 0.08)',
+                  letterSpacing: '8px',
+                  pointerEvents: 'none',
+                  zIndex: 10,
+                  whiteSpace: 'nowrap',
+                }}>
+                  ESTIMATE
+                </div>
+              )}
+              <InvoiceWrapper
+                format={posBillFormat}
+                billNo={savedInvoiceData?.invoiceNumber || currentInvoiceNumber || nextInvoicePreview || "DRAFT"}
+                date={new Date()}
+                customerName={savedInvoiceData?.customerName || customerName || "Walk-in Customer"}
+                customerAddress=""
+                customerMobile={savedInvoiceData?.customerPhone || customerPhone || ""}
+                template={posInvoiceTemplate}
+                items={savedInvoiceData ? savedInvoiceData.items.map((item: any, index: number) => ({
+                  sr: index + 1,
+                  particulars: item.productName,
+                  size: item.size,
+                  barcode: item.barcode || "",
+                  hsn: item.hsnCode || "",
+                  color: item.color || "",
+                  sp: item.unitCost,
+                  mrp: item.originalMrp || item.mrp,
+                  qty: item.quantity,
+                  rate: item.unitCost,
+                  total: item.netAmount,
+                  gstPercent: item.gstPer || 0,
+                })) : items.map((item, index) => ({
+                  sr: index + 1,
+                  particulars: item.productName,
+                  size: item.size,
+                  barcode: item.barcode || "",
+                  hsn: item.hsnCode || "",
+                  color: item.color || "",
+                  sp: item.unitCost,
+                  mrp: item.originalMrp || item.mrp,
+                  qty: item.quantity,
+                  rate: item.unitCost,
+                  total: item.netAmount,
+                  gstPercent: item.gstPer || 0,
+                }))}
+                subTotal={savedInvoiceData?.totals.subtotal || totals.subtotal}
+                discount={savedInvoiceData ? (savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount) : (totals.discount + flatDiscountAmount)}
+                saleReturnAdjust={savedInvoiceData?.saleReturnAdjust || saleReturnAdjust || 0}
+                grandTotal={savedInvoiceData?.finalAmount || finalAmount}
+                cashPaid={savedInvoiceData?.method === 'cash' ? savedInvoiceData.finalAmount : paymentMethod === 'cash' ? finalAmount : 0}
+                upiPaid={savedInvoiceData?.method === 'upi' ? savedInvoiceData.finalAmount : paymentMethod === 'upi' ? finalAmount : 0}
+                paymentMethod={savedInvoiceData?.method || paymentMethod}
+                notes={savedInvoiceData?.isEstimate ? `** ESTIMATE - NOT A FINAL INVOICE **${savedInvoiceData?.notes ? '\n' + savedInvoiceData.notes : ''}` : (savedInvoiceData?.notes || saleNotes)}
+                paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === 'pay_later' ? 0 : finalAmount)}
+                previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
+                roundOff={savedInvoiceData?.roundOff ?? roundOff}
+              />
+            </div>
           )}
         </div>
 
