@@ -693,9 +693,10 @@ export default function QuotationEntry() {
 
     const timer = setTimeout(async () => {
       try {
-        const query = inlineSearchQuery.toLowerCase();
+        const query = inlineSearchQuery.toLowerCase().replace(/[%_(),."']/g, '');
+        if (!query) return;
         
-        // Search products
+        // Search products by name/brand/style
         const { data: matchingProducts } = await supabase
           .from("products")
           .select("id")
@@ -705,8 +706,8 @@ export default function QuotationEntry() {
 
         const productIds = matchingProducts?.map(p => p.id) || [];
 
-        // Search variants
-        let variantsQuery = supabase
+        // Search variants by barcode match
+        const { data: barcodeVariants } = await supabase
           .from("product_variants")
           .select(`
             id, size, pur_price, sale_price, mrp, barcode, color, stock_qty, product_id,
@@ -714,15 +715,32 @@ export default function QuotationEntry() {
           `)
           .eq("active", true)
           .is("deleted_at", null)
-          .eq("organization_id", currentOrganization?.id);
+          .eq("organization_id", currentOrganization?.id)
+          .ilike("barcode", `%${query}%`)
+          .limit(50);
 
+        // Search variants by matching product IDs
+        let productVariants: any[] = [];
         if (productIds.length > 0) {
-          variantsQuery = variantsQuery.or(`barcode.ilike.%${query}%,product_id.in.(${productIds.join(",")})`);
-        } else {
-          variantsQuery = variantsQuery.ilike("barcode", `%${query}%`);
+          const { data } = await supabase
+            .from("product_variants")
+            .select(`
+              id, size, pur_price, sale_price, mrp, barcode, color, stock_qty, product_id,
+              products (id, product_name, brand, category, style, color, hsn_code, gst_per)
+            `)
+            .eq("active", true)
+            .is("deleted_at", null)
+            .eq("organization_id", currentOrganization?.id)
+            .in("product_id", productIds)
+            .limit(100);
+          productVariants = data || [];
         }
 
-        const { data } = await variantsQuery.limit(100);
+        // Merge and deduplicate
+        const allVariants = [...(barcodeVariants || []), ...productVariants];
+        const uniqueMap = new Map();
+        allVariants.forEach(v => uniqueMap.set(v.id, v));
+        const data = Array.from(uniqueMap.values());
 
         const results = (data || []).map((v: any) => ({
           id: v.id,
