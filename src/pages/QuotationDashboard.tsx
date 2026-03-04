@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, Clock, CheckCircle, Send, IndianRupee, MessageCircle, CalendarIcon } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, Clock, CheckCircle, Send, IndianRupee, MessageCircle, CalendarIcon, Download } from "lucide-react";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { format } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -451,7 +451,7 @@ export default function QuotationDashboard() {
                         <Button variant="ghost" size="icon" onClick={() => handleWhatsAppShare(quotation)} title="WhatsApp">
                           <MessageCircle className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => setQuotationToPrint(quotation)} title="Print">
+                        <Button variant="ghost" size="icon" onClick={() => setQuotationToPrint(quotation)} title="Print / PDF">
                           <Printer className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="icon" onClick={() => navigate('/quotation-entry', { state: { quotationData: quotation } })}>
@@ -562,12 +562,45 @@ export default function QuotationDashboard() {
   );
 }
 
+// PDF download helper
+async function downloadQuotationPDF(printRef: React.RefObject<HTMLDivElement>, quotationNumber: string) {
+  const { default: html2canvas } = await import('html2canvas');
+  const { default: jsPDF } = await import('jspdf');
+  
+  const element = printRef.current;
+  if (!element) return;
+
+  const canvas = await html2canvas(element, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: '#ffffff',
+  });
+
+  const imgData = canvas.toDataURL('image/png');
+  const imgWidth = canvas.width;
+  const imgHeight = canvas.height;
+  
+  // Determine page size from aspect ratio
+  const pdfWidth = 148; // A5 width mm
+  const pdfHeight = (imgHeight * pdfWidth) / imgWidth;
+  
+  const pdf = new jsPDF({
+    orientation: pdfHeight > pdfWidth ? 'portrait' : 'landscape',
+    unit: 'mm',
+    format: [pdfWidth, pdfHeight],
+  });
+
+  pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+  pdf.save(`Quotation-${quotationNumber}.pdf`);
+}
+
 // Print Dialog Component
 function PrintQuotationDialog({ quotation, settings, onClose }: { quotation: any; settings: any; onClose: () => void }) {
   const printRef = useRef<HTMLDivElement>(null);
   const [selectedFormat, setSelectedFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal'>(
     settings?.sale_settings?.bill_format || 'a4'
   );
+  const [isDownloading, setIsDownloading] = useState(false);
   
   const getPageStyle = () => {
     switch (selectedFormat) {
@@ -587,6 +620,17 @@ function PrintQuotationDialog({ quotation, settings, onClose }: { quotation: any
     documentTitle: `Quotation-${quotation.quotation_number}`,
     pageStyle: getPageStyle(),
   });
+
+  const handleDownloadPDF = async () => {
+    setIsDownloading(true);
+    try {
+      await downloadQuotationPDF(printRef as React.RefObject<HTMLDivElement>, quotation.quotation_number);
+    } catch (error) {
+      console.error('PDF download error:', error);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const printItems = (quotation.quotation_items || []).map((item: any, index: number) => ({
     sr: index + 1,
@@ -684,6 +728,10 @@ function PrintQuotationDialog({ quotation, settings, onClose }: { quotation: any
 
         <AlertDialogFooter>
           <AlertDialogCancel>Close</AlertDialogCancel>
+          <Button variant="outline" onClick={handleDownloadPDF} disabled={isDownloading}>
+            {isDownloading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+            Download PDF
+          </Button>
           <Button onClick={() => handlePrint()}>
             <Printer className="h-4 w-4 mr-2" />
             Print
