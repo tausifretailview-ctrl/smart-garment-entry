@@ -4609,6 +4609,7 @@ export default function BarcodePrinting() {
                 if (preset.a4Rows) setPrecisionSettings((prev) => ({ ...prev, a4Rows: preset.a4Rows! }));
               }}
               labelConfig={precisionSettings.labelConfig || undefined}
+              savedTemplates={savedLabelTemplates}
               sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
             />
           </div>
