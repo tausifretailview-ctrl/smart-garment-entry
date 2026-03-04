@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, Clock, CheckCircle, Send, IndianRupee, MessageCircle, CalendarIcon, Download } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, Clock, CheckCircle, Send, IndianRupee, MessageCircle, CalendarIcon, Download, FilePenLine } from "lucide-react";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { format } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function QuotationDashboard() {
   const { toast } = useToast();
@@ -54,6 +55,25 @@ export default function QuotationDashboard() {
   const [toDate, setToDate] = useState<Date | undefined>(undefined);
   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
+  const { user } = useAuth();
+
+  // Check for unsaved draft
+  const { data: hasDraft } = useQuery({
+    queryKey: ['quotation-draft', currentOrganization?.id, user?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id || !user?.id) return false;
+      const { data, error } = await supabase
+        .from('drafts')
+        .select('id')
+        .eq('organization_id', currentOrganization.id)
+        .eq('draft_type', 'quotation')
+        .eq('created_by', user.id)
+        .maybeSingle();
+      if (error) return false;
+      return !!data;
+    },
+    enabled: !!currentOrganization?.id && !!user?.id,
+  });
 
   // Fetch settings for print
   const { data: settings } = useQuery({
@@ -326,10 +346,18 @@ export default function QuotationDashboard() {
             <FileText className="h-6 w-6" />
             Quotation Dashboard
           </h1>
-          <Button onClick={() => navigate('/quotation-entry')}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Quotation
-          </Button>
+          <div className="flex gap-2">
+            {hasDraft && (
+              <Button variant="outline" className="border-amber-500 text-amber-600 hover:bg-amber-50" onClick={() => navigate('/quotation-entry', { state: { resumeDraft: true } })}>
+                <FilePenLine className="h-4 w-4 mr-2" />
+                Resume Draft
+              </Button>
+            )}
+            <Button onClick={() => navigate('/quotation-entry')}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Quotation
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}

@@ -51,7 +51,7 @@ import { useReactToPrint } from "react-to-print";
 import { QuotationPrint } from "@/components/QuotationPrint";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useDraftSave } from "@/hooks/useDraftSave";
-import { DraftResumeDialog } from "@/components/DraftResumeDialog";
+
 
 interface LineItem {
   id: string;
@@ -129,7 +129,7 @@ export default function QuotationEntry() {
   const [showSizeGrid, setShowSizeGrid] = useState(false);
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
-  const [showDraftDialog, setShowDraftDialog] = useState(false);
+  
 
   // Inline search state for table row
   const [inlineSearchQuery, setInlineSearchQuery] = useState("");
@@ -174,12 +174,12 @@ export default function QuotationEntry() {
     });
   }, [toast]);
 
-  // Check for draft on mount (only if not in edit mode)
+  // Auto-load draft if navigated with resumeDraft flag
   useEffect(() => {
-    if (!location.state?.editQuotationId && hasDraft && draftData) {
-      setShowDraftDialog(true);
+    if (location.state?.resumeDraft && !editingQuotationId && hasDraft && draftData) {
+      loadDraftData(draftData);
     }
-  }, [hasDraft, draftData, location.state?.editQuotationId]);
+  }, [location.state?.resumeDraft, hasDraft, draftData, editingQuotationId]);
 
   // Update current data for auto-save whenever form data changes
   useEffect(() => {
@@ -1576,20 +1576,6 @@ export default function QuotationEntry() {
         title="Enter Size-wise Qty"
       />
 
-      {/* Draft Resume Dialog */}
-      <DraftResumeDialog
-        open={showDraftDialog}
-        onOpenChange={setShowDraftDialog}
-        draftType="quotation"
-        onResume={() => {
-          loadDraftData(draftData);
-          setShowDraftDialog(false);
-        }}
-        onStartFresh={async () => {
-          await deleteDraft();
-          setShowDraftDialog(false);
-        }}
-      />
     </div>
   );
 }
