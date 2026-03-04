@@ -69,6 +69,21 @@ export const QuickAddSupplierDialog = ({
     setIsLoading(true);
 
     try {
+      // Check for duplicate supplier name
+      const { data: existing } = await supabase
+        .from("suppliers")
+        .select("id")
+        .eq("organization_id", currentOrganization.id)
+        .ilike("supplier_name", supplierName.trim())
+        .is("deleted_at", null)
+        .limit(1);
+      
+      if (existing && existing.length > 0) {
+        toast.error("Supplier Already Created");
+        setIsLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("suppliers")
         .insert({
