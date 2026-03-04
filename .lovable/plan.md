@@ -1,45 +1,38 @@
 
 
-# Fix A5 Vertical Invoice Print Layout — ModernWholesaleTemplate
+## Issues Found & Plan
 
-## Current State
-The template already has A5 vertical support (`format='a5-vertical'`) with 148mm × 210mm sizing. However, the print CSS uses only `size: A5 portrait; margin: 5mm` and the internal padding/alignment needs tuning per the user's screenshot.
+### Issue 1: Business Name Not Showing in Precision Pro Preview/Print
 
-## Changes — `src/components/invoice-templates/ModernWholesaleTemplate.tsx`
+**Root cause**: In three places, `getFieldContent("businessName", ...)` returns empty string `""`:
+- `PrecisionLabelPreview.tsx` line 33
+- `DraggableLabelCanvas.tsx` line 31
 
-### 1. Print CSS update (line 577-578)
-Change A5 vertical `@page` to explicit dimensions with 0 margin (padding handled internally):
-```css
-@page { size: 148mm 210mm; margin: 0; }
-```
-Update the page container padding from `5mm` to `10mm` for A5 vertical.
+The business name is fetched from the `settings` table and stored in a `businessName` state variable in `BarcodePrinting.tsx`, but it's never passed to the Precision components. The Standard mode handles it correctly via `DraggablePreviewField`, but the Precision engine ignores it.
 
-### 2. Header layout fix (lines 243-323)
-- Logo stays top-left (already correct)
-- "TAX INVOICE" stays top-right (already correct)
-- Company details centered (already correct)
-- No structural changes needed — layout matches the screenshot
+**Fix**: 
+1. Add a `businessName` field to `LabelItem` type (optional string)
+2. When building `labelItems` array in `BarcodePrinting.tsx`, inject the `businessName` value from settings into each item
+3. Update `getFieldContent` in both `PrecisionLabelPreview.tsx` and `DraggableLabelCanvas.tsx` to read `item.businessName` instead of returning `""`
+4. Update the `SAMPLE_ITEM` in `PrecisionLabelDesigner.tsx` to include a sample business name (e.g., "My Store")
 
-### 3. Table column widths (lines 331-341)
-Simplify columns for A5 to reduce cramping. For `a5-vertical`, adjust widths:
-- **SR**: 18px → 16px  
-- **PARTICULARS**: 80px → keep
-- **HSN**: 35px → 30px
-- **SIZE/QTY**: 75px → expand (use remaining space)
-- Remove fixed width on SIZE/QTY to let it flex with `tableLayout: fixed`
+### Issue 2: How to Print Labels in Precision Pro Mode
 
-### 4. Total Qty / Sub Total row alignment (lines 388-401)
-The `colSpan` values already align with the header columns. Ensure the TOTAL QTY label spans correctly to the QTY column.
+This is a user question -- I'll include a clear explanation in the response. The flow is:
+1. Select products/variants and add to label list
+2. Switch to "Precision Pro" tab for calibration or "Label Designer" tab for layout
+3. Click "Print Labels" button -- uses browser print with exact mm-based `@page` sizing
+4. Alternatively, use QZ Tray for direct thermal printing
 
-### 5. Footer / Summary section (lines 406-512)
-- Amount in Words + QR code on left — already correct
-- Grand Total breakdown on right — already correct  
-- "Authorised Signatory" at bottom right — already correct
-- Reduce the signature gap (`marginBottom`) from 15px to 20px for A5 to push it closer to page bottom
+No code changes needed for this -- just documentation/guidance.
 
-### 6. Page container height
-Change `minHeight` for a5-vertical from `210mm` to `auto`, and set the inner border wrapper to fill `calc(210mm - 20mm)` (accounting for 10mm padding on each side) to ensure content fills the page and signature stays at bottom.
+---
 
-### Files to modify
-- **`src/components/invoice-templates/ModernWholesaleTemplate.tsx`** — Print CSS, padding, column widths, signature spacing
+### Files to Modify
+
+1. **`src/types/labelTypes.ts`** -- Add optional `businessName?: string` to `LabelItem`
+2. **`src/components/precision-barcode/PrecisionLabelPreview.tsx`** -- Update `getFieldContent` for `businessName` to return `item.businessName || ""`
+3. **`src/components/precision-barcode/DraggableLabelCanvas.tsx`** -- Same fix
+4. **`src/components/precision-barcode/PrecisionLabelDesigner.tsx`** -- Add `businessName: "My Store"` to `SAMPLE_ITEM`
+5. **`src/pages/BarcodePrinting.tsx`** -- Inject `businessName` into each label item when building the `labelItems` array
 
