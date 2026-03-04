@@ -191,13 +191,14 @@ const clampPosition = (
   return clamped;
 };
 
-// Auto-scale font size for smaller labels
-const getScaledFontSize = (fontSize: number, labelHeight: number): number => {
+// Auto-scale font size for smaller labels (only for legacy/non-template mode)
+const getScaledFontSize = (fontSize: number, labelHeight: number, hasAbsolutePositioning: boolean = false): number => {
+  // When using designer with absolute positioning, respect exact font sizes
+  if (hasAbsolutePositioning) return fontSize;
+  
   if (labelHeight <= 20) {
-    // Very small labels - reduce font size
     return Math.max(6, fontSize - 2);
   } else if (labelHeight <= 25) {
-    // Small labels - slightly reduce font size
     return Math.max(6, fontSize - 1);
   }
   return fontSize;
@@ -233,7 +234,7 @@ export const generateTSPLLabelFromTemplate = (
   
   // Add OFFSET to compensate for printer's physical print origin shift
   // OFFSET and SHIFT commands take values in dots
-  const topOffsetMm = labelConfig.topOffset ?? 2;
+  const topOffsetMm = labelConfig.topOffset ?? 0; // Default 0 - user configures via printer settings
   const leftOffsetMm = labelConfig.leftOffset ?? 0;
   if (topOffsetMm !== 0) {
     const topOffsetDots = mmToDots(topOffsetMm, dpi);
@@ -258,13 +259,22 @@ export const generateTSPLLabelFromTemplate = (
   const labelWidthDots = mmToDots(labelConfig.width, dpi);
   const labelHeightDots = mmToDots(labelConfig.height, dpi);
   const isCompactLabel = labelConfig.width <= 40 && labelConfig.height <= 25;
-  const compactTopPaddingDots = isCompactLabel ? mmToDots(0.8, dpi) : 0;
-  const compactBottomPaddingDots = isCompactLabel ? mmToDots(0.8, dpi) : 0;
+  
+  // Check if template has absolute positioning (designer mode)
+  const hasAbsolutePos = templateConfig.fieldOrder.some(fieldKey => {
+    const field = templateConfig[fieldKey as keyof TSPLTemplateConfig] as TSPLFieldConfig;
+    return field && (field.x !== undefined || field.y !== undefined);
+  });
+  
+  // Only apply compact adjustments for legacy/non-designer templates
+  const applyCompactAdjustments = isCompactLabel && !hasAbsolutePos;
+  const compactTopPaddingDots = applyCompactAdjustments ? mmToDots(0.8, dpi) : 0;
+  const compactBottomPaddingDots = applyCompactAdjustments ? mmToDots(0.8, dpi) : 0;
 
-  // For compact labels, always print shop name at top if available
-  const shouldAutoPrintBusinessName = isCompactLabel && !!data.businessName && !templateConfig.businessName?.show;
+  // For compact labels without designer positioning, always print shop name at top if available
+  const shouldAutoPrintBusinessName = applyCompactAdjustments && !!data.businessName && !templateConfig.businessName?.show;
   if (shouldAutoPrintBusinessName) {
-    const autoBusinessFontSize = getScaledFontSize(8, labelConfig.height);
+    const autoBusinessFontSize = getScaledFontSize(8, labelConfig.height, hasAbsolutePos);
     const autoBusinessFont = mapFontSize(autoBusinessFontSize, true);
     const autoBusinessWidth = getTextWidthDots(data.businessName as string, autoBusinessFontSize, true);
     const autoBusinessX = Math.max(0, Math.round((labelWidthDots - autoBusinessWidth) / 2));
@@ -296,12 +306,12 @@ export const generateTSPLLabelFromTemplate = (
         const minBarcodeHeight = labelConfig.height <= 20 ? 20 : labelConfig.height <= 25 ? 25 : 30;
 
         // Reserve space for barcode text at bottom on compact labels to prevent clipping/overlap
-        let reservedBottomDots = isCompactLabel ? mmToDots(1.2, dpi) : mmToDots(0.6, dpi);
+        let reservedBottomDots = applyCompactAdjustments ? mmToDots(1.2, dpi) : mmToDots(0.6, dpi);
         const barcodeTextConfig = templateConfig.barcodeText;
         if (barcodeTextConfig?.show && data.barcode) {
-          const scaledBarcodeTextSize = getScaledFontSize(barcodeTextConfig.fontSize, labelConfig.height);
+          const scaledBarcodeTextSize = getScaledFontSize(barcodeTextConfig.fontSize, labelConfig.height, hasAbsolutePos);
           const barcodeTextHeightDots = getTextHeightDots(scaledBarcodeTextSize, barcodeTextConfig.bold);
-          reservedBottomDots = barcodeTextHeightDots + (isCompactLabel ? mmToDots(1.0, dpi) : mmToDots(0.6, dpi));
+          reservedBottomDots = barcodeTextHeightDots + (applyCompactAdjustments ? mmToDots(1.0, dpi) : mmToDots(0.6, dpi));
         }
 
         const maxBarcodeHeightDots = Math.max(
@@ -364,9 +374,11 @@ export const generateTSPLLabelFromTemplate = (
     const content = getFieldContent(fieldKey, data);
     if (!content) continue;
     
-    // Clamp field positions within label bounds
-    const clampedX = clampPosition(fieldConfig.x ?? 0, labelConfig.width, fieldKey, 'x');
-    const clampedY = clampPosition(fieldConfig.y ?? 0, labelConfig.height, fieldKey, 'y');
+    // For designer mode with absolute positioning, use exact coordinates without clamping
+    const rawX = fieldConfig.x ?? 0;
+    const rawY = fieldConfig.y ?? 0;
+    const clampedX = hasAbsolutePos ? Math.max(0, rawX) : clampPosition(rawX, labelConfig.width, fieldKey, 'x');
+    const clampedY = hasAbsolutePos ? Math.max(0, rawY) : clampPosition(rawY, labelConfig.height, fieldKey, 'y');
     
     // Skip fields that would be completely off-label (y position too close to bottom)
     if (clampedY >= labelConfig.height - 1) {
@@ -391,8 +403,8 @@ export const generateTSPLLabelFromTemplate = (
       }
     }
     
-    // Auto-scale font size for smaller labels
-    const scaledFontSize = getScaledFontSize(fieldConfig.fontSize, labelConfig.height);
+    // Use exact font size for designer mode, scaled for legacy mode
+    const scaledFontSize = getScaledFontSize(fieldConfig.fontSize, labelConfig.height, hasAbsolutePos);
     const fontInfo = mapFontSize(scaledFontSize, fieldConfig.bold);
     const textWidthDots = getTextWidthDots(content, scaledFontSize, fieldConfig.bold);
     const textHeightDots = getTextHeightDots(scaledFontSize, fieldConfig.bold);
@@ -406,18 +418,22 @@ export const generateTSPLLabelFromTemplate = (
       textX = fieldX + Math.max(0, fieldWidth - textWidthDots);
     }
     
-    // Compact-label safety: avoid top clipping and keep barcode text at bottom
+    // For designer mode, use exact Y position from template
     let textY = fieldY;
-    if (isCompactLabel && textY < compactTopPaddingDots) {
-      textY = compactTopPaddingDots;
-    }
+    
+    if (!hasAbsolutePos) {
+      // Legacy compact-label safety: avoid top clipping and keep barcode text at bottom
+      if (applyCompactAdjustments && textY < compactTopPaddingDots) {
+        textY = compactTopPaddingDots;
+      }
 
-    if (fieldKey === 'barcodeText' && isCompactLabel) {
-      textY = Math.max(textY, labelHeightDots - textHeightDots - compactBottomPaddingDots);
-    }
+      if (fieldKey === 'barcodeText' && applyCompactAdjustments) {
+        textY = Math.max(textY, labelHeightDots - textHeightDots - compactBottomPaddingDots);
+      }
 
-    const maxTextY = Math.max(0, labelHeightDots - textHeightDots - compactBottomPaddingDots);
-    textY = Math.min(textY, maxTextY);
+      const maxTextY = Math.max(0, labelHeightDots - textHeightDots - compactBottomPaddingDots);
+      textY = Math.min(textY, maxTextY);
+    }
     
     // Ensure text doesn't start outside label bounds (but allow it to extend to edge)
     textX = Math.max(0, textX);
