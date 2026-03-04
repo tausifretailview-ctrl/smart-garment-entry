@@ -151,6 +151,8 @@ interface LabelCalibrationUIProps {
   onPrintModeChange?: (mode: 'thermal' | 'a4') => void;
   onA4ColsChange?: (cols: number) => void;
   onA4RowsChange?: (rows: number) => void;
+  /** Controlled active preset/template name - persists across tab switches */
+  activePresetValue?: string | null;
   /** @deprecated Use onSavePreset/onDeletePreset instead */
   onPresetsChange?: (presets: CalibrationPreset[]) => void;
 }
@@ -173,15 +175,27 @@ export function LabelCalibrationUI({
   onPrintModeChange,
   onA4ColsChange,
   onA4RowsChange,
+  activePresetValue,
 }: LabelCalibrationUIProps) {
   const [savePresetOpen, setSavePresetOpen] = useState(false);
   const [newPresetName, setNewPresetName] = useState("");
-  const [activePresetName, setActivePresetName] = useState<string | null>(null);
+  // Use controlled value if provided, otherwise local state
+  const [localActivePresetName, setLocalActivePresetName] = useState<string | null>(null);
+  const activePresetName = activePresetValue !== undefined ? activePresetValue : localActivePresetName;
+  const setActivePresetName = (name: string | null) => setLocalActivePresetName(name);
   const [saving, setSaving] = useState(false);
 
   const allPresets = [...BUILT_IN_PRESETS, ...presets];
 
   const isUserPreset = activePresetName ? presets.some((p) => p.name === activePresetName) : false;
+
+  // Compute the Select value: templates use "template_" prefix, presets use direct name
+  const selectValue = (() => {
+    if (!activePresetName) return undefined;
+    if (savedTemplates.some(t => t.name === activePresetName)) return `template_${activePresetName}`;
+    if (allPresets.some(p => p.name === activePresetName)) return activePresetName;
+    return undefined;
+  })();
 
   const update = (partial: Partial<CalibrationValues>) => {
     onChange({ ...values, ...partial });
@@ -293,7 +307,7 @@ export function LabelCalibrationUI({
       <div className="flex items-end gap-2 flex-wrap">
         <div className="flex-1 min-w-[160px] space-y-1">
           <Label className="text-xs">Load Preset</Label>
-          <Select onValueChange={loadPreset}>
+          <Select value={selectValue} onValueChange={loadPreset}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue placeholder="Select a preset..." />
             </SelectTrigger>

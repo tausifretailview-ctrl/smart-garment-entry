@@ -4528,6 +4528,7 @@ export default function BarcodePrinting() {
                 }}
                 labelConfig={precisionSettings.labelConfig || undefined}
                 sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
+                activePresetValue={activePrecisionTemplateName}
               />
             </DialogContent>
           </Dialog>
@@ -4653,6 +4654,7 @@ export default function BarcodePrinting() {
               onA4ColsChange={(cols) => setPrecisionSettings((prev) => ({ ...prev, a4Cols: cols }))}
               onA4RowsChange={(rows) => setPrecisionSettings((prev) => ({ ...prev, a4Rows: rows }))}
               sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
+              activePresetValue={activePrecisionTemplateName}
             />
           </div>
 
