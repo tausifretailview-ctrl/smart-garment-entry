@@ -53,6 +53,7 @@ export interface LabelItem {
   purchase_code?: string;
   bill_date?: string;
   barcode: string;
+  businessName?: string;
   bill_number: string;
   qty?: number;
   supplier_code?: string;

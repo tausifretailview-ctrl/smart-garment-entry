@@ -4761,7 +4761,7 @@ export default function BarcodePrinting() {
           {isThermal1Up() ? (
             <PrecisionThermalPrint
               ref={precisionPrintRef}
-              items={labelItems}
+              items={labelItems.map(i => ({ ...i, businessName }))}
               labelWidth={precisionSettings.labelWidth}
               labelHeight={precisionSettings.labelHeight}
               xOffset={precisionSettings.xOffset}
@@ -4771,7 +4771,7 @@ export default function BarcodePrinting() {
           ) : (
             <PrecisionA4SheetPrint
               ref={precisionPrintRef}
-              items={labelItems}
+              items={labelItems.map(i => ({ ...i, businessName }))}
               labelWidth={precisionSettings.labelWidth}
               labelHeight={precisionSettings.labelHeight}
               cols={precisionSettings.a4Cols}
