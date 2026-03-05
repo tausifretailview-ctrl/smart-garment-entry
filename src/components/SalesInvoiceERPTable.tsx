@@ -232,18 +232,21 @@ export function SalesInvoiceERPTable({
           cell: ({ row }) => {
             const invoice = row.original;
             const cnAdjusted = cnAdjustedMap[invoice.id];
+            const effectiveStatus = invoice.payment_status === 'hold' ? 'hold'
+              : (invoice.paid_amount || 0) >= invoice.net_amount ? 'completed'
+              : (invoice.paid_amount || 0) > 0 ? 'partial' : 'pending';
             return (
               <div className="text-center space-y-1">
                 <Badge
                   className={`min-w-[80px] justify-center whitespace-nowrap ${
-                    invoice.payment_status === 'completed'
+                    effectiveStatus === 'completed'
                       ? 'bg-green-500 hover:bg-green-600 text-white'
-                      : invoice.payment_status === 'partial'
+                      : effectiveStatus === 'partial'
                         ? 'bg-orange-400 hover:bg-orange-500 text-white'
                         : 'bg-red-500 hover:bg-red-600 text-white'
                   }`}
                 >
-                  {invoice.payment_status === 'completed' ? 'Paid' : invoice.payment_status === 'partial' ? 'Partial' : 'Not Paid'}
+                  {effectiveStatus === 'completed' ? 'Paid' : effectiveStatus === 'partial' ? 'Partial' : 'Not Paid'}
                 </Badge>
                 {cnAdjusted && cnAdjusted.length > 0 && (
                   <Badge
