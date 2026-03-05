@@ -176,9 +176,9 @@ const FeeHeadsSetup = () => {
         <div className="flex items-center gap-3">
           <CreditCard className="h-8 w-8 text-primary" />
           <div>
-            <h1 className="text-2xl font-bold">Fee Heads</h1>
+            <h1 className="text-2xl font-bold">Yearly Fees 2026-27</h1>
             <p className="text-muted-foreground">
-              Manage fee categories like Tuition, Transport, Library, etc.
+              Manage yearly fee categories like Tuition, Transport, Library, etc.
             </p>
           </div>
         </div>
