@@ -1,29 +1,59 @@
 
 
-## Plan: Fix Extra Blank Labels in Precision Pro Print
+## Problem Analysis
 
-### Problem
-When printing from Precision Pro (thermal mode), extra blank labels appear in the printed output even though the preview shows the correct quantity. The user's screenshot shows this in the print preview dialog.
+Invoice **INV/25-26/411** (SANOBER KHANOM) has inconsistent data:
+- `net_amount`: ₹8,700
+- `paid_amount`: ₹8,200 (advance adjusted)
+- `payment_status`: `completed` (should be `partial`)
+- Balance shown: ₹500
 
-### Root Cause
-Two conflicting print stylesheets are active simultaneously:
+The "Paid" badge in the dashboard reads directly from the `payment_status` column (`SalesInvoiceERPTable.tsx` line 246), which was never updated when the advance was applied.
 
-1. **`PrecisionPrintCSS` component** — injected by `PrecisionThermalPrint`, sets `@page { size: 38mm 25mm; margin: 0 }` and makes `.precision-print-area` visible.
-2. **Inline `<style>` block** at the bottom of `BarcodePrinting.tsx` — always present, sets its own `@page` size based on standard mode settings, AND makes `#printArea` visible with `page-break-after: always` on `.label-grid`.
+## Root Cause
 
-Even though `#printArea` is an empty `<div className="hidden">` when Precision Pro is active, the conflicting `@page` sizes and the `body * { visibility: hidden }` / `#printArea * { visibility: visible }` rules from BOTH stylesheets cause the browser to generate extra blank pages.
+When the advance payment of ₹8,200 was applied against the ₹8,700 invoice, the `paid_amount` was correctly set to 8,200, but the `payment_status` was not recalculated to `partial`.
 
-### Fix (in `src/pages/BarcodePrinting.tsx`)
+## Plan
 
-**1. Conditionally render the inline `<style>` block only when Precision Pro is NOT active**
+### 1. Fix display logic to use actual amounts (defensive)
 
-Wrap the entire `<style>{...}</style>` block (lines ~4897–5102) so it only renders when `!precisionSettings.enabled`. This prevents conflicting `@page` and visibility rules. The `PrecisionPrintCSS` component already handles everything needed for Precision Pro printing.
+**File: `src/components/SalesInvoiceERPTable.tsx`**
 
-**2. Alternative (if the style block is needed for non-print styling):**
+Change the payment status badge to compute status from actual `paid_amount` vs `net_amount` instead of trusting the `payment_status` column blindly:
 
-Split the style block — keep non-print styles always rendered, but wrap the `@media print` section in a condition:
-- When `precisionSettings.enabled` is true: skip the `@media print` block entirely (PrecisionPrintCSS handles it)
-- When false: render the standard print CSS as before
+```tsx
+// Derive actual status from amounts
+const effectiveStatus = (invoice.paid_amount || 0) >= invoice.net_amount 
+  ? 'completed' 
+  : (invoice.paid_amount || 0) > 0 ? 'partial' : 'pending';
+```
 
-This is a single conditional change in the JSX render section.
+Use `effectiveStatus` for the badge label and styling. This prevents any future data inconsistency from showing wrong tags.
+
+### 2. Fix existing corrupted data via migration
+
+Run a SQL migration to reconcile all invoices where `payment_status` doesn't match the actual `paid_amount` vs `net_amount`:
+
+```sql
+UPDATE sales
+SET payment_status = CASE
+  WHEN paid_amount >= net_amount THEN 'completed'
+  WHEN paid_amount > 0 THEN 'partial'
+  ELSE 'pending'
+END
+WHERE deleted_at IS NULL
+  AND payment_status != 'hold'
+  AND payment_status != CASE
+    WHEN paid_amount >= net_amount THEN 'completed'
+    WHEN paid_amount > 0 THEN 'partial'
+    ELSE 'pending'
+  END;
+```
+
+### 3. Apply same defensive logic to POS Dashboard
+
+**File: `src/pages/POSDashboard.tsx`** -- update the badge rendering (~line 1600) to also derive status from amounts rather than the stored field, except for `hold` status which is a special workflow state.
+
+This ensures both dashboards are always accurate regardless of any data sync issues.
 
