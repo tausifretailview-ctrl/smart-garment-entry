@@ -813,7 +813,7 @@ const FeeCollection = () => {
                         </TableCell>
                         <TableCell>{fee.students?.admission_number || "-"}</TableCell>
                         <TableCell>{fee.students?.school_classes?.class_name || "-"}</TableCell>
-                        <TableCell>{fee.fee_heads?.head_name || "Yearly Fees 2026-27"}</TableCell>
+                        <TableCell>{fee.fee_heads?.head_name || "Yearly Fees 2025-26"}</TableCell>
                         <TableCell>
                           <Badge variant="secondary">{fee.payment_method || "Cash"}</Badge>
                         </TableCell>
