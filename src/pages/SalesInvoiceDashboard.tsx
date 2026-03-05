@@ -717,12 +717,16 @@ export default function SalesInvoiceDashboard() {
   const getPageStyle = () => {
     const format = billFormat;
     let size = 'A4 portrait';
-    let margin = '10mm';
+    let margin = '5mm';
     
     switch (format) {
       case 'a5':
         size = 'A5 portrait';
-        margin = '5mm';
+        margin = '2mm';
+        break;
+      case 'a5-horizontal':
+        size = 'A5 landscape';
+        margin = '2mm';
         break;
       case 'thermal':
         size = '80mm auto';
@@ -730,6 +734,7 @@ export default function SalesInvoiceDashboard() {
         break;
       default: // a4
         size = 'A4 portrait';
+        margin = '3mm';
         break;
     }
     
@@ -744,11 +749,6 @@ export default function SalesInvoiceDashboard() {
           height: 100%;
           margin: 0;
           padding: 0;
-          overflow: hidden;
-        }
-        * {
-          page-break-after: avoid !important;
-          page-break-inside: avoid !important;
         }
       }
     `;
