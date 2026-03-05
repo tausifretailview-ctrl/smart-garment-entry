@@ -237,7 +237,7 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
                     <TableCell className="text-sm">
                       {payment.paid_date ? format(new Date(payment.paid_date), "dd/MM/yyyy") : "-"}
                     </TableCell>
-                    <TableCell className="text-sm">{payment.fee_heads?.head_name || "General"}</TableCell>
+                    <TableCell className="text-sm">{payment.fee_heads?.head_name || "Yearly Fees 2026-27"}</TableCell>
                     <TableCell className="text-sm">
                       <Badge variant="outline">{payment.payment_method || "-"}</Badge>
                     </TableCell>
