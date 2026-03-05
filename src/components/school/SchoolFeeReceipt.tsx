@@ -30,20 +30,22 @@ export const SchoolFeeReceipt = forwardRef<HTMLDivElement, SchoolFeeReceiptProps
   ({ receiptNumber, paidDate, paymentMethod, transactionId, academicYear, student, items, totalPaying, remainingBalance }, ref) => {
     const { currentOrganization } = useOrganization();
 
-    // Fetch logo from settings
-    const { data: logoUrl } = useQuery({
-      queryKey: ["org-logo", currentOrganization?.id],
+    const { data: settings } = useQuery({
+      queryKey: ["org-settings-receipt", currentOrganization?.id],
       queryFn: async () => {
         const { data } = await supabase
           .from("settings" as any)
-          .select("bill_barcode_settings")
+          .select("bill_barcode_settings, business_name, address, mobile_number")
           .eq("organization_id", currentOrganization!.id)
           .maybeSingle();
-        return (data as any)?.bill_barcode_settings?.logo_url || null;
+        return data as any;
       },
       enabled: !!currentOrganization?.id,
       staleTime: 5 * 60 * 1000,
     });
+
+    const logoUrl = settings?.bill_barcode_settings?.logo_url || null;
+    const address = settings?.address || "";
 
     return (
       <div
@@ -52,52 +54,94 @@ export const SchoolFeeReceipt = forwardRef<HTMLDivElement, SchoolFeeReceiptProps
         style={{
           fontFamily: "Arial, sans-serif",
           width: "210mm",
-          minHeight: "148mm",
-          padding: "8mm 10mm",
+          height: "148mm",
+          padding: "6mm 8mm",
           boxSizing: "border-box",
         }}
       >
-        {/* Print style for A5 landscape */}
-        <style>{`@media print { @page { size: A5 landscape; margin: 5mm; } }`}</style>
+        {/* Print style for A5 landscape - full scale */}
+        <style>{`
+          @media print {
+            @page { size: A5 landscape; margin: 2mm; }
+            .school-receipt-watermark {
+              opacity: 0.06 !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+          }
+        `}</style>
 
-        {/* Watermark */}
+        {/* Watermark - uses class for print visibility */}
         {logoUrl && (
           <div
+            className="school-receipt-watermark"
             style={{
               position: "absolute",
               top: "50%",
               left: "50%",
-              transform: "translate(-50%, -50%)",
-              opacity: 0.05,
+              transform: "translate(-50%, -50%) rotate(-25deg)",
+              opacity: 0.06,
               pointerEvents: "none",
               zIndex: 0,
-              width: "50%",
-              maxWidth: "240px",
+              width: "55%",
+              maxWidth: "300px",
             }}
           >
-            <img src={logoUrl} alt="" style={{ width: "100%", height: "auto" }} />
+            <img src={logoUrl} alt="" style={{ width: "100%", height: "auto" }} crossOrigin="anonymous" />
+          </div>
+        )}
+
+        {/* Watermark text fallback when no logo */}
+        {!logoUrl && currentOrganization?.name && (
+          <div
+            className="school-receipt-watermark"
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%) rotate(-25deg)",
+              opacity: 0.04,
+              pointerEvents: "none",
+              zIndex: 0,
+              fontSize: "60px",
+              fontWeight: "bold",
+              whiteSpace: "nowrap",
+              letterSpacing: "8px",
+              color: "#000",
+            }}
+          >
+            {currentOrganization.name}
           </div>
         )}
 
         {/* Content */}
-        <div style={{ position: "relative", zIndex: 1 }}>
+        <div style={{ position: "relative", zIndex: 1, height: "100%", display: "flex", flexDirection: "column" }}>
           {/* Header: Logo left + School name center */}
-          <div className="flex items-center mb-2 border-b-2 border-gray-800 pb-2">
+          <div style={{ display: "flex", alignItems: "center", borderBottom: "2px solid #1a1a1a", paddingBottom: "6px", marginBottom: "6px" }}>
             {logoUrl && (
-              <div style={{ flexShrink: 0, marginRight: "12px" }}>
-                <img src={logoUrl} alt="Logo" style={{ height: "52px", objectFit: "contain" }} />
+              <div style={{ flexShrink: 0, marginRight: "14px" }}>
+                <img src={logoUrl} alt="Logo" style={{ height: "70px", objectFit: "contain" }} crossOrigin="anonymous" />
               </div>
             )}
-            <div className="flex-1 text-center">
-              <h2 className="text-base font-bold leading-tight">{currentOrganization?.name}</h2>
-              <p className="text-[10px] text-gray-500">Fee Receipt</p>
+            <div style={{ flex: 1, textAlign: "center" }}>
+              <h1 style={{ fontSize: "20px", fontWeight: "bold", lineHeight: 1.2, margin: 0, letterSpacing: "0.5px" }}>
+                {currentOrganization?.name}
+              </h1>
+              {address && (
+                <p style={{ fontSize: "11px", color: "#444", margin: "2px 0 0 0", lineHeight: 1.3 }}>
+                  {address}
+                </p>
+              )}
+              <p style={{ fontSize: "13px", fontWeight: 600, color: "#333", margin: "3px 0 0 0", letterSpacing: "1px", textTransform: "uppercase" }}>
+                Fee Receipt
+              </p>
             </div>
             {/* Spacer to keep title centered when logo is present */}
-            {logoUrl && <div style={{ width: "52px", flexShrink: 0 }} />}
+            {logoUrl && <div style={{ width: "70px", flexShrink: 0 }} />}
           </div>
 
-          {/* Student & Receipt Info - 3 columns for landscape */}
-          <div className="grid grid-cols-3 gap-x-4 gap-y-0.5 text-[11px] mb-2">
+          {/* Student & Receipt Info - 3 columns */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "2px 16px", fontSize: "13px", marginBottom: "8px", lineHeight: 1.6 }}>
             <div><strong>Receipt #:</strong> {receiptNumber}</div>
             <div><strong>Date:</strong> {paidDate ? format(new Date(paidDate), "dd/MM/yyyy") : "-"}</div>
             <div><strong>Payment:</strong> {paymentMethod}</div>
@@ -110,41 +154,52 @@ export const SchoolFeeReceipt = forwardRef<HTMLDivElement, SchoolFeeReceiptProps
           </div>
 
           {/* Fee Details Table */}
-          <table className="w-full text-[11px] border-collapse mb-2 border border-gray-400">
+          <table style={{ width: "100%", fontSize: "13px", borderCollapse: "collapse", marginBottom: "8px", border: "1.5px solid #555" }}>
             <thead>
-              <tr className="bg-gray-100">
-                <th className="text-left py-1 px-2 border border-gray-400 font-semibold" style={{ width: "65%" }}>Fee Head</th>
-                <th className="text-right py-1 px-2 border border-gray-400 font-semibold" style={{ width: "35%" }}>Amount</th>
+              <tr style={{ backgroundColor: "#f0f0f0" }}>
+                <th style={{ textAlign: "left", padding: "5px 8px", border: "1.5px solid #555", fontWeight: 700, fontSize: "13px", width: "65%" }}>FEE HEAD</th>
+                <th style={{ textAlign: "right", padding: "5px 8px", border: "1.5px solid #555", fontWeight: 700, fontSize: "13px", width: "35%" }}>AMOUNT</th>
               </tr>
             </thead>
             <tbody>
               {items.map((item, idx) => (
                 <tr key={idx}>
-                  <td className="py-1 px-2 border border-gray-400">{item.head_name}</td>
-                  <td className="text-right py-1 px-2 border border-gray-400">₹{item.paying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+                  <td style={{ padding: "4px 8px", border: "1.5px solid #555", fontSize: "13px" }}>{item.head_name}</td>
+                  <td style={{ textAlign: "right", padding: "4px 8px", border: "1.5px solid #555", fontSize: "13px", fontVariantNumeric: "tabular-nums" }}>
+                    ₹{item.paying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
-              <tr className="font-bold bg-gray-50">
-                <td className="py-1.5 px-2 border border-gray-400">Total</td>
-                <td className="text-right py-1.5 px-2 border border-gray-400">₹{totalPaying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+              <tr style={{ backgroundColor: "#f5f5f5" }}>
+                <td style={{ padding: "6px 8px", border: "1.5px solid #555", fontWeight: 700, fontSize: "14px" }}>Total</td>
+                <td style={{ textAlign: "right", padding: "6px 8px", border: "1.5px solid #555", fontWeight: 700, fontSize: "14px", fontVariantNumeric: "tabular-nums" }}>
+                  ₹{totalPaying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </td>
               </tr>
               <tr>
-                <td className="py-1 px-2 border border-gray-400 font-semibold">Balance</td>
-                <td className="text-right py-1 px-2 border border-gray-400 font-semibold text-red-600">
+                <td style={{ padding: "4px 8px", border: "1.5px solid #555", fontWeight: 600, fontSize: "13px" }}>Balance</td>
+                <td style={{ textAlign: "right", padding: "4px 8px", border: "1.5px solid #555", fontWeight: 600, fontSize: "13px", color: "#dc2626", fontVariantNumeric: "tabular-nums" }}>
                   ₹{remainingBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                 </td>
               </tr>
             </tfoot>
           </table>
 
-          {/* Signature */}
-          <div className="flex justify-between items-end mt-4 text-[11px]">
-            <div><p className="text-gray-500">Receiver</p></div>
-            <div className="text-center">
-              <div className="border-t border-gray-800 pt-1 w-32">
-                <p className="text-gray-600">Auth. Signature</p>
+          {/* Spacer to push signature to bottom */}
+          <div style={{ flex: 1, minHeight: "20mm" }} />
+
+          {/* Signature Section */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", fontSize: "13px", paddingTop: "4px" }}>
+            <div>
+              <div style={{ borderTop: "1.5px solid #333", paddingTop: "4px", width: "50mm", textAlign: "center" }}>
+                <p style={{ color: "#555", fontSize: "12px", margin: 0 }}>Receiver</p>
+              </div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ borderTop: "1.5px solid #333", paddingTop: "4px", width: "50mm", textAlign: "center" }}>
+                <p style={{ color: "#555", fontSize: "12px", margin: 0 }}>Auth. Signature</p>
               </div>
             </div>
           </div>
