@@ -32,11 +32,11 @@ export const SchoolFeeReceipt = forwardRef<HTMLDivElement, SchoolFeeReceiptProps
       queryKey: ["org-logo", currentOrganization?.id],
       queryFn: async () => {
         if (!currentOrganization?.id) return null;
-        const { data } = await (supabase
-          .from("organization_settings" as any)
+        const { data } = await supabase
+          .from("settings")
           .select("bill_barcode_settings")
           .eq("organization_id", currentOrganization.id)
-          .single() as any);
+          .single();
         return (data?.bill_barcode_settings as any)?.logo_url || null;
       },
       enabled: !!currentOrganization?.id,
