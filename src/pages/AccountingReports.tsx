@@ -13,7 +13,7 @@ import {
   Loader2, Download, Printer, TrendingUp, TrendingDown, Wallet, PieChart, 
   FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink
 } from "lucide-react";
-import { format, startOfYear } from "date-fns";
+import { format, startOfYear, startOfMonth, endOfMonth } from "date-fns";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import {
@@ -112,11 +112,11 @@ export default function AccountingReports() {
   const [activeTab, setActiveTab] = useState("trial-balance");
   const [loading, setLoading] = useState(false);
 
-  // Date filters - default to India FY
+  // Date filters - default to current month for Net Profit, FY for others
   const currentFY = getIndiaFinancialYear(0);
   const [asOfDate, setAsOfDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [fromDate, setFromDate] = useState(currentFY.fromDate);
-  const [toDate, setToDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [fromDate, setFromDate] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
+  const [toDate, setToDate] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
 
   // Report data
   const [trialBalance, setTrialBalance] = useState<TrialBalanceEntry[]>([]);
