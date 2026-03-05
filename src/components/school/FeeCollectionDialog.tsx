@@ -323,7 +323,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
   if (showReceipt && receiptData && student) {
     return (
       <Dialog open={open} onOpenChange={(v) => { if (!v) { setShowReceipt(false); setReceiptData(null); } onOpenChange(v); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-[230mm] w-[230mm] p-4">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Receipt className="h-5 w-5" /> Fee Receipt

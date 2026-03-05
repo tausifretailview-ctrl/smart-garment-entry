@@ -55,14 +55,38 @@ export const SchoolFeeReceipt = forwardRef<HTMLDivElement, SchoolFeeReceiptProps
           fontFamily: "Arial, sans-serif",
           width: "210mm",
           height: "148mm",
-          padding: "6mm 8mm",
+          padding: "8mm 10mm",
           boxSizing: "border-box",
+          margin: "0 auto",
         }}
       >
         {/* Print style for A5 landscape - full scale */}
         <style>{`
           @media print {
-            @page { size: A5 landscape; margin: 2mm; }
+            @page { size: A5 landscape; margin: 0mm; }
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              width: 210mm !important;
+              height: 148mm !important;
+            }
+            /* Remove dialog chrome */
+            [role="dialog"],
+            [data-radix-dialog-overlay],
+            [class*="DialogOverlay"],
+            [class*="DialogContent"] {
+              position: static !important;
+              max-width: 100% !important;
+              width: 100% !important;
+              height: auto !important;
+              padding: 0 !important;
+              margin: 0 !important;
+              border: none !important;
+              box-shadow: none !important;
+              background: transparent !important;
+              overflow: visible !important;
+              transform: none !important;
+            }
             .school-receipt-watermark {
               opacity: 0.06 !important;
               -webkit-print-color-adjust: exact !important;
