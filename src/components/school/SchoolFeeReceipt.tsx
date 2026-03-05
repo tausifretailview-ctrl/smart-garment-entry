@@ -1,6 +1,8 @@
 import { forwardRef } from "react";
 import { format } from "date-fns";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface SchoolFeeReceiptProps {
   receiptNumber: string;
@@ -25,6 +27,21 @@ export const SchoolFeeReceipt = forwardRef<HTMLDivElement, SchoolFeeReceiptProps
     const orgName = currentOrganization?.name || "School";
     const orgAddress = (currentOrganization as any)?.address || "";
     const orgPhone = (currentOrganization as any)?.phone || "";
+
+    const { data: logoUrl } = useQuery({
+      queryKey: ["org-logo", currentOrganization?.id],
+      queryFn: async () => {
+        if (!currentOrganization?.id) return null;
+        const { data } = await (supabase
+          .from("organization_settings" as any)
+          .select("bill_barcode_settings")
+          .eq("organization_id", currentOrganization.id)
+          .single() as any);
+        return (data?.bill_barcode_settings as any)?.logo_url || null;
+      },
+      enabled: !!currentOrganization?.id,
+      staleTime: 60000,
+    });
 
     return (
       <>
@@ -55,6 +72,10 @@ export const SchoolFeeReceipt = forwardRef<HTMLDivElement, SchoolFeeReceiptProps
               overflow: visible !important;
             }
             .no-print { display: none !important; }
+            .receipt-watermark {
+              print-color-adjust: exact !important;
+              -webkit-print-color-adjust: exact !important;
+            }
           }
         `}</style>
         <div
@@ -69,20 +90,59 @@ export const SchoolFeeReceipt = forwardRef<HTMLDivElement, SchoolFeeReceiptProps
             color: "#1a1a1a",
             background: "#fff",
             boxSizing: "border-box",
+            position: "relative",
+            overflow: "hidden",
           }}
         >
+          {/* Watermark */}
+          {logoUrl && (
+            <div
+              className="receipt-watermark"
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%) rotate(-30deg)",
+                width: "120mm",
+                height: "120mm",
+                opacity: 0.06,
+                pointerEvents: "none",
+                zIndex: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <img
+                src={logoUrl}
+                alt=""
+                style={{ width: "100%", height: "100%", objectFit: "contain" }}
+              />
+            </div>
+          )}
+
           {/* Header */}
-          <div style={{ textAlign: "center", borderBottom: "2px solid #1a1a1a", paddingBottom: "4mm", marginBottom: "5mm" }}>
-            <h1 style={{ margin: 0, fontSize: "18pt", fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px" }}>
-              {orgName}
-            </h1>
-            {orgAddress && <p style={{ margin: "2px 0 0", fontSize: "9pt", color: "#555" }}>{orgAddress}</p>}
-            {orgPhone && <p style={{ margin: "2px 0 0", fontSize: "9pt", color: "#555" }}>Phone: {orgPhone}</p>}
-            <p style={{ margin: "4px 0 0", fontSize: "13pt", fontWeight: 600, letterSpacing: "2px" }}>FEE RECEIPT</p>
+          <div style={{ display: "flex", alignItems: "center", borderBottom: "2px solid #1a1a1a", paddingBottom: "4mm", marginBottom: "5mm", position: "relative", zIndex: 1 }}>
+            {logoUrl && (
+              <div style={{ marginRight: "5mm", flexShrink: 0 }}>
+                <img
+                  src={logoUrl}
+                  alt="Logo"
+                  style={{ height: "18mm", width: "auto", objectFit: "contain" }}
+                />
+              </div>
+            )}
+            <div style={{ textAlign: "center", flex: 1 }}>
+              <h1 style={{ margin: 0, fontSize: "18pt", fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px" }}>
+                {orgName}
+              </h1>
+              {orgAddress && <p style={{ margin: "2px 0 0", fontSize: "9pt", color: "#555" }}>{orgAddress}</p>}
+              {orgPhone && <p style={{ margin: "2px 0 0", fontSize: "9pt", color: "#555" }}>Phone: {orgPhone}</p>}
+            </div>
           </div>
 
           {/* Student Info Row */}
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5mm", fontSize: "10pt" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5mm", fontSize: "10pt", position: "relative", zIndex: 1 }}>
             <div>
               <p style={{ margin: "2px 0" }}><strong>Receipt No:</strong> {receiptNumber}</p>
               <p style={{ margin: "2px 0" }}><strong>Student:</strong> {student.student_name}</p>
@@ -103,6 +163,8 @@ export const SchoolFeeReceipt = forwardRef<HTMLDivElement, SchoolFeeReceiptProps
               borderCollapse: "collapse",
               marginBottom: "5mm",
               fontSize: "10pt",
+              position: "relative",
+              zIndex: 1,
             }}
           >
             <thead>
@@ -136,7 +198,7 @@ export const SchoolFeeReceipt = forwardRef<HTMLDivElement, SchoolFeeReceiptProps
           </table>
 
           {/* Payment Info & Balance */}
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10pt", marginBottom: "5mm" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10pt", marginBottom: "5mm", position: "relative", zIndex: 1 }}>
             <div>
               <p style={{ margin: "2px 0" }}><strong>Payment Mode:</strong> {paymentMethod}</p>
               {transactionId && <p style={{ margin: "2px 0" }}><strong>Transaction ID:</strong> {transactionId}</p>}
@@ -149,7 +211,7 @@ export const SchoolFeeReceipt = forwardRef<HTMLDivElement, SchoolFeeReceiptProps
           </div>
 
           {/* Signature */}
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: "12mm", fontSize: "10pt" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: "12mm", fontSize: "10pt", position: "relative", zIndex: 1 }}>
             <div style={{ textAlign: "center" }}>
               <div style={{ borderTop: "1px solid #333", width: "50mm", marginBottom: "2mm" }} />
               <span>Parent / Guardian</span>
