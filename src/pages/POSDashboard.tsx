@@ -1526,13 +1526,18 @@ const POSDashboard = () => {
                               ₹{Math.round(sale.paid_amount || 0).toLocaleString('en-IN')}
                             </TableCell>
                             <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
-                              {sale.payment_status !== 'completed' ? (
-                                <span className="font-semibold text-orange-600">
-                                  ₹{Math.round(sale.net_amount - (sale.paid_amount || 0)).toLocaleString('en-IN')}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground">-</span>
-                              )}
+                              {(() => {
+                                const esb = sale.payment_status === 'hold' ? 'hold'
+                                  : (sale.paid_amount || 0) >= sale.net_amount ? 'completed'
+                                  : (sale.paid_amount || 0) > 0 ? 'partial' : 'pending';
+                                return esb !== 'completed' ? (
+                                  <span className="font-semibold text-orange-600">
+                                    ₹{Math.round(sale.net_amount - (sale.paid_amount || 0)).toLocaleString('en-IN')}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                );
+                              })()}
                             </TableCell>
                             {columnSettings.refund && (
                               <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
@@ -1584,30 +1589,31 @@ const POSDashboard = () => {
                             )}
                             {columnSettings.status && (
                               <TableCell className="px-2 py-1.5" onClick={() => toggleExpanded(sale.id)}>
-                                <Badge 
-                                  className={`min-w-[60px] justify-center whitespace-nowrap text-[11px] px-1.5 py-0 ${
-                                    sale.payment_status === "completed" 
-                                      ? "bg-green-500 hover:bg-green-600 text-white" 
-                                      : sale.payment_status === "partial" 
-                                        ? "bg-orange-400 hover:bg-orange-500 text-white" 
-                                        : sale.payment_status === "hold"
-                                          ? "bg-amber-500 hover:bg-amber-600 text-white" 
-                                          : "bg-red-500 hover:bg-red-600 text-white"
-                                  }`}
-                                >
-                                  {sale.payment_status === "completed" 
-                                    ? "Paid" 
-                                    : sale.payment_status === "partial" 
-                                      ? "Partial" 
-                                      : sale.payment_status === "hold" 
-                                        ? "Hold" 
-                                        : "Not Paid"}
-                                </Badge>
+                                {(() => {
+                                  const es = sale.payment_status === 'hold' ? 'hold'
+                                    : (sale.paid_amount || 0) >= sale.net_amount ? 'completed'
+                                    : (sale.paid_amount || 0) > 0 ? 'partial' : 'pending';
+                                  return (
+                                    <Badge 
+                                      className={`min-w-[60px] justify-center whitespace-nowrap text-[11px] px-1.5 py-0 ${
+                                        es === "completed" 
+                                          ? "bg-green-500 hover:bg-green-600 text-white" 
+                                          : es === "partial" 
+                                            ? "bg-orange-400 hover:bg-orange-500 text-white" 
+                                            : es === "hold"
+                                              ? "bg-amber-500 hover:bg-amber-600 text-white" 
+                                              : "bg-red-500 hover:bg-red-600 text-white"
+                                      }`}
+                                    >
+                                      {es === "completed" ? "Paid" : es === "partial" ? "Partial" : es === "hold" ? "Hold" : "Not Paid"}
+                                    </Badge>
+                                  );
+                                })()}
                               </TableCell>
                             )}
                             <TableCell className="px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-0.5">
-                                {sale.payment_status !== 'completed' && (
+                                {((sale.paid_amount || 0) < sale.net_amount && sale.payment_status !== 'hold') && (
                                   <Button 
                                     variant="ghost" 
                                     size="icon"
