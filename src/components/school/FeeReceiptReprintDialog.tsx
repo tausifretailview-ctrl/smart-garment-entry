@@ -75,7 +75,7 @@ export function FeeReceiptReprintDialog({ open, onOpenChange, receiptId }: FeeRe
           class_name: student.school_classes?.class_name || "-",
         },
         items: fees.map((f: any) => ({
-          head_name: f.fee_heads?.head_name || "Yearly Fees 2026-27",
+          head_name: f.fee_heads?.head_name || "Yearly Fees 2025-26",
           paying: f.paid_amount || 0,
         })),
         totalPaying,
