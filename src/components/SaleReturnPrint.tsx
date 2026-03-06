@@ -208,6 +208,7 @@ export const SaleReturnPrint = forwardRef<HTMLDivElement, SaleReturnPrintProps>(
                   <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>{index + 1}</td>
                   <td style={{ border: '1px solid #000', padding: '5px' }}>{item.product_name}</td>
                   <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>{item.size}</td>
+                  <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>{item.color || '-'}</td>
                   <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>{item.quantity}</td>
                   <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'right' }}>₹{item.unit_price.toFixed(2)}</td>
                   <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>{item.gst_percent}%</td>
