@@ -1,30 +1,22 @@
 
 
-## Investigation Summary
+## Fix: A5 Invoice Print Issues from Dashboard
 
-After reviewing the Customer Ledger code, here's the current state:
+### Problems Identified (from screenshots)
 
-### What's Already Working Correctly
+1. **Sub Total / Grand Total cut off**: The template's inner wrapper uses `maxHeight: calc(210mm - 4mm)` with `overflow: hidden` for A5 vertical format (line 554-555 of `ModernWholesaleTemplate.tsx`). When the summary section extends beyond this height, it gets clipped — visible in the screenshot where amounts next to "Sub Total", "Taxable Amt", "GRAND TOTAL" are missing.
 
-1. **Opening balance is shown as the actual/original value** (line 649-665) — after our previous fix that removed the double-counting bug, `opening_balance` is no longer modified by adjustments. It stays as the original carried-forward amount.
+2. **Invoice number & date font too large for A5**: Currently `6.5pt` — needs to be smaller.
 
-2. **All transactions are sorted chronologically by `created_at` timestamp** (lines 702-707) — we already added this in the previous update.
+3. **MRP column showing on A5**: The MRP column header and cells are always rendered regardless of paper size.
 
-3. **Adjustments appear as separate line items** (lines 798-824) — balance adjustments show as distinct "Balance Adjustment" entries with reason, debit/credit, and running balance.
+### Fix (single file: `src/components/invoice-templates/ModernWholesaleTemplate.tsx`)
 
-4. **Date + time is displayed** — already added in the previous update.
+**1. Fix clipped totals** — Change `overflow: "hidden"` to `overflow: "visible"` on the inner border wrapper (line 555). This lets the summary render fully when content is slightly taller than the container. The `@page` CSS and print margins already handle page boundaries correctly.
 
-### No Code Changes Needed
+**2. Reduce invoice number/date font** — Decrease from `6.5pt` to `5.5pt` for A5 format in the invoice metadata section (lines 315, 319).
 
-The system is already functioning as the user described:
-- **Actual opening balance** is preserved (not adjusted)
-- **Adjustments show as transaction entries** in the ledger with date/time
-- **All transactions are in chronological sequence** by exact timestamp
-- The balance formula correctly computes: `Opening + Sales - Paid + Adjustments - Advances`
+**3. Remove MRP column for A5** — Conditionally hide the MRP header cell (line 338) and data cell (line 357) when `isA5` is true. Also remove the corresponding empty row cell. Redistribute the freed horizontal space to other columns.
 
-### What the User Should Verify
-
-The earlier corruption fix (reversing the `opening_balance` modifications for all 24 Ella Noor customers) should have restored the correct original opening balances. If any customer's opening balance still looks wrong, it may need a manual correction in the customer master.
-
-**No code changes are required** — the current implementation already meets all the requirements described.
+### No other files need changes — the dashboard container and print logic are correct; the issue is purely within the template's A5 rendering constraints.
 
