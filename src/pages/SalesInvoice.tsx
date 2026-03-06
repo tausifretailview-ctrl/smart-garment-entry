@@ -2867,6 +2867,13 @@ Thank you for choosing us!`;
         <Button variant="outline" size="sm" onClick={() => navigate('/sales-invoice-dashboard')} className="h-9 px-4 text-[13px] rounded-md">
           Cancel
         </Button>
+        {/* Print button - visible when viewing/editing a saved invoice */}
+        {(editingInvoiceId || savedInvoiceData) && (
+          <Button variant="outline" size="sm" onClick={handlePrintInvoice} className="h-9 px-4 text-[13px] rounded-md">
+            <Printer className="mr-1.5 h-3.5 w-3.5" />
+            Print
+          </Button>
+        )}
         <Button size="sm" onClick={handleSaveInvoice} disabled={isSaving || savingLockRef.current} className="h-9 px-6 text-[13px] rounded-md">
           <Eye className="mr-1.5 h-3.5 w-3.5" />
           {isSaving ? 'Saving...' : editingInvoiceId ? 'Update Invoice' : 'Save Invoice'}
