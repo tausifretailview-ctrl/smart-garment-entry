@@ -354,7 +354,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
               {formatSizeQty(item.sizeQtyList)}
             </td>
             <td style={{ ...cellStyle, textAlign: "center", fontWeight: "700" }}>{item.totalQty}</td>
-            <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "6.5pt" : "7.5pt" }}>{item.mrp ? item.mrp.toFixed(2) : '-'}</td>
+            {!isA5 && <td style={{ ...cellStyle, textAlign: "right", fontSize: "7.5pt" }}>{item.mrp ? item.mrp.toFixed(2) : '-'}</td>}
             <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "6.5pt" : "7.5pt" }}>{item.rate.toFixed(2)}</td>
             {showGSTBreakdown && <td style={{ ...cellStyle, textAlign: "center", fontSize: isA5 ? "6.5pt" : "7.5pt" }}>{item.gstPercent}%</td>}
             {showGSTBreakdown && (
