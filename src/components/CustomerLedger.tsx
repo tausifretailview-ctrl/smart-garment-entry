@@ -786,6 +786,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           allTransactions.push({
             id: advance.id,
             date: advance.advance_date,
+            timestamp: item.timestamp || null,
             type: 'advance',
             reference: advance.advance_number,
             description: description,
