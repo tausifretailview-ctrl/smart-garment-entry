@@ -1,4 +1,4 @@
-import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid } from "lucide-react";
+import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid, BoxIcon } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
@@ -19,6 +19,7 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useState, useEffect } from "react";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
+import { FloatingStockReport } from "@/components/FloatingPOSReports";
 
 export const Header = () => {
   const { user, signOut } = useAuth();
@@ -27,6 +28,7 @@ export const Header = () => {
   const { orgNavigate, getOrgPath, orgSlug } = useOrgNavigation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sizeStockOpen, setSizeStockOpen] = useState(false);
+  const [quickStockOpen, setQuickStockOpen] = useState(false);
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
 
   // Ctrl+G keyboard shortcut to open Size Stock dialog
@@ -63,15 +65,18 @@ export const Header = () => {
   const initials = user?.email?.substring(0, 2).toUpperCase() || "U";
 
   const quickActions = [
-    { icon: ShoppingCart, label: "New Sale", path: "/pos-sales", isDialog: false },
-    { icon: Package, label: "New Purchase", path: "/purchase-entry", isDialog: false },
-    { icon: LayoutGrid, label: "Size Stock", path: "", isDialog: true, shortcut: "Ctrl+G" },
-    { icon: TrendingUp, label: "Reports", path: "/stock-report", isDialog: false },
+    { icon: ShoppingCart, label: "New Sale", path: "/pos-sales", isDialog: false, dialogKey: "" },
+    { icon: Package, label: "New Purchase", path: "/purchase-entry", isDialog: false, dialogKey: "" },
+    { icon: LayoutGrid, label: "Size Stock", path: "", isDialog: true, shortcut: "Ctrl+G", dialogKey: "sizeStock" },
+    { icon: BoxIcon, label: "Quick Stock", path: "", isDialog: true, dialogKey: "quickStock" },
+    { icon: TrendingUp, label: "Reports", path: "/stock-report", isDialog: false, dialogKey: "" },
   ];
 
   const handleQuickAction = (action: typeof quickActions[0]) => {
-    if (action.isDialog) {
+    if (action.dialogKey === "sizeStock") {
       setSizeStockOpen(true);
+    } else if (action.dialogKey === "quickStock") {
+      setQuickStockOpen(true);
     } else {
       orgNavigate(action.path);
     }
@@ -220,6 +225,7 @@ export const Header = () => {
       
       {/* Size Stock Floating Dialog */}
       <SizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />
+      <FloatingStockReport open={quickStockOpen} onOpenChange={setQuickStockOpen} />
     </header>
   );
 };
