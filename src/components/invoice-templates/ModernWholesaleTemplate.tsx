@@ -312,11 +312,11 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <tbody>
               <tr>
                 <td style={{ whiteSpace: "nowrap", paddingRight: "4px" }}>Inv No:</td>
-                <td style={{ fontWeight: "500", textAlign: "right", wordBreak: "break-all", fontSize: isA5 ? "6.5pt" : "9pt" }}>{invoiceNumber}</td>
+                <td style={{ fontWeight: "500", textAlign: "right", wordBreak: "break-all", fontSize: isA5 ? "5.5pt" : "9pt" }}>{invoiceNumber}</td>
               </tr>
               <tr>
                 <td style={{ whiteSpace: "nowrap", paddingRight: "4px" }}>Date:</td>
-                <td style={{ fontWeight: "500", textAlign: "right", fontSize: isA5 ? "6.5pt" : "9pt" }}>{invoiceDate.toLocaleDateString("en-IN")}</td>
+                <td style={{ fontWeight: "500", textAlign: "right", fontSize: isA5 ? "5.5pt" : "9pt" }}>{invoiceDate.toLocaleDateString("en-IN")}</td>
               </tr>
             </tbody>
           </table>
@@ -335,7 +335,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           <th style={{ ...headerCellStyle, width: isA5 ? "30px" : "45px" }}>HSN</th>
           <th style={{ ...headerCellStyle, width: isA5 ? "60px" : "80px" }}>SIZE / QTY</th>
           <th style={{ ...headerCellStyle, width: isA5 ? "26px" : "32px" }}>QTY</th>
-          <th style={{ ...headerCellStyle, width: isA5 ? "38px" : "45px" }}>MRP</th>
+          {!isA5 && <th style={{ ...headerCellStyle, width: "45px" }}>MRP</th>}
           <th style={{ ...headerCellStyle, width: isA5 ? "38px" : "45px" }}>RATE</th>
           {showGSTBreakdown && <th style={{ ...headerCellStyle, width: isA5 ? "26px" : "32px" }}>GST%</th>}
           {showGSTBreakdown && <th style={{ ...headerCellStyle, width: isA5 ? "38px" : "48px" }}>GST AMT</th>}
@@ -354,7 +354,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
               {formatSizeQty(item.sizeQtyList)}
             </td>
             <td style={{ ...cellStyle, textAlign: "center", fontWeight: "700" }}>{item.totalQty}</td>
-            <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "6.5pt" : "7.5pt" }}>{item.mrp ? item.mrp.toFixed(2) : '-'}</td>
+            {!isA5 && <td style={{ ...cellStyle, textAlign: "right", fontSize: "7.5pt" }}>{item.mrp ? item.mrp.toFixed(2) : '-'}</td>}
             <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "6.5pt" : "7.5pt" }}>{item.rate.toFixed(2)}</td>
             {showGSTBreakdown && <td style={{ ...cellStyle, textAlign: "center", fontSize: isA5 ? "6.5pt" : "7.5pt" }}>{item.gstPercent}%</td>}
             {showGSTBreakdown && (
@@ -375,7 +375,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <td style={cellStyle}>&nbsp;</td>
             <td style={cellStyle}>&nbsp;</td>
             <td style={cellStyle}>&nbsp;</td>
-            <td style={cellStyle}>&nbsp;</td>
+            {!isA5 && <td style={cellStyle}>&nbsp;</td>}
             <td style={cellStyle}>&nbsp;</td>
             {showGSTBreakdown && <td style={cellStyle}>&nbsp;</td>}
             {showGSTBreakdown && <td style={cellStyle}>&nbsp;</td>}
@@ -552,7 +552,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           border: "1.5px solid #374151", 
           minHeight: format === 'a4' ? "calc(297mm - 10mm)" : format === 'a5-horizontal' ? "calc(148mm - 10mm)" : "calc(210mm - 4mm)",
           maxHeight: format === 'a5-vertical' ? "calc(210mm - 4mm)" : undefined,
-          overflow: "hidden",
+          overflow: "visible",
           boxSizing: "border-box",
           display: "flex",
           flexDirection: "column",
