@@ -225,6 +225,7 @@ export const Header = () => {
       
       {/* Size Stock Floating Dialog */}
       <SizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />
+      <FloatingStockReport open={quickStockOpen} onOpenChange={setQuickStockOpen} />
     </header>
   );
 };
