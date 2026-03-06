@@ -835,6 +835,7 @@ const PurchaseReturnEntry = () => {
           product_id: item.product_id,
           sku_id: item.sku_id,
           size: item.size,
+          color: item.color || null,
           qty: item.qty,
           pur_price: item.pur_price,
           gst_per: item.gst_per,
