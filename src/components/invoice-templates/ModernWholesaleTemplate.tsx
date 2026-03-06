@@ -442,7 +442,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           </div>
         )}
 
-        <div style={{ width: isA5 ? "200px" : "280px", flexShrink: 0, padding: isA5 ? "4px 5px" : "8px 10px", background: colors.light, boxSizing: "border-box", overflow: "visible" }}>
+        <div style={{ width: isA5 ? "180px" : "280px", flexShrink: 0, padding: isA5 ? "3px 4px" : "8px 10px", background: colors.light, boxSizing: "border-box", overflow: "visible" }}>
           <table style={{ width: "100%", fontSize: isA5 ? "6.5pt" : "9pt", fontWeight: "500", borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}>
             <colgroup>
               <col style={{ width: "45%" }} />
@@ -493,7 +493,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         style={{
           display: "flex",
           justifyContent: "space-between",
-          padding: isA5 ? "10px 6px 6px" : "20px 10px 10px",
+          padding: isA5 ? "8px 6px 4px" : "20px 10px 10px",
           borderTop: "1px solid #374151",
         }}
       >
@@ -542,7 +542,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           width: format === 'a4' ? "210mm" : format === 'a5-horizontal' ? "210mm" : "148mm",
           minHeight: format === 'a4' ? "297mm" : format === 'a5-horizontal' ? "148mm" : "210mm",
           margin: "0 auto",
-          padding: format === 'a5-vertical' ? "3mm" : "5mm",
+          padding: format === 'a5-vertical' ? "2mm" : "5mm",
           fontFamily: font,
           backgroundColor: "#fff",
           boxSizing: "border-box",
@@ -553,7 +553,9 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         {/* Main Border Wrapper */}
         <div style={{ 
           border: "1.5px solid #374151", 
-          minHeight: format === 'a4' ? "calc(297mm - 10mm)" : format === 'a5-horizontal' ? "calc(148mm - 10mm)" : "calc(210mm - 6mm)",
+          minHeight: format === 'a4' ? "calc(297mm - 10mm)" : format === 'a5-horizontal' ? "calc(148mm - 10mm)" : "calc(210mm - 4mm)",
+          maxHeight: format === 'a5-vertical' ? "calc(210mm - 4mm)" : undefined,
+          overflow: "hidden",
           boxSizing: "border-box",
           display: "flex",
           flexDirection: "column",
@@ -577,7 +579,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       <style>
         {`
           @media print {
-            @page { size: ${format === 'a5-vertical' ? '148mm 210mm' : format === 'a5-horizontal' ? 'A5 landscape' : 'A4'}; margin: ${format === 'a5-vertical' ? '0mm' : '5mm'}; }
+            @page { size: ${format === 'a5-vertical' ? '148mm 210mm' : format === 'a5-horizontal' ? 'A5 landscape' : 'A4'}; margin: ${format === 'a5-vertical' ? '1mm' : '5mm'}; }
             body { margin: 0; padding: 0; }
             .invoice-page { 
               box-shadow: none !important; 
