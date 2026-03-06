@@ -1243,8 +1243,8 @@ Please clear your dues at the earliest. Thank you!`;
     yPos += 10;
 
     // Table Headers
-    const headers = ["Date", "Type", "Reference", "Description", "Debit", "Credit", "Balance"];
-    const colWidths = [22, 18, 25, 52, 22, 22, 22];
+    const headers = ["Date & Time", "Type", "Reference", "Description", "Debit", "Credit", "Balance"];
+    const colWidths = [28, 16, 22, 48, 22, 22, 22];
     
     doc.setFillColor(240, 240, 240);
     doc.rect(margin, yPos, pageWidth - margin * 2, 8, "F");
