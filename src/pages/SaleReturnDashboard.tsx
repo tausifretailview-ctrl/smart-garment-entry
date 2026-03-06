@@ -39,6 +39,7 @@ interface SaleReturnItem {
   id: string;
   product_name: string;
   size: string;
+  color: string | null;
   barcode: string | null;
   quantity: number;
   unit_price: number;
