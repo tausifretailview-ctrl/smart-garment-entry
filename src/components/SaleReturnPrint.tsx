@@ -230,7 +230,7 @@ export const SaleReturnPrint = forwardRef<HTMLDivElement, SaleReturnPrintProps>(
               ))}
               {/* Total Row */}
               <tr style={{ backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>
-                <td colSpan={3} style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>TOTAL</td>
+                <td colSpan={4} style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>TOTAL</td>
                 <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'center' }}>{totalQty}</td>
                 <td style={{ border: '1px solid #000', padding: '6px' }}>&nbsp;</td>
                 <td style={{ border: '1px solid #000', padding: '6px' }}>&nbsp;</td>
