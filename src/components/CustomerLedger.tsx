@@ -720,6 +720,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           allTransactions.push({
             id: sale.id,
             date: sale.sale_date,
+            timestamp: item.timestamp || null,
             type: 'invoice',
             reference: sale.sale_number,
             description: `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status}`,
