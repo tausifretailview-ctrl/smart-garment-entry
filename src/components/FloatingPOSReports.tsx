@@ -306,7 +306,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
 }
 
 // Floating Stock Report Dialog
-function FloatingStockReport({ open, onOpenChange }: { open: boolean; onOpenChange: () => void }) {
+export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { currentOrganization } = useOrganization();
   const [searchQuery, setSearchQuery] = useState("");
 

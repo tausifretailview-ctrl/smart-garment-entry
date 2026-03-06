@@ -28,6 +28,7 @@ export const Header = () => {
   const { orgNavigate, getOrgPath, orgSlug } = useOrgNavigation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sizeStockOpen, setSizeStockOpen] = useState(false);
+  const [quickStockOpen, setQuickStockOpen] = useState(false);
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
 
   // Ctrl+G keyboard shortcut to open Size Stock dialog
