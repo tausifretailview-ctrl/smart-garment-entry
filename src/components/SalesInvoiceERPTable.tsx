@@ -176,8 +176,7 @@ export function SalesInvoiceERPTable({
           );
         },
         size: 180,
-      },
-    ];
+      });
 
     if (columnSettings.phone) {
       cols.push({
