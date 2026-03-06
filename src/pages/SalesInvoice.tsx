@@ -186,6 +186,9 @@ export default function SalesInvoice() {
   // Product history dialog state
   const [historyProduct, setHistoryProduct] = useState<{ id: string; name: string } | null>(null);
 
+  // Invoice navigation state (like POS)
+  const [navInvoiceIndex, setNavInvoiceIndex] = useState<number | null>(null);
+  const [isLoadingNavInvoice, setIsLoadingNavInvoice] = useState(false);
 
 
   // Draft save hook
