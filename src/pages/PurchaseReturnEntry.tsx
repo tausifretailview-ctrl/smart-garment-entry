@@ -1205,6 +1205,7 @@ const PurchaseReturnEntry = () => {
                       <TableCell className="text-center text-muted-foreground">{index + 1}</TableCell>
                       <TableCell className="font-medium">{item.product_name}</TableCell>
                       <TableCell>{item.brand}</TableCell>
+                      <TableCell>{item.color || "-"}</TableCell>
                       <TableCell>{item.size}</TableCell>
                       <TableCell>{item.barcode}</TableCell>
                       <TableCell>
