@@ -45,6 +45,7 @@ interface LineItem {
   sku_id: string;
   product_name: string;
   size: string;
+  color?: string;
   qty: number;
   pur_price: number;
   gst_per: number;
