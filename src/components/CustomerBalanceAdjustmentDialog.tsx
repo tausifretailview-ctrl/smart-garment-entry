@@ -225,19 +225,8 @@ export function CustomerBalanceAdjustmentDialog({
 
   // Helper: apply outstanding + advance changes (used by save, reverse, delete)
   const applyAdjustmentEffects = async (customerId: string, outDiff: number, advDiff: number, reasonText: string) => {
-    // Outstanding: adjust opening_balance
-    if (outDiff !== 0) {
-      const { data: cust } = await supabase
-        .from("customers")
-        .select("opening_balance")
-        .eq("id", customerId)
-        .single();
-      const currentOpening = cust?.opening_balance || 0;
-      await supabase
-        .from("customers")
-        .update({ opening_balance: currentOpening + outDiff })
-        .eq("id", customerId);
-    }
+    // Outstanding adjustment is tracked solely via customer_balance_adjustments table
+    // The balance formula includes adjustmentTotal, so no need to modify opening_balance
 
     // Advance
     if (advDiff > 0) {
