@@ -814,6 +814,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           allTransactions.push({
             id: adj.id,
             date: adj.adjustment_date,
+            timestamp: item.timestamp || null,
             type: 'adjustment',
             reference: 'ADJ',
             description: adjDescription,
