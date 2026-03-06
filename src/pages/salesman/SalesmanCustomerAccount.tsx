@@ -142,17 +142,21 @@ const SalesmanCustomerAccount = () => {
       }
 
       // Combine and sort all transactions
-      const allTxns: { date: Date; type: "sale" | "payment"; data: any }[] = [];
+      const allTxns: { date: Date; timestamp: string | null; type: "sale" | "payment"; data: any }[] = [];
       
       (salesData || []).forEach(sale => {
-        allTxns.push({ date: new Date(sale.sale_date), type: "sale", data: sale });
+        allTxns.push({ date: new Date(sale.sale_date), timestamp: sale.created_at || null, type: "sale", data: sale });
       });
 
       customerReceipts.forEach(receipt => {
-        allTxns.push({ date: new Date(receipt.voucher_date), type: "payment", data: receipt });
+        allTxns.push({ date: new Date(receipt.voucher_date), timestamp: receipt.created_at || null, type: "payment", data: receipt });
       });
 
-      allTxns.sort((a, b) => a.date.getTime() - b.date.getTime());
+      allTxns.sort((a, b) => {
+        const tsA = a.timestamp ? new Date(a.timestamp).getTime() : a.date.getTime();
+        const tsB = b.timestamp ? new Date(b.timestamp).getTime() : b.date.getTime();
+        return tsA - tsB;
+      });
 
       allTxns.forEach(txn => {
         if (txn.type === "sale") {
