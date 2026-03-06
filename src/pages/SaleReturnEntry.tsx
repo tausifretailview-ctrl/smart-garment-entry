@@ -363,7 +363,7 @@ export default function SaleReturnEntry() {
         // First check if this barcode's variant was ever sold in this org
         const { data: dbVariant } = await supabase
           .from("product_variants")
-          .select("id, product_id, size, sale_price, stock_qty, barcode, products(id, product_name, brand, category, hsn_code, gst_per, status, deleted_at)")
+          .select("id, product_id, size, color, sale_price, stock_qty, barcode, products(id, product_name, brand, category, hsn_code, gst_per, status, deleted_at)")
           .eq("barcode", query)
           .eq("active", true)
           .is("deleted_at", null)
