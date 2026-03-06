@@ -749,6 +749,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             allTransactions.push({
               id: `${sale.id}-payment-at-sale`,
               date: sale.sale_date,
+              timestamp: item.timestamp || null,
               type: 'payment',
               reference: sale.sale_number,
               description: `Payment at sale${paymentParts.length > 0 ? ' - ' + paymentParts.join(', ') : ''}`,
