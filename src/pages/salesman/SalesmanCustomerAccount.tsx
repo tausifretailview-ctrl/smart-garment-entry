@@ -388,7 +388,16 @@ const SalesmanCustomerAccount = () => {
                     <div>
                       <p className="font-medium text-sm">{txn.reference}</p>
                       <p className="text-xs text-muted-foreground">
-                        {txn.date === "Opening Balance" ? txn.date : format(new Date(txn.date), "dd MMM yyyy")}
+                        {txn.date === "Opening Balance" ? txn.date : (
+                          <>
+                            {format(new Date(txn.date), "dd MMM yyyy")}
+                            {txn.timestamp && (
+                              <span className="ml-1 text-muted-foreground/70">
+                                {format(new Date(txn.timestamp), "hh:mm a")}
+                              </span>
+                            )}
+                          </>
+                        )}
                       </p>
                     </div>
                     <div className="text-right">
