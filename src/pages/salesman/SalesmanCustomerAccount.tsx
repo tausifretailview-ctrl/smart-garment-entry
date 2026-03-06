@@ -83,7 +83,7 @@ const SalesmanCustomerAccount = () => {
       // Fetch sales
       const { data: salesData, error: salesError } = await supabase
         .from("sales")
-        .select("id, sale_number, sale_date, net_amount, paid_amount, payment_status")
+        .select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, created_at")
         .eq("customer_id", customerId!)
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null)
