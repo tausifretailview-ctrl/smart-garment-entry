@@ -466,6 +466,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             allTransactions.push({
               id: `${fee.id}-payment`,
               date: fee.paid_date || fee.created_at?.substring(0, 10) || '',
+              timestamp: fee.created_at || null,
               type: 'payment',
               reference: fee.payment_receipt_id || '-',
               description: `Fee Payment${methodText} - ${feeHeadName}`,
