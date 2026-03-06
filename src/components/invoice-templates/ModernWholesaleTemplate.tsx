@@ -283,9 +283,11 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             }}
           >
             <div style={{ fontWeight: "800", fontSize: isA5 ? "8pt" : "10pt", color: colors.primary }}>
-              TAX
-              <br />
-              INVOICE
+              {businessName?.toLowerCase().includes("banshri") || businessName?.toLowerCase().includes("bansari") || businessName?.toLowerCase().includes("banshri") ? (
+                <>DELIVERY<br />CHALLAN</>
+              ) : (
+                <>TAX<br />INVOICE</>
+              )}
             </div>
           </div>
         </div>
