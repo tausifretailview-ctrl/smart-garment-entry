@@ -889,7 +889,6 @@ const FeeCollection = () => {
               )}
             </CardContent>
           </Card>
-          </>)}
         </TabsContent>
       </Tabs>
 
