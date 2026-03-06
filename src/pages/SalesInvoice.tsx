@@ -2123,51 +2123,58 @@ Thank you for choosing us!`;
 
   return (
     <div className="max-w-[1600px] mx-auto px-4 py-3 space-y-3">
-      <BackToDashboard label="Back to Sales Dashboard" to="/sales-invoice-dashboard" />
-      
-      {/* Invoice Navigation Bar */}
       <div className="flex items-center gap-2 flex-wrap">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleLastInvoice}
-          disabled={isLoadingNavInvoice || !allInvoiceIds?.length}
-          className="h-8 gap-1.5 text-xs"
-        >
-          <SkipBack className="h-3.5 w-3.5" />
-          Last Invoice
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handlePreviousInvoice}
-          disabled={isLoadingNavInvoice || navInvoiceIndex === null || navInvoiceIndex >= (allInvoiceIds?.length || 0) - 1}
-          className="h-8 gap-1 text-xs"
-        >
-          <ChevronLeft className="h-3.5 w-3.5" />
-          Previous
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleNextInvoice}
-          disabled={isLoadingNavInvoice || navInvoiceIndex === null || navInvoiceIndex <= 0}
-          className="h-8 gap-1 text-xs"
-        >
-          Next
-          <ChevronRight className="h-3.5 w-3.5" />
-        </Button>
-        {navInvoiceIndex !== null && allInvoiceIds && (
-          <span className="text-xs text-muted-foreground ml-1">
-            Invoice {navInvoiceIndex + 1} of {allInvoiceIds.length}
-            {allInvoiceIds[navInvoiceIndex] && (
-              <span className="font-medium text-foreground ml-1">
-                ({allInvoiceIds[navInvoiceIndex].sale_number})
-              </span>
-            )}
-          </span>
+        <BackToDashboard label="Back to Sales Dashboard" to="/sales-invoice-dashboard" />
+        <div className="flex items-center gap-1.5 ml-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleLastInvoice}
+            disabled={isLoadingNavInvoice || !allInvoiceIds?.length}
+            className="h-8 gap-1.5 text-xs"
+          >
+            <SkipBack className="h-3.5 w-3.5" />
+            Last Invoice
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePreviousInvoice}
+            disabled={isLoadingNavInvoice || navInvoiceIndex === null || navInvoiceIndex >= (allInvoiceIds?.length || 0) - 1}
+            className="h-8 gap-1 text-xs"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleNextInvoice}
+            disabled={isLoadingNavInvoice || navInvoiceIndex === null || navInvoiceIndex <= 0}
+            className="h-8 gap-1 text-xs"
+          >
+            Next
+            <ChevronRight className="h-3.5 w-3.5" />
+          </Button>
+          {navInvoiceIndex !== null && allInvoiceIds && (
+            <span className="text-xs text-muted-foreground ml-1">
+              Invoice {navInvoiceIndex + 1} of {allInvoiceIds.length}
+              {allInvoiceIds[navInvoiceIndex] && (
+                <span className="font-medium text-foreground ml-1">
+                  ({allInvoiceIds[navInvoiceIndex].sale_number})
+                </span>
+              )}
+            </span>
+          )}
+          {isLoadingNavInvoice && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+        </div>
+        {/* Print button */}
+        {(editingInvoiceId || savedInvoiceData) && (
+          <Button variant="outline" size="sm" onClick={handlePrintInvoice} className="h-8 gap-1.5 text-xs ml-auto">
+            <Printer className="h-3.5 w-3.5" />
+            Print
+          </Button>
         )}
-        {isLoadingNavInvoice && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
       </div>
 
       {/* Header Card - Compact */}
