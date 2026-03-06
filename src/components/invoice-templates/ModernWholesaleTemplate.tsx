@@ -552,7 +552,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           border: "1.5px solid #374151", 
           minHeight: format === 'a4' ? "calc(297mm - 10mm)" : format === 'a5-horizontal' ? "calc(148mm - 10mm)" : "calc(210mm - 4mm)",
           maxHeight: format === 'a5-vertical' ? "calc(210mm - 4mm)" : undefined,
-          overflow: "hidden",
+          overflow: "visible",
           boxSizing: "border-box",
           display: "flex",
           flexDirection: "column",
