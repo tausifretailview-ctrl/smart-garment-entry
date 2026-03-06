@@ -518,6 +518,26 @@ export default function SalesInvoice() {
     enabled: !!currentOrganization?.id,
   });
 
+  // Fetch all invoice IDs for navigation (like POS)
+  const { data: allInvoiceIds } = useQuery({
+    queryKey: ['all-sale-invoice-ids', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const { data, error } = await supabase
+        .from('sales')
+        .select('id, sale_number')
+        .eq('organization_id', currentOrganization.id)
+        .eq('sale_type', 'invoice')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 60000,
+  });
+
   // Generate next invoice number preview
   useEffect(() => {
     const previewNextInvoice = async () => {
