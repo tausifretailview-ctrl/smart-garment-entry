@@ -22,7 +22,8 @@ import { format, startOfDay, endOfDay, startOfMonth, startOfQuarter, startOfYear
 
 const FeeCollection = () => {
   const queryClient = useQueryClient();
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, organizationRole } = useOrganization();
+  const isManager = organizationRole === "manager";
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [classFilter, setClassFilter] = useState<string>("all");
@@ -448,8 +449,8 @@ const FeeCollection = () => {
 
         {/* ========== TAB 1: Collect Fees (existing) ========== */}
         <TabsContent value="collect" className="space-y-6">
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Summary Cards - hidden for manager */}
+          {!isManager && <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center gap-4">
@@ -489,7 +490,7 @@ const FeeCollection = () => {
                 </div>
               </CardContent>
             </Card>
-          </div>
+          </div>}
 
           <Card>
             <CardHeader>
@@ -640,6 +641,13 @@ const FeeCollection = () => {
 
         {/* ========== TAB 2: Fees Collected ========== */}
         <TabsContent value="collected" className="space-y-6">
+          {isManager ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">Access Restricted</p>
+              <p className="text-sm">Collection details are not available for your role.</p>
+            </div>
+          ) : (<>
           {/* Period Filter Chips */}
           <div className="flex flex-wrap items-center gap-2">
             {["today", "monthly", "quarterly", "yearly", "custom"].map((period) => (
@@ -888,6 +896,7 @@ const FeeCollection = () => {
               )}
             </CardContent>
           </Card>
+          </>)}
         </TabsContent>
       </Tabs>
 
