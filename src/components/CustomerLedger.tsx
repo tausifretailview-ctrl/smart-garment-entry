@@ -1558,7 +1558,14 @@ Please clear your dues at the earliest. Thank you!`;
                                 <Calendar className="h-4 w-4 text-muted-foreground" />
                                 {transaction.id === 'opening-balance' 
                                   ? <span className="font-semibold">Opening</span>
-                                  : format(new Date(transaction.date), "dd MMM yyyy")
+                                  : <div>
+                                      <div>{format(new Date(transaction.date), "dd MMM yyyy")}</div>
+                                      {transaction.timestamp && (
+                                        <div className="text-xs text-muted-foreground">
+                                          {format(new Date(transaction.timestamp), "hh:mm a")}
+                                        </div>
+                                      )}
+                                    </div>
                                 }
                               </div>
                             </TableCell>
