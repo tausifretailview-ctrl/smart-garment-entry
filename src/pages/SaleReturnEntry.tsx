@@ -33,6 +33,7 @@ interface Variant {
   id: string;
   product_id: string;
   size: string;
+  color: string | null;
   sale_price: number;
   stock_qty: number;
   barcode: string | null;
@@ -245,7 +246,7 @@ export default function SaleReturnEntry() {
         const batch = variantIdArray.slice(i, i + 500);
         const { data: variantsData, error: variantsError } = await supabase
           .from("product_variants")
-          .select("id, product_id, size, sale_price, stock_qty, barcode, products(gst_per)")
+          .select("id, product_id, size, color, sale_price, stock_qty, barcode, products(gst_per)")
           .in("id", batch)
           .eq("active", true)
           .is("deleted_at", null);
@@ -257,6 +258,7 @@ export default function SaleReturnEntry() {
             id: v.id,
             product_id: v.product_id,
             size: v.size,
+            color: v.color || null,
             sale_price: v.sale_price || 0,
             stock_qty: v.stock_qty,
             barcode: v.barcode,
@@ -361,7 +363,7 @@ export default function SaleReturnEntry() {
         // First check if this barcode's variant was ever sold in this org
         const { data: dbVariant } = await supabase
           .from("product_variants")
-          .select("id, product_id, size, sale_price, stock_qty, barcode, products(id, product_name, brand, category, hsn_code, gst_per, status, deleted_at)")
+          .select("id, product_id, size, color, sale_price, stock_qty, barcode, products(id, product_name, brand, category, hsn_code, gst_per, status, deleted_at)")
           .eq("barcode", query)
           .eq("active", true)
           .is("deleted_at", null)
@@ -378,7 +380,7 @@ export default function SaleReturnEntry() {
           if (count && count > 0) {
             const p = dbVariant.products as any;
             product = { id: p.id, product_name: p.product_name, brand: p.brand, category: p.category, hsn_code: p.hsn_code };
-            variant = { id: dbVariant.id, product_id: dbVariant.product_id, size: dbVariant.size, sale_price: dbVariant.sale_price || 0, stock_qty: dbVariant.stock_qty, barcode: dbVariant.barcode, gst_per: p.gst_per || 0 };
+            variant = { id: dbVariant.id, product_id: dbVariant.product_id, size: dbVariant.size, color: dbVariant.color || null, sale_price: dbVariant.sale_price || 0, stock_qty: dbVariant.stock_qty, barcode: dbVariant.barcode, gst_per: p.gst_per || 0 };
           }
         }
       } catch (err) {
@@ -434,6 +436,7 @@ export default function SaleReturnEntry() {
         variantId: variant.id,
         productName: product.product_name,
         size: variant.size,
+        color: variant.color || undefined,
         barcode: variant.barcode,
         quantity: 1,
         unitPrice,
@@ -822,6 +825,7 @@ export default function SaleReturnEntry() {
                 <TableRow>
                   <TableHead>Product</TableHead>
                   <TableHead>Size</TableHead>
+                  <TableHead>Color</TableHead>
                   <TableHead>Barcode</TableHead>
                   <TableHead className="w-24">Qty</TableHead>
                   <TableHead className="text-right">Price</TableHead>
@@ -833,7 +837,7 @@ export default function SaleReturnEntry() {
               <TableBody>
                 {returnItems.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center text-muted-foreground">
                       No items added
                     </TableCell>
                   </TableRow>
@@ -842,6 +846,7 @@ export default function SaleReturnEntry() {
                     <TableRow key={index}>
                       <TableCell>{item.productName}</TableCell>
                       <TableCell>{item.size}</TableCell>
+                      <TableCell>{item.color || "-"}</TableCell>
                       <TableCell>{item.barcode || "-"}</TableCell>
                       <TableCell>
                         <Input

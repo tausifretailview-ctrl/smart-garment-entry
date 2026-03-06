@@ -3,6 +3,7 @@ import { forwardRef } from "react";
 interface SaleReturnItem {
   product_name: string;
   size: string;
+  color: string | null;
   barcode: string | null;
   quantity: number;
   unit_price: number;
@@ -194,6 +195,7 @@ export const SaleReturnPrint = forwardRef<HTMLDivElement, SaleReturnPrintProps>(
                 <th style={{ border: '1px solid #000', padding: '6px', width: '6%', fontWeight: 'bold' }}>Sr.</th>
                 <th style={{ border: '1px solid #000', padding: '6px', textAlign: 'left', fontWeight: 'bold' }}>Product Description</th>
                 <th style={{ border: '1px solid #000', padding: '6px', width: '10%', fontWeight: 'bold' }}>Size</th>
+                <th style={{ border: '1px solid #000', padding: '6px', width: '10%', fontWeight: 'bold' }}>Color</th>
                 <th style={{ border: '1px solid #000', padding: '6px', width: '8%', fontWeight: 'bold' }}>Qty</th>
                 <th style={{ border: '1px solid #000', padding: '6px', width: '12%', fontWeight: 'bold', textAlign: 'right' }}>Rate</th>
                 <th style={{ border: '1px solid #000', padding: '6px', width: '8%', fontWeight: 'bold', textAlign: 'center' }}>GST %</th>
@@ -206,6 +208,7 @@ export const SaleReturnPrint = forwardRef<HTMLDivElement, SaleReturnPrintProps>(
                   <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>{index + 1}</td>
                   <td style={{ border: '1px solid #000', padding: '5px' }}>{item.product_name}</td>
                   <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>{item.size}</td>
+                  <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>{item.color || '-'}</td>
                   <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>{item.quantity}</td>
                   <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'right' }}>₹{item.unit_price.toFixed(2)}</td>
                   <td style={{ border: '1px solid #000', padding: '5px', textAlign: 'center' }}>{item.gst_percent}%</td>
@@ -222,11 +225,12 @@ export const SaleReturnPrint = forwardRef<HTMLDivElement, SaleReturnPrintProps>(
                   <td style={{ border: '1px solid #000', padding: '5px' }}>&nbsp;</td>
                   <td style={{ border: '1px solid #000', padding: '5px' }}>&nbsp;</td>
                   <td style={{ border: '1px solid #000', padding: '5px' }}>&nbsp;</td>
+                  <td style={{ border: '1px solid #000', padding: '5px' }}>&nbsp;</td>
                 </tr>
               ))}
               {/* Total Row */}
               <tr style={{ backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>
-                <td colSpan={3} style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>TOTAL</td>
+                <td colSpan={4} style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>TOTAL</td>
                 <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'center' }}>{totalQty}</td>
                 <td style={{ border: '1px solid #000', padding: '6px' }}>&nbsp;</td>
                 <td style={{ border: '1px solid #000', padding: '6px' }}>&nbsp;</td>
