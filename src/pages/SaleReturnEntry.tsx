@@ -825,6 +825,7 @@ export default function SaleReturnEntry() {
                 <TableRow>
                   <TableHead>Product</TableHead>
                   <TableHead>Size</TableHead>
+                  <TableHead>Color</TableHead>
                   <TableHead>Barcode</TableHead>
                   <TableHead className="w-24">Qty</TableHead>
                   <TableHead className="text-right">Price</TableHead>
