@@ -346,6 +346,7 @@ const PurchaseReturnEntry = () => {
             id: v.id,
             product_id: v.products?.id || "",
             size: v.size,
+            color: v.color || "",
             pur_price: v.pur_price,
             barcode: v.barcode || "",
             product_name: v.products?.product_name || "",
