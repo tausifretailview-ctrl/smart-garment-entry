@@ -132,6 +132,7 @@ const SalesmanCustomerAccount = () => {
         txns.push({
           id: "opening",
           date: "Opening Balance",
+          timestamp: null,
           type: "sale",
           reference: "Opening",
           debit: customerData.opening_balance > 0 ? customerData.opening_balance : 0,
