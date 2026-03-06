@@ -94,7 +94,7 @@ const SalesmanCustomerAccount = () => {
       // Fetch payment receipts
       const { data: receiptsData, error: receiptsError } = await supabase
         .from("voucher_entries")
-        .select("id, voucher_number, voucher_date, total_amount, reference_id, reference_type")
+        .select("id, voucher_number, voucher_date, total_amount, reference_id, reference_type, created_at")
         .eq("voucher_type", "receipt")
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null)
