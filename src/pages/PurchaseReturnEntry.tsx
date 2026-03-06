@@ -223,6 +223,8 @@ const PurchaseReturnEntry = () => {
 
         // Get unique product IDs to fetch product info
         const productIds = [...new Set((items || []).map((item: any) => item.product_id))];
+        // Get unique sku_ids to fetch variant color
+        const skuIds = [...new Set((items || []).map((item: any) => item.sku_id).filter(Boolean))];
         
         let productMap = new Map();
         if (productIds.length > 0) {
@@ -236,14 +238,28 @@ const PurchaseReturnEntry = () => {
           }
         }
 
+        // Fetch variant colors
+        let variantMap = new Map();
+        if (skuIds.length > 0) {
+          const { data: variantsData } = await supabase
+            .from("product_variants")
+            .select("id, color")
+            .in("id", skuIds);
+          if (variantsData) {
+            variantMap = new Map(variantsData.map((v: any) => [v.id, v]));
+          }
+        }
+
         const loadedItems: LineItem[] = (items || []).map((item: any) => {
           const product = productMap.get(item.product_id);
+          const variant = variantMap.get(item.sku_id);
           return {
             temp_id: item.id,
             product_id: item.product_id,
             sku_id: item.sku_id,
             product_name: product?.product_name || "Unknown",
             size: item.size,
+            color: item.color || variant?.color || "",
             qty: item.qty,
             pur_price: item.pur_price,
             gst_per: item.gst_per,
