@@ -653,7 +653,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       if (openingBalance !== 0) {
         allTransactions.push({
           id: 'opening-balance',
-          date: '1900-01-01', // Will be shown as "Opening Balance"
+          date: '1900-01-01',
+          timestamp: null,
           type: 'invoice',
           reference: 'Opening',
           description: 'Opening Balance (Carried Forward)',
