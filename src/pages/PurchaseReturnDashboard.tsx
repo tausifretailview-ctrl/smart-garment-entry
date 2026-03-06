@@ -762,7 +762,7 @@ const PurchaseReturnDashboard = () => {
 
                       {expandedReturns.has(returnRecord.id) && (
                         <TableRow>
-                          <TableCell colSpan={12} className="bg-muted/30 p-0">
+                          <TableCell colSpan={13} className="bg-muted/30 p-0">
                             <div className="p-4">
                               <h4 className="font-semibold mb-3 flex items-center gap-2">
                                 <Package className="h-4 w-4" />
