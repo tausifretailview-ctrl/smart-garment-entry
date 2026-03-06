@@ -839,6 +839,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           allTransactions.push({
             id: `cn-${sr.id}`,
             date: sr.return_date,
+            timestamp: item.timestamp || null,
             type: 'payment',
             reference: sr.return_number,
             description,
