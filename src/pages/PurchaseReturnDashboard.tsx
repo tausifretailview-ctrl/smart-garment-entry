@@ -778,10 +778,11 @@ const PurchaseReturnDashboard = () => {
                               ) : (
                                 <Table>
                                   <TableHeader>
-                                    <TableRow>
+                                     <TableRow>
                                       <TableHead>#</TableHead>
                                       <TableHead>Product</TableHead>
                                       <TableHead>Brand</TableHead>
+                                      <TableHead>Color</TableHead>
                                       <TableHead>Size</TableHead>
                                       <TableHead>Barcode</TableHead>
                                       <TableHead>HSN Code</TableHead>
@@ -797,6 +798,7 @@ const PurchaseReturnDashboard = () => {
                                         <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
                                         <TableCell className="font-medium">{item.product_name || "Unknown"}</TableCell>
                                         <TableCell>{item.brand || "-"}</TableCell>
+                                        <TableCell>{item.color || "-"}</TableCell>
                                         <TableCell>
                                           <Badge variant="secondary">{item.size}</Badge>
                                         </TableCell>
@@ -819,7 +821,7 @@ const PurchaseReturnDashboard = () => {
                                       </TableRow>
                                     ))}
                                     <TableRow className="bg-muted/50 font-semibold">
-                                      <TableCell colSpan={6} className="text-right">Total:</TableCell>
+                                      <TableCell colSpan={7} className="text-right">Total:</TableCell>
                                       <TableCell className="text-right">
                                         {returnRecord.items.reduce((sum, item) => sum + item.qty, 0)}
                                       </TableCell>
