@@ -225,6 +225,7 @@ export const SaleReturnPrint = forwardRef<HTMLDivElement, SaleReturnPrintProps>(
                   <td style={{ border: '1px solid #000', padding: '5px' }}>&nbsp;</td>
                   <td style={{ border: '1px solid #000', padding: '5px' }}>&nbsp;</td>
                   <td style={{ border: '1px solid #000', padding: '5px' }}>&nbsp;</td>
+                  <td style={{ border: '1px solid #000', padding: '5px' }}>&nbsp;</td>
                 </tr>
               ))}
               {/* Total Row */}
