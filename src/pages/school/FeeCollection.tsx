@@ -641,13 +641,6 @@ const FeeCollection = () => {
 
         {/* ========== TAB 2: Fees Collected ========== */}
         <TabsContent value="collected" className="space-y-6">
-          {isManager ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium">Access Restricted</p>
-              <p className="text-sm">Collection details are not available for your role.</p>
-            </div>
-          ) : (<>
           {/* Period Filter Chips */}
           <div className="flex flex-wrap items-center gap-2">
             {["today", "monthly", "quarterly", "yearly", "custom"].map((period) => (
