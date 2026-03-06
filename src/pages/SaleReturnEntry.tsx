@@ -436,6 +436,7 @@ export default function SaleReturnEntry() {
         variantId: variant.id,
         productName: product.product_name,
         size: variant.size,
+        color: variant.color || undefined,
         barcode: variant.barcode,
         quantity: 1,
         unitPrice,
