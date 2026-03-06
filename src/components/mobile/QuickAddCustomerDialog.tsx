@@ -112,7 +112,7 @@ export const QuickAddCustomerDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md mx-auto max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-md mx-auto max-h-[85vh] overflow-y-auto pb-safe">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserPlus className="h-5 w-5 text-primary" />
