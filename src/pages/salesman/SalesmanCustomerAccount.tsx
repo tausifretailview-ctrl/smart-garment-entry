@@ -253,10 +253,11 @@ const SalesmanCustomerAccount = () => {
         const dateStr = txn.date === "Opening Balance" 
           ? "Opening" 
           : format(new Date(txn.date), "dd/MM/yy");
+        const timeStr = txn.timestamp ? ` ${format(new Date(txn.timestamp), "hh:mm a")}` : '';
         const amount = txn.debit > 0 
           ? `+₹${txn.debit.toLocaleString("en-IN")}` 
           : `-₹${txn.credit.toLocaleString("en-IN")}`;
-        txnList += `${dateStr} | ${txn.reference} | ${amount}\n`;
+        txnList += `${dateStr}${timeStr} | ${txn.reference} | ${amount}\n`;
       });
     }
 
