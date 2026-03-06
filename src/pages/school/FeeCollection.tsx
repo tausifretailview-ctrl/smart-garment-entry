@@ -641,13 +641,6 @@ const FeeCollection = () => {
 
         {/* ========== TAB 2: Fees Collected ========== */}
         <TabsContent value="collected" className="space-y-6">
-          {isManager ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium">Access Restricted</p>
-              <p className="text-sm">Collection details are not available for your role.</p>
-            </div>
-          ) : (<>
           {/* Period Filter Chips */}
           <div className="flex flex-wrap items-center gap-2">
             {["today", "monthly", "quarterly", "yearly", "custom"].map((period) => (
@@ -680,8 +673,8 @@ const FeeCollection = () => {
             )}
           </div>
 
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          {/* Summary Cards - hidden for manager */}
+          {!isManager && <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <Card>
               <CardContent className="pt-5 pb-4">
                 <div className="flex items-center gap-3">
@@ -748,7 +741,7 @@ const FeeCollection = () => {
                 </div>
               </CardContent>
             </Card>
-          </div>
+          </div>}
 
           {/* Search + Table */}
           <Card>
@@ -896,7 +889,6 @@ const FeeCollection = () => {
               )}
             </CardContent>
           </Card>
-          </>)}
         </TabsContent>
       </Tabs>
 
