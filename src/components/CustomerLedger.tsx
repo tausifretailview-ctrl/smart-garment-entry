@@ -496,7 +496,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // Build date filter for displayed sales
       let salesQuery = supabase
         .from("sales")
-        .select("*")
+        .select("*, created_at")
         .eq("customer_id", selectedCustomer.id)
         .is("deleted_at", null);
 
