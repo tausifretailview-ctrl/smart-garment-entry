@@ -35,6 +35,7 @@ interface CustomerDetails {
 interface Transaction {
   id: string;
   date: string;
+  timestamp: string | null;
   type: "sale" | "payment";
   reference: string;
   debit: number;
