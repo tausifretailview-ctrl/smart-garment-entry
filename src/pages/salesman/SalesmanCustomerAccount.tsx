@@ -195,6 +195,7 @@ const SalesmanCustomerAccount = () => {
           txns.push({
             id: txn.data.id,
             date: txn.data.voucher_date,
+            timestamp: txn.timestamp,
             type: "payment",
             reference: txn.data.voucher_number,
             debit: 0,
