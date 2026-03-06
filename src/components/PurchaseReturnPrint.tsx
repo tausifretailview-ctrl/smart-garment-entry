@@ -270,14 +270,15 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
           <table className="pr-table">
             <thead>
               <tr>
-                <th style={{ width: "8%" }}>Sr</th>
-                <th style={{ width: "25%" }}>Description Of Goods</th>
-                <th style={{ width: "10%" }}>Hsn Code</th>
+                <th style={{ width: "6%" }}>Sr</th>
+                <th style={{ width: "22%" }}>Description Of Goods</th>
+                <th style={{ width: "8%" }}>Color</th>
+                <th style={{ width: "8%" }}>Hsn Code</th>
                 <th style={{ width: "7%" }}>Pcs</th>
-                <th style={{ width: "12%" }}>Rate</th>
+                <th style={{ width: "11%" }}>Rate</th>
                 <th style={{ width: "8%" }}>Disc%</th>
-                <th style={{ width: "12%" }}>Disc Amt</th>
-                <th style={{ width: "12%" }}>Amount</th>
+                <th style={{ width: "11%" }}>Disc Amt</th>
+                <th style={{ width: "11%" }}>Amount</th>
               </tr>
             </thead>
             <tbody>
@@ -285,6 +286,7 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
                 <tr key={item.id}>
                   <td className="text-center">{index + 1}</td>
                   <td>{item.product_name || "-"}</td>
+                  <td className="text-center">{item.color || "-"}</td>
                   <td className="text-center">{item.hsn_code || ""}</td>
                   <td className="text-center">{item.qty}</td>
                   <td className="text-right">{item.pur_price.toFixed(2)}</td>
@@ -296,6 +298,7 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
               {/* Add empty rows for minimum 10 rows */}
               {items.length < 10 && Array.from({ length: 10 - items.length }).map((_, index) => (
                 <tr key={`empty-${index}`} style={{ height: "18px" }}>
+                  <td>&nbsp;</td>
                   <td>&nbsp;</td>
                   <td>&nbsp;</td>
                   <td>&nbsp;</td>
