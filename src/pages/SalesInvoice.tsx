@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, AlertCircle, Scan } from "lucide-react";
+import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, AlertCircle, Scan, Printer, ChevronLeft, ChevronRight, SkipBack } from "lucide-react";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { useBeepSound } from "@/hooks/useBeepSound";
 
@@ -186,6 +186,9 @@ export default function SalesInvoice() {
   // Product history dialog state
   const [historyProduct, setHistoryProduct] = useState<{ id: string; name: string } | null>(null);
 
+  // Invoice navigation state (like POS)
+  const [navInvoiceIndex, setNavInvoiceIndex] = useState<number | null>(null);
+  const [isLoadingNavInvoice, setIsLoadingNavInvoice] = useState(false);
 
 
   // Draft save hook
@@ -513,6 +516,26 @@ export default function SalesInvoice() {
       };
     },
     enabled: !!currentOrganization?.id,
+  });
+
+  // Fetch all invoice IDs for navigation (like POS)
+  const { data: allInvoiceIds } = useQuery({
+    queryKey: ['all-sale-invoice-ids', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const { data, error } = await supabase
+        .from('sales')
+        .select('id, sale_number')
+        .eq('organization_id', currentOrganization.id)
+        .eq('sale_type', 'invoice')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 60000,
   });
 
   // Generate next invoice number preview
@@ -1150,6 +1173,132 @@ export default function SalesInvoice() {
     
     // Toast removed - was interrupting workflow
   };
+
+  // Load invoice by ID for navigation
+  const loadInvoiceById = useCallback(async (saleId: string) => {
+    if (!currentOrganization?.id) return;
+    setIsLoadingNavInvoice(true);
+    try {
+      const { data: invoiceData, error } = await supabase
+        .from('sales')
+        .select(`*, sale_items(*)`)
+        .eq('id', saleId)
+        .single();
+      if (error || !invoiceData) throw error || new Error('Invoice not found');
+
+      setEditingInvoiceId(invoiceData.id);
+      setInvoiceDate(new Date(invoiceData.sale_date));
+      setDueDate(invoiceData.due_date ? new Date(invoiceData.due_date) : new Date());
+      setSelectedCustomerId(invoiceData.customer_id || "");
+      if (invoiceData.customer_id) {
+        setSelectedCustomer({
+          id: invoiceData.customer_id,
+          customer_name: invoiceData.customer_name,
+          phone: invoiceData.customer_phone,
+          email: invoiceData.customer_email,
+          address: invoiceData.customer_address,
+        });
+      } else {
+        setSelectedCustomer(null);
+        setSelectedCustomerId("");
+      }
+      setPaymentTerm(invoiceData.payment_term || "");
+      setTermsConditions(invoiceData.terms_conditions || "");
+      setNotes(invoiceData.notes || "");
+      setShippingAddress(invoiceData.shipping_address || "");
+      setShippingInstructions(invoiceData.shipping_instructions || "");
+      setSalesman(invoiceData.salesman || "");
+      setFlatDiscountPercent(invoiceData.flat_discount_percent || 0);
+      setFlatDiscountRupees(invoiceData.flat_discount_amount || 0);
+      setOtherCharges(invoiceData.other_charges || 0);
+      setRoundOff(invoiceData.round_off || 0);
+
+      if (invoiceData.sale_items && invoiceData.sale_items.length > 0) {
+        const transformedItems = invoiceData.sale_items.map((item: any) => ({
+          id: item.id,
+          productId: item.product_id,
+          variantId: item.variant_id,
+          productName: item.product_name,
+          size: item.size,
+          barcode: item.barcode || '',
+          color: item.color || '',
+          quantity: item.quantity,
+          box: '',
+          mrp: item.mrp,
+          salePrice: item.unit_price,
+          discountPercent: item.discount_percent,
+          discountAmount: 0,
+          gstPercent: item.gst_percent,
+          lineTotal: item.line_total,
+          hsnCode: item.hsn_code || '',
+        }));
+        setLineItems(transformedItems);
+        setOriginalItemsForEdit(invoiceData.sale_items.map((item: any) => ({
+          variantId: item.variant_id,
+          quantity: item.quantity,
+        })));
+      }
+
+      // Populate savedInvoiceData so Print button works immediately
+      const filledItems = (invoiceData.sale_items || []).map((item: any) => ({
+        productId: item.product_id,
+        variantId: item.variant_id,
+        productName: item.product_name,
+        size: item.size,
+        barcode: item.barcode || '',
+        color: item.color || '',
+        quantity: item.quantity,
+        mrp: item.mrp,
+        salePrice: item.unit_price,
+        discountPercent: item.discount_percent,
+        discountAmount: 0,
+        gstPercent: item.gst_percent,
+        lineTotal: item.line_total,
+        hsnCode: item.hsn_code || '',
+      }));
+      setSavedInvoiceData({
+        invoiceNumber: invoiceData.sale_number,
+        sale_number: invoiceData.sale_number,
+        filledItems,
+        netAmount: invoiceData.net_amount,
+        grossAmount: invoiceData.gross_amount,
+        totalDiscount: invoiceData.discount_amount + (invoiceData.flat_discount_amount || 0),
+        customer: {
+          id: invoiceData.customer_id,
+          customer_name: invoiceData.customer_name,
+          phone: invoiceData.customer_phone,
+          email: invoiceData.customer_email,
+          address: invoiceData.customer_address,
+          gst_number: null,
+        },
+      });
+    } catch (err: any) {
+      console.error('Failed to load invoice:', err);
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to load invoice' });
+    } finally {
+      setIsLoadingNavInvoice(false);
+    }
+  }, [currentOrganization?.id, toast]);
+
+  const handleLastInvoice = useCallback(() => {
+    if (!allInvoiceIds || allInvoiceIds.length === 0) return;
+    setNavInvoiceIndex(0);
+    loadInvoiceById(allInvoiceIds[0].id);
+  }, [allInvoiceIds, loadInvoiceById]);
+
+  const handlePreviousInvoice = useCallback(() => {
+    if (!allInvoiceIds || navInvoiceIndex === null) return;
+    const newIndex = Math.min(navInvoiceIndex + 1, allInvoiceIds.length - 1);
+    setNavInvoiceIndex(newIndex);
+    loadInvoiceById(allInvoiceIds[newIndex].id);
+  }, [allInvoiceIds, navInvoiceIndex, loadInvoiceById]);
+
+  const handleNextInvoice = useCallback(() => {
+    if (!allInvoiceIds || navInvoiceIndex === null) return;
+    const newIndex = Math.max(navInvoiceIndex - 1, 0);
+    setNavInvoiceIndex(newIndex);
+    loadInvoiceById(allInvoiceIds[newIndex].id);
+  }, [allInvoiceIds, navInvoiceIndex, loadInvoiceById]);
 
 
   const calculateLineTotal = (item: LineItem): LineItem => {
@@ -1976,6 +2125,51 @@ Thank you for choosing us!`;
     <div className="max-w-[1600px] mx-auto px-4 py-3 space-y-3">
       <BackToDashboard label="Back to Sales Dashboard" to="/sales-invoice-dashboard" />
       
+      {/* Invoice Navigation Bar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleLastInvoice}
+          disabled={isLoadingNavInvoice || !allInvoiceIds?.length}
+          className="h-8 gap-1.5 text-xs"
+        >
+          <SkipBack className="h-3.5 w-3.5" />
+          Last Invoice
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handlePreviousInvoice}
+          disabled={isLoadingNavInvoice || navInvoiceIndex === null || navInvoiceIndex >= (allInvoiceIds?.length || 0) - 1}
+          className="h-8 gap-1 text-xs"
+        >
+          <ChevronLeft className="h-3.5 w-3.5" />
+          Previous
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleNextInvoice}
+          disabled={isLoadingNavInvoice || navInvoiceIndex === null || navInvoiceIndex <= 0}
+          className="h-8 gap-1 text-xs"
+        >
+          Next
+          <ChevronRight className="h-3.5 w-3.5" />
+        </Button>
+        {navInvoiceIndex !== null && allInvoiceIds && (
+          <span className="text-xs text-muted-foreground ml-1">
+            Invoice {navInvoiceIndex + 1} of {allInvoiceIds.length}
+            {allInvoiceIds[navInvoiceIndex] && (
+              <span className="font-medium text-foreground ml-1">
+                ({allInvoiceIds[navInvoiceIndex].sale_number})
+              </span>
+            )}
+          </span>
+        )}
+        {isLoadingNavInvoice && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+      </div>
+
       {/* Header Card - Compact */}
       <div className="bg-card rounded-lg border shadow-sm px-4 py-2.5 flex items-center justify-between sticky top-0 z-30">
         <h1 className="text-[16px] font-semibold flex items-center gap-2">
@@ -2673,6 +2867,13 @@ Thank you for choosing us!`;
         <Button variant="outline" size="sm" onClick={() => navigate('/sales-invoice-dashboard')} className="h-9 px-4 text-[13px] rounded-md">
           Cancel
         </Button>
+        {/* Print button - visible when viewing/editing a saved invoice */}
+        {(editingInvoiceId || savedInvoiceData) && (
+          <Button variant="outline" size="sm" onClick={handlePrintInvoice} className="h-9 px-4 text-[13px] rounded-md">
+            <Printer className="mr-1.5 h-3.5 w-3.5" />
+            Print
+          </Button>
+        )}
         <Button size="sm" onClick={handleSaveInvoice} disabled={isSaving || savingLockRef.current} className="h-9 px-6 text-[13px] rounded-md">
           <Eye className="mr-1.5 h-3.5 w-3.5" />
           {isSaving ? 'Saving...' : editingInvoiceId ? 'Update Invoice' : 'Save Invoice'}
