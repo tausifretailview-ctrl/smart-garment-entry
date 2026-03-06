@@ -314,14 +314,15 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
 
           {/* Total Row */}
           <div className="flex pr-border-t">
-            <div className="pr-border-r p-1 text-center font-bold" style={{ width: "8%", fontSize: "12px" }}></div>
-            <div className="pr-border-r p-1 font-bold" style={{ width: "25%", fontSize: "12px" }}>Total</div>
-            <div className="pr-border-r p-1" style={{ width: "10%", fontSize: "12px" }}></div>
-            <div className="pr-border-r p-1 text-center font-bold" style={{ width: "7%", fontSize: "12px" }}>{totalQty}</div>
-            <div className="pr-border-r p-1" style={{ width: "12%", fontSize: "12px" }}></div>
+            <div className="pr-border-r p-1 text-center font-bold" style={{ width: "6%", fontSize: "12px" }}></div>
+            <div className="pr-border-r p-1 font-bold" style={{ width: "22%", fontSize: "12px" }}>Total</div>
             <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "12px" }}></div>
-            <div className="pr-border-r p-1 text-right font-bold" style={{ width: "12%", fontSize: "12px" }}>{items.reduce((sum, item) => sum + (item.discount_amount || 0), 0).toFixed(2)}</div>
-            <div className="p-1 text-right font-bold" style={{ width: "12%", fontSize: "12px" }}>{returnData.gross_amount.toFixed(2)}</div>
+            <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "12px" }}></div>
+            <div className="pr-border-r p-1 text-center font-bold" style={{ width: "7%", fontSize: "12px" }}>{totalQty}</div>
+            <div className="pr-border-r p-1" style={{ width: "11%", fontSize: "12px" }}></div>
+            <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "12px" }}></div>
+            <div className="pr-border-r p-1 text-right font-bold" style={{ width: "11%", fontSize: "12px" }}>{items.reduce((sum, item) => sum + (item.discount_amount || 0), 0).toFixed(2)}</div>
+            <div className="p-1 text-right font-bold" style={{ width: "11%", fontSize: "12px" }}>{returnData.gross_amount.toFixed(2)}</div>
           </div>
 
           {/* Remark & Discount Row */}

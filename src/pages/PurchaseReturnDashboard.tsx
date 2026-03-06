@@ -24,6 +24,7 @@ interface PurchaseReturnItem {
   id: string;
   product_id: string;
   size: string;
+  color?: string;
   qty: number;
   pur_price: number;
   gst_per: number;
