@@ -1174,6 +1174,132 @@ export default function SalesInvoice() {
     // Toast removed - was interrupting workflow
   };
 
+  // Load invoice by ID for navigation
+  const loadInvoiceById = useCallback(async (saleId: string) => {
+    if (!currentOrganization?.id) return;
+    setIsLoadingNavInvoice(true);
+    try {
+      const { data: invoiceData, error } = await supabase
+        .from('sales')
+        .select(`*, sale_items(*)`)
+        .eq('id', saleId)
+        .single();
+      if (error || !invoiceData) throw error || new Error('Invoice not found');
+
+      setEditingInvoiceId(invoiceData.id);
+      setInvoiceDate(new Date(invoiceData.sale_date));
+      setDueDate(invoiceData.due_date ? new Date(invoiceData.due_date) : new Date());
+      setSelectedCustomerId(invoiceData.customer_id || "");
+      if (invoiceData.customer_id) {
+        setSelectedCustomer({
+          id: invoiceData.customer_id,
+          customer_name: invoiceData.customer_name,
+          phone: invoiceData.customer_phone,
+          email: invoiceData.customer_email,
+          address: invoiceData.customer_address,
+        });
+      } else {
+        setSelectedCustomer(null);
+        setSelectedCustomerId("");
+      }
+      setPaymentTerm(invoiceData.payment_term || "");
+      setTermsConditions(invoiceData.terms_conditions || "");
+      setNotes(invoiceData.notes || "");
+      setShippingAddress(invoiceData.shipping_address || "");
+      setShippingInstructions(invoiceData.shipping_instructions || "");
+      setSalesman(invoiceData.salesman || "");
+      setFlatDiscountPercent(invoiceData.flat_discount_percent || 0);
+      setFlatDiscountRupees(invoiceData.flat_discount_amount || 0);
+      setOtherCharges(invoiceData.other_charges || 0);
+      setRoundOff(invoiceData.round_off || 0);
+
+      if (invoiceData.sale_items && invoiceData.sale_items.length > 0) {
+        const transformedItems = invoiceData.sale_items.map((item: any) => ({
+          id: item.id,
+          productId: item.product_id,
+          variantId: item.variant_id,
+          productName: item.product_name,
+          size: item.size,
+          barcode: item.barcode || '',
+          color: item.color || '',
+          quantity: item.quantity,
+          box: '',
+          mrp: item.mrp,
+          salePrice: item.unit_price,
+          discountPercent: item.discount_percent,
+          discountAmount: 0,
+          gstPercent: item.gst_percent,
+          lineTotal: item.line_total,
+          hsnCode: item.hsn_code || '',
+        }));
+        setLineItems(transformedItems);
+        setOriginalItemsForEdit(invoiceData.sale_items.map((item: any) => ({
+          variantId: item.variant_id,
+          quantity: item.quantity,
+        })));
+      }
+
+      // Populate savedInvoiceData so Print button works immediately
+      const filledItems = (invoiceData.sale_items || []).map((item: any) => ({
+        productId: item.product_id,
+        variantId: item.variant_id,
+        productName: item.product_name,
+        size: item.size,
+        barcode: item.barcode || '',
+        color: item.color || '',
+        quantity: item.quantity,
+        mrp: item.mrp,
+        salePrice: item.unit_price,
+        discountPercent: item.discount_percent,
+        discountAmount: 0,
+        gstPercent: item.gst_percent,
+        lineTotal: item.line_total,
+        hsnCode: item.hsn_code || '',
+      }));
+      setSavedInvoiceData({
+        invoiceNumber: invoiceData.sale_number,
+        sale_number: invoiceData.sale_number,
+        filledItems,
+        netAmount: invoiceData.net_amount,
+        grossAmount: invoiceData.gross_amount,
+        totalDiscount: invoiceData.discount_amount + (invoiceData.flat_discount_amount || 0),
+        customer: {
+          id: invoiceData.customer_id,
+          customer_name: invoiceData.customer_name,
+          phone: invoiceData.customer_phone,
+          email: invoiceData.customer_email,
+          address: invoiceData.customer_address,
+          gst_number: null,
+        },
+      });
+    } catch (err: any) {
+      console.error('Failed to load invoice:', err);
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to load invoice' });
+    } finally {
+      setIsLoadingNavInvoice(false);
+    }
+  }, [currentOrganization?.id, toast]);
+
+  const handleLastInvoice = useCallback(() => {
+    if (!allInvoiceIds || allInvoiceIds.length === 0) return;
+    setNavInvoiceIndex(0);
+    loadInvoiceById(allInvoiceIds[0].id);
+  }, [allInvoiceIds, loadInvoiceById]);
+
+  const handlePreviousInvoice = useCallback(() => {
+    if (!allInvoiceIds || navInvoiceIndex === null) return;
+    const newIndex = Math.min(navInvoiceIndex + 1, allInvoiceIds.length - 1);
+    setNavInvoiceIndex(newIndex);
+    loadInvoiceById(allInvoiceIds[newIndex].id);
+  }, [allInvoiceIds, navInvoiceIndex, loadInvoiceById]);
+
+  const handleNextInvoice = useCallback(() => {
+    if (!allInvoiceIds || navInvoiceIndex === null) return;
+    const newIndex = Math.max(navInvoiceIndex - 1, 0);
+    setNavInvoiceIndex(newIndex);
+    loadInvoiceById(allInvoiceIds[newIndex].id);
+  }, [allInvoiceIds, navInvoiceIndex, loadInvoiceById]);
+
 
   const calculateLineTotal = (item: LineItem): LineItem => {
     const baseAmount = item.salePrice * item.quantity;
