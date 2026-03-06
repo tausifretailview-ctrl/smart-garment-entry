@@ -662,6 +662,7 @@ const PurchaseReturnEntry = () => {
         sku_id: variant.id,
         product_name: variant.product_name,
         size: variant.size,
+        color: variant.color,
         qty: 1,
         pur_price: variant.pur_price,
         gst_per: variant.gst_per,
