@@ -73,8 +73,10 @@ export const Header = () => {
   ];
 
   const handleQuickAction = (action: typeof quickActions[0]) => {
-    if (action.isDialog) {
+    if (action.dialogKey === "sizeStock") {
       setSizeStockOpen(true);
+    } else if (action.dialogKey === "quickStock") {
+      setQuickStockOpen(true);
     } else {
       orgNavigate(action.path);
     }
