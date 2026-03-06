@@ -333,7 +333,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           <th style={{ ...headerCellStyle, width: isA5 ? "16px" : "22px" }}>SR</th>
           <th style={{ ...headerCellStyle, width: isA5 ? "80px" : "100px" }}>PARTICULARS</th>
           <th style={{ ...headerCellStyle, width: isA5 ? "30px" : "45px" }}>HSN</th>
-          <th style={{ ...headerCellStyle }}>SIZE / QTY</th>
+          <th style={{ ...headerCellStyle, width: isA5 ? "60px" : "80px" }}>SIZE / QTY</th>
           <th style={{ ...headerCellStyle, width: isA5 ? "26px" : "32px" }}>QTY</th>
           <th style={{ ...headerCellStyle, width: isA5 ? "38px" : "45px" }}>MRP</th>
           <th style={{ ...headerCellStyle, width: isA5 ? "38px" : "45px" }}>RATE</th>
@@ -348,9 +348,6 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <td style={{ ...cellStyle, textAlign: "center" }}>{startIndex + index + 1}</td>
             <td style={cellStyle}>
               <div style={{ fontWeight: "700", fontSize: isA5 ? "6.5pt" : "8pt" }}>{item.particulars}</div>
-              <div style={{ fontSize: isA5 ? "5.5pt" : "6.5pt", color: "#4b5563" }}>
-                {item.color} {item.brand}
-              </div>
             </td>
             <td style={{ ...cellStyle, textAlign: "center", fontSize: isA5 ? "6.5pt" : "7.5pt" }}>{item.hsn || '-'}</td>
             <td style={{ ...cellStyle, fontSize: isA5 ? "6.5pt" : "7.5pt", fontWeight: "500" }}>
