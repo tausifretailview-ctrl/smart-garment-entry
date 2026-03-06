@@ -33,6 +33,7 @@ interface Variant {
   id: string;
   product_id: string;
   size: string;
+  color: string | null;
   sale_price: number;
   stock_qty: number;
   barcode: string | null;
