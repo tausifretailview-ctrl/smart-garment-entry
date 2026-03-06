@@ -380,7 +380,7 @@ export default function SaleReturnEntry() {
           if (count && count > 0) {
             const p = dbVariant.products as any;
             product = { id: p.id, product_name: p.product_name, brand: p.brand, category: p.category, hsn_code: p.hsn_code };
-            variant = { id: dbVariant.id, product_id: dbVariant.product_id, size: dbVariant.size, sale_price: dbVariant.sale_price || 0, stock_qty: dbVariant.stock_qty, barcode: dbVariant.barcode, gst_per: p.gst_per || 0 };
+            variant = { id: dbVariant.id, product_id: dbVariant.product_id, size: dbVariant.size, color: dbVariant.color || null, sale_price: dbVariant.sale_price || 0, stock_qty: dbVariant.stock_qty, barcode: dbVariant.barcode, gst_per: p.gst_per || 0 };
           }
         }
       } catch (err) {
