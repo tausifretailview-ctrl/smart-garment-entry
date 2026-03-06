@@ -48,6 +48,7 @@ interface Customer {
 interface Transaction {
   id: string;
   date: string;
+  timestamp: string | null;
   type: 'invoice' | 'payment' | 'advance' | 'adjustment' | 'fee';
   reference: string;
   description: string;
