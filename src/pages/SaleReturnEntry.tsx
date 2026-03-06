@@ -246,7 +246,7 @@ export default function SaleReturnEntry() {
         const batch = variantIdArray.slice(i, i + 500);
         const { data: variantsData, error: variantsError } = await supabase
           .from("product_variants")
-          .select("id, product_id, size, sale_price, stock_qty, barcode, products(gst_per)")
+          .select("id, product_id, size, color, sale_price, stock_qty, barcode, products(gst_per)")
           .in("id", batch)
           .eq("active", true)
           .is("deleted_at", null);
@@ -258,6 +258,7 @@ export default function SaleReturnEntry() {
             id: v.id,
             product_id: v.product_id,
             size: v.size,
+            color: v.color || null,
             sale_price: v.sale_price || 0,
             stock_qty: v.stock_qty,
             barcode: v.barcode,
