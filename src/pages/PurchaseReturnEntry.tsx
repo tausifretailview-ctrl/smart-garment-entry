@@ -1187,6 +1187,7 @@ const PurchaseReturnEntry = () => {
                     <TableHead className="w-12">Sr No</TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead>Brand</TableHead>
+                    <TableHead>Color</TableHead>
                     <TableHead>Size</TableHead>
                     <TableHead>Barcode</TableHead>
                     <TableHead className="w-24">Qty</TableHead>
