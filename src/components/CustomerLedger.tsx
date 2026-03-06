@@ -388,9 +388,10 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         // Opening balance entry - only when NO fee structures exist
         if (!hasStructures && openingBalance !== 0) {
           runningBalance = openingBalance;
-          allTransactions.push({
+        allTransactions.push({
             id: 'opening-balance',
             date: '1900-01-01',
+            timestamp: null,
             type: 'fee',
             reference: 'Opening',
             description: 'Opening Fees Balance (Carried Forward)',
