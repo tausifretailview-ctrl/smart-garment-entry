@@ -870,6 +870,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           allTransactions.push({
             id: voucher.id,
             date: voucher.voucher_date,
+            timestamp: item.timestamp || null,
             type: 'payment',
             reference: voucher.voucher_number,
             description: description,
