@@ -1149,8 +1149,11 @@ Please clear your dues at the earliest. Thank you!`;
     if (!selectedCustomer || !transactions) return;
 
     const exportData = transactions.map((t) => {
+      const dateStr = t.id === 'opening-balance' ? 'Opening' : format(new Date(t.date), "dd/MM/yyyy");
+      const timeStr = t.timestamp ? format(new Date(t.timestamp), "hh:mm a") : '';
       const row: any = {
-        Date: t.id === 'opening-balance' ? 'Opening' : format(new Date(t.date), "dd/MM/yyyy"),
+        Date: dateStr,
+        Time: timeStr,
         Type: t.type === 'invoice' ? 'Invoice' : 'Payment',
         Reference: t.reference,
         Description: t.description,
