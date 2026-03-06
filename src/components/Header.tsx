@@ -19,6 +19,7 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useState, useEffect } from "react";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
+import { FloatingStockReport } from "@/components/FloatingPOSReports";
 
 export const Header = () => {
   const { user, signOut } = useAuth();
