@@ -154,8 +154,11 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         };
       });
 
-      // If no fee structures found, use closing_fees_balance as a single "Imported Balance" item
-      if (items.length === 0 && student.closing_fees_balance && student.closing_fees_balance > 0) {
+      // If no fee structures found OR all structure amounts are 0, use closing_fees_balance
+      const totalStructureAmount = items.reduce((sum, i) => sum + i.structure_amount, 0);
+      if ((items.length === 0 || totalStructureAmount === 0) && student.closing_fees_balance && student.closing_fees_balance > 0) {
+        // Clear zero-amount structure items so we use imported balance instead
+        if (totalStructureAmount === 0) items.length = 0;
         const totalPaidAll = (payments || []).reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
         const importedBalance = student.closing_fees_balance - totalPaidAll;
         if (importedBalance > 0) {
