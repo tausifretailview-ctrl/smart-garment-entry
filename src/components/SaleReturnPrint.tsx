@@ -195,6 +195,7 @@ export const SaleReturnPrint = forwardRef<HTMLDivElement, SaleReturnPrintProps>(
                 <th style={{ border: '1px solid #000', padding: '6px', width: '6%', fontWeight: 'bold' }}>Sr.</th>
                 <th style={{ border: '1px solid #000', padding: '6px', textAlign: 'left', fontWeight: 'bold' }}>Product Description</th>
                 <th style={{ border: '1px solid #000', padding: '6px', width: '10%', fontWeight: 'bold' }}>Size</th>
+                <th style={{ border: '1px solid #000', padding: '6px', width: '10%', fontWeight: 'bold' }}>Color</th>
                 <th style={{ border: '1px solid #000', padding: '6px', width: '8%', fontWeight: 'bold' }}>Qty</th>
                 <th style={{ border: '1px solid #000', padding: '6px', width: '12%', fontWeight: 'bold', textAlign: 'right' }}>Rate</th>
                 <th style={{ border: '1px solid #000', padding: '6px', width: '8%', fontWeight: 'bold', textAlign: 'center' }}>GST %</th>
