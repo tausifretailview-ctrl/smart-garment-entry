@@ -45,6 +45,7 @@ interface LineItem {
   sku_id: string;
   product_name: string;
   size: string;
+  color?: string;
   qty: number;
   pur_price: number;
   gst_per: number;
@@ -222,6 +223,8 @@ const PurchaseReturnEntry = () => {
 
         // Get unique product IDs to fetch product info
         const productIds = [...new Set((items || []).map((item: any) => item.product_id))];
+        // Get unique sku_ids to fetch variant color
+        const skuIds = [...new Set((items || []).map((item: any) => item.sku_id).filter(Boolean))];
         
         let productMap = new Map();
         if (productIds.length > 0) {
@@ -235,14 +238,28 @@ const PurchaseReturnEntry = () => {
           }
         }
 
+        // Fetch variant colors
+        let variantMap = new Map();
+        if (skuIds.length > 0) {
+          const { data: variantsData } = await supabase
+            .from("product_variants")
+            .select("id, color")
+            .in("id", skuIds);
+          if (variantsData) {
+            variantMap = new Map(variantsData.map((v: any) => [v.id, v]));
+          }
+        }
+
         const loadedItems: LineItem[] = (items || []).map((item: any) => {
           const product = productMap.get(item.product_id);
+          const variant = variantMap.get(item.sku_id);
           return {
             temp_id: item.id,
             product_id: item.product_id,
             sku_id: item.sku_id,
             product_name: product?.product_name || "Unknown",
             size: item.size,
+            color: item.color || variant?.color || "",
             qty: item.qty,
             pur_price: item.pur_price,
             gst_per: item.gst_per,
@@ -298,6 +315,7 @@ const PurchaseReturnEntry = () => {
         .select(`
           id,
           size,
+          color,
           pur_price,
           barcode,
           stock_qty,
@@ -328,6 +346,7 @@ const PurchaseReturnEntry = () => {
             id: v.id,
             product_id: v.products?.id || "",
             size: v.size,
+            color: v.color || "",
             pur_price: v.pur_price,
             barcode: v.barcode || "",
             product_name: v.products?.product_name || "",
@@ -545,6 +564,7 @@ const PurchaseReturnEntry = () => {
         .select(`
           id,
           size,
+          color,
           pur_price,
           barcode,
           stock_qty,
@@ -581,6 +601,7 @@ const PurchaseReturnEntry = () => {
           id: v.id,
           product_id: v.products?.id || "",
           size: v.size,
+          color: v.color || "",
           pur_price: v.pur_price,
           barcode: v.barcode || "",
           product_name: v.products?.product_name || "",
@@ -641,6 +662,7 @@ const PurchaseReturnEntry = () => {
         sku_id: variant.id,
         product_name: variant.product_name,
         size: variant.size,
+        color: variant.color,
         qty: 1,
         pur_price: variant.pur_price,
         gst_per: variant.gst_per,
@@ -755,6 +777,7 @@ const PurchaseReturnEntry = () => {
           product_id: item.product_id,
           sku_id: item.sku_id,
           size: item.size,
+          color: item.color || null,
           qty: item.qty,
           pur_price: item.pur_price,
           gst_per: item.gst_per,
@@ -812,6 +835,7 @@ const PurchaseReturnEntry = () => {
           product_id: item.product_id,
           sku_id: item.sku_id,
           size: item.size,
+          color: item.color || null,
           qty: item.qty,
           pur_price: item.pur_price,
           gst_per: item.gst_per,
@@ -1163,6 +1187,7 @@ const PurchaseReturnEntry = () => {
                     <TableHead className="w-12">Sr No</TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead>Brand</TableHead>
+                    <TableHead>Color</TableHead>
                     <TableHead>Size</TableHead>
                     <TableHead>Barcode</TableHead>
                     <TableHead className="w-24">Qty</TableHead>
@@ -1180,6 +1205,7 @@ const PurchaseReturnEntry = () => {
                       <TableCell className="text-center text-muted-foreground">{index + 1}</TableCell>
                       <TableCell className="font-medium">{item.product_name}</TableCell>
                       <TableCell>{item.brand}</TableCell>
+                      <TableCell>{item.color || "-"}</TableCell>
                       <TableCell>{item.size}</TableCell>
                       <TableCell>{item.barcode}</TableCell>
                       <TableCell>

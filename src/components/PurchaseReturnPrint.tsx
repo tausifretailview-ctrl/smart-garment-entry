@@ -5,6 +5,7 @@ interface PurchaseReturnItem {
   id: string;
   product_name?: string;
   brand?: string;
+  color?: string;
   size: string;
   barcode?: string;
   hsn_code?: string;
@@ -269,14 +270,15 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
           <table className="pr-table">
             <thead>
               <tr>
-                <th style={{ width: "8%" }}>Sr</th>
-                <th style={{ width: "25%" }}>Description Of Goods</th>
-                <th style={{ width: "10%" }}>Hsn Code</th>
+                <th style={{ width: "6%" }}>Sr</th>
+                <th style={{ width: "22%" }}>Description Of Goods</th>
+                <th style={{ width: "8%" }}>Color</th>
+                <th style={{ width: "8%" }}>Hsn Code</th>
                 <th style={{ width: "7%" }}>Pcs</th>
-                <th style={{ width: "12%" }}>Rate</th>
+                <th style={{ width: "11%" }}>Rate</th>
                 <th style={{ width: "8%" }}>Disc%</th>
-                <th style={{ width: "12%" }}>Disc Amt</th>
-                <th style={{ width: "12%" }}>Amount</th>
+                <th style={{ width: "11%" }}>Disc Amt</th>
+                <th style={{ width: "11%" }}>Amount</th>
               </tr>
             </thead>
             <tbody>
@@ -284,6 +286,7 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
                 <tr key={item.id}>
                   <td className="text-center">{index + 1}</td>
                   <td>{item.product_name || "-"}</td>
+                  <td className="text-center">{item.color || "-"}</td>
                   <td className="text-center">{item.hsn_code || ""}</td>
                   <td className="text-center">{item.qty}</td>
                   <td className="text-right">{item.pur_price.toFixed(2)}</td>
@@ -303,6 +306,7 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
                   <td>&nbsp;</td>
                   <td>&nbsp;</td>
                   <td>&nbsp;</td>
+                  <td>&nbsp;</td>
                 </tr>
               ))}
             </tbody>
@@ -310,14 +314,15 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
 
           {/* Total Row */}
           <div className="flex pr-border-t">
-            <div className="pr-border-r p-1 text-center font-bold" style={{ width: "8%", fontSize: "12px" }}></div>
-            <div className="pr-border-r p-1 font-bold" style={{ width: "25%", fontSize: "12px" }}>Total</div>
-            <div className="pr-border-r p-1" style={{ width: "10%", fontSize: "12px" }}></div>
-            <div className="pr-border-r p-1 text-center font-bold" style={{ width: "7%", fontSize: "12px" }}>{totalQty}</div>
-            <div className="pr-border-r p-1" style={{ width: "12%", fontSize: "12px" }}></div>
+            <div className="pr-border-r p-1 text-center font-bold" style={{ width: "6%", fontSize: "12px" }}></div>
+            <div className="pr-border-r p-1 font-bold" style={{ width: "22%", fontSize: "12px" }}>Total</div>
             <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "12px" }}></div>
-            <div className="pr-border-r p-1 text-right font-bold" style={{ width: "12%", fontSize: "12px" }}>{items.reduce((sum, item) => sum + (item.discount_amount || 0), 0).toFixed(2)}</div>
-            <div className="p-1 text-right font-bold" style={{ width: "12%", fontSize: "12px" }}>{returnData.gross_amount.toFixed(2)}</div>
+            <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "12px" }}></div>
+            <div className="pr-border-r p-1 text-center font-bold" style={{ width: "7%", fontSize: "12px" }}>{totalQty}</div>
+            <div className="pr-border-r p-1" style={{ width: "11%", fontSize: "12px" }}></div>
+            <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "12px" }}></div>
+            <div className="pr-border-r p-1 text-right font-bold" style={{ width: "11%", fontSize: "12px" }}>{items.reduce((sum, item) => sum + (item.discount_amount || 0), 0).toFixed(2)}</div>
+            <div className="p-1 text-right font-bold" style={{ width: "11%", fontSize: "12px" }}>{returnData.gross_amount.toFixed(2)}</div>
           </div>
 
           {/* Remark & Discount Row */}

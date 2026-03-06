@@ -24,6 +24,7 @@ interface PurchaseReturnItem {
   id: string;
   product_id: string;
   size: string;
+  color?: string;
   qty: number;
   pur_price: number;
   gst_per: number;
@@ -761,7 +762,7 @@ const PurchaseReturnDashboard = () => {
 
                       {expandedReturns.has(returnRecord.id) && (
                         <TableRow>
-                          <TableCell colSpan={12} className="bg-muted/30 p-0">
+                          <TableCell colSpan={13} className="bg-muted/30 p-0">
                             <div className="p-4">
                               <h4 className="font-semibold mb-3 flex items-center gap-2">
                                 <Package className="h-4 w-4" />
@@ -777,10 +778,11 @@ const PurchaseReturnDashboard = () => {
                               ) : (
                                 <Table>
                                   <TableHeader>
-                                    <TableRow>
+                                     <TableRow>
                                       <TableHead>#</TableHead>
                                       <TableHead>Product</TableHead>
                                       <TableHead>Brand</TableHead>
+                                      <TableHead>Color</TableHead>
                                       <TableHead>Size</TableHead>
                                       <TableHead>Barcode</TableHead>
                                       <TableHead>HSN Code</TableHead>
@@ -796,6 +798,7 @@ const PurchaseReturnDashboard = () => {
                                         <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
                                         <TableCell className="font-medium">{item.product_name || "Unknown"}</TableCell>
                                         <TableCell>{item.brand || "-"}</TableCell>
+                                        <TableCell>{item.color || "-"}</TableCell>
                                         <TableCell>
                                           <Badge variant="secondary">{item.size}</Badge>
                                         </TableCell>
@@ -818,7 +821,7 @@ const PurchaseReturnDashboard = () => {
                                       </TableRow>
                                     ))}
                                     <TableRow className="bg-muted/50 font-semibold">
-                                      <TableCell colSpan={6} className="text-right">Total:</TableCell>
+                                      <TableCell colSpan={7} className="text-right">Total:</TableCell>
                                       <TableCell className="text-right">
                                         {returnRecord.items.reduce((sum, item) => sum + item.qty, 0)}
                                       </TableCell>
