@@ -469,7 +469,7 @@ export function SalesInvoiceERPTable({
     });
 
     return cols;
-  }, [selectedInvoices, invoicesData, toggleSelectAll, toggleSelectInvoice, columnSettings, isEInvoiceEnabled, isGeneratingEInvoice, isDownloadingEInvoice, whatsAppAPISettings, isSendingWhatsAppAPI]);
+  }, [selectedInvoices, invoicesData, toggleSelectAll, toggleSelectInvoice, columnSettings, isEInvoiceEnabled, isGeneratingEInvoice, isDownloadingEInvoice, whatsAppAPISettings, isSendingWhatsAppAPI, hasSpecialPermission]);
 
   const renderSubRow = useCallback((invoice: any) => {
     return (
