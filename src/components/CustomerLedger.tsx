@@ -1267,8 +1267,11 @@ Please clear your dues at the earliest. Thank you!`;
       }
 
       xPos = margin;
+      const dateTimeStr = t.id === 'opening-balance' 
+        ? 'Opening' 
+        : format(new Date(t.date), "dd/MM/yy") + (t.timestamp ? ' ' + format(new Date(t.timestamp), "hh:mm a") : '');
       const rowData = [
-        t.id === 'opening-balance' ? 'Opening' : format(new Date(t.date), "dd/MM/yy"),
+        dateTimeStr,
         t.type === 'invoice' ? 'Invoice' : 'Payment',
         t.reference,
         t.description.length > 28 ? t.description.substring(0, 28) + "..." : t.description,
