@@ -3,6 +3,7 @@ import { forwardRef } from "react";
 interface SaleReturnItem {
   product_name: string;
   size: string;
+  color: string | null;
   barcode: string | null;
   quantity: number;
   unit_price: number;
