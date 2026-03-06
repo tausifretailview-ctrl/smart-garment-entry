@@ -5,6 +5,7 @@ interface PurchaseReturnItem {
   id: string;
   product_name?: string;
   brand?: string;
+  color?: string;
   size: string;
   barcode?: string;
   hsn_code?: string;
