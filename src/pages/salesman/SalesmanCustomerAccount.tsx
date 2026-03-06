@@ -164,6 +164,7 @@ const SalesmanCustomerAccount = () => {
           txns.push({
             id: txn.data.id,
             date: txn.data.sale_date,
+            timestamp: txn.timestamp,
             type: "sale",
             reference: txn.data.sale_number,
             debit: txn.data.net_amount,
