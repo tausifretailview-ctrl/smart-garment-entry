@@ -1120,11 +1120,12 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     if (recentTxns.length > 0) {
       txnSummary = "\n\n📋 *Recent Transactions:*";
       recentTxns.forEach((t) => {
-        const dateStr = t.id === 'opening-balance' ? 'Opening' : format(new Date(t.date), "dd/MM/yy");
+      const dateStr = t.id === 'opening-balance' ? 'Opening' : format(new Date(t.date), "dd/MM/yy");
+        const timeStr = t.timestamp ? ` ${format(new Date(t.timestamp), "hh:mm a")}` : '';
         if (t.debit > 0) {
-          txnSummary += `\n${dateStr} - ${t.reference}: +₹${Math.round(t.debit).toLocaleString("en-IN")}`;
+          txnSummary += `\n${dateStr}${timeStr} - ${t.reference}: +₹${Math.round(t.debit).toLocaleString("en-IN")}`;
         } else if (t.credit > 0) {
-          txnSummary += `\n${dateStr} - ${t.reference}: -₹${Math.round(t.credit).toLocaleString("en-IN")}`;
+          txnSummary += `\n${dateStr}${timeStr} - ${t.reference}: -₹${Math.round(t.credit).toLocaleString("en-IN")}`;
         }
       });
     }
