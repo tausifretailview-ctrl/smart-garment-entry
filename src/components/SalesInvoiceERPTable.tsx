@@ -107,8 +107,11 @@ export function SalesInvoiceERPTable({
   renderToolbar,
 }: SalesInvoiceERPTableProps) {
   const columns = useMemo<ColumnDef<any, any>[]>(() => {
-    const cols: ColumnDef<any, any>[] = [
-      {
+    const canDelete = hasSpecialPermission('delete_records');
+    const cols: ColumnDef<any, any>[] = [];
+
+    if (canDelete) {
+      cols.push({
         id: "select",
         header: () => (
           <Checkbox
@@ -125,8 +128,10 @@ export function SalesInvoiceERPTable({
           </div>
         ),
         size: 40,
-      },
-      {
+      });
+    }
+
+    cols.push({
         accessorKey: "sale_number",
         header: "Invoice No",
         cell: ({ row }) => {
