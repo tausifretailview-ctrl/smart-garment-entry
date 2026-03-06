@@ -2127,7 +2127,7 @@ Thank you for choosing us!`;
         <BackToDashboard label="Back to Sales Dashboard" to="/sales-invoice-dashboard" />
         <div className="flex items-center gap-1.5 ml-2">
           <Button
-            variant="outline"
+            variant="success"
             size="sm"
             onClick={handleLastInvoice}
             disabled={isLoadingNavInvoice || !allInvoiceIds?.length}
@@ -2137,7 +2137,7 @@ Thank you for choosing us!`;
             Last Invoice
           </Button>
           <Button
-            variant="outline"
+            variant="success"
             size="sm"
             onClick={handlePreviousInvoice}
             disabled={isLoadingNavInvoice || navInvoiceIndex === null || navInvoiceIndex >= (allInvoiceIds?.length || 0) - 1}
@@ -2147,7 +2147,7 @@ Thank you for choosing us!`;
             Previous
           </Button>
           <Button
-            variant="outline"
+            variant="success"
             size="sm"
             onClick={handleNextInvoice}
             disabled={isLoadingNavInvoice || navInvoiceIndex === null || navInvoiceIndex <= 0}
