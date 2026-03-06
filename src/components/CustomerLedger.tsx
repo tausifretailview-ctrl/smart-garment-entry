@@ -408,6 +408,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             allTransactions.push({
               id: `structure-${idx}`,
               date: currentYear?.id ? '' : '',
+              timestamp: null,
               type: 'fee',
               reference: 'Fee Structure',
               description: structure.head_name,
