@@ -668,6 +668,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       const combined = [
         ...salesData.map((sale) => ({
           date: sale.sale_date,
+          timestamp: sale.created_at,
           type: 'invoice' as const,
           data: sale,
         })),
@@ -676,25 +677,34 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           .filter((voucher: any) => !voucher.description?.startsWith('Adjusted from advance balance'))
           .map((voucher) => ({
             date: voucher.voucher_date,
+            timestamp: voucher.created_at,
             type: 'payment' as const,
             data: voucher,
           })),
         ...(advancesData || []).map((advance) => ({
           date: advance.advance_date,
+          timestamp: advance.created_at,
           type: 'advance' as const,
           data: advance,
         })),
         ...(adjustmentsData || []).map((adj: any) => ({
           date: adj.adjustment_date,
+          timestamp: adj.created_at,
           type: 'adjustment' as const,
           data: adj,
         })),
         ...(saleReturnsData || []).map((sr: any) => ({
           date: sr.return_date,
+          timestamp: sr.created_at,
           type: 'cn_adjustment' as const,
           data: { ...sr, linkedSaleNumber: linkedSaleMap[sr.linked_sale_id] || null },
         })),
-      ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      ].sort((a, b) => {
+        // Sort by timestamp (created_at) for accurate chronological ordering
+        const tsA = a.timestamp ? new Date(a.timestamp).getTime() : new Date(a.date).getTime();
+        const tsB = b.timestamp ? new Date(b.timestamp).getTime() : new Date(b.date).getTime();
+        return tsA - tsB;
+      });
 
       combined.forEach((item) => {
         if (item.type === 'invoice') {
