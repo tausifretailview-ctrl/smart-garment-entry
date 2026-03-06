@@ -102,7 +102,7 @@ export const SchoolFeeReceipt = forwardRef<HTMLDivElement, SchoolFeeReceiptProps
                 position: "absolute",
                 top: "50%",
                 left: "50%",
-                transform: "translate(-50%, -50%) rotate(-30deg)",
+                transform: "translate(-50%, -50%)",
                 width: "120mm",
                 height: "120mm",
                 opacity: 0.06,
@@ -211,11 +211,7 @@ export const SchoolFeeReceipt = forwardRef<HTMLDivElement, SchoolFeeReceiptProps
           </div>
 
           {/* Signature */}
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: "12mm", fontSize: "10pt", position: "relative", zIndex: 1 }}>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ borderTop: "1px solid #333", width: "50mm", marginBottom: "2mm" }} />
-              <span>Parent / Guardian</span>
-            </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12mm", fontSize: "10pt", position: "relative", zIndex: 1 }}>
             <div style={{ textAlign: "center" }}>
               <div style={{ borderTop: "1px solid #333", width: "50mm", marginBottom: "2mm" }} />
               <span>Authorized Signatory</span>
