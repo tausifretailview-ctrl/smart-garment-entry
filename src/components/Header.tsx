@@ -65,10 +65,11 @@ export const Header = () => {
   const initials = user?.email?.substring(0, 2).toUpperCase() || "U";
 
   const quickActions = [
-    { icon: ShoppingCart, label: "New Sale", path: "/pos-sales", isDialog: false },
-    { icon: Package, label: "New Purchase", path: "/purchase-entry", isDialog: false },
-    { icon: LayoutGrid, label: "Size Stock", path: "", isDialog: true, shortcut: "Ctrl+G" },
-    { icon: TrendingUp, label: "Reports", path: "/stock-report", isDialog: false },
+    { icon: ShoppingCart, label: "New Sale", path: "/pos-sales", isDialog: false, dialogKey: "" },
+    { icon: Package, label: "New Purchase", path: "/purchase-entry", isDialog: false, dialogKey: "" },
+    { icon: LayoutGrid, label: "Size Stock", path: "", isDialog: true, shortcut: "Ctrl+G", dialogKey: "sizeStock" },
+    { icon: BoxIcon, label: "Quick Stock", path: "", isDialog: true, dialogKey: "quickStock" },
+    { icon: TrendingUp, label: "Reports", path: "/stock-report", isDialog: false, dialogKey: "" },
   ];
 
   const handleQuickAction = (action: typeof quickActions[0]) => {
