@@ -35,6 +35,7 @@ interface CustomerDetails {
 interface Transaction {
   id: string;
   date: string;
+  timestamp: string | null;
   type: "sale" | "payment";
   reference: string;
   debit: number;
@@ -82,7 +83,7 @@ const SalesmanCustomerAccount = () => {
       // Fetch sales
       const { data: salesData, error: salesError } = await supabase
         .from("sales")
-        .select("id, sale_number, sale_date, net_amount, paid_amount, payment_status")
+        .select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, created_at")
         .eq("customer_id", customerId!)
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null)
@@ -93,7 +94,7 @@ const SalesmanCustomerAccount = () => {
       // Fetch payment receipts
       const { data: receiptsData, error: receiptsError } = await supabase
         .from("voucher_entries")
-        .select("id, voucher_number, voucher_date, total_amount, reference_id, reference_type")
+        .select("id, voucher_number, voucher_date, total_amount, reference_id, reference_type, created_at")
         .eq("voucher_type", "receipt")
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null)
@@ -131,6 +132,7 @@ const SalesmanCustomerAccount = () => {
         txns.push({
           id: "opening",
           date: "Opening Balance",
+          timestamp: null,
           type: "sale",
           reference: "Opening",
           debit: customerData.opening_balance > 0 ? customerData.opening_balance : 0,
@@ -140,17 +142,21 @@ const SalesmanCustomerAccount = () => {
       }
 
       // Combine and sort all transactions
-      const allTxns: { date: Date; type: "sale" | "payment"; data: any }[] = [];
+      const allTxns: { date: Date; timestamp: string | null; type: "sale" | "payment"; data: any }[] = [];
       
       (salesData || []).forEach(sale => {
-        allTxns.push({ date: new Date(sale.sale_date), type: "sale", data: sale });
+        allTxns.push({ date: new Date(sale.sale_date), timestamp: sale.created_at || null, type: "sale", data: sale });
       });
 
       customerReceipts.forEach(receipt => {
-        allTxns.push({ date: new Date(receipt.voucher_date), type: "payment", data: receipt });
+        allTxns.push({ date: new Date(receipt.voucher_date), timestamp: receipt.created_at || null, type: "payment", data: receipt });
       });
 
-      allTxns.sort((a, b) => a.date.getTime() - b.date.getTime());
+      allTxns.sort((a, b) => {
+        const tsA = a.timestamp ? new Date(a.timestamp).getTime() : a.date.getTime();
+        const tsB = b.timestamp ? new Date(b.timestamp).getTime() : b.date.getTime();
+        return tsA - tsB;
+      });
 
       allTxns.forEach(txn => {
         if (txn.type === "sale") {
@@ -158,6 +164,7 @@ const SalesmanCustomerAccount = () => {
           txns.push({
             id: txn.data.id,
             date: txn.data.sale_date,
+            timestamp: txn.timestamp,
             type: "sale",
             reference: txn.data.sale_number,
             debit: txn.data.net_amount,
@@ -175,6 +182,7 @@ const SalesmanCustomerAccount = () => {
             txns.push({
               id: `${txn.data.id}-payment`,
               date: txn.data.sale_date,
+              timestamp: txn.timestamp,
               type: "payment",
               reference: `${txn.data.sale_number} Payment`,
               debit: 0,
@@ -187,6 +195,7 @@ const SalesmanCustomerAccount = () => {
           txns.push({
             id: txn.data.id,
             date: txn.data.voucher_date,
+            timestamp: txn.timestamp,
             type: "payment",
             reference: txn.data.voucher_number,
             debit: 0,
@@ -244,10 +253,11 @@ const SalesmanCustomerAccount = () => {
         const dateStr = txn.date === "Opening Balance" 
           ? "Opening" 
           : format(new Date(txn.date), "dd/MM/yy");
+        const timeStr = txn.timestamp ? ` ${format(new Date(txn.timestamp), "hh:mm a")}` : '';
         const amount = txn.debit > 0 
           ? `+₹${txn.debit.toLocaleString("en-IN")}` 
           : `-₹${txn.credit.toLocaleString("en-IN")}`;
-        txnList += `${dateStr} | ${txn.reference} | ${amount}\n`;
+        txnList += `${dateStr}${timeStr} | ${txn.reference} | ${amount}\n`;
       });
     }
 
@@ -379,7 +389,16 @@ const SalesmanCustomerAccount = () => {
                     <div>
                       <p className="font-medium text-sm">{txn.reference}</p>
                       <p className="text-xs text-muted-foreground">
-                        {txn.date === "Opening Balance" ? txn.date : format(new Date(txn.date), "dd MMM yyyy")}
+                        {txn.date === "Opening Balance" ? txn.date : (
+                          <>
+                            {format(new Date(txn.date), "dd MMM yyyy")}
+                            {txn.timestamp && (
+                              <span className="ml-1 text-muted-foreground/70">
+                                {format(new Date(txn.timestamp), "hh:mm a")}
+                              </span>
+                            )}
+                          </>
+                        )}
                       </p>
                     </div>
                     <div className="text-right">

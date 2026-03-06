@@ -48,6 +48,7 @@ interface Customer {
 interface Transaction {
   id: string;
   date: string;
+  timestamp: string | null;
   type: 'invoice' | 'payment' | 'advance' | 'adjustment' | 'fee';
   reference: string;
   description: string;
@@ -387,9 +388,10 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         // Opening balance entry - only when NO fee structures exist
         if (!hasStructures && openingBalance !== 0) {
           runningBalance = openingBalance;
-          allTransactions.push({
+        allTransactions.push({
             id: 'opening-balance',
             date: '1900-01-01',
+            timestamp: null,
             type: 'fee',
             reference: 'Opening',
             description: 'Opening Fees Balance (Carried Forward)',
@@ -406,6 +408,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             allTransactions.push({
               id: `structure-${idx}`,
               date: currentYear?.id ? '' : '',
+              timestamp: null,
               type: 'fee',
               reference: 'Fee Structure',
               description: structure.head_name,
@@ -432,6 +435,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
               allTransactions.push({
                 id: `${fee.id}-payment`,
                 date: fee.paid_date || fee.created_at?.substring(0, 10) || '',
+                timestamp: fee.created_at || null,
                 type: 'payment',
                 reference: fee.payment_receipt_id || '-',
                 description: `Fee Payment${methodText} - ${feeHeadName}`,
@@ -462,6 +466,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             allTransactions.push({
               id: `${fee.id}-payment`,
               date: fee.paid_date || fee.created_at?.substring(0, 10) || '',
+              timestamp: fee.created_at || null,
               type: 'payment',
               reference: fee.payment_receipt_id || '-',
               description: `Fee Payment${methodText} - ${feeHeadName}`,
@@ -491,7 +496,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // Build date filter for displayed sales
       let salesQuery = supabase
         .from("sales")
-        .select("*")
+        .select("*, created_at")
         .eq("customer_id", selectedCustomer.id)
         .is("deleted_at", null);
 
@@ -648,7 +653,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       if (openingBalance !== 0) {
         allTransactions.push({
           id: 'opening-balance',
-          date: '1900-01-01', // Will be shown as "Opening Balance"
+          date: '1900-01-01',
+          timestamp: null,
           type: 'invoice',
           reference: 'Opening',
           description: 'Opening Balance (Carried Forward)',
@@ -662,6 +668,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       const combined = [
         ...salesData.map((sale) => ({
           date: sale.sale_date,
+          timestamp: sale.created_at,
           type: 'invoice' as const,
           data: sale,
         })),
@@ -670,25 +677,34 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           .filter((voucher: any) => !voucher.description?.startsWith('Adjusted from advance balance'))
           .map((voucher) => ({
             date: voucher.voucher_date,
+            timestamp: voucher.created_at,
             type: 'payment' as const,
             data: voucher,
           })),
         ...(advancesData || []).map((advance) => ({
           date: advance.advance_date,
+          timestamp: advance.created_at,
           type: 'advance' as const,
           data: advance,
         })),
         ...(adjustmentsData || []).map((adj: any) => ({
           date: adj.adjustment_date,
+          timestamp: adj.created_at,
           type: 'adjustment' as const,
           data: adj,
         })),
         ...(saleReturnsData || []).map((sr: any) => ({
           date: sr.return_date,
+          timestamp: sr.created_at,
           type: 'cn_adjustment' as const,
           data: { ...sr, linkedSaleNumber: linkedSaleMap[sr.linked_sale_id] || null },
         })),
-      ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      ].sort((a, b) => {
+        // Sort by timestamp (created_at) for accurate chronological ordering
+        const tsA = a.timestamp ? new Date(a.timestamp).getTime() : new Date(a.date).getTime();
+        const tsB = b.timestamp ? new Date(b.timestamp).getTime() : new Date(b.date).getTime();
+        return tsA - tsB;
+      });
 
       combined.forEach((item) => {
         if (item.type === 'invoice') {
@@ -704,6 +720,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           allTransactions.push({
             id: sale.id,
             date: sale.sale_date,
+            timestamp: item.timestamp || null,
             type: 'invoice',
             reference: sale.sale_number,
             description: `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status}`,
@@ -732,6 +749,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             allTransactions.push({
               id: `${sale.id}-payment-at-sale`,
               date: sale.sale_date,
+              timestamp: item.timestamp || null,
               type: 'payment',
               reference: sale.sale_number,
               description: `Payment at sale${paymentParts.length > 0 ? ' - ' + paymentParts.join(', ') : ''}`,
@@ -768,6 +786,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           allTransactions.push({
             id: advance.id,
             date: advance.advance_date,
+            timestamp: item.timestamp || null,
             type: 'advance',
             reference: advance.advance_number,
             description: description,
@@ -795,6 +814,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           allTransactions.push({
             id: adj.id,
             date: adj.adjustment_date,
+            timestamp: item.timestamp || null,
             type: 'adjustment',
             reference: 'ADJ',
             description: adjDescription,
@@ -819,6 +839,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           allTransactions.push({
             id: `cn-${sr.id}`,
             date: sr.return_date,
+            timestamp: item.timestamp || null,
             type: 'payment',
             reference: sr.return_number,
             description,
@@ -849,6 +870,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           allTransactions.push({
             id: voucher.id,
             date: voucher.voucher_date,
+            timestamp: item.timestamp || null,
             type: 'payment',
             reference: voucher.voucher_number,
             description: description,
@@ -1098,11 +1120,12 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     if (recentTxns.length > 0) {
       txnSummary = "\n\n📋 *Recent Transactions:*";
       recentTxns.forEach((t) => {
-        const dateStr = t.id === 'opening-balance' ? 'Opening' : format(new Date(t.date), "dd/MM/yy");
+      const dateStr = t.id === 'opening-balance' ? 'Opening' : format(new Date(t.date), "dd/MM/yy");
+        const timeStr = t.timestamp ? ` ${format(new Date(t.timestamp), "hh:mm a")}` : '';
         if (t.debit > 0) {
-          txnSummary += `\n${dateStr} - ${t.reference}: +₹${Math.round(t.debit).toLocaleString("en-IN")}`;
+          txnSummary += `\n${dateStr}${timeStr} - ${t.reference}: +₹${Math.round(t.debit).toLocaleString("en-IN")}`;
         } else if (t.credit > 0) {
-          txnSummary += `\n${dateStr} - ${t.reference}: -₹${Math.round(t.credit).toLocaleString("en-IN")}`;
+          txnSummary += `\n${dateStr}${timeStr} - ${t.reference}: -₹${Math.round(t.credit).toLocaleString("en-IN")}`;
         }
       });
     }
@@ -1126,8 +1149,11 @@ Please clear your dues at the earliest. Thank you!`;
     if (!selectedCustomer || !transactions) return;
 
     const exportData = transactions.map((t) => {
+      const dateStr = t.id === 'opening-balance' ? 'Opening' : format(new Date(t.date), "dd/MM/yyyy");
+      const timeStr = t.timestamp ? format(new Date(t.timestamp), "hh:mm a") : '';
       const row: any = {
-        Date: t.id === 'opening-balance' ? 'Opening' : format(new Date(t.date), "dd/MM/yyyy"),
+        Date: dateStr,
+        Time: timeStr,
         Type: t.type === 'invoice' ? 'Invoice' : 'Payment',
         Reference: t.reference,
         Description: t.description,
@@ -1217,8 +1243,8 @@ Please clear your dues at the earliest. Thank you!`;
     yPos += 10;
 
     // Table Headers
-    const headers = ["Date", "Type", "Reference", "Description", "Debit", "Credit", "Balance"];
-    const colWidths = [22, 18, 25, 52, 22, 22, 22];
+    const headers = ["Date & Time", "Type", "Reference", "Description", "Debit", "Credit", "Balance"];
+    const colWidths = [28, 16, 22, 48, 22, 22, 22];
     
     doc.setFillColor(240, 240, 240);
     doc.rect(margin, yPos, pageWidth - margin * 2, 8, "F");
@@ -1241,8 +1267,11 @@ Please clear your dues at the earliest. Thank you!`;
       }
 
       xPos = margin;
+      const dateTimeStr = t.id === 'opening-balance' 
+        ? 'Opening' 
+        : format(new Date(t.date), "dd/MM/yy") + (t.timestamp ? ' ' + format(new Date(t.timestamp), "hh:mm a") : '');
       const rowData = [
-        t.id === 'opening-balance' ? 'Opening' : format(new Date(t.date), "dd/MM/yy"),
+        dateTimeStr,
         t.type === 'invoice' ? 'Invoice' : 'Payment',
         t.reference,
         t.description.length > 28 ? t.description.substring(0, 28) + "..." : t.description,
@@ -1536,7 +1565,14 @@ Please clear your dues at the earliest. Thank you!`;
                                 <Calendar className="h-4 w-4 text-muted-foreground" />
                                 {transaction.id === 'opening-balance' 
                                   ? <span className="font-semibold">Opening</span>
-                                  : format(new Date(transaction.date), "dd MMM yyyy")
+                                  : <div>
+                                      <div>{format(new Date(transaction.date), "dd MMM yyyy")}</div>
+                                      {transaction.timestamp && (
+                                        <div className="text-xs text-muted-foreground">
+                                          {format(new Date(transaction.timestamp), "hh:mm a")}
+                                        </div>
+                                      )}
+                                    </div>
                                 }
                               </div>
                             </TableCell>
