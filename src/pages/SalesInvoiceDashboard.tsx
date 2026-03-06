@@ -1471,7 +1471,7 @@ export default function SalesInvoiceDashboard() {
             <Button onClick={() => navigate("/sales-invoice")}>
               New Invoice
             </Button>
-            {selectedInvoices.size > 0 && (
+            {selectedInvoices.size > 0 && hasSpecialPermission('delete_records') && (
               <Button
                 onClick={() => setShowBulkDeleteDialog(true)}
                 disabled={isDeleting}
