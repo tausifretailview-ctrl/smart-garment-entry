@@ -315,6 +315,7 @@ const PurchaseReturnEntry = () => {
         .select(`
           id,
           size,
+          color,
           pur_price,
           barcode,
           stock_qty,
