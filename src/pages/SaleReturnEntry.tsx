@@ -846,6 +846,7 @@ export default function SaleReturnEntry() {
                     <TableRow key={index}>
                       <TableCell>{item.productName}</TableCell>
                       <TableCell>{item.size}</TableCell>
+                      <TableCell>{item.color || "-"}</TableCell>
                       <TableCell>{item.barcode || "-"}</TableCell>
                       <TableCell>
                         <Input
