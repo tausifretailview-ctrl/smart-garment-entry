@@ -181,7 +181,8 @@ export function LabelCalibrationUI({
   const [newPresetName, setNewPresetName] = useState("");
   // Use controlled value if provided, otherwise local state
   const [localActivePresetName, setLocalActivePresetName] = useState<string | null>(null);
-  const activePresetName = activePresetValue !== undefined ? activePresetValue : localActivePresetName;
+  // Use controlled value only when it's a non-null string; otherwise use local state (for printer presets)
+  const activePresetName = (activePresetValue !== undefined && activePresetValue !== null) ? activePresetValue : localActivePresetName;
   const setActivePresetName = (name: string | null) => setLocalActivePresetName(name);
   const [saving, setSaving] = useState(false);
 
