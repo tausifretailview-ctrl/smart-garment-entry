@@ -134,6 +134,8 @@ export default function SalesAnalyticsDashboard() {
       return data || [];
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 60000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch unique customers for the period
