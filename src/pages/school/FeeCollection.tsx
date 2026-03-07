@@ -286,7 +286,7 @@ const FeeCollection = () => {
         .from("student_fees")
         .select("*, students!inner(student_name, admission_number, parent_phone, class_id, school_classes:class_id(class_name)), fee_heads(head_name)")
         .eq("organization_id", currentOrganization!.id)
-        .eq("academic_year_id", currentYear.id)
+        .eq("academic_year_id", activeYear.id)
         .gte("paid_date", dateRange.from)
         .lte("paid_date", dateRange.to)
         .order("paid_date", { ascending: false });
