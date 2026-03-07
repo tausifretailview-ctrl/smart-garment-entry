@@ -703,6 +703,7 @@ export default function SalesInvoice() {
               barcode: item.barcode || '',
               color: item.color || '',
               quantity: item.quantity,
+              box: '',
               mrp: item.mrp,
               salePrice: item.unit_price,
               discountPercent: item.discount_percent,
