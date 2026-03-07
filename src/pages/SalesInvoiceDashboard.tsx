@@ -1819,7 +1819,6 @@ export default function SalesInvoiceDashboard() {
                 showItemBarcode={showItemBarcode}
                 showItemHsn={showItemHsn}
                 showItemMrp={showItemMrp}
-                productsById={productsById}
                 deliveryHistory={deliveryHistory}
                 saleReturns={saleReturns}
                 cnAdjustedMap={cnAdjustedMap || {}}
