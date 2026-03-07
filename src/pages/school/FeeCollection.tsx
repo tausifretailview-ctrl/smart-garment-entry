@@ -141,7 +141,7 @@ const FeeCollection = () => {
         .from("fee_structures")
         .select("amount, frequency")
         .eq("organization_id", currentOrganization!.id)
-        .eq("academic_year_id", currentYear.id);
+        .eq("academic_year_id", activeYear.id);
 
       const { data: allStudents } = await supabase
         .from("students")
