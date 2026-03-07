@@ -4680,14 +4680,67 @@ export default function BarcodePrinting() {
         <TabsContent value="designer" className="space-y-6">
           <div className="border rounded-lg p-4 space-y-4">
             <h2 className="text-xl font-semibold">📐 Precision Pro Label Designer</h2>
-            {activePrecisionTemplateName && (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-medium">
-                  ✏️ Editing: {activePrecisionTemplateName}
-                </span>
-                <span className="text-muted-foreground text-xs">(changes auto-save)</span>
+            
+            {/* Template Selector for Designer */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex-1 min-w-[200px] space-y-1">
+                <Label className="text-xs font-medium">Load Label Template</Label>
+                <Select 
+                  value={activePrecisionTemplateName || ""} 
+                  onValueChange={(name) => {
+                    const template = savedLabelTemplates.find(t => t.name === name);
+                    if (template) {
+                      const migratedConfig = ensureCompleteFieldOrder(template.config);
+                      setPrecisionSettings((prev) => ({ 
+                        ...prev, 
+                        labelConfig: migratedConfig,
+                        ...(template.labelWidth ? { labelWidth: template.labelWidth } : {}),
+                        ...(template.labelHeight ? { labelHeight: template.labelHeight } : {}),
+                      }));
+                      setActivePrecisionTemplateName(name);
+                      toast.success(`Template "${name}" loaded`);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Select a template to edit..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {savedLabelTemplates.length === 0 ? (
+                      <div className="px-2 py-2 text-xs text-muted-foreground">No saved templates. Save one first.</div>
+                    ) : (
+                      savedLabelTemplates.map((t) => (
+                        <SelectItem key={t.name} value={t.name} className="text-xs">
+                          📐 {t.name}
+                          {t.labelWidth && t.labelHeight && (
+                            <span className="ml-1 text-muted-foreground">
+                              ({t.labelWidth}×{t.labelHeight}mm)
+                            </span>
+                          )}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
-            )}
+              {activePrecisionTemplateName && (
+                <div className="flex items-center gap-2 pt-4">
+                  <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-medium text-xs">
+                    ✏️ Editing: {activePrecisionTemplateName}
+                  </span>
+                  <span className="text-muted-foreground text-[10px]">(changes auto-save)</span>
+                  <Button 
+                    variant="ghost" 
+                    size="xs" 
+                    className="h-6 text-xs"
+                    onClick={() => setActivePrecisionTemplateName(null)}
+                  >
+                    ✕ Deselect
+                  </Button>
+                </div>
+              )}
+            </div>
+
             <p className="text-sm text-muted-foreground">
               Configure exact field positions (in mm) for pixel-perfect label printing. Drag fields to reposition them on the live preview.
             </p>
