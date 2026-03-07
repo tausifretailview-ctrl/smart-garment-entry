@@ -244,7 +244,7 @@ export default function SalesInvoiceDashboard() {
       {
         label: "Duplicate Invoice",
         icon: Copy,
-        onClick: () => navigate(`/sales-invoice/new?duplicate=${invoice.id}`),
+        onClick: () => navigate('/sales-invoice', { state: { duplicateInvoiceId: invoice.id } }),
       },
       {
         label: "Delete Invoice",
