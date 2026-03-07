@@ -282,7 +282,7 @@ export default function SalesInvoiceDashboard() {
     {
       label: "New Invoice",
       icon: Plus,
-      onClick: () => navigate("/sales-invoice/new"),
+      onClick: () => navigate("/sales-invoice"),
     },
     {
       label: "Add New Party",
