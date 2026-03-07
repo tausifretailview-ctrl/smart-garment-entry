@@ -972,7 +972,7 @@ export default function SalesInvoiceDashboard() {
     }
 
     try {
-      const totalQty = invoice.sale_items?.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0) || 0;
+      const totalQty = invoice.total_qty || 0;
       
       await sendMessageAsync({
         phone: invoice.customer_phone,
