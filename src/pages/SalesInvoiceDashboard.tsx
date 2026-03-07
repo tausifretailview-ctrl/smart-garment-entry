@@ -654,7 +654,7 @@ export default function SalesInvoiceDashboard() {
       'Date': inv.sale_date ? format(new Date(inv.sale_date), 'dd/MM/yyyy') : '',
       'Customer': inv.customer_name || '',
       'Phone': inv.customer_phone || '',
-      'Qty': inv.sale_items?.reduce((s: number, i: any) => s + (i.quantity || 0), 0) || 0,
+      'Qty': inv.total_qty || 0,
       'Gross Amount': inv.gross_amount || 0,
       'Discount': (inv.discount_amount || 0) + (inv.flat_discount_amount || 0),
       'Net Amount': inv.net_amount || 0,
