@@ -535,7 +535,7 @@ export function LabelCalibrationUI({
                               width: values.labelWidth, height: values.labelHeight, a4Cols, a4Rows, printMode: 'a4',
                               labelConfig: labelConfig || null,
                             };
-                            if (onSavePreset) { setSaving(true); onSavePreset(newP).then?.(() => { setNewA4PresetName(""); setSaveA4Open(false); }).finally?.(() => setSaving(false)); }
+                            if (onSavePreset) { setSaving(true); const r = onSavePreset(newP); if (r && typeof (r as any).then === 'function') { (r as Promise<void>).then(() => { setNewA4PresetName(""); setSaveA4Open(false); }).finally(() => setSaving(false)); } else { setNewA4PresetName(""); setSaveA4Open(false); setSaving(false); } }
                             else if (onPresetsChange) { onPresetsChange([...presets.filter(p => p.name !== newP.name), newP]); setNewA4PresetName(""); setSaveA4Open(false); }
                           }}} />
                         <p className="text-[10px] text-muted-foreground">
