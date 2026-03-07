@@ -1644,8 +1644,8 @@ export default function SalesInvoiceDashboard() {
               <CheckCircle2 className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.deliveredCount}</div>
-              <p className="text-xs text-white/70">₹{summaryStats.deliveredAmount.toFixed(0)}</p>
+              <div className="text-2xl font-bold text-white">{effectiveStats.deliveredCount}</div>
+              <p className="text-xs text-white/70">₹{effectiveStats.deliveredAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
 
