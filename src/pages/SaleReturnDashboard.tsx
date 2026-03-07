@@ -315,7 +315,7 @@ export default function SaleReturnDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredReturns.map((ret) => (
+                  {returns.map((ret) => (
                     <>
                       <TableRow key={ret.id}>
                         <TableCell>
