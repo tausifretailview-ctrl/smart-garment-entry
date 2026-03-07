@@ -102,6 +102,7 @@ const customerSchema = z.object({
 
 export default function SalesInvoice() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const location = useLocation();
