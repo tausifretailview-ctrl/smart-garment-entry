@@ -997,7 +997,7 @@ export default function SalesInvoiceDashboard() {
     copyInvoiceLink(invoiceUrl);
   };
 
-  const handlePaymentReminder = (invoice: any) => {
+  const handlePaymentReminder = async (invoice: any) => {
     if (!invoice.customer_phone) {
       toast({
         title: "No Phone Number",

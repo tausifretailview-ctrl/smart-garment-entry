@@ -73,21 +73,23 @@ We will deliver it soon. Thank you for your patience!`,
 
 🙏 Thank you for your continued business with us.`,
   
-  payment_reminder: `Hello {customer_name},
+  payment_reminder: `👋 Hello {customer_name},
 
-This is a friendly reminder regarding your pending payment 💳
+🔔 Payment Reminder
 
-Invoice Details:
-📋 Invoice: {invoice_number}
-📅 Invoice Date: {invoice_date}
-💰 Total Amount: {amount}
-💵 Paid Amount: {paid_amount}
-⚠️ Pending Amount: {pending_amount}
-📅 Due Date: {due_date}
+This is a friendly reminder that the following invoice is still pending.
 
-Please make the payment at your earliest convenience.
+🔢 Invoice No: {invoice_number}
+📅 Date: {invoice_date}
+💰 Invoice Amount: {amount}
+📊 Outstanding Balance: {outstanding_amount}
 
-Thank you for your cooperation!`,
+🔗 View Invoice:
+{invoice_link}
+
+💳 Kindly arrange the payment at your convenience.
+
+🙏 Thank you for your support.`,
 
   quotation: `Hello {customer_name},
 

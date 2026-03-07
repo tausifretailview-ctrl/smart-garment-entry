@@ -223,7 +223,7 @@ export default function PaymentsDashboard() {
   const endIndex = startIndex + itemsPerPage;
   const paginatedInvoices = filteredInvoices.slice(startIndex, endIndex);
 
-  const handleSendPaymentReminder = (invoice: Invoice) => {
+  const handleSendPaymentReminder = async (invoice: Invoice) => {
     if (!invoice.customer_phone) {
       toast({
         title: "No Phone Number",
@@ -231,6 +231,25 @@ export default function PaymentsDashboard() {
         variant: "destructive",
       });
       return;
+    }
+
+    const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
+    const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${invoice.id}`;
+    const organizationName = currentOrganization?.name || '';
+
+    let customerBalance = 0;
+    if (invoice.customer_id) {
+      try {
+        const { data: balanceData } = await supabase.rpc('get_customer_balance', {
+          p_customer_id: invoice.customer_id,
+          p_organization_id: currentOrganization?.id
+        });
+        customerBalance = balanceData || 0;
+      } catch (e) {
+        customerBalance = Number(invoice.net_amount || 0) - Number(invoice.paid_amount || 0);
+      }
+    } else {
+      customerBalance = Number(invoice.net_amount || 0) - Number(invoice.paid_amount || 0);
     }
 
     const reminderMessage = formatMessage('payment_reminder', {
@@ -242,7 +261,7 @@ export default function PaymentsDashboard() {
       payment_status: invoice.payment_status,
       paid_amount: invoice.paid_amount || 0,
       due_date: invoice.due_date,
-    });
+    }, undefined, customerBalance, { invoiceLink: invoiceUrl, organizationName });
 
     sendWhatsApp(invoice.customer_phone, reminderMessage);
   };
