@@ -290,7 +290,12 @@ export function SizeGridDialog({
           if (qty > 0) {
             const variant = colorVariants.find(v => v.id === variantId);
             if (variant) {
-              items.push({ variant, qty });
+              const colorPriceMap = multiColorPrices[color] || {};
+              const overridePrice = colorPriceMap[variantId];
+              const updatedVariant = overridePrice && Number(overridePrice) > 0
+                ? { ...variant, sale_price: Number(overridePrice) }
+                : variant;
+              items.push({ variant: updatedVariant, qty });
             }
           }
         }
