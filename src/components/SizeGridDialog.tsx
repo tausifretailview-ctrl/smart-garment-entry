@@ -143,7 +143,7 @@ export function SizeGridDialog({
   useEffect(() => {
     if (open) {
       setSizeQty({});
-      setSelectedColor(null);
+      setSizePrices({});
       setCustomSizes([]);
       setShowAddCustom(false);
       setShowAddColor(false);
