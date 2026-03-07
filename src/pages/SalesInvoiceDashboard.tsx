@@ -1007,7 +1007,27 @@ export default function SalesInvoiceDashboard() {
       return;
     }
 
-    // Use payment_reminder template
+    // Build invoice URL for the reminder
+    const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
+    const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${invoice.id}`;
+    const organizationName = currentOrganization?.name || '';
+
+    // Fetch customer balance for outstanding amount
+    let customerBalance = 0;
+    if (invoice.customer_id) {
+      try {
+        const { data: balanceData } = await supabase.rpc('get_customer_balance', {
+          p_customer_id: invoice.customer_id,
+          p_organization_id: currentOrganization?.id
+        });
+        customerBalance = balanceData || 0;
+      } catch (e) {
+        customerBalance = invoice.net_amount - (invoice.paid_amount || 0);
+      }
+    } else {
+      customerBalance = invoice.net_amount - (invoice.paid_amount || 0);
+    }
+
     const reminderMessage = formatMessage('payment_reminder', {
       sale_number: invoice.sale_number,
       customer_name: invoice.customer_name,
@@ -1017,7 +1037,7 @@ export default function SalesInvoiceDashboard() {
       payment_status: invoice.payment_status,
       paid_amount: invoice.paid_amount || 0,
       due_date: invoice.due_date,
-    });
+    }, undefined, customerBalance, { invoiceLink: invoiceUrl, organizationName });
 
     sendWhatsApp(invoice.customer_phone, reminderMessage);
   };
