@@ -1574,7 +1574,7 @@ export default function SalesInvoiceDashboard() {
               <FileText className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.totalInvoices}</div>
+              <div className="text-2xl font-bold text-white">{effectiveStats.totalInvoices}</div>
               <p className="text-xs text-white/70">All invoices</p>
             </CardContent>
           </Card>
