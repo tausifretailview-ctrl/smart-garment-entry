@@ -1,31 +1,37 @@
 
 
-## Completed: Heavy Query Load Optimization
+## Fix: Sales Invoice Edit Navigation from Dashboard (404 Error)
 
-All 5 priority pages optimized:
+### Problem
+The Sales Invoice Dashboard navigates to `/sales-invoice/${invoice.id}` (e.g., `/sales-invoice/e60e78eb-...`) when editing, but there is no route defined for `sales-invoice/:id` in App.tsx. The route only matches `sales-invoice` (exact). This causes a 404 error.
 
-1. **PurchaseBillDashboard** — Server-side pagination + search + date filters via `useQuery`, removed Phase 2 bulk item pre-fetch (lazy-load on expand only), staleTime 30s
-2. **SaleReturnDashboard** — Converted from useEffect/setState to `useQuery` with server-side pagination + debounced search, lazy item loading with cache
-3. **PurchaseReturnDashboard** — Server-side pagination + debounced search + date filters via `useQuery`, staleTime 30s
-4. **Accounts** — Created `get_accounts_dashboard_stats` RPC for summary cards (replaces 3x fetchAll calls), lazy tab loading (vouchers/sales/customers/suppliers only fetched when their tab is active)
-5. **SalesAnalyticsDashboard** — Added staleTime 60s + refetchOnWindowFocus:false to all queries
+Additionally, the SalesInvoice component expects edit data via `location.state.invoiceData`, but the dashboard navigate call doesn't pass any state.
 
-## Completed: Entry Form Query Optimization (ELLA NOOR slow billing fix)
+The same issue applies to "Duplicate Invoice" which navigates to `/sales-invoice/new?duplicate=${invoice.id}`.
 
-All entry forms optimized with caching + explicit columns:
+### Fix
 
-1. **QuotationEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*')` with explicit columns
-2. **SaleOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*, product_variants(*)')` with explicit columns
-3. **PurchaseOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to suppliers & products queries, replaced `select('*')` with explicit columns
-4. **DeliveryChallanEntry** — Added staleTime 5min + refetchOnWindowFocus:false to products query, replaced `select('*, product_variants(*), size_groups(*)')` with explicit columns
-5. **PurchaseEntry** — Replaced `select('*')` with explicit columns for suppliers (already had staleTime)
-6. **POSSales** — Already optimized (explicit columns + staleTime 5min)
-7. **SalesInvoice** — Already optimized
+**Option A (Recommended): Fix the navigation calls in SalesInvoiceDashboard.tsx**
 
-## Completed: Cloud Usage Impact Analysis
+Change the Edit Invoice navigate call from:
+```typescript
+navigate(`/sales-invoice/${invoice.id}`)
+```
+to:
+```typescript
+navigate('/sales-invoice', { state: { editInvoiceId: invoice.id, invoiceData: invoice } })
+```
 
-Estimated impact of all optimizations:
-- **Dashboard reads**: ~95% reduction (server-side pagination, 50 rows vs ALL)
-- **Accounts page**: ~90% reduction (1 RPC vs 3 full-table scans)
-- **Entry form tab switches**: ~80% fewer reads (5min staleTime cache)
-- **Data transfer**: ~40-50% less per read (explicit columns vs select('*'))
+This matches how SalesInvoice.tsx already expects data (via `location.state`). The `loadInvoiceById` function already exists in SalesInvoice to fetch full invoice details.
+
+Also fix:
+- "Duplicate Invoice" navigation to pass state instead of URL path
+- "New Invoice" navigation similarly
+
+**Option B: Add a route parameter + useParams in SalesInvoice**
+
+Add `sales-invoice/:invoiceId` route in App.tsx and handle `useParams` in SalesInvoice.tsx. This is more work and the component already has the `loadInvoiceById` mechanism via location state.
+
+### Files to Modify
+- `src/pages/SalesInvoiceDashboard.tsx` — Fix all `navigate('/sales-invoice/...')` calls to use `navigate('/sales-invoice', { state: {...} })` pattern
+
