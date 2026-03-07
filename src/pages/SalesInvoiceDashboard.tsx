@@ -997,7 +997,7 @@ export default function SalesInvoiceDashboard() {
     copyInvoiceLink(invoiceUrl);
   };
 
-  const handlePaymentReminder = (invoice: any) => {
+  const handlePaymentReminder = async (invoice: any) => {
     if (!invoice.customer_phone) {
       toast({
         title: "No Phone Number",
@@ -1007,7 +1007,36 @@ export default function SalesInvoiceDashboard() {
       return;
     }
 
-    // Use payment_reminder template
+    // Build invoice URL for the reminder
+    const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
+    const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${invoice.id}`;
+    const organizationName = currentOrganization?.name || '';
+
+    // Fetch customer balance for outstanding amount
+    let customerBalance = 0;
+    if (invoice.customer_id) {
+      try {
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('opening_balance')
+          .eq('id', invoice.customer_id)
+          .single();
+        const openingBalance = customer?.opening_balance || 0;
+        const { data: sales } = await supabase
+          .from('sales')
+          .select('net_amount, paid_amount')
+          .eq('customer_id', invoice.customer_id)
+          .eq('organization_id', currentOrganization?.id);
+        const totalSales = sales?.reduce((sum, s) => sum + (s.net_amount || 0), 0) || 0;
+        const totalPaid = sales?.reduce((sum, s) => sum + (s.paid_amount || 0), 0) || 0;
+        customerBalance = openingBalance + totalSales - totalPaid;
+      } catch (e) {
+        customerBalance = invoice.net_amount - (invoice.paid_amount || 0);
+      }
+    } else {
+      customerBalance = invoice.net_amount - (invoice.paid_amount || 0);
+    }
+
     const reminderMessage = formatMessage('payment_reminder', {
       sale_number: invoice.sale_number,
       customer_name: invoice.customer_name,
@@ -1017,7 +1046,7 @@ export default function SalesInvoiceDashboard() {
       payment_status: invoice.payment_status,
       paid_amount: invoice.paid_amount || 0,
       due_date: invoice.due_date,
-    });
+    }, undefined, customerBalance, { invoiceLink: invoiceUrl, organizationName });
 
     sendWhatsApp(invoice.customer_phone, reminderMessage);
   };
