@@ -85,7 +85,59 @@ export default function Accounts() {
     enabled: !!currentOrganization?.id,
   });
 
-  // Fetch vouchers (shared across tabs for dashboard metrics)
+  // Old voucher fetch removed — now lazy-loaded per tab below
+
+  // Fetch dashboard stats via RPC (replaces heavy fetchAll queries for metrics)
+  const { data: dashboardStats } = useQuery({
+    queryKey: ["accounts-dashboard-stats", currentOrganization?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_accounts_dashboard_stats", {
+        p_org_id: currentOrganization!.id,
+      });
+      if (error) throw error;
+      return data as any;
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  // Fetch sales only when customer-payment or reconciliation tab is active
+  const needsSales = selectedTab === "customer-payment" || selectedTab === "customer-ledger" || selectedTab === "outstanding";
+  const { data: sales } = useQuery({
+    queryKey: ["sales-summary-accounts", currentOrganization?.id],
+    queryFn: async () => fetchAllSalesSummary(currentOrganization!.id),
+    enabled: !!currentOrganization?.id && needsSales,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  // Fetch customers only when tabs that need them are active
+  const needsCustomers = selectedTab === "customer-payment" || selectedTab === "reconciliation" || selectedTab === "customer-ledger" || selectedTab === "outstanding";
+  const { data: customers } = useQuery({
+    queryKey: ["customers", currentOrganization?.id],
+    queryFn: async () => fetchAllCustomers(currentOrganization!.id),
+    enabled: !!currentOrganization?.id && needsCustomers,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  // Fetch suppliers only when supplier tab is active
+  const needsSuppliers = selectedTab === "supplier-payment" || selectedTab === "supplier-ledger";
+  const { data: suppliers } = useQuery({
+    queryKey: ["suppliers", currentOrganization?.id],
+    queryFn: async () => fetchAllSuppliers(currentOrganization!.id),
+    enabled: !!currentOrganization?.id && needsSuppliers,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  // Fetch vouchers only when tabs that need them are active
+  const needsVouchers = selectedTab === "customer-payment" || selectedTab === "supplier-payment" || selectedTab === "employee-salary" || selectedTab === "expenses" || selectedTab === "voucher-entry";
   const { data: vouchers } = useQuery({
     queryKey: ["voucher-entries", currentOrganization?.id],
     queryFn: async () => {
@@ -110,78 +162,30 @@ export default function Accounts() {
       }
       return allVouchers;
     },
-    enabled: !!currentOrganization?.id,
+    enabled: !!currentOrganization?.id && needsVouchers,
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 
-  // Fetch sales (shared for dashboard metrics + customer payment tab)
-  const { data: sales } = useQuery({
-    queryKey: ["sales-summary-accounts", currentOrganization?.id],
-    queryFn: async () => fetchAllSalesSummary(currentOrganization!.id),
-    enabled: !!currentOrganization?.id,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
-
-  // Fetch customers (shared for reconciliation + customer payment tab)
-  const { data: customers } = useQuery({
-    queryKey: ["customers", currentOrganization?.id],
-    queryFn: async () => fetchAllCustomers(currentOrganization!.id),
-    enabled: !!currentOrganization?.id,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
-
-  // Fetch suppliers
-  const { data: suppliers } = useQuery({
-    queryKey: ["suppliers", currentOrganization?.id],
-    queryFn: async () => fetchAllSuppliers(currentOrganization!.id),
-    enabled: !!currentOrganization?.id,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
-
-  // Dashboard metrics
+  // Dashboard metrics from RPC
   const dashboardMetrics = {
-    totalReceivables: vouchers
-      ?.filter((v) => (v.reference_type === "customer" || v.reference_type === "customer_payment" || v.reference_type === "SALE") && (v.voucher_type === "receipt" || v.voucher_type === "RECEIPT"))
-      .reduce((sum, v) => sum + Number(v.total_amount), 0) || 0,
-    totalPayables: vouchers
-      ?.filter((v) => (v.reference_type === "supplier" || v.reference_type === "employee") && v.voucher_type === "payment")
-      .reduce((sum, v) => sum + Number(v.total_amount), 0) || 0,
-    monthlyExpenses: vouchers
-      ?.filter((v) => {
-        const vd = new Date(v.voucher_date);
-        const now = new Date();
-        return v.reference_type === "expense" && vd >= startOfMonth(now) && vd <= endOfMonth(now);
-      })
-      .reduce((sum, v) => sum + Number(v.total_amount), 0) || 0,
-    currentMonthPL: (() => {
-      const now = new Date();
-      const ms = startOfMonth(now);
-      const me = endOfMonth(now);
-      const revenue = sales?.filter((s) => { const d = new Date(s.sale_date); return d >= ms && d <= me; }).reduce((sum, s) => sum + Number(s.net_amount), 0) || 0;
-      const expenses = vouchers?.filter((v) => { const d = new Date(v.voucher_date); return v.voucher_type === "payment" && d >= ms && d <= me; }).reduce((sum, v) => sum + Number(v.total_amount), 0) || 0;
-      return revenue - expenses;
-    })(),
+    totalReceivables: dashboardStats?.totalReceivables || 0,
+    totalPayables: dashboardStats?.totalPayables || 0,
+    monthlyExpenses: dashboardStats?.monthlyExpenses || 0,
+    currentMonthPL: dashboardStats?.currentMonthPL || 0,
   };
 
-  const salesArray = sales ?? [];
   const paymentStats = {
-    totalInvoices: salesArray.length,
-    totalAmount: salesArray.reduce((sum, s) => sum + Number(s.net_amount || 0), 0),
-    paidAmount: salesArray.reduce((sum, s) => sum + Number(s.paid_amount || 0), 0),
-    pendingCount: salesArray.filter(s => s.payment_status === 'pending').length,
-    pendingAmount: salesArray.filter(s => s.payment_status === 'pending').reduce((sum, s) => sum + Number(s.net_amount || 0) - Number(s.paid_amount || 0), 0),
-    partialCount: salesArray.filter(s => s.payment_status === 'partial').length,
-    partialAmount: salesArray.filter(s => s.payment_status === 'partial').reduce((sum, s) => sum + Number(s.net_amount || 0) - Number(s.paid_amount || 0), 0),
-    completedCount: salesArray.filter(s => s.payment_status === 'completed').length,
-    completedAmount: salesArray.filter(s => s.payment_status === 'completed').reduce((sum, s) => sum + Number(s.paid_amount || 0), 0),
+    totalInvoices: dashboardStats?.totalInvoices || 0,
+    totalAmount: dashboardStats?.totalAmount || 0,
+    paidAmount: dashboardStats?.paidAmount || 0,
+    pendingCount: dashboardStats?.pendingCount || 0,
+    pendingAmount: dashboardStats?.pendingAmount || 0,
+    partialCount: dashboardStats?.partialCount || 0,
+    partialAmount: dashboardStats?.partialAmount || 0,
+    completedCount: dashboardStats?.completedCount || 0,
+    completedAmount: dashboardStats?.completedAmount || 0,
   };
 
   const handleCardClick = (filter: string | null) => {

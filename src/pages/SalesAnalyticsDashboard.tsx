@@ -93,6 +93,8 @@ export default function SalesAnalyticsDashboard() {
       return data || [];
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 60000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch sale items for top products - use paginated fetch to bypass 1000 row limit
@@ -104,6 +106,8 @@ export default function SalesAnalyticsDashboard() {
       return await fetchAllSaleItems(saleIds);
     },
     enabled: !!currentOrganization?.id && !!salesData?.length,
+    staleTime: 60000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch previous period data for comparison
@@ -130,6 +134,8 @@ export default function SalesAnalyticsDashboard() {
       return data || [];
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 60000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch unique customers for the period
@@ -149,6 +155,8 @@ export default function SalesAnalyticsDashboard() {
       return data || [];
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 60000,
+    refetchOnWindowFocus: false,
   });
 
   // Calculate summary stats

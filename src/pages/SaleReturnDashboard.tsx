@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -59,12 +60,14 @@ export default function SaleReturnDashboard() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
 
-  const [returns, setReturns] = useState<SaleReturn[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [returnToDelete, setReturnToDelete] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 50;
 
   const [returnToPrint, setReturnToPrint] = useState<SaleReturn | null>(null);
   const [businessDetails, setBusinessDetails] = useState<BusinessDetails | null>(null);
@@ -75,17 +78,68 @@ export default function SaleReturnDashboard() {
   const [selectedReturnForAdjust, setSelectedReturnForAdjust] = useState<SaleReturn | null>(null);
   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
+  const queryClient = useQueryClient();
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
   });
 
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Server-side paginated query
+  const { data: returnsData, isLoading: returnsLoading, refetch: refetchReturns } = useQuery({
+    queryKey: ["sale-returns", currentOrganization?.id, debouncedSearch, currentPage, pageSize],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return { returns: [], totalCount: 0 };
+
+      const startIndex = (currentPage - 1) * pageSize;
+      const endIndex = startIndex + pageSize - 1;
+
+      let query = supabase
+        .from("sale_returns")
+        .select("id, return_number, customer_name, customer_id, original_sale_number, return_date, gross_amount, gst_amount, net_amount, notes, credit_note_id, credit_status, linked_sale_id, refund_type", { count: "exact" })
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
+
+      if (debouncedSearch) {
+        query = query.or(`return_number.ilike.%${debouncedSearch}%,customer_name.ilike.%${debouncedSearch}%,original_sale_number.ilike.%${debouncedSearch}%`);
+      }
+
+      query = query.order("return_date", { ascending: false }).range(startIndex, endIndex);
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+      return { returns: (data || []) as SaleReturn[], totalCount: count || 0 };
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
+  });
+
+  const returns = returnsData?.returns || [];
+
+  useEffect(() => {
+    if (returnsData) setLoading(false);
+  }, [returnsData]);
+
+  useEffect(() => {
+    if (returnsLoading && returns.length === 0) setLoading(true);
+  }, [returnsLoading]);
+
   useEffect(() => {
     if (currentOrganization) {
-      fetchReturns();
       fetchBusinessDetails();
     }
   }, [currentOrganization]);
+
+  const fetchReturns = () => { refetchReturns(); };
 
   const fetchBusinessDetails = async () => {
     const { data, error } = await supabase
@@ -102,26 +156,11 @@ export default function SaleReturnDashboard() {
     setBusinessDetails(data);
   };
 
-  const fetchReturns = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("sale_returns")
-      .select("*")
-      .eq("organization_id", currentOrganization?.id)
-      .is("deleted_at", null)
-      .order("return_date", { ascending: false });
-
-    if (error) {
-      toast({ title: "Error", description: "Failed to load returns", variant: "destructive" });
-      setLoading(false);
-      return;
-    }
-
-    setReturns(data || []);
-    setLoading(false);
-  };
+  // Cache for loaded items
+  const [loadedItems, setLoadedItems] = useState<Record<string, SaleReturnItem[]>>({});
 
   const fetchReturnItems = async (returnId: string) => {
+    if (loadedItems[returnId]) return loadedItems[returnId];
     const { data, error } = await supabase
       .from("sale_return_items")
       .select("*")
@@ -132,7 +171,9 @@ export default function SaleReturnDashboard() {
       return [];
     }
 
-    return data || [];
+    const items = (data || []) as SaleReturnItem[];
+    setLoadedItems(prev => ({ ...prev, [returnId]: items }));
+    return items;
   };
 
   const toggleRow = async (returnId: string) => {
@@ -142,10 +183,8 @@ export default function SaleReturnDashboard() {
       newExpanded.delete(returnId);
     } else {
       newExpanded.add(returnId);
-      const returnRecord = returns.find((r) => r.id === returnId);
-      if (returnRecord && !returnRecord.items) {
-        const items = await fetchReturnItems(returnId);
-        setReturns(returns.map((r) => (r.id === returnId ? { ...r, items } : r)));
+      if (!loadedItems[returnId]) {
+        await fetchReturnItems(returnId);
       }
     }
     
@@ -160,7 +199,7 @@ export default function SaleReturnDashboard() {
     const success = await softDelete("sale_returns", returnToDelete);
     if (success) {
       toast({ title: "Success", description: "Return moved to recycle bin" });
-      setReturns(returns.filter((r) => r.id !== returnToDelete));
+      refetchReturns();
     }
     setDeleteDialogOpen(false);
     setReturnToDelete(null);
@@ -187,19 +226,11 @@ export default function SaleReturnDashboard() {
     setTimeout(() => handlePrint(), 100);
   };
 
-  const filteredReturns = returns.filter((ret) => {
-    const search = searchTerm.toLowerCase();
-    return (
-      ret.return_number?.toLowerCase().includes(search) ||
-      ret.customer_name.toLowerCase().includes(search) ||
-      ret.original_sale_number?.toLowerCase().includes(search) ||
-      ret.return_date.includes(search)
-    );
-  });
-
-  const totalReturns = filteredReturns.length;
-  const totalValue = filteredReturns.reduce((sum, ret) => sum + ret.net_amount, 0);
-  const averageValue = totalReturns > 0 ? totalValue / totalReturns : 0;
+  // Server-side filtering already applied, no client-side filter needed
+  const totalReturns = returnsData?.totalCount || returns.length;
+  const totalValue = returns.reduce((sum, ret) => sum + ret.net_amount, 0);
+  const averageValue = returns.length > 0 ? totalValue / returns.length : 0;
+  const totalPages = Math.ceil(totalReturns / pageSize);
 
   return (
     <div className="w-full px-6 py-6 space-y-6">
@@ -264,7 +295,7 @@ export default function SaleReturnDashboard() {
           <CardContent>
             {loading ? (
               <div className="text-center py-8 text-muted-foreground">Loading...</div>
-            ) : filteredReturns.length === 0 ? (
+            ) : returns.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">No returns found</div>
             ) : (
               <Table>
@@ -284,7 +315,7 @@ export default function SaleReturnDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredReturns.map((ret) => (
+                  {returns.map((ret) => (
                     <>
                       <TableRow key={ret.id}>
                         <TableCell>
@@ -414,7 +445,7 @@ export default function SaleReturnDashboard() {
                           </div>
                         </TableCell>
                       </TableRow>
-                      {expandedRows.has(ret.id) && ret.items && (
+                      {expandedRows.has(ret.id) && loadedItems[ret.id] && (
                         <TableRow>
                           <TableCell colSpan={11} className="bg-muted/50">
                             <div className="p-4">
@@ -432,7 +463,7 @@ export default function SaleReturnDashboard() {
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  {ret.items.map((item) => (
+                                  {loadedItems[ret.id].map((item) => (
                                     <TableRow key={item.id}>
                                       <TableCell>{item.product_name}</TableCell>
                                       <TableCell>{item.size}</TableCell>
@@ -459,6 +490,19 @@ export default function SaleReturnDashboard() {
                   ))}
                 </TableBody>
               </Table>
+            )}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-4">
+                <p className="text-sm text-muted-foreground">
+                  Page {currentPage} of {totalPages} ({totalReturns} total)
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Next</Button>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -490,7 +534,7 @@ export default function SaleReturnDashboard() {
             creditAmount={selectedReturnForAdjust.net_amount}
             customerId={selectedReturnForAdjust.customer_id || ""}
             customerName={selectedReturnForAdjust.customer_name}
-            onSuccess={fetchReturns}
+            onSuccess={() => refetchReturns()}
           />
         )}
 
