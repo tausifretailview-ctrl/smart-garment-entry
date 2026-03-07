@@ -437,22 +437,40 @@ export function LabelCalibrationUI({
 
           {printMode === 'a4' && (
             <div className="border rounded-lg p-3 space-y-3 bg-muted/10">
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-end gap-2 flex-wrap">
                 <div className="flex-1 min-w-[160px] space-y-1">
                   <Label className="text-xs">A4 Sheet Preset</Label>
-                  <Select onValueChange={(name) => {
-                    const preset = A4_SHEET_PRESETS.find(p => p.name === name);
-                    if (preset) {
+                  <Select value={activeA4PresetName || undefined} onValueChange={(name) => {
+                    // Check built-in first
+                    const builtIn = A4_SHEET_PRESETS.find(p => p.name === name);
+                    if (builtIn) {
                       onChange({
                         ...values,
-                        labelWidth: preset.width,
-                        labelHeight: preset.height,
-                        xOffset: preset.xOffset,
-                        yOffset: preset.yOffset,
-                        vGap: preset.vGap,
+                        labelWidth: builtIn.width,
+                        labelHeight: builtIn.height,
+                        xOffset: builtIn.xOffset,
+                        yOffset: builtIn.yOffset,
+                        vGap: builtIn.vGap,
                       });
-                      onA4ColsChange?.(preset.cols);
-                      onA4RowsChange?.(preset.rows);
+                      onA4ColsChange?.(builtIn.cols);
+                      onA4RowsChange?.(builtIn.rows);
+                      setActiveA4PresetName(null);
+                      return;
+                    }
+                    // Check user A4 presets
+                    const userPreset = a4UserPresets.find(p => p.name === name);
+                    if (userPreset) {
+                      onChange({
+                        xOffset: userPreset.xOffset,
+                        yOffset: userPreset.yOffset,
+                        vGap: userPreset.vGap,
+                        labelWidth: userPreset.width,
+                        labelHeight: userPreset.height,
+                      });
+                      onA4ColsChange?.(userPreset.a4Cols || 4);
+                      onA4RowsChange?.(userPreset.a4Rows || 10);
+                      setActiveA4PresetName(name);
+                      onLoadPreset?.(userPreset);
                     }
                   }}>
                     <SelectTrigger className="h-8 text-xs">
@@ -464,10 +482,104 @@ export function LabelCalibrationUI({
                           📄 {p.name}
                         </SelectItem>
                       ))}
+                      {a4UserPresets.length > 0 && (
+                        <>
+                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">💾 My A4 Presets</div>
+                          {a4UserPresets.map((p) => (
+                            <SelectItem key={p.name} value={p.name} className="text-xs">
+                              📐 {p.name}
+                              <span className="ml-1 text-muted-foreground">({p.width}×{p.height}, {p.a4Cols}×{p.a4Rows})</span>
+                            </SelectItem>
+                          ))}
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
+
+                {isA4UserPreset && (onSavePreset || onPresetsChange) && (
+                  <Button type="button" variant="outline" size="xs" className="h-8" disabled={saving} onClick={async () => {
+                    const existing = a4UserPresets.find(p => p.name === activeA4PresetName);
+                    if (!existing) return;
+                    const updated: CalibrationPreset = {
+                      ...existing, xOffset: values.xOffset, yOffset: values.yOffset, vGap: values.vGap,
+                      width: values.labelWidth, height: values.labelHeight, a4Cols, a4Rows, printMode: 'a4',
+                      labelConfig: labelConfig || null,
+                    };
+                    if (onSavePreset) { setSaving(true); try { await onSavePreset(updated); } finally { setSaving(false); } }
+                    else if (onPresetsChange) { onPresetsChange(presets.map(p => p.name === activeA4PresetName ? updated : p)); }
+                  }}>
+                    <Save className="h-3 w-3 mr-1" /> Update
+                  </Button>
+                )}
+
+                {(onSavePreset || onPresetsChange) && (
+                  <Dialog open={saveA4Open} onOpenChange={setSaveA4Open}>
+                    <DialogTrigger asChild>
+                      <Button type="button" variant="outline" size="xs" className="h-8">
+                        <Save className="h-3 w-3 mr-1" /> Save
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-sm">
+                      <DialogHeader>
+                        <DialogTitle className="text-sm">Save A4 Sheet Preset</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Preset Name</Label>
+                        <Input value={newA4PresetName} onChange={(e) => setNewA4PresetName(e.target.value)}
+                          placeholder="e.g. My A4 39x35 (5×8)" className="h-8 text-xs"
+                          onKeyDown={(e) => { if (e.key === "Enter") {
+                            if (!newA4PresetName.trim()) return;
+                            const newP: CalibrationPreset = {
+                              name: newA4PresetName.trim(), xOffset: values.xOffset, yOffset: values.yOffset, vGap: values.vGap,
+                              width: values.labelWidth, height: values.labelHeight, a4Cols, a4Rows, printMode: 'a4',
+                              labelConfig: labelConfig || null,
+                            };
+                            if (onSavePreset) { setSaving(true); onSavePreset(newP).then?.(() => { setNewA4PresetName(""); setSaveA4Open(false); }).finally?.(() => setSaving(false)); }
+                            else if (onPresetsChange) { onPresetsChange([...presets.filter(p => p.name !== newP.name), newP]); setNewA4PresetName(""); setSaveA4Open(false); }
+                          }}} />
+                        <p className="text-[10px] text-muted-foreground">
+                          Saves: {values.labelWidth}×{values.labelHeight}mm, {a4Cols}×{a4Rows} grid, offset ({values.xOffset}, {values.yOffset}), gap {values.vGap}mm
+                        </p>
+                      </div>
+                      <DialogFooter>
+                        <Button type="button" size="xs" disabled={!newA4PresetName.trim() || saving} onClick={async () => {
+                          if (!newA4PresetName.trim()) return;
+                          const newP: CalibrationPreset = {
+                            name: newA4PresetName.trim(), xOffset: values.xOffset, yOffset: values.yOffset, vGap: values.vGap,
+                            width: values.labelWidth, height: values.labelHeight, a4Cols, a4Rows, printMode: 'a4',
+                            labelConfig: labelConfig || null,
+                          };
+                          if (onSavePreset) { setSaving(true); try { await onSavePreset(newP); setNewA4PresetName(""); setSaveA4Open(false); } finally { setSaving(false); } }
+                          else if (onPresetsChange) { onPresetsChange([...presets.filter(p => p.name !== newP.name), newP]); setNewA4PresetName(""); setSaveA4Open(false); }
+                        }}>
+                          {saving ? "Saving..." : "Save Preset"}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                )}
+
+                {a4UserPresets.length > 0 && (onDeletePreset || onPresetsChange) && (
+                  <Select onValueChange={(name) => {
+                    const preset = a4UserPresets.find(p => p.name === name);
+                    if (!preset) return;
+                    if (onDeletePreset && preset.id) { onDeletePreset(preset.id); }
+                    else if (onPresetsChange) { onPresetsChange(presets.filter(p => p.name !== name)); }
+                    if (activeA4PresetName === name) setActiveA4PresetName(null);
+                  }}>
+                    <SelectTrigger className="h-8 text-xs w-auto min-w-[100px]">
+                      <SelectValue placeholder="Delete..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {a4UserPresets.map((p) => (
+                        <SelectItem key={p.name} value={p.name} className="text-xs text-destructive">🗑 {p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
+
               <div className="grid grid-cols-2 gap-2">
                 <NudgeField label="Columns" value={a4Cols} onChange={(v) => onA4ColsChange?.(v)} min={1} max={8} step={1} unit="cols" />
                 <NudgeField label="Rows" value={a4Rows} onChange={(v) => onA4RowsChange?.(v)} min={1} max={20} step={1} unit="rows" />
