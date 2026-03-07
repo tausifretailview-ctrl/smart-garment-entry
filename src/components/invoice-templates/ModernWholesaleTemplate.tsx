@@ -391,7 +391,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
               TOTAL QTY:
             </td>
             <td style={{ ...cellStyle, textAlign: "center" }}>{totalQty}</td>
-            <td colSpan={showGSTBreakdown ? 4 : 2} style={{ ...cellStyle, textAlign: "right" }}>
+            <td colSpan={showGSTBreakdown ? (isA5 ? 3 : 4) : (isA5 ? 1 : 2)} style={{ ...cellStyle, textAlign: "right" }}>
               SUB TOTAL:
             </td>
             <td style={{ ...cellStyle, textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{formatCurrency(subtotal)}</td>
