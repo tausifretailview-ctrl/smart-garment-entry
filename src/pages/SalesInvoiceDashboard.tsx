@@ -1787,7 +1787,7 @@ export default function SalesInvoiceDashboard() {
                 columnSettings={columnSettings}
                 currentPage={currentPage}
                 itemsPerPage={itemsPerPage}
-                invoicesData={invoicesData}
+                invoicesData={paginatedInvoices}
                 isLoading={isLoading}
                 handleRowContextMenu={handleRowContextMenu}
                 setSelectedCustomerForHistory={setSelectedCustomerForHistory}
