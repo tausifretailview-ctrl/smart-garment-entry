@@ -441,7 +441,7 @@ export function SalesInvoiceERPTable({
                         <Lock className="h-4 w-4 mr-2 text-muted-foreground" /> Edit (Locked)
                       </DropdownMenuItem>
                     ) : (
-                      <DropdownMenuItem onClick={() => navigate(`/sales-invoice/${invoice.id}`)}>
+                      <DropdownMenuItem onClick={() => navigate('/sales-invoice', { state: { editInvoiceId: invoice.id } })}>
                         <Edit className="h-4 w-4 mr-2" /> Edit Invoice
                       </DropdownMenuItem>
                     )
