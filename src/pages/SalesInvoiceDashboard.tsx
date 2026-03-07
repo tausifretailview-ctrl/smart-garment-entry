@@ -474,26 +474,7 @@ export default function SalesInvoiceDashboard() {
 
   const productIdsForLookup: string[] = [];
 
-  const { data: productsById } = useQuery({
-    queryKey: ['products_by_id', currentOrganization?.id, productIdsForLookup.join(',')],
-    queryFn: async () => {
-      if (!currentOrganization?.id || productIdsForLookup.length === 0) return {} as Record<string, any>;
-
-      const { data, error } = await supabase
-        .from('products')
-        .select('id, brand, style, color')
-        .in('id', productIdsForLookup);
-
-      if (error) throw error;
-
-      const map: Record<string, any> = {};
-      (data || []).forEach((p: any) => {
-        map[p.id] = p;
-      });
-      return map;
-    },
-    enabled: !!currentOrganization?.id && productIdsForLookup.length > 0,
-  });
+  const productsById: Record<string, any> = {};
 
   // Fetch sale returns with credit_status = 'adjusted' linked to invoices
   const { data: cnAdjustedMap } = useQuery({
