@@ -197,7 +197,7 @@ export function SalesInvoiceERPTable({
         header: "Qty",
         cell: ({ row }) => (
           <span className="text-center block">
-            {row.original.sale_items?.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0) || 0}
+            {row.original.total_qty || 0}
           </span>
         ),
         size: 60,
