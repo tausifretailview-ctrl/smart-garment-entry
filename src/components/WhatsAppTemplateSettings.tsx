@@ -54,21 +54,24 @@ Order Details:
 
 We will deliver it soon. Thank you for your patience!`,
   
-  sales_invoice: `Hello {customer_name},
+  sales_invoice: `👋 Hello {customer_name},
 
-Thank you for your purchase! 🛍️
+🧾 Invoice Generated Successfully
 
-Invoice Details:
-📋 Invoice: {invoice_number}
+🏢 {organization_name} has generated the following invoice for your order.
+
+🔢 Invoice No: {invoice_number}
 📅 Date: {invoice_date}
-💰 Total Amount: {amount}
-💳 Payment Status: {payment_status}
+💰 Invoice Amount: {amount}
+⏳ Payment Status: {payment_status}
+📊 Outstanding Balance: {outstanding_amount}
 
-{invoice_items}
+🔗 View / Download Invoice:
+{invoice_link}
 
-{social_links}
+💳 Kindly arrange payment at your convenience.
 
-We appreciate your business!`,
+🙏 Thank you for your continued business with us.`,
   
   payment_reminder: `Hello {customer_name},
 
@@ -232,7 +235,7 @@ export const WhatsAppTemplateSettings = () => {
           <CardTitle>WhatsApp Message Templates</CardTitle>
         </div>
       <CardDescription>
-          Customize WhatsApp messages for delivery updates, invoices, quotations, sale orders, and payment reminders. Available placeholders: {"{customer_name}"}, {"{invoice_number}"}, {"{amount}"}, {"{payment_status}"}, {"{invoice_date}"}, {"{invoice_items}"}, {"{paid_amount}"}, {"{pending_amount}"}, {"{due_date}"}, {"{quotation_number}"}, {"{quotation_date}"}, {"{valid_until}"}, {"{quotation_items}"}, {"{order_number}"}, {"{order_date}"}, {"{expected_delivery}"}, {"{order_items}"}, {"{status}"}, {"{social_links}"}, {"{instagram_link}"}, {"{website_link}"}, {"{google_review_link}"}
+          Customize WhatsApp messages for delivery updates, invoices, quotations, sale orders, and payment reminders. Available placeholders: {"{customer_name}"}, {"{invoice_number}"}, {"{amount}"}, {"{payment_status}"}, {"{invoice_date}"}, {"{invoice_items}"}, {"{invoice_link}"}, {"{organization_name}"}, {"{outstanding_amount}"}, {"{paid_amount}"}, {"{pending_amount}"}, {"{due_date}"}, {"{quotation_number}"}, {"{quotation_date}"}, {"{valid_until}"}, {"{quotation_items}"}, {"{order_number}"}, {"{order_date}"}, {"{expected_delivery}"}, {"{order_items}"}, {"{status}"}, {"{social_links}"}, {"{instagram_link}"}, {"{website_link}"}, {"{google_review_link}"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
