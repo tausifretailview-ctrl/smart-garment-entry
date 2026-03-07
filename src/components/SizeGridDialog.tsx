@@ -580,6 +580,20 @@ export function SizeGridDialog({
                                 Stock: {v.stock_qty || 0}
                               </span>
                             )}
+                            <input
+                              type="number"
+                              min="0"
+                              className="w-16 text-center border rounded p-1 text-xs bg-background"
+                              value={(multiColorPrices[color] || {})[v.id] ?? (v.sale_price || "")}
+                              onChange={(e) =>
+                                setMultiColorPrices(prev => ({
+                                  ...prev,
+                                  [color]: { ...(prev[color] || {}), [v.id]: e.target.value }
+                                }))
+                              }
+                              placeholder="Price"
+                              title="Sale Price"
+                            />
                           </div>
                         ))}
                       </div>
