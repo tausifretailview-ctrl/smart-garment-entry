@@ -99,7 +99,6 @@ export function SalesInvoiceERPTable({
   showItemBarcode,
   showItemHsn,
   showItemMrp,
-  productsById,
   deliveryHistory,
   saleReturns,
   cnAdjustedMap,
