@@ -410,8 +410,9 @@ export function SizeGridDialog({
 
   const handleColorSelect = (color: string) => {
     setSelectedColor(color);
-    setSizeQty({}); // Reset quantities when color changes
-    setCustomSizes([]); // Reset custom sizes when color changes
+    setSizeQty({});
+    setSizePrices({});
+    setCustomSizes([]);
   };
 
   // Calculate total quantity - different for multi-color mode
