@@ -186,8 +186,13 @@ export function LabelCalibrationUI({
   const activePresetName = (activePresetValue !== undefined && activePresetValue !== null) ? activePresetValue : localActivePresetName;
   const setActivePresetName = (name: string | null) => setLocalActivePresetName(name);
   const [saving, setSaving] = useState(false);
+  const [saveA4Open, setSaveA4Open] = useState(false);
+  const [newA4PresetName, setNewA4PresetName] = useState("");
+  const [activeA4PresetName, setActiveA4PresetName] = useState<string | null>(null);
 
   const allPresets = [...BUILT_IN_PRESETS, ...presets];
+  const a4UserPresets = presets.filter(p => p.printMode === 'a4');
+  const isA4UserPreset = activeA4PresetName ? a4UserPresets.some(p => p.name === activeA4PresetName) : false;
 
   const isUserPreset = activePresetName ? presets.some((p) => p.name === activePresetName) : false;
 
