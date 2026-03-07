@@ -85,36 +85,7 @@ export default function Accounts() {
     enabled: !!currentOrganization?.id,
   });
 
-  // Fetch vouchers (shared across tabs for dashboard metrics)
-  const { data: vouchers } = useQuery({
-    queryKey: ["voucher-entries", currentOrganization?.id],
-    queryFn: async () => {
-      const allVouchers: any[] = [];
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from("voucher_entries")
-          .select("id, voucher_number, voucher_date, voucher_type, total_amount, description, reference_type, reference_id, payment_method, discount_amount, discount_reason")
-          .eq("organization_id", currentOrganization?.id)
-          .is("deleted_at", null)
-          .order("created_at", { ascending: false })
-          .range(offset, offset + PAGE_SIZE - 1);
-        if (error) throw error;
-        if (data && data.length > 0) {
-          allVouchers.push(...data);
-          offset += PAGE_SIZE;
-          hasMore = data.length === PAGE_SIZE;
-        } else { hasMore = false; }
-      }
-      return allVouchers;
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
+  // Old voucher fetch removed — now lazy-loaded per tab below
 
   // Fetch dashboard stats via RPC (replaces heavy fetchAll queries for metrics)
   const { data: dashboardStats } = useQuery({
