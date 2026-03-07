@@ -1464,6 +1464,7 @@ export default function BarcodePrinting() {
             height: Number(p.label_height),
             a4Cols: p.a4_cols,
             a4Rows: p.a4_rows,
+            printMode: p.print_mode || 'thermal',
             labelConfig: p.label_config,
             isDefault: p.is_default,
           })));
@@ -3112,7 +3113,7 @@ export default function BarcodePrinting() {
             id: p.id, name: p.name,
             xOffset: Number(p.x_offset), yOffset: Number(p.y_offset),
             vGap: Number(p.v_gap), width: Number(p.label_width), height: Number(p.label_height),
-            a4Cols: p.a4_cols, a4Rows: p.a4_rows,
+            a4Cols: p.a4_cols, a4Rows: p.a4_rows, printMode: p.print_mode || 'thermal',
             labelConfig: p.label_config, isDefault: p.is_default,
           })));
         }
@@ -4491,6 +4492,7 @@ export default function BarcodePrinting() {
                       v_gap: preset.vGap,
                       a4_cols: preset.a4Cols ?? precisionSettings.a4Cols,
                       a4_rows: preset.a4Rows ?? precisionSettings.a4Rows,
+                      print_mode: precisionSettings.printMode,
                       label_config: preset.labelConfig as any,
                     }, { onConflict: "organization_id,name" });
                   if (error) { toast.error("Failed to save preset"); return; }
@@ -4506,7 +4508,7 @@ export default function BarcodePrinting() {
                       id: p.id, name: p.name,
                       xOffset: Number(p.x_offset), yOffset: Number(p.y_offset),
                       vGap: Number(p.v_gap), width: Number(p.label_width), height: Number(p.label_height),
-                      a4Cols: p.a4_cols, a4Rows: p.a4_rows,
+                      a4Cols: p.a4_cols, a4Rows: p.a4_rows, printMode: p.print_mode || 'thermal',
                       labelConfig: p.label_config, isDefault: p.is_default,
                     })));
                   }
@@ -4523,6 +4525,9 @@ export default function BarcodePrinting() {
                   }
                   if (preset.a4Cols) setPrecisionSettings((prev) => ({ ...prev, a4Cols: preset.a4Cols! }));
                   if (preset.a4Rows) setPrecisionSettings((prev) => ({ ...prev, a4Rows: preset.a4Rows! }));
+                  // Auto-detect print mode from preset
+                  const mode = preset.printMode || (preset.a4Cols && preset.a4Rows ? 'a4' : 'thermal');
+                  setPrecisionSettings((prev) => ({ ...prev, printMode: mode }));
                   const isLabelTemplate = savedLabelTemplates.some(t => t.name === preset.name);
                   setActivePrecisionTemplateName(isLabelTemplate ? preset.name : null);
                 }}
@@ -4610,6 +4615,7 @@ export default function BarcodePrinting() {
                     v_gap: preset.vGap,
                     a4_cols: preset.a4Cols ?? precisionSettings.a4Cols,
                     a4_rows: preset.a4Rows ?? precisionSettings.a4Rows,
+                    print_mode: precisionSettings.printMode,
                     label_config: preset.labelConfig as any,
                   }, { onConflict: "organization_id,name" });
                 if (error) { toast.error("Failed to save preset"); return; }
@@ -4624,7 +4630,7 @@ export default function BarcodePrinting() {
                     id: p.id, name: p.name,
                     xOffset: Number(p.x_offset), yOffset: Number(p.y_offset),
                     vGap: Number(p.v_gap), width: Number(p.label_width), height: Number(p.label_height),
-                    a4Cols: p.a4_cols, a4Rows: p.a4_rows,
+                    a4Cols: p.a4_cols, a4Rows: p.a4_rows, printMode: p.print_mode || 'thermal',
                     labelConfig: p.label_config, isDefault: p.is_default,
                   })));
                 }
@@ -4641,6 +4647,9 @@ export default function BarcodePrinting() {
                 }
                 if (preset.a4Cols) setPrecisionSettings((prev) => ({ ...prev, a4Cols: preset.a4Cols! }));
                 if (preset.a4Rows) setPrecisionSettings((prev) => ({ ...prev, a4Rows: preset.a4Rows! }));
+                // Auto-detect print mode from preset
+                const mode = preset.printMode || (preset.a4Cols && preset.a4Rows ? 'a4' : 'thermal');
+                setPrecisionSettings((prev) => ({ ...prev, printMode: mode }));
                 // Track active template for auto-save (only for saved label templates, not built-in presets)
                 const isLabelTemplate = savedLabelTemplates.some(t => t.name === preset.name);
                 setActivePrecisionTemplateName(isLabelTemplate ? preset.name : null);

@@ -52,11 +52,12 @@ export function PrecisionPrintCSS({ labelWidth, labelHeight, mode }: PrecisionPr
         .precision-print-area > div {
           margin: 0 !important;
           padding-bottom: 0 !important;
-          width: ${mode === "thermal" ? `${labelWidth}mm` : "auto"} !important;
-          height: ${mode === "thermal" ? `${labelHeight}mm` : "auto"} !important;
-          overflow: hidden !important;
+          width: ${mode === "thermal" ? `${labelWidth}mm` : "210mm"} !important;
+          height: ${mode === "thermal" ? `${labelHeight}mm` : "297mm"} !important;
+          overflow: ${mode === "thermal" ? "hidden" : "visible"} !important;
           page-break-after: always !important;
           page-break-inside: avoid !important;
+          box-sizing: border-box !important;
         }
         .precision-print-area > div:last-child {
           page-break-after: auto !important;
