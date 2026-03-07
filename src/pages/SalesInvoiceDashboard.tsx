@@ -184,7 +184,7 @@ export default function SalesInvoiceDashboard() {
       {
         label: "Edit Invoice",
         icon: Edit,
-        onClick: () => navigate(`/sales-invoice/${invoice.id}`),
+        onClick: () => navigate('/sales-invoice', { state: { editInvoiceId: invoice.id } }),
         disabled: !canModify,
       },
       { label: "", separator: true, onClick: () => {} },
