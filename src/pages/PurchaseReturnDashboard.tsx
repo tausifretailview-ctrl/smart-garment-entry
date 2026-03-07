@@ -408,29 +408,15 @@ const PurchaseReturnDashboard = () => {
     }
   };
 
-  const filteredReturns = returns.filter(ret => {
-    const matchesSearch = 
-      ret.supplier_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ret.original_bill_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ret.return_number?.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesDateRange = 
-      (!startDate || ret.return_date >= startDate) &&
-      (!endDate || ret.return_date <= endDate);
+  // Server-side filtering already applied
+  const filteredReturns = returns;
+  const paginatedReturns = returns; // Already paginated server-side
 
-    return matchesSearch && matchesDateRange;
-  });
+  const totalPages = Math.ceil((returnsData?.totalCount || returns.length) / pageSize);
 
-  const paginatedReturns = filteredReturns.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
-  );
-
-  const totalPages = Math.ceil(filteredReturns.length / pageSize);
-
-  const totalReturnAmount = filteredReturns.reduce((sum, ret) => sum + ret.net_amount, 0);
-  const averageReturnValue = filteredReturns.length > 0 
-    ? totalReturnAmount / filteredReturns.length 
+  const totalReturnAmount = returns.reduce((sum, ret) => sum + ret.net_amount, 0);
+  const averageReturnValue = returns.length > 0 
+    ? totalReturnAmount / returns.length 
     : 0;
 
   if (loading) {
