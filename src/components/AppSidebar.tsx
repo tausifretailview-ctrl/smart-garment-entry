@@ -100,7 +100,7 @@ export function AppSidebar() {
   const reportsPaths = ["/stock-report", "/stock-analysis", "/stock-ageing", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/daily-tally", "/item-wise-sales", "/item-wise-stock", "/price-history", "/gst-reports", "/gst-register", "/tally-export", "/sales-analytics", "/accounting-reports"];
   const accountsPaths = ["/accounts", "/payments-dashboard"];
   const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
-  const schoolPaths = ["/students", "/student-entry", "/teachers", "/fee-collection", "/fee-heads", "/fee-structures", "/academic-years", "/classes", "/student-reports"];
+  const schoolPaths = ["/students", "/student-entry", "/teachers", "/fee-collection", "/fee-heads", "/fee-structures", "/academic-years", "/classes", "/student-reports", "/student-promotion"];
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border dark:bg-[hsl(213,32%,17%)] pt-0" style={{ width: '280px' }}>
