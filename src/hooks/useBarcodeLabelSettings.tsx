@@ -153,7 +153,7 @@ export function useBarcodeLabelSettings() {
           organization_id: currentOrganization.id,
           setting_type: "label_template",
           setting_name: template.name,
-          setting_data: { config: template.config } as any,
+          setting_data: { config: template.config, labelWidth: template.labelWidth, labelHeight: template.labelHeight } as any,
         } as any, {
           onConflict: "organization_id,setting_type,setting_name",
         });
