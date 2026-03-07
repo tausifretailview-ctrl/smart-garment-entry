@@ -26,6 +26,13 @@ export function PrecisionPrintCSS({ labelWidth, labelHeight, mode }: PrecisionPr
         @page {
           size: ${pageSize};
           margin: 0 !important;
+          padding: 0 !important;
+        }
+        html, body {
+          margin: 0 !important;
+          padding: 0 !important;
+          width: ${mode === "thermal" ? `${labelWidth}mm` : "210mm"};
+          height: auto;
         }
         body * {
           visibility: hidden;
@@ -40,10 +47,19 @@ export function PrecisionPrintCSS({ labelWidth, labelHeight, mode }: PrecisionPr
           top: 0;
           margin: 0;
           padding: 0;
+          width: ${mode === "thermal" ? `${labelWidth}mm` : "210mm"};
         }
         .precision-print-area > div {
           margin: 0 !important;
           padding-bottom: 0 !important;
+          width: ${mode === "thermal" ? `${labelWidth}mm` : "auto"} !important;
+          height: ${mode === "thermal" ? `${labelHeight}mm` : "auto"} !important;
+          overflow: hidden !important;
+          page-break-after: always !important;
+          page-break-inside: avoid !important;
+        }
+        .precision-print-area > div:last-child {
+          page-break-after: auto !important;
         }
         .precision-barcode-svg {
           image-rendering: pixelated;
