@@ -74,7 +74,21 @@ const FeeCollection = () => {
   const [customDateTo, setCustomDateTo] = useState("");
   const [collectedPage, setCollectedPage] = useState(1);
 
-  // Get current academic year
+  // Fetch all academic years
+  const { data: academicYears } = useQuery({
+    queryKey: ["academic-years-list", currentOrganization?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("academic_years")
+        .select("*")
+        .eq("organization_id", currentOrganization!.id)
+        .order("start_date", { ascending: false });
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  // Get current academic year and set default selection
   const { data: currentYear } = useQuery({
     queryKey: ["current-academic-year", currentOrganization?.id],
     queryFn: async () => {
@@ -84,10 +98,16 @@ const FeeCollection = () => {
         .eq("organization_id", currentOrganization!.id)
         .eq("is_current", true)
         .single();
+      if (data && !selectedYearId) {
+        setSelectedYearId(data.id);
+      }
       return data;
     },
     enabled: !!currentOrganization?.id,
   });
+
+  // The active year used for all queries
+  const activeYear = (academicYears || []).find((y: any) => y.id === selectedYearId) || currentYear;
 
   // Summary: today's collection, month collection, pending dues
   const { data: summary } = useQuery({
