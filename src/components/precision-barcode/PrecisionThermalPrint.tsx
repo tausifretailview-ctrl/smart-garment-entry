@@ -35,7 +35,6 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
                 padding: `${yOffset}mm 0 0 ${xOffset}mm`,
                 boxSizing: "border-box",
                 overflow: "hidden",
-                pageBreakAfter: idx < expandedItems.length - 1 ? "always" : "auto",
                 margin: 0,
               }}
             >
