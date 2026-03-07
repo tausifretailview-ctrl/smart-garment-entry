@@ -268,93 +268,77 @@ const PurchaseBillDashboard = () => {
   
   const showMrp = (purchaseSettings?.purchase_settings as any)?.show_mrp || false;
 
+  // Debounced search for server-side filtering
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   useEffect(() => {
-    fetchBills();
-  }, []);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, startDate, endDate, itemsPerPage]);
+  }, [startDate, endDate, itemsPerPage]);
 
-  const fetchBills = async () => {
-    setLoading(true);
-    try {
-      // Phase 1: Fetch all purchase bills — show table as soon as bills arrive
-      const allBills: any[] = [];
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
-      
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from("purchase_bills")
-          .select("*")
-          .eq("organization_id", currentOrganization?.id)
-          .is("deleted_at", null)
-          .order("bill_date", { ascending: false })
-          .range(offset, offset + PAGE_SIZE - 1);
+  // Server-side paginated query for purchase bills
+  const { data: billsQueryData, isLoading: billsQueryLoading, refetch: refetchBills } = useQuery({
+    queryKey: ["purchase-bills", currentOrganization?.id, debouncedSearch, startDate, endDate, sortOrder, currentPage, itemsPerPage],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return { bills: [], totalCount: 0 };
 
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          allBills.push(...data);
-          offset += PAGE_SIZE;
-          hasMore = data.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage - 1;
+
+      let query = supabase
+        .from("purchase_bills")
+        .select("id, supplier_id, supplier_name, supplier_invoice_no, software_bill_no, bill_date, gross_amount, discount_amount, gst_amount, net_amount, notes, created_at, payment_status, paid_amount, total_qty", { count: "exact" })
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
+
+      // Server-side search
+      if (debouncedSearch) {
+        query = query.or(`supplier_name.ilike.%${debouncedSearch}%,supplier_invoice_no.ilike.%${debouncedSearch}%,software_bill_no.ilike.%${debouncedSearch}%`);
       }
 
-      setBills(allBills);
-      setLoading(false); // UI becomes interactive here
-      
-      // Phase 2: Fetch items in background — qty badges update later
-      if (allBills.length > 0) {
-        setItemsLoading(true);
-        const billIds = allBills.map(b => b.id);
-        
-        const allItems: any[] = [];
-        let itemOffset = 0;
-        let itemsHasMore = true;
-        
-        while (itemsHasMore) {
-          const { data: itemsData, error: itemsError } = await supabase
-            .from("purchase_items")
-            .select("bill_id, qty, id, product_id, product_name, brand, category, color, style, size, pur_price, sale_price, mrp, gst_per, hsn_code, barcode, line_total")
-            .in("bill_id", billIds)
-            .is("deleted_at", null)
-            .range(itemOffset, itemOffset + PAGE_SIZE - 1);
-          
-          if (itemsError) throw itemsError;
-          
-          if (itemsData && itemsData.length > 0) {
-            allItems.push(...itemsData);
-            itemOffset += PAGE_SIZE;
-            itemsHasMore = itemsData.length === PAGE_SIZE;
-          } else {
-            itemsHasMore = false;
-          }
-        }
-        
-        const itemsByBill: Record<string, PurchaseItem[]> = {};
-        allItems.forEach(item => {
-          if (!itemsByBill[item.bill_id]) {
-            itemsByBill[item.bill_id] = [];
-          }
-          itemsByBill[item.bill_id].push(item);
-        });
-        setBillItems(itemsByBill);
-        setItemsLoading(false);
+      // Server-side date filtering
+      if (startDate) {
+        query = query.gte("bill_date", startDate);
       }
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to load purchase bills",
-        variant: "destructive",
-      });
+      if (endDate) {
+        query = query.lte("bill_date", endDate);
+      }
+
+      query = query.order("bill_date", { ascending: sortOrder === "asc" })
+        .range(startIndex, endIndex);
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+
+      return { bills: (data || []) as PurchaseBill[], totalCount: count || 0 };
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
+  });
+
+  // Sync query results to state for backward compatibility
+  useEffect(() => {
+    if (billsQueryData) {
+      setBills(billsQueryData.bills);
       setLoading(false);
-      setItemsLoading(false);
     }
+  }, [billsQueryData]);
+
+  useEffect(() => {
+    if (billsQueryLoading && bills.length === 0) {
+      setLoading(true);
+    }
+  }, [billsQueryLoading]);
+
+  const fetchBills = () => {
+    refetchBills();
   };
 
   const fetchBillItems = async (billId: string) => {
