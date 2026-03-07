@@ -92,6 +92,7 @@ export function SizeGridDialog({
   const [addedColors, setAddedColors] = useState<string[]>([]);
   // Multi-color mode state: { [color]: { [variantId]: qty } }
   const [multiColorQty, setMultiColorQty] = useState<{ [color: string]: { [variantId: string]: string } }>({});
+  const [multiColorPrices, setMultiColorPrices] = useState<{ [color: string]: { [variantId: string]: string } }>({});
   const [multiColorCustomSizes, setMultiColorCustomSizes] = useState<{ [color: string]: CustomSizeEntry[] }>({});
   const [activeCustomSizeColor, setActiveCustomSizeColor] = useState<string | null>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
