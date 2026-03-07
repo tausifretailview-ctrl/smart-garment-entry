@@ -4688,6 +4688,24 @@ export default function BarcodePrinting() {
                 <Select 
                   value={activePrecisionTemplateName || ""} 
                   onValueChange={(name) => {
+                    // Handle printer presets (from printer_presets table)
+                    if (name.startsWith("preset:")) {
+                      const presetName = name.replace("preset:", "");
+                      const preset = dbPresets.find(p => p.name === presetName);
+                      if (preset && preset.labelConfig) {
+                        const migratedConfig = ensureCompleteFieldOrder(preset.labelConfig);
+                        setPrecisionSettings((prev) => ({
+                          ...prev,
+                          labelConfig: migratedConfig,
+                          labelWidth: preset.width,
+                          labelHeight: preset.height,
+                        }));
+                        setActivePrecisionTemplateName(name);
+                        toast.success(`Preset "${presetName}" loaded`);
+                      }
+                      return;
+                    }
+                    // Handle label templates (from barcode_label_settings table)
                     const template = savedLabelTemplates.find(t => t.name === name);
                     if (template) {
                       const migratedConfig = ensureCompleteFieldOrder(template.config);
@@ -4706,19 +4724,36 @@ export default function BarcodePrinting() {
                     <SelectValue placeholder="Select a template to edit..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {savedLabelTemplates.length === 0 ? (
+                    {savedLabelTemplates.length === 0 && dbPresets.filter(p => p.labelConfig).length === 0 ? (
                       <div className="px-2 py-2 text-xs text-muted-foreground">No saved templates. Save one first.</div>
                     ) : (
-                      savedLabelTemplates.map((t) => (
-                        <SelectItem key={t.name} value={t.name} className="text-xs">
-                          📐 {t.name}
-                          {t.labelWidth && t.labelHeight && (
-                            <span className="ml-1 text-muted-foreground">
-                              ({t.labelWidth}×{t.labelHeight}mm)
-                            </span>
-                          )}
-                        </SelectItem>
-                      ))
+                      <>
+                        {savedLabelTemplates.length > 0 && (
+                          <>
+                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">💾 Label Templates</div>
+                            {savedLabelTemplates.map((t) => (
+                              <SelectItem key={`lt-${t.name}`} value={t.name} className="text-xs">
+                                📐 {t.name}
+                                {t.labelWidth && t.labelHeight && (
+                                  <span className="ml-1 text-muted-foreground">
+                                    ({t.labelWidth}×{t.labelHeight}mm)
+                                  </span>
+                                )}
+                              </SelectItem>
+                            ))}
+                          </>
+                        )}
+                        {dbPresets.filter(p => p.labelConfig).length > 0 && (
+                          <>
+                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">🖨️ Printer Presets</div>
+                            {dbPresets.filter(p => p.labelConfig).map((p) => (
+                              <SelectItem key={`pp-${p.name}`} value={`preset:${p.name}`} className="text-xs">
+                                🖨️ {p.name} ({p.width}×{p.height}mm)
+                              </SelectItem>
+                            ))}
+                          </>
+                        )}
+                      </>
                     )}
                   </SelectContent>
                 </Select>
