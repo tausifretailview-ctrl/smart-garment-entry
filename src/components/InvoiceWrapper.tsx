@@ -179,7 +179,15 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     // Get settings - use prop overrides if provided, otherwise use database settings
     const template = props.template || settings?.sale_settings?.invoice_template || 'professional';
     const colorScheme = props.colorScheme || settings?.sale_settings?.invoice_color_scheme || 'blue';
-    const format = props.format || settings?.sale_settings?.invoice_paper_format || 'a4';
+    const rawFormat = props.format || settings?.sale_settings?.invoice_paper_format || 
+      (() => {
+        // Fallback: derive from sales_bill_format if invoice_paper_format not set
+        const sbf = (settings?.sale_settings as any)?.sales_bill_format;
+        if (sbf === 'a5') return 'a5-vertical';
+        if (sbf === 'a5-horizontal') return 'a5-horizontal';
+        return undefined;
+      })() || 'a4';
+    const format = rawFormat === 'a5' ? 'a5-vertical' : rawFormat;
     
     // Get display settings - use prop overrides if provided for live preview
     const showHSN = props.showHSN ?? settings?.sale_settings?.show_hsn_code ?? true;
