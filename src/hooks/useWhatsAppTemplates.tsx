@@ -121,11 +121,11 @@ export const useWhatsAppTemplates = () => {
     return parts.length > 0 ? parts.join("\n") : "";
   };
 
-  const formatMessage = (templateType: string, invoice: Invoice, items?: string, customerBalance?: number) => {
+  const formatMessage = (templateType: string, invoice: Invoice, items?: string, customerBalance?: number, extraData?: { invoiceLink?: string; organizationName?: string }) => {
     const template = getTemplate(templateType);
     if (!template) {
       // Return default message if no template found
-      return getDefaultMessage(templateType, invoice, items, customerBalance);
+      return getDefaultMessage(templateType, invoice, items, customerBalance, extraData);
     }
 
     let message = template.message_template;
@@ -154,6 +154,8 @@ export const useWhatsAppTemplates = () => {
       .replace(/{amount}/g, `₹${Number(invoice.net_amount).toLocaleString("en-IN")}`)
       .replace(/{payment_status}/g, invoice.payment_status)
       .replace(/{invoice_items}/g, items || "")
+      .replace(/{invoice_link}/g, extraData?.invoiceLink || "")
+      .replace(/{organization_name}/g, extraData?.organizationName || "")
       .replace(/{paid_amount}/g, `₹${Number(paidAmount).toLocaleString("en-IN")}`)
       .replace(/{pending_amount}/g, `₹${Number(pendingAmount).toLocaleString("en-IN")}`)
       .replace(/{due_date}/g, invoice.due_date ? format(new Date(invoice.due_date), "dd MMM yyyy") : "Not specified")
