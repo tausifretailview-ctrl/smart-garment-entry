@@ -582,7 +582,7 @@ export function SalesInvoiceERPTable({
         )}
       </div>
     );
-  }, [showItemBrand, showItemColor, showItemStyle, showItemBarcode, showItemHsn, showItemMrp, productsById, deliveryHistory, saleReturns, getDeliveryBadgeClass, getDeliveryLabel]);
+  }, [showItemBrand, showItemColor, showItemStyle, showItemBarcode, showItemHsn, showItemMrp, deliveryHistory, saleReturns, getDeliveryBadgeClass, getDeliveryLabel]);
 
   const footerRow = paginatedInvoices.length > 0 ? (
     <tr>
