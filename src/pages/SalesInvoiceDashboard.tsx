@@ -225,7 +225,7 @@ export default function SalesInvoiceDashboard() {
         icon: User,
         onClick: () => {
           navigator.clipboard.writeText(invoice.customer_name || '');
-          toast.success("Customer name copied");
+          toast({ title: "Customer name copied" });
         },
         disabled: !invoice.customer_name,
       },
@@ -234,7 +234,7 @@ export default function SalesInvoiceDashboard() {
         icon: Phone,
         onClick: () => {
           navigator.clipboard.writeText(invoice.customer_phone || '');
-          toast.success("Mobile number copied");
+          toast({ title: "Mobile number copied" });
         },
         disabled: !invoice.customer_phone,
       },
