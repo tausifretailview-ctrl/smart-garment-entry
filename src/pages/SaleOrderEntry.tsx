@@ -329,6 +329,8 @@ export default function SaleOrderEntry() {
       return allCustomers;
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 300000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch products with pagination
