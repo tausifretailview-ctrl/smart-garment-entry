@@ -153,7 +153,7 @@ const FeeCollection = () => {
         .from("student_fees")
         .select("paid_amount")
         .eq("organization_id", currentOrganization!.id)
-        .eq("academic_year_id", currentYear.id);
+        .eq("academic_year_id", activeYear.id);
 
       const totalPaid = (allPayments || []).reduce((s: number, r: any) => s + (r.paid_amount || 0), 0);
 
