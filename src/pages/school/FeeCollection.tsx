@@ -192,7 +192,7 @@ const FeeCollection = () => {
 
       if (!data?.length) return data || [];
 
-      if (!currentYear) {
+      if (!activeYear) {
         return data.map((student: any) => ({
           ...student,
           totalExpected: 0,
