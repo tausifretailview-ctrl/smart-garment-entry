@@ -106,6 +106,8 @@ export default function SalesAnalyticsDashboard() {
       return await fetchAllSaleItems(saleIds);
     },
     enabled: !!currentOrganization?.id && !!salesData?.length,
+    staleTime: 60000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch previous period data for comparison
