@@ -92,12 +92,13 @@ export default function SalesInvoiceDashboard() {
   const { formatMessage } = useWhatsAppTemplates();
   const { sendWhatsApp, copyInvoiceLink } = useWhatsAppSend();
   const { settings: whatsAppAPISettings, sendMessageAsync, isSending: isSendingWhatsAppAPI } = useWhatsAppAPI();
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loadedItems, setLoadedItems] = useState<Record<string, any[]>>({});
   const loadedItemsRef = useRef<Record<string, any[]>>({});
   const [deliveryFilter, setDeliveryFilter] = useState<string>("all");
-  const [periodFilter, setPeriodFilter] = useState<string>("all");
+  const [periodFilter, setPeriodFilter] = useState<string>("monthly");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
