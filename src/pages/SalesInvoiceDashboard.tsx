@@ -706,7 +706,7 @@ export default function SalesInvoiceDashboard() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, itemsPerPage, periodFilter, paymentStatusFilter, startDate, endDate]);
+  }, [debouncedSearch, itemsPerPage, periodFilter, paymentStatusFilter, deliveryFilter, startDate, endDate]);
 
   const handlePageSizeChange = (value: string) => {
     setItemsPerPage(Number(value));
