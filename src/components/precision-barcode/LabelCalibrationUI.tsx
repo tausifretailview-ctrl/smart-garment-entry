@@ -29,6 +29,7 @@ export interface CalibrationPreset {
   height: number;
   a4Cols?: number;
   a4Rows?: number;
+  printMode?: 'thermal' | 'a4';
   labelConfig?: LabelDesignConfig | null;
   isDefault?: boolean;
 }
