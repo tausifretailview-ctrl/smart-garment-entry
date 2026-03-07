@@ -278,9 +278,9 @@ const FeeCollection = () => {
 
   // Fetch collected fees data
   const { data: collectedFees, isLoading: collectedLoading } = useQuery({
-    queryKey: ["fees-collected", currentOrganization?.id, currentYear?.id, collectedPeriod, customDateFrom, customDateTo, collectedSearch],
+    queryKey: ["fees-collected", currentOrganization?.id, activeYear?.id, collectedPeriod, customDateFrom, customDateTo, collectedSearch],
     queryFn: async () => {
-      if (!currentYear) return [];
+      if (!activeYear) return [];
 
       let query = supabase
         .from("student_fees")
