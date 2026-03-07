@@ -172,7 +172,7 @@ const FeeCollection = () => {
 
   // Fetch students with fee due calculations
   const { data: students, isLoading } = useQuery({
-    queryKey: ["students-fee-collection", currentOrganization?.id, searchQuery, currentYear?.id],
+    queryKey: ["students-fee-collection", currentOrganization?.id, searchQuery, activeYear?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
