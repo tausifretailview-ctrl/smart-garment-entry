@@ -156,6 +156,7 @@ export function SizeGridDialog({
       setNewColorName("");
       setAddedColors([]);
       setMultiColorQty({});
+      setMultiColorPrices({});
       setMultiColorCustomSizes({});
       setActiveCustomSizeColor(null);
       // If only one color, auto-select it (for single-color mode)
