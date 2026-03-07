@@ -499,9 +499,9 @@ export function SalesInvoiceERPTable({
                 return (
                   <TableRow key={item.id}>
                     <TableCell>{item.product_name}</TableCell>
-                    {showItemBrand && <TableCell>{productsById?.[item.product_id]?.brand || '-'}</TableCell>}
-                    {showItemColor && <TableCell>{item.color || productsById?.[item.product_id]?.color || '-'}</TableCell>}
-                    {showItemStyle && <TableCell>{productsById?.[item.product_id]?.style || '-'}</TableCell>}
+                    {showItemBrand && <TableCell>{'-'}</TableCell>}
+                    {showItemColor && <TableCell>{item.color || '-'}</TableCell>}
+                    {showItemStyle && <TableCell>{'-'}</TableCell>}
                     <TableCell>{item.size}</TableCell>
                     {showItemBarcode && <TableCell className="text-xs font-mono">{item.barcode || '-'}</TableCell>}
                     {showItemHsn && <TableCell className="text-xs">{item.hsn_code || '-'}</TableCell>}
