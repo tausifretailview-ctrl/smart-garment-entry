@@ -1,58 +1,43 @@
 
 
-## Fix: Sales Invoice Dashboard Slow Loading + Edit Invoice Issues
+## Completed: Heavy Query Load Optimization
 
-### Problems Found
+All 5 priority pages optimized:
 
-**1. Dashboard fetches ALL invoices with ALL sale_items on every load (lines 361-405)**
-The query uses `select('*, sale_items (*)')` in a loop fetching ALL invoices (no limit, no server-side pagination). For a business with thousands of invoices, this downloads the entire history including every line item — massive payload causing the slow load and the skeleton loading state shown in the screenshot.
+1. **PurchaseBillDashboard** — Server-side pagination + search + date filters via `useQuery`, removed Phase 2 bulk item pre-fetch (lazy-load on expand only), staleTime 30s
+2. **SaleReturnDashboard** — Converted from useEffect/setState to `useQuery` with server-side pagination + debounced search, lazy item loading with cache
+3. **PurchaseReturnDashboard** — Server-side pagination + debounced search + date filters via `useQuery`, staleTime 30s
+4. **Accounts** — Created `get_accounts_dashboard_stats` RPC for summary cards (replaces 3x fetchAll calls), lazy tab loading (vouchers/sales/customers/suppliers only fetched when their tab is active)
+5. **SalesAnalyticsDashboard** — Added staleTime 60s + refetchOnWindowFocus:false to all queries
 
-**2. No `staleTime` or `refetchOnWindowFocus: false` on the main invoices query**
-Every tab switch or navigation triggers a full re-fetch of all invoices + all line items.
+## Completed: Sales Invoice Dashboard Optimization
 
-**3. `searchQuery` is in the query key but filtering happens client-side (line 362)**
-Typing in search causes the entire dataset to re-fetch from the database even though the search is done in JavaScript. This is unnecessary and slow.
+1. **Server-side pagination** — Replaced fetch-all-invoices loop with paginated query (50 rows per page, `{ count: 'exact' }`)
+2. **No more `sale_items(*)` in list** — Removed nested sale_items fetch, uses `total_qty` column instead
+3. **Server-side filtering** — Search (debounced 300ms), date range, payment status, delivery status all applied server-side
+4. **Summary stats via RPC** — Uses `get_sales_invoice_dashboard_stats` RPC instead of client-side computation
+5. **Default period = This Month** — Fast first load instead of fetching all-time data
+6. **staleTime 30s + refetchOnWindowFocus: false** — Prevents redundant re-fetches
+7. **Cache invalidation after save/update** — SalesInvoice.tsx invalidates `['invoices']` and `['invoice-dashboard-stats']` after create/update
+8. **useDashboardInvalidation** — Added `['invoices']` and `['invoice-dashboard-stats']` to `invalidateSales()`
 
-**4. SalesInvoice.tsx edit flow doesn't invalidate the dashboard query key**
-After updating an invoice in `SalesInvoice.tsx`, no cache invalidation happens for `['invoices']` — the `useDashboardInvalidation` hook only invalidates `dashboard-stats`, `sales-trend`, etc. but NOT the `['invoices']` key. So when user returns to dashboard, data may be stale until a manual refresh.
+## Completed: Entry Form Query Optimization (ELLA NOOR slow billing fix)
 
-**5. Summary stats calculated from ALL fetched data**
-`summaryStats` (line 645-658) iterates the entire `filteredInvoices` array including `sale_items` nested loops for qty — compounded by the large dataset.
+All entry forms optimized with caching + explicit columns:
 
-### Fix Plan
+1. **QuotationEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*')` with explicit columns
+2. **SaleOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*, product_variants(*)')` with explicit columns
+3. **PurchaseOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to suppliers & products queries, replaced `select('*')` with explicit columns
+4. **DeliveryChallanEntry** — Added staleTime 5min + refetchOnWindowFocus:false to products query, replaced `select('*, product_variants(*), size_groups(*)')` with explicit columns
+5. **PurchaseEntry** — Replaced `select('*')` with explicit columns for suppliers (already had staleTime)
+6. **POSSales** — Already optimized (explicit columns + staleTime 5min)
+7. **SalesInvoice** — Already optimized
 
-**Phase 1: Server-side pagination + lazy line items (biggest impact)**
+## Completed: Cloud Usage Impact Analysis
 
-In `SalesInvoiceDashboard.tsx`:
-- Default period filter to `monthly` (This Month) instead of `all` — fast first load
-- Move search, date, payment status, and delivery filters to server-side (like PurchaseBillDashboard already does)
-- Use `select(...)` with explicit columns, NO `sale_items(*)` in the list query — use `total_qty` column instead
-- Add `{ count: 'exact' }` for proper pagination totals
-- Add `staleTime: 30000` and `refetchOnWindowFocus: false`
-- Add debounced search (300ms) before triggering server query
-- Remove `searchQuery` from query key, use `debouncedSearch` instead
-- Line items are already fetched on-demand in the expand subrow — no change needed there
-
-**Phase 2: Dashboard invalidation after invoice edit/create**
-
-In `SalesInvoice.tsx`:
-- After save (both create and update), invalidate `['invoices']` query key so dashboard refreshes
-- Add `useQueryClient` import and call `queryClient.invalidateQueries({ queryKey: ['invoices'] })` after save
-
-In `useDashboardInvalidation.tsx`:
-- Add `['invoices']` to `invalidateSales()` so all sales mutations also refresh the dashboard list
-
-**Phase 3: Server-side summary stats**
-
-Replace client-side summary computation with a server-side RPC or use the existing `get_sales_invoice_dashboard_stats` RPC if it exists, passing filter params. If no RPC exists, compute stats from the paginated result set (current page only) or create a lightweight count/sum query.
-
-### Files to Modify
-- `src/pages/SalesInvoiceDashboard.tsx` — Server-side pagination, lazy items, default monthly filter, debounced search, staleTime
-- `src/pages/SalesInvoice.tsx` — Invalidate `['invoices']` after save/update  
-- `src/hooks/useDashboardInvalidation.tsx` — Add `['invoices']` to `invalidateSales()`
-
-### Expected Impact
-- Dashboard loads in <1 second (50 rows, no line items) vs 5-15 seconds (all invoices + all items)
-- Edit invoice navigates correctly and dashboard refreshes on return
-- Tab switches don't re-fetch
-
+Estimated impact of all optimizations:
+- **Dashboard reads**: ~95% reduction (server-side pagination, 50 rows vs ALL)
+- **Accounts page**: ~90% reduction (1 RPC vs 3 full-table scans)
+- **Entry form tab switches**: ~80% fewer reads (5min staleTime cache)
+- **Data transfer**: ~40-50% less per read (explicit columns vs select('*'))
+- **Sales Invoice Dashboard**: ~98% reduction (50 rows without sale_items vs ALL invoices with ALL items)

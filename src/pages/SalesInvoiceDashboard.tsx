@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -92,12 +92,13 @@ export default function SalesInvoiceDashboard() {
   const { formatMessage } = useWhatsAppTemplates();
   const { sendWhatsApp, copyInvoiceLink } = useWhatsAppSend();
   const { settings: whatsAppAPISettings, sendMessageAsync, isSending: isSendingWhatsAppAPI } = useWhatsAppAPI();
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loadedItems, setLoadedItems] = useState<Record<string, any[]>>({});
   const loadedItemsRef = useRef<Record<string, any[]>>({});
   const [deliveryFilter, setDeliveryFilter] = useState<string>("all");
-  const [periodFilter, setPeriodFilter] = useState<string>("all");
+  const [periodFilter, setPeriodFilter] = useState<string>("monthly");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
@@ -358,82 +359,122 @@ export default function SalesInvoiceDashboard() {
     }
   };
 
-  const { data: invoicesData, isLoading, refetch, error: invoicesError } = useQuery({
-    queryKey: ['invoices', currentOrganization?.id, searchQuery, deliveryFilter],
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Compute date range for query
+  const queryDateRange = useMemo(() => {
+    const today = new Date();
+    switch (periodFilter) {
+      case 'daily':
+        return { start: format(startOfDay(today), 'yyyy-MM-dd'), end: format(endOfDay(today), 'yyyy-MM-dd\'T\'23:59:59') };
+      case 'monthly':
+        return { start: format(startOfMonth(today), 'yyyy-MM-dd'), end: format(endOfMonth(today), 'yyyy-MM-dd\'T\'23:59:59') };
+      case 'yearly':
+        return { start: format(startOfYear(today), 'yyyy-MM-dd'), end: format(endOfYear(today), 'yyyy-MM-dd\'T\'23:59:59') };
+      case 'custom':
+        return { 
+          start: startDate ? format(startOfDay(startDate), 'yyyy-MM-dd') : null, 
+          end: endDate ? format(endOfDay(endDate), 'yyyy-MM-dd\'T\'23:59:59') : null 
+        };
+      default:
+        return { start: null, end: null };
+    }
+  }, [periodFilter, startDate, endDate]);
+
+  // Server-side paginated query — NO sale_items, explicit columns
+  const { data: invoicesResult, isLoading, refetch, error: invoicesError } = useQuery({
+    queryKey: ['invoices', currentOrganization?.id, debouncedSearch, deliveryFilter, paymentStatusFilter, queryDateRange.start, queryDateRange.end, currentPage, itemsPerPage],
     queryFn: async () => {
-      if (!currentOrganization?.id) return [];
+      if (!currentOrganization?.id) return { data: [], count: 0 };
       
-      // Fetch all invoices using pagination to bypass 1000 row limit
-      const allInvoices: any[] = [];
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
-      
-      while (hasMore) {
-        let query = supabase
-          .from('sales')
-          .select(`*, sale_items (*), customers:customer_id (gst_number), irn, ack_no, einvoice_status, einvoice_error, einvoice_qr_code`)
-          .eq('organization_id', currentOrganization.id)
-          .eq('sale_type', 'invoice')
-          .is('deleted_at', null)
-          .order('created_at', { ascending: false })
-          .range(offset, offset + PAGE_SIZE - 1);
+      const from = (currentPage - 1) * itemsPerPage;
+      const to = from + itemsPerPage - 1;
 
-        if (deliveryFilter !== 'all') {
-          query = query.eq('delivery_status', deliveryFilter);
-        }
+      let query = supabase
+        .from('sales')
+        .select('id, sale_number, sale_date, customer_id, customer_name, customer_phone, customer_email, customer_address, gross_amount, discount_amount, flat_discount_amount, flat_discount_percent, other_charges, round_off, net_amount, paid_amount, payment_method, payment_status, delivery_status, salesman, notes, total_qty, created_at, updated_at, irn, ack_no, einvoice_status, einvoice_error, einvoice_qr_code, sale_return_adjust, due_date, shipping_address, sale_type, customers:customer_id (gst_number)', { count: 'exact' })
+        .eq('organization_id', currentOrganization.id)
+        .eq('sale_type', 'invoice')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
-        const { data, error } = await query;
-        if (error) {
-          console.error('Error fetching invoices:', error);
-          throw error;
-        }
-        
-        if (data && data.length > 0) {
-          allInvoices.push(...data);
-          offset += PAGE_SIZE;
-          hasMore = data.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
+      if (deliveryFilter !== 'all') {
+        query = query.eq('delivery_status', deliveryFilter);
+      }
+      if (paymentStatusFilter !== 'all') {
+        query = query.eq('payment_status', paymentStatusFilter);
+      }
+      if (queryDateRange.start) {
+        query = query.gte('sale_date', queryDateRange.start);
+      }
+      if (queryDateRange.end) {
+        query = query.lte('sale_date', queryDateRange.end);
+      }
+      if (debouncedSearch) {
+        query = query.or(`sale_number.ilike.%${debouncedSearch}%,customer_name.ilike.%${debouncedSearch}%,customer_phone.ilike.%${debouncedSearch}%`);
+      }
+
+      const { data, error, count } = await query;
+      if (error) {
+        console.error('Error fetching invoices:', error);
+        throw error;
       }
       
-      console.log('Fetched invoices:', allInvoices.length);
-      return allInvoices;
+      return { data: data || [], count: count || 0 };
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
   });
 
-  const productIdsForLookup = useMemo(() => {
-    const ids = new Set<string>();
-    (invoicesData || []).forEach((inv: any) => {
-      inv.sale_items?.forEach((it: any) => {
-        if (it.product_id) ids.add(it.product_id);
-      });
-    });
-    return Array.from(ids);
-  }, [invoicesData]);
+  const invoicesData = invoicesResult?.data || [];
+  const totalCount = invoicesResult?.count || 0;
 
-  const { data: productsById } = useQuery({
-    queryKey: ['products_by_id', currentOrganization?.id, productIdsForLookup.join(',')],
+  // Server-side summary stats via RPC
+  const { data: summaryStats } = useQuery({
+    queryKey: ['invoice-dashboard-stats', currentOrganization?.id, debouncedSearch, deliveryFilter, paymentStatusFilter, queryDateRange.start, queryDateRange.end],
     queryFn: async () => {
-      if (!currentOrganization?.id || productIdsForLookup.length === 0) return {} as Record<string, any>;
-
-      const { data, error } = await supabase
-        .from('products')
-        .select('id, brand, style, color')
-        .in('id', productIdsForLookup);
-
-      if (error) throw error;
-
-      const map: Record<string, any> = {};
-      (data || []).forEach((p: any) => {
-        map[p.id] = p;
+      if (!currentOrganization?.id) return null;
+      const { data, error } = await supabase.rpc('get_sales_invoice_dashboard_stats', {
+        p_org_id: currentOrganization.id,
+        p_search: debouncedSearch || undefined,
+        p_delivery_status: deliveryFilter !== 'all' ? deliveryFilter : undefined,
+        p_payment_status: paymentStatusFilter !== 'all' ? paymentStatusFilter : undefined,
+        p_date_start: queryDateRange.start || undefined,
+        p_date_end: queryDateRange.end || undefined,
       });
-      return map;
+      if (error) {
+        console.error('Error fetching dashboard stats:', error);
+        return { totalInvoices: 0, totalAmount: 0, totalDiscount: 0, totalQty: 0, pendingAmount: 0, deliveredCount: 0, deliveredAmount: 0, undeliveredCount: 0, undeliveredAmount: 0 };
+      }
+      const s = data as any;
+      return {
+        totalInvoices: Number(s?.total_invoices || 0),
+        totalAmount: Number(s?.total_amount || 0),
+        totalDiscount: Number(s?.total_discount || 0),
+        totalQty: Number(s?.total_qty || 0),
+        pendingAmount: Number(s?.pending_amount || 0),
+        deliveredCount: Number(s?.delivered_count || 0),
+        deliveredAmount: Number(s?.delivered_amount || 0),
+        undeliveredCount: Number(s?.undelivered_count || 0),
+        undeliveredAmount: Number(s?.undelivered_amount || 0),
+      };
     },
-    enabled: !!currentOrganization?.id && productIdsForLookup.length > 0,
+    enabled: !!currentOrganization?.id,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
   });
+
+  const productIdsForLookup: string[] = [];
+
+  const productsById: Record<string, any> = {};
 
   // Fetch sale returns with credit_status = 'adjusted' linked to invoices
   const { data: cnAdjustedMap } = useQuery({
@@ -581,98 +622,30 @@ export default function SalesInvoiceDashboard() {
     });
   }, [currentOrganization?.id]);
 
-  // Get date range based on period filter
-  const getDateRange = useCallback(() => {
-    const today = new Date();
-    switch (periodFilter) {
-      case 'daily':
-        return { start: startOfDay(today), end: endOfDay(today) };
-      case 'monthly':
-        return { start: startOfMonth(today), end: endOfMonth(today) };
-      case 'yearly':
-        return { start: startOfYear(today), end: endOfYear(today) };
-      case 'custom':
-        return { 
-          start: startDate ? startOfDay(startDate) : null, 
-          end: endDate ? endOfDay(endDate) : null 
-        };
-      default:
-        return { start: null, end: null };
-    }
-  }, [periodFilter, startDate, endDate]);
+  // Server-side handles all filtering — just use invoicesData directly
+  const paginatedInvoices = invoicesData;
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
 
-  // Memoize filtered invoices to avoid recomputing on every render
-  const filteredInvoices = useMemo(() => {
-    const dateRange = getDateRange();
-    
-    return (invoicesData || []).filter((invoice: any) => {
-      // Date filtering
-      if (dateRange.start || dateRange.end) {
-        const invoiceDate = new Date(invoice.sale_date);
-        if (dateRange.start && invoiceDate < dateRange.start) return false;
-        if (dateRange.end && invoiceDate > dateRange.end) return false;
-      }
-      
-      // Payment status filtering
-      if (paymentStatusFilter !== 'all' && invoice.payment_status !== paymentStatusFilter) {
-        return false;
-      }
-      
-      // Search query filtering
-      if (searchQuery) {
-        const searchLower = searchQuery.toLowerCase();
-        
-        // Check basic invoice fields
-        const matchesBasicSearch = 
-          invoice.sale_number?.toLowerCase().includes(searchLower) ||
-          invoice.customer_name?.toLowerCase().includes(searchLower) ||
-          invoice.customer_phone?.toLowerCase().includes(searchLower);
-        
-        // Check barcode in sale items
-        const matchesBarcodeSearch = invoice.sale_items?.some((item: any) => 
-          item.barcode?.toLowerCase().includes(searchLower) ||
-          item.product_name?.toLowerCase().includes(searchLower)
-        );
-        
-        if (!matchesBasicSearch && !matchesBarcodeSearch) return false;
-      }
-      
-      return true;
-    });
-  }, [invoicesData, searchQuery, paymentStatusFilter, getDateRange]);
-
-  // Memoize summary statistics
-  const summaryStats = useMemo(() => ({
-    totalInvoices: filteredInvoices.length,
-    totalAmount: filteredInvoices.reduce((sum: number, inv: any) => sum + (inv.net_amount || 0), 0),
-    totalDiscount: filteredInvoices.reduce((sum: number, inv: any) => sum + (inv.discount_amount || 0) + (inv.flat_discount_amount || 0), 0),
-    totalQty: filteredInvoices.reduce((sum: number, inv: any) => 
-      sum + (inv.sale_items?.reduce((itemSum: number, item: any) => itemSum + (item.quantity || 0), 0) || 0), 0),
-    pendingAmount: filteredInvoices
-      .filter((inv: any) => inv.payment_status !== 'completed')
-      .reduce((sum: number, inv: any) => sum + (inv.net_amount - (inv.paid_amount || 0)), 0),
-    deliveredCount: filteredInvoices.filter((inv: any) => inv.delivery_status === 'delivered').length,
-    deliveredAmount: filteredInvoices.filter((inv: any) => inv.delivery_status === 'delivered').reduce((sum: number, inv: any) => sum + (inv.net_amount || 0), 0),
-    undeliveredCount: filteredInvoices.filter((inv: any) => inv.delivery_status !== 'delivered').length,
-    undeliveredAmount: filteredInvoices.filter((inv: any) => inv.delivery_status !== 'delivered').reduce((sum: number, inv: any) => sum + (inv.net_amount || 0), 0),
-  }), [filteredInvoices]);
-
-  // Memoize pagination calculations
-  const totalPages = useMemo(() => Math.ceil(filteredInvoices.length / itemsPerPage), [filteredInvoices.length, itemsPerPage]);
-  const paginatedInvoices = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    return filteredInvoices.slice(startIndex, endIndex);
-  }, [filteredInvoices, currentPage, itemsPerPage]);
-
-  // Page totals for current page
+  // Page totals computed from current page data (no sale_items, use total_qty)
   const pageTotals = useMemo(() => ({
-    qty: paginatedInvoices.reduce((sum: number, inv: any) => 
-      sum + (inv.sale_items?.reduce((itemSum: number, item: any) => itemSum + (item.quantity || 0), 0) || 0), 0),
+    qty: paginatedInvoices.reduce((sum: number, inv: any) => sum + (inv.total_qty || 0), 0),
     discount: paginatedInvoices.reduce((sum: number, inv: any) => sum + (inv.discount_amount || 0) + (inv.flat_discount_amount || 0), 0),
     amount: paginatedInvoices.reduce((sum: number, inv: any) => sum + (inv.net_amount || 0), 0),
     balance: paginatedInvoices.reduce((sum: number, inv: any) => sum + ((inv.net_amount || 0) - (inv.paid_amount || 0)), 0),
   }), [paginatedInvoices]);
+
+  // Fallback summary stats if RPC hasn't loaded yet
+  const effectiveStats = summaryStats || {
+    totalInvoices: totalCount,
+    totalAmount: 0,
+    totalDiscount: 0,
+    totalQty: 0,
+    pendingAmount: 0,
+    deliveredCount: 0,
+    deliveredAmount: 0,
+    undeliveredCount: 0,
+    undeliveredAmount: 0,
+  };
 
   const handleExportExcel = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -681,7 +654,7 @@ export default function SalesInvoiceDashboard() {
       'Date': inv.sale_date ? format(new Date(inv.sale_date), 'dd/MM/yyyy') : '',
       'Customer': inv.customer_name || '',
       'Phone': inv.customer_phone || '',
-      'Qty': inv.sale_items?.reduce((s: number, i: any) => s + (i.quantity || 0), 0) || 0,
+      'Qty': inv.total_qty || 0,
       'Gross Amount': inv.gross_amount || 0,
       'Discount': (inv.discount_amount || 0) + (inv.flat_discount_amount || 0),
       'Net Amount': inv.net_amount || 0,
@@ -698,14 +671,14 @@ export default function SalesInvoiceDashboard() {
     toast({ title: "Exported", description: `${exportData.length} records exported to Excel` });
   }, [paginatedInvoices, currentPage, toast]);
 
-  // Memoized event handlers (defined after filteredInvoices/paginatedInvoices)
+  // Memoized event handlers
   const toggleSelectAll = useCallback(() => {
-    if (selectedInvoices.size === filteredInvoices.length && filteredInvoices.length > 0) {
+    if (selectedInvoices.size === paginatedInvoices.length && paginatedInvoices.length > 0) {
       setSelectedInvoices(new Set());
     } else {
-      setSelectedInvoices(new Set(filteredInvoices.map((i: any) => i.id)));
+      setSelectedInvoices(new Set(paginatedInvoices.map((i: any) => i.id)));
     }
-  }, [selectedInvoices.size, filteredInvoices]);
+  }, [selectedInvoices.size, paginatedInvoices]);
 
   const toggleSelectInvoice = useCallback((invoiceId: string) => {
     setSelectedInvoices(prev => {
@@ -733,7 +706,7 @@ export default function SalesInvoiceDashboard() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, itemsPerPage, periodFilter, paymentStatusFilter, startDate, endDate]);
+  }, [debouncedSearch, itemsPerPage, periodFilter, paymentStatusFilter, deliveryFilter, startDate, endDate]);
 
   const handlePageSizeChange = (value: string) => {
     setItemsPerPage(Number(value));
@@ -1601,7 +1574,7 @@ export default function SalesInvoiceDashboard() {
               <FileText className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.totalInvoices}</div>
+              <div className="text-2xl font-bold text-white">{effectiveStats.totalInvoices}</div>
               <p className="text-xs text-white/70">All invoices</p>
             </CardContent>
           </Card>
@@ -1615,7 +1588,7 @@ export default function SalesInvoiceDashboard() {
               <Package className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.totalQty}</div>
+              <div className="text-2xl font-bold text-white">{effectiveStats.totalQty}</div>
               <p className="text-xs text-white/70">Items sold</p>
             </CardContent>
           </Card>
@@ -1629,7 +1602,7 @@ export default function SalesInvoiceDashboard() {
               <TrendingUp className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">₹{summaryStats.totalAmount.toFixed(0)}</div>
+              <div className="text-2xl font-bold text-white">₹{effectiveStats.totalAmount.toFixed(0)}</div>
               <p className="text-xs text-white/70">Net amount</p>
             </CardContent>
           </Card>
@@ -1643,7 +1616,7 @@ export default function SalesInvoiceDashboard() {
               <Percent className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">₹{summaryStats.totalDiscount.toFixed(0)}</div>
+              <div className="text-2xl font-bold text-white">₹{effectiveStats.totalDiscount.toFixed(0)}</div>
               <p className="text-xs text-white/70">Given</p>
             </CardContent>
           </Card>
@@ -1657,7 +1630,7 @@ export default function SalesInvoiceDashboard() {
               <Clock className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">₹{summaryStats.pendingAmount.toFixed(0)}</div>
+              <div className="text-2xl font-bold text-white">₹{effectiveStats.pendingAmount.toFixed(0)}</div>
               <p className="text-xs text-white/70">Outstanding</p>
             </CardContent>
           </Card>
@@ -1671,8 +1644,8 @@ export default function SalesInvoiceDashboard() {
               <CheckCircle2 className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.deliveredCount}</div>
-              <p className="text-xs text-white/70">₹{summaryStats.deliveredAmount.toFixed(0)}</p>
+              <div className="text-2xl font-bold text-white">{effectiveStats.deliveredCount}</div>
+              <p className="text-xs text-white/70">₹{effectiveStats.deliveredAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
 
@@ -1685,8 +1658,8 @@ export default function SalesInvoiceDashboard() {
               <Package className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.undeliveredCount}</div>
-              <p className="text-xs text-white/70">₹{summaryStats.undeliveredAmount.toFixed(0)}</p>
+              <div className="text-2xl font-bold text-white">{effectiveStats.undeliveredCount}</div>
+              <p className="text-xs text-white/70">₹{effectiveStats.undeliveredAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
         </div>
@@ -1830,11 +1803,11 @@ export default function SalesInvoiceDashboard() {
                   return toolbar;
                 }}
               />
-            {filteredInvoices.length > 0 && (
+            {totalCount > 0 && (
               <div className="flex items-center justify-between mt-4">
                 <div className="flex items-center gap-4">
                   <div className="text-sm text-muted-foreground">
-                    Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredInvoices.length)} of {filteredInvoices.length} invoices
+                    Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} invoices
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Show:</span>

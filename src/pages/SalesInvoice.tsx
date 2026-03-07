@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
@@ -102,6 +102,7 @@ const customerSchema = z.object({
 
 export default function SalesInvoice() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const location = useLocation();
@@ -1869,6 +1870,11 @@ Thank you for choosing us!`;
           description: "Invoice has been updated successfully",
         });
 
+        // Invalidate dashboard queries so list refreshes on return
+        queryClient.invalidateQueries({ queryKey: ['invoices'] });
+        queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+
         // Mark invoice as saved to prevent draft re-save on unmount
         invoiceSavedRef.current = true;
         // Clear any existing draft after successful save
@@ -2023,6 +2029,11 @@ Thank you for choosing us!`;
           title: "Invoice Saved",
           description: `Invoice ${saleNumber} has been created successfully`,
         });
+
+        // Invalidate dashboard queries so list refreshes on return
+        queryClient.invalidateQueries({ queryKey: ['invoices'] });
+        queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
 
         // Mark invoice as saved to prevent draft re-save on unmount
         invoiceSavedRef.current = true;
