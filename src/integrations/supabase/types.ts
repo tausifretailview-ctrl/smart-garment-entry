@@ -2443,6 +2443,7 @@ export type Database = {
           label_width: number
           name: string
           organization_id: string
+          print_mode: string | null
           updated_at: string | null
           v_gap: number
           x_offset: number
@@ -2459,6 +2460,7 @@ export type Database = {
           label_width?: number
           name: string
           organization_id: string
+          print_mode?: string | null
           updated_at?: string | null
           v_gap?: number
           x_offset?: number
@@ -2475,6 +2477,7 @@ export type Database = {
           label_width?: number
           name?: string
           organization_id?: string
+          print_mode?: string | null
           updated_at?: string | null
           v_gap?: number
           x_offset?: number
