@@ -405,7 +405,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   const renderSummary = () => (
     <>
       {/* Bottom Summary Section */}
-      <div style={{ display: "flex", borderTop: "1px solid #374151", width: "100%", boxSizing: "border-box", overflow: "hidden" }}>
+      <div style={{ display: "flex", borderTop: "1px solid #374151", width: "100%", boxSizing: "border-box", overflow: "visible" }}>
         <div style={{ flex: 1, padding: isA5 ? "5px 6px" : "8px", borderRight: "1px solid #374151", minWidth: 0 }}>
           <div style={{ fontSize: isA5 ? "6pt" : "7pt", fontWeight: "700" }}>AMOUNT IN WORDS:</div>
           <div style={{ fontSize: isA5 ? "7.5pt" : "9pt", fontStyle: "italic" }}>{numberToWords(grandTotal)} Only</div>
