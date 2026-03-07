@@ -247,7 +247,7 @@ export default function PurchaseOrderEntry() {
       while (hasMore) {
         const { data, error } = await supabase
           .from('suppliers')
-          .select('*')
+          .select('id, supplier_name, phone, email, gst_number, address')
           .eq('organization_id', currentOrganization.id)
           .is('deleted_at', null)
           .order('supplier_name')
@@ -264,6 +264,8 @@ export default function PurchaseOrderEntry() {
       return allSuppliers;
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 300000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch products with pagination
