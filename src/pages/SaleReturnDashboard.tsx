@@ -226,19 +226,11 @@ export default function SaleReturnDashboard() {
     setTimeout(() => handlePrint(), 100);
   };
 
-  const filteredReturns = returns.filter((ret) => {
-    const search = searchTerm.toLowerCase();
-    return (
-      ret.return_number?.toLowerCase().includes(search) ||
-      ret.customer_name.toLowerCase().includes(search) ||
-      ret.original_sale_number?.toLowerCase().includes(search) ||
-      ret.return_date.includes(search)
-    );
-  });
-
-  const totalReturns = filteredReturns.length;
-  const totalValue = filteredReturns.reduce((sum, ret) => sum + ret.net_amount, 0);
-  const averageValue = totalReturns > 0 ? totalValue / totalReturns : 0;
+  // Server-side filtering already applied, no client-side filter needed
+  const totalReturns = returnsData?.totalCount || returns.length;
+  const totalValue = returns.reduce((sum, ret) => sum + ret.net_amount, 0);
+  const averageValue = returns.length > 0 ? totalValue / returns.length : 0;
+  const totalPages = Math.ceil(totalReturns / pageSize);
 
   return (
     <div className="w-full px-6 py-6 space-y-6">
