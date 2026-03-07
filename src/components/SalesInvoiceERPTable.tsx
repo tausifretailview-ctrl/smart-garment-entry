@@ -51,7 +51,6 @@ interface SalesInvoiceERPTableProps {
   showItemBarcode: boolean;
   showItemHsn: boolean;
   showItemMrp: boolean;
-  productsById: Record<string, any> | undefined;
   deliveryHistory: Record<string, any[]>;
   saleReturns: Record<string, any[]>;
   cnAdjustedMap: Record<string, any[]>;
@@ -100,7 +99,6 @@ export function SalesInvoiceERPTable({
   showItemBarcode,
   showItemHsn,
   showItemMrp,
-  productsById,
   deliveryHistory,
   saleReturns,
   cnAdjustedMap,
@@ -199,7 +197,7 @@ export function SalesInvoiceERPTable({
         header: "Qty",
         cell: ({ row }) => (
           <span className="text-center block">
-            {row.original.sale_items?.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0) || 0}
+            {row.original.total_qty || 0}
           </span>
         ),
         size: 60,
@@ -361,7 +359,7 @@ export function SalesInvoiceERPTable({
                     <Lock className="h-4 w-4 text-muted-foreground" />
                   </Button>
                 ) : (
-                  <Button variant="ghost" size="icon" onClick={() => navigate('/sales-invoice', { state: { invoiceData: invoice } })}>
+                  <Button variant="ghost" size="icon" onClick={() => navigate(`/sales-invoice/${invoice.id}`)}>
                     <Edit className="h-4 w-4" />
                   </Button>
                 )
@@ -443,7 +441,7 @@ export function SalesInvoiceERPTable({
                         <Lock className="h-4 w-4 mr-2 text-muted-foreground" /> Edit (Locked)
                       </DropdownMenuItem>
                     ) : (
-                      <DropdownMenuItem onClick={() => navigate('/sales-invoice', { state: { invoiceData: invoice } })}>
+                      <DropdownMenuItem onClick={() => navigate(`/sales-invoice/${invoice.id}`)}>
                         <Edit className="h-4 w-4 mr-2" /> Edit Invoice
                       </DropdownMenuItem>
                     )
@@ -584,7 +582,7 @@ export function SalesInvoiceERPTable({
         )}
       </div>
     );
-  }, [showItemBrand, showItemColor, showItemStyle, showItemBarcode, showItemHsn, showItemMrp, productsById, deliveryHistory, saleReturns, getDeliveryBadgeClass, getDeliveryLabel]);
+  }, [showItemBrand, showItemColor, showItemStyle, showItemBarcode, showItemHsn, showItemMrp, deliveryHistory, saleReturns, getDeliveryBadgeClass, getDeliveryLabel]);
 
   const footerRow = paginatedInvoices.length > 0 ? (
     <tr>

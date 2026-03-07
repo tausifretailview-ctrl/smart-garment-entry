@@ -3954,6 +3954,7 @@ export type Database = {
           signed_invoice: string | null
           signed_qr_code: string | null
           terms_conditions: string | null
+          total_qty: number | null
           updated_at: string
           upi_amount: number | null
         }
@@ -4008,6 +4009,7 @@ export type Database = {
           signed_invoice?: string | null
           signed_qr_code?: string | null
           terms_conditions?: string | null
+          total_qty?: number | null
           updated_at?: string
           upi_amount?: number | null
         }
@@ -4062,6 +4064,7 @@ export type Database = {
           signed_invoice?: string | null
           signed_qr_code?: string | null
           terms_conditions?: string | null
+          total_qty?: number | null
           updated_at?: string
           upi_amount?: number | null
         }
@@ -5992,6 +5995,17 @@ export type Database = {
           relation_type: string
           sample_references: string[]
         }[]
+      }
+      get_sales_invoice_dashboard_stats: {
+        Args: {
+          p_date_end?: string
+          p_date_start?: string
+          p_delivery_status?: string
+          p_org_id: string
+          p_payment_status?: string
+          p_search?: string
+        }
+        Returns: Json
       }
       get_sales_report_summary: {
         Args: {

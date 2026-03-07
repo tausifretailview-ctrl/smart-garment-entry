@@ -93,6 +93,9 @@ export default function SalesInvoiceDashboard() {
   const { sendWhatsApp, copyInvoiceLink } = useWhatsAppSend();
   const { settings: whatsAppAPISettings, sendMessageAsync, isSending: isSendingWhatsAppAPI } = useWhatsAppAPI();
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [loadedItems, setLoadedItems] = useState<Record<string, any[]>>({});
+  const loadedItemsRef = useRef<Record<string, any[]>>({});
   const [deliveryFilter, setDeliveryFilter] = useState<string>("all");
   const [periodFilter, setPeriodFilter] = useState<string>("all");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
@@ -969,7 +972,7 @@ export default function SalesInvoiceDashboard() {
     }
 
     try {
-      const totalQty = invoice.sale_items?.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0) || 0;
+      const totalQty = invoice.total_qty || 0;
       
       await sendMessageAsync({
         phone: invoice.customer_phone,
@@ -1784,7 +1787,7 @@ export default function SalesInvoiceDashboard() {
                 columnSettings={columnSettings}
                 currentPage={currentPage}
                 itemsPerPage={itemsPerPage}
-                invoicesData={invoicesData}
+                invoicesData={paginatedInvoices}
                 isLoading={isLoading}
                 handleRowContextMenu={handleRowContextMenu}
                 setSelectedCustomerForHistory={setSelectedCustomerForHistory}
@@ -1816,7 +1819,6 @@ export default function SalesInvoiceDashboard() {
                 showItemBarcode={showItemBarcode}
                 showItemHsn={showItemHsn}
                 showItemMrp={showItemMrp}
-                productsById={productsById}
                 deliveryHistory={deliveryHistory}
                 saleReturns={saleReturns}
                 cnAdjustedMap={cnAdjustedMap || {}}
@@ -1828,11 +1830,11 @@ export default function SalesInvoiceDashboard() {
                   return toolbar;
                 }}
               />
-            {invoicesData && invoicesData.length > 0 && (
+            {totalCount > 0 && (
               <div className="flex items-center justify-between mt-4">
                 <div className="flex items-center gap-4">
                   <div className="text-sm text-muted-foreground">
-                    Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredInvoices.length)} of {filteredInvoices.length} invoices
+                    Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} invoices
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Show:</span>
