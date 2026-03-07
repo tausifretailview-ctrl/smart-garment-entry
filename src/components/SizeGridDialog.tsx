@@ -367,11 +367,14 @@ export function SizeGridDialog({
     for (const [sizeKey, qtyStr] of entries) {
       const qty = Number(qtyStr);
       if (qty > 0) {
-        // Find variant by ID first, then by size for backward compatibility
         const variant = filteredVariants.find((v) => v.id === sizeKey) || 
                        filteredVariants.find((v) => v.size === sizeKey);
         if (variant) {
-          items.push({ variant, qty });
+          const overridePrice = sizePrices[variant.id];
+          const updatedVariant = overridePrice && Number(overridePrice) > 0
+            ? { ...variant, sale_price: Number(overridePrice) }
+            : variant;
+          items.push({ variant: updatedVariant, qty });
         }
       }
     }
