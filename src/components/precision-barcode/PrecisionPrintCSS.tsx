@@ -38,6 +38,12 @@ export function PrecisionPrintCSS({ labelWidth, labelHeight, mode }: PrecisionPr
           position: absolute;
           left: 0;
           top: 0;
+          margin: 0;
+          padding: 0;
+        }
+        .precision-print-area > div {
+          margin: 0 !important;
+          padding-bottom: 0 !important;
         }
         .precision-barcode-svg {
           image-rendering: pixelated;
