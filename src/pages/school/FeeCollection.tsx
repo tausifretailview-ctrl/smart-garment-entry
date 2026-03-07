@@ -299,7 +299,7 @@ const FeeCollection = () => {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!currentOrganization?.id && !!currentYear?.id && activeTab === "collected",
+    enabled: !!currentOrganization?.id && !!activeYear?.id && activeTab === "collected",
   });
 
   // Collected fees summary cards
