@@ -42,6 +42,7 @@ const FeeCollection = () => {
   const { sendWhatsApp } = useWhatsAppSend();
   const [activeTab, setActiveTab] = useState("collect");
   const [deletingReceipt, setDeletingReceipt] = useState<string | null>(null);
+  const [selectedYearId, setSelectedYearId] = useState<string | null>(null);
 
   const deleteReceiptMutation = useMutation({
     mutationFn: async (receiptId: string) => {
