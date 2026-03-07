@@ -1630,7 +1630,7 @@ export default function SalesInvoiceDashboard() {
               <Clock className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">₹{summaryStats.pendingAmount.toFixed(0)}</div>
+              <div className="text-2xl font-bold text-white">₹{effectiveStats.pendingAmount.toFixed(0)}</div>
               <p className="text-xs text-white/70">Outstanding</p>
             </CardContent>
           </Card>
