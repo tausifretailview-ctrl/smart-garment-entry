@@ -886,10 +886,6 @@ export default function SalesInvoiceDashboard() {
       return;
     }
 
-    const itemsList = invoice.sale_items?.map((item: any, index: number) => 
-      `${index + 1}. ${item.product_name} (${item.size}) - Qty: ${item.quantity} - ₹${item.line_total.toFixed(2)}`
-    ).join('\n') || '';
-
     // Generate invoice URL - include org slug for branding
     const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
     const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${invoice.id}`;
@@ -916,7 +912,7 @@ export default function SalesInvoiceDashboard() {
       customerBalance = openingBalance + totalSales - totalPaid;
     }
     
-    // Use template for message
+    // Use template for message - no product items, just invoice details + link
     const templateMessage = formatMessage('sales_invoice', {
       sale_number: invoice.sale_number,
       customer_name: invoice.customer_name,
@@ -930,7 +926,10 @@ export default function SalesInvoiceDashboard() {
       paid_amount: invoice.paid_amount,
       customer_id: invoice.customer_id,
       organization_id: currentOrganization?.id,
-    }, `${itemsList}\n\n📄 View Invoice Online:\n${invoiceUrl}${invoice.terms_conditions ? `\n\n*Terms & Conditions:*\n${invoice.terms_conditions}` : ''}`, customerBalance);
+    }, undefined, customerBalance, {
+      invoiceLink: invoiceUrl,
+      organizationName: currentOrganization?.name || '',
+    });
 
     sendWhatsApp(invoice.customer_phone, templateMessage);
   };
