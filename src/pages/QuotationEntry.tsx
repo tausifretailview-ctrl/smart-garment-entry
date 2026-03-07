@@ -300,7 +300,7 @@ export default function QuotationEntry() {
       while (hasMore) {
         const { data, error } = await supabase
           .from('customers')
-          .select('*')
+          .select('id, customer_name, phone, email, address, gst_number, discount_percent, transport_details')
           .eq('organization_id', currentOrganization.id)
           .is('deleted_at', null)
           .order('customer_name')
@@ -317,6 +317,8 @@ export default function QuotationEntry() {
       return allCustomers;
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 300000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch products with pagination - NO stock filter for quotations
