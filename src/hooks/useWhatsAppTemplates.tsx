@@ -188,7 +188,27 @@ export const useWhatsAppTemplates = () => {
     return parts.length > 0 ? parts.join(" | ") : "";
   };
 
-  const getDefaultMessage = (templateType: string, invoice: Invoice, items?: string, customerBalance?: number) => {
+  const getDefaultMessage = (templateType: string, invoice: Invoice, items?: string, customerBalance?: number, extraData?: { invoiceLink?: string; organizationName?: string }) => {
+    const outstandingAmount = customerBalance || 0;
+    const orgName = extraData?.organizationName || "";
+    const invoiceLink = extraData?.invoiceLink || "";
+
+    if (templateType === "sales_invoice") {
+      return `👋 Hello ${invoice.customer_name},
+
+🧾 Invoice Generated Successfully
+
+${orgName ? `🏢 ${orgName} has generated the following invoice for your order.\n` : ""}🔢 Invoice No: ${invoice.sale_number}
+📅 Date: ${format(new Date(invoice.sale_date), "dd MMM yyyy")}
+💰 Invoice Amount: ₹${Number(invoice.net_amount).toLocaleString("en-IN")}
+⏳ Payment Status: ${invoice.payment_status}
+📊 Outstanding Balance: ₹${Number(outstandingAmount).toLocaleString("en-IN")}
+${invoiceLink ? `\n🔗 View / Download Invoice:\n${invoiceLink}\n` : ""}
+💳 Kindly arrange payment at your convenience.
+
+🙏 Thank you for your continued business with us.`;
+    }
+
     const deliveryStatusText = invoice.delivery_status === "delivered" 
       ? "delivered successfully" 
       : invoice.delivery_status === "in_process"
@@ -198,7 +218,6 @@ export const useWhatsAppTemplates = () => {
     const socialLinksText = buildSocialLinksText();
     const paymentBreakdown = buildPaymentBreakdown(invoice);
     const pointsText = buildPointsText(invoice);
-    const outstandingAmount = customerBalance || 0;
 
     let paymentInfo = `Payment Status: ${invoice.payment_status}`;
     if (paymentBreakdown) {

@@ -203,7 +203,12 @@ export default function SalesInvoiceDashboard() {
         icon: MessageCircle,
         onClick: () => {
           if (invoice.customer_phone) {
-            const message = formatMessage("invoice", invoice) || `Invoice ${invoice.sale_number} - ₹${invoice.net_amount}`;
+            const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
+            const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${invoice.id}`;
+            const message = formatMessage("sales_invoice", invoice, undefined, 0, {
+              invoiceLink: invoiceUrl,
+              organizationName: currentOrganization?.name || '',
+            }) || `Invoice ${invoice.sale_number} - ₹${invoice.net_amount}`;
             sendWhatsApp(invoice.customer_phone, message);
           }
         },
