@@ -534,7 +534,7 @@ export default function SaleReturnDashboard() {
             creditAmount={selectedReturnForAdjust.net_amount}
             customerId={selectedReturnForAdjust.customer_id || ""}
             customerName={selectedReturnForAdjust.customer_name}
-            onSuccess={fetchReturns}
+            onSuccess={() => refetchReturns()}
           />
         )}
 
