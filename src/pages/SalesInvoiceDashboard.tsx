@@ -1658,8 +1658,8 @@ export default function SalesInvoiceDashboard() {
               <Package className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.undeliveredCount}</div>
-              <p className="text-xs text-white/70">₹{summaryStats.undeliveredAmount.toFixed(0)}</p>
+              <div className="text-2xl font-bold text-white">{effectiveStats.undeliveredCount}</div>
+              <p className="text-xs text-white/70">₹{effectiveStats.undeliveredAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
         </div>
