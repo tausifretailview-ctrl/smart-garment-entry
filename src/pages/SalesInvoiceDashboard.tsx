@@ -1016,11 +1016,20 @@ export default function SalesInvoiceDashboard() {
     let customerBalance = 0;
     if (invoice.customer_id) {
       try {
-        const { data: balanceData } = await supabase.rpc('get_customer_balance', {
-          p_customer_id: invoice.customer_id,
-          p_organization_id: currentOrganization?.id
-        });
-        customerBalance = balanceData || 0;
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('opening_balance')
+          .eq('id', invoice.customer_id)
+          .single();
+        const openingBalance = customer?.opening_balance || 0;
+        const { data: sales } = await supabase
+          .from('sales')
+          .select('net_amount, paid_amount')
+          .eq('customer_id', invoice.customer_id)
+          .eq('organization_id', currentOrganization?.id);
+        const totalSales = sales?.reduce((sum, s) => sum + (s.net_amount || 0), 0) || 0;
+        const totalPaid = sales?.reduce((sum, s) => sum + (s.paid_amount || 0), 0) || 0;
+        customerBalance = openingBalance + totalSales - totalPaid;
       } catch (e) {
         customerBalance = invoice.net_amount - (invoice.paid_amount || 0);
       }
