@@ -671,14 +671,14 @@ export default function SalesInvoiceDashboard() {
     toast({ title: "Exported", description: `${exportData.length} records exported to Excel` });
   }, [paginatedInvoices, currentPage, toast]);
 
-  // Memoized event handlers (defined after filteredInvoices/paginatedInvoices)
+  // Memoized event handlers
   const toggleSelectAll = useCallback(() => {
-    if (selectedInvoices.size === filteredInvoices.length && filteredInvoices.length > 0) {
+    if (selectedInvoices.size === paginatedInvoices.length && paginatedInvoices.length > 0) {
       setSelectedInvoices(new Set());
     } else {
-      setSelectedInvoices(new Set(filteredInvoices.map((i: any) => i.id)));
+      setSelectedInvoices(new Set(paginatedInvoices.map((i: any) => i.id)));
     }
-  }, [selectedInvoices.size, filteredInvoices]);
+  }, [selectedInvoices.size, paginatedInvoices]);
 
   const toggleSelectInvoice = useCallback((invoiceId: string) => {
     setSelectedInvoices(prev => {
