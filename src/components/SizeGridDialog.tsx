@@ -1020,16 +1020,10 @@ export function SizeGridDialog({
                   </>
                 )}
 
-                {filteredVariants.length > 0 && filteredVariants[0].sale_price && !allowCustomSizes && (
+                {filteredVariants.length > 0 && (
                   <div className="grid grid-cols-2 gap-3 mb-4">
                     <div className="space-y-2">
-                      <Label>Sale Price (MRP)</Label>
-                      <Input
-                        type="number"
-                        value={filteredVariants[0].sale_price || 0}
-                        readOnly
-                        className="bg-muted"
-                      />
+                      <Label className="text-xs text-muted-foreground">Sale Price (editable per size above)</Label>
                     </div>
                     <div className="space-y-2">
                       <Label>GST %</Label>
