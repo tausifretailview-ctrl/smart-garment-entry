@@ -1464,6 +1464,7 @@ export default function BarcodePrinting() {
             height: Number(p.label_height),
             a4Cols: p.a4_cols,
             a4Rows: p.a4_rows,
+            printMode: p.print_mode || 'thermal',
             labelConfig: p.label_config,
             isDefault: p.is_default,
           })));
