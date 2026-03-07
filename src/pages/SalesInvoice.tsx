@@ -2030,6 +2030,11 @@ Thank you for choosing us!`;
           description: `Invoice ${saleNumber} has been created successfully`,
         });
 
+        // Invalidate dashboard queries so list refreshes on return
+        queryClient.invalidateQueries({ queryKey: ['invoices'] });
+        queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+
         // Mark invoice as saved to prevent draft re-save on unmount
         invoiceSavedRef.current = true;
         // Clear any existing draft after successful save
