@@ -5961,6 +5961,10 @@ export type Database = {
         Args: { p_date?: string; p_type: string }
         Returns: string
       }
+      get_accounts_dashboard_stats: {
+        Args: { p_org_id: string }
+        Returns: Json
+      }
       get_erp_dashboard_stats: {
         Args: { p_end_date: string; p_org_id: string; p_start_date: string }
         Returns: Json
