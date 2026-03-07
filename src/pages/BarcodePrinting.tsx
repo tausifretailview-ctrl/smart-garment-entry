@@ -4688,6 +4688,24 @@ export default function BarcodePrinting() {
                 <Select 
                   value={activePrecisionTemplateName || ""} 
                   onValueChange={(name) => {
+                    // Handle printer presets (from printer_presets table)
+                    if (name.startsWith("preset:")) {
+                      const presetName = name.replace("preset:", "");
+                      const preset = dbPresets.find(p => p.name === presetName);
+                      if (preset && preset.labelConfig) {
+                        const migratedConfig = ensureCompleteFieldOrder(preset.labelConfig);
+                        setPrecisionSettings((prev) => ({
+                          ...prev,
+                          labelConfig: migratedConfig,
+                          labelWidth: preset.width,
+                          labelHeight: preset.height,
+                        }));
+                        setActivePrecisionTemplateName(name);
+                        toast.success(`Preset "${presetName}" loaded`);
+                      }
+                      return;
+                    }
+                    // Handle label templates (from barcode_label_settings table)
                     const template = savedLabelTemplates.find(t => t.name === name);
                     if (template) {
                       const migratedConfig = ensureCompleteFieldOrder(template.config);
