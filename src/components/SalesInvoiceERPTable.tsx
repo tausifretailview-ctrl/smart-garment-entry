@@ -51,7 +51,6 @@ interface SalesInvoiceERPTableProps {
   showItemBarcode: boolean;
   showItemHsn: boolean;
   showItemMrp: boolean;
-  productsById: Record<string, any> | undefined;
   deliveryHistory: Record<string, any[]>;
   saleReturns: Record<string, any[]>;
   cnAdjustedMap: Record<string, any[]>;
