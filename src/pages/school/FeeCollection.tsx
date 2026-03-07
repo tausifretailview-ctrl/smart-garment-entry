@@ -167,7 +167,7 @@ const FeeCollection = () => {
 
       return { today: todayTotal, month: monthTotal, pending };
     },
-    enabled: !!currentOrganization?.id && !!currentYear?.id,
+    enabled: !!currentOrganization?.id && !!activeYear?.id,
   });
 
   // Fetch students with fee due calculations
