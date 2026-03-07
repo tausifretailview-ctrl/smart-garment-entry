@@ -1830,11 +1830,11 @@ export default function SalesInvoiceDashboard() {
                   return toolbar;
                 }}
               />
-            {totalCount > 0 && (
+            {filteredInvoices.length > 0 && (
               <div className="flex items-center justify-between mt-4">
                 <div className="flex items-center gap-4">
                   <div className="text-sm text-muted-foreground">
-                    Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} invoices
+                    Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredInvoices.length)} of {filteredInvoices.length} invoices
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Show:</span>
