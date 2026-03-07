@@ -148,7 +148,7 @@ export default function DeliveryChallanEntry() {
       while (hasMore) {
         const { data, error } = await supabase
           .from('products')
-          .select(`*, product_variants (*), size_groups (id, group_name, sizes)`)
+          .select(`id, product_name, brand, hsn_code, gst_per, product_type, status, category, style, color, size_group_id, uom, product_variants (id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, deleted_at, organization_id), size_groups (id, group_name, sizes)`)
           .eq('organization_id', currentOrganization.id)
           .eq('status', 'active')
           .is('deleted_at', null)
@@ -179,6 +179,8 @@ export default function DeliveryChallanEntry() {
       });
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 300000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch employees

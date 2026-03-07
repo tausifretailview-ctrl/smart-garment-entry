@@ -299,7 +299,7 @@ const PurchaseEntry = () => {
       while (hasMore) {
         const { data, error } = await supabase
           .from("suppliers")
-          .select("*")
+          .select("id, supplier_name, phone, email, gst_number, address, opening_balance")
           .eq("organization_id", currentOrganization?.id)
           .is("deleted_at", null)
           .order("supplier_name")

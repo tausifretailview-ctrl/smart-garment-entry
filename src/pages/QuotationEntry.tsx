@@ -300,7 +300,7 @@ export default function QuotationEntry() {
       while (hasMore) {
         const { data, error } = await supabase
           .from('customers')
-          .select('*')
+          .select('id, customer_name, phone, email, address, gst_number, discount_percent, transport_details')
           .eq('organization_id', currentOrganization.id)
           .is('deleted_at', null)
           .order('customer_name')
@@ -317,6 +317,8 @@ export default function QuotationEntry() {
       return allCustomers;
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 300000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch products with pagination - NO stock filter for quotations
@@ -332,7 +334,7 @@ export default function QuotationEntry() {
       while (hasMore) {
         const { data, error } = await supabase
           .from('products')
-          .select(`*, product_variants (*)`)
+          .select(`id, product_name, brand, hsn_code, gst_per, product_type, status, category, style, color, size_group_id, uom, product_variants (id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, deleted_at, organization_id)`)
           .eq('organization_id', currentOrganization.id)
           .eq('status', 'active')
           .is('deleted_at', null)
@@ -355,6 +357,8 @@ export default function QuotationEntry() {
       }));
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 300000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch employees for Salesman dropdown
