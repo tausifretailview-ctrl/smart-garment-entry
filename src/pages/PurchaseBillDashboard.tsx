@@ -739,40 +739,18 @@ const PurchaseBillDashboard = () => {
     }
   };
 
-  // Memoize filtered and sorted bills
+  // Bills are already filtered server-side, no client-side filtering needed
   const filteredBills = useMemo(() => {
-    return bills.filter((bill) => {
-      const searchLower = searchQuery.toLowerCase();
-      
-      const matchesBasicSearch =
-        searchQuery === "" ||
-        bill.supplier_name.toLowerCase().includes(searchLower) ||
-        bill.supplier_invoice_no?.toLowerCase().includes(searchLower) ||
-        bill.software_bill_no?.toLowerCase().includes(searchLower);
-      
-      const items = billItems[bill.id] || [];
-      const matchesBarcodeSearch = searchQuery !== "" && items.some(item => 
-        item.barcode?.toLowerCase().includes(searchLower) ||
-        item.product_name?.toLowerCase().includes(searchLower)
-      );
-      
-      const matchesSearch = matchesBasicSearch || matchesBarcodeSearch;
-
-      const billDate = new Date(bill.bill_date);
-      const matchesStartDate = !startDate || billDate >= new Date(startDate);
-      const matchesEndDate = !endDate || billDate <= new Date(endDate);
-
-      return matchesSearch && matchesStartDate && matchesEndDate;
-    }).sort((a, b) => {
+    return bills.sort((a, b) => {
       const dateA = new Date(a.bill_date).getTime();
       const dateB = new Date(b.bill_date).getTime();
       return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
     });
-  }, [bills, billItems, searchQuery, startDate, endDate, sortOrder]);
+  }, [bills, sortOrder]);
 
   // Memoize summary statistics
   const summaryStats = useMemo(() => ({
-    totalBills: filteredBills.length,
+    totalBills: billsQueryData?.totalCount || filteredBills.length,
     totalAmount: filteredBills.reduce((sum, bill) => sum + bill.net_amount, 0),
     totalQty: filteredBills.reduce((sum, bill) => {
       const billQty = billItems[bill.id]?.reduce((itemSum, item) => itemSum + item.qty, 0) || 0;
@@ -784,15 +762,11 @@ const PurchaseBillDashboard = () => {
     unpaidAmount: filteredBills.filter(bill => !bill.payment_status || bill.payment_status === 'unpaid' || (bill.paid_amount || 0) === 0).reduce((sum, bill) => sum + bill.net_amount, 0),
     partialCount: filteredBills.filter(bill => bill.payment_status === 'partial' || ((bill.paid_amount || 0) > 0 && (bill.paid_amount || 0) < bill.net_amount)).length,
     partialAmount: filteredBills.filter(bill => bill.payment_status === 'partial' || ((bill.paid_amount || 0) > 0 && (bill.paid_amount || 0) < bill.net_amount)).reduce((sum, bill) => sum + (bill.net_amount - (bill.paid_amount || 0)), 0),
-  }), [filteredBills, billItems]);
+  }), [filteredBills, billItems, billsQueryData]);
 
-  // Memoize pagination calculations
-  const totalPages = useMemo(() => Math.ceil(filteredBills.length / itemsPerPage), [filteredBills.length, itemsPerPage]);
-  const paginatedBills = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    return filteredBills.slice(startIndex, endIndex);
-  }, [filteredBills, currentPage, itemsPerPage]);
+  // Server-side pagination — bills already represent current page
+  const totalPages = useMemo(() => Math.ceil((billsQueryData?.totalCount || filteredBills.length) / itemsPerPage), [billsQueryData, filteredBills.length, itemsPerPage]);
+  const paginatedBills = filteredBills;
 
   // Memoized event handlers (defined after filteredBills/paginatedBills)
   const toggleSelectAll = useCallback(() => {

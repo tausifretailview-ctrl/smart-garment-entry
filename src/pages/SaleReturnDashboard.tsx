@@ -60,12 +60,14 @@ export default function SaleReturnDashboard() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
 
-  const [returns, setReturns] = useState<SaleReturn[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [returnToDelete, setReturnToDelete] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 50;
 
   const [returnToPrint, setReturnToPrint] = useState<SaleReturn | null>(null);
   const [businessDetails, setBusinessDetails] = useState<BusinessDetails | null>(null);
@@ -76,17 +78,68 @@ export default function SaleReturnDashboard() {
   const [selectedReturnForAdjust, setSelectedReturnForAdjust] = useState<SaleReturn | null>(null);
   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
+  const queryClient = useQueryClient();
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
   });
 
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Server-side paginated query
+  const { data: returnsData, isLoading: returnsLoading, refetch: refetchReturns } = useQuery({
+    queryKey: ["sale-returns", currentOrganization?.id, debouncedSearch, currentPage, pageSize],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return { returns: [], totalCount: 0 };
+
+      const startIndex = (currentPage - 1) * pageSize;
+      const endIndex = startIndex + pageSize - 1;
+
+      let query = supabase
+        .from("sale_returns")
+        .select("id, return_number, customer_name, customer_id, original_sale_number, return_date, gross_amount, gst_amount, net_amount, notes, credit_note_id, credit_status, linked_sale_id, refund_type", { count: "exact" })
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
+
+      if (debouncedSearch) {
+        query = query.or(`return_number.ilike.%${debouncedSearch}%,customer_name.ilike.%${debouncedSearch}%,original_sale_number.ilike.%${debouncedSearch}%`);
+      }
+
+      query = query.order("return_date", { ascending: false }).range(startIndex, endIndex);
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+      return { returns: (data || []) as SaleReturn[], totalCount: count || 0 };
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
+  });
+
+  const returns = returnsData?.returns || [];
+
+  useEffect(() => {
+    if (returnsData) setLoading(false);
+  }, [returnsData]);
+
+  useEffect(() => {
+    if (returnsLoading && returns.length === 0) setLoading(true);
+  }, [returnsLoading]);
+
   useEffect(() => {
     if (currentOrganization) {
-      fetchReturns();
       fetchBusinessDetails();
     }
   }, [currentOrganization]);
+
+  const fetchReturns = () => { refetchReturns(); };
 
   const fetchBusinessDetails = async () => {
     const { data, error } = await supabase
@@ -101,25 +154,6 @@ export default function SaleReturnDashboard() {
     }
 
     setBusinessDetails(data);
-  };
-
-  const fetchReturns = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("sale_returns")
-      .select("*")
-      .eq("organization_id", currentOrganization?.id)
-      .is("deleted_at", null)
-      .order("return_date", { ascending: false });
-
-    if (error) {
-      toast({ title: "Error", description: "Failed to load returns", variant: "destructive" });
-      setLoading(false);
-      return;
-    }
-
-    setReturns(data || []);
-    setLoading(false);
   };
 
   const fetchReturnItems = async (returnId: string) => {
