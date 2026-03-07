@@ -1588,7 +1588,7 @@ export default function SalesInvoiceDashboard() {
               <Package className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.totalQty}</div>
+              <div className="text-2xl font-bold text-white">{effectiveStats.totalQty}</div>
               <p className="text-xs text-white/70">Items sold</p>
             </CardContent>
           </Card>
