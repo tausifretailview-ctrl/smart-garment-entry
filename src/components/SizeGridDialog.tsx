@@ -78,6 +78,7 @@ export function SizeGridDialog({
 }: SizeGridDialogProps) {
   const { toast } = useToast();
   const [sizeQty, setSizeQty] = useState<{ [size: string]: string }>({});
+  const [sizePrices, setSizePrices] = useState<{ [variantId: string]: string }>({});
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [customSizes, setCustomSizes] = useState<CustomSizeEntry[]>([]);
   const [showAddCustom, setShowAddCustom] = useState(false);
@@ -91,6 +92,7 @@ export function SizeGridDialog({
   const [addedColors, setAddedColors] = useState<string[]>([]);
   // Multi-color mode state: { [color]: { [variantId]: qty } }
   const [multiColorQty, setMultiColorQty] = useState<{ [color: string]: { [variantId: string]: string } }>({});
+  const [multiColorPrices, setMultiColorPrices] = useState<{ [color: string]: { [variantId: string]: string } }>({});
   const [multiColorCustomSizes, setMultiColorCustomSizes] = useState<{ [color: string]: CustomSizeEntry[] }>({});
   const [activeCustomSizeColor, setActiveCustomSizeColor] = useState<string | null>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
@@ -142,7 +144,7 @@ export function SizeGridDialog({
   useEffect(() => {
     if (open) {
       setSizeQty({});
-      setSelectedColor(null);
+      setSizePrices({});
       setCustomSizes([]);
       setShowAddCustom(false);
       setShowAddColor(false);
@@ -154,6 +156,7 @@ export function SizeGridDialog({
       setNewColorName("");
       setAddedColors([]);
       setMultiColorQty({});
+      setMultiColorPrices({});
       setMultiColorCustomSizes({});
       setActiveCustomSizeColor(null);
       // If only one color, auto-select it (for single-color mode)
@@ -287,7 +290,12 @@ export function SizeGridDialog({
           if (qty > 0) {
             const variant = colorVariants.find(v => v.id === variantId);
             if (variant) {
-              items.push({ variant, qty });
+              const colorPriceMap = multiColorPrices[color] || {};
+              const overridePrice = colorPriceMap[variantId];
+              const updatedVariant = overridePrice && Number(overridePrice) > 0
+                ? { ...variant, sale_price: Number(overridePrice) }
+                : variant;
+              items.push({ variant: updatedVariant, qty });
             }
           }
         }
@@ -366,11 +374,14 @@ export function SizeGridDialog({
     for (const [sizeKey, qtyStr] of entries) {
       const qty = Number(qtyStr);
       if (qty > 0) {
-        // Find variant by ID first, then by size for backward compatibility
         const variant = filteredVariants.find((v) => v.id === sizeKey) || 
                        filteredVariants.find((v) => v.size === sizeKey);
         if (variant) {
-          items.push({ variant, qty });
+          const overridePrice = sizePrices[variant.id];
+          const updatedVariant = overridePrice && Number(overridePrice) > 0
+            ? { ...variant, sale_price: Number(overridePrice) }
+            : variant;
+          items.push({ variant: updatedVariant, qty });
         }
       }
     }
@@ -406,8 +417,9 @@ export function SizeGridDialog({
 
   const handleColorSelect = (color: string) => {
     setSelectedColor(color);
-    setSizeQty({}); // Reset quantities when color changes
-    setCustomSizes([]); // Reset custom sizes when color changes
+    setSizeQty({});
+    setSizePrices({});
+    setCustomSizes([]);
   };
 
   // Calculate total quantity - different for multi-color mode
@@ -568,6 +580,20 @@ export function SizeGridDialog({
                                 Stock: {v.stock_qty || 0}
                               </span>
                             )}
+                            <input
+                              type="number"
+                              min="0"
+                              className="w-16 text-center border rounded p-1 text-xs bg-background"
+                              value={(multiColorPrices[color] || {})[v.id] ?? (v.sale_price || "")}
+                              onChange={(e) =>
+                                setMultiColorPrices(prev => ({
+                                  ...prev,
+                                  [color]: { ...(prev[color] || {}), [v.id]: e.target.value }
+                                }))
+                              }
+                              placeholder="Price"
+                              title="Sale Price"
+                            />
                           </div>
                         ))}
                       </div>
@@ -874,6 +900,17 @@ export function SizeGridDialog({
                             Stock: {v.stock_qty || 0}
                           </span>
                         )}
+                        <input
+                          type="number"
+                          min="0"
+                          className="w-16 text-center border rounded p-1 text-xs bg-background"
+                          value={sizePrices[v.id] ?? (v.sale_price || "")}
+                          onChange={(e) =>
+                            setSizePrices({ ...sizePrices, [v.id]: e.target.value })
+                          }
+                          placeholder="Price"
+                          title="Sale Price"
+                        />
                       </div>
                     ))}
                   </div>
@@ -1004,16 +1041,10 @@ export function SizeGridDialog({
                   </>
                 )}
 
-                {filteredVariants.length > 0 && filteredVariants[0].sale_price && !allowCustomSizes && (
+                {filteredVariants.length > 0 && (
                   <div className="grid grid-cols-2 gap-3 mb-4">
                     <div className="space-y-2">
-                      <Label>Sale Price (MRP)</Label>
-                      <Input
-                        type="number"
-                        value={filteredVariants[0].sale_price || 0}
-                        readOnly
-                        className="bg-muted"
-                      />
+                      <Label className="text-xs text-muted-foreground">Sale Price (editable per size above)</Label>
                     </div>
                     <div className="space-y-2">
                       <Label>GST %</Label>
