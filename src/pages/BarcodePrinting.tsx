@@ -4492,6 +4492,7 @@ export default function BarcodePrinting() {
                       v_gap: preset.vGap,
                       a4_cols: preset.a4Cols ?? precisionSettings.a4Cols,
                       a4_rows: preset.a4Rows ?? precisionSettings.a4Rows,
+                      print_mode: precisionSettings.printMode,
                       label_config: preset.labelConfig as any,
                     }, { onConflict: "organization_id,name" });
                   if (error) { toast.error("Failed to save preset"); return; }
