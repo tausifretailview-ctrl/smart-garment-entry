@@ -88,13 +88,94 @@ const PurchaseReturnDashboard = () => {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [startDate, endDate]);
+
+  // Server-side paginated query
+  const { data: returnsData, isLoading: returnsLoading, refetch: refetchReturns } = useQuery({
+    queryKey: ["purchase-returns", currentOrganization?.id, debouncedSearch, startDate, endDate, currentPage, pageSize],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return { returns: [], totalCount: 0 };
+
+      const startIndex = (currentPage - 1) * pageSize;
+      const endIndex = startIndex + pageSize - 1;
+
+      let query = supabase
+        .from("purchase_returns" as any)
+        .select("id, return_number, return_date, supplier_name, supplier_id, original_bill_number, gross_amount, gst_amount, net_amount, notes, created_at, credit_note_id, credit_status, linked_bill_id", { count: "exact" })
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
+
+      if (debouncedSearch) {
+        query = query.or(`supplier_name.ilike.%${debouncedSearch}%,original_bill_number.ilike.%${debouncedSearch}%,return_number.ilike.%${debouncedSearch}%`);
+      }
+      if (startDate) query = query.gte("return_date", startDate);
+      if (endDate) query = query.lte("return_date", endDate);
+
+      query = query.order("return_date", { ascending: false }).range(startIndex, endIndex);
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+      
+      // Fetch total qty for returned items
+      const returnIds = (data || []).map((r: any) => r.id);
+      let qtyMap: Record<string, number> = {};
+      
+      if (returnIds.length > 0) {
+        const { data: itemsData } = await supabase
+          .from("purchase_return_items" as any)
+          .select("return_id, qty")
+          .in("return_id", returnIds);
+        
+        if (itemsData) {
+          qtyMap = (itemsData as any[]).reduce((acc, item) => {
+            acc[item.return_id] = (acc[item.return_id] || 0) + item.qty;
+            return acc;
+          }, {} as Record<string, number>);
+        }
+      }
+
+      const returnsWithQty = (data || []).map((r: any) => ({
+        ...r,
+        total_qty: qtyMap[r.id] || 0
+      }));
+
+      return { returns: returnsWithQty as unknown as PurchaseReturn[], totalCount: count || 0 };
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
+  });
+
+  useEffect(() => {
+    if (returnsData) {
+      setReturns(returnsData.returns);
+      setLoading(false);
+    }
+  }, [returnsData]);
+
+  useEffect(() => {
+    if (returnsLoading && returns.length === 0) setLoading(true);
+  }, [returnsLoading]);
 
   useEffect(() => {
     if (currentOrganization?.id) {
-      fetchReturns();
       fetchBusinessDetails();
     }
   }, [currentOrganization]);
+
+  const fetchReturns = () => { refetchReturns(); };
 
   const fetchBusinessDetails = async () => {
     if (!currentOrganization?.id) return;
@@ -114,61 +195,10 @@ const PurchaseReturnDashboard = () => {
         gst_number: data?.gst_number,
       });
       setSaleSettings(data?.sale_settings);
-      // Get logo from bill_barcode_settings
       const barcodeSettings = data?.bill_barcode_settings as any;
       setLogoUrl(barcodeSettings?.logo_url);
     } catch (error) {
       console.error("Error fetching business details:", error);
-    }
-  };
-
-  const fetchReturns = async () => {
-    if (!currentOrganization?.id) return;
-    
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("purchase_returns" as any)
-        .select("*")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .order("return_date", { ascending: false });
-
-      if (error) throw error;
-      
-      // Fetch total qty for each return
-      const returnIds = (data || []).map((r: any) => r.id);
-      let qtyMap: Record<string, number> = {};
-      
-      if (returnIds.length > 0) {
-        const { data: itemsData } = await supabase
-          .from("purchase_return_items" as any)
-          .select("return_id, qty")
-          .in("return_id", returnIds);
-        
-        if (itemsData) {
-          qtyMap = (itemsData as any[]).reduce((acc, item) => {
-            acc[item.return_id] = (acc[item.return_id] || 0) + item.qty;
-            return acc;
-          }, {} as Record<string, number>);
-        }
-      }
-      
-      const returnsWithQty = (data || []).map((r: any) => ({
-        ...r,
-        total_qty: qtyMap[r.id] || 0
-      }));
-      
-      setReturns(returnsWithQty as unknown as PurchaseReturn[]);
-    } catch (error) {
-      console.error("Error fetching purchase returns:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load purchase returns",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
     }
   };
 
