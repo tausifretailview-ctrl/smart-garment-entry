@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useQuery } from "@tanstack/react-query";
 import { useReactToPrint } from "react-to-print";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
