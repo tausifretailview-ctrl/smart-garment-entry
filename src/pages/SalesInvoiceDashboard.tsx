@@ -184,7 +184,7 @@ export default function SalesInvoiceDashboard() {
       {
         label: "Edit Invoice",
         icon: Edit,
-        onClick: () => navigate(`/sales-invoice/${invoice.id}`),
+        onClick: () => navigate('/sales-invoice', { state: { editInvoiceId: invoice.id } }),
         disabled: !canModify,
       },
       { label: "", separator: true, onClick: () => {} },
@@ -244,7 +244,7 @@ export default function SalesInvoiceDashboard() {
       {
         label: "Duplicate Invoice",
         icon: Copy,
-        onClick: () => navigate(`/sales-invoice/new?duplicate=${invoice.id}`),
+        onClick: () => navigate('/sales-invoice', { state: { duplicateInvoiceId: invoice.id } }),
       },
       {
         label: "Delete Invoice",
@@ -282,7 +282,7 @@ export default function SalesInvoiceDashboard() {
     {
       label: "New Invoice",
       icon: Plus,
-      onClick: () => navigate("/sales-invoice/new"),
+      onClick: () => navigate("/sales-invoice"),
     },
     {
       label: "Add New Party",

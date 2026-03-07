@@ -647,6 +647,79 @@ export default function SalesInvoice() {
     }
   }, [location.state?.invoiceData]);
 
+  // Load invoice by ID when navigated from dashboard with just editInvoiceId (no full data)
+  useEffect(() => {
+    const editId = location.state?.editInvoiceId;
+    const hasFullData = location.state?.invoiceData;
+    if (editId && !hasFullData && currentOrganization?.id) {
+      loadInvoiceById(editId);
+    }
+  }, [location.state?.editInvoiceId, location.state?.invoiceData, currentOrganization?.id]);
+
+  // Load invoice for duplication when navigated from dashboard
+  useEffect(() => {
+    const duplicateId = location.state?.duplicateInvoiceId;
+    if (duplicateId && currentOrganization?.id) {
+      (async () => {
+        try {
+          const { data: invoiceData, error } = await supabase
+            .from('sales')
+            .select(`*, sale_items(*)`)
+            .eq('id', duplicateId)
+            .single();
+          if (error || !invoiceData) throw error || new Error('Invoice not found');
+          
+          // Load all fields but DON'T set editingInvoiceId (it's a new invoice)
+          setInvoiceDate(new Date());
+          setDueDate(new Date());
+          setSelectedCustomerId(invoiceData.customer_id || "");
+          if (invoiceData.customer_id) {
+            setSelectedCustomer({
+              id: invoiceData.customer_id,
+              customer_name: invoiceData.customer_name,
+              phone: invoiceData.customer_phone,
+              email: invoiceData.customer_email,
+              address: invoiceData.customer_address,
+            });
+          }
+          setPaymentTerm(invoiceData.payment_term || "");
+          setTermsConditions(invoiceData.terms_conditions || "");
+          setNotes(invoiceData.notes || "");
+          setShippingAddress(invoiceData.shipping_address || "");
+          setShippingInstructions(invoiceData.shipping_instructions || "");
+          setSalesman(invoiceData.salesman || "");
+          setFlatDiscountPercent(invoiceData.flat_discount_percent || 0);
+          setFlatDiscountRupees(invoiceData.flat_discount_amount || 0);
+          setOtherCharges(invoiceData.other_charges || 0);
+          setRoundOff(invoiceData.round_off || 0);
+          
+          if (invoiceData.sale_items?.length > 0) {
+            setLineItems(invoiceData.sale_items.map((item: any) => ({
+              id: crypto.randomUUID(),
+              productId: item.product_id,
+              variantId: item.variant_id,
+              productName: item.product_name,
+              size: item.size,
+              barcode: item.barcode || '',
+              color: item.color || '',
+              quantity: item.quantity,
+              box: '',
+              mrp: item.mrp,
+              salePrice: item.unit_price,
+              discountPercent: item.discount_percent,
+              discountAmount: 0,
+              gstPercent: item.gst_percent,
+              lineTotal: item.line_total,
+              hsnCode: item.hsn_code || '',
+            })));
+          }
+        } catch (err) {
+          console.error('Failed to load invoice for duplication:', err);
+        }
+      })();
+    }
+  }, [location.state?.duplicateInvoiceId, currentOrganization?.id]);
+
   // Recalculate all line items when tax type changes
   useEffect(() => {
     if (lineItems.length > 0) {
