@@ -132,7 +132,7 @@ const FeeCollection = () => {
         .from("student_fees")
         .select("paid_amount")
         .eq("organization_id", currentOrganization!.id)
-        .eq("academic_year_id", currentYear.id)
+        .eq("academic_year_id", activeYear.id)
         .gte("paid_date", monthStart + "T00:00:00");
 
       const monthTotal = (monthData || []).reduce((s: number, r: any) => s + (r.paid_amount || 0), 0);
