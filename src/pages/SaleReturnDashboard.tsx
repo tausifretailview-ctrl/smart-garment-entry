@@ -445,7 +445,7 @@ export default function SaleReturnDashboard() {
                           </div>
                         </TableCell>
                       </TableRow>
-                      {expandedRows.has(ret.id) && ret.items && (
+                      {expandedRows.has(ret.id) && loadedItems[ret.id] && (
                         <TableRow>
                           <TableCell colSpan={11} className="bg-muted/50">
                             <div className="p-4">
@@ -463,7 +463,7 @@ export default function SaleReturnDashboard() {
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  {ret.items.map((item) => (
+                                  {loadedItems[ret.id].map((item) => (
                                     <TableRow key={item.id}>
                                       <TableCell>{item.product_name}</TableCell>
                                       <TableCell>{item.size}</TableCell>
@@ -490,6 +490,19 @@ export default function SaleReturnDashboard() {
                   ))}
                 </TableBody>
               </Table>
+            )}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-4">
+                <p className="text-sm text-muted-foreground">
+                  Page {currentPage} of {totalPages} ({totalReturns} total)
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Next</Button>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
