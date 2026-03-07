@@ -102,6 +102,7 @@ const FeeCollection = lazy(() => import("./pages/school/FeeCollection"));
 const FeeStructureSetup = lazy(() => import("./pages/school/FeeStructureSetup"));
 const TeacherMaster = lazy(() => import("./pages/school/TeacherMaster"));
 const StudentReports = lazy(() => import("./pages/school/StudentReports"));
+const StudentPromotion = lazy(() => import("./pages/school/StudentPromotion"));
 
 const LazyFallback = () => (
   <div className="min-h-screen flex items-center justify-center">
@@ -578,8 +579,19 @@ const App = () => {
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="student-promotion"
+                  element={
+                    <ProtectedRoute>
+                      <SchoolFeatureGate>
+                        <Layout>
+                          <StudentPromotion />
+                        </Layout>
+                      </SchoolFeatureGate>
+                    </ProtectedRoute>
+                  }
+                />
 
-                {/* POS */}
                 <Route
                   path="pos-sales"
                   element={
