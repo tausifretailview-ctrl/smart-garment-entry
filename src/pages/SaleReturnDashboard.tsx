@@ -295,7 +295,7 @@ export default function SaleReturnDashboard() {
           <CardContent>
             {loading ? (
               <div className="text-center py-8 text-muted-foreground">Loading...</div>
-            ) : filteredReturns.length === 0 ? (
+            ) : returns.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">No returns found</div>
             ) : (
               <Table>
