@@ -111,9 +111,9 @@ const FeeCollection = () => {
 
   // Summary: today's collection, month collection, pending dues
   const { data: summary } = useQuery({
-    queryKey: ["fee-collection-summary", currentOrganization?.id, currentYear?.id],
+    queryKey: ["fee-collection-summary", currentOrganization?.id, activeYear?.id],
     queryFn: async () => {
-      if (!currentYear) return { today: 0, month: 0, pending: 0 };
+      if (!activeYear) return { today: 0, month: 0, pending: 0 };
 
       const today = new Date().toISOString().split("T")[0];
       const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0];
