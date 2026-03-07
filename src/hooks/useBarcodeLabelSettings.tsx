@@ -93,6 +93,8 @@ export function useBarcodeLabelSettings() {
             templates.push({
               name: row.setting_name,
               config: settingData.config,
+              labelWidth: settingData.labelWidth,
+              labelHeight: settingData.labelHeight,
             });
             break;
           case "margin_preset":
