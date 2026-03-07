@@ -1351,7 +1351,7 @@ export default function BarcodePrinting() {
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoadingSettings]);
+  }, [isLoadingSettings, dbLabelTemplates, dbMarginPresets, dbCustomPresets]);
 
   // Get organization context
   const { currentOrganization } = useOrganization();
