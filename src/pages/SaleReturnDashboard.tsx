@@ -156,7 +156,11 @@ export default function SaleReturnDashboard() {
     setBusinessDetails(data);
   };
 
+  // Cache for loaded items
+  const [loadedItems, setLoadedItems] = useState<Record<string, SaleReturnItem[]>>({});
+
   const fetchReturnItems = async (returnId: string) => {
+    if (loadedItems[returnId]) return loadedItems[returnId];
     const { data, error } = await supabase
       .from("sale_return_items")
       .select("*")
@@ -167,7 +171,9 @@ export default function SaleReturnDashboard() {
       return [];
     }
 
-    return data || [];
+    const items = (data || []) as SaleReturnItem[];
+    setLoadedItems(prev => ({ ...prev, [returnId]: items }));
+    return items;
   };
 
   const toggleRow = async (returnId: string) => {
@@ -177,10 +183,8 @@ export default function SaleReturnDashboard() {
       newExpanded.delete(returnId);
     } else {
       newExpanded.add(returnId);
-      const returnRecord = returns.find((r) => r.id === returnId);
-      if (returnRecord && !returnRecord.items) {
-        const items = await fetchReturnItems(returnId);
-        setReturns(returns.map((r) => (r.id === returnId ? { ...r, items } : r)));
+      if (!loadedItems[returnId]) {
+        await fetchReturnItems(returnId);
       }
     }
     
@@ -195,7 +199,7 @@ export default function SaleReturnDashboard() {
     const success = await softDelete("sale_returns", returnToDelete);
     if (success) {
       toast({ title: "Success", description: "Return moved to recycle bin" });
-      setReturns(returns.filter((r) => r.id !== returnToDelete));
+      refetchReturns();
     }
     setDeleteDialogOpen(false);
     setReturnToDelete(null);
