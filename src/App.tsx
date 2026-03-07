@@ -579,8 +579,19 @@ const App = () => {
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="student-promotion"
+                  element={
+                    <ProtectedRoute>
+                      <SchoolFeatureGate>
+                        <Layout>
+                          <StudentPromotion />
+                        </Layout>
+                      </SchoolFeatureGate>
+                    </ProtectedRoute>
+                  }
+                />
 
-                {/* POS */}
                 <Route
                   path="pos-sales"
                   element={
