@@ -359,7 +359,7 @@ export function SalesInvoiceERPTable({
                     <Lock className="h-4 w-4 text-muted-foreground" />
                   </Button>
                 ) : (
-                  <Button variant="ghost" size="icon" onClick={() => navigate(`/sales-invoice/${invoice.id}`)}>
+                  <Button variant="ghost" size="icon" onClick={() => navigate('/sales-invoice', { state: { editInvoiceId: invoice.id } })}>
                     <Edit className="h-4 w-4" />
                   </Button>
                 )
