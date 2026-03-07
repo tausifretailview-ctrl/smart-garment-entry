@@ -42,6 +42,7 @@ const FeeCollection = () => {
   const { sendWhatsApp } = useWhatsAppSend();
   const [activeTab, setActiveTab] = useState("collect");
   const [deletingReceipt, setDeletingReceipt] = useState<string | null>(null);
+  const [selectedYearId, setSelectedYearId] = useState<string | null>(null);
 
   const deleteReceiptMutation = useMutation({
     mutationFn: async (receiptId: string) => {
@@ -73,7 +74,21 @@ const FeeCollection = () => {
   const [customDateTo, setCustomDateTo] = useState("");
   const [collectedPage, setCollectedPage] = useState(1);
 
-  // Get current academic year
+  // Fetch all academic years
+  const { data: academicYears } = useQuery({
+    queryKey: ["academic-years-list", currentOrganization?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("academic_years")
+        .select("*")
+        .eq("organization_id", currentOrganization!.id)
+        .order("start_date", { ascending: false });
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  // Get current academic year and set default selection
   const { data: currentYear } = useQuery({
     queryKey: ["current-academic-year", currentOrganization?.id],
     queryFn: async () => {
@@ -83,16 +98,22 @@ const FeeCollection = () => {
         .eq("organization_id", currentOrganization!.id)
         .eq("is_current", true)
         .single();
+      if (data && !selectedYearId) {
+        setSelectedYearId(data.id);
+      }
       return data;
     },
     enabled: !!currentOrganization?.id,
   });
 
+  // The active year used for all queries
+  const activeYear = (academicYears || []).find((y: any) => y.id === selectedYearId) || currentYear;
+
   // Summary: today's collection, month collection, pending dues
   const { data: summary } = useQuery({
-    queryKey: ["fee-collection-summary", currentOrganization?.id, currentYear?.id],
+    queryKey: ["fee-collection-summary", currentOrganization?.id, activeYear?.id],
     queryFn: async () => {
-      if (!currentYear) return { today: 0, month: 0, pending: 0 };
+      if (!activeYear) return { today: 0, month: 0, pending: 0 };
 
       const today = new Date().toISOString().split("T")[0];
       const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0];
@@ -101,7 +122,7 @@ const FeeCollection = () => {
         .from("student_fees")
         .select("paid_amount")
         .eq("organization_id", currentOrganization!.id)
-        .eq("academic_year_id", currentYear.id)
+        .eq("academic_year_id", activeYear.id)
         .gte("paid_date", today + "T00:00:00")
         .lte("paid_date", today + "T23:59:59");
 
@@ -111,7 +132,7 @@ const FeeCollection = () => {
         .from("student_fees")
         .select("paid_amount")
         .eq("organization_id", currentOrganization!.id)
-        .eq("academic_year_id", currentYear.id)
+        .eq("academic_year_id", activeYear.id)
         .gte("paid_date", monthStart + "T00:00:00");
 
       const monthTotal = (monthData || []).reduce((s: number, r: any) => s + (r.paid_amount || 0), 0);
@@ -120,7 +141,7 @@ const FeeCollection = () => {
         .from("fee_structures")
         .select("amount, frequency")
         .eq("organization_id", currentOrganization!.id)
-        .eq("academic_year_id", currentYear.id);
+        .eq("academic_year_id", activeYear.id);
 
       const { data: allStudents } = await supabase
         .from("students")
@@ -132,7 +153,7 @@ const FeeCollection = () => {
         .from("student_fees")
         .select("paid_amount")
         .eq("organization_id", currentOrganization!.id)
-        .eq("academic_year_id", currentYear.id);
+        .eq("academic_year_id", activeYear.id);
 
       const totalPaid = (allPayments || []).reduce((s: number, r: any) => s + (r.paid_amount || 0), 0);
 
@@ -146,12 +167,12 @@ const FeeCollection = () => {
 
       return { today: todayTotal, month: monthTotal, pending };
     },
-    enabled: !!currentOrganization?.id && !!currentYear?.id,
+    enabled: !!currentOrganization?.id && !!activeYear?.id,
   });
 
   // Fetch students with fee due calculations
   const { data: students, isLoading } = useQuery({
-    queryKey: ["students-fee-collection", currentOrganization?.id, searchQuery, currentYear?.id],
+    queryKey: ["students-fee-collection", currentOrganization?.id, searchQuery, activeYear?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
@@ -171,7 +192,7 @@ const FeeCollection = () => {
 
       if (!data?.length) return data || [];
 
-      if (!currentYear) {
+      if (!activeYear) {
         return data.map((student: any) => ({
           ...student,
           totalExpected: 0,
@@ -186,9 +207,9 @@ const FeeCollection = () => {
 
       const [structuresRes, paymentsRes] = await Promise.all([
         classIds.length > 0
-          ? supabase.from("fee_structures").select("*").eq("organization_id", currentOrganization.id).eq("academic_year_id", currentYear.id).in("class_id", classIds)
+          ? supabase.from("fee_structures").select("*").eq("organization_id", currentOrganization.id).eq("academic_year_id", activeYear.id).in("class_id", classIds)
           : { data: [] },
-        supabase.from("student_fees").select("student_id, paid_amount, fee_head_id").eq("organization_id", currentOrganization.id).eq("academic_year_id", currentYear.id).in("student_id", studentIds),
+        supabase.from("student_fees").select("student_id, paid_amount, fee_head_id").eq("organization_id", currentOrganization.id).eq("academic_year_id", activeYear.id).in("student_id", studentIds),
       ]);
 
       const structures = structuresRes.data || [];
@@ -257,15 +278,15 @@ const FeeCollection = () => {
 
   // Fetch collected fees data
   const { data: collectedFees, isLoading: collectedLoading } = useQuery({
-    queryKey: ["fees-collected", currentOrganization?.id, currentYear?.id, collectedPeriod, customDateFrom, customDateTo, collectedSearch],
+    queryKey: ["fees-collected", currentOrganization?.id, activeYear?.id, collectedPeriod, customDateFrom, customDateTo, collectedSearch],
     queryFn: async () => {
-      if (!currentYear) return [];
+      if (!activeYear) return [];
 
       let query = supabase
         .from("student_fees")
         .select("*, students!inner(student_name, admission_number, parent_phone, class_id, school_classes:class_id(class_name)), fee_heads(head_name)")
         .eq("organization_id", currentOrganization!.id)
-        .eq("academic_year_id", currentYear.id)
+        .eq("academic_year_id", activeYear.id)
         .gte("paid_date", dateRange.from)
         .lte("paid_date", dateRange.to)
         .order("paid_date", { ascending: false });
@@ -278,7 +299,7 @@ const FeeCollection = () => {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!currentOrganization?.id && !!currentYear?.id && activeTab === "collected",
+    enabled: !!currentOrganization?.id && !!activeYear?.id && activeTab === "collected",
   });
 
   // Collected fees summary cards
@@ -428,7 +449,7 @@ const FeeCollection = () => {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Receipt className="h-8 w-8 text-primary" />
           <div>
@@ -436,9 +457,24 @@ const FeeCollection = () => {
             <p className="text-muted-foreground">Collect and manage student fee payments</p>
           </div>
         </div>
-        <Button onClick={() => { setSelectedStudent(null); setDialogOpen(true); }}>
-          <Receipt className="h-4 w-4 mr-2" /> Add Fee Collection
-        </Button>
+        <div className="flex items-center gap-3">
+          <Select value={selectedYearId || ""} onValueChange={(v) => { setSelectedYearId(v); setCurrentPage(1); }}>
+            <SelectTrigger className="w-44">
+              <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
+              <SelectValue placeholder="Select Year" />
+            </SelectTrigger>
+            <SelectContent>
+              {(academicYears || []).map((y: any) => (
+                <SelectItem key={y.id} value={y.id}>
+                  {y.year_name}{y.is_current ? " (Current)" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button onClick={() => { setSelectedStudent(null); setDialogOpen(true); }}>
+            <Receipt className="h-4 w-4 mr-2" /> Add Fee Collection
+          </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
