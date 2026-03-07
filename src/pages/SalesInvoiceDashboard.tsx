@@ -221,6 +221,24 @@ export default function SalesInvoiceDashboard() {
       },
       { label: "", separator: true, onClick: () => {} },
       {
+        label: "Copy Customer Name",
+        icon: User,
+        onClick: () => {
+          navigator.clipboard.writeText(invoice.customer_name || '');
+          toast.success("Customer name copied");
+        },
+        disabled: !invoice.customer_name,
+      },
+      {
+        label: "Copy Mobile Number",
+        icon: Phone,
+        onClick: () => {
+          navigator.clipboard.writeText(invoice.customer_phone || '');
+          toast.success("Mobile number copied");
+        },
+        disabled: !invoice.customer_phone,
+      },
+      {
         label: "Duplicate Invoice",
         icon: Copy,
         onClick: () => navigate(`/sales-invoice/new?duplicate=${invoice.id}`),
