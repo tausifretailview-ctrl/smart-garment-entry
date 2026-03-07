@@ -4629,7 +4629,7 @@ export default function BarcodePrinting() {
                     id: p.id, name: p.name,
                     xOffset: Number(p.x_offset), yOffset: Number(p.y_offset),
                     vGap: Number(p.v_gap), width: Number(p.label_width), height: Number(p.label_height),
-                    a4Cols: p.a4_cols, a4Rows: p.a4_rows,
+                    a4Cols: p.a4_cols, a4Rows: p.a4_rows, printMode: p.print_mode || 'thermal',
                     labelConfig: p.label_config, isDefault: p.is_default,
                   })));
                 }
