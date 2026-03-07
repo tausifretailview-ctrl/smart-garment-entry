@@ -54,21 +54,24 @@ Order Details:
 
 We will deliver it soon. Thank you for your patience!`,
   
-  sales_invoice: `Hello {customer_name},
+  sales_invoice: `👋 Hello {customer_name},
 
-Thank you for your purchase! 🛍️
+🧾 Invoice Generated Successfully
 
-Invoice Details:
-📋 Invoice: {invoice_number}
+🏢 {organization_name} has generated the following invoice for your order.
+
+🔢 Invoice No: {invoice_number}
 📅 Date: {invoice_date}
-💰 Total Amount: {amount}
-💳 Payment Status: {payment_status}
+💰 Invoice Amount: {amount}
+⏳ Payment Status: {payment_status}
+📊 Outstanding Balance: {outstanding_amount}
 
-{invoice_items}
+🔗 View / Download Invoice:
+{invoice_link}
 
-{social_links}
+💳 Kindly arrange payment at your convenience.
 
-We appreciate your business!`,
+🙏 Thank you for your continued business with us.`,
   
   payment_reminder: `Hello {customer_name},
 
