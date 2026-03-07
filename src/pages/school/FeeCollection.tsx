@@ -122,7 +122,7 @@ const FeeCollection = () => {
         .from("student_fees")
         .select("paid_amount")
         .eq("organization_id", currentOrganization!.id)
-        .eq("academic_year_id", currentYear.id)
+        .eq("academic_year_id", activeYear.id)
         .gte("paid_date", today + "T00:00:00")
         .lte("paid_date", today + "T23:59:59");
 
