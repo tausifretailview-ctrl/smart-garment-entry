@@ -78,6 +78,7 @@ export function SizeGridDialog({
 }: SizeGridDialogProps) {
   const { toast } = useToast();
   const [sizeQty, setSizeQty] = useState<{ [size: string]: string }>({});
+  const [sizePrices, setSizePrices] = useState<{ [variantId: string]: string }>({});
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [customSizes, setCustomSizes] = useState<CustomSizeEntry[]>([]);
   const [showAddCustom, setShowAddCustom] = useState(false);
