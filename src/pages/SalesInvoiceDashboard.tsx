@@ -622,98 +622,30 @@ export default function SalesInvoiceDashboard() {
     });
   }, [currentOrganization?.id]);
 
-  // Get date range based on period filter
-  const getDateRange = useCallback(() => {
-    const today = new Date();
-    switch (periodFilter) {
-      case 'daily':
-        return { start: startOfDay(today), end: endOfDay(today) };
-      case 'monthly':
-        return { start: startOfMonth(today), end: endOfMonth(today) };
-      case 'yearly':
-        return { start: startOfYear(today), end: endOfYear(today) };
-      case 'custom':
-        return { 
-          start: startDate ? startOfDay(startDate) : null, 
-          end: endDate ? endOfDay(endDate) : null 
-        };
-      default:
-        return { start: null, end: null };
-    }
-  }, [periodFilter, startDate, endDate]);
+  // Server-side handles all filtering — just use invoicesData directly
+  const paginatedInvoices = invoicesData;
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
 
-  // Memoize filtered invoices to avoid recomputing on every render
-  const filteredInvoices = useMemo(() => {
-    const dateRange = getDateRange();
-    
-    return (invoicesData || []).filter((invoice: any) => {
-      // Date filtering
-      if (dateRange.start || dateRange.end) {
-        const invoiceDate = new Date(invoice.sale_date);
-        if (dateRange.start && invoiceDate < dateRange.start) return false;
-        if (dateRange.end && invoiceDate > dateRange.end) return false;
-      }
-      
-      // Payment status filtering
-      if (paymentStatusFilter !== 'all' && invoice.payment_status !== paymentStatusFilter) {
-        return false;
-      }
-      
-      // Search query filtering
-      if (searchQuery) {
-        const searchLower = searchQuery.toLowerCase();
-        
-        // Check basic invoice fields
-        const matchesBasicSearch = 
-          invoice.sale_number?.toLowerCase().includes(searchLower) ||
-          invoice.customer_name?.toLowerCase().includes(searchLower) ||
-          invoice.customer_phone?.toLowerCase().includes(searchLower);
-        
-        // Check barcode in sale items
-        const matchesBarcodeSearch = invoice.sale_items?.some((item: any) => 
-          item.barcode?.toLowerCase().includes(searchLower) ||
-          item.product_name?.toLowerCase().includes(searchLower)
-        );
-        
-        if (!matchesBasicSearch && !matchesBarcodeSearch) return false;
-      }
-      
-      return true;
-    });
-  }, [invoicesData, searchQuery, paymentStatusFilter, getDateRange]);
-
-  // Memoize summary statistics
-  const summaryStats = useMemo(() => ({
-    totalInvoices: filteredInvoices.length,
-    totalAmount: filteredInvoices.reduce((sum: number, inv: any) => sum + (inv.net_amount || 0), 0),
-    totalDiscount: filteredInvoices.reduce((sum: number, inv: any) => sum + (inv.discount_amount || 0) + (inv.flat_discount_amount || 0), 0),
-    totalQty: filteredInvoices.reduce((sum: number, inv: any) => 
-      sum + (inv.sale_items?.reduce((itemSum: number, item: any) => itemSum + (item.quantity || 0), 0) || 0), 0),
-    pendingAmount: filteredInvoices
-      .filter((inv: any) => inv.payment_status !== 'completed')
-      .reduce((sum: number, inv: any) => sum + (inv.net_amount - (inv.paid_amount || 0)), 0),
-    deliveredCount: filteredInvoices.filter((inv: any) => inv.delivery_status === 'delivered').length,
-    deliveredAmount: filteredInvoices.filter((inv: any) => inv.delivery_status === 'delivered').reduce((sum: number, inv: any) => sum + (inv.net_amount || 0), 0),
-    undeliveredCount: filteredInvoices.filter((inv: any) => inv.delivery_status !== 'delivered').length,
-    undeliveredAmount: filteredInvoices.filter((inv: any) => inv.delivery_status !== 'delivered').reduce((sum: number, inv: any) => sum + (inv.net_amount || 0), 0),
-  }), [filteredInvoices]);
-
-  // Memoize pagination calculations
-  const totalPages = useMemo(() => Math.ceil(filteredInvoices.length / itemsPerPage), [filteredInvoices.length, itemsPerPage]);
-  const paginatedInvoices = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    return filteredInvoices.slice(startIndex, endIndex);
-  }, [filteredInvoices, currentPage, itemsPerPage]);
-
-  // Page totals for current page
+  // Page totals computed from current page data (no sale_items, use total_qty)
   const pageTotals = useMemo(() => ({
-    qty: paginatedInvoices.reduce((sum: number, inv: any) => 
-      sum + (inv.sale_items?.reduce((itemSum: number, item: any) => itemSum + (item.quantity || 0), 0) || 0), 0),
+    qty: paginatedInvoices.reduce((sum: number, inv: any) => sum + (inv.total_qty || 0), 0),
     discount: paginatedInvoices.reduce((sum: number, inv: any) => sum + (inv.discount_amount || 0) + (inv.flat_discount_amount || 0), 0),
     amount: paginatedInvoices.reduce((sum: number, inv: any) => sum + (inv.net_amount || 0), 0),
     balance: paginatedInvoices.reduce((sum: number, inv: any) => sum + ((inv.net_amount || 0) - (inv.paid_amount || 0)), 0),
   }), [paginatedInvoices]);
+
+  // Fallback summary stats if RPC hasn't loaded yet
+  const effectiveStats = summaryStats || {
+    totalInvoices: totalCount,
+    totalAmount: 0,
+    totalDiscount: 0,
+    totalQty: 0,
+    pendingAmount: 0,
+    deliveredCount: 0,
+    deliveredAmount: 0,
+    undeliveredCount: 0,
+    undeliveredAmount: 0,
+  };
 
   const handleExportExcel = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
