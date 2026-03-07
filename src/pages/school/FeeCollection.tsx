@@ -449,7 +449,7 @@ const FeeCollection = () => {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Receipt className="h-8 w-8 text-primary" />
           <div>
@@ -457,9 +457,24 @@ const FeeCollection = () => {
             <p className="text-muted-foreground">Collect and manage student fee payments</p>
           </div>
         </div>
-        <Button onClick={() => { setSelectedStudent(null); setDialogOpen(true); }}>
-          <Receipt className="h-4 w-4 mr-2" /> Add Fee Collection
-        </Button>
+        <div className="flex items-center gap-3">
+          <Select value={selectedYearId || ""} onValueChange={(v) => { setSelectedYearId(v); setCurrentPage(1); }}>
+            <SelectTrigger className="w-44">
+              <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
+              <SelectValue placeholder="Select Year" />
+            </SelectTrigger>
+            <SelectContent>
+              {(academicYears || []).map((y: any) => (
+                <SelectItem key={y.id} value={y.id}>
+                  {y.year_name}{y.is_current ? " (Current)" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button onClick={() => { setSelectedStudent(null); setDialogOpen(true); }}>
+            <Receipt className="h-4 w-4 mr-2" /> Add Fee Collection
+          </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
