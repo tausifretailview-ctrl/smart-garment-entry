@@ -359,61 +359,120 @@ export default function SalesInvoiceDashboard() {
     }
   };
 
-  const { data: invoicesData, isLoading, refetch, error: invoicesError } = useQuery({
-    queryKey: ['invoices', currentOrganization?.id, searchQuery, deliveryFilter],
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Compute date range for query
+  const queryDateRange = useMemo(() => {
+    const today = new Date();
+    switch (periodFilter) {
+      case 'daily':
+        return { start: format(startOfDay(today), 'yyyy-MM-dd'), end: format(endOfDay(today), 'yyyy-MM-dd\'T\'23:59:59') };
+      case 'monthly':
+        return { start: format(startOfMonth(today), 'yyyy-MM-dd'), end: format(endOfMonth(today), 'yyyy-MM-dd\'T\'23:59:59') };
+      case 'yearly':
+        return { start: format(startOfYear(today), 'yyyy-MM-dd'), end: format(endOfYear(today), 'yyyy-MM-dd\'T\'23:59:59') };
+      case 'custom':
+        return { 
+          start: startDate ? format(startOfDay(startDate), 'yyyy-MM-dd') : null, 
+          end: endDate ? format(endOfDay(endDate), 'yyyy-MM-dd\'T\'23:59:59') : null 
+        };
+      default:
+        return { start: null, end: null };
+    }
+  }, [periodFilter, startDate, endDate]);
+
+  // Server-side paginated query — NO sale_items, explicit columns
+  const { data: invoicesResult, isLoading, refetch, error: invoicesError } = useQuery({
+    queryKey: ['invoices', currentOrganization?.id, debouncedSearch, deliveryFilter, paymentStatusFilter, queryDateRange.start, queryDateRange.end, currentPage, itemsPerPage],
     queryFn: async () => {
-      if (!currentOrganization?.id) return [];
+      if (!currentOrganization?.id) return { data: [], count: 0 };
       
-      // Fetch all invoices using pagination to bypass 1000 row limit
-      const allInvoices: any[] = [];
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
-      
-      while (hasMore) {
-        let query = supabase
-          .from('sales')
-          .select(`*, sale_items (*), customers:customer_id (gst_number), irn, ack_no, einvoice_status, einvoice_error, einvoice_qr_code`)
-          .eq('organization_id', currentOrganization.id)
-          .eq('sale_type', 'invoice')
-          .is('deleted_at', null)
-          .order('created_at', { ascending: false })
-          .range(offset, offset + PAGE_SIZE - 1);
+      const from = (currentPage - 1) * itemsPerPage;
+      const to = from + itemsPerPage - 1;
 
-        if (deliveryFilter !== 'all') {
-          query = query.eq('delivery_status', deliveryFilter);
-        }
+      let query = supabase
+        .from('sales')
+        .select('id, sale_number, sale_date, customer_id, customer_name, customer_phone, customer_email, customer_address, gross_amount, discount_amount, flat_discount_amount, flat_discount_percent, other_charges, round_off, net_amount, paid_amount, payment_method, payment_status, delivery_status, salesman, notes, total_qty, created_at, updated_at, irn, ack_no, einvoice_status, einvoice_error, einvoice_qr_code, sale_return_adjust, due_date, shipping_address, sale_type, customers:customer_id (gst_number)', { count: 'exact' })
+        .eq('organization_id', currentOrganization.id)
+        .eq('sale_type', 'invoice')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
-        const { data, error } = await query;
-        if (error) {
-          console.error('Error fetching invoices:', error);
-          throw error;
-        }
-        
-        if (data && data.length > 0) {
-          allInvoices.push(...data);
-          offset += PAGE_SIZE;
-          hasMore = data.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
+      if (deliveryFilter !== 'all') {
+        query = query.eq('delivery_status', deliveryFilter);
+      }
+      if (paymentStatusFilter !== 'all') {
+        query = query.eq('payment_status', paymentStatusFilter);
+      }
+      if (queryDateRange.start) {
+        query = query.gte('sale_date', queryDateRange.start);
+      }
+      if (queryDateRange.end) {
+        query = query.lte('sale_date', queryDateRange.end);
+      }
+      if (debouncedSearch) {
+        query = query.or(`sale_number.ilike.%${debouncedSearch}%,customer_name.ilike.%${debouncedSearch}%,customer_phone.ilike.%${debouncedSearch}%`);
+      }
+
+      const { data, error, count } = await query;
+      if (error) {
+        console.error('Error fetching invoices:', error);
+        throw error;
       }
       
-      console.log('Fetched invoices:', allInvoices.length);
-      return allInvoices;
+      return { data: data || [], count: count || 0 };
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
   });
 
-  const productIdsForLookup = useMemo(() => {
-    const ids = new Set<string>();
-    (invoicesData || []).forEach((inv: any) => {
-      inv.sale_items?.forEach((it: any) => {
-        if (it.product_id) ids.add(it.product_id);
+  const invoicesData = invoicesResult?.data || [];
+  const totalCount = invoicesResult?.count || 0;
+
+  // Server-side summary stats via RPC
+  const { data: summaryStats } = useQuery({
+    queryKey: ['invoice-dashboard-stats', currentOrganization?.id, debouncedSearch, deliveryFilter, paymentStatusFilter, queryDateRange.start, queryDateRange.end],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+      const { data, error } = await supabase.rpc('get_sales_invoice_dashboard_stats', {
+        p_org_id: currentOrganization.id,
+        p_search: debouncedSearch || undefined,
+        p_delivery_status: deliveryFilter !== 'all' ? deliveryFilter : undefined,
+        p_payment_status: paymentStatusFilter !== 'all' ? paymentStatusFilter : undefined,
+        p_date_start: queryDateRange.start || undefined,
+        p_date_end: queryDateRange.end || undefined,
       });
-    });
-    return Array.from(ids);
-  }, [invoicesData]);
+      if (error) {
+        console.error('Error fetching dashboard stats:', error);
+        return { totalInvoices: 0, totalAmount: 0, totalDiscount: 0, totalQty: 0, pendingAmount: 0, deliveredCount: 0, deliveredAmount: 0, undeliveredCount: 0, undeliveredAmount: 0 };
+      }
+      const s = data as any;
+      return {
+        totalInvoices: Number(s?.total_invoices || 0),
+        totalAmount: Number(s?.total_amount || 0),
+        totalDiscount: Number(s?.total_discount || 0),
+        totalQty: Number(s?.total_qty || 0),
+        pendingAmount: Number(s?.pending_amount || 0),
+        deliveredCount: Number(s?.delivered_count || 0),
+        deliveredAmount: Number(s?.delivered_amount || 0),
+        undeliveredCount: Number(s?.undelivered_count || 0),
+        undeliveredAmount: Number(s?.undelivered_amount || 0),
+      };
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
+  });
+
+  const productIdsForLookup: string[] = [];
 
   const { data: productsById } = useQuery({
     queryKey: ['products_by_id', currentOrganization?.id, productIdsForLookup.join(',')],
