@@ -596,7 +596,7 @@ export default function StockReport() {
       }, {});
 
       const formattedData = data?.map((item: any) => {
-        const movements = variantMovements[item.id] || { purchase: 0, purchaseReturn: 0, sales: 0 };
+        const movements = variantMovements[item.id] || { purchase: 0, purchaseReturn: 0, sales: 0, saleReturn: 0 };
         const supplierInfo = variantSuppliers[item.id] || { supplier_name: '', supplier_invoice_no: '' };
         const netSalesQty = Math.max(0, movements.sales);
         
