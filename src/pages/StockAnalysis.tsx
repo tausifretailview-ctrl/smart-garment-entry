@@ -202,7 +202,7 @@ export default function StockAnalysis() {
         }, {});
 
         const formattedData = filteredVariants.map((item: any) => {
-          const movements = variantMovements[item.id] || { purchase: 0, purchaseReturn: 0, sales: 0 };
+          const movements = variantMovements[item.id] || { purchase: 0, purchaseReturn: 0, sales: 0, saleReturn: 0 };
           const supplierInfo = variantSuppliers[item.id] || { supplier_name: '', supplier_invoice_no: '' };
           const netSalesQty = Math.max(0, movements.sales);
           
@@ -217,6 +217,7 @@ export default function StockAnalysis() {
             purchase_qty: Math.max(0, movements.purchase),
             purchase_return_qty: Math.max(0, movements.purchaseReturn),
             sales_qty: netSalesQty,
+            sale_return_qty: Math.max(0, movements.saleReturn || 0),
             sale_price: item.sale_price,
             pur_price: item.pur_price || null,
             barcode: item.barcode || "",
