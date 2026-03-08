@@ -2503,10 +2503,7 @@ const PurchaseEntry = () => {
                 </div>
               </div>
 
-        {/* Products Table Card */}
-        <div className="bg-card dark:bg-card bg-white rounded-lg border border-border p-4">
-          <div className="flex items-center justify-between flex-wrap gap-4 mb-4">
-            <div className="erp-invoice-section-label mb-0">Products</div>
+              <div className="flex items-center gap-4">
               <div className="flex items-center gap-4">
                 <Button
                   onClick={() => setShowExcelImport(true)}
