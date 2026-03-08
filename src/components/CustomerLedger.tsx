@@ -1577,22 +1577,24 @@ Please clear your dues at the earliest. Thank you!`;
                         </TableRow>
                       ) : (
                         transactions.map((transaction) => (
-                          <TableRow key={transaction.id} className={transaction.id === 'opening-balance' ? 'bg-muted/50' : ''}>
+                          <TableRow key={transaction.id} className={transaction.id === 'opening-balance'
+                            ? 'bg-orange-50/60 dark:bg-orange-950/20 border-l-4 border-l-orange-400'
+                            : 'hover:bg-slate-50/50 dark:hover:bg-slate-900/30'
+                          }>
                             <TableCell>
-                              <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-muted-foreground" />
-                                {transaction.id === 'opening-balance' 
-                                  ? <span className="font-semibold">Opening</span>
-                                  : <div>
-                                      <div>{format(new Date(transaction.date), "dd MMM yyyy")}</div>
-                                      {transaction.timestamp && (
-                                        <div className="text-xs text-muted-foreground">
-                                          {format(new Date(transaction.timestamp), "hh:mm a")}
-                                        </div>
-                                      )}
+                              {transaction.id === 'opening-balance'
+                                ? <span className="font-bold text-orange-600 dark:text-orange-400 text-sm">B/F Opening</span>
+                                : <div>
+                                    <div className="text-sm font-medium tabular-nums">
+                                      {format(new Date(transaction.date), "dd MMM yyyy")}
                                     </div>
-                                }
-                              </div>
+                                    {transaction.timestamp && (
+                                      <div className="text-xs text-muted-foreground tabular-nums">
+                                        {format(new Date(transaction.timestamp), "hh:mm a")}
+                                      </div>
+                                    )}
+                                  </div>
+                              }
                             </TableCell>
                             <TableCell>
                               {transaction.id === 'opening-balance' ? (
