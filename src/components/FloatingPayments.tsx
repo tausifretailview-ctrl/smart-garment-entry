@@ -186,7 +186,7 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
   const { data: customerInvoices } = useQuery({
     queryKey: ["customer-invoices", referenceId],
     queryFn: async () => {
-      const { data } = await supabase.from("sales").select("*").eq("customer_id", referenceId).in("payment_status", ["pending", "partial"]).is("deleted_at", null).order("sale_date", { ascending: false });
+      const { data } = await supabase.from("sales").select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, customer_name, customer_phone, customer_address").eq("customer_id", referenceId).in("payment_status", ["pending", "partial"]).is("deleted_at", null).order("sale_date", { ascending: false });
       return data || [];
     },
     enabled: !!referenceId,
