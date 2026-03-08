@@ -87,12 +87,17 @@ export default function Accounts() {
 
   // Old voucher fetch removed — now lazy-loaded per tab below
 
-  // Fetch dashboard stats via RPC (replaces heavy fetchAll queries for metrics)
+  // Fetch dashboard stats via single RPC (replaces 4+ separate queries)
+  const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
+  const monthEnd = format(endOfMonth(new Date()), "yyyy-MM-dd");
+
   const { data: dashboardStats } = useQuery({
-    queryKey: ["accounts-dashboard-stats", currentOrganization?.id],
+    queryKey: ["accounts-dashboard-metrics", currentOrganization?.id, monthStart, monthEnd],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_accounts_dashboard_stats", {
+      const { data, error } = await supabase.rpc("get_accounts_dashboard_metrics", {
         p_org_id: currentOrganization!.id,
+        p_month_start: monthStart,
+        p_month_end: monthEnd,
       });
       if (error) throw error;
       return data as any;
@@ -168,24 +173,25 @@ export default function Accounts() {
     refetchOnWindowFocus: false,
   });
 
-  // Dashboard metrics from RPC
+  // Dashboard metrics from unified RPC
+  const invoiceStats = dashboardStats?.invoiceStats || {};
   const dashboardMetrics = {
     totalReceivables: dashboardStats?.totalReceivables || 0,
     totalPayables: dashboardStats?.totalPayables || 0,
     monthlyExpenses: dashboardStats?.monthlyExpenses || 0,
-    currentMonthPL: dashboardStats?.currentMonthPL || 0,
+    currentMonthPL: (dashboardStats?.totalReceivables || 0) - (dashboardStats?.totalPayables || 0) - (dashboardStats?.monthlyExpenses || 0),
   };
 
   const paymentStats = {
-    totalInvoices: dashboardStats?.totalInvoices || 0,
-    totalAmount: dashboardStats?.totalAmount || 0,
-    paidAmount: dashboardStats?.paidAmount || 0,
-    pendingCount: dashboardStats?.pendingCount || 0,
-    pendingAmount: dashboardStats?.pendingAmount || 0,
-    partialCount: dashboardStats?.partialCount || 0,
-    partialAmount: dashboardStats?.partialAmount || 0,
-    completedCount: dashboardStats?.completedCount || 0,
-    completedAmount: dashboardStats?.completedAmount || 0,
+    totalInvoices: invoiceStats.total || 0,
+    totalAmount: dashboardStats?.totalReceivables || 0,
+    paidAmount: 0,
+    pendingCount: invoiceStats.pending || 0,
+    pendingAmount: 0,
+    partialCount: invoiceStats.partial || 0,
+    partialAmount: 0,
+    completedCount: invoiceStats.paid || 0,
+    completedAmount: 0,
   };
 
   const handleCardClick = (filter: string | null) => {
