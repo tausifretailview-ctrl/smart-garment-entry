@@ -3112,12 +3112,15 @@ export default function BarcodePrinting() {
     
     // Suppress browser headers/footers by clearing document title during print
     const originalTitle = document.title;
+    const originalZoom = (document.body.style as any).zoom;
     document.title = ' ';
+    (document.body.style as any).zoom = '1';
     
     // Print immediately since barcodes are pre-rendered
     setTimeout(() => {
       window.print();
       document.title = originalTitle;
+      (document.body.style as any).zoom = originalZoom || '';
     }, 200);
   };
 
