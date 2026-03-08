@@ -2667,190 +2667,179 @@ Thank you for choosing us!`;
           </div>
       </section>
 
-      {/* Products Table Card - High Density */}
-      <div className="bg-card rounded-lg border shadow-sm p-3">
-        <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">Line Items</div>
-        <div ref={tableContainerRef} className="max-h-[calc(100vh-360px)] overflow-y-auto isolate">
-          <Table>
-            <TableHeader className="z-0 [&_tr]:border-b [&_tr]:border-border/60">
-              <TableRow className="bg-muted/70 dark:bg-muted/50">
-                <TableHead className="w-7 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">#</TableHead>
-                <TableHead className="min-w-[160px] max-w-[260px] px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Product</TableHead>
-                <TableHead className="w-14 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Size</TableHead>
-                <TableHead className="w-14 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Color</TableHead>
-                <TableHead className="w-24 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Barcode</TableHead>
-                <TableHead className="px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">HSN</TableHead>
-                <TableHead className="w-20 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Qty</TableHead>
-                <TableHead className="w-16 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Box</TableHead>
-                <TableHead className="w-24 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">MRP</TableHead>
-                <TableHead className="w-24 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Price</TableHead>
-                <TableHead className="w-20 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Disc %</TableHead>
-                <TableHead className="w-24 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">Disc ₹</TableHead>
-                <TableHead className="w-18 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9">GST %</TableHead>
-                <TableHead className="w-24 px-2 py-2 text-[11px] uppercase tracking-wide font-semibold h-9 text-right">Total</TableHead>
-                <TableHead className="w-8 px-1 py-2 h-9"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+      {/* Line Items Table */}
+      <section className="flex-1 overflow-auto px-6 pb-2">
+        <div ref={tableContainerRef} className="overflow-y-auto isolate">
+          <table className="w-full border-separate border-spacing-0">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-muted-foreground dark:bg-muted text-primary-foreground dark:text-foreground">
+                <th className="text-center text-xs font-semibold px-3 py-2.5 w-10 rounded-tl-lg">#</th>
+                <th className="text-left text-xs font-semibold px-3 py-2.5 min-w-[200px]">PRODUCT</th>
+                <th className="text-center text-xs font-semibold px-3 py-2.5 w-20">SIZE</th>
+                <th className="text-center text-xs font-semibold px-3 py-2.5 w-20">COLOR</th>
+                <th className="text-center text-xs font-semibold px-3 py-2.5 w-24">BARCODE</th>
+                <th className="text-center text-xs font-semibold px-3 py-2.5 w-20">HSN</th>
+                <th className="text-center text-xs font-semibold px-3 py-2.5 w-16">QTY</th>
+                <th className="text-center text-xs font-semibold px-3 py-2.5 w-16">BOX</th>
+                <th className="text-right text-xs font-semibold px-3 py-2.5 w-24">MRP</th>
+                <th className="text-right text-xs font-semibold px-3 py-2.5 w-24">PRICE</th>
+                <th className="text-right text-xs font-semibold px-3 py-2.5 w-20">DISC%</th>
+                <th className="text-right text-xs font-semibold px-3 py-2.5 w-24">DISC ₹</th>
+                <th className="text-center text-xs font-semibold px-3 py-2.5 w-16">GST%</th>
+                <th className="text-right text-xs font-semibold px-3 py-2.5 w-28 bg-primary text-primary-foreground rounded-tr-lg">TOTAL</th>
+                <th className="w-8 px-1 py-2.5 bg-muted-foreground dark:bg-muted"></th>
+              </tr>
+            </thead>
+            <tbody>
               {(() => {
-                // Separate filled and empty items
                 const filledItems = lineItems.filter(item => item.productId !== '');
-                const emptyItems = lineItems.filter(item => item.productId === '');
-                
-                // Reverse filled items so newest appears first, keep empty rows at bottom
-                const displayItems = [...filledItems.slice().reverse(), ...emptyItems];
-                
-                return displayItems.map((item) => {
-                  // Calculate original SR number (1 = first added)
-                  const originalIndex = lineItems.findIndex(li => li.id === item.id);
-                  const srNo = item.productId ? originalIndex + 1 : '-';
-                  
+
+                if (filledItems.length === 0) {
                   return (
-                    <TableRow key={item.id} className={cn("h-12 transition-colors", item.productId ? 'hover:bg-primary/[0.03]' : 'opacity-40')}>
-                      <TableCell className="px-2 py-1.5 text-sm font-medium text-foreground">{srNo}</TableCell>
-                      <TableCell className="min-w-[180px] max-w-[280px] px-2 py-1.5">
-                        {item.productId ? (
-                          <button
-                            type="button"
-                            onClick={() => setHistoryProduct({ id: item.productId, name: item.productName })}
-                            className="text-primary hover:underline text-left font-semibold break-words whitespace-normal leading-tight text-sm"
-                          >
-                            {item.productName}
-                          </button>
-                        ) : '-'}
-                      </TableCell>
-                      <TableCell className="px-2 py-1.5 text-sm font-medium text-foreground">{item.size || '-'}</TableCell>
-                      <TableCell className="px-2 py-1.5 text-sm font-medium text-foreground">{item.color || '-'}</TableCell>
-                      <TableCell className="px-2 py-1.5 text-[13px] font-medium text-foreground">{item.barcode || '-'}</TableCell>
-                      <TableCell className="px-2 py-1.5 text-[13px] font-medium text-foreground">{item.hsnCode || '-'}</TableCell>
-                      <TableCell className="px-2 py-1.5">
-                        {item.productId && (
-                          <Input
-                            type="number"
-                            min="1"
-                            value={item.quantity || ""}
-                            placeholder="1"
-                            onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-[72px] h-7 text-[13px] tabular-nums rounded-md"
-                          />
+                    <tr>
+                      <td colSpan={15} className="text-center py-16 text-muted-foreground">
+                        <div className="flex flex-col items-center gap-3">
+                          <Search className="h-10 w-10 text-muted-foreground/30" />
+                          <p className="text-sm font-medium">No items added yet</p>
+                          <p className="text-xs text-muted-foreground">
+                            Scan a barcode or search products above to begin
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+
+                // Reverse filled items so newest appears first
+                const displayItems = filledItems.slice().reverse();
+
+                return displayItems.map((item, displayIndex) => {
+                  const originalIndex = lineItems.findIndex(li => li.id === item.id);
+                  const srNo = originalIndex + 1;
+
+                  return (
+                    <tr
+                      key={item.id}
+                      className={cn(
+                        "group border-b border-border/40 hover:bg-primary/[0.04] transition-colors",
+                        displayIndex % 2 === 0 ? "bg-card" : "bg-muted/30"
+                      )}
+                    >
+                      <td className="text-center text-xs text-muted-foreground px-3 py-2">{srNo}</td>
+                      <td className="px-3 py-2">
+                        <button
+                          type="button"
+                          onClick={() => setHistoryProduct({ id: item.productId, name: item.productName })}
+                          className="text-primary hover:underline text-left font-semibold break-words whitespace-normal leading-tight text-sm"
+                        >
+                          {item.productName}
+                        </button>
+                        {item.color && (
+                          <div className="text-xs text-muted-foreground mt-0.5">{item.color}</div>
                         )}
-                      </TableCell>
-                      <TableCell className="px-2 py-1.5">
-                        {item.productId && (
-                          <Input
-                            type="text"
-                            value={item.box || ''}
-                            onChange={(e) => updateBox(item.id, e.target.value)}
-                            placeholder=""
-                            className="w-12 h-7 text-[13px] rounded-md"
-                          />
-                        )}
-                      </TableCell>
-                      <TableCell className="px-2 py-1.5">
-                        {item.productId ? (
-                          <Input
-                            type="number"
-                            min="0"
-                            value={item.mrp || ""}
-                            placeholder="0"
-                            onChange={(e) => updateMRP(item.id, parseFloat(e.target.value) || 0)}
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-[84px] h-7 text-[13px] tabular-nums text-right rounded-md"
-                          />
-                        ) : '-'}
-                      </TableCell>
-                      <TableCell className="px-2 py-1.5">
-                        {item.productId ? (
-                          <Input
-                            type="number"
-                            min="0"
-                            value={item.salePrice || ""}
-                            placeholder="0"
-                            onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-[84px] h-7 text-[13px] tabular-nums text-right rounded-md"
-                          />
-                        ) : '-'}
-                      </TableCell>
-                      <TableCell className="px-2 py-1.5">
-                        {item.productId && (
-                          <Input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={item.discountPercent || ""}
-                            placeholder="0"
-                            onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-[68px] h-7 text-[13px] tabular-nums rounded-md"
-                          />
-                        )}
-                      </TableCell>
-                      <TableCell className="px-2 py-1.5">
-                        {item.productId && (
-                          <Input
-                            type="number"
-                            min="0"
-                            value={item.discountAmount || ""}
-                            placeholder="0"
-                            onChange={(e) => updateDiscountAmount(item.id, parseFloat(e.target.value) || 0)}
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-[84px] h-7 text-[13px] tabular-nums rounded-md"
-                          />
-                        )}
-                      </TableCell>
-                      <TableCell className="px-2 py-1.5">
-                        {item.productId ? (
-                          <Input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={item.gstPercent || ""}
-                            placeholder="0"
-                            onChange={(e) => updateGSTPercent(item.id, parseFloat(e.target.value) || 0)}
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-[60px] h-7 text-[13px] tabular-nums rounded-md"
-                          />
-                        ) : `${item.gstPercent}%`}
-                      </TableCell>
-                      <TableCell className="text-right font-medium text-[13px] tabular-nums px-2 py-1.5">₹{item.lineTotal.toFixed(2)}</TableCell>
-                      <TableCell className="px-1 py-1.5">
-                        {item.productId && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeItem(item.id)}>
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                      <td className="text-center px-3 py-2">
+                        <span className="inline-block bg-muted text-foreground text-xs font-semibold px-2 py-0.5 rounded">
+                          {item.size || '-'}
+                        </span>
+                      </td>
+                      <td className="text-center text-xs text-muted-foreground px-3 py-2 hidden lg:table-cell">
+                        {item.color || '-'}
+                      </td>
+                      <td className="text-center px-3 py-2">
+                        <span className="font-mono text-xs text-muted-foreground">{item.barcode || '-'}</span>
+                      </td>
+                      <td className="text-center text-xs text-muted-foreground px-3 py-2">{item.hsnCode || '-'}</td>
+                      <td className="text-center px-1.5 py-1">
+                        <Input
+                          type="number"
+                          min="1"
+                          value={item.quantity || ""}
+                          placeholder="1"
+                          onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                          className="w-16 h-8 text-center font-bold text-sm bg-warning/10 border-warning/30 focus:border-warning mx-auto tabular-nums"
+                        />
+                      </td>
+                      <td className="text-center px-1.5 py-1">
+                        <Input
+                          type="text"
+                          value={item.box || ''}
+                          onChange={(e) => updateBox(item.id, e.target.value)}
+                          placeholder=""
+                          className="w-14 h-8 text-center text-xs mx-auto"
+                        />
+                      </td>
+                      <td className="text-right px-1.5 py-1">
+                        <Input
+                          type="number"
+                          min="0"
+                          value={item.mrp || ""}
+                          placeholder="0"
+                          onChange={(e) => updateMRP(item.id, parseFloat(e.target.value) || 0)}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                          className="w-[84px] h-8 text-right text-sm tabular-nums ml-auto"
+                        />
+                      </td>
+                      <td className="text-right px-1.5 py-1">
+                        <Input
+                          type="number"
+                          min="0"
+                          value={item.salePrice || ""}
+                          placeholder="0"
+                          onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                          className="w-[84px] h-8 text-right text-sm font-semibold tabular-nums ml-auto"
+                        />
+                      </td>
+                      <td className="text-right px-1.5 py-1">
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={item.discountPercent || ""}
+                          placeholder="0"
+                          onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                          className="w-16 h-8 text-right text-sm tabular-nums ml-auto"
+                        />
+                      </td>
+                      <td className="text-right px-3 py-2 text-sm font-medium tabular-nums text-destructive">
+                        {item.discountAmount > 0 ? `-₹${item.discountAmount.toFixed(2)}` : '-'}
+                      </td>
+                      <td className="text-center px-3 py-2">
+                        <span className="text-xs font-semibold text-muted-foreground">{item.gstPercent}%</span>
+                      </td>
+                      <td className="text-right px-3 py-2 bg-primary/5">
+                        <span className="text-sm font-bold text-primary tabular-nums">
+                          ₹{item.lineTotal.toFixed(2)}
+                        </span>
+                      </td>
+                      <td className="px-1 py-1.5">
+                        <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removeItem(item.id)}>
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </td>
+                    </tr>
                   );
                 });
               })()}
-              {/* Total Qty Row */}
-              <TableRow className="bg-muted/50 font-medium h-9">
-                <TableCell className="px-2 py-1"></TableCell>
-                <TableCell className="px-2 py-1"></TableCell>
-                <TableCell className="px-2 py-1"></TableCell>
-                <TableCell className="px-2 py-1"></TableCell>
-                <TableCell className="px-2 py-1"></TableCell>
-                <TableCell className="text-right text-[11px] text-muted-foreground px-2 py-1">Total:</TableCell>
-                <TableCell className="font-bold text-primary text-[13px] tabular-nums px-2 py-1">
-                  {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
-                </TableCell>
-                <TableCell className="px-2 py-1"></TableCell>
-                <TableCell className="px-2 py-1"></TableCell>
-                <TableCell className="px-2 py-1"></TableCell>
-                <TableCell className="px-2 py-1"></TableCell>
-                <TableCell className="px-2 py-1"></TableCell>
-                <TableCell className="px-2 py-1"></TableCell>
-                <TableCell className="text-right font-bold text-[13px] tabular-nums px-2 py-1">₹{grossAmount.toFixed(2)}</TableCell>
-                <TableCell className="px-1 py-1"></TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
+              {/* Total Row */}
+              {lineItems.some(item => item.productId) && (
+                <tr className="bg-muted/50 font-medium">
+                  <td className="px-3 py-2" colSpan={6} />
+                  <td className="text-center font-bold text-primary text-sm tabular-nums px-3 py-2">
+                    {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
+                  </td>
+                  <td className="px-3 py-2" colSpan={6} />
+                  <td className="text-right font-bold text-sm tabular-nums px-3 py-2">₹{grossAmount.toFixed(2)}</td>
+                  <td className="px-1 py-2" />
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
-
-      </div>
+      </section>
 
       {/* Notes + Bill Summary - Side by Side */}
       <div className="flex gap-3 items-start">
