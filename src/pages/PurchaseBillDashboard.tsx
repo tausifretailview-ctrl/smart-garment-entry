@@ -1238,7 +1238,7 @@ const PurchaseBillDashboard = () => {
                 placeholder="End Date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-[160px]"
+                className="w-[150px] h-9"
               />
               <Select value={sortOrder} onValueChange={(value: "asc" | "desc") => setSortOrder(value)}>
                 <SelectTrigger className="w-[200px] gap-2">
