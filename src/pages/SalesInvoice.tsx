@@ -2904,14 +2904,14 @@ Thank you for choosing us!`;
         </div>
         <div className="w-px h-5 bg-slate-200" />
         <div className="flex items-center gap-1.5">
-          <span className="text-[11px] text-slate-500 whitespace-nowrap">Other Charges</span>
+          <span className="text-[13px] text-slate-500 whitespace-nowrap">Other Charges</span>
           <Input
             type="number" min="0"
             value={otherCharges || ""}
             placeholder="0"
             onChange={(e) => setOtherCharges(parseFloat(e.target.value) || 0)}
             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-            className="w-20 h-7 text-[12px]"
+            className="w-24 h-9 text-sm"
           />
         </div>
         <div className="flex items-center gap-1.5">
