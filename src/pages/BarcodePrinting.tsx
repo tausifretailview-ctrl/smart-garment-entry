@@ -5012,6 +5012,7 @@ export default function BarcodePrinting() {
               labelHeight={precisionSettings.labelHeight}
               xOffset={precisionSettings.xOffset}
               yOffset={precisionSettings.yOffset}
+              vGap={precisionSettings.vGap}
               config={precisionSettings.labelConfig || undefined}
             />
           ) : (
