@@ -2235,8 +2235,15 @@ export default function Settings() {
                 
                   {/* Invoice Customization Section */}
                   <div className="space-y-4 mt-6 pt-6 border-t">
-                    <h3 className="text-lg font-semibold">Invoice Customization</h3>
-                    <p className="text-sm text-muted-foreground">Customize invoice appearance and branding</p>
+                    <div className="flex items-center gap-2">
+                      <div className="h-7 w-7 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+                        <Paintbrush className="h-3.5 w-3.5 text-purple-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold leading-none">Invoice Customization</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">Template, colors, fonts, logo, header &amp; footer</p>
+                      </div>
+                    </div>
                     
                     <div className="space-y-2">
                       <Label htmlFor="font_family">Font Family</Label>
