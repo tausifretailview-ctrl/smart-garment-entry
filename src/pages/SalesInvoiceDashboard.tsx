@@ -1560,10 +1560,6 @@ export default function SalesInvoiceDashboard() {
               </div>
             </CardHeader>
           </Card>
-                </div>
-              </div>
-            </CardHeader>
-          </Card>
         )}
 
         {/* Summary Statistics - Vasy ERP Style Vibrant Cards - 7 cards in 1 row */}
