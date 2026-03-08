@@ -998,7 +998,10 @@ const PurchaseBillDashboard = () => {
     return (
       <div className="p-4">
         <div className="flex items-center justify-between mb-3">
-          <h4 className="font-semibold text-sm">Purchase Items Details</h4>
+          <h4 className="font-semibold text-sm text-primary flex items-center gap-1.5">
+            <ShoppingCart className="h-3.5 w-3.5" />
+            Purchase Items
+          </h4>
           {bill.notes && (
             <p className="text-sm text-muted-foreground">
               <span className="font-medium">Notes:</span> {bill.notes}
