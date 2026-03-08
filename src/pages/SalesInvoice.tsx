@@ -2857,7 +2857,7 @@ Thank you for choosing us!`;
       </section>
 
       {/* Notes + Bill Summary - Side by Side */}
-      <div className="flex gap-3 items-start">
+      <div className="flex gap-3 items-start px-6">
         {/* Notes - Left */}
         <div className="flex-1 bg-card rounded-lg border shadow-sm p-3">
           <Label className="text-[12px]">Notes</Label>
@@ -2937,16 +2937,94 @@ Thank you for choosing us!`;
         </div>
       </div>
 
-      {/* Sticky Action Bar - Compact h-14 */}
-      <div className="sticky bottom-0 z-20 bg-card/90 backdrop-blur-md border-t shadow-lg py-2.5 px-4 flex gap-3 justify-end rounded-lg -mx-4">
-        <Button variant="outline" size="sm" onClick={() => navigate('/sales-invoice-dashboard')} className="h-9 px-4 text-[13px] rounded-md">
-          Cancel
-        </Button>
-        <Button size="sm" onClick={handleSaveInvoice} disabled={isSaving || savingLockRef.current} className="h-9 px-6 text-[13px] rounded-md">
-          <Eye className="mr-1.5 h-3.5 w-3.5" />
-          {isSaving ? 'Saving...' : editingInvoiceId ? 'Update Invoice' : 'Save Invoice'}
-        </Button>
-      </div>
+      </main>
+
+      {/* Sticky Totals Footer */}
+      <footer className="bg-card border-t-2 border-border px-6 py-3 shrink-0 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
+        <div className="flex items-center justify-between gap-6">
+          {/* Totals row */}
+          <div className="flex items-center gap-6 flex-1">
+            <div className="flex flex-col items-center">
+              <span className="text-xs text-muted-foreground uppercase tracking-wide">Subtotal</span>
+              <span className="text-lg font-bold text-foreground tabular-nums">
+                ₹{grossAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}
+              </span>
+            </div>
+
+            {totalDiscount > 0 && (
+              <>
+                <div className="text-muted-foreground/30 text-2xl font-light">−</div>
+                <div className="flex flex-col items-center">
+                  <span className="text-xs text-destructive/70 uppercase tracking-wide">Discount</span>
+                  <span className="text-lg font-bold text-destructive tabular-nums">
+                    ₹{totalDiscount.toLocaleString('en-IN', {minimumFractionDigits: 2})}
+                  </span>
+                </div>
+              </>
+            )}
+
+            {totalGST > 0 && (
+              <>
+                <div className="text-muted-foreground/30 text-2xl font-light">+</div>
+                <div className="flex flex-col items-center">
+                  <span className="text-xs text-accent-foreground/70 uppercase tracking-wide">GST</span>
+                  <span className="text-lg font-bold text-accent-foreground tabular-nums">
+                    ₹{totalGST.toLocaleString('en-IN', {minimumFractionDigits: 2})}
+                  </span>
+                </div>
+              </>
+            )}
+
+            <div className="h-10 w-px bg-border mx-2" />
+
+            {/* Net Amount - prominent */}
+            <div className="flex flex-col items-center bg-primary text-primary-foreground rounded-xl px-6 py-2 min-w-[160px]">
+              <span className="text-xs uppercase tracking-widest text-primary-foreground/70 font-medium">Net Amount</span>
+              <span className="text-2xl font-black tracking-tight tabular-nums">
+                ₹{netAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}
+              </span>
+            </div>
+
+            <div className="flex flex-col items-center ml-2">
+              <span className="text-xs text-muted-foreground uppercase tracking-wide">Items</span>
+              <span className="text-lg font-bold text-foreground tabular-nums">
+                {lineItems.filter(i => i.productId).length}
+              </span>
+            </div>
+            <div className="flex flex-col items-center">
+              <span className="text-xs text-muted-foreground uppercase tracking-wide">Total Qty</span>
+              <span className="text-lg font-bold text-foreground tabular-nums">
+                {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
+              </span>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-3 shrink-0">
+            <Button variant="outline" size="sm" onClick={() => navigate('/sales-invoice-dashboard')}
+              className="h-10 border-border text-muted-foreground hover:bg-destructive/10 hover:border-destructive/30 hover:text-destructive">
+              <X className="h-4 w-4 mr-1" />
+              Cancel
+            </Button>
+
+            <div className="flex flex-col items-center">
+              <Button
+                size="sm"
+                variant="success"
+                onClick={handleSaveInvoice}
+                disabled={isSaving || savingLockRef.current || !lineItems.some(i => i.productId)}
+                className="h-10 px-8 font-semibold text-sm shadow-md hover:shadow-lg transition-all gap-2">
+                {isSaving ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</>
+                ) : (
+                  <><Check className="h-4 w-4" /> {editingInvoiceId ? 'Update Invoice' : 'Save Invoice'}</>
+                )}
+              </Button>
+              <span className="text-[10px] text-muted-foreground mt-0.5">Ctrl+S to save</span>
+            </div>
+          </div>
+        </div>
+      </footer>
 
       {/* Create Customer Dialog */}
       <Dialog open={openCustomerDialog} onOpenChange={setOpenCustomerDialog}>
