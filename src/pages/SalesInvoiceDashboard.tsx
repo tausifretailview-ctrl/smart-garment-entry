@@ -1677,20 +1677,20 @@ export default function SalesInvoiceDashboard() {
           </Card>
         </div>
 
-        <Card className="p-6">
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative flex-1 min-w-[200px] max-w-sm">
+        <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0">
+          <div className="space-y-0">
+            <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-slate-100 bg-white">
+              <div className="relative flex-1 min-w-[200px] max-w-[280px]">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search by invoice, customer, barcode..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 h-9 text-[13px] border-slate-200 bg-slate-50 focus:bg-white"
                 />
               </div>
               <Select value={periodFilter} onValueChange={setPeriodFilter}>
-                <SelectTrigger className="w-[130px]">
+                <SelectTrigger className="w-[120px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Period" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1738,7 +1738,7 @@ export default function SalesInvoiceDashboard() {
                 </>
               )}
               <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
-                <SelectTrigger className="w-[150px]">
+                <SelectTrigger className="w-[145px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Payment Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1749,7 +1749,7 @@ export default function SalesInvoiceDashboard() {
                 </SelectContent>
               </Select>
               <Select value={deliveryFilter} onValueChange={setDeliveryFilter}>
-                <SelectTrigger className="w-[150px]">
+                <SelectTrigger className="w-[145px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Delivery Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1760,7 +1760,7 @@ export default function SalesInvoiceDashboard() {
                   <SelectItem value="order_cancelled" className="text-destructive">Order Cancelled</SelectItem>
                 </SelectContent>
               </Select>
-              <div id="erp-toolbar-portal" className="flex items-center gap-2 ml-auto" />
+              <div id="erp-toolbar-portal" className="flex items-center gap-1.5 ml-auto" />
             </div>
 
             <SalesInvoiceERPTable
