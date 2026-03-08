@@ -1241,7 +1241,7 @@ const PurchaseBillDashboard = () => {
                 className="w-[150px] h-9"
               />
               <Select value={sortOrder} onValueChange={(value: "asc" | "desc") => setSortOrder(value)}>
-                <SelectTrigger className="w-[200px] gap-2">
+                <SelectTrigger className="w-[180px] h-9 gap-2">
                   <ArrowUpDown className="h-4 w-4" />
                   <SelectValue />
                 </SelectTrigger>
