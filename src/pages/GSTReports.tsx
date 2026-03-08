@@ -110,6 +110,7 @@ const GSTReports = () => {
   const [gstr3bData, setGstr3bData] = useState<GSTR3BSummary | null>(null);
   const [hsnData, setHsnData] = useState<HSNSummary[]>([]);
   const [businessInfo, setBusinessInfo] = useState<{ name: string; gstin: string }>({ name: "", gstin: "" });
+  const [isDownloadingGstr1Json, setIsDownloadingGstr1Json] = useState(false);
 
   // Get current financial year
   const getCurrentFY = () => {
