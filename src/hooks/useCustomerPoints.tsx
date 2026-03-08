@@ -61,7 +61,7 @@ export function useCustomerPoints() {
       
       if (error) throw error;
       
-      const saleSettings = data?.sale_settings as any;
+      const saleSettings = data?.sale_settings as Record<string, unknown> | null;
       return {
         enable_points_system: saleSettings?.enable_points_system ?? false,
         points_ratio_amount: saleSettings?.points_ratio_amount ?? 100,
@@ -120,7 +120,7 @@ export function useCustomerPoints() {
     try {
       // Insert points history record
       const { error: historyError } = await supabase
-        .from('customer_points_history' as any)
+        .from('customer_points_history')
         .insert({
           organization_id: currentOrganization.id,
           customer_id: customerId,
@@ -186,14 +186,14 @@ export function useCustomerPoints() {
     
     try {
       const { data, error } = await supabase
-        .from('customer_points_history' as any)
+        .from('customer_points_history')
         .select('*')
         .eq('customer_id', customerId)
         .eq('organization_id', currentOrganization.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return (data || []) as unknown as PointsHistory[];
+      return (data || []) as PointsHistory[];
     } catch {
       return [];
     }
@@ -241,7 +241,7 @@ export function useCustomerPoints() {
       
       // Insert points history record for redemption
       const { error: historyError } = await supabase
-        .from('customer_points_history' as any)
+        .from('customer_points_history')
         .insert({
           organization_id: currentOrganization.id,
           customer_id: customerId,
@@ -286,7 +286,7 @@ export function useCustomerPoints() {
     try {
       const today = new Date().toISOString().split('T')[0];
       const { data, error } = await supabase
-        .from('gift_rewards' as any)
+        .from('gift_rewards')
         .select('*')
         .eq('organization_id', currentOrganization.id)
         .eq('is_active', true)
@@ -315,7 +315,7 @@ export function useCustomerPoints() {
     try {
       // Insert gift redemption record
       const { error: redemptionError } = await supabase
-        .from('gift_redemptions' as any)
+        .from('gift_redemptions')
         .insert({
           organization_id: currentOrganization.id,
           customer_id: customerId,
@@ -328,16 +328,15 @@ export function useCustomerPoints() {
 
       // Decrement gift stock - fetch current and update
       const { data: gift } = await supabase
-        .from('gift_rewards' as any)
+        .from('gift_rewards')
         .select('stock_qty')
         .eq('id', giftRewardId)
         .single();
       
       if (gift) {
-        const giftData = gift as any;
         await supabase
-          .from('gift_rewards' as any)
-          .update({ stock_qty: Math.max(0, (giftData.stock_qty || 0) - 1) })
+          .from('gift_rewards')
+          .update({ stock_qty: Math.max(0, (gift.stock_qty || 0) - 1) })
           .eq('id', giftRewardId);
       }
 
@@ -359,7 +358,7 @@ export function useCustomerPoints() {
 
         // Insert points history for gift redemption
         await supabase
-          .from('customer_points_history' as any)
+          .from('customer_points_history')
           .insert({
             organization_id: currentOrganization.id,
             customer_id: customerId,

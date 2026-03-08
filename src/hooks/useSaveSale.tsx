@@ -66,7 +66,7 @@ export const useSaveSale = () => {
       
       if (hasPlaceholders) {
         // Get the last invoice number matching this format pattern
-        const { data: lastSale } = await (supabase as any)
+        const { data: lastSale } = await supabase
           .from('sales')
           .select('sale_number')
           .eq('organization_id', currentOrganization?.id)
@@ -97,7 +97,7 @@ export const useSaveSale = () => {
         // Format is literal string, find last matching invoice and increment
         const basePattern = format.replace(/\d+$/, ''); // Remove trailing numbers
         
-        const { data: lastSale } = await (supabase as any)
+        const { data: lastSale } = await supabase
           .from('sales')
           .select('sale_number')
           .eq('organization_id', currentOrganization?.id)
@@ -120,7 +120,7 @@ export const useSaveSale = () => {
       }
 
       // Check if this number already exists
-      const { data: existing } = await (supabase as any)
+      const { data: existing } = await supabase
         .from('sales')
         .select('id')
         .eq('sale_number', invoiceNumber)
@@ -200,33 +200,34 @@ export const useSaveSale = () => {
 
     try {
       // Fetch settings to get invoice format
-      const { data: settings } = await (supabase as any)
+      const { data: settings } = await supabase
         .from('settings')
         .select('sale_settings')
         .eq('organization_id', currentOrganization.id)
         .maybeSingle();
 
       let saleNumber: string;
+      const saleSettings = settings?.sale_settings as Record<string, any> | null;
       
       // Use POS format for POS sales, Invoice format for regular sales
       if (saleType === 'pos') {
         // Check for custom POS format first
-        if (settings?.sale_settings?.pos_numbering_format) {
-          saleNumber = await generateInvoiceNumber(settings.sale_settings.pos_numbering_format);
+        if (saleSettings?.pos_numbering_format) {
+          saleNumber = await generateInvoiceNumber(saleSettings.pos_numbering_format);
         } else {
           // Use default POS format: POS/YY-YY/N
-          const { data: defaultNumber, error: numberError } = await (supabase as any)
+          const { data: defaultNumber, error: numberError } = await supabase
             .rpc('generate_pos_number', { p_organization_id: currentOrganization.id });
           if (numberError) throw numberError;
           saleNumber = defaultNumber;
         }
       } else {
         // Sale Invoice format
-        if (settings?.sale_settings?.invoice_numbering_format) {
-          saleNumber = await generateInvoiceNumber(settings.sale_settings.invoice_numbering_format);
+        if (saleSettings?.invoice_numbering_format) {
+          saleNumber = await generateInvoiceNumber(saleSettings.invoice_numbering_format);
         } else {
           // Use default INV format: INV/YY-YY/N
-          const { data: defaultNumber, error: numberError } = await (supabase as any)
+          const { data: defaultNumber, error: numberError } = await supabase
             .rpc('generate_sale_number', { p_organization_id: currentOrganization.id });
           if (numberError) throw numberError;
           saleNumber = defaultNumber;
@@ -280,7 +281,7 @@ export const useSaveSale = () => {
       }
 
       // Insert sale record
-      const { data: sale, error: saleError } = await (supabase as any)
+      const { data: sale, error: saleError } = await supabase
         .from('sales')
         .insert({
           sale_number: saleNumber,
@@ -345,7 +346,7 @@ export const useSaveSale = () => {
         };
       });
 
-      const { error: itemsError } = await (supabase as any)
+      const { error: itemsError } = await supabase
         .from('sale_items')
         .insert(saleItems);
 
@@ -368,7 +369,7 @@ export const useSaveSale = () => {
       if (saleData.customerPhone && currentOrganization?.id) {
         const whatsAppPromise = (async () => { try {
           // Check WhatsApp settings
-          const { data: whatsappSettings } = await (supabase as any)
+          const { data: whatsappSettings } = await supabase
             .from('whatsapp_api_settings')
             .select('is_active, auto_send_invoice, invoice_template_name, auto_send_invoice_link, invoice_link_message, social_links, send_invoice_pdf, invoice_pdf_template, use_document_header_template, invoice_document_template_name, pdf_min_amount')
             .eq('organization_id', currentOrganization.id)
@@ -410,9 +411,9 @@ export const useSaveSale = () => {
               salesman: saleData.salesman,
               organization_name: companyName,
               // Include social links from settings
-              website: whatsappSettings.social_links?.website || '',
-              instagram: whatsappSettings.social_links?.instagram || '',
-              facebook: whatsappSettings.social_links?.facebook || '',
+              website: (whatsappSettings.social_links as Record<string, string> | null)?.website || '',
+              instagram: (whatsappSettings.social_links as Record<string, string> | null)?.instagram || '',
+              facebook: (whatsappSettings.social_links as Record<string, string> | null)?.facebook || '',
             };
 
             // ============================================
@@ -647,7 +648,7 @@ export const useSaveSale = () => {
       }
 
       // Step 1: Delete existing sale_items (triggers stock restoration via handle_sale_item_delete)
-      const { error: deleteError } = await (supabase as any)
+      const { error: deleteError } = await supabase
         .from('sale_items')
         .delete()
         .eq('sale_id', saleId);
@@ -686,14 +687,14 @@ export const useSaveSale = () => {
         };
       });
 
-      const { error: itemsError } = await (supabase as any)
+      const { error: itemsError } = await supabase
         .from('sale_items')
         .insert(saleItems);
 
       if (itemsError) throw itemsError;
 
       // Step 3: Update the sales record
-      const { data: sale, error: saleError } = await (supabase as any)
+      const { data: sale, error: saleError } = await supabase
         .from('sales')
         .update({
           customer_id: saleData.customerId || null,
@@ -789,18 +790,19 @@ export const useSaveSale = () => {
 
     try {
       // Fetch settings to get invoice format
-      const { data: settings } = await (supabase as any)
+      const { data: settings } = await supabase
         .from('settings')
         .select('sale_settings')
         .eq('organization_id', currentOrganization.id)
         .maybeSingle();
 
       let saleNumber: string;
+      const holdSaleSettings = settings?.sale_settings as Record<string, any> | null;
       
-      if (settings?.sale_settings?.invoice_numbering_format) {
-        saleNumber = await generateInvoiceNumber(settings.sale_settings.invoice_numbering_format);
+      if (holdSaleSettings?.invoice_numbering_format) {
+        saleNumber = await generateInvoiceNumber(holdSaleSettings.invoice_numbering_format);
       } else {
-        const { data: defaultNumber, error: numberError } = await (supabase as any)
+        const { data: defaultNumber, error: numberError } = await supabase
           .rpc('generate_sale_number', { p_organization_id: currentOrganization.id });
         if (numberError) throw numberError;
         saleNumber = defaultNumber;
@@ -815,7 +817,7 @@ export const useSaveSale = () => {
       };
 
       // Insert sale record with hold status (NO sale_items - no stock impact)
-      const { data: sale, error: saleError } = await (supabase as any)
+      const { data: sale, error: saleError } = await supabase
         .from('sales')
         .insert({
           sale_number: saleNumber,
@@ -972,14 +974,14 @@ export const useSaveSale = () => {
         };
       });
 
-      const { error: itemsError } = await (supabase as any)
+      const { error: itemsError } = await supabase
         .from('sale_items')
         .insert(saleItems);
 
       if (itemsError) throw itemsError;
 
       // Update the held sale to completed
-      const { data: sale, error: saleError } = await (supabase as any)
+      const { data: sale, error: saleError } = await supabase
         .from('sales')
         .update({
           customer_id: saleData.customerId || null,
