@@ -1072,8 +1072,9 @@ const PurchaseBillDashboard = () => {
           <div className="flex gap-2">
             <Button 
               onClick={handleFixMissingProductNames} 
-              variant="outline"
-              className="gap-2"
+              variant="ghost"
+              size="sm"
+              className="gap-2 text-muted-foreground"
               disabled={isFixing}
             >
               {isFixing ? (
