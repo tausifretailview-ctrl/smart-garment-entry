@@ -2825,7 +2825,7 @@ Thank you for choosing us!`;
                           placeholder="0"
                           onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-16 h-8 text-right text-sm tabular-nums ml-auto"
+                          className="w-16 h-9 text-right text-[14px] tabular-nums ml-auto"
                         />
                       </td>
                       <td className="text-right px-3 py-2 text-sm font-medium tabular-nums text-destructive">
