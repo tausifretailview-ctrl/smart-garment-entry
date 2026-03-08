@@ -1070,6 +1070,7 @@ export default function Settings() {
                         <p className="text-xs text-muted-foreground mt-1">
                           Upload your organization logo (max 2MB, JPG/PNG)
                         </p>
+                        <p className="text-xs text-muted-foreground mt-1">This logo also prints on invoices and barcode labels</p>
                       </div>
                     </div>
                   </div>
