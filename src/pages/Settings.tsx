@@ -1352,51 +1352,30 @@ export default function Settings() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="payment_terms">Default Payment Terms</Label>
-                  <select
-                    id="payment_terms"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  <Select
                     value={settings.purchase_settings?.payment_terms || ""}
-                    onChange={(e) =>
+                    onValueChange={(value) =>
                       setSettings({
                         ...settings,
                         purchase_settings: {
                           ...settings.purchase_settings,
-                          payment_terms: e.target.value,
+                          payment_terms: value,
                         },
                       })
                     }
                   >
-                    <option value="">Select payment terms</option>
-                    <option value="immediate">Immediate</option>
-                    <option value="net15">Net 15</option>
-                    <option value="net30">Net 30</option>
-                    <option value="net45">Net 45</option>
-                    <option value="net60">Net 60</option>
-                    <option value="net90">Net 90</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="auto_approve_threshold">Auto-Approve Threshold Amount</Label>
-                  <Input
-                    id="auto_approve_threshold"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={settings.purchase_settings?.auto_approve_threshold || ""}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        purchase_settings: {
-                          ...settings.purchase_settings,
-                          auto_approve_threshold: parseFloat(e.target.value) || 0,
-                        },
-                      })
-                    }
-                    placeholder="e.g., 10000"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Purchase orders below this amount will be auto-approved
-                  </p>
+                    <SelectTrigger id="payment_terms">
+                      <SelectValue placeholder="Select payment terms" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="immediate">Immediate</SelectItem>
+                      <SelectItem value="net15">Net 15</SelectItem>
+                      <SelectItem value="net30">Net 30</SelectItem>
+                      <SelectItem value="net45">Net 45</SelectItem>
+                      <SelectItem value="net60">Net 60</SelectItem>
+                      <SelectItem value="net90">Net 90</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="default_tax_rate">Default Tax Rate (%)</Label>
