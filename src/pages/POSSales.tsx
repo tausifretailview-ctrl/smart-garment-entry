@@ -31,6 +31,7 @@ import { useCustomerPoints, useCustomerPointsBalance } from "@/hooks/useCustomer
 import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
 import { useBeepSound } from "@/hooks/useBeepSound";
 import { useCashDrawer } from "@/hooks/useCashDrawer";
+import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { CreditNotePrint } from "@/components/CreditNotePrint";
 import {
   Command,
@@ -217,6 +218,7 @@ export default function POSSales() {
 
   // Cash drawer hook
   const { openDrawer: openCashDrawer } = useCashDrawer();
+  const { softDelete } = useSoftDelete();
 
 
   // Barcode scanner detection for instant cart add
@@ -2262,35 +2264,21 @@ export default function POSSales() {
       return;
     }
 
-    if (!confirm("Are you sure you want to delete this invoice? This action cannot be undone.")) {
+    if (!confirm("Are you sure you want to delete this invoice? It will be moved to the recycle bin.")) {
       return;
     }
 
     try {
-      // First, delete all sale items
-      const { error: itemsError } = await supabase
-        .from("sale_items")
-        .delete()
-        .eq("sale_id", currentSaleId);
-
-      if (itemsError) throw itemsError;
-
-      // Then delete the sale
-      const { error: saleError } = await supabase
-        .from("sales")
-        .delete()
-        .eq("id", currentSaleId);
-
-      if (saleError) throw saleError;
-
-      toast({
-        title: "Success",
-        description: "Invoice deleted successfully",
-      });
-
-      setSavedInvoiceData(null);
-      queryClient.invalidateQueries({ queryKey: ["today-sales"] });
-      handleNewInvoice();
+      const success = await softDelete('sales', currentSaleId);
+      if (success) {
+        toast({
+          title: "Success",
+          description: "Invoice moved to recycle bin",
+        });
+        setSavedInvoiceData(null);
+        queryClient.invalidateQueries({ queryKey: ["today-sales"] });
+        handleNewInvoice();
+      }
     } catch (error: any) {
       toast({
         title: "Error",
