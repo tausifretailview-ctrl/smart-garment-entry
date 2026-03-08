@@ -1113,8 +1113,8 @@ const ProductDashboard = () => {
         </div>
 
         {/* Toolbar */}
-        <Card className="mb-4">
-          <CardContent className="p-4">
+        <Card className="mb-4 shadow-sm">
+          <CardContent className="p-3">
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-2">
                 <Button 
