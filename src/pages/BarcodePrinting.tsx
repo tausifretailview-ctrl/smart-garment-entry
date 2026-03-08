@@ -3927,7 +3927,7 @@ export default function BarcodePrinting() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="printScaleCustom">Print Scale (%)</Label>
+                  <Label htmlFor="printScaleCustom">PDF Export Scale (%)</Label>
                   <Input
                     id="printScaleCustom"
                     type="number"
@@ -3938,7 +3938,7 @@ export default function BarcodePrinting() {
                     onChange={(e) => setPrintScale(Math.max(50, Math.min(300, parseInt(e.target.value) || 100)))}
                     placeholder="e.g., 110, 150, 170"
                   />
-                  <p className="text-xs text-muted-foreground">100% = auto-fit to page</p>
+                  <p className="text-xs text-muted-foreground">Only affects PDF export. Direct printing always uses 100%.</p>
                 </div>
               </div>
               
