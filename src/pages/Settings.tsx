@@ -946,19 +946,19 @@ export default function Settings() {
         </div>
 
         <Tabs defaultValue="company" className="w-full">
-          <TabsList className="grid w-full grid-cols-6 lg:grid-cols-12">
-            <TabsTrigger value="company">Company</TabsTrigger>
-            <TabsTrigger value="branding">Branding</TabsTrigger>
-            <TabsTrigger value="product">Product</TabsTrigger>
-            <TabsTrigger value="purchase">Purchase</TabsTrigger>
-            <TabsTrigger value="sale">Sale</TabsTrigger>
-            <TabsTrigger value="bill">Bill & Barcode</TabsTrigger>
-            <TabsTrigger value="payment">Payment</TabsTrigger>
-            <TabsTrigger value="reports">Reports</TabsTrigger>
-            <TabsTrigger value="users">User Rights</TabsTrigger>
-            <TabsTrigger value="sms">SMS</TabsTrigger>
-            <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
-            <TabsTrigger value="backup">Backup</TabsTrigger>
+          <TabsList className="flex flex-wrap gap-1 h-auto p-1 bg-muted/60 rounded-xl mb-2">
+            <TabsTrigger value="company" className="flex items-center gap-1.5 text-xs font-medium"><Building2 className="h-3.5 w-3.5" /> Company</TabsTrigger>
+            <TabsTrigger value="product" className="flex items-center gap-1.5 text-xs font-medium"><Package className="h-3.5 w-3.5" /> Product</TabsTrigger>
+            <TabsTrigger value="purchase" className="flex items-center gap-1.5 text-xs font-medium"><ShoppingCart className="h-3.5 w-3.5" /> Purchase</TabsTrigger>
+            <TabsTrigger value="sale" className="flex items-center gap-1.5 text-xs font-medium"><Receipt className="h-3.5 w-3.5" /> Sale</TabsTrigger>
+            <TabsTrigger value="bill" className="flex items-center gap-1.5 text-xs font-medium"><Printer className="h-3.5 w-3.5" /> Bill & Barcode</TabsTrigger>
+            <TabsTrigger value="payment" className="flex items-center gap-1.5 text-xs font-medium"><CreditCard className="h-3.5 w-3.5" /> Payment</TabsTrigger>
+            <TabsTrigger value="reports" className="flex items-center gap-1.5 text-xs font-medium"><BarChart2 className="h-3.5 w-3.5" /> Reports</TabsTrigger>
+            <TabsTrigger value="users" className="flex items-center gap-1.5 text-xs font-medium"><Users className="h-3.5 w-3.5" /> User Rights</TabsTrigger>
+            <TabsTrigger value="sms" className="flex items-center gap-1.5 text-xs font-medium"><MessageSquare className="h-3.5 w-3.5" /> SMS</TabsTrigger>
+            <TabsTrigger value="whatsapp" className="flex items-center gap-1.5 text-xs font-medium"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</TabsTrigger>
+            <TabsTrigger value="backup" className="flex items-center gap-1.5 text-xs font-medium"><Database className="h-3.5 w-3.5" /> Backup</TabsTrigger>
+            <TabsTrigger value="branding" className="flex items-center gap-1.5 text-xs font-medium"><Palette className="h-3.5 w-3.5" /> Branding</TabsTrigger>
           </TabsList>
 
           <TabsContent value="company">
