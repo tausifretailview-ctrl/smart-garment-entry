@@ -601,41 +601,41 @@ export function CustomerHistoryDialog({
               return sum;
             }, 0);
             return (
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 sm:gap-3 py-3">
+              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6 sm:gap-2 py-2">
                 <Card className="border-l-4 border-l-blue-500">
-                  <CardContent className="p-2 sm:p-3">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Opening Bal</p>
-                    <p className="text-sm sm:text-base font-bold text-blue-600 truncate">₹{openingBalance.toFixed(2)}</p>
+                  <CardContent className="p-2">
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Opening Bal</p>
+                    <p className="text-xs sm:text-sm font-bold text-blue-600 truncate tabular-nums mt-0.5">₹{openingBalance.toFixed(2)}</p>
                   </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-green-500">
-                  <CardContent className="p-2 sm:p-3">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Sales</p>
-                    <p className="text-sm sm:text-base font-bold text-green-600 truncate">₹{totalSales.toFixed(2)}</p>
+                  <CardContent className="p-2">
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Total Sales</p>
+                    <p className="text-xs sm:text-sm font-bold text-green-600 truncate tabular-nums mt-0.5">₹{totalSales.toFixed(2)}</p>
                   </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-purple-500">
-                  <CardContent className="p-2 sm:p-3">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Paid</p>
-                    <p className="text-sm sm:text-base font-bold text-purple-600 truncate">₹{totalPaid.toFixed(2)}</p>
+                  <CardContent className="p-2">
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Total Paid</p>
+                    <p className="text-xs sm:text-sm font-bold text-purple-600 truncate tabular-nums mt-0.5">₹{totalPaid.toFixed(2)}</p>
                   </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-orange-500">
-                  <CardContent className="p-2 sm:p-3">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Advance</p>
-                    <p className="text-sm sm:text-base font-bold text-orange-600 truncate">₹{advanceBalance.toFixed(2)}</p>
+                  <CardContent className="p-2">
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Advance</p>
+                    <p className="text-xs sm:text-sm font-bold text-orange-600 truncate tabular-nums mt-0.5">₹{advanceBalance.toFixed(2)}</p>
                   </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-pink-500">
-                  <CardContent className="p-2 sm:p-3">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground truncate">CR Pending</p>
-                    <p className="text-sm sm:text-base font-bold text-pink-600 truncate">₹{crPending.toFixed(2)}</p>
+                  <CardContent className="p-2">
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">CR Pending</p>
+                    <p className="text-xs sm:text-sm font-bold text-pink-600 truncate tabular-nums mt-0.5">₹{crPending.toFixed(2)}</p>
                   </CardContent>
                 </Card>
                 <Card className={`border-l-4 ${balance > 0 ? 'border-l-red-500' : 'border-l-emerald-500'}`}>
-                  <CardContent className="p-2 sm:p-3">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Current Bal</p>
-                    <p className={`text-sm sm:text-base font-bold truncate ${balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                  <CardContent className="p-2">
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Current Bal</p>
+                    <p className={`text-xs sm:text-sm font-bold truncate tabular-nums mt-0.5 ${balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                       ₹{Math.abs(balance).toFixed(2)}
                       {balance < 0 && ' CR'}
                     </p>
