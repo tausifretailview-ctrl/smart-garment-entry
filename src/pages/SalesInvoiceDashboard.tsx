@@ -1512,18 +1512,18 @@ export default function SalesInvoiceDashboard() {
 
         {/* Unsaved Draft Card */}
         {hasDraft && draftData && (
-          <Card className="border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">
-            <CardHeader className="pb-3">
+          <Card className="border border-amber-400/60 bg-amber-50 rounded-xl shadow-sm">
+            <CardHeader className="py-3 px-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                  <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
                     <FileText className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                   </div>
                   <div>
-                    <h3 className="text-base font-semibold text-amber-800 dark:text-amber-200">
+                    <h3 className="text-[13px] font-bold text-amber-800">
                       Unsaved Sales Invoice Found
                     </h3>
-                    <CardDescription className="text-black dark:text-black font-bold">
+                    <CardDescription className="text-[12px] text-amber-700 font-medium mt-0.5">
                       {lastSaved ? `Draft available • Last saved ${formatDistanceToNow(lastSaved, { addSuffix: true })}` : 'Draft available'}
                       {draftData.lineItems?.length > 0 && ` • ${draftData.lineItems.length} item(s)`}
                       {draftData.billData?.customer_name && ` • ${draftData.billData.customer_name}`}
@@ -1541,7 +1541,7 @@ export default function SalesInvoiceDashboard() {
                         description: "The unsaved sales invoice has been removed",
                       });
                     }}
-                    className="gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/30"
+                    className="gap-1.5 h-8 text-[12px] border-amber-300 text-amber-700 hover:bg-amber-100"
                   >
                     <X className="h-4 w-4" />
                     Discard
@@ -1551,7 +1551,7 @@ export default function SalesInvoiceDashboard() {
                     onClick={() => {
                       navigate("/sales-invoice", { state: { loadDraft: true } });
                     }}
-                    className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+                    className="gap-1.5 h-8 text-[12px] bg-amber-500 hover:bg-amber-600 text-white font-semibold shadow-sm"
                   >
                     <Edit className="h-4 w-4" />
                     Resume Draft
@@ -1565,100 +1565,114 @@ export default function SalesInvoiceDashboard() {
         {/* Summary Statistics - Vasy ERP Style Vibrant Cards - 7 cards in 1 row */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg"
+            className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-md rounded-xl"
             onClick={() => setDeliveryFilter("all")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
               <CardDescription className="text-xs font-medium text-white/80">Total Invoices</CardDescription>
-              <FileText className="h-4 w-4 text-white" />
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <FileText className="h-4 w-4 text-white" />
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{effectiveStats.totalInvoices}</div>
-              <p className="text-xs text-white/70">All invoices</p>
+            <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-[22px] font-black text-white tabular-nums leading-tight">{effectiveStats.totalInvoices}</div>
+              <p className="text-[11px] text-white/65 mt-0.5">All invoices</p>
             </CardContent>
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-lg"
+            className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-md rounded-xl"
             onClick={() => setDeliveryFilter("all")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
               <CardDescription className="text-xs font-medium text-white/80">Total Qty</CardDescription>
-              <Package className="h-4 w-4 text-white" />
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <Package className="h-4 w-4 text-white" />
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{effectiveStats.totalQty}</div>
-              <p className="text-xs text-white/70">Items sold</p>
+            <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-[22px] font-black text-white tabular-nums leading-tight">{effectiveStats.totalQty}</div>
+              <p className="text-[11px] text-white/65 mt-0.5">Items sold</p>
             </CardContent>
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-lg"
+            className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-md rounded-xl"
             onClick={() => setDeliveryFilter("all")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
               <CardDescription className="text-xs font-medium text-white/80">Total Revenue</CardDescription>
-              <TrendingUp className="h-4 w-4 text-white" />
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <TrendingUp className="h-4 w-4 text-white" />
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">₹{effectiveStats.totalAmount.toFixed(0)}</div>
-              <p className="text-xs text-white/70">Net amount</p>
+            <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-[22px] font-black text-white tabular-nums leading-tight">₹{effectiveStats.totalAmount.toFixed(0)}</div>
+              <p className="text-[11px] text-white/65 mt-0.5">Net amount</p>
             </CardContent>
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-pink-500 to-pink-600 border-0 shadow-lg"
+            className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-pink-500 to-pink-600 border-0 shadow-md rounded-xl"
             onClick={() => setDeliveryFilter("all")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
               <CardDescription className="text-xs font-medium text-white/80">Total Discount</CardDescription>
-              <Percent className="h-4 w-4 text-white" />
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <Percent className="h-4 w-4 text-white" />
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">₹{effectiveStats.totalDiscount.toFixed(0)}</div>
-              <p className="text-xs text-white/70">Given</p>
+            <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-[22px] font-black text-white tabular-nums leading-tight">₹{effectiveStats.totalDiscount.toFixed(0)}</div>
+              <p className="text-[11px] text-white/65 mt-0.5">Given</p>
             </CardContent>
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-lg"
+            className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-md rounded-xl"
             onClick={() => setDeliveryFilter("all")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
               <CardDescription className="text-xs font-medium text-white/80">Pending Amount</CardDescription>
-              <Clock className="h-4 w-4 text-white" />
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <Clock className="h-4 w-4 text-white" />
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">₹{effectiveStats.pendingAmount.toFixed(0)}</div>
-              <p className="text-xs text-white/70">Outstanding</p>
+            <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-[22px] font-black text-white tabular-nums leading-tight">₹{effectiveStats.pendingAmount.toFixed(0)}</div>
+              <p className="text-[11px] text-white/65 mt-0.5">Outstanding</p>
             </CardContent>
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-teal-500 to-teal-600 border-0 shadow-lg"
+            className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-teal-500 to-teal-600 border-0 shadow-md rounded-xl"
             onClick={() => setDeliveryFilter("delivered")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
               <CardDescription className="text-xs font-medium text-white/80">Delivered</CardDescription>
-              <CheckCircle2 className="h-4 w-4 text-white" />
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <CheckCircle2 className="h-4 w-4 text-white" />
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{effectiveStats.deliveredCount}</div>
-              <p className="text-xs text-white/70">₹{effectiveStats.deliveredAmount.toFixed(0)}</p>
+            <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-[22px] font-black text-white tabular-nums leading-tight">{effectiveStats.deliveredCount}</div>
+              <p className="text-[11px] text-white/65 mt-0.5">₹{effectiveStats.deliveredAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-lg"
+            className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-md rounded-xl"
             onClick={() => setDeliveryFilter("undelivered")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
               <CardDescription className="text-xs font-medium text-white/80">Undelivered</CardDescription>
-              <Package className="h-4 w-4 text-white" />
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <Package className="h-4 w-4 text-white" />
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{effectiveStats.undeliveredCount}</div>
-              <p className="text-xs text-white/70">₹{effectiveStats.undeliveredAmount.toFixed(0)}</p>
+            <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-[22px] font-black text-white tabular-nums leading-tight">{effectiveStats.undeliveredCount}</div>
+              <p className="text-[11px] text-white/65 mt-0.5">₹{effectiveStats.undeliveredAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
         </div>
