@@ -2897,100 +2897,107 @@ const PurchaseEntry = () => {
             )}
         </section>
 
-        {lineItems.length > 0 && (
-          <div className="flex justify-end">
-            <div className="erp-invoice-summary-card w-96">
-              <div className="erp-invoice-section-label">Bill Summary</div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-[13px]">
-                  <span className="text-muted-foreground">Total Qty:</span>
-                  <span className="font-semibold">{totals.totalQty}</span>
-                </div>
-                <div className="flex justify-between text-[13px]">
-                  <span className="text-muted-foreground">Gross Amount:</span>
-                  <span className="font-semibold">₹{totals.grossAmount.toFixed(2)}</span>
-                </div>
-                {totals.itemDiscount > 0 && (
-                  <div className="flex justify-between text-[13px]">
-                    <span className="text-muted-foreground">Item Discount:</span>
-                    <span className="font-semibold text-destructive">-₹{totals.itemDiscount.toFixed(2)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between items-center text-[13px]">
-                  <span className="text-muted-foreground">Bill Discount:</span>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={discountAmount}
-                    onChange={(e) => setDiscountAmount(parseFloat(e.target.value) || 0)}
-                    onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                    className="w-28 text-right text-destructive h-8 text-[13px]"
-                    placeholder="0.00"
-                  />
-                </div>
-                <div className="flex justify-between text-[13px]">
-                  <span className="text-muted-foreground">GST Amount:</span>
-                  <span className="font-semibold">₹{totals.gstAmount.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between items-center text-[13px]">
-                  <span className="text-muted-foreground">Other Charges:</span>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={otherCharges}
-                    onChange={(e) => setOtherCharges(parseFloat(e.target.value) || 0)}
-                    onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                    className="w-28 text-right h-8 text-[13px]"
-                    placeholder="0.00"
-                  />
-                </div>
-                <div className="flex justify-between items-center text-[13px]">
-                  <span className="text-muted-foreground">Round Off:</span>
-                  <span className="w-28 text-right text-[13px] pr-3">
-                    {roundOff >= 0 ? `+${roundOff.toFixed(2)}` : roundOff.toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center border-t border-border pt-3 mt-2">
-                  <span className="text-[15px] font-semibold">Net Amount:</span>
-                  <span className="text-[20px] font-bold text-primary">
-                    ₹{totals.netAmount.toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+      </main>
 
-        {/* Sticky Action Bar */}
-        <div className="erp-invoice-sticky-actions flex justify-end gap-3 rounded-xl">
+      <footer className='bg-white border-t-2 border-slate-200 px-6 py-3 flex-shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,.07)] flex items-center justify-between gap-5'>
+        {/* LEFT: Totals row */}
+        <div className='flex items-center gap-4 flex-1 flex-wrap'>
+          <div className='flex flex-col items-center'>
+            <span className='text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5'>Gross Amt</span>
+            <span className='text-[16px] font-black text-slate-700 font-mono'>Rs.{totals.grossAmount.toFixed(0)}</span>
+          </div>
+
+          {totals.itemDiscount > 0 && (
+            <>
+              <span className='text-slate-300 text-xl font-light'>-</span>
+              <div className='flex flex-col items-center'>
+                <span className='text-[10px] font-bold uppercase tracking-widest text-red-400 mb-0.5'>Item Disc</span>
+                <span className='text-[16px] font-black text-red-500 font-mono'>Rs.{totals.itemDiscount.toFixed(0)}</span>
+              </div>
+            </>
+          )}
+
+          <span className='text-slate-300 text-xl font-light'>-</span>
+          <div className='flex flex-col items-center gap-0.5'>
+            <span className='text-[10px] font-bold uppercase tracking-widest text-red-400'>Bill Disc</span>
+            <Input type='number' step='0.01' value={discountAmount}
+              onChange={(e) => setDiscountAmount(parseFloat(e.target.value) || 0)}
+              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+              className='w-24 h-8 text-right text-red-600 font-bold font-mono border-red-200 bg-red-50 text-[13px]'
+              placeholder='0.00' />
+          </div>
+
+          <span className='text-slate-300 text-xl font-light'>+</span>
+          <div className='flex flex-col items-center'>
+            <span className='text-[10px] font-bold uppercase tracking-widest text-purple-400 mb-0.5'>GST</span>
+            <span className='text-[16px] font-black text-purple-600 font-mono'>Rs.{totals.gstAmount.toFixed(0)}</span>
+          </div>
+
+          <span className='text-slate-300 text-xl font-light'>+</span>
+          <div className='flex flex-col items-center gap-0.5'>
+            <span className='text-[10px] font-bold uppercase tracking-widest text-amber-500'>Other Charges</span>
+            <Input type='number' step='0.01' value={otherCharges}
+              onChange={(e) => setOtherCharges(parseFloat(e.target.value) || 0)}
+              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+              className='w-24 h-8 text-right text-amber-700 font-bold font-mono border-amber-200 bg-amber-50 text-[13px]'
+              placeholder='0.00' />
+          </div>
+
+          <div className='w-px h-10 bg-slate-200 mx-1' />
+
+          {/* NET AMOUNT PILL */}
+          <div className='flex flex-col items-center bg-gradient-to-br from-green-600 to-green-800 text-white rounded-xl px-6 py-2 min-w-[156px] shadow-[0_4px_14px_rgba(22,163,74,.35)]'>
+            <span className='text-[9px] uppercase tracking-[.14em] text-green-200 font-bold mb-0.5'>Net Amount</span>
+            <span className='text-[22px] font-black leading-none font-mono'>Rs.{totals.netAmount.toFixed(0)}</span>
+            {roundOff !== 0 && (
+              <span className='text-[10px] text-green-300 mt-0.5'>
+                Round off: {roundOff >= 0 ? '+' : ''}{roundOff.toFixed(2)}
+              </span>
+            )}
+          </div>
+
+          <div className='w-px h-10 bg-slate-200 mx-1' />
+          <div className='flex flex-col items-center'>
+            <span className='text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5'>Items</span>
+            <span className='text-[16px] font-black text-slate-700'>{lineItems.filter(i => i.product_id).length}</span>
+          </div>
+          <div className='flex flex-col items-center'>
+            <span className='text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5'>Total Qty</span>
+            <span className='text-[16px] font-black text-slate-700'>{lineItems.reduce((s, i) => s + i.qty, 0)}</span>
+          </div>
+        </div>
+
+        {/* RIGHT: Action buttons */}
+        <div className='flex items-center gap-2 flex-shrink-0'>
           {(savedBillId || isEditMode) && (
-            <Button
-              onClick={handlePrintBarcodes}
+            <Button onClick={handlePrintBarcodes}
               disabled={lineItems.length === 0}
-              size="default"
-              variant="outline"
-              className="gap-2 min-w-[150px]"
-            >
-              <Printer className="h-4 w-4" />
-              Print Barcodes {selectedForPrint.size > 0 && `(${selectedForPrint.size})`}
+              variant='outline'
+              className='h-9 gap-2 border-purple-200 text-purple-700 hover:bg-purple-50 text-sm'>
+              <Printer className='h-4 w-4' />
+              Print Barcodes
+              {selectedForPrint.size > 0 && ` (${selectedForPrint.size})`}
             </Button>
           )}
-          <Button
-            onClick={handleSave}
-            disabled={loading || lineItems.length === 0}
-            size="default"
-            className="gap-2 min-w-[150px] bg-gradient-to-r from-[hsl(217,91%,53%)] to-[hsl(224,76%,40%)] hover:from-[hsl(217,91%,48%)] hover:to-[hsl(224,76%,35%)] text-white font-bold shadow-md"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              "Save Bill"
-            )}
+          <Button variant='outline'
+            className='h-9 border-slate-300 text-slate-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600 text-sm gap-1.5'>
+            <X className='h-3.5 w-3.5' />
+            Cancel
           </Button>
+          <div className='flex flex-col items-center'>
+            <Button onClick={handleSave}
+              disabled={loading || lineItems.length === 0}
+              className='h-9 px-6 bg-green-600 hover:bg-green-700 text-white font-bold text-sm gap-2 shadow-md hover:shadow-lg transition-all'>
+              {loading ? (
+                <><Loader2 className='h-4 w-4 animate-spin' /> Saving...</>
+              ) : (
+                <><Check className='h-4 w-4' /> Save Bill</>
+              )}
+            </Button>
+            <span className='text-[10px] text-slate-400 mt-0.5'>Ctrl+S</span>
+          </div>
         </div>
+      </footer>
 
         {/* Size Grid Dialog with Color Selection */}
         <SizeGridDialog
