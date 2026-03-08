@@ -1649,7 +1649,7 @@ export default function SalesInvoiceDashboard() {
             onClick={() => setDeliveryFilter("delivered")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-              <CardDescription className="text-xs font-medium text-white/80">Delivered</CardDescription>
+              <CardDescription className="text-sm font-medium text-white/80">Delivered</CardDescription>
               <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
                 <CheckCircle2 className="h-4 w-4 text-white" />
               </div>
