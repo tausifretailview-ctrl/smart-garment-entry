@@ -856,7 +856,7 @@ const PurchaseBillDashboard = () => {
       accessorKey: "software_bill_no",
       header: "Bill No.",
       cell: ({ row }) => (
-        <span className="font-mono text-sm font-medium">
+        <span className="font-mono text-xs font-semibold bg-primary/8 text-primary px-2 py-0.5 rounded-md">
           {row.original.software_bill_no || "N/A"}
         </span>
       ),
@@ -867,7 +867,7 @@ const PurchaseBillDashboard = () => {
       accessorKey: "bill_date",
       header: "Date",
       cell: ({ row }) => (
-        <span className="text-sm whitespace-nowrap">{format(new Date(row.original.bill_date), "dd MMM yyyy")}</span>
+        <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">{format(new Date(row.original.bill_date), "dd MMM yyyy")}</span>
       ),
       size: 100,
       minSize: 90,
@@ -900,7 +900,7 @@ const PurchaseBillDashboard = () => {
             >
               {bill.supplier_name}
             </span>
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
+            <Badge className="text-[10px] px-1.5 py-0 shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-0 font-semibold tabular-nums">
               {bill.total_qty || 0}
             </Badge>
           </div>
@@ -913,7 +913,7 @@ const PurchaseBillDashboard = () => {
       accessorKey: "gross_amount",
       header: "Gross Amt",
       cell: ({ row }) => (
-        <span className="text-right block tabular-nums text-sm">₹{row.original.gross_amount.toFixed(2)}</span>
+        <span className="text-right block tabular-nums text-sm text-slate-600 dark:text-slate-400">₹{row.original.gross_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
       ),
       size: 100,
       minSize: 80,
@@ -926,7 +926,7 @@ const PurchaseBillDashboard = () => {
         return disc > 0 ? (
           <span className="text-right block tabular-nums text-sm text-destructive">-₹{disc.toFixed(2)}</span>
         ) : (
-          <span className="text-right block tabular-nums text-sm text-muted-foreground">₹0.00</span>
+          <span className="text-right block tabular-nums text-sm text-muted-foreground/50">₹0.00</span>
         );
       },
       size: 90,
@@ -936,7 +936,7 @@ const PurchaseBillDashboard = () => {
       accessorKey: "gst_amount",
       header: "GST",
       cell: ({ row }) => (
-        <span className="text-right block tabular-nums text-sm">₹{row.original.gst_amount.toFixed(2)}</span>
+        <span className="text-right block tabular-nums text-sm text-blue-600 dark:text-blue-400">₹{row.original.gst_amount.toFixed(2)}</span>
       ),
       size: 85,
       minSize: 70,
@@ -945,7 +945,7 @@ const PurchaseBillDashboard = () => {
       accessorKey: "net_amount",
       header: "Net Amt",
       cell: ({ row }) => (
-        <span className="text-right block font-semibold text-primary tabular-nums text-sm">₹{row.original.net_amount.toFixed(2)}</span>
+        <span className="text-right block font-bold text-primary tabular-nums">₹{row.original.net_amount.toFixed(2)}</span>
       ),
       size: 100,
       minSize: 80,
@@ -973,13 +973,13 @@ const PurchaseBillDashboard = () => {
         const bill = row.original;
         return (
           <div className="flex items-center gap-0" onClick={(e) => e.stopPropagation()}>
-            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => handleOpenPaymentDialog(bill, e)} title="Record Payment">
+            <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950" onClick={(e) => handleOpenPaymentDialog(bill, e)} title="Record Payment">
               <Wallet className="h-3.5 w-3.5" />
             </Button>
-            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); navigate("/purchase-entry", { state: { editBillId: bill.id } }); }} title="Edit">
+            <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950" onClick={(e) => { e.stopPropagation(); navigate("/purchase-entry", { state: { editBillId: bill.id } }); }} title="Edit">
               <Edit className="h-3.5 w-3.5" />
             </Button>
-            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => handlePrintBarcodes(bill.id, e)} disabled={printingBill === bill.id} title="Print Barcodes">
+            <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-950" onClick={(e) => handlePrintBarcodes(bill.id, e)} disabled={printingBill === bill.id} title="Print Barcodes">
               {printingBill === bill.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
             </Button>
           </div>
@@ -998,7 +998,10 @@ const PurchaseBillDashboard = () => {
     return (
       <div className="p-4">
         <div className="flex items-center justify-between mb-3">
-          <h4 className="font-semibold text-sm">Purchase Items Details</h4>
+          <h4 className="font-semibold text-sm text-primary flex items-center gap-1.5">
+            <ShoppingCart className="h-3.5 w-3.5" />
+            Purchase Items
+          </h4>
           {bill.notes && (
             <p className="text-sm text-muted-foreground">
               <span className="font-medium">Notes:</span> {bill.notes}
@@ -1008,7 +1011,7 @@ const PurchaseBillDashboard = () => {
         <div className="border rounded-lg overflow-hidden">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/30">
+              <TableRow className="bg-slate-50 dark:bg-slate-900/50">
                 <TableHead>Product Description</TableHead>
                 <TableHead>Barcode</TableHead>
                 <TableHead className="text-right">Quantity</TableHead>
@@ -1039,7 +1042,7 @@ const PurchaseBillDashboard = () => {
                   <TableCell className="text-right">₹{item.sale_price.toFixed(2)}</TableCell>
                   {showMrp && <TableCell className="text-right">₹{(item.mrp || 0).toFixed(2)}</TableCell>}
                   <TableCell className="text-right">{item.gst_per}%</TableCell>
-                  <TableCell className="text-right font-semibold">
+                  <TableCell className="text-right font-bold text-primary tabular-nums">
                     ₹{item.line_total.toFixed(2)}
                   </TableCell>
                 </TableRow>
@@ -1058,14 +1061,20 @@ const PurchaseBillDashboard = () => {
       <div className="w-full space-y-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <Receipt className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold text-foreground">Purchase Bills</h1>
+            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Receipt className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground tracking-tight">Purchase Bills</h1>
+              <p className="text-xs text-muted-foreground">Manage supplier invoices & payments</p>
+            </div>
           </div>
           <div className="flex gap-2">
             <Button 
               onClick={handleFixMissingProductNames} 
-              variant="outline"
-              className="gap-2"
+              variant="ghost"
+              size="sm"
+              className="gap-2 text-muted-foreground"
               disabled={isFixing}
             >
               {isFixing ? (
@@ -1075,7 +1084,7 @@ const PurchaseBillDashboard = () => {
               )}
               Fix Missing Data
             </Button>
-            <Button onClick={() => navigate("/purchase-entry")} className="gap-2">
+            <Button onClick={() => navigate("/purchase-entry")} className="gap-2 shadow-sm font-semibold">
               <Plus className="h-4 w-4" />
               New Purchase
             </Button>
@@ -1138,8 +1147,8 @@ const PurchaseBillDashboard = () => {
               <Receipt className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.totalBills}</div>
-              <p className="text-xs text-white/70">Qty: {summaryStats.totalQty}</p>
+              <div className="text-2xl font-bold text-white tabular-nums">{summaryStats.totalBills}</div>
+              <p className="text-xs text-white/70 mt-1">{summaryStats.totalQty.toLocaleString('en-IN')} items purchased</p>
             </CardContent>
           </Card>
 
@@ -1149,8 +1158,8 @@ const PurchaseBillDashboard = () => {
               <CheckCircle2 className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.paidCount}</div>
-              <p className="text-xs text-white/70">₹{summaryStats.paidAmount.toFixed(0)}</p>
+              <div className="text-2xl font-bold text-white tabular-nums">₹{summaryStats.paidAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
+              <p className="text-xs text-white/70 mt-1">{summaryStats.paidCount} bills cleared</p>
             </CardContent>
           </Card>
 
@@ -1160,8 +1169,8 @@ const PurchaseBillDashboard = () => {
               <Clock className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.partialCount}</div>
-              <p className="text-xs text-white/70">₹{summaryStats.partialAmount.toFixed(0)}</p>
+              <div className="text-2xl font-bold text-white tabular-nums">₹{summaryStats.partialAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
+              <p className="text-xs text-white/70 mt-1">{summaryStats.partialCount} bills partial</p>
             </CardContent>
           </Card>
 
@@ -1171,8 +1180,8 @@ const PurchaseBillDashboard = () => {
               <Wallet className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.unpaidCount}</div>
-              <p className="text-xs text-white/70">₹{summaryStats.unpaidAmount.toFixed(0)}</p>
+              <div className="text-2xl font-bold text-white tabular-nums">₹{summaryStats.unpaidAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
+              <p className="text-xs text-white/70 mt-1">{summaryStats.unpaidCount} bills pending</p>
             </CardContent>
           </Card>
 
@@ -1182,15 +1191,15 @@ const PurchaseBillDashboard = () => {
               <IndianRupee className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">₹{summaryStats.totalAmount.toFixed(0)}</div>
-              <p className="text-xs text-white/70">Avg: ₹{filteredBills.length > 0 ? (summaryStats.totalAmount / filteredBills.length).toFixed(0) : "0"}</p>
+              <div className="text-2xl font-bold text-white tabular-nums">₹{summaryStats.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
+              <p className="text-xs text-white/70 mt-1">Avg ₹{filteredBills.length > 0 ? (summaryStats.totalAmount / filteredBills.length).toLocaleString('en-IN', { maximumFractionDigits: 0 }) : "0"} / bill</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Bulk Actions */}
         {selectedBills.size > 0 && (
-          <Card className="mb-4 border-primary/50">
+          <Card className="mb-4 border-primary bg-primary/5 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -1209,8 +1218,8 @@ const PurchaseBillDashboard = () => {
           </Card>
         )}
 
-        <Card className="p-6">
-          <div className="space-y-4">
+        <Card className="shadow-sm">
+          <CardContent className="p-3">
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative flex-1 min-w-[200px] max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -1218,7 +1227,7 @@ const PurchaseBillDashboard = () => {
                   placeholder="Search by bill no, supplier, barcode..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
+                  className="pl-9 h-9"
                 />
               </div>
               <Input
@@ -1226,17 +1235,17 @@ const PurchaseBillDashboard = () => {
                 placeholder="Start Date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-[160px]"
+                className="w-[150px] h-9"
               />
               <Input
                 type="date"
                 placeholder="End Date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-[160px]"
+                className="w-[150px] h-9"
               />
               <Select value={sortOrder} onValueChange={(value: "asc" | "desc") => setSortOrder(value)}>
-                <SelectTrigger className="w-[200px] gap-2">
+                <SelectTrigger className="w-[180px] h-9 gap-2">
                   <ArrowUpDown className="h-4 w-4" />
                   <SelectValue />
                 </SelectTrigger>
@@ -1247,6 +1256,11 @@ const PurchaseBillDashboard = () => {
               </Select>
               <div id="erp-toolbar-portal-purchase" className="flex items-center gap-2 ml-auto" />
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm overflow-hidden">
+          <CardContent className="p-0">
             {filteredBills.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -1273,13 +1287,13 @@ const PurchaseBillDashboard = () => {
                 }}
               />
             )}
-          </div>
+          </CardContent>
         </Card>
 
         {/* Pagination Controls */}
         {filteredBills.length > 0 && (
-          <Card className="mt-4">
-            <CardContent className="p-4">
+          <Card className="mt-4 shadow-sm">
+            <CardContent className="p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
@@ -1297,8 +1311,8 @@ const PurchaseBillDashboard = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    Showing {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, filteredBills.length)} of {filteredBills.length} bills
+                  <div className="text-xs text-muted-foreground tabular-nums">
+                    Showing {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredBills.length)} of <span className="font-semibold text-foreground">{filteredBills.length}</span> bills
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
