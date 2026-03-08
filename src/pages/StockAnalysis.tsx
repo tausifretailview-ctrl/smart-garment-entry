@@ -522,6 +522,9 @@ export default function StockAnalysis() {
                               <TableCell className="text-right bg-red-50 dark:bg-red-950 font-medium text-red-700 dark:text-red-400">
                                 -{item.sales_qty}
                               </TableCell>
+                              <TableCell className="text-right bg-emerald-50 dark:bg-emerald-950 font-medium text-emerald-700 dark:text-emerald-400">
+                                {item.sale_return_qty > 0 ? `+${item.sale_return_qty}` : '0'}
+                              </TableCell>
                               <TableCell className="text-right bg-primary/10 font-bold text-destructive">
                                 {item.stock_qty}
                               </TableCell>
