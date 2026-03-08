@@ -2741,7 +2741,7 @@ Thank you for choosing us!`;
                       key={item.id}
                       className={`group border-b border-border/40 transition-colors ${displayIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} hover:bg-blue-50/50`}
                     >
-                      <td className="text-center text-xs text-muted-foreground px-3 py-2">{srNo}</td>
+                      <td className="text-center text-sm text-muted-foreground px-3 py-2">{srNo}</td>
                       <td className="px-3 py-2">
                         <button
                           type="button"
