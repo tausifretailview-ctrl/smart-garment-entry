@@ -1252,6 +1252,11 @@ const PurchaseBillDashboard = () => {
               </Select>
               <div id="erp-toolbar-portal-purchase" className="flex items-center gap-2 ml-auto" />
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm overflow-hidden">
+          <CardContent className="p-0">
             {filteredBills.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -1278,7 +1283,7 @@ const PurchaseBillDashboard = () => {
                 }}
               />
             )}
-          </div>
+          </CardContent>
         </Card>
 
         {/* Pagination Controls */}
