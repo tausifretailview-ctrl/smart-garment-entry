@@ -1914,8 +1914,13 @@ Please clear your dues at the earliest. Thank you!`;
       {/* Customer List */}
       <Card>
         <CardHeader>
-          <CardTitle>{isSchool ? 'Student Account Ledger' : 'Customer Ledger'}</CardTitle>
-          <CardDescription>{isSchool ? 'View detailed fee and payment history for each student' : 'View detailed transaction history for each customer'}</CardDescription>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <BookOpen className="h-5 w-5 text-primary" />
+            {isSchool ? 'Student Account Ledger' : 'Customer Ledger'}
+          </CardTitle>
+          <CardDescription>
+            {isSchool ? 'View detailed fee and payment history for each student' : 'View detailed transaction history for each customer'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col md:flex-row items-start md:items-center gap-4 mb-6">

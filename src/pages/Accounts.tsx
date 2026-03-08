@@ -310,18 +310,18 @@ export default function Accounts() {
         onCardClick={handleCardClick}
       />
 
-      <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-10">
-          <TabsTrigger value="customer-ledger">Customer Ledger</TabsTrigger>
-          <TabsTrigger value="supplier-ledger">Supplier Ledger</TabsTrigger>
-          <TabsTrigger value="outstanding">Outstanding</TabsTrigger>
-          <TabsTrigger value="customer-payment">Customer Payment</TabsTrigger>
-          <TabsTrigger value="supplier-payment">Supplier Payment</TabsTrigger>
-          <TabsTrigger value="employee-salary">Employee Salary</TabsTrigger>
-          <TabsTrigger value="expenses">Expenses</TabsTrigger>
-          <TabsTrigger value="voucher-entry">Voucher Entry</TabsTrigger>
-          <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
-          {isAdmin && <TabsTrigger value="balance-adjustment">Balance Adj.</TabsTrigger>}
+      <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
+        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-10 h-10 bg-muted/60 p-1 rounded-xl">
+          <TabsTrigger value="customer-ledger" className="rounded-lg text-xs font-medium">Customer Ledger</TabsTrigger>
+          <TabsTrigger value="supplier-ledger" className="rounded-lg text-xs font-medium">Supplier Ledger</TabsTrigger>
+          <TabsTrigger value="outstanding" className="rounded-lg text-xs font-medium">Outstanding</TabsTrigger>
+          <TabsTrigger value="customer-payment" className="rounded-lg text-xs font-medium">Customer Payment</TabsTrigger>
+          <TabsTrigger value="supplier-payment" className="rounded-lg text-xs font-medium">Supplier Payment</TabsTrigger>
+          <TabsTrigger value="employee-salary" className="rounded-lg text-xs font-medium">Employee Salary</TabsTrigger>
+          <TabsTrigger value="expenses" className="rounded-lg text-xs font-medium">Expenses</TabsTrigger>
+          <TabsTrigger value="voucher-entry" className="rounded-lg text-xs font-medium">Voucher Entry</TabsTrigger>
+          <TabsTrigger value="reconciliation" className="rounded-lg text-xs font-medium">Reconciliation</TabsTrigger>
+          {isAdmin && <TabsTrigger value="balance-adjustment" className="rounded-lg text-xs font-medium">Balance Adj.</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="customer-ledger" className="space-y-6">
