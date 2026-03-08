@@ -315,7 +315,7 @@ export function useCustomerPoints() {
     try {
       // Insert gift redemption record
       const { error: redemptionError } = await supabase
-        .from('gift_redemptions' as any)
+        .from('gift_redemptions')
         .insert({
           organization_id: currentOrganization.id,
           customer_id: customerId,
