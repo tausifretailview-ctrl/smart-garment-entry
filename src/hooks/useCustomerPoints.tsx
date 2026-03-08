@@ -358,7 +358,7 @@ export function useCustomerPoints() {
 
         // Insert points history for gift redemption
         await supabase
-          .from('customer_points_history' as any)
+          .from('customer_points_history')
           .insert({
             organization_id: currentOrganization.id,
             customer_id: customerId,
