@@ -2497,10 +2497,10 @@ Thank you for choosing us!`;
 
           {/* Invoice Date */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Invoice Date</label>
+            <label className="text-[13px] font-medium text-muted-foreground mb-1 block">Invoice Date</label>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("w-full justify-start text-left font-normal h-9")}>
+                <Button variant="outline" className={cn("w-full justify-start text-left font-normal h-10 text-sm")}>
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {format(invoiceDate, "PPP")}
                 </Button>
