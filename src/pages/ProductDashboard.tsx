@@ -1049,7 +1049,7 @@ const ProductDashboard = () => {
             >
               <Home className="h-4 w-4" />
             </Button>
-            <h1 className="text-2xl font-bold text-foreground">Product</h1>
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">Product Catalog</h1>
           </div>
         </div>
 
