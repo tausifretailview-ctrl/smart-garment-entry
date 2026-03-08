@@ -115,7 +115,8 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
         const totalPurchases = supplierBills.reduce((sum: number, b: any) => sum + (b.net_amount || 0), 0);
         const totalPaidOnBills = supplierBills.reduce((sum: number, b: any) => sum + (b.paid_amount || 0), 0);
         const voucherPaymentTotal = supplierVoucherPayments.get(supplier.id) || 0;
-        const totalPaid = totalPaidOnBills + voucherPaymentTotal;
+        // Use Math.max to avoid double-counting (same fix as customer side)
+        const totalPaid = Math.max(totalPaidOnBills, voucherPaymentTotal);
         const totalCreditNotes = supplierCreditNotes.get(supplier.id) || 0;
         const openingBalance = supplier.opening_balance || 0;
         // Balance = Opening Balance + Total Purchases - Total Paid - Credit Notes
