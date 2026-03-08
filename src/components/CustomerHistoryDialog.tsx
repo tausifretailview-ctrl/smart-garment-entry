@@ -1078,6 +1078,7 @@ export function CustomerHistoryDialog({
               </TabsContent>
             </ScrollArea>
           </Tabs>
+          </div>
         </DialogContent>
       </Dialog>
 
