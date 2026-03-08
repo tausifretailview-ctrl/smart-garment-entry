@@ -241,7 +241,7 @@ export function useCustomerPoints() {
       
       // Insert points history record for redemption
       const { error: historyError } = await supabase
-        .from('customer_points_history' as any)
+        .from('customer_points_history')
         .insert({
           organization_id: currentOrganization.id,
           customer_id: customerId,
