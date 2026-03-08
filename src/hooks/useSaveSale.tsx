@@ -647,7 +647,7 @@ export const useSaveSale = () => {
       }
 
       // Step 1: Delete existing sale_items (triggers stock restoration via handle_sale_item_delete)
-      const { error: deleteError } = await (supabase as any)
+      const { error: deleteError } = await supabase
         .from('sale_items')
         .delete()
         .eq('sale_id', saleId);
