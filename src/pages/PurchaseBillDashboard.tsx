@@ -979,7 +979,7 @@ const PurchaseBillDashboard = () => {
             <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950" onClick={(e) => { e.stopPropagation(); navigate("/purchase-entry", { state: { editBillId: bill.id } }); }} title="Edit">
               <Edit className="h-3.5 w-3.5" />
             </Button>
-            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => handlePrintBarcodes(bill.id, e)} disabled={printingBill === bill.id} title="Print Barcodes">
+            <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-950" onClick={(e) => handlePrintBarcodes(bill.id, e)} disabled={printingBill === bill.id} title="Print Barcodes">
               {printingBill === bill.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
             </Button>
           </div>
