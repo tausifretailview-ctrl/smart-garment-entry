@@ -2555,7 +2555,7 @@ const PurchaseEntry = () => {
                     <TableHead className="w-[50px]">SIZE</TableHead>
                     <TableHead className="w-[120px]">BARCODE</TableHead>
                     <TableHead className="w-[80px] text-right">QTY</TableHead>
-                    <TableHead className="w-[120px] text-right">PUR.RATE</TableHead>
+                    <TableHead className='w-[120px] text-right pur-rate-col'>PUR.RATE</TableHead>
                     <TableHead className="w-[120px] text-right">SALE.RATE</TableHead>
                     {showMrp && <TableHead className="w-[120px] text-right">MRP</TableHead>}
                     <TableHead className="w-[100px] text-right">GST %</TableHead>
