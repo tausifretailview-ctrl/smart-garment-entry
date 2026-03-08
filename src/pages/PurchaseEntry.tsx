@@ -2320,9 +2320,14 @@ const PurchaseEntry = () => {
       <main className="flex-1 overflow-y-auto overflow-x-hidden">
 
         {/* Supplier & Bill Details Card */}
-        <div className="erp-invoice-info-card">
-          <div className="erp-invoice-section-label">Supplier & Bill Details</div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <section className='bg-white border-b border-slate-200 px-6 py-4 flex-shrink-0'>
+          <div className='flex items-center gap-2 mb-3'>
+            <div className='w-[3px] h-[18px] bg-green-600 rounded-full flex-shrink-0' />
+            <span className='text-[10px] font-bold uppercase tracking-widest text-slate-400'>
+              Supplier & Bill Details
+            </span>
+          </div>
+            <div className='grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 items-end'>
               <div className="space-y-2">
                 <Label htmlFor="software_bill_no">Software Bill No</Label>
                 <Input
