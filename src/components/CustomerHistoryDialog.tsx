@@ -530,14 +530,24 @@ export function CustomerHistoryDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-6xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-3 sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-xl">
-              <ShoppingCart className="h-6 w-6 text-primary" />
-              {customerName}
-            </DialogTitle>
-            <DialogDescription className="text-sm">Customer account history and transactions</DialogDescription>
-          </DialogHeader>
+        <DialogContent className="max-w-6xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0">
+          {/* Gradient accent bar */}
+          <div className="h-1 w-full bg-gradient-to-r from-primary via-blue-500 to-accent rounded-t-lg flex-shrink-0" />
+          <div className="p-3 sm:p-5 pb-0">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2.5 text-lg font-bold tracking-tight">
+                <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <ShoppingCart className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <div>{customerName}</div>
+                  <DialogDescription className="text-xs font-normal mt-0.5">
+                    Customer account history and transactions
+                  </DialogDescription>
+                </div>
+              </DialogTitle>
+            </DialogHeader>
+          </div>
 
           {/* Summary Cards */}
           {(() => {
