@@ -98,7 +98,7 @@ export function AccountsDashboardCards({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Partial</p>
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Partial</p>
                 <div className="text-2xl font-bold text-amber-700 dark:text-amber-300 tabular-nums mt-1">
                   ₹{Math.round(paymentStats.partialAmount).toLocaleString('en-IN')}
                 </div>
