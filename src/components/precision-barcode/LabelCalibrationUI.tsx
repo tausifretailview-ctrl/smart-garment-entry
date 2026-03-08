@@ -142,6 +142,7 @@ interface LabelCalibrationUIProps {
   onSavePreset?: (preset: CalibrationPreset) => Promise<void> | void;
   onDeletePreset?: (presetId: string) => Promise<void> | void;
   onLoadPreset?: (preset: CalibrationPreset) => void;
+  onSetDefault?: (presetId: string, presetName: string) => Promise<void> | void;
   labelConfig?: LabelDesignConfig;
   compact?: boolean;
   sampleItem?: LabelItem;
