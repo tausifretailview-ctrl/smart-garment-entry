@@ -2303,7 +2303,7 @@ Thank you for choosing us!`;
                     variant="outline"
                     role="combobox"
                     aria-expanded={openCustomerSearch}
-                    className="flex-1 justify-between h-9"
+                    className="flex-1 justify-between h-10 text-sm"
                   >
                     {selectedCustomer ? (
                       <span>{selectedCustomer.customer_name} - {selectedCustomer.phone}</span>
