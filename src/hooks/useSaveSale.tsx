@@ -200,7 +200,7 @@ export const useSaveSale = () => {
 
     try {
       // Fetch settings to get invoice format
-      const { data: settings } = await (supabase as any)
+      const { data: settings } = await supabase
         .from('settings')
         .select('sale_settings')
         .eq('organization_id', currentOrganization.id)
