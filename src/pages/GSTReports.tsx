@@ -697,7 +697,16 @@ const GSTReports = () => {
                   <CardTitle>GSTR-1 - Outward Supplies</CardTitle>
                   <CardDescription>Details of outward supplies for {format(new Date(fromDate), "MMM yyyy")}</CardDescription>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={downloadGstr1Json}
+                    disabled={isDownloadingGstr1Json}
+                  >
+                    <FileText className="h-4 w-4 mr-1" />
+                    {isDownloadingGstr1Json ? "Generating…" : "Download GSTR-1 JSON"}
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => exportToExcel(gstr1Data.b2b, "GSTR1_B2B", "B2B")}>
                     <Download className="h-4 w-4 mr-1" />
                     B2B
