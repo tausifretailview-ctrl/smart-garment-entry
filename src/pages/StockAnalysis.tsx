@@ -329,7 +329,7 @@ export default function StockAnalysis() {
           }
         }
 
-        formattedBatch = (batchStockData || []).map((item: any) => ({
+        formattedBatch = (allBatchStockData || []).map((item: any) => ({
           id: item.id,
           bill_number: item.bill_number,
           quantity: item.quantity,
