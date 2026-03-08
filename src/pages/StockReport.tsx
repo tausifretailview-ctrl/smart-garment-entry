@@ -30,6 +30,7 @@ interface StockItem {
   purchase_qty: number;
   purchase_return_qty: number;
   sales_qty: number;
+  sale_return_qty: number;
   sale_price: number;
   pur_price: number | null;
   barcode: string;
@@ -520,8 +521,28 @@ export default function StockReport() {
         return rows;
       };
 
+      const fetchSaleReturnItems = async (batchIds: string[]) => {
+        const rows: any[] = [];
+        let offset = 0;
+        const pageSize = 1000;
+        let hasMore = true;
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from('sale_return_items')
+            .select('variant_id, quantity')
+            .in('variant_id', batchIds)
+            .is('deleted_at', null)
+            .order('id')
+            .range(offset, offset + pageSize - 1);
+          if (error) throw error;
+          if (data && data.length > 0) { rows.push(...data); offset += pageSize; hasMore = data.length === pageSize; }
+          else { hasMore = false; }
+        }
+        return rows;
+      };
+
       // Aggregate quantities from all transaction tables
-      const variantMovements: Record<string, { purchase: number; purchaseReturn: number; sales: number }> = {};
+      const variantMovements: Record<string, { purchase: number; purchaseReturn: number; sales: number; saleReturn: number }> = {};
 
       // Fetch batch stock for supplier info (batched)
       const allBatchData: any[] = [];
@@ -529,11 +550,12 @@ export default function StockReport() {
       for (let i = 0; i < variantIds.length; i += BATCH_SIZE) {
         const batchIds = variantIds.slice(i, i + BATCH_SIZE);
 
-        // Run all 4 queries in parallel for each batch
-        const [purchaseRows, saleRows, purReturnRows, batchStockData] = await Promise.all([
+        // Run all 5 queries in parallel for each batch
+        const [purchaseRows, saleRows, purReturnRows, saleReturnRows, batchStockData] = await Promise.all([
           fetchPurchaseItems(batchIds),
           fetchSaleItems(batchIds),
           fetchPurchaseReturnItems(batchIds),
+          fetchSaleReturnItems(batchIds),
           supabase
             .from("batch_stock")
             .select(`variant_id, purchase_bills ( supplier_name, supplier_invoice_no )`)
@@ -545,16 +567,20 @@ export default function StockReport() {
         if (batchStockData) allBatchData.push(...batchStockData);
 
         for (const row of purchaseRows) {
-          if (!variantMovements[row.sku_id]) variantMovements[row.sku_id] = { purchase: 0, purchaseReturn: 0, sales: 0 };
+          if (!variantMovements[row.sku_id]) variantMovements[row.sku_id] = { purchase: 0, purchaseReturn: 0, sales: 0, saleReturn: 0 };
           variantMovements[row.sku_id].purchase += (row.qty || 0);
         }
         for (const row of saleRows) {
-          if (!variantMovements[row.variant_id]) variantMovements[row.variant_id] = { purchase: 0, purchaseReturn: 0, sales: 0 };
+          if (!variantMovements[row.variant_id]) variantMovements[row.variant_id] = { purchase: 0, purchaseReturn: 0, sales: 0, saleReturn: 0 };
           variantMovements[row.variant_id].sales += (row.quantity || 0);
         }
         for (const row of purReturnRows) {
-          if (!variantMovements[row.sku_id]) variantMovements[row.sku_id] = { purchase: 0, purchaseReturn: 0, sales: 0 };
+          if (!variantMovements[row.sku_id]) variantMovements[row.sku_id] = { purchase: 0, purchaseReturn: 0, sales: 0, saleReturn: 0 };
           variantMovements[row.sku_id].purchaseReturn += (row.qty || 0);
+        }
+        for (const row of saleReturnRows) {
+          if (!variantMovements[row.variant_id]) variantMovements[row.variant_id] = { purchase: 0, purchaseReturn: 0, sales: 0, saleReturn: 0 };
+          variantMovements[row.variant_id].saleReturn += (row.quantity || 0);
         }
       }
 
@@ -570,7 +596,7 @@ export default function StockReport() {
       }, {});
 
       const formattedData = data?.map((item: any) => {
-        const movements = variantMovements[item.id] || { purchase: 0, purchaseReturn: 0, sales: 0 };
+        const movements = variantMovements[item.id] || { purchase: 0, purchaseReturn: 0, sales: 0, saleReturn: 0 };
         const supplierInfo = variantSuppliers[item.id] || { supplier_name: '', supplier_invoice_no: '' };
         const netSalesQty = Math.max(0, movements.sales);
         
@@ -585,6 +611,7 @@ export default function StockReport() {
           purchase_qty: Math.max(0, movements.purchase),
           purchase_return_qty: Math.max(0, movements.purchaseReturn),
           sales_qty: netSalesQty,
+          sale_return_qty: Math.max(0, movements.saleReturn || 0),
           sale_price: item.sale_price,
           pur_price: item.pur_price || null,
           barcode: item.barcode || "",
@@ -1151,7 +1178,7 @@ export default function StockReport() {
                     <div>
                       <CardTitle>Current Stock Levels</CardTitle>
                       <CardDescription>
-                        Stock breakdown: Opening Qty + Purchase Qty - Pur Return - Sales Qty = Current Stock Qty
+                        Stock breakdown: Opening Qty + Purchase Qty - Pur Return - Sales Qty + Sale Return = Current Stock Qty
                       </CardDescription>
                     </div>
                     <div className="text-sm text-muted-foreground">
@@ -1175,6 +1202,7 @@ export default function StockReport() {
                           <TableHead className="text-right bg-green-50 dark:bg-green-950 text-green-800 dark:text-white">Purchase Qty</TableHead>
                           <TableHead className="text-right bg-orange-50 dark:bg-orange-950 text-orange-800 dark:text-white">Pur Return</TableHead>
                           <TableHead className="text-right bg-red-50 dark:bg-red-950 text-red-800 dark:text-white">Sales Qty</TableHead>
+                          <TableHead className="text-right bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-white">Sale Return</TableHead>
                           <TableHead className="text-right bg-primary/10 font-semibold text-primary dark:text-primary">Current Stock</TableHead>
                           <TableHead className="text-right">Pur Price</TableHead>
                           <TableHead className="text-right">Stock Value</TableHead>
@@ -1185,7 +1213,7 @@ export default function StockReport() {
                       <TableBody>
                         {paginatedStockItems.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={16} className="text-center text-muted-foreground py-8">
+                            <TableCell colSpan={17} className="text-center text-muted-foreground py-8">
                               No products found matching your search
                             </TableCell>
                           </TableRow>
@@ -1212,6 +1240,9 @@ export default function StockReport() {
                               </TableCell>
                               <TableCell className="text-right bg-red-50 dark:bg-red-950 font-medium text-red-700 dark:text-red-400">
                                 {item.sales_qty > 0 ? `-${item.sales_qty}` : '0'}
+                              </TableCell>
+                              <TableCell className="text-right bg-emerald-50 dark:bg-emerald-950 font-medium text-emerald-700 dark:text-emerald-400">
+                                {item.sale_return_qty > 0 ? `+${item.sale_return_qty}` : '0'}
                               </TableCell>
                               <TableCell className="text-right bg-primary/10 font-bold text-primary">
                                 {item.stock_qty}
@@ -1260,6 +1291,9 @@ export default function StockReport() {
                             </TableCell>
                             <TableCell className="text-right bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400">
                               -{filteredStockItems.reduce((s, i) => s + i.sales_qty, 0).toLocaleString('en-IN')}
+                            </TableCell>
+                            <TableCell className="text-right bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400">
+                              +{filteredStockItems.reduce((s, i) => s + i.sale_return_qty, 0).toLocaleString('en-IN')}
                             </TableCell>
                             <TableCell className="text-right bg-primary/10 text-primary">
                               {filteredStockItems.reduce((s, i) => s + i.stock_qty, 0).toLocaleString('en-IN')}
