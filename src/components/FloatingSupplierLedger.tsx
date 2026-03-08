@@ -118,7 +118,14 @@ export const FloatingSupplierLedger = ({
         .order("voucher_date", { ascending: true });
       if (cnError) throw cnError;
 
-      return { bills: bills || [], vouchersData, openingPayments: openingPayments || [], creditNotes: creditNotes || [], billIds };
+      // Fetch refunds received from supplier (when CN is marked 'refunded')
+      const { data: supplierRefunds } = await supabase
+        .from('voucher_entries').select('*')
+        .eq('reference_type', 'supplier').eq('reference_id', supplierId)
+        .eq('voucher_type', 'receipt').is('deleted_at', null)
+        .order('voucher_date', { ascending: true });
+
+      return { bills: bills || [], vouchersData, openingPayments: openingPayments || [], creditNotes: creditNotes || [], supplierRefunds: supplierRefunds || [], billIds };
     },
     enabled: isOpen && !!supplierId,
   });
@@ -127,7 +134,7 @@ export const FloatingSupplierLedger = ({
   const transactions = useMemo<Transaction[]>(() => {
     if (!ledgerData || !supplier) return [];
 
-    const { bills, vouchersData, openingPayments, creditNotes, billIds } = ledgerData;
+    const { bills, vouchersData, openingPayments, creditNotes, supplierRefunds, billIds } = ledgerData;
     const openingBalance = supplier.opening_balance || 0;
 
     // voucher payments by bill
@@ -159,6 +166,7 @@ export const FloatingSupplierLedger = ({
       ...bills.map((bill: any) => ({ date: bill.bill_date, type: "bill" as const, data: bill })),
       ...allVouchers.map((v: any) => ({ date: v.voucher_date, type: "payment" as const, data: v })),
       ...(creditNotes || []).map((cn: any) => ({ date: cn.voucher_date, type: "credit_note" as const, data: cn })),
+      ...(supplierRefunds || []).map((r: any) => ({ date: r.voucher_date, type: "refund_received" as const, data: r })),
     ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     combined.forEach((item) => {
@@ -202,6 +210,19 @@ export const FloatingSupplierLedger = ({
           reference: cn.voucher_number,
           description: cn.description || "Supplier Credit Note (Purchase Return)",
           debit: cn.total_amount,
+          credit: 0,
+          balance: runningBalance,
+        });
+      } else if (item.type === "refund_received") {
+        const r = item.data as any;
+        runningBalance = Math.round(runningBalance - r.total_amount);
+        allTransactions.push({
+          id: r.id,
+          date: r.voucher_date,
+          type: "payment",
+          reference: r.voucher_number,
+          description: r.description || "Refund Received from Supplier",
+          debit: r.total_amount,
           credit: 0,
           balance: runningBalance,
         });

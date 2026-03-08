@@ -235,6 +235,13 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
 
       if (creditNotesError) throw creditNotesError;
 
+      // Fetch refunds received from supplier (when CN is marked 'refunded')
+      const { data: supplierRefunds } = await supabase
+        .from('voucher_entries').select('*')
+        .eq('reference_type', 'supplier').eq('reference_id', selectedSupplier.id)
+        .eq('voucher_type', 'receipt').is('deleted_at', null)
+        .order('voucher_date', { ascending: true });
+
       // Merge bill payments and opening balance payments
       const allVouchers = [...(vouchersData || []), ...(openingBalancePayments || [])];
 
@@ -285,6 +292,11 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
           type: 'credit_note' as const,
           data: cn,
         })),
+        ...(supplierRefunds || []).map((r) => ({
+          date: r.voucher_date,
+          type: 'refund_received' as const,
+          data: r,
+        })),
       ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
       combined.forEach((item) => {
@@ -333,6 +345,19 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
             reference: creditNote.voucher_number,
             description: creditNote.description || 'Supplier Credit Note (Purchase Return)',
             debit: creditNote.total_amount,
+            credit: 0,
+            balance: runningBalance,
+          });
+        } else if (item.type === 'refund_received') {
+          const r = item.data as any;
+          runningBalance -= r.total_amount;
+          allTransactions.push({
+            id: r.id,
+            date: r.voucher_date,
+            type: 'payment',
+            reference: r.voucher_number,
+            description: r.description || 'Refund Received from Supplier',
+            debit: r.total_amount,
             credit: 0,
             balance: runningBalance,
           });
