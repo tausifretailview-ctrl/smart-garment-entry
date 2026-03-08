@@ -2415,8 +2415,19 @@ const PurchaseEntry = () => {
                 </Popover>
               </div>
 
-              <div className="space-y-2 md:col-span-2">
-                <Label>Search Product</Label>
+            </div>
+          </section>
+
+        {/* Products Table Card */}
+        <section className='bg-green-50/40 border-b border-green-100 px-6 py-3 flex-shrink-0'>
+          <div className='flex items-center gap-3 flex-wrap mt-2'>
+            <div className='flex items-center gap-2'>
+              <div className='w-[3px] h-[18px] bg-green-600 rounded-full flex-shrink-0' />
+              <span className='text-[10px] font-bold uppercase tracking-widest text-slate-400'>
+                Products
+              </span>
+            </div>
+              <div className='flex-1'>
                 <div className="relative">
                   <Input
                     ref={searchInputRef}
@@ -2491,8 +2502,6 @@ const PurchaseEntry = () => {
                   )}
                 </div>
               </div>
-            </div>
-          </div>
 
         {/* Products Table Card */}
         <div className="bg-card dark:bg-card bg-white rounded-lg border border-border p-4">
