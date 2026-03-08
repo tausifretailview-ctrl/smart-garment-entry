@@ -1025,18 +1025,38 @@ All colors MUST be HSL.
 }
 
 .erp-invoice-table-header th {
-  font-size: 12px !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.05em;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
-  background: hsl(210 17% 95%);
-  color: hsl(var(--foreground));
+  background: #1e293b !important;
+  color: rgba(255,255,255,.88) !important;
   padding-top: 10px !important;
   padding-bottom: 10px !important;
+  border-bottom: 2px solid #16a34a !important;
+  white-space: nowrap;
+}
+
+/* Purchase Rate column — green tint */
+.erp-invoice-table-header th.pur-rate-col {
+  background: #14532d !important;
+  color: #86efac !important;
+}
+
+/* Sale Rate column — blue tint */
+.erp-invoice-table-header th.sale-rate-col {
+  background: #1e3a5f !important;
+  color: #93c5fd !important;
+}
+
+/* Total column — dark green */
+.erp-invoice-table-header th.total-col {
+  background: #14532d !important;
+  color: #ffffff !important;
 }
 
 .dark .erp-invoice-table-header th {
-  background: hsl(var(--muted));
+  background: #1e293b !important;
 }
 
 .erp-invoice-sticky-actions {

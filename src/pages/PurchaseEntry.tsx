@@ -2703,7 +2703,7 @@ const PurchaseEntry = () => {
                             className="w-full text-right"
                           />
                         </TableCell>
-                        <TableCell className="w-[120px] text-right font-semibold tabular-nums">
+                        <TableCell className="w-[120px] text-right font-bold tabular-nums text-green-700 bg-green-50/40 font-mono">
                           ₹{total.toFixed(2)}
                         </TableCell>
                         <TableCell className="w-[40px]">
