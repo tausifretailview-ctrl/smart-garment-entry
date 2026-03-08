@@ -262,6 +262,34 @@ const PurchaseEntry = () => {
     };
   }, [startAutoSave, stopAutoSave, billData, softwareBillNo, billDate, lineItems, roundOff, entryMode, isEditMode, editingBillId, originalLineItems, saveDraft]);
 
+  // Barcode duplicate warning check — debounced 600ms after lineItems change
+  useEffect(() => {
+    if (barcodeCheckTimerRef.current) clearTimeout(barcodeCheckTimerRef.current);
+    if (!currentOrganization?.id || lineItems.length === 0) {
+      setBarcodeWarnings(new Map());
+      return;
+    }
+    barcodeCheckTimerRef.current = setTimeout(async () => {
+      const warnings = new Map<string, string>();
+      const barcodesToCheck = lineItems.filter(item => item.barcode && item.barcode.length > 6);
+      for (const item of barcodesToCheck) {
+        try {
+          const { data } = await supabase.rpc('check_barcode_duplicate', {
+            p_barcode: item.barcode,
+            p_org_id: currentOrganization.id,
+            p_exclude_variant_id: item.sku_id || null
+          });
+          if (data && data.length > 0) {
+            const existing = data[0];
+            warnings.set(item.temp_id, `⚠️ Barcode already used: "${existing.product_name}" ${existing.size}${existing.color ? ' / ' + existing.color : ''} (Stock: ${existing.stock_qty})`);
+          }
+        } catch { /* ignore */ }
+      }
+      setBarcodeWarnings(warnings);
+    }, 600);
+    return () => { if (barcodeCheckTimerRef.current) clearTimeout(barcodeCheckTimerRef.current); };
+  }, [lineItems, currentOrganization?.id]);
+
   // Fetch settings
   const { data: settings } = useQuery({
     queryKey: ["settings", currentOrganization?.id],
