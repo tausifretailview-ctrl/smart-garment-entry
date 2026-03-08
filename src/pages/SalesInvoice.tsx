@@ -2526,31 +2526,27 @@ Thank you for choosing us!`;
         </div>
       </section>
 
-      {/* Product Entry Bar - Compact */}
-      <div className="bg-card rounded-lg border shadow-sm p-3">
-          <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">Product Entry</div>
+      {/* Product Entry Bar */}
+      <section className="bg-primary/5 dark:bg-primary/10 border-b border-primary/20 px-6 py-3">
           <div className="flex items-center gap-3 flex-wrap">
-            {/* Entry Mode Toggle - only show if size grid enabled in settings */}
+            {/* Entry Mode Toggle */}
             {sizeGridEnabled && (
-            <div className="flex items-center gap-2">
-              <Label className="text-sm">Entry Mode:</Label>
-              <div className="flex items-center gap-2">
-                <span className={`text-sm ${entryMode === "grid" ? "font-semibold" : "text-muted-foreground"}`}>
-                  Size Grid
-                </span>
-                <Switch
-                  checked={entryMode === "inline"}
-                  onCheckedChange={(checked) => setEntryMode(checked ? "inline" : "grid")}
-                />
-                <span className={`text-sm ${entryMode === "inline" ? "font-semibold" : "text-muted-foreground"}`}>
-                  Inline
-                </span>
-              </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className={`text-sm ${entryMode === "grid" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+                Size Grid
+              </span>
+              <Switch
+                checked={entryMode === "inline"}
+                onCheckedChange={(checked) => setEntryMode(checked ? "inline" : "grid")}
+              />
+              <span className={`text-sm ${entryMode === "inline" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+                Inline
+              </span>
             </div>
             )}
 
-            {/* Barcode Scan Input - Direct scan like POS */}
-            <div className="relative w-[200px]">
+            {/* Barcode Scan Input */}
+            <div className="relative w-[200px] shrink-0">
               <Scan className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 ref={barcodeInputRef}
@@ -2558,10 +2554,13 @@ Thank you for choosing us!`;
                 value={searchInput}
                 onChange={handleBarcodeInputChange}
                 onKeyDown={handleBarcodeSearch}
-                className="pl-10 pr-4"
+                className="pl-10 pr-4 h-10 font-mono bg-card border-border"
                 autoFocus
               />
             </div>
+
+            {/* Divider */}
+            <div className="text-muted-foreground/30 text-lg font-light select-none">|</div>
 
             {/* Browse Products Search Bar */}
             <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
@@ -2569,8 +2568,8 @@ Thank you for choosing us!`;
                 <div className="relative flex-1 min-w-[250px] cursor-pointer">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Browse Products..."
-                    className="pl-10 pr-4 cursor-pointer"
+                    placeholder="Browse products by name, brand, category, size..."
+                    className="pl-10 pr-4 h-10 bg-card border-border cursor-pointer text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary"
                     readOnly
                     onClick={() => setOpenProductSearch(true)}
                   />
@@ -2621,7 +2620,7 @@ Thank you for choosing us!`;
                                 <div className="flex items-center gap-2">
                                   <span className="font-medium">{product.product_name}</span>
                                   {product.size_range && (
-                                    <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold">
+                                    <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">
                                       {product.size_range}
                                     </span>
                                   )}
@@ -2634,7 +2633,7 @@ Thank you for choosing us!`;
                                   {product.category && <span className="bg-muted px-1.5 py-0.5 rounded">{product.category}</span>}
                                   {product.style && <span className="bg-muted px-1.5 py-0.5 rounded">{product.style}</span>}
                                   {(variant.color || product.color) && (
-                                    <span className="bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 rounded font-medium">{variant.color || product.color}</span>
+                                    <span className="bg-accent/50 text-accent-foreground px-1.5 py-0.5 rounded font-medium">{variant.color || product.color}</span>
                                   )}
                                   <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">Size: {variant.size}</span>
                                 </div>
@@ -2658,15 +2657,15 @@ Thank you for choosing us!`;
               </PopoverContent>
             </Popover>
 
-            {/* Live Total Qty Badge */}
-            <div className="flex items-center gap-1.5 bg-primary/10 px-2.5 py-1.5 rounded-md border border-primary/20 ml-auto">
-              <span className="text-[12px] font-medium text-muted-foreground">Total Qty:</span>
-              <span className="text-[16px] font-bold text-primary tabular-nums">
+            {/* Total Qty Pill */}
+            <div className="flex items-center gap-2 bg-primary text-primary-foreground rounded-lg px-4 py-2 text-sm font-semibold shrink-0 ml-auto">
+              <span>Total Qty:</span>
+              <span className="text-xl font-bold leading-none tabular-nums">
                 {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
               </span>
             </div>
           </div>
-      </div>
+      </section>
 
       {/* Products Table Card - High Density */}
       <div className="bg-card rounded-lg border shadow-sm p-3">
