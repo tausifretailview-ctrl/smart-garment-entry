@@ -1200,7 +1200,7 @@ const PurchaseBillDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white tabular-nums">₹{summaryStats.unpaidAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
-              <p className="text-xs text-white/70 mt-1">Bills pending</p>
+              <p className="text-sm text-white/70 mt-1">Bills pending</p>
             </CardContent>
           </Card>
 
