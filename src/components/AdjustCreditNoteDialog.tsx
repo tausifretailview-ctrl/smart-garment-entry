@@ -186,6 +186,19 @@ export function AdjustCreditNoteDialog({
 
         if (returnError) throw returnError;
 
+        // Create a credit_note voucher so the supplier balance is reduced
+        const { data: voucherNum } = await supabase.rpc('generate_voucher_number', {
+          p_type: 'credit_note', p_date: format(new Date(), 'yyyy-MM-dd') });
+        await supabase.from('voucher_entries').insert({
+          organization_id: currentOrganization?.id,
+          voucher_number: voucherNum,
+          voucher_type: 'credit_note',
+          voucher_date: format(new Date(), 'yyyy-MM-dd'),
+          reference_type: 'supplier', reference_id: supplierId,
+          description: `Credit Note adjusted to Outstanding: ${creditNoteNumber}`,
+          total_amount: creditAmount,
+        });
+
         // Update voucher description if creditNoteId exists
         if (creditNoteId) {
           const { error: voucherError } = await supabase
