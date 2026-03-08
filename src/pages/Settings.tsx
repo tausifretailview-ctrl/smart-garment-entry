@@ -3740,11 +3740,21 @@ export default function Settings() {
                         <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-2">
                           <p className="font-medium">Setup Requirements:</p>
                           <ul className="list-disc list-inside text-muted-foreground space-y-1">
-                            <li>QZ Tray must be installed — <a href="https://qz.io/download/" target="_blank" rel="noopener noreferrer" className="text-primary underline">Download here</a></li>
-                            <li>Click "Detect Printers" to auto-populate the dropdowns above</li>
-                            <li>Select your printers from the list, then click "Test Print"</li>
-                            <li>Shared printers (e.g., \\PC-NAME\PrinterShare) are also detected</li>
-                            <li>PDF print preview remains available as automatic fallback</li>
+                            <li>
+                              <strong>Step 1:</strong> Install QZ Tray on this PC — {' '}
+                              <a href="https://qz.io/download/" target="_blank" 
+                                 rel="noopener noreferrer" className="text-primary underline">
+                                Download QZ Tray
+                              </a>
+                            </li>
+                            <li><strong>Step 2:</strong> Launch QZ Tray — it runs in the system tray</li>
+                            <li><strong>Step 3:</strong> Click "Detect Printers" above — select your printers</li>
+                            <li><strong>Step 4:</strong> Choose correct paper size per printer</li>
+                            <li><strong>Step 5:</strong> Click "Test Print" to verify</li>
+                            <li>First connection will show a QZ Tray approval popup — click <em>Allow</em></li>
+                            <li>Thermal printers: select 80mm or 58mm paper size</li>
+                            <li>Laser/Inkjet printers: select A4 or A5 paper size</li>
+                            <li>Shared network printers are also supported</li>
                           </ul>
                         </div>
                       </>
