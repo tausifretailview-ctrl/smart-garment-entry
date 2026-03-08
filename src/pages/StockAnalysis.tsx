@@ -286,35 +286,50 @@ export default function StockAnalysis() {
       // Fetch batch stock
       let formattedBatch: BatchStock[] = [];
       if (variantIds.length > 0) {
-        const { data: batchStockData } = await supabase
-          .from('batch_stock')
-          .select(`
-            *,
-            product_variants!inner (
-              size,
-              barcode,
-              deleted_at,
-              products!inner (
-                product_name,
-                brand,
-                product_type,
-                deleted_at
+        const allBatchStockData: any[] = [];
+        let batchOffset = 0;
+        const BATCH_PAGE = 1000;
+        let batchHasMore = true;
+        while (batchHasMore) {
+          const { data: batchPage, error: batchError } = await supabase
+            .from('batch_stock')
+            .select(`
+              *,
+              product_variants!inner (
+                size,
+                barcode,
+                deleted_at,
+                products!inner (
+                  product_name,
+                  brand,
+                  product_type,
+                  deleted_at
+                )
+              ),
+              purchase_bills (
+                supplier_name,
+                supplier_invoice_no
               )
-            ),
-            purchase_bills (
-              supplier_name,
-              supplier_invoice_no
-            )
-          `)
-          .eq('organization_id', currentOrganization.id)
-          .in('variant_id', variantIds)
-          .gt('quantity', 0)
-          .is('product_variants.deleted_at', null)
-          .is('product_variants.products.deleted_at', null)
-          .neq('product_variants.products.product_type', 'service')
-          .order('purchase_date', { ascending: true });
+            `)
+            .eq('organization_id', currentOrganization.id)
+            .in('variant_id', variantIds)
+            .gt('quantity', 0)
+            .is('product_variants.deleted_at', null)
+            .is('product_variants.products.deleted_at', null)
+            .neq('product_variants.products.product_type', 'service')
+            .order('purchase_date', { ascending: true })
+            .range(batchOffset, batchOffset + BATCH_PAGE - 1);
+          if (batchError) break;
+          if (batchPage && batchPage.length > 0) {
+            allBatchStockData.push(...batchPage);
+            batchOffset += BATCH_PAGE;
+            batchHasMore = batchPage.length === BATCH_PAGE;
+          } else {
+            batchHasMore = false;
+          }
+        }
 
-        formattedBatch = (batchStockData || []).map((item: any) => ({
+        formattedBatch = (allBatchStockData || []).map((item: any) => ({
           id: item.id,
           bill_number: item.bill_number,
           quantity: item.quantity,
@@ -360,9 +375,16 @@ export default function StockAnalysis() {
       <BackToDashboard />
       
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Stock Analysis</h1>
-          <p className="text-muted-foreground">Search products to view low stock, batch tracking, and movement history</p>
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Package className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Stock Analysis</h1>
+            <p className="text-sm text-muted-foreground">
+              Search a product to view low stock · batch details · movement history
+            </p>
+          </div>
         </div>
       </div>
 
@@ -423,44 +445,50 @@ export default function StockAnalysis() {
           {/* Stats Cards */}
           <div className="grid gap-4 md:grid-cols-3">
             <Card 
-              className="cursor-pointer hover:shadow-lg transition-shadow bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-lg"
+              className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-red-500 shadow-sm"
               onClick={() => setActiveTab("low")}
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-white/90">Low Stock</CardTitle>
-                <TrendingDown className="h-4 w-4 text-white" />
+                <CardTitle className="text-sm font-medium text-muted-foreground">Low Stock</CardTitle>
+                <div className="h-8 w-8 rounded-xl bg-red-100 flex items-center justify-center">
+                  <TrendingDown className="h-4 w-4 text-red-600" />
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-white">{lowStockItems.length}</div>
-                <p className="text-xs text-white/70">Below {lowStockThreshold} units</p>
+                <div className="text-2xl font-bold text-red-600 tabular-nums">{lowStockItems.length}</div>
+                <p className="text-xs text-muted-foreground">Below {lowStockThreshold} units</p>
               </CardContent>
             </Card>
 
             <Card 
-              className="cursor-pointer hover:shadow-lg transition-shadow bg-gradient-to-br from-teal-500 to-teal-600 border-0 shadow-lg"
+              className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-emerald-500 shadow-sm"
               onClick={() => setActiveTab("batch")}
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-white/90">Batch Records</CardTitle>
-                <Package className="h-4 w-4 text-white" />
+                <CardTitle className="text-sm font-medium text-muted-foreground">Batch Records</CardTitle>
+                <div className="h-8 w-8 rounded-xl bg-emerald-100 flex items-center justify-center">
+                  <Package className="h-4 w-4 text-emerald-600" />
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-white">{batchStock.length}</div>
-                <p className="text-xs text-white/70">Active batches</p>
+                <div className="text-2xl font-bold text-emerald-600 tabular-nums">{batchStock.length}</div>
+                <p className="text-xs text-muted-foreground">Active batches</p>
               </CardContent>
             </Card>
 
             <Card 
-              className="cursor-pointer hover:shadow-lg transition-shadow bg-gradient-to-br from-sky-500 to-sky-600 border-0 shadow-lg"
+              className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-blue-500 shadow-sm"
               onClick={() => setActiveTab("movements")}
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-white/90">Movements</CardTitle>
-                <History className="h-4 w-4 text-white" />
+                <CardTitle className="text-sm font-medium text-muted-foreground">Movements</CardTitle>
+                <div className="h-8 w-8 rounded-xl bg-blue-100 flex items-center justify-center">
+                  <History className="h-4 w-4 text-blue-600" />
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-white">{movements.length}</div>
-                <p className="text-xs text-white/70">Recent transactions</p>
+                <div className="text-2xl font-bold text-blue-600 tabular-nums">{movements.length}</div>
+                <p className="text-xs text-muted-foreground">Recent transactions</p>
               </CardContent>
             </Card>
           </div>
@@ -695,12 +723,28 @@ export default function StockAnalysis() {
                             <TableCell className="font-medium">{movement.product_name}</TableCell>
                             <TableCell>{movement.size}</TableCell>
                             <TableCell>
-                              <Badge variant={movement.movement_type === 'purchase' ? 'default' : 'secondary'}>
-                                {movement.movement_type}
-                              </Badge>
+                              {(() => {
+                                const typeConfig: Record<string, { label: string; className: string }> = {
+                                  purchase:          { label: "Purchase",         className: "bg-green-100 text-green-700 border-green-300" },
+                                  sale:              { label: "Sale",              className: "bg-red-100 text-red-700 border-red-300" },
+                                  sale_return:       { label: "Sale Return",       className: "bg-blue-100 text-blue-700 border-blue-300" },
+                                  purchase_return:   { label: "Purch. Return",     className: "bg-orange-100 text-orange-700 border-orange-300" },
+                                  adjustment:        { label: "Adjustment",        className: "bg-purple-100 text-purple-700 border-purple-300" },
+                                  purchase_delete:   { label: "Bill Deleted",      className: "bg-slate-100 text-slate-600 border-slate-300" },
+                                  purchase_increase: { label: "Stock Added",       className: "bg-teal-100 text-teal-700 border-teal-300" },
+                                  purchase_decrease: { label: "Stock Reduced",     className: "bg-amber-100 text-amber-700 border-amber-300" },
+                                };
+                                const cfg = typeConfig[movement.movement_type] 
+                                  || { label: movement.movement_type, className: "bg-slate-100 text-slate-600 border-slate-300" };
+                                return (
+                                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${cfg.className}`}>
+                                    {cfg.label}
+                                  </span>
+                                );
+                              })()}
                             </TableCell>
                             <TableCell className="text-right">
-                              {movement.movement_type === 'purchase' ? '+' : '-'}{movement.quantity}
+                              {['purchase', 'sale_return', 'purchase_increase'].includes(movement.movement_type) ? '+' : ''}{movement.quantity}
                             </TableCell>
                             <TableCell className="text-muted-foreground">{movement.notes}</TableCell>
                           </TableRow>
