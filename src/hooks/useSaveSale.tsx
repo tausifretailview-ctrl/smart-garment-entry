@@ -368,7 +368,7 @@ export const useSaveSale = () => {
       if (saleData.customerPhone && currentOrganization?.id) {
         const whatsAppPromise = (async () => { try {
           // Check WhatsApp settings
-          const { data: whatsappSettings } = await (supabase as any)
+          const { data: whatsappSettings } = await supabase
             .from('whatsapp_api_settings')
             .select('is_active, auto_send_invoice, invoice_template_name, auto_send_invoice_link, invoice_link_message, social_links, send_invoice_pdf, invoice_pdf_template, use_document_header_template, invoice_document_template_name, pdf_min_amount')
             .eq('organization_id', currentOrganization.id)
