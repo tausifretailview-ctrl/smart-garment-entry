@@ -19,7 +19,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2, Barcode, RefreshCw, Eye, Edit, ShoppingCart, History, Ban, Merge } from "lucide-react";
+import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2, Barcode, RefreshCw, Eye, Edit, ShoppingCart, History, Ban, Merge, Boxes, Tags, TrendingDown, TrendingUp } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -926,11 +926,11 @@ const ProductDashboard = () => {
     if (columnVisibility.color) cols.push({ accessorKey: "color", header: "Color", cell: ({ getValue }) => getValue() || "—", size: 100 });
     if (columnVisibility.hsn) cols.push({ accessorKey: "hsn_code", header: "HSN", cell: ({ getValue }) => <span className="text-xs">{getValue() || "—"}</span>, size: 90 });
     if (columnVisibility.gst) cols.push({ accessorKey: "gst_per", header: "GST%", cell: ({ getValue }) => <span className="text-right block">{getValue()}%</span>, size: 70 });
-    if (columnVisibility.purPrice) cols.push({ accessorKey: "default_pur_price", header: "Pur Price", cell: ({ getValue }) => <span className="text-right block">₹{(getValue() as number).toFixed(2)}</span>, size: 110 });
-    if (columnVisibility.salePrice) cols.push({ accessorKey: "default_sale_price", header: "Sale Price", cell: ({ getValue }) => <span className="text-right block">₹{(getValue() as number).toFixed(2)}</span>, size: 110 });
-    if (columnVisibility.status) cols.push({ accessorKey: "status", header: "Status", cell: ({ getValue }) => <Badge variant={getValue() === "active" ? "default" : "secondary"}>{getValue() as string}</Badge>, size: 90 });
-    if (columnVisibility.totalQty) cols.push({ accessorKey: "total_stock", header: "Total Qty", cell: ({ getValue }) => <span className="text-right block font-medium">{getValue() as number}</span>, size: 90 });
-    if (columnVisibility.variants) cols.push({ id: "variants", header: "Variants", cell: ({ row }) => <Badge variant="secondary">{row.original.variants.length}</Badge>, size: 80 });
+    if (columnVisibility.purPrice) cols.push({ accessorKey: "default_pur_price", header: "Pur Price", cell: ({ getValue }) => <span className="text-right block text-orange-700 dark:text-orange-400 font-medium">₹{(getValue() as number).toFixed(2)}</span>, size: 110 });
+    if (columnVisibility.salePrice) cols.push({ accessorKey: "default_sale_price", header: "Sale Price", cell: ({ getValue }) => <span className="text-right block text-emerald-700 dark:text-emerald-400 font-medium">₹{(getValue() as number).toFixed(2)}</span>, size: 110 });
+    if (columnVisibility.status) cols.push({ accessorKey: "status", header: "Status", cell: ({ getValue }) => { const status = getValue() as string; return (<Badge className={status === "active" ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900 dark:text-emerald-300" : "bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-400"}>{status}</Badge>); }, size: 90 });
+    if (columnVisibility.totalQty) cols.push({ accessorKey: "total_stock", header: "Total Qty", cell: ({ getValue }) => { const qty = getValue() as number; return (<span className={`text-right block font-bold tabular-nums ${qty === 0 ? 'text-red-500' : qty <= 5 ? 'text-orange-500' : 'text-foreground'}`}>{qty}</span>); }, size: 90 });
+    if (columnVisibility.variants) cols.push({ id: "variants", header: "Variants", cell: ({ row }) => (<Badge className="bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900 dark:text-blue-300 font-semibold tabular-nums">{row.original.variants.length}</Badge>), size: 80 });
 
     cols.push({
       id: "actions",
@@ -1049,63 +1049,63 @@ const ProductDashboard = () => {
             >
               <Home className="h-4 w-4" />
             </Button>
-            <h1 className="text-2xl font-bold text-foreground">Product</h1>
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">Product Catalog</h1>
           </div>
         </div>
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <Card>
+          <Card className="border-l-4 border-l-blue-500 overflow-hidden">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Stock Qty</p>
-                  <p className="text-2xl font-bold text-foreground">{totalStockQty.toLocaleString()}</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Total Stock Qty</p>
+                  <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{totalStockQty.toLocaleString()}</p>
                 </div>
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Package className="h-6 w-6 text-primary" />
+                <div className="h-12 w-12 rounded-xl bg-blue-50 dark:bg-blue-950 flex items-center justify-center">
+                  <Boxes className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-l-4 border-l-violet-500 overflow-hidden">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Items</p>
-                  <p className="text-2xl font-bold text-foreground">{totalItems.toLocaleString()}</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Total Items</p>
+                  <p className="text-2xl font-bold text-violet-700 dark:text-violet-300">{totalItems.toLocaleString()}</p>
                 </div>
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Package className="h-6 w-6 text-primary" />
+                <div className="h-12 w-12 rounded-xl bg-violet-50 dark:bg-violet-950 flex items-center justify-center">
+                  <Tags className="h-6 w-6 text-violet-600 dark:text-violet-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-l-4 border-l-orange-500 overflow-hidden">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Purchase Value</p>
-                  <p className="text-2xl font-bold text-foreground">₹{totalPurchaseValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Purchase Value</p>
+                  <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">₹{totalPurchaseValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Package className="h-6 w-6 text-primary" />
+                <div className="h-12 w-12 rounded-xl bg-orange-50 dark:bg-orange-950 flex items-center justify-center">
+                  <TrendingDown className="h-6 w-6 text-orange-600 dark:text-orange-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-l-4 border-l-emerald-500 overflow-hidden">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Sale Value</p>
-                  <p className="text-2xl font-bold text-foreground">₹{totalSaleValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Sale Value</p>
+                  <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">₹{totalSaleValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Package className="h-6 w-6 text-primary" />
+                <div className="h-12 w-12 rounded-xl bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center">
+                  <TrendingUp className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
                 </div>
               </div>
             </CardContent>
@@ -1113,8 +1113,8 @@ const ProductDashboard = () => {
         </div>
 
         {/* Toolbar */}
-        <Card className="mb-4">
-          <CardContent className="p-4">
+        <Card className="mb-4 shadow-sm">
+          <CardContent className="p-3">
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-2">
                 <Button 
@@ -1157,7 +1157,7 @@ const ProductDashboard = () => {
                 <div className="ml-auto">
                   <Button
                     size="sm"
-                    className="gap-2"
+                    className="gap-2 bg-primary hover:bg-primary/90 shadow-sm font-semibold"
                     onClick={() => navigate("/product-entry")}
                   >
                     <Plus className="h-4 w-4" />
@@ -1360,7 +1360,7 @@ const ProductDashboard = () => {
 
         {/* Bulk Actions */}
         {selectedProducts.size > 0 && (
-          <Card className="mb-4 border-primary/50">
+          <Card className="mb-4 border-primary bg-primary/5 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -1427,7 +1427,7 @@ const ProductDashboard = () => {
         )}
 
         {/* Table */}
-        <Card>
+        <Card className="shadow-sm overflow-hidden">
           <CardContent className="p-0">
             {filteredRows.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
@@ -1459,8 +1459,8 @@ const ProductDashboard = () => {
 
         {/* Pagination Controls */}
         {filteredRows.length > 0 && (
-          <Card className="mt-4">
-            <CardContent className="p-4">
+          <Card className="mt-4 shadow-sm">
+            <CardContent className="p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
