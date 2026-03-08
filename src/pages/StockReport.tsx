@@ -1178,7 +1178,7 @@ export default function StockReport() {
                     <div>
                       <CardTitle>Current Stock Levels</CardTitle>
                       <CardDescription>
-                        Stock breakdown: Opening Qty + Purchase Qty - Pur Return - Sales Qty = Current Stock Qty
+                        Stock breakdown: Opening Qty + Purchase Qty - Pur Return - Sales Qty + Sale Return = Current Stock Qty
                       </CardDescription>
                     </div>
                     <div className="text-sm text-muted-foreground">
