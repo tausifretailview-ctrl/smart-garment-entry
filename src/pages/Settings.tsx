@@ -3449,8 +3449,11 @@ export default function Settings() {
                 {/* Direct Printing (QZ Tray) Settings */}
                 <Card className="border-dashed">
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      🖨️ Direct Printing (QZ Tray)
+                    <CardTitle className="text-base flex items-center gap-2 justify-between">
+                      <span className="flex items-center gap-2">
+                        🖨️ Direct Printing (QZ Tray)
+                      </span>
+                      <QZStatusBadge />
                     </CardTitle>
                     <CardDescription>
                       Print invoices directly to thermal or laser printers without browser print dialog
