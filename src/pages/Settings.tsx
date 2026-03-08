@@ -2047,16 +2047,66 @@ export default function Settings() {
                         <SelectValue placeholder="Select template" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="professional">Professional - Detailed business style</SelectItem>
-                        <SelectItem value="modern">Modern - Clean gradient design</SelectItem>
-                        <SelectItem value="modern-wholesale">Modern Wholesale - Size grouping for bulk</SelectItem>
-                        <SelectItem value="classic">Classic - Traditional receipt</SelectItem>
-                        <SelectItem value="minimal">Minimal - Simple & elegant</SelectItem>
-                        <SelectItem value="compact">Compact - Space-saving layout</SelectItem>
-                        <SelectItem value="detailed">Detailed - Comprehensive info</SelectItem>
-                        <SelectItem value="tax-invoice">Tax Invoice - GST compliant</SelectItem>
-                        <SelectItem value="retail">Retail Invoice - Fixed ERP style</SelectItem>
-                        <SelectItem value="retail-erp">Retail ERP - Tax Invoice ERP Style</SelectItem>
+                        <SelectItem value="professional">
+                          <span className="flex items-center gap-2">
+                            <span className="text-blue-600 font-bold text-xs w-5">PRO</span>
+                            Professional — Detailed GST-ready
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="modern">
+                          <span className="flex items-center gap-2">
+                            <span className="text-violet-600 font-bold text-xs w-5">MOD</span>
+                            Modern — Clean gradient design
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="modern-wholesale">
+                          <span className="flex items-center gap-2">
+                            <span className="text-teal-600 font-bold text-xs w-5">WHL</span>
+                            Wholesale — Size grouping (38/2, 40/3)
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="classic">
+                          <span className="flex items-center gap-2">
+                            <span className="text-gray-600 font-bold text-xs w-5">CLS</span>
+                            Classic — Traditional receipt style
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="minimal">
+                          <span className="flex items-center gap-2">
+                            <span className="text-slate-500 font-bold text-xs w-5">MIN</span>
+                            Minimal — Simple &amp; clean
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="compact">
+                          <span className="flex items-center gap-2">
+                            <span className="text-orange-600 font-bold text-xs w-5">CMP</span>
+                            Compact — Space-saving layout
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="detailed">
+                          <span className="flex items-center gap-2">
+                            <span className="text-green-600 font-bold text-xs w-5">DET</span>
+                            Detailed — Full product info
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="tax-invoice">
+                          <span className="flex items-center gap-2">
+                            <span className="text-red-600 font-bold text-xs w-5">TAX</span>
+                            Tax Invoice — GST B2B compliant
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="retail">
+                          <span className="flex items-center gap-2">
+                            <span className="text-pink-600 font-bold text-xs w-5">RET</span>
+                            Retail — Fixed ERP format
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="retail-erp">
+                          <span className="flex items-center gap-2">
+                            <span className="text-indigo-600 font-bold text-xs w-5">ERP</span>
+                            Retail ERP — Tax Invoice ERP style
+                          </span>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
