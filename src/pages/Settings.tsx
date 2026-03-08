@@ -3439,25 +3439,28 @@ export default function Settings() {
                 <p className="text-xs text-muted-foreground">Invoice header/footer text is configured in the Sale tab → Invoice Customization section</p>
                 <div className="space-y-2">
                   <Label htmlFor="barcode_format">Default Barcode Label Format (for Direct Printing)</Label>
-                  <select
-                    id="barcode_format"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  <Select
                     value={settings.bill_barcode_settings?.barcode_format || "a4_12x4"}
-                    onChange={(e) =>
+                    onValueChange={(value) =>
                       setSettings({
                         ...settings,
                         bill_barcode_settings: {
                           ...settings.bill_barcode_settings,
-                          barcode_format: e.target.value,
+                          barcode_format: value,
                         },
                       })
                     }
                   >
-                    <option value="novajet48">Novajet 48 (8 cols, 33x19mm)</option>
-                    <option value="novajet40">Novajet 40 (5 cols × 8 rows, 39x35mm)</option>
-                    <option value="novajet65">Novajet 65 (5 cols, 38x21mm)</option>
-                    <option value="a4_12x4">A4 12x4 (4 cols, 50x24mm)</option>
-                  </select>
+                    <SelectTrigger id="barcode_format">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="novajet48">Novajet 48 (8 cols, 33x19mm)</SelectItem>
+                      <SelectItem value="novajet40">Novajet 40 (5 cols × 8 rows, 39x35mm)</SelectItem>
+                      <SelectItem value="novajet65">Novajet 65 (5 cols, 38x21mm)</SelectItem>
+                      <SelectItem value="a4_12x4">A4 12x4 (4 cols, 50x24mm)</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <p className="text-xs text-muted-foreground">Used when printing barcodes directly from Purchase Bills</p>
                   <Button
                     type="button"
