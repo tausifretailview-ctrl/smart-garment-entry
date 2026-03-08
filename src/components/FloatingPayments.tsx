@@ -500,7 +500,7 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
   const { data: suppliersWithBalance } = useQuery({
     queryKey: ["suppliers-with-balance", organizationId],
     queryFn: async () => {
-      const { data: allSuppliers } = await supabase.from("suppliers").select("*").eq("organization_id", organizationId).is("deleted_at", null).order("supplier_name");
+      const { data: allSuppliers } = await supabase.from("suppliers").select("id, supplier_name, opening_balance, phone").eq("organization_id", organizationId).is("deleted_at", null).order("supplier_name");
       const { data: allBills } = await supabase.from("purchase_bills").select("supplier_id, net_amount, paid_amount").eq("organization_id", organizationId).is("deleted_at", null);
       const balances = new Map<string, number>();
       allBills?.forEach((b: any) => {
