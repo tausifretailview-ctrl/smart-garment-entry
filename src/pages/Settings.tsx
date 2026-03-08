@@ -3724,7 +3724,10 @@ export default function Settings() {
                                 });
                                 return;
                               }
-                              const success = await printTestReceipt(printer);
+                              const paper = (settings.bill_barcode_settings?.direct_print_pos_paper
+                                || settings.bill_barcode_settings?.direct_print_sale_paper
+                                || 'A4') as '58mm' | '80mm' | 'A4' | 'A5';
+                              const success = await printTestReceipt(printer, paper);
                               if (success) {
                                 toast({ title: "Test Print Sent", description: "Check your printer for the test receipt" });
                               }
