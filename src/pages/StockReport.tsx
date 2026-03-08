@@ -521,8 +521,28 @@ export default function StockReport() {
         return rows;
       };
 
+      const fetchSaleReturnItems = async (batchIds: string[]) => {
+        const rows: any[] = [];
+        let offset = 0;
+        const pageSize = 1000;
+        let hasMore = true;
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from('sale_return_items')
+            .select('variant_id, quantity')
+            .in('variant_id', batchIds)
+            .is('deleted_at', null)
+            .order('id')
+            .range(offset, offset + pageSize - 1);
+          if (error) throw error;
+          if (data && data.length > 0) { rows.push(...data); offset += pageSize; hasMore = data.length === pageSize; }
+          else { hasMore = false; }
+        }
+        return rows;
+      };
+
       // Aggregate quantities from all transaction tables
-      const variantMovements: Record<string, { purchase: number; purchaseReturn: number; sales: number }> = {};
+      const variantMovements: Record<string, { purchase: number; purchaseReturn: number; sales: number; saleReturn: number }> = {};
 
       // Fetch batch stock for supplier info (batched)
       const allBatchData: any[] = [];
@@ -530,11 +550,12 @@ export default function StockReport() {
       for (let i = 0; i < variantIds.length; i += BATCH_SIZE) {
         const batchIds = variantIds.slice(i, i + BATCH_SIZE);
 
-        // Run all 4 queries in parallel for each batch
-        const [purchaseRows, saleRows, purReturnRows, batchStockData] = await Promise.all([
+        // Run all 5 queries in parallel for each batch
+        const [purchaseRows, saleRows, purReturnRows, saleReturnRows, batchStockData] = await Promise.all([
           fetchPurchaseItems(batchIds),
           fetchSaleItems(batchIds),
           fetchPurchaseReturnItems(batchIds),
+          fetchSaleReturnItems(batchIds),
           supabase
             .from("batch_stock")
             .select(`variant_id, purchase_bills ( supplier_name, supplier_invoice_no )`)
