@@ -549,6 +549,7 @@ export function CustomerHistoryDialog({
             </DialogHeader>
           </div>
 
+          <div className="px-3 sm:px-5 pb-3 sm:pb-5 flex flex-col flex-1 overflow-hidden">
           {/* Summary Cards */}
           {(() => {
             // For school orgs with linked student fee data, show school-specific cards
