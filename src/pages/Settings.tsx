@@ -3607,6 +3607,32 @@ export default function Settings() {
                           </p>
                         </div>
 
+                        <div className="space-y-2">
+                          <Label>POS Printer Paper Size</Label>
+                          <Select
+                            value={settings.bill_barcode_settings?.direct_print_pos_paper || '80mm'}
+                            onValueChange={(value) =>
+                              setSettings({
+                                ...settings,
+                                bill_barcode_settings: {
+                                  ...settings.bill_barcode_settings,
+                                  direct_print_pos_paper: value as any,
+                                },
+                              })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="80mm">80mm Thermal Roll</SelectItem>
+                              <SelectItem value="58mm">58mm Thermal Roll</SelectItem>
+                              <SelectItem value="A4">A4 (210×297mm) — Laser / Inkjet</SelectItem>
+                              <SelectItem value="A5">A5 (148×210mm) — Laser / Inkjet</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
                         <div className="flex items-center justify-between">
                           <div className="space-y-0.5">
                             <Label htmlFor="direct_print_auto" className="cursor-pointer">
