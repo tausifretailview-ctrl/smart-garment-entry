@@ -2791,7 +2791,7 @@ Thank you for choosing us!`;
                           value={item.box || ''}
                           onChange={(e) => updateBox(item.id, e.target.value)}
                           placeholder=""
-                          className="w-14 h-8 text-center text-xs mx-auto"
+                          className="w-14 h-9 text-center text-sm mx-auto"
                         />
                       </td>
                       <td className="text-right px-1.5 py-1">
