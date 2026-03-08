@@ -218,6 +218,7 @@ export default function POSSales() {
 
   // Cash drawer hook
   const { openDrawer: openCashDrawer } = useCashDrawer();
+  const { softDelete } = useSoftDelete();
 
 
   // Barcode scanner detection for instant cart add
