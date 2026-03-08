@@ -1085,7 +1085,7 @@ const PurchaseBillDashboard = () => {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-foreground tracking-tight">Purchase Bills</h1>
-              <p className="text-xs text-muted-foreground">Manage supplier invoices & payments</p>
+              <p className="text-sm text-muted-foreground">Manage supplier invoices & payments</p>
             </div>
           </div>
           <div className="flex gap-2">
