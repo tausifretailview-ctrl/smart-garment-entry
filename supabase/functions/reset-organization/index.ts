@@ -159,16 +159,15 @@ Deno.serve(async (req) => {
     }
 
     // Phase 3: Reset sequences
-    const startValue = barcodeStartValue || 90001001;
     const { error: barcodeError } = await adminClient
-      .from("barcode_sequence")
-      .update({ next_barcode: startValue })
+      .from("barcode_sequences")
+      .update({ next_number: 1, updated_at: new Date().toISOString() })
       .eq("organization_id", organizationId);
 
     if (barcodeError) {
-      errors.push(`barcode_sequence reset: ${barcodeError.message}`);
+      errors.push(`barcode_sequences reset: ${barcodeError.message}`);
     } else {
-      deletedCounts["barcode_sequence"] = 1;
+      deletedCounts["barcode_sequences"] = 1;
     }
 
     const { data: billSeqData, error: billSeqError } = await adminClient
