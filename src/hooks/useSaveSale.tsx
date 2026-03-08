@@ -797,9 +797,10 @@ export const useSaveSale = () => {
         .maybeSingle();
 
       let saleNumber: string;
+      const holdSaleSettings = settings?.sale_settings as Record<string, any> | null;
       
-      if (settings?.sale_settings?.invoice_numbering_format) {
-        saleNumber = await generateInvoiceNumber(settings.sale_settings.invoice_numbering_format);
+      if (holdSaleSettings?.invoice_numbering_format) {
+        saleNumber = await generateInvoiceNumber(holdSaleSettings.invoice_numbering_format);
       } else {
         const { data: defaultNumber, error: numberError } = await (supabase as any)
           .rpc('generate_sale_number', { p_organization_id: currentOrganization.id });
