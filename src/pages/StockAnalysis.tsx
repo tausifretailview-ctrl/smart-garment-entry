@@ -744,7 +744,7 @@ export default function StockAnalysis() {
                               })()}
                             </TableCell>
                             <TableCell className="text-right">
-                              {movement.movement_type === 'purchase' ? '+' : '-'}{movement.quantity}
+                              {['purchase', 'sale_return', 'purchase_increase'].includes(movement.movement_type) ? '+' : ''}{movement.quantity}
                             </TableCell>
                             <TableCell className="text-muted-foreground">{movement.notes}</TableCell>
                           </TableRow>
