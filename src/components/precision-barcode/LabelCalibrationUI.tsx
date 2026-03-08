@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,7 +6,7 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { HelpCircle, Minus, Plus, Save, Trash2 } from "lucide-react";
+import { HelpCircle, Minus, Plus, Save, Trash2, RefreshCw } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PrecisionLabelPreview } from "./PrecisionLabelPreview";
 import { LabelDesignConfig, LabelItem, LabelTemplate } from "@/types/labelTypes";
@@ -180,11 +180,20 @@ export function LabelCalibrationUI({
 }: LabelCalibrationUIProps) {
   const [savePresetOpen, setSavePresetOpen] = useState(false);
   const [newPresetName, setNewPresetName] = useState("");
-  // Use controlled value if provided, otherwise local state
+  // Track the loaded DB preset name with a ref to persist across parent re-renders
   const [localActivePresetName, setLocalActivePresetName] = useState<string | null>(null);
+  const loadedDbPresetRef = useRef<string | null>(null);
   // Use controlled value only when it's a non-null string; otherwise use local state (for printer presets)
   const activePresetName = (activePresetValue !== undefined && activePresetValue !== null) ? activePresetValue : localActivePresetName;
-  const setActivePresetName = (name: string | null) => setLocalActivePresetName(name);
+  const setActivePresetName = (name: string | null) => {
+    setLocalActivePresetName(name);
+    // Track DB preset name separately
+    if (name && presets.some(p => p.name === name)) {
+      loadedDbPresetRef.current = name;
+    } else if (name === null) {
+      loadedDbPresetRef.current = null;
+    }
+  };
   const [saving, setSaving] = useState(false);
   const [saveA4Open, setSaveA4Open] = useState(false);
   const [newA4PresetName, setNewA4PresetName] = useState("");
@@ -194,13 +203,16 @@ export function LabelCalibrationUI({
   const a4UserPresets = presets.filter(p => p.printMode === 'a4');
   const isA4UserPreset = activeA4PresetName ? a4UserPresets.some(p => p.name === activeA4PresetName) : false;
 
-  const isUserPreset = activePresetName ? presets.some((p) => p.name === activePresetName) : false;
+  // Check both active name and ref for DB preset detection
+  const effectivePresetName = activePresetName || loadedDbPresetRef.current;
+  const isUserPreset = effectivePresetName ? presets.some((p) => p.name === effectivePresetName) : false;
 
   // Compute the Select value: templates use "template_" prefix, presets use direct name
   const selectValue = (() => {
-    if (!activePresetName) return undefined;
-    if (savedTemplates.some(t => t.name === activePresetName)) return `template_${activePresetName}`;
-    if (allPresets.some(p => p.name === activePresetName)) return activePresetName;
+    const name = effectivePresetName;
+    if (!name) return undefined;
+    if (savedTemplates.some(t => t.name === name)) return `template_${name}`;
+    if (allPresets.some(p => p.name === name)) return name;
     return undefined;
   })();
 
@@ -243,8 +255,9 @@ export function LabelCalibrationUI({
   };
 
   const updatePreset = async () => {
-    if (!activePresetName || !isUserPreset) return;
-    const existing = presets.find((p) => p.name === activePresetName);
+    const presetName = effectivePresetName;
+    if (!presetName || !isUserPreset) return;
+    const existing = presets.find((p) => p.name === presetName);
     if (!existing) return;
 
     const updatedPreset: CalibrationPreset = {
@@ -261,7 +274,7 @@ export function LabelCalibrationUI({
       setSaving(true);
       try { await onSavePreset(updatedPreset); } finally { setSaving(false); }
     } else if (onPresetsChange) {
-      const updated = presets.map((p) => p.name === activePresetName ? updatedPreset : p);
+      const updated = presets.map((p) => p.name === presetName ? updatedPreset : p);
       onPresetsChange(updated);
     }
   };
@@ -347,9 +360,16 @@ export function LabelCalibrationUI({
         </div>
 
         {isUserPreset && (onSavePreset || onPresetsChange) && (
-          <Button type="button" variant="outline" size="xs" className="h-8" onClick={updatePreset} disabled={saving}>
-            <Save className="h-3 w-3 mr-1" />
-            Update
+          <Button 
+            type="button" 
+            variant="default" 
+            size="xs" 
+            className="h-8 bg-primary text-primary-foreground hover:bg-primary/90" 
+            onClick={updatePreset} 
+            disabled={saving}
+          >
+            <RefreshCw className="h-3 w-3 mr-1" />
+            {saving ? "Updating..." : `Update "${effectivePresetName}"`}
           </Button>
         )}
 
