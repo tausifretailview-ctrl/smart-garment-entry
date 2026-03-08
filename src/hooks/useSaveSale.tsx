@@ -410,11 +410,10 @@ export const useSaveSale = () => {
               items_count: saleData.items.reduce((sum, item) => sum + item.quantity, 0),
               salesman: saleData.salesman,
               organization_name: companyName,
-              const socialLinks = whatsappSettings.social_links as Record<string, string> | null;
               // Include social links from settings
-              website: socialLinks?.website || '',
-              instagram: socialLinks?.instagram || '',
-              facebook: socialLinks?.facebook || '',
+              website: (whatsappSettings.social_links as Record<string, string> | null)?.website || '',
+              instagram: (whatsappSettings.social_links as Record<string, string> | null)?.instagram || '',
+              facebook: (whatsappSettings.social_links as Record<string, string> | null)?.facebook || '',
             };
 
             // ============================================
