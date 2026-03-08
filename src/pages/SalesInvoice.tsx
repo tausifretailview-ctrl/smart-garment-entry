@@ -2486,11 +2486,11 @@ Thank you for choosing us!`;
 
           {/* Invoice No */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Invoice No</label>
+            <label className="text-[13px] font-medium text-muted-foreground mb-1 block">Invoice No</label>
             <Input 
               value={editingInvoiceId ? (savedInvoiceData?.sale_number || '') : nextInvoicePreview} 
               readOnly 
-              className="bg-muted font-mono font-bold text-sm h-9"
+              className="bg-muted font-mono font-bold text-sm h-10"
               placeholder="Auto-generated"
             />
           </div>
