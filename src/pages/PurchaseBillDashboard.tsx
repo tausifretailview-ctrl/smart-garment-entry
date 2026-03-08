@@ -1167,7 +1167,7 @@ const PurchaseBillDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white tabular-nums">{summaryStats.totalBills}</div>
-              <p className="text-xs text-white/70 mt-1">{summaryStats.totalQty.toLocaleString('en-IN')} items purchased</p>
+              <p className="text-sm text-white/70 mt-1">{summaryStats.totalQty.toLocaleString('en-IN')} items purchased</p>
             </CardContent>
           </Card>
 
