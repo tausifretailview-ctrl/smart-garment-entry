@@ -286,15 +286,20 @@ export default function Accounts() {
   };
 
   return (
-    <div className="w-full px-6 py-6 space-y-6">
+    <div className="w-full px-6 py-6 space-y-6 min-h-screen bg-gradient-to-br from-background via-slate-50/30 to-background dark:via-slate-900/20">
       <BackToDashboard label="Back to Payments" to="/payments-dashboard" />
 
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Accounts Management
-          </h1>
-          <p className="text-muted-foreground mt-2">Manage payments, expenses, vouchers and financial reports</p>
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-md">
+            <LayoutDashboard className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              Accounts Management
+            </h1>
+            <p className="text-sm text-muted-foreground">Payments · Expenses · Vouchers · Financial Reports</p>
+          </div>
         </div>
       </div>
 
