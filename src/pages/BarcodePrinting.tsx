@@ -188,22 +188,7 @@ interface MarginPreset {
   description?: string;
 }
 
-  // Set a preset as default for auto-loading from purchase
-  const handleSetDefaultPreset = async (presetId: string, presetName: string) => {
-    if (!currentOrganization?.id) return;
-    // Clear all defaults first, then set the selected one
-    await supabase
-      .from("printer_presets")
-      .update({ is_default: false })
-      .eq("organization_id", currentOrganization.id);
-    const { error } = await supabase
-      .from("printer_presets")
-      .update({ is_default: true })
-      .eq("id", presetId);
-    if (error) { toast.error("Failed to set default"); return; }
-    toast.success(`"${presetName}" set as default preset`);
-    setDbPresets(prev => prev.map(p => ({ ...p, isDefault: p.id === presetId })));
-  };
+type SheetType_placeholder_removed = never; // placeholder removed
 
 type SheetType = 
   // A4 Sheet Types
