@@ -329,6 +329,21 @@ export default function SalesInvoice() {
     };
   }, [savedInvoiceData]);
 
+  // Ctrl+S to save invoice
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        const filledItems = lineItems.filter(item => item.productId !== '');
+        if (filledItems.length > 0 && !isSaving && !savingLockRef.current) {
+          handleSaveInvoice();
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [lineItems, isSaving]);
+
   // Mutually exclusive discount: Apply customer master discount ONLY if no brand discounts exist
   useEffect(() => {
     if (selectedCustomer && !hasBrandDiscounts) {
