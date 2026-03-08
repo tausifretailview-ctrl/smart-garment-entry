@@ -173,24 +173,25 @@ export default function Accounts() {
     refetchOnWindowFocus: false,
   });
 
-  // Dashboard metrics from RPC
+  // Dashboard metrics from unified RPC
+  const invoiceStats = dashboardStats?.invoiceStats || {};
   const dashboardMetrics = {
     totalReceivables: dashboardStats?.totalReceivables || 0,
     totalPayables: dashboardStats?.totalPayables || 0,
     monthlyExpenses: dashboardStats?.monthlyExpenses || 0,
-    currentMonthPL: dashboardStats?.currentMonthPL || 0,
+    currentMonthPL: (dashboardStats?.totalReceivables || 0) - (dashboardStats?.totalPayables || 0) - (dashboardStats?.monthlyExpenses || 0),
   };
 
   const paymentStats = {
-    totalInvoices: dashboardStats?.totalInvoices || 0,
-    totalAmount: dashboardStats?.totalAmount || 0,
-    paidAmount: dashboardStats?.paidAmount || 0,
-    pendingCount: dashboardStats?.pendingCount || 0,
-    pendingAmount: dashboardStats?.pendingAmount || 0,
-    partialCount: dashboardStats?.partialCount || 0,
-    partialAmount: dashboardStats?.partialAmount || 0,
-    completedCount: dashboardStats?.completedCount || 0,
-    completedAmount: dashboardStats?.completedAmount || 0,
+    totalInvoices: invoiceStats.total || 0,
+    totalAmount: dashboardStats?.totalReceivables || 0,
+    paidAmount: 0,
+    pendingCount: invoiceStats.pending || 0,
+    pendingAmount: 0,
+    partialCount: invoiceStats.partial || 0,
+    partialAmount: 0,
+    completedCount: invoiceStats.paid || 0,
+    completedAmount: 0,
   };
 
   const handleCardClick = (filter: string | null) => {
