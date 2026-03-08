@@ -743,7 +743,7 @@ function ExpenseForm({ organizationId }: { organizationId: string }) {
   const { data: recentExpenses } = useQuery({
     queryKey: ["recent-expenses", organizationId],
     queryFn: async () => {
-      const { data } = await supabase.from("voucher_entries").select("*").eq("organization_id", organizationId).eq("reference_type", "expense").is("deleted_at", null).order("created_at", { ascending: false }).limit(5);
+      const { data } = await supabase.from("voucher_entries").select("id, voucher_number, voucher_date, voucher_type, total_amount, description, category").eq("organization_id", organizationId).eq("reference_type", "expense").is("deleted_at", null).order("created_at", { ascending: false }).limit(5);
       return data || [];
     },
     enabled: !!organizationId,
