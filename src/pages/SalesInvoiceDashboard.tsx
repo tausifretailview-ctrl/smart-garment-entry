@@ -588,6 +588,23 @@ export default function SalesInvoiceDashboard() {
     }
   };
 
+  const fetchSaleItems = useCallback(async (saleId: string) => {
+    if (loadedItemsRef.current[saleId]) return;
+    try {
+      const { data, error } = await supabase
+        .from('sale_items')
+        .select('*')
+        .eq('sale_id', saleId)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      loadedItemsRef.current[saleId] = data || [];
+      setLoadedItems(prev => ({ ...prev, [saleId]: data || [] }));
+    } catch (error) {
+      console.error('Error fetching sale items:', error);
+    }
+  }, []);
+
   const toggleExpanded = useCallback((id: string, saleNumber?: string) => {
     setExpandedRows(prev => {
       const newExpanded = new Set(prev);
@@ -595,13 +612,14 @@ export default function SalesInvoiceDashboard() {
         newExpanded.delete(id);
       } else {
         newExpanded.add(id);
+        fetchSaleItems(id);
         if (saleNumber) {
           fetchSaleReturns(saleNumber, id);
         }
       }
       return newExpanded;
     });
-  }, [currentOrganization?.id]);
+  }, [currentOrganization?.id, fetchSaleItems]);
 
   // Server-side handles all filtering — just use invoicesData directly
   const paginatedInvoices = invoicesData;
@@ -1776,6 +1794,7 @@ export default function SalesInvoiceDashboard() {
                 deliveryHistory={deliveryHistory}
                 saleReturns={saleReturns}
                 cnAdjustedMap={cnAdjustedMap || {}}
+                loadedItems={loadedItems}
                 renderToolbar={(toolbar) => {
                   const portalTarget = document.getElementById('erp-toolbar-portal');
                   if (portalTarget) {

@@ -54,6 +54,7 @@ interface SalesInvoiceERPTableProps {
   deliveryHistory: Record<string, any[]>;
   saleReturns: Record<string, any[]>;
   cnAdjustedMap: Record<string, any[]>;
+  loadedItems?: Record<string, any[]>;
   renderToolbar?: (toolbar: React.ReactNode) => React.ReactNode;
 }
 
@@ -102,6 +103,7 @@ export function SalesInvoiceERPTable({
   deliveryHistory,
   saleReturns,
   cnAdjustedMap,
+  loadedItems,
   renderToolbar,
 }: SalesInvoiceERPTableProps) {
   const columns = useMemo<ColumnDef<any, any>[]>(() => {
@@ -492,7 +494,7 @@ export function SalesInvoiceERPTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {invoice.sale_items?.map((item: any) => {
+              {(loadedItems?.[invoice.id] || invoice.sale_items || []).map((item: any) => {
                 const itemGrossTotal = item.unit_price * item.quantity;
                 const itemDiscount = item.discount_percent > 0 ? (itemGrossTotal * item.discount_percent / 100) : 0;
                 const itemAfterDiscount = itemGrossTotal - itemDiscount;
