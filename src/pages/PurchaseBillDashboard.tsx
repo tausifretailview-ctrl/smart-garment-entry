@@ -1291,8 +1291,8 @@ const PurchaseBillDashboard = () => {
 
         {/* Pagination Controls */}
         {filteredBills.length > 0 && (
-          <Card className="mt-4">
-            <CardContent className="p-4">
+          <Card className="mt-4 shadow-sm">
+            <CardContent className="p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
