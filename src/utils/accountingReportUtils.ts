@@ -420,47 +420,43 @@ export async function calculateNetProfitSummary(
   fromDate: string,
   toDate: string
 ): Promise<NetProfitSummary> {
-  // 1. REVENUE: Total Sales
-  const { data: sales } = await supabase
+  // Use RPC for simple aggregates (total_sales, returns, expenses, input_gst)
+  const { data: npAgg, error: npError } = await supabase.rpc('get_net_profit_aggregates', {
+    p_org_id: organizationId,
+    p_from_date: fromDate,
+    p_to_date: toDate,
+  });
+  if (npError) throw npError;
+
+  const np = npAgg as any;
+  const totalSales = np?.total_sales || 0;
+  const salesReturnsTotal = np?.sales_returns || 0;
+  const netRevenue = totalSales - salesReturnsTotal;
+  const inputGST = np?.input_gst || 0;
+  const totalExpenses = np?.total_expenses || 0;
+  
+  // COGS still needs per-item calculation (pur_price × quantity from sale_items)
+  // We still need sale IDs to fetch sale_items for COGS
+  const { data: saleIdRows } = await supabase
     .from("sales")
-    .select("id, net_amount")
+    .select("id")
     .eq("organization_id", organizationId)
     .gte("sale_date", fromDate)
     .lte("sale_date", toDate)
     .is("deleted_at", null);
   
-  const totalSales = sales?.reduce((sum, s) => sum + (s.net_amount || 0), 0) || 0;
-  const saleIds = sales?.map(s => s.id) || [];
+  const saleIds = saleIdRows?.map(s => s.id) || [];
   
-  // 2. Sale Returns
-  const { data: saleReturns } = await supabase
-    .from("sale_returns")
-    .select("net_amount")
-    .eq("organization_id", organizationId)
-    .gte("return_date", fromDate)
-    .lte("return_date", toDate)
-    .is("deleted_at", null);
-  
-  const salesReturnsTotal = saleReturns?.reduce((sum, sr) => sum + (sr.net_amount || 0), 0) || 0;
-  const netRevenue = totalSales - salesReturnsTotal;
-  
-  // 3. COGS: Calculate from actual sold items (pur_price × quantity)
-  // Fetch sale items with their variant purchase prices
   let cogsFromSaleItems = 0;
   let outputGST = 0;
   
   if (saleIds.length > 0) {
-    // Use paginated fetch to bypass 1000-row limit
     const saleItems = await fetchAllSaleItems(saleIds);
     
     if (saleItems && saleItems.length > 0) {
-      // Get variant purchase prices
       const variantIds = [...new Set(saleItems.map(item => item.variant_id).filter(Boolean))];
-      
-      // Use batched fetch to bypass 1000-row limit
       const { fetchVariantsByIds } = await import("@/utils/fetchAllRows");
       const variants = await fetchVariantsByIds(variantIds, "id, pur_price");
-      
       const variantPriceMap = new Map(variants?.map((v: any) => [v.id, v.pur_price || 0]) || []);
       
       saleItems.forEach(item => {
@@ -468,7 +464,6 @@ export async function calculateNetProfitSummary(
         const purPrice = variantPriceMap.get(item.variant_id) || 0;
         cogsFromSaleItems += qty * purPrice;
         
-        // Output GST = line_total × gst_percent / (100 + gst_percent)
         const lineTotal = item.line_total || 0;
         const gstPer = item.gst_percent || 0;
         if (gstPer > 0) {
@@ -478,37 +473,9 @@ export async function calculateNetProfitSummary(
     }
   }
   
-  // 4. Gross Profit
   const grossProfit = netRevenue - cogsFromSaleItems;
   const isGrossLoss = grossProfit < 0;
-  
-  // 5. INPUT GST: From purchase bills
-  const { data: purchases } = await supabase
-    .from("purchase_bills")
-    .select("gst_amount")
-    .eq("organization_id", organizationId)
-    .gte("bill_date", fromDate)
-    .lte("bill_date", toDate)
-    .is("deleted_at", null);
-  
-  const inputGST = purchases?.reduce((sum, p) => sum + (p.gst_amount || 0), 0) || 0;
-  
-  // 6. Net GST Liability
   const netGSTLiability = outputGST - inputGST;
-  
-  // 7. EXPENSES: From voucher_entries
-  const { data: expenses } = await supabase
-    .from("voucher_entries")
-    .select("total_amount")
-    .eq("organization_id", organizationId)
-    .eq("voucher_type", "expense")
-    .gte("voucher_date", fromDate)
-    .lte("voucher_date", toDate)
-    .is("deleted_at", null);
-  
-  const totalExpenses = expenses?.reduce((sum, e) => sum + (e.total_amount || 0), 0) || 0;
-  
-  // 8. NET PROFIT: Gross Profit - Net GST (if payable) - Expenses
   const gstDeduction = netGSTLiability > 0 ? netGSTLiability : 0;
   const netProfit = grossProfit - gstDeduction - totalExpenses;
   const isNetLoss = netProfit < 0;
