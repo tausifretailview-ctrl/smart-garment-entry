@@ -2641,7 +2641,7 @@ const PurchaseEntry = () => {
                               )
                             }
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-full text-right"
+                            className="w-full text-right bg-blue-50 border-blue-200 text-blue-800 font-bold"
                           />
                         </TableCell>
                         {showMrp && (
