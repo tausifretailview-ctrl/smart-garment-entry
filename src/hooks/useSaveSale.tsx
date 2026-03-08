@@ -97,7 +97,7 @@ export const useSaveSale = () => {
         // Format is literal string, find last matching invoice and increment
         const basePattern = format.replace(/\d+$/, ''); // Remove trailing numbers
         
-        const { data: lastSale } = await (supabase as any)
+        const { data: lastSale } = await supabase
           .from('sales')
           .select('sale_number')
           .eq('organization_id', currentOrganization?.id)
