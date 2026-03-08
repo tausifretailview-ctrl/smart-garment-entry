@@ -113,8 +113,19 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
         return sum + Math.max(0, (adv.amount || 0) - (adv.used_amount || 0));
       }, 0) || 0;
 
-      // Balance = Opening + Sales - Paid + Adjustments - Unused Advances
-      const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - unusedAdvanceTotal);
+      // Fetch refund payments made to customer (from CN refund)
+      const { data: refundVouchers } = await supabase
+        .from('voucher_entries')
+        .select('total_amount')
+        .eq('organization_id', organizationId)
+        .eq('voucher_type', 'payment')
+        .eq('reference_type', 'customer')
+        .eq('reference_id', customerId)
+        .is('deleted_at', null);
+      const totalRefundsPaid = refundVouchers?.reduce((s, v) => s + (v.total_amount || 0), 0) || 0;
+
+      // Balance = Opening + Sales - Paid + Adjustments - Unused Advances - Refunds
+      const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - unusedAdvanceTotal - totalRefundsPaid);
 
       return {
         balance,
