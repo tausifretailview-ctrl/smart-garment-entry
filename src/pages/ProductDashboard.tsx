@@ -1427,7 +1427,7 @@ const ProductDashboard = () => {
         )}
 
         {/* Table */}
-        <Card>
+        <Card className="shadow-sm overflow-hidden">
           <CardContent className="p-0">
             {filteredRows.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
