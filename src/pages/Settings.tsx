@@ -3355,28 +3355,6 @@ export default function Settings() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="logo_upload">Company Logo</Label>
-                  {settings.bill_barcode_settings?.logo_url && (
-                    <div className="mb-2">
-                      <img
-                        src={settings.bill_barcode_settings.logo_url}
-                        alt="Company Logo"
-                        className="h-20 w-auto object-contain border rounded p-2"
-                      />
-                    </div>
-                  )}
-                  <Input
-                    id="logo_upload"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleLogoUpload}
-                    disabled={uploadingLogo}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Upload your company logo (max 2MB, JPG/PNG)
-                  </p>
-                </div>
-                <div className="space-y-2">
                   <Label htmlFor="upi_id">UPI ID</Label>
                   <Input
                     id="upi_id"
