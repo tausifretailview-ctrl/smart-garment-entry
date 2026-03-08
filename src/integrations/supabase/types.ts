@@ -738,6 +738,13 @@ export type Database = {
             referencedRelation: "sales"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "credit_notes_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales_with_customer"
+            referencedColumns: ["id"]
+          },
         ]
       }
       customer_advances: {
@@ -1001,6 +1008,13 @@ export type Database = {
             referencedRelation: "sales"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "customer_points_history_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales_with_customer"
+            referencedColumns: ["id"]
+          },
         ]
       }
       customer_product_prices: {
@@ -1063,6 +1077,13 @@ export type Database = {
             columns: ["last_sale_id"]
             isOneToOne: false
             referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_product_prices_last_sale_id_fkey"
+            columns: ["last_sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales_with_customer"
             referencedColumns: ["id"]
           },
           {
@@ -1408,6 +1429,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "delivery_challans_converted_to_invoice_id_fkey"
+            columns: ["converted_to_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "sales_with_customer"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "delivery_challans_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
@@ -1488,6 +1516,13 @@ export type Database = {
             columns: ["sale_id"]
             isOneToOne: false
             referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_tracking_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales_with_customer"
             referencedColumns: ["id"]
           },
         ]
@@ -2403,6 +2438,13 @@ export type Database = {
             columns: ["sale_id"]
             isOneToOne: false
             referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_links_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales_with_customer"
             referencedColumns: ["id"]
           },
         ]
@@ -3546,6 +3588,13 @@ export type Database = {
             referencedRelation: "sales"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sale_items_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales_with_customer"
+            referencedColumns: ["id"]
+          },
         ]
       }
       sale_order_items: {
@@ -3901,6 +3950,13 @@ export type Database = {
             columns: ["linked_sale_id"]
             isOneToOne: false
             referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_returns_linked_sale_id_fkey"
+            columns: ["linked_sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales_with_customer"
             referencedColumns: ["id"]
           },
         ]
@@ -4607,6 +4663,13 @@ export type Database = {
             columns: ["sale_id"]
             isOneToOne: false
             referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_fees_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales_with_customer"
             referencedColumns: ["id"]
           },
           {
@@ -5686,6 +5749,99 @@ export type Database = {
       }
     }
     Views: {
+      sales_with_customer: {
+        Row: {
+          ack_date: string | null
+          ack_no: string | null
+          card_amount: number | null
+          cash_amount: number | null
+          created_at: string | null
+          created_by: string | null
+          credit_applied: number | null
+          credit_note_amount: number | null
+          credit_note_id: string | null
+          customer_address: string | null
+          customer_email: string | null
+          customer_gst_number: string | null
+          customer_id: string | null
+          customer_loyalty_points: number | null
+          customer_name: string | null
+          customer_phone: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          delivery_status: string | null
+          discount_amount: number | null
+          due_date: string | null
+          einvoice_error: string | null
+          einvoice_qr_code: string | null
+          einvoice_status: string | null
+          flat_discount_amount: number | null
+          flat_discount_percent: number | null
+          gross_amount: number | null
+          id: string | null
+          invoice_type: string | null
+          irn: string | null
+          net_amount: number | null
+          notes: string | null
+          organization_id: string | null
+          other_charges: number | null
+          paid_amount: number | null
+          payment_date: string | null
+          payment_method: string | null
+          payment_status: string | null
+          payment_term: string | null
+          points_redeemed_amount: number | null
+          refund_amount: number | null
+          resolved_address: string | null
+          resolved_customer_name: string | null
+          resolved_email: string | null
+          resolved_phone: string | null
+          round_off: number | null
+          sale_date: string | null
+          sale_number: string | null
+          sale_return_adjust: number | null
+          sale_type: string | null
+          salesman: string | null
+          shipping_address: string | null
+          shipping_instructions: string | null
+          signed_invoice: string | null
+          signed_qr_code: string | null
+          terms_conditions: string | null
+          total_qty: number | null
+          updated_at: string | null
+          upi_amount: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_credit_note_id_fkey"
+            columns: ["credit_note_id"]
+            isOneToOne: false
+            referencedRelation: "credit_notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       v_dashboard_counts: {
         Row: {
           customer_count: number | null
