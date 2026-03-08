@@ -2915,14 +2915,14 @@ Thank you for choosing us!`;
           />
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-[11px] text-slate-500 whitespace-nowrap">Round Off</span>
+          <span className="text-[13px] text-slate-500 whitespace-nowrap">Round Off</span>
           <Input
             type="number" step="0.01"
             value={roundOff || ""}
             placeholder="0"
             onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-            className="w-20 h-7 text-[12px]"
+            className="w-24 h-9 text-sm"
           />
         </div>
         <div className="ml-auto flex items-center gap-2">
