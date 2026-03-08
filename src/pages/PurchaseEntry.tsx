@@ -166,6 +166,10 @@ const PurchaseEntry = () => {
   // State for tracking newly added items for smart barcode printing
   const [newlyAddedItems, setNewlyAddedItems] = useState<LineItem[]>([]);
   const [savedBillId, setSavedBillId] = useState<string | null>(null);
+  
+  // Barcode duplicate warning state
+  const [barcodeWarnings, setBarcodeWarnings] = useState<Map<string, string>>(new Map());
+  const barcodeCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [billData, setBillData] = useState({
     supplier_id: "",
