@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { Home, Save, Eye, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2 } from "lucide-react";
+import { Home, Save, Eye, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, Building2, ShoppingCart, Receipt, CreditCard, BarChart2, Users, MessageSquare, MessageCircle, Database, Palette, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -946,19 +946,19 @@ export default function Settings() {
         </div>
 
         <Tabs defaultValue="company" className="w-full">
-          <TabsList className="grid w-full grid-cols-6 lg:grid-cols-12">
-            <TabsTrigger value="company">Company</TabsTrigger>
-            <TabsTrigger value="branding">Branding</TabsTrigger>
-            <TabsTrigger value="product">Product</TabsTrigger>
-            <TabsTrigger value="purchase">Purchase</TabsTrigger>
-            <TabsTrigger value="sale">Sale</TabsTrigger>
-            <TabsTrigger value="bill">Bill & Barcode</TabsTrigger>
-            <TabsTrigger value="payment">Payment</TabsTrigger>
-            <TabsTrigger value="reports">Reports</TabsTrigger>
-            <TabsTrigger value="users">User Rights</TabsTrigger>
-            <TabsTrigger value="sms">SMS</TabsTrigger>
-            <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
-            <TabsTrigger value="backup">Backup</TabsTrigger>
+          <TabsList className="flex flex-wrap gap-1 h-auto p-1 bg-muted/60 rounded-xl mb-2">
+            <TabsTrigger value="company" className="flex items-center gap-1.5 text-xs font-medium"><Building2 className="h-3.5 w-3.5" /> Company</TabsTrigger>
+            <TabsTrigger value="product" className="flex items-center gap-1.5 text-xs font-medium"><Package className="h-3.5 w-3.5" /> Product</TabsTrigger>
+            <TabsTrigger value="purchase" className="flex items-center gap-1.5 text-xs font-medium"><ShoppingCart className="h-3.5 w-3.5" /> Purchase</TabsTrigger>
+            <TabsTrigger value="sale" className="flex items-center gap-1.5 text-xs font-medium"><Receipt className="h-3.5 w-3.5" /> Sale</TabsTrigger>
+            <TabsTrigger value="bill" className="flex items-center gap-1.5 text-xs font-medium"><Printer className="h-3.5 w-3.5" /> Bill & Barcode</TabsTrigger>
+            <TabsTrigger value="payment" className="flex items-center gap-1.5 text-xs font-medium"><CreditCard className="h-3.5 w-3.5" /> Payment</TabsTrigger>
+            <TabsTrigger value="reports" className="flex items-center gap-1.5 text-xs font-medium"><BarChart2 className="h-3.5 w-3.5" /> Reports</TabsTrigger>
+            <TabsTrigger value="users" className="flex items-center gap-1.5 text-xs font-medium"><Users className="h-3.5 w-3.5" /> User Rights</TabsTrigger>
+            <TabsTrigger value="sms" className="flex items-center gap-1.5 text-xs font-medium"><MessageSquare className="h-3.5 w-3.5" /> SMS</TabsTrigger>
+            <TabsTrigger value="whatsapp" className="flex items-center gap-1.5 text-xs font-medium"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</TabsTrigger>
+            <TabsTrigger value="backup" className="flex items-center gap-1.5 text-xs font-medium"><Database className="h-3.5 w-3.5" /> Backup</TabsTrigger>
+            <TabsTrigger value="branding" className="flex items-center gap-1.5 text-xs font-medium"><Palette className="h-3.5 w-3.5" /> Branding</TabsTrigger>
           </TabsList>
 
           <TabsContent value="company">
@@ -1014,18 +1014,16 @@ export default function Settings() {
                     <p className="text-xs text-muted-foreground">Used for sending daily Cash Tally reports via WhatsApp</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email_id">Email ID</Label>
-                    <Input
-                      id="email_id"
-                      type="email"
-                      value={settings.email_id || ""}
-                      onChange={(e) =>
-                        setSettings({ ...settings, email_id: e.target.value })
-                      }
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email_id">Email ID</Label>
+                  <Input
+                    id="email_id"
+                    type="email"
+                    value={settings.email_id || ""}
+                    onChange={(e) =>
+                      setSettings({ ...settings, email_id: e.target.value })
+                    }
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="gst_number">GST Number</Label>
@@ -1072,6 +1070,7 @@ export default function Settings() {
                         <p className="text-xs text-muted-foreground mt-1">
                           Upload your organization logo (max 2MB, JPG/PNG)
                         </p>
+                        <p className="text-xs text-muted-foreground mt-1">This logo also prints on invoices and barcode labels</p>
                       </div>
                     </div>
                   </div>
@@ -1165,10 +1164,6 @@ export default function Settings() {
               </CardContent>
             </Card>
 
-            {/* WhatsApp Templates Section */}
-            <div className="mt-6">
-              <WhatsAppTemplateSettings />
-            </div>
           </TabsContent>
 
           <TabsContent value="sms">
@@ -1357,51 +1352,30 @@ export default function Settings() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="payment_terms">Default Payment Terms</Label>
-                  <select
-                    id="payment_terms"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  <Select
                     value={settings.purchase_settings?.payment_terms || ""}
-                    onChange={(e) =>
+                    onValueChange={(value) =>
                       setSettings({
                         ...settings,
                         purchase_settings: {
                           ...settings.purchase_settings,
-                          payment_terms: e.target.value,
+                          payment_terms: value,
                         },
                       })
                     }
                   >
-                    <option value="">Select payment terms</option>
-                    <option value="immediate">Immediate</option>
-                    <option value="net15">Net 15</option>
-                    <option value="net30">Net 30</option>
-                    <option value="net45">Net 45</option>
-                    <option value="net60">Net 60</option>
-                    <option value="net90">Net 90</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="auto_approve_threshold">Auto-Approve Threshold Amount</Label>
-                  <Input
-                    id="auto_approve_threshold"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={settings.purchase_settings?.auto_approve_threshold || ""}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        purchase_settings: {
-                          ...settings.purchase_settings,
-                          auto_approve_threshold: parseFloat(e.target.value) || 0,
-                        },
-                      })
-                    }
-                    placeholder="e.g., 10000"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Purchase orders below this amount will be auto-approved
-                  </p>
+                    <SelectTrigger id="payment_terms">
+                      <SelectValue placeholder="Select payment terms" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="immediate">Immediate</SelectItem>
+                      <SelectItem value="net15">Net 15</SelectItem>
+                      <SelectItem value="net30">Net 30</SelectItem>
+                      <SelectItem value="net45">Net 45</SelectItem>
+                      <SelectItem value="net60">Net 60</SelectItem>
+                      <SelectItem value="net90">Net 90</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="default_tax_rate">Default Tax Rate (%)</Label>
@@ -1603,28 +1577,6 @@ export default function Settings() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Available placeholders: {"{YYYY}"} (year), {"{MM}"} (month), {"{####}"} (auto-increment). Leave empty for default POS/25-26/1 format.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="min_rows">Min No. of Rows in Item Table</Label>
-                  <Input
-                    id="min_rows"
-                    type="number"
-                    min="1"
-                    max="50"
-                    value={(settings.sale_settings as any)?.min_item_rows || 12}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          min_item_rows: parseInt(e.target.value) || 12,
-                        } as any,
-                      })
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Minimum number of rows to display in the item table
                   </p>
                 </div>
                 
@@ -2257,17 +2209,17 @@ export default function Settings() {
                           type="number"
                           min="1"
                           max="30"
-                          value={(settings.sale_settings as any)?.min_item_rows || 8}
+                          value={(settings.sale_settings as any)?.min_item_rows || 12}
                           onChange={(e) =>
                             setSettings({
                               ...settings,
                               sale_settings: {
                                 ...settings.sale_settings,
-                                min_item_rows: parseInt(e.target.value) || 8,
+                                min_item_rows: parseInt(e.target.value) || 12,
                               },
                             })
                           }
-                          placeholder="8"
+                          placeholder="12"
                         />
                         <p className="text-xs text-muted-foreground">
                           Minimum empty rows to display in item table
@@ -3403,28 +3355,6 @@ export default function Settings() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="logo_upload">Company Logo</Label>
-                  {settings.bill_barcode_settings?.logo_url && (
-                    <div className="mb-2">
-                      <img
-                        src={settings.bill_barcode_settings.logo_url}
-                        alt="Company Logo"
-                        className="h-20 w-auto object-contain border rounded p-2"
-                      />
-                    </div>
-                  )}
-                  <Input
-                    id="logo_upload"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleLogoUpload}
-                    disabled={uploadingLogo}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Upload your company logo (max 2MB, JPG/PNG)
-                  </p>
-                </div>
-                <div className="space-y-2">
                   <Label htmlFor="upi_id">UPI ID</Label>
                   <Input
                     id="upi_id"
@@ -3506,63 +3436,31 @@ export default function Settings() {
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="header_text">Bill Header Text</Label>
-                  <Textarea
-                    id="header_text"
-                    value={settings.bill_barcode_settings?.header_text || ""}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        bill_barcode_settings: {
-                          ...settings.bill_barcode_settings,
-                          header_text: e.target.value,
-                        },
-                      })
-                    }
-                    placeholder="e.g., Thank you for your business!"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="footer_text">Bill Footer Text</Label>
-                  <Textarea
-                    id="footer_text"
-                    value={settings.bill_barcode_settings?.footer_text || ""}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        bill_barcode_settings: {
-                          ...settings.bill_barcode_settings,
-                          footer_text: e.target.value,
-                        },
-                      })
-                    }
-                    placeholder="e.g., Terms and conditions apply"
-                    rows={2}
-                  />
-                </div>
+                <p className="text-xs text-muted-foreground">Invoice header/footer text is configured in the Sale tab → Invoice Customization section</p>
                 <div className="space-y-2">
                   <Label htmlFor="barcode_format">Default Barcode Label Format (for Direct Printing)</Label>
-                  <select
-                    id="barcode_format"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  <Select
                     value={settings.bill_barcode_settings?.barcode_format || "a4_12x4"}
-                    onChange={(e) =>
+                    onValueChange={(value) =>
                       setSettings({
                         ...settings,
                         bill_barcode_settings: {
                           ...settings.bill_barcode_settings,
-                          barcode_format: e.target.value,
+                          barcode_format: value,
                         },
                       })
                     }
                   >
-                    <option value="novajet48">Novajet 48 (8 cols, 33x19mm)</option>
-                    <option value="novajet40">Novajet 40 (5 cols × 8 rows, 39x35mm)</option>
-                    <option value="novajet65">Novajet 65 (5 cols, 38x21mm)</option>
-                    <option value="a4_12x4">A4 12x4 (4 cols, 50x24mm)</option>
-                  </select>
+                    <SelectTrigger id="barcode_format">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="novajet48">Novajet 48 (8 cols, 33x19mm)</SelectItem>
+                      <SelectItem value="novajet40">Novajet 40 (5 cols × 8 rows, 39x35mm)</SelectItem>
+                      <SelectItem value="novajet65">Novajet 65 (5 cols, 38x21mm)</SelectItem>
+                      <SelectItem value="a4_12x4">A4 12x4 (4 cols, 50x24mm)</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <p className="text-xs text-muted-foreground">Used when printing barcodes directly from Purchase Bills</p>
                   <Button
                     type="button"
@@ -4215,6 +4113,12 @@ export default function Settings() {
 
                 {/* Cheque Printing Section */}
                 <div className="pt-6 border-t">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="h-7 w-7 rounded-lg bg-amber-100 flex items-center justify-center">
+                      <FileText className="h-3.5 w-3.5 text-amber-700" />
+                    </div>
+                    <div><p className="text-sm font-semibold">Cheque Printing Format</p><p className="text-xs text-muted-foreground">Configure cheque layout for payment vouchers</p></div>
+                  </div>
                   <ChequeFormatManagement />
                 </div>
               </CardContent>
@@ -4230,141 +4134,10 @@ export default function Settings() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="default_date_range">Default Date Range</Label>
-                  <select
-                    id="default_date_range"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    value={settings.report_settings?.default_date_range || ""}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        report_settings: {
-                          ...settings.report_settings,
-                          default_date_range: e.target.value,
-                        },
-                      })
-                    }
-                  >
-                    <option value="">Select default date range</option>
-                    <option value="today">Today</option>
-                    <option value="this_week">This Week</option>
-                    <option value="this_month">This Month</option>
-                    <option value="last_month">Last Month</option>
-                    <option value="last_quarter">Last Quarter</option>
-                    <option value="this_year">This Year</option>
-                    <option value="custom">Custom Range</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Export Formats</Label>
-                  <div className="space-y-2">
-                    {["PDF", "Excel", "CSV"].map((format) => (
-                      <div key={format} className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id={`export_${format}`}
-                          className="h-4 w-4 rounded border-input"
-                          checked={settings.report_settings?.export_formats?.includes(format) || false}
-                          onChange={(e) => {
-                            const currentFormats = settings.report_settings?.export_formats || [];
-                            const newFormats = e.target.checked
-                              ? [...currentFormats, format]
-                              : currentFormats.filter((f) => f !== format);
-                            setSettings({
-                              ...settings,
-                              report_settings: {
-                                ...settings.report_settings,
-                                export_formats: newFormats,
-                              },
-                            });
-                          }}
-                        />
-                        <Label htmlFor={`export_${format}`} className="font-normal cursor-pointer">
-                          {format}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Stock Report Columns</Label>
-                  <div className="space-y-2">
-                    {[
-                      { value: "product_name", label: "Product Name" },
-                      { value: "size", label: "Size" },
-                      { value: "barcode", label: "Barcode" },
-                      { value: "stock_qty", label: "Stock Quantity" },
-                      { value: "pur_price", label: "Purchase Price" },
-                      { value: "sale_price", label: "Sale Price" },
-                      { value: "category", label: "Category" },
-                      { value: "brand", label: "Brand" },
-                    ].map((column) => (
-                      <div key={column.value} className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id={`stock_col_${column.value}`}
-                          className="h-4 w-4 rounded border-input"
-                          checked={settings.report_settings?.stock_report_columns?.includes(column.value) || false}
-                          onChange={(e) => {
-                            const currentCols = settings.report_settings?.stock_report_columns || [];
-                            const newCols = e.target.checked
-                              ? [...currentCols, column.value]
-                              : currentCols.filter((c) => c !== column.value);
-                            setSettings({
-                              ...settings,
-                              report_settings: {
-                                ...settings.report_settings,
-                                stock_report_columns: newCols,
-                              },
-                            });
-                          }}
-                        />
-                        <Label htmlFor={`stock_col_${column.value}`} className="font-normal cursor-pointer">
-                          {column.label}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Purchase Report Columns</Label>
-                  <div className="space-y-2">
-                    {[
-                      { value: "bill_date", label: "Bill Date" },
-                      { value: "invoice_no", label: "Invoice No" },
-                      { value: "supplier_name", label: "Supplier Name" },
-                      { value: "gross_amount", label: "Gross Amount" },
-                      { value: "gst_amount", label: "GST Amount" },
-                      { value: "net_amount", label: "Net Amount" },
-                      { value: "items_count", label: "Items Count" },
-                    ].map((column) => (
-                      <div key={column.value} className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id={`purchase_col_${column.value}`}
-                          className="h-4 w-4 rounded border-input"
-                          checked={settings.report_settings?.purchase_report_columns?.includes(column.value) || false}
-                          onChange={(e) => {
-                            const currentCols = settings.report_settings?.purchase_report_columns || [];
-                            const newCols = e.target.checked
-                              ? [...currentCols, column.value]
-                              : currentCols.filter((c) => c !== column.value);
-                            setSettings({
-                              ...settings,
-                              report_settings: {
-                                ...settings.report_settings,
-                                purchase_report_columns: newCols,
-                              },
-                            });
-                          }}
-                        />
-                        <Label htmlFor={`purchase_col_${column.value}`} className="font-normal cursor-pointer">
-                          {column.label}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
+                <div className="text-center py-8 text-muted-foreground">
+                  <BarChart2 className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">Report column customization coming soon</p>
+                  <p className="text-xs mt-1">Use the Stock Adjustment and Reconciliation tools below</p>
                 </div>
               </CardContent>
             </Card>
