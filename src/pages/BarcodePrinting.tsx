@@ -189,23 +189,6 @@ interface MarginPreset {
 }
 
 
-  // Set a preset as default for auto-loading from purchase
-  const handleSetDefaultPreset = async (presetId: string, presetName: string) => {
-    if (!currentOrganization?.id) return;
-    await supabase
-      .from("printer_presets")
-      .update({ is_default: false })
-      .eq("organization_id", currentOrganization.id);
-    const { error } = await supabase
-      .from("printer_presets")
-      .update({ is_default: true })
-      .eq("id", presetId);
-    if (error) { toast.error("Failed to set default"); return; }
-    toast.success(`"${presetName}" set as default preset`);
-    setDbPresets(prev => prev.map(p => ({ ...p, isDefault: p.id === presetId })));
-  };
-
-
 type SheetType = 
   // A4 Sheet Types
   "novajet48" | "novajet40" | "a4_40sheet" | "novajet65" | "a4_12x4" | "a4_65sheet" | "a4_32sheet" | 
