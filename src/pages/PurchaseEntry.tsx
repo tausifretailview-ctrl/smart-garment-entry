@@ -2504,7 +2504,6 @@ const PurchaseEntry = () => {
               </div>
 
               <div className="flex items-center gap-4">
-              <div className="flex items-center gap-4">
                 <Button
                   onClick={() => setShowExcelImport(true)}
                   variant="outline"
@@ -2538,7 +2537,7 @@ const PurchaseEntry = () => {
                   </div>
                 </div>
               </div>
-            </div>
+          </div>
           <div className="border rounded-lg overflow-x-auto">
             <Table className="table-fixed min-w-[1460px]">
               <TableHeader className="sticky top-0 z-10 erp-invoice-table-header">
