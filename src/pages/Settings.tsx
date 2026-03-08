@@ -395,6 +395,12 @@ export default function Settings() {
   };
 
   const [settingsDbPresets, setSettingsDbPresets] = useState<import("@/components/precision-barcode/LabelCalibrationUI").CalibrationPreset[]>([]);
+  const [allOrgPresets, setAllOrgPresets] = useState<Array<{
+    preset: CalibrationPreset;
+    orgId: string;
+    orgName: string;
+  }>>([]);
+  const [importingPresetId, setImportingPresetId] = useState<string | null>(null);
 
   const fetchDbPresets = async () => {
     if (!currentOrganization?.id) return;
