@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { Home, Save, Eye, Shield } from "lucide-react";
+import { Home, Save, Eye, Shield, Printer, Package, Paintbrush } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -105,8 +105,8 @@ interface SaleSettings {
   default_payment_method?: string;
   invoice_numbering_format?: string;  // For Sale Invoice INV-{YYYY}-{####}
   pos_numbering_format?: string;  // For POS billing POS-{YYYY}-{####}
-  invoice_paper_format?: 'a5-vertical' | 'a5-horizontal' | 'a4';  // Paper size
-  sales_bill_format?: 'a4' | 'a5' | 'thermal';  // Sales bill format
+  invoice_paper_format?: 'a5-vertical' | 'a5-horizontal' | 'a4' | 'thermal';  // Paper size
+  sales_bill_format?: 'a4' | 'a5' | 'thermal';  // kept for backward compat
   pos_bill_format?: 'a4' | 'a5' | 'a5-horizontal' | 'thermal';  // POS bill format
   defaultEntryMode?: 'grid' | 'inline';  // Default entry mode for Sale Order
   enable_size_grid_sales?: boolean; // Enable/disable size grid in Sales Invoice
@@ -1757,37 +1757,24 @@ export default function Settings() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="invoice_paper_format">Invoice Paper Format</Label>
-                  <Select
-                    value={settings.sale_settings?.invoice_paper_format || "a5-vertical"}
-                    onValueChange={(value) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          invoice_paper_format: value as 'a5-vertical' | 'a5-horizontal' | 'a4',
-                        },
-                      })
-                    }
-                  >
-                    <SelectTrigger id="invoice_paper_format">
-                      <SelectValue placeholder="Select paper format" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="a5-vertical">A5 Vertical (148mm × 210mm) - Most common</SelectItem>
-                      <SelectItem value="a5-horizontal">A5 Horizontal (210mm × 148mm) - Landscape</SelectItem>
-                      <SelectItem value="a4">A4 Full (210mm × 297mm) - Professional</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
                 <div className="space-y-4 pt-4 border-t">
-                  <h3 className="text-lg font-semibold">Bill Format Settings</h3>
-                  <p className="text-sm text-muted-foreground">Configure print formats for sales and POS</p>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                      <Printer className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold leading-none">Print Format</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">Paper size and printer settings for invoices</p>
+                    </div>
+                  </div>
+
+                  {/* Enable preview toggle */}
+                  <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/30">
+                    <div>
+                      <p className="text-sm font-medium">Invoice Preview Dialog</p>
+                      <p className="text-xs text-muted-foreground">Show preview before printing (disable for direct print)</p>
+                    </div>
+                    <Switch
                       id="show_invoice_preview"
                       checked={settings.sale_settings?.show_invoice_preview ?? true}
                       onCheckedChange={(checked) =>
@@ -1800,105 +1787,109 @@ export default function Settings() {
                         })
                       }
                     />
-                    <div>
-                      <Label htmlFor="show_invoice_preview" className="font-normal cursor-pointer">
-                        Enable Invoice Preview
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        When enabled, shows a preview dialog before printing. When disabled, directly opens the print dialog.
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="sales_bill_format">Sales Invoice Bill Format</Label>
-                    <Select
-                      value={settings.sale_settings?.sales_bill_format || "a4"}
-                      onValueChange={(value) =>
-                        setSettings({
-                          ...settings,
-                          sale_settings: {
-                            ...settings.sale_settings,
-                            sales_bill_format: value as 'a4' | 'a5' | 'thermal',
-                          },
-                        })
-                      }
-                    >
-                      <SelectTrigger id="sales_bill_format">
-                        <SelectValue placeholder="Select format" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="a4">A4 (210mm × 297mm)</SelectItem>
-                        <SelectItem value="a5">A5 (148mm × 210mm)</SelectItem>
-                        <SelectItem value="thermal">Thermal (80mm)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Default format for sales invoice printing
-                    </p>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="thermal_receipt_style">Thermal Receipt Style</Label>
-                    <Select
-                      value={settings.sale_settings?.thermal_receipt_style || "classic"}
-                      onValueChange={(value) =>
-                        setSettings({
-                          ...settings,
-                          sale_settings: {
-                            ...settings.sale_settings,
-                            thermal_receipt_style: value as 'classic' | 'compact',
-                          },
-                        })
-                      }
-                    >
-                      <SelectTrigger id="thermal_receipt_style">
-                        <SelectValue placeholder="Select style" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="classic">Classic (Monospace)</SelectItem>
-                        <SelectItem value="compact">Compact (Sans-serif)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Visual style used when printing thermal (80mm) receipts
-                    </p>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="pos_bill_format">POS Bill Format</Label>
-                    <Select
-                      value={settings.sale_settings?.pos_bill_format || "thermal"}
-                      onValueChange={(value) =>
-                        setSettings({
-                          ...settings,
-                          sale_settings: {
-                            ...settings.sale_settings,
-                            pos_bill_format: value as 'a4' | 'a5' | 'a5-horizontal' | 'thermal',
-                          },
-                        })
-                      }
-                    >
-                      <SelectTrigger id="pos_bill_format">
-                        <SelectValue placeholder="Select format" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="thermal">Thermal (80mm) - Most common</SelectItem>
-                        <SelectItem value="a5">A5 Vertical (148mm × 210mm)</SelectItem>
-                        <SelectItem value="a5-horizontal">A5 Horizontal (210mm × 148mm)</SelectItem>
-                        <SelectItem value="a4">A4 (210mm × 297mm)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Default format for POS printing (Thermal recommended)
-                    </p>
+                  {/* 2-column grid: Sale format | POS format */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="invoice_paper_format" className="text-sm font-medium">Sale Invoice Format</Label>
+                      <Select
+                        value={settings.sale_settings?.invoice_paper_format || "a4"}
+                        onValueChange={(value) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              invoice_paper_format: value as any,
+                              // keep sales_bill_format in sync for backward compat
+                              sales_bill_format:
+                                value === 'thermal' ? 'thermal'
+                                : value === 'a5-vertical' ? 'a5'
+                                : 'a4',
+                            },
+                          })
+                        }
+                      >
+                        <SelectTrigger id="invoice_paper_format">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="a4">A4 — Laser / Inkjet</SelectItem>
+                          <SelectItem value="a5-vertical">A5 Portrait</SelectItem>
+                          <SelectItem value="a5-horizontal">A5 Landscape</SelectItem>
+                          <SelectItem value="thermal">Thermal 80mm</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="pos_bill_format" className="text-sm font-medium">POS Bill Format</Label>
+                      <Select
+                        value={settings.sale_settings?.pos_bill_format || "thermal"}
+                        onValueChange={(value) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              pos_bill_format: value as any,
+                            },
+                          })
+                        }
+                      >
+                        <SelectTrigger id="pos_bill_format">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="thermal">Thermal 80mm — Most common</SelectItem>
+                          <SelectItem value="a5-vertical">A5 Portrait</SelectItem>
+                          <SelectItem value="a5-horizontal">A5 Landscape</SelectItem>
+                          <SelectItem value="a4">A4</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
+
+                  {/* Thermal style — shown only when either format is thermal */}
+                  {(settings.sale_settings?.invoice_paper_format === 'thermal' ||
+                    settings.sale_settings?.pos_bill_format === 'thermal') && (
+                    <div className="space-y-2">
+                      <Label htmlFor="thermal_receipt_style" className="text-sm font-medium">Thermal Receipt Style</Label>
+                      <Select
+                        value={settings.sale_settings?.thermal_receipt_style || "classic"}
+                        onValueChange={(value) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              thermal_receipt_style: value as 'classic' | 'compact',
+                            },
+                          })
+                        }
+                      >
+                        <SelectTrigger id="thermal_receipt_style">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="classic">Classic — Monospace receipt</SelectItem>
+                          <SelectItem value="compact">Compact — Sans-serif, denser</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">Applies to all thermal printers (sale + POS)</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Item Details Display Settings */}
                 <div className="space-y-4 pt-4 border-t">
-                  <h3 className="text-lg font-semibold">Item Details Display</h3>
-                  <p className="text-sm text-muted-foreground">Configure which product fields to show on bills and dashboards</p>
+                  <div className="flex items-center gap-2">
+                    <div className="h-7 w-7 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+                      <Package className="h-3.5 w-3.5 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold leading-none">Item Details Display</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">Fields shown on bills and dashboards</p>
+                    </div>
+                  </div>
                   
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <div className="flex items-center space-x-2">
@@ -2056,16 +2047,66 @@ export default function Settings() {
                         <SelectValue placeholder="Select template" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="professional">Professional - Detailed business style</SelectItem>
-                        <SelectItem value="modern">Modern - Clean gradient design</SelectItem>
-                        <SelectItem value="modern-wholesale">Modern Wholesale - Size grouping for bulk</SelectItem>
-                        <SelectItem value="classic">Classic - Traditional receipt</SelectItem>
-                        <SelectItem value="minimal">Minimal - Simple & elegant</SelectItem>
-                        <SelectItem value="compact">Compact - Space-saving layout</SelectItem>
-                        <SelectItem value="detailed">Detailed - Comprehensive info</SelectItem>
-                        <SelectItem value="tax-invoice">Tax Invoice - GST compliant</SelectItem>
-                        <SelectItem value="retail">Retail Invoice - Fixed ERP style</SelectItem>
-                        <SelectItem value="retail-erp">Retail ERP - Tax Invoice ERP Style</SelectItem>
+                        <SelectItem value="professional">
+                          <span className="flex items-center gap-2">
+                            <span className="text-blue-600 font-bold text-xs w-5">PRO</span>
+                            Professional — Detailed GST-ready
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="modern">
+                          <span className="flex items-center gap-2">
+                            <span className="text-violet-600 font-bold text-xs w-5">MOD</span>
+                            Modern — Clean gradient design
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="modern-wholesale">
+                          <span className="flex items-center gap-2">
+                            <span className="text-teal-600 font-bold text-xs w-5">WHL</span>
+                            Wholesale — Size grouping (38/2, 40/3)
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="classic">
+                          <span className="flex items-center gap-2">
+                            <span className="text-gray-600 font-bold text-xs w-5">CLS</span>
+                            Classic — Traditional receipt style
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="minimal">
+                          <span className="flex items-center gap-2">
+                            <span className="text-slate-500 font-bold text-xs w-5">MIN</span>
+                            Minimal — Simple &amp; clean
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="compact">
+                          <span className="flex items-center gap-2">
+                            <span className="text-orange-600 font-bold text-xs w-5">CMP</span>
+                            Compact — Space-saving layout
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="detailed">
+                          <span className="flex items-center gap-2">
+                            <span className="text-green-600 font-bold text-xs w-5">DET</span>
+                            Detailed — Full product info
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="tax-invoice">
+                          <span className="flex items-center gap-2">
+                            <span className="text-red-600 font-bold text-xs w-5">TAX</span>
+                            Tax Invoice — GST B2B compliant
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="retail">
+                          <span className="flex items-center gap-2">
+                            <span className="text-pink-600 font-bold text-xs w-5">RET</span>
+                            Retail — Fixed ERP format
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="retail-erp">
+                          <span className="flex items-center gap-2">
+                            <span className="text-indigo-600 font-bold text-xs w-5">ERP</span>
+                            Retail ERP — Tax Invoice ERP style
+                          </span>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
@@ -2075,8 +2116,13 @@ export default function Settings() {
 
                   {/* Wholesale Mode Settings - Show when Modern Wholesale template is selected */}
                   {settings.sale_settings?.invoice_template === 'modern-wholesale' && (
-                    <div className="space-y-4 p-4 bg-muted/50 rounded-lg border">
-                      <h4 className="text-sm font-semibold text-primary">Wholesale Mode Settings</h4>
+                    <div className="space-y-4 p-3 rounded-lg border-l-4 border-l-teal-500 bg-teal-50/50 dark:bg-teal-950/20">
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded bg-teal-100 flex items-center justify-center flex-shrink-0">
+                          <span className="text-[10px] font-bold text-teal-700">WHL</span>
+                        </div>
+                        <h4 className="text-sm font-semibold text-teal-700 dark:text-teal-400">Wholesale Mode Settings</h4>
+                      </div>
                       
                       <div className="space-y-2">
                         <Label htmlFor="size_display_format">Size Display Format</Label>
@@ -2189,8 +2235,15 @@ export default function Settings() {
                 
                   {/* Invoice Customization Section */}
                   <div className="space-y-4 mt-6 pt-6 border-t">
-                    <h3 className="text-lg font-semibold">Invoice Customization</h3>
-                    <p className="text-sm text-muted-foreground">Customize invoice appearance and branding</p>
+                    <div className="flex items-center gap-2">
+                      <div className="h-7 w-7 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+                        <Paintbrush className="h-3.5 w-3.5 text-purple-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold leading-none">Invoice Customization</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">Template, colors, fonts, logo, header &amp; footer</p>
+                      </div>
+                    </div>
                     
                     <div className="space-y-2">
                       <Label htmlFor="font_family">Font Family</Label>
@@ -3130,18 +3183,56 @@ export default function Settings() {
               
               {/* Live Preview Panel */}
               <Card className="sticky top-6 h-fit">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Eye className="h-5 w-5" />
-                    Live Invoice Preview
-                  </CardTitle>
-                  <CardDescription>
-                    See real-time changes as you customize
-                  </CardDescription>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base">Live Invoice Preview</CardTitle>
+                      <CardDescription className="text-xs mt-1">Updates as you change settings</CardDescription>
+                    </div>
+                    {/* Format switcher buttons */}
+                    <div className="flex gap-1">
+                      {(['a4', 'a5-vertical', 'a5-horizontal', 'thermal'] as const).map(fmt => (
+                        <button
+                          key={fmt}
+                          type="button"
+                          onClick={() =>
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                invoice_paper_format: fmt as any,
+                              },
+                            })
+                          }
+                          className={`px-2 py-1 text-[10px] font-semibold rounded border transition-colors
+                            ${settings.sale_settings?.invoice_paper_format === fmt
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-background text-muted-foreground border-border hover:border-primary'
+                            }`}
+                        >
+                          {fmt === 'a5-vertical' ? 'A5↑'
+                           : fmt === 'a5-horizontal' ? 'A5→'
+                           : fmt === 'thermal' ? '80mm'
+                           : 'A4'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="border rounded-lg p-4 bg-muted/50 overflow-auto max-h-[calc(100vh-200px)]">
-                    <div className="flex justify-center scale-75 origin-top">
+                    <div
+                      className="flex justify-center origin-top"
+                      style={{
+                        transform:
+                          settings.sale_settings?.invoice_paper_format === 'thermal'
+                            ? 'scale(0.9)'
+                            : settings.sale_settings?.invoice_paper_format === 'a4'
+                            ? 'scale(0.6)'
+                            : 'scale(0.72)',
+                        transformOrigin: 'top center',
+                      }}
+                    >
                       <InvoiceWrapper
                         billNo={sampleInvoiceData.billNo}
                         date={sampleInvoiceData.date}
@@ -3160,7 +3251,13 @@ export default function Settings() {
                         paymentMethod="cash"
                         template={settings.sale_settings?.invoice_template}
                         colorScheme={settings.sale_settings?.invoice_color_scheme}
-                        format={settings.sale_settings?.invoice_paper_format}
+                        format={
+                          settings.sale_settings?.invoice_paper_format === 'thermal'
+                            ? 'thermal'
+                            : (settings.sale_settings?.invoice_paper_format
+                               || (settings.sale_settings?.sales_bill_format === 'a5' ? 'a5-vertical' : undefined)
+                               || 'a4') as any
+                        }
                         showHSN={settings.sale_settings?.show_hsn_code ?? true}
                         showBarcode={settings.sale_settings?.show_barcode ?? true}
                         showGSTBreakdown={settings.sale_settings?.show_gst_breakdown ?? true}
