@@ -1672,13 +1672,24 @@ export default function BarcodePrinting() {
           .eq("active", true)
           .is("deleted_at", null);
 
-        // Search by barcode (exact or partial), size, or matching product IDs
-        if (productIds.length > 0) {
-          variantsQuery = variantsQuery.or(
-            `barcode.ilike.%${searchQuery}%,barcode.eq.${searchQuery},size.ilike.%${searchQuery}%,color.ilike.%${searchQuery}%,product_id.in.(${productIds.join(",")})`
-          );
+        const isBarcode = /^[A-Z]{2,4}[0-9]{5,}$|^[0-9]{6,}$/.test(searchQuery.trim());
+
+        if (isBarcode) {
+          // Exact + prefix match — uses B-tree index
+          if (productIds.length > 0) {
+            variantsQuery = variantsQuery.or(`barcode.eq.${searchQuery.trim()},barcode.ilike.${searchQuery.trim()}%,product_id.in.(${productIds.join(",")})`);
+          } else {
+            variantsQuery = variantsQuery.or(`barcode.eq.${searchQuery.trim()},barcode.ilike.${searchQuery.trim()}%`);
+          }
         } else {
-          variantsQuery = variantsQuery.or(`barcode.ilike.%${searchQuery}%,barcode.eq.${searchQuery},size.ilike.%${searchQuery}%,color.ilike.%${searchQuery}%`);
+          // Fuzzy search — uses trgm index
+          if (productIds.length > 0) {
+            variantsQuery = variantsQuery.or(
+              `barcode.ilike.%${searchQuery}%,color.ilike.%${searchQuery}%,size.ilike.%${searchQuery}%,product_id.in.(${productIds.join(",")})`
+            );
+          } else {
+            variantsQuery = variantsQuery.or(`barcode.ilike.%${searchQuery}%,color.ilike.%${searchQuery}%,size.ilike.%${searchQuery}%`);
+          }
         }
 
         const { data, error } = await variantsQuery.limit(50);
