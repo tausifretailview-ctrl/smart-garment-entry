@@ -2575,7 +2575,7 @@ const PurchaseEntry = () => {
                     const gstAmount = (total * item.gst_per) / 100;
                     
                     return (
-                      <TableRow key={item.temp_id} className="hover:bg-[hsl(210_20%_98%)] dark:hover:bg-primary/5">
+                      <TableRow key={item.temp_id} className={`hover:bg-green-50/40 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}>
                         <TableCell className="w-[40px]">
                           <Checkbox
                             checked={selectedForPrint.has(item.temp_id)}
