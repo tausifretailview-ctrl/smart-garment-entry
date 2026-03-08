@@ -779,7 +779,14 @@ const PurchaseBillDashboard = () => {
         p_end_date: endDate || null,
       });
       if (error) throw error;
-      return data as { total_count: number; total_amount: number; paid_amount: number; unpaid_amount: number; partial_amount: number };
+      const d = data as any;
+      return {
+        total_count: Number(d?.totalCount ?? d?.total_count ?? 0),
+        total_amount: Number(d?.totalAmount ?? d?.total_amount ?? 0),
+        paid_amount: Number(d?.paidAmount ?? d?.paid_amount ?? 0),
+        unpaid_amount: Number(d?.unpaidAmount ?? d?.unpaid_amount ?? 0),
+        partial_amount: Number(d?.partialAmount ?? d?.partial_amount ?? 0),
+      };
     },
     enabled: !!currentOrganization?.id,
     staleTime: 30_000,
