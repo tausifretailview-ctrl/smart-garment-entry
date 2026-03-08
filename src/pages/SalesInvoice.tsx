@@ -2813,7 +2813,7 @@ Thank you for choosing us!`;
                           placeholder="0"
                           onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-[84px] h-8 text-right text-sm font-semibold tabular-nums ml-auto"
+                          className="w-[90px] h-9 text-right text-[14px] font-semibold tabular-nums ml-auto"
                         />
                       </td>
                       <td className="text-right px-1.5 py-1">
