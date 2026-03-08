@@ -1412,67 +1412,81 @@ Please clear your dues at the earliest. Thank you!`;
           </div>
         </div>
 
-        <Card>
-          <CardHeader>
+        <Card className="overflow-hidden border-0 shadow-md">
+          <div className="h-1.5 bg-gradient-to-r from-primary via-blue-500 to-accent" />
+          <CardHeader className="pb-4">
             <div className="flex items-start justify-between">
               <div className="space-y-2">
                 <CardTitle className="text-2xl">
                   <button
-                    className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-2xl font-bold"
+                    className="text-foreground hover:text-primary cursor-pointer bg-transparent border-none p-0 text-2xl font-bold tracking-tight transition-colors"
                     onClick={() => openHistory(selectedCustomer.id, selectedCustomer.customer_name)}
                   >
                     {selectedCustomer.customer_name}
                   </button>
                 </CardTitle>
-                <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                <div className="flex flex-wrap gap-2 mt-1">
                   {isSchool && selectedCustomer.admissionNumber && (
-                    <div className="flex items-center gap-1">
-                      <FileText className="h-3 w-3" />
-                      Adm: {selectedCustomer.admissionNumber}
+                    <div className="flex items-center gap-1.5 text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2.5 py-1 rounded-full">
+                      <FileText className="h-3 w-3 shrink-0" />
+                      <span>Adm: {selectedCustomer.admissionNumber}</span>
                     </div>
                   )}
                   {isSchool && selectedCustomer.className && (
-                    <div className="flex items-center gap-1">
-                      Class: {selectedCustomer.className}{selectedCustomer.division ? ` - ${selectedCustomer.division}` : ''}
+                    <div className="flex items-center gap-1.5 text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2.5 py-1 rounded-full">
+                      <span>Class: {selectedCustomer.className}{selectedCustomer.division ? ` - ${selectedCustomer.division}` : ''}</span>
                     </div>
                   )}
                   {selectedCustomer.phone && (
-                    <div className="flex items-center gap-1">
-                      <Phone className="h-3 w-3" />
-                      {selectedCustomer.phone}
+                    <div className="flex items-center gap-1.5 text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2.5 py-1 rounded-full">
+                      <Phone className="h-3 w-3 shrink-0" />
+                      <span>{selectedCustomer.phone}</span>
                     </div>
                   )}
                   {selectedCustomer.email && (
-                    <div className="flex items-center gap-1">
-                      <Mail className="h-3 w-3" />
-                      {selectedCustomer.email}
+                    <div className="flex items-center gap-1.5 text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2.5 py-1 rounded-full">
+                      <Mail className="h-3 w-3 shrink-0" />
+                      <span>{selectedCustomer.email}</span>
                     </div>
                   )}
                   {selectedCustomer.address && (
-                    <div className="flex items-center gap-1">
-                      <MapPin className="h-3 w-3" />
-                      {selectedCustomer.address}
+                    <div className="flex items-center gap-1.5 text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2.5 py-1 rounded-full">
+                      <MapPin className="h-3 w-3 shrink-0" />
+                      <span>{selectedCustomer.address}</span>
                     </div>
                   )}
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-sm text-muted-foreground mb-1">Outstanding Balance</div>
+              <div className={cn(
+                "text-right px-5 py-4 rounded-xl min-w-[160px]",
+                selectedCustomer.balance > 0
+                  ? "bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800"
+                  : selectedCustomer.balance < 0
+                  ? "bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800"
+                  : "bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
+              )}>
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                  Outstanding Balance
+                </div>
                 <div className={cn(
-                  "text-3xl font-bold",
-                  selectedCustomer.balance > 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
+                  "text-3xl font-bold tabular-nums",
+                  selectedCustomer.balance > 0 ? "text-red-600 dark:text-red-400"
+                  : selectedCustomer.balance < 0 ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-foreground"
                 )}>
                   ₹{Math.abs(selectedCustomer.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                 </div>
-                {selectedCustomer.balance > 0 && (
-                  <Badge variant="destructive" className="mt-2">Outstanding</Badge>
-                )}
-                {selectedCustomer.balance < 0 && (
-                  <Badge variant="default" className="mt-2 bg-green-600">Advance</Badge>
-                )}
-                {selectedCustomer.balance === 0 && (
-                  <Badge variant="outline" className="mt-2">Settled</Badge>
-                )}
+                <div className="mt-2">
+                  {selectedCustomer.balance > 0 && (
+                    <Badge className="bg-red-600 hover:bg-red-700 text-white border-0">Outstanding</Badge>
+                  )}
+                  {selectedCustomer.balance < 0 && (
+                    <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white border-0">Advance</Badge>
+                  )}
+                  {selectedCustomer.balance === 0 && (
+                    <Badge variant="outline" className="text-slate-500">Settled ✓</Badge>
+                  )}
+                </div>
               </div>
             </div>
           </CardHeader>
