@@ -881,7 +881,7 @@ const PurchaseBillDashboard = () => {
               {bill.supplier_name}
             </span>
             <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
-              {billItems[bill.id]?.reduce((sum, item) => sum + item.qty, 0) || 0}
+              {bill.total_qty || 0}
             </Badge>
           </div>
         );
