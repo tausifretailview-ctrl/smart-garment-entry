@@ -424,13 +424,109 @@ export default function Settings() {
     }
   };
 
+  const fetchAllOrgPresets = async () => {
+    const otherOrgIds = organizations
+      .filter(o => o.id !== currentOrganization?.id)
+      .map(o => o.id);
+
+    if (otherOrgIds.length === 0 && !currentOrganization?.id) {
+      setAllOrgPresets([]);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('printer_presets')
+        .select('*')
+        .in('organization_id', [...otherOrgIds, currentOrganization?.id || ''])
+        .order('name');
+
+      if (error) throw error;
+
+      const mapped = (data || []).map((p: any) => ({
+        preset: {
+          id: p.id,
+          name: p.name,
+          xOffset: Number(p.x_offset),
+          yOffset: Number(p.y_offset),
+          vGap: Number(p.v_gap),
+          width: Number(p.label_width),
+          height: Number(p.label_height),
+          a4Cols: p.a4_cols,
+          a4Rows: p.a4_rows,
+          printMode: p.print_mode as 'thermal' | 'a4' | undefined,
+          labelConfig: p.label_config,
+          isDefault: p.is_default,
+        } as CalibrationPreset,
+        orgId: p.organization_id,
+        orgName: organizations.find(o => o.id === p.organization_id)?.name || 'Unknown',
+      }));
+
+      setAllOrgPresets(mapped);
+    } catch (err) {
+      console.error('Failed to fetch all org presets:', err);
+    }
+  };
+
+  const handleImportPreset = async (item: {
+    preset: CalibrationPreset;
+    orgId: string;
+    orgName: string;
+  }) => {
+    if (!currentOrganization?.id) return;
+    setImportingPresetId(item.preset.id || item.preset.name);
+
+    try {
+      const existingNames = settingsDbPresets.map(p => p.name.toLowerCase());
+      let importName = item.preset.name;
+      if (existingNames.includes(importName.toLowerCase())) {
+        importName = `${importName} (${item.orgName})`;
+      }
+
+      const { error } = await supabase
+        .from('printer_presets')
+        .insert({
+          organization_id: currentOrganization.id,
+          name: importName,
+          x_offset: item.preset.xOffset,
+          y_offset: item.preset.yOffset,
+          v_gap: item.preset.vGap,
+          label_width: item.preset.width,
+          label_height: item.preset.height,
+          a4_cols: item.preset.a4Cols ?? null,
+          a4_rows: item.preset.a4Rows ?? null,
+          print_mode: item.preset.printMode ?? 'thermal',
+          label_config: item.preset.labelConfig ?? null,
+          is_default: false,
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Label Design Imported',
+        description: `"${importName}" copied from ${item.orgName} to this shop.`,
+      });
+
+      fetchDbPresets();
+    } catch (err: any) {
+      toast({
+        title: 'Import Failed',
+        description: err.message || 'Could not import label design',
+        variant: 'destructive',
+      });
+    } finally {
+      setImportingPresetId(null);
+    }
+  };
+
   useEffect(() => {
     if (currentOrganization?.id) {
       fetchSettings();
       fetchSizeGroups();
       fetchDbPresets();
+      fetchAllOrgPresets();
     }
-  }, [currentOrganization?.id]);
+  }, [currentOrganization?.id, organizations.length]);
 
   const fetchSizeGroups = async () => {
     if (!currentOrganization?.id) return;
