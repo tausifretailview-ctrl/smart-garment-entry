@@ -36,6 +36,7 @@
  * @param openingBalancePayments - Total payments against opening balance (reference_type='customer')
  * @param adjustmentTotal - Net total from customer_balance_adjustments (outstanding_difference sum)
  * @param unusedAdvanceTotal - Total unused advance balance (amount - used_amount) for active/partially_used advances
+ * @param refundsPaidTotal - Total refund payments made to customer (reduces balance)
  */
 export function calculateCustomerBalance(
   openingBalance: number,
@@ -43,7 +44,8 @@ export function calculateCustomerBalance(
   invoiceVoucherPayments: Map<string, number>,
   openingBalancePayments: number = 0,
   adjustmentTotal: number = 0,
-  unusedAdvanceTotal: number = 0
+  unusedAdvanceTotal: number = 0,
+  refundsPaidTotal: number = 0
 ): CustomerBalanceResult {
   let totalSales = 0;
   let totalPaidOnSales = 0;
@@ -57,10 +59,11 @@ export function calculateCustomerBalance(
   });
 
   const totalPaid = totalPaidOnSales + openingBalancePayments;
-  // Balance = Opening + Sales - Paid + Adjustments - Unused Advances
+  // Balance = Opening + Sales - Paid + Adjustments - Unused Advances - Refunds
   // adjustmentTotal: positive = increased outstanding, negative = decreased outstanding
   // unusedAdvanceTotal: money already received but not applied to invoices (credit)
-  const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - unusedAdvanceTotal);
+  // refundsPaidTotal: cash/bank refunds paid out to customer (reduces what they owe)
+  const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - unusedAdvanceTotal - refundsPaidTotal);
 
   return {
     balance,
