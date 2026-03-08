@@ -235,6 +235,13 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
 
       if (creditNotesError) throw creditNotesError;
 
+      // Fetch refunds received from supplier (when CN is marked 'refunded')
+      const { data: supplierRefunds } = await supabase
+        .from('voucher_entries').select('*')
+        .eq('reference_type', 'supplier').eq('reference_id', selectedSupplier.id)
+        .eq('voucher_type', 'receipt').is('deleted_at', null)
+        .order('voucher_date', { ascending: true });
+
       // Merge bill payments and opening balance payments
       const allVouchers = [...(vouchersData || []), ...(openingBalancePayments || [])];
 
