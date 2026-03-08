@@ -1,43 +1,100 @@
 
 
-## Completed: Heavy Query Load Optimization
+## Plan: Org-Scoped Barcode Prefixes
 
-All 5 priority pages optimized:
+### Context
+The current system already has per-org sequences (the `barcode_sequence` table has `organization_id`), but barcodes are purely numeric with org_number-based ranges (e.g., org 1 → `0010001001`, org 9 → `0090001001`). The user wants to replace this with **text-prefix-based barcodes** (e.g., `EZZ0000001`) using a new `barcode_sequences` table.
 
-1. **PurchaseBillDashboard** — Server-side pagination + search + date filters via `useQuery`, removed Phase 2 bulk item pre-fetch (lazy-load on expand only), staleTime 30s
-2. **SaleReturnDashboard** — Converted from useEffect/setState to `useQuery` with server-side pagination + debounced search, lazy item loading with cache
-3. **PurchaseReturnDashboard** — Server-side pagination + debounced search + date filters via `useQuery`, staleTime 30s
-4. **Accounts** — Created `get_accounts_dashboard_stats` RPC for summary cards (replaces 3x fetchAll calls), lazy tab loading (vouchers/sales/customers/suppliers only fetched when their tab is active)
-5. **SalesAnalyticsDashboard** — Added staleTime 60s + refetchOnWindowFocus:false to all queries
+### Step 1: Database Migration
 
-## Completed: Sales Invoice Dashboard Optimization
+Create migration with:
 
-1. **Server-side pagination** — Replaced fetch-all-invoices loop with paginated query (50 rows per page, `{ count: 'exact' }`)
-2. **No more `sale_items(*)` in list** — Removed nested sale_items fetch, uses `total_qty` column instead
-3. **Server-side filtering** — Search (debounced 300ms), date range, payment status, delivery status all applied server-side
-4. **Summary stats via RPC** — Uses `get_sales_invoice_dashboard_stats` RPC instead of client-side computation
-5. **Default period = This Month** — Fast first load instead of fetching all-time data
-6. **staleTime 30s + refetchOnWindowFocus: false** — Prevents redundant re-fetches
-7. **Cache invalidation after save/update** — SalesInvoice.tsx invalidates `['invoices']` and `['invoice-dashboard-stats']` after create/update
-8. **useDashboardInvalidation** — Added `['invoices']` and `['invoice-dashboard-stats']` to `invalidateSales()`
+```sql
+-- 1. New per-org sequence table with text prefix
+CREATE TABLE IF NOT EXISTS public.barcode_sequences (
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  prefix          TEXT NOT NULL,
+  next_number     BIGINT NOT NULL DEFAULT 1,
+  updated_at      TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (organization_id)
+);
 
-## Completed: Entry Form Query Optimization (ELLA NOOR slow billing fix)
+ALTER TABLE public.barcode_sequences ENABLE ROW LEVEL SECURITY;
 
-All entry forms optimized with caching + explicit columns:
+CREATE POLICY "Org members can view barcode sequences"
+  ON public.barcode_sequences FOR SELECT TO authenticated
+  USING (organization_id IN (SELECT public.get_user_organization_ids(auth.uid())));
 
-1. **QuotationEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*')` with explicit columns
-2. **SaleOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*, product_variants(*)')` with explicit columns
-3. **PurchaseOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to suppliers & products queries, replaced `select('*')` with explicit columns
-4. **DeliveryChallanEntry** — Added staleTime 5min + refetchOnWindowFocus:false to products query, replaced `select('*, product_variants(*), size_groups(*)')` with explicit columns
-5. **PurchaseEntry** — Replaced `select('*')` with explicit columns for suppliers (already had staleTime)
-6. **POSSales** — Already optimized (explicit columns + staleTime 5min)
-7. **SalesInvoice** — Already optimized
+-- 2. Seed from existing orgs using UPPER(LEFT(slug, 3)) as prefix
+INSERT INTO public.barcode_sequences (organization_id, prefix, next_number)
+SELECT o.id, UPPER(LEFT(o.slug, 3)), COALESCE(bs.next_barcode - (o.organization_number * 10000000) - 1000, 1)
+FROM public.organizations o
+LEFT JOIN public.barcode_sequence bs ON bs.organization_id = o.id
+ON CONFLICT DO NOTHING;
 
-## Completed: Cloud Usage Impact Analysis
+-- 3. Replace the generator function (same name + signature, no front-end changes)
+CREATE OR REPLACE FUNCTION public.generate_next_barcode(p_org_id UUID)
+RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_prefix TEXT;
+  v_num    BIGINT;
+  v_barcode TEXT;
+  v_max_attempts INTEGER := 1000;
+  v_attempt INTEGER := 0;
+BEGIN
+  UPDATE barcode_sequences
+  SET next_number = next_number + 1, updated_at = now()
+  WHERE organization_id = p_org_id
+  RETURNING prefix, next_number - 1 INTO v_prefix, v_num;
 
-Estimated impact of all optimizations:
-- **Dashboard reads**: ~95% reduction (server-side pagination, 50 rows vs ALL)
-- **Accounts page**: ~90% reduction (1 RPC vs 3 full-table scans)
-- **Entry form tab switches**: ~80% fewer reads (5min staleTime cache)
-- **Data transfer**: ~40-50% less per read (explicit columns vs select('*'))
-- **Sales Invoice Dashboard**: ~98% reduction (50 rows without sale_items vs ALL invoices with ALL items)
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'No barcode sequence for org %', p_org_id;
+  END IF;
+
+  v_barcode := v_prefix || LPAD(v_num::TEXT, 7, '0');
+
+  -- Skip collisions with existing barcodes
+  WHILE EXISTS (
+    SELECT 1 FROM product_variants
+    WHERE barcode = v_barcode AND organization_id = p_org_id
+  ) AND v_attempt < v_max_attempts LOOP
+    UPDATE barcode_sequences
+    SET next_number = next_number + 1, updated_at = now()
+    WHERE organization_id = p_org_id
+    RETURNING next_number - 1 INTO v_num;
+    v_barcode := v_prefix || LPAD(v_num::TEXT, 7, '0');
+    v_attempt := v_attempt + 1;
+  END LOOP;
+
+  RETURN v_barcode;
+END; $$;
+
+-- Keep backward compat: the old p_organization_id parameter name
+CREATE OR REPLACE FUNCTION public.generate_next_barcode(p_organization_id UUID)
+RETURNS TEXT LANGUAGE sql SECURITY DEFINER SET search_path = public
+AS $$ SELECT public.generate_next_barcode(p_organization_id); $$;
+
+GRANT EXECUTE ON FUNCTION public.generate_next_barcode(UUID) TO authenticated;
+```
+
+**Note:** The existing `barcode_sequence` table is left intact (no drop) to avoid breaking anything during rollout. It simply becomes unused.
+
+### Step 2: Update Reset-Organization Edge Function
+
+In `supabase/functions/reset-organization/index.ts`, update the sequence reset (lines 162-172) to target `barcode_sequences` instead of `barcode_sequence`, resetting `next_number` to `1` instead of a numeric start value.
+
+### Step 3: Update useOrganizationReset Hook
+
+In `src/hooks/useOrganizationReset.tsx`, the `getBarcodeStartValue()` function currently returns numeric values like `90001001`. Update to pass `1` as the reset value since the prefix is now stored in the table.
+
+### What Does NOT Change
+- **Front-end RPC calls** — all call `supabase.rpc('generate_next_barcode', { p_organization_id })` and receive a string back. No changes needed in `ProductEntry`, `PurchaseEntry`, or `ProductEntryDialog`.
+- **Barcode validation** — `checkBarcodeExists` works on string comparison, unaffected.
+- **Existing barcodes** — old numeric barcodes remain valid in the database; new ones will use the prefix format going forward.
+
+### Files Changed
+1. **New migration SQL** — create `barcode_sequences` table, seed data, replace function
+2. **`supabase/functions/reset-organization/index.ts`** — update table name + column
+3. **`src/hooks/useOrganizationReset.tsx`** — simplify barcode start value logic
+
