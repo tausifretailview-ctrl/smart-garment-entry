@@ -359,6 +359,7 @@ export function CustomerHistoryDialog({
         .from('sales')
         .select(`
           id, sale_number, sale_date, net_amount, payment_status, paid_amount, sale_type, refund_amount,
+          discount_amount, flat_discount_amount,
           sale_items (
             id, product_name, size, color, quantity, unit_price, mrp, line_total, barcode
           )
@@ -366,8 +367,7 @@ export function CustomerHistoryDialog({
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .is('deleted_at', null)
-        .order('sale_date', { ascending: false })
-        .limit(50);
+        .order('sale_date', { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -384,14 +384,21 @@ export function CustomerHistoryDialog({
         .select('id')
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId);
-      if (!sales || sales.length === 0) return [];
-      const saleIds = sales.map(s => s.id);
+      
+      const saleIds = (sales || []).map(s => s.id);
+
+      // Fetch vouchers: both invoice-linked AND direct customer receipts
       const { data, error } = await supabase
         .from('voucher_entries')
         .select('id, voucher_number, voucher_date, voucher_type, total_amount, description')
         .eq('organization_id', organizationId)
-        .in('reference_id', saleIds)
         .or('voucher_type.eq.receipt,voucher_type.eq.RECEIPT')
+        .is('deleted_at', null)
+        .or(
+          saleIds.length > 0
+            ? `reference_id.in.(${saleIds.join(',')}),and(reference_type.eq.customer,reference_id.eq.${customerId})`
+            : `reference_type.eq.customer,reference_id.eq.${customerId}`
+        )
         .order('voucher_date', { ascending: false });
       if (error) throw error;
       return data || [];
@@ -523,15 +530,26 @@ export function CustomerHistoryDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-6xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-3 sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-xl">
-              <ShoppingCart className="h-6 w-6 text-primary" />
-              {customerName}
-            </DialogTitle>
-            <DialogDescription className="text-sm">Customer account history and transactions</DialogDescription>
-          </DialogHeader>
+        <DialogContent className="max-w-6xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0">
+          {/* Gradient accent bar */}
+          <div className="h-1 w-full bg-gradient-to-r from-primary via-blue-500 to-accent rounded-t-lg flex-shrink-0" />
+          <div className="p-3 sm:p-5 pb-0">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2.5 text-lg font-bold tracking-tight">
+                <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <ShoppingCart className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <div>{customerName}</div>
+                  <DialogDescription className="text-xs font-normal mt-0.5">
+                    Customer account history and transactions
+                  </DialogDescription>
+                </div>
+              </DialogTitle>
+            </DialogHeader>
+          </div>
 
+          <div className="px-3 sm:px-5 pb-3 sm:pb-5 flex flex-col flex-1 overflow-hidden">
           {/* Summary Cards */}
           {(() => {
             // For school orgs with linked student fee data, show school-specific cards
@@ -584,41 +602,41 @@ export function CustomerHistoryDialog({
               return sum;
             }, 0);
             return (
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 sm:gap-3 py-3">
+              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6 sm:gap-2 py-2">
                 <Card className="border-l-4 border-l-blue-500">
-                  <CardContent className="p-2 sm:p-3">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Opening Bal</p>
-                    <p className="text-sm sm:text-base font-bold text-blue-600 truncate">₹{openingBalance.toFixed(2)}</p>
+                  <CardContent className="p-2">
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Opening Bal</p>
+                    <p className="text-xs sm:text-sm font-bold text-blue-600 truncate tabular-nums mt-0.5">₹{openingBalance.toFixed(2)}</p>
                   </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-green-500">
-                  <CardContent className="p-2 sm:p-3">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Sales</p>
-                    <p className="text-sm sm:text-base font-bold text-green-600 truncate">₹{totalSales.toFixed(2)}</p>
+                  <CardContent className="p-2">
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Total Sales</p>
+                    <p className="text-xs sm:text-sm font-bold text-green-600 truncate tabular-nums mt-0.5">₹{totalSales.toFixed(2)}</p>
                   </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-purple-500">
-                  <CardContent className="p-2 sm:p-3">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Paid</p>
-                    <p className="text-sm sm:text-base font-bold text-purple-600 truncate">₹{totalPaid.toFixed(2)}</p>
+                  <CardContent className="p-2">
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Total Paid</p>
+                    <p className="text-xs sm:text-sm font-bold text-purple-600 truncate tabular-nums mt-0.5">₹{totalPaid.toFixed(2)}</p>
                   </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-orange-500">
-                  <CardContent className="p-2 sm:p-3">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Advance</p>
-                    <p className="text-sm sm:text-base font-bold text-orange-600 truncate">₹{advanceBalance.toFixed(2)}</p>
+                  <CardContent className="p-2">
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Advance</p>
+                    <p className="text-xs sm:text-sm font-bold text-orange-600 truncate tabular-nums mt-0.5">₹{advanceBalance.toFixed(2)}</p>
                   </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-pink-500">
-                  <CardContent className="p-2 sm:p-3">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground truncate">CR Pending</p>
-                    <p className="text-sm sm:text-base font-bold text-pink-600 truncate">₹{crPending.toFixed(2)}</p>
+                  <CardContent className="p-2">
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">CR Pending</p>
+                    <p className="text-xs sm:text-sm font-bold text-pink-600 truncate tabular-nums mt-0.5">₹{crPending.toFixed(2)}</p>
                   </CardContent>
                 </Card>
                 <Card className={`border-l-4 ${balance > 0 ? 'border-l-red-500' : 'border-l-emerald-500'}`}>
-                  <CardContent className="p-2 sm:p-3">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Current Bal</p>
-                    <p className={`text-sm sm:text-base font-bold truncate ${balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                  <CardContent className="p-2">
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Current Bal</p>
+                    <p className={`text-xs sm:text-sm font-bold truncate tabular-nums mt-0.5 ${balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                       ₹{Math.abs(balance).toFixed(2)}
                       {balance < 0 && ' CR'}
                     </p>
@@ -631,36 +649,36 @@ export function CustomerHistoryDialog({
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 overflow-hidden flex flex-col">
             <div className="overflow-x-auto -mx-1 px-1">
-              <TabsList className="inline-flex w-auto min-w-full sm:grid sm:grid-cols-8 sm:w-full">
-                <TabsTrigger value="sales" className="gap-1 text-xs whitespace-nowrap">
+              <TabsList className="inline-flex w-auto min-w-full h-9 sm:grid sm:grid-cols-8 sm:w-full bg-muted/60 p-0.5 rounded-lg">
+                <TabsTrigger value="sales" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
                   <Receipt className="h-3 w-3 hidden sm:block" />
                   Sales ({salesHistory?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="legacy" className="gap-1 text-xs whitespace-nowrap">
+                <TabsTrigger value="legacy" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
                   <History className="h-3 w-3 hidden sm:block" />
                   Legacy ({legacyInvoices?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="payments" className="gap-1 text-xs whitespace-nowrap">
+                <TabsTrigger value="payments" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
                   <IndianRupee className="h-3 w-3 hidden sm:block" />
                   Payments ({paymentHistory?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="returns" className="gap-1 text-xs whitespace-nowrap">
+                <TabsTrigger value="returns" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
                   <RotateCcw className="h-3 w-3 hidden sm:block" />
                   Returns ({saleReturns?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="credit-notes" className="gap-1 text-xs whitespace-nowrap">
+                <TabsTrigger value="credit-notes" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
                   <FileText className="h-3 w-3 hidden sm:block" />
                   C/Notes ({creditNotes?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="refunds" className="gap-1 text-xs whitespace-nowrap">
+                <TabsTrigger value="refunds" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
                   <CreditCard className="h-3 w-3 hidden sm:block" />
                   Refunds ({refunds.length})
                 </TabsTrigger>
-                <TabsTrigger value="advances" className="gap-1 text-xs whitespace-nowrap">
+                <TabsTrigger value="advances" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
                   <Wallet className="h-3 w-3 hidden sm:block" />
                   Advances ({customerAdvances?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="adjustments" className="gap-1 text-xs whitespace-nowrap">
+                <TabsTrigger value="adjustments" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
                   <Scale className="h-3 w-3 hidden sm:block" />
                   Adj ({balanceAdjustments?.length || 0})
                 </TabsTrigger>
@@ -674,16 +692,16 @@ export function CustomerHistoryDialog({
                   <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
                 ) : salesHistory && salesHistory.length > 0 ? (
                   <Table>
-                    <TableHeader className="bg-background">
-                      <TableRow className="border-b-2 border-border">
-                        <TableHead className="w-8 text-foreground font-bold"></TableHead>
-                        <TableHead className="text-foreground font-bold">Invoice #</TableHead>
-                        <TableHead className="text-foreground font-bold">Date</TableHead>
-                        <TableHead className="text-foreground font-bold">Type</TableHead>
-                        <TableHead className="text-foreground font-bold">Amount</TableHead>
-                        <TableHead className="text-foreground font-bold">Paid</TableHead>
-                        <TableHead className="text-foreground font-bold">Status</TableHead>
-                        <TableHead className="w-10 text-foreground font-bold"></TableHead>
+                    <TableHeader className="bg-slate-50 dark:bg-slate-900 sticky top-0">
+                      <TableRow className="border-b-2 border-slate-200 dark:border-slate-700">
+                        <TableHead className="w-8 text-xs font-bold uppercase tracking-wide text-slate-600"></TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600">Invoice #</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600">Date</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600">Type</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600">Amount</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600">Paid</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600">Status</TableHead>
+                        <TableHead className="w-10 text-xs font-bold uppercase tracking-wide text-slate-600"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -702,7 +720,18 @@ export function CustomerHistoryDialog({
                               <TableCell>₹{sale.net_amount.toFixed(2)}</TableCell>
                               <TableCell>₹{(sale.paid_amount || 0).toFixed(2)}</TableCell>
                               <TableCell>
-                                <Badge variant={sale.payment_status === 'completed' ? 'default' : 'secondary'}>{sale.payment_status}</Badge>
+                                {(() => {
+                                  const statusConfig: Record<string, string> = {
+                                    completed: "bg-emerald-100 text-emerald-700 border-emerald-300",
+                                    partial:   "bg-amber-100 text-amber-700 border-amber-300",
+                                    pending:   "bg-red-100 text-red-700 border-red-300",
+                                  };
+                                  return (
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border capitalize ${statusConfig[sale.payment_status] || "bg-slate-100 text-slate-600 border-slate-300"}`}>
+                                      {sale.payment_status}
+                                    </span>
+                                  );
+                                })()}
                               </TableCell>
                               <TableCell>
                                 <Button variant="ghost" size="icon" className="h-7 w-7" title="View Invoice" onClick={(e) => { e.stopPropagation(); setPreview({ type: "sale", data: sale }); }}>
@@ -1049,6 +1078,7 @@ export function CustomerHistoryDialog({
               </TabsContent>
             </ScrollArea>
           </Tabs>
+          </div>
         </DialogContent>
       </Dialog>
 

@@ -82,7 +82,9 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
       sales?.forEach(sale => {
         const salePaidAmount = sale.paid_amount || 0;
         const voucherAmount = invoiceVoucherPayments[sale.id] || 0;
-        totalPaidOnSales += Math.max(salePaidAmount, voucherAmount);
+        // Use voucher amount if it exists (authoritative), else fall back to sale.paid_amount
+        // This avoids double-counting while preferring the more accurate voucher record
+        totalPaidOnSales += voucherAmount > 0 ? voucherAmount : salePaidAmount;
       });
 
       const totalPaid = totalPaidOnSales + openingBalanceVoucherPayments;
