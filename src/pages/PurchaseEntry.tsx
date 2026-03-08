@@ -3195,6 +3195,7 @@ const PurchaseEntry = () => {
           }}
         />
 
+    </main>
     </div>
   );
 };
