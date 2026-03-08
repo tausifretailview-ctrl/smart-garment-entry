@@ -19,7 +19,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet, ChevronLeft, Check } from "lucide-react";
+import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet, ChevronLeft, Check, AlertTriangle } from "lucide-react";
 import { InlineTotalQty } from "@/components/InlineTotalQty";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
@@ -166,6 +166,10 @@ const PurchaseEntry = () => {
   // State for tracking newly added items for smart barcode printing
   const [newlyAddedItems, setNewlyAddedItems] = useState<LineItem[]>([]);
   const [savedBillId, setSavedBillId] = useState<string | null>(null);
+  
+  // Barcode duplicate warning state
+  const [barcodeWarnings, setBarcodeWarnings] = useState<Map<string, string>>(new Map());
+  const barcodeCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [billData, setBillData] = useState({
     supplier_id: "",
@@ -257,6 +261,34 @@ const PurchaseEntry = () => {
       stopAutoSave();
     };
   }, [startAutoSave, stopAutoSave, billData, softwareBillNo, billDate, lineItems, roundOff, entryMode, isEditMode, editingBillId, originalLineItems, saveDraft]);
+
+  // Barcode duplicate warning check — debounced 600ms after lineItems change
+  useEffect(() => {
+    if (barcodeCheckTimerRef.current) clearTimeout(barcodeCheckTimerRef.current);
+    if (!currentOrganization?.id || lineItems.length === 0) {
+      setBarcodeWarnings(new Map());
+      return;
+    }
+    barcodeCheckTimerRef.current = setTimeout(async () => {
+      const warnings = new Map<string, string>();
+      const barcodesToCheck = lineItems.filter(item => item.barcode && item.barcode.length > 6);
+      for (const item of barcodesToCheck) {
+        try {
+          const { data } = await supabase.rpc('check_barcode_duplicate', {
+            p_barcode: item.barcode,
+            p_org_id: currentOrganization.id,
+            p_exclude_variant_id: item.sku_id || null
+          });
+          if (data && data.length > 0) {
+            const existing = data[0];
+            warnings.set(item.temp_id, `⚠️ Barcode already used: "${existing.product_name}" ${existing.size}${existing.color ? ' / ' + existing.color : ''} (Stock: ${existing.stock_qty})`);
+          }
+        } catch { /* ignore */ }
+      }
+      setBarcodeWarnings(warnings);
+    }, 600);
+    return () => { if (barcodeCheckTimerRef.current) clearTimeout(barcodeCheckTimerRef.current); };
+  }, [lineItems, currentOrganization?.id]);
 
   // Fetch settings
   const { data: settings } = useQuery({
@@ -2592,6 +2624,12 @@ const PurchaseEntry = () => {
                           <Badge variant="outline" className="font-mono text-xs">
                             {item.barcode || "—"}
                           </Badge>
+                          {barcodeWarnings.has(item.temp_id) && (
+                            <div className="flex items-start gap-1.5 mt-1 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded px-2 py-1.5">
+                              <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                              <span>{barcodeWarnings.get(item.temp_id)}</span>
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="w-[80px]">
                           <Input

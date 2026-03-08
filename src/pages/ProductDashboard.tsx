@@ -19,7 +19,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2, Barcode, RefreshCw, Eye, Edit, ShoppingCart, History, Ban, Merge, Boxes, Tags, TrendingDown, TrendingUp } from "lucide-react";
+import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2, Barcode, RefreshCw, Eye, Edit, ShoppingCart, History, Ban, Merge, Boxes, Tags, TrendingDown, TrendingUp, AlertTriangle } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -973,6 +973,17 @@ const ProductDashboard = () => {
 
   const renderProductSubRow = useCallback((row: ProductRow) => {
     if (row.variants.length === 0) return null;
+    
+    // Compute duplicate barcodes within all productRows
+    const barcodeCount = new Map<string, number>();
+    filteredRows.forEach(pr => {
+      pr.variants.forEach(v => {
+        if (v.barcode && v.barcode.length > 6) {
+          barcodeCount.set(v.barcode, (barcodeCount.get(v.barcode) || 0) + 1);
+        }
+      });
+    });
+
     return (
       <div className="p-4">
         <h4 className="font-semibold text-sm mb-3">Product Variants Details</h4>
@@ -993,7 +1004,15 @@ const ProductDashboard = () => {
               {row.variants.map((variant) => (
                 <TableRow key={variant.variant_id}>
                   <TableCell className="font-medium">{variant.size}</TableCell>
-                  <TableCell className="font-mono text-xs">{variant.barcode || "—"}</TableCell>
+                  <TableCell>
+                    <span className="font-mono text-xs">{variant.barcode || "—"}</span>
+                    {variant.barcode && variant.barcode.length > 6 && (barcodeCount.get(variant.barcode) || 0) > 1 && (
+                      <div className="flex items-start gap-1.5 mt-1 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded px-2 py-1.5">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                        <span>Duplicate barcode — used by {barcodeCount.get(variant.barcode)! - 1} other variant(s)</span>
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell>{variant.color || "—"}</TableCell>
                   <TableCell className="text-right">₹{variant.pur_price.toFixed(2)}</TableCell>
                   <TableCell className="text-right">₹{variant.sale_price.toFixed(2)}</TableCell>
@@ -1006,7 +1025,7 @@ const ProductDashboard = () => {
         </div>
       </div>
     );
-  }, [showMrp]);
+  }, [showMrp, filteredRows]);
 
   if (loading && productRows.length === 0) {
     return (

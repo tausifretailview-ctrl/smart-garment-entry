@@ -14,7 +14,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import JsBarcode from "jsbarcode";
-import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer } from "lucide-react";
+import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer, AlertTriangle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { encodePurchasePrice, getEffectivePurchasePrice } from "@/utils/purchaseCodeEncoder";
@@ -3687,7 +3688,17 @@ export default function BarcodePrinting() {
                   <TableCell>{item.size}</TableCell>
                   <TableCell>₹{item.mrp || 0}</TableCell>
                   <TableCell>₹{item.sale_price}</TableCell>
-                  <TableCell className="font-mono text-xs">{item.barcode || "(auto-gen)"}</TableCell>
+                  <TableCell className="font-mono text-xs">
+                    <span>{item.barcode || "(auto-gen)"}</span>
+                    {item.barcode && (() => {
+                      const count = labelItems.filter(li => li.barcode === item.barcode).length;
+                      return count > 1 ? (
+                        <Badge className="ml-1 text-[10px] px-1 py-0 bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-400">
+                          DUP
+                        </Badge>
+                      ) : null;
+                    })()}
+                  </TableCell>
                   <TableCell>{item.supplier_code || "-"}</TableCell>
                   <TableCell>
                     <Input
