@@ -1053,7 +1053,7 @@ All colors MUST be HSL.
 
 .erp-invoice-info-card {
   background: #ffffff;
-  border-radius: 8px;
+  border-radius: 0;
   border: 1px solid hsl(var(--border));
   padding: 16px;
 }

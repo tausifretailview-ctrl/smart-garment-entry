@@ -2896,7 +2896,7 @@ const PurchaseEntry = () => {
             {lineItems.length === 0 && (
               <p className="text-xs text-center mt-2 text-muted-foreground">Tip: Press Alt+↓ to copy the last row</p>
             )}
-        </div>
+        </section>
 
         {lineItems.length > 0 && (
           <div className="flex justify-end">
