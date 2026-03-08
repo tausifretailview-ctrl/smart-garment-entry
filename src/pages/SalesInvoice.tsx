@@ -2676,9 +2676,9 @@ Thank you for choosing us!`;
             </Popover>
 
             {/* Total Qty Pill */}
-            <div className="flex items-center gap-2 bg-primary text-primary-foreground rounded-lg px-4 py-2 text-sm font-semibold shrink-0 ml-auto">
-              <span>Total Qty:</span>
-              <span className="text-xl font-bold leading-none tabular-nums">
+            <div className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg ml-auto cursor-default transition-colors">
+              <span className="text-[12px] font-semibold text-white/80">Total Qty</span>
+              <span className="text-[18px] font-black text-white tabular-nums font-mono leading-none">
                 {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
               </span>
             </div>
