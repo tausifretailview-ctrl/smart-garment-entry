@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
@@ -299,39 +300,10 @@ export default function SaleOrderEntry() {
     generateOrderNumber();
   }, [currentOrganization?.id, editingOrderId]);
 
-  // Fetch customers with pagination
-  const { data: customersData } = useQuery({
-    queryKey: ['customers', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      const allCustomers: any[] = [];
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
-      
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('customers')
-          .select('id, customer_name, phone, email, address, gst_number, discount_percent')
-          .eq('organization_id', currentOrganization.id)
-          .is('deleted_at', null)
-          .order('customer_name')
-          .range(offset, offset + PAGE_SIZE - 1);
-        if (error) throw error;
-        if (data && data.length > 0) {
-          allCustomers.push(...data);
-          offset += PAGE_SIZE;
-          hasMore = data.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
-      }
-      return allCustomers;
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 300000,
-    refetchOnWindowFocus: false,
-  });
+  // Server-side customer search (replaces fetch-all loop)
+  const [customerSearchInput, setCustomerSearchInput] = useState("");
+  const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
+  const { filteredCustomers, isLoading: isCustomersLoading } = useCustomerSearch(customerSearchInput);
 
   // Fetch products with pagination
   const { data: productsData } = useQuery({
@@ -1245,22 +1217,43 @@ export default function SaleOrderEntry() {
           <div className="md:col-span-2">
             <Label className="flex items-center gap-1">Customer <span className="ml-1 w-1.5 h-1.5 inline-block bg-destructive rounded-full"></span></Label>
             <div className="flex gap-2">
-              <Select value={selectedCustomerId} onValueChange={(value) => {
-                setSelectedCustomerId(value);
-                const customer = customersData?.find(c => c.id === value);
-                setSelectedCustomer(customer);
-              }}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Select customer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customersData?.map(customer => (
-                    <SelectItem key={customer.id} value={customer.id}>
-                      {customer.customer_name} - {customer.phone}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" className="flex-1 justify-between font-normal">
+                    {selectedCustomer ? `${selectedCustomer.customer_name}${selectedCustomer.phone ? ` - ${selectedCustomer.phone}` : ''}` : "Select customer"}
+                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[350px] p-0" align="start">
+                  <Command shouldFilter={false}>
+                    <CommandInput 
+                      placeholder="Search by name or phone..." 
+                      value={customerSearchInput}
+                      onValueChange={setCustomerSearchInput}
+                    />
+                    <CommandList>
+                      <CommandEmpty>{isCustomersLoading ? "Searching..." : "No customer found."}</CommandEmpty>
+                      <CommandGroup>
+                        {filteredCustomers.map(customer => (
+                          <CommandItem
+                            key={customer.id}
+                            value={customer.id}
+                            onSelect={() => {
+                              setSelectedCustomerId(customer.id);
+                              setSelectedCustomer(customer);
+                              setOpenCustomerSearch(false);
+                              setCustomerSearchInput("");
+                            }}
+                          >
+                            <span className="font-medium">{customer.customer_name}</span>
+                            {customer.phone && <span className="ml-2 text-muted-foreground text-xs">{customer.phone}</span>}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
               <Button variant="outline" size="icon" onClick={() => setOpenCustomerDialog(true)}>
                 <Plus className="h-4 w-4" />
               </Button>

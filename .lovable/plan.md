@@ -1,63 +1,43 @@
 
 
-## Plan: Replace Full Customer Fetches with Paginated Server-Side Search
+## Completed: Heavy Query Load Optimization
 
-### Problem
-Two major pages (`SaleOrderEntry.tsx`, `QuotationEntry.tsx`) fetch **all customers** in a loop (1000 rows at a time) on mount, which is expensive for orgs with 2000+ customers. They then filter client-side in the dropdown.
+All 5 priority pages optimized:
 
-Other pages (`SaleReturnEntry.tsx`, `SalesmanOrderEntry.tsx`, `PriceHistoryReport.tsx`, `AddAdvanceBookingDialog.tsx`) already use server-side search with `.limit(50)` or similar — these are fine.
+1. **PurchaseBillDashboard** — Server-side pagination + search + date filters via `useQuery`, removed Phase 2 bulk item pre-fetch (lazy-load on expand only), staleTime 30s
+2. **SaleReturnDashboard** — Converted from useEffect/setState to `useQuery` with server-side pagination + debounced search, lazy item loading with cache
+3. **PurchaseReturnDashboard** — Server-side pagination + debounced search + date filters via `useQuery`, staleTime 30s
+4. **Accounts** — Created `get_accounts_dashboard_stats` RPC for summary cards (replaces 3x fetchAll calls), lazy tab loading (vouchers/sales/customers/suppliers only fetched when their tab is active)
+5. **SalesAnalyticsDashboard** — Added staleTime 60s + refetchOnWindowFocus:false to all queries
 
-### Scope of Changes
+## Completed: Sales Invoice Dashboard Optimization
 
-**File 1: `src/pages/SaleOrderEntry.tsx`**
-- Remove the `useQuery` that fetches all customers in a while-loop (lines ~302-331)
-- Replace with `useCustomerSearch(customerSearchInput)` hook import
-- Update the customer dropdown `CommandList` to use `filteredCustomers` from the hook instead of `customersData?.filter(...).slice(0, 50)`
-- Set `shouldFilter={false}` on the `Command` component (search is server-side)
-- When loading an existing order for edit, fetch the single customer by ID separately (already done for quotation conversion flow)
+1. **Server-side pagination** — Replaced fetch-all-invoices loop with paginated query (50 rows per page, `{ count: 'exact' }`)
+2. **No more `sale_items(*)` in list** — Removed nested sale_items fetch, uses `total_qty` column instead
+3. **Server-side filtering** — Search (debounced 300ms), date range, payment status, delivery status all applied server-side
+4. **Summary stats via RPC** — Uses `get_sales_invoice_dashboard_stats` RPC instead of client-side computation
+5. **Default period = This Month** — Fast first load instead of fetching all-time data
+6. **staleTime 30s + refetchOnWindowFocus: false** — Prevents redundant re-fetches
+7. **Cache invalidation after save/update** — SalesInvoice.tsx invalidates `['invoices']` and `['invoice-dashboard-stats']` after create/update
+8. **useDashboardInvalidation** — Added `['invoices']` and `['invoice-dashboard-stats']` to `invalidateSales()`
 
-**File 2: `src/pages/QuotationEntry.tsx`**
-- Same pattern: remove the all-customers `useQuery` (lines ~290-319)
-- Replace with `useCustomerSearch(customerSearchInput)` hook
-- Update dropdown rendering to use `filteredCustomers`
-- Set `shouldFilter={false}` on `Command`
-- When loading an existing quotation for edit, fetch single customer by ID (already handled)
+## Completed: Entry Form Query Optimization (ELLA NOOR slow billing fix)
 
-### Technical Details
+All entry forms optimized with caching + explicit columns:
 
-Both pages already have `customerSearchInput` state and a `Command` + `CommandInput` dropdown. The change is straightforward:
+1. **QuotationEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*')` with explicit columns
+2. **SaleOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*, product_variants(*)')` with explicit columns
+3. **PurchaseOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to suppliers & products queries, replaced `select('*')` with explicit columns
+4. **DeliveryChallanEntry** — Added staleTime 5min + refetchOnWindowFocus:false to products query, replaced `select('*, product_variants(*), size_groups(*)')` with explicit columns
+5. **PurchaseEntry** — Replaced `select('*')` with explicit columns for suppliers (already had staleTime)
+6. **POSSales** — Already optimized (explicit columns + staleTime 5min)
+7. **SalesInvoice** — Already optimized
 
-```typescript
-// BEFORE (fetches ALL customers on mount)
-const { data: customersData } = useQuery({
-  queryKey: ['customers', currentOrganization?.id],
-  queryFn: async () => {
-    // while-loop fetching 1000 at a time...
-  },
-});
-// Then: customersData?.filter(c => ...).slice(0, 50)
+## Completed: Cloud Usage Impact Analysis
 
-// AFTER (server-side search, 200 max, debounced)
-import { useCustomerSearch } from "@/hooks/useCustomerSearch";
-const { filteredCustomers, isLoading: isCustomersLoading } = useCustomerSearch(customerSearchInput);
-// Then: filteredCustomers.map(customer => ...)
-```
-
-The existing `useCustomerSearch` hook already handles:
-- 300ms debounce
-- Server-side `.or()` filter on name/phone/email
-- Limit of 200 results
-- PostgREST character escaping
-- Fallback on filter failure
-
-### What stays unchanged
-- `SaleReturnEntry.tsx` — already does server-side search with limit(50)
-- `SalesmanOrderEntry.tsx` — already does server-side search with limit(20)
-- `CustomerMaster.tsx` — already paginated with server-side search
-- `PriceHistoryReport.tsx` — fetches `id, customer_name` only for filter dropdown (lightweight, acceptable)
-- `AddAdvanceBookingDialog.tsx` — already does server-side search with limit(50)
-
-### Files Changed
-1. `src/pages/SaleOrderEntry.tsx` — replace all-customer fetch with `useCustomerSearch` hook
-2. `src/pages/QuotationEntry.tsx` — replace all-customer fetch with `useCustomerSearch` hook
-
+Estimated impact of all optimizations:
+- **Dashboard reads**: ~95% reduction (server-side pagination, 50 rows vs ALL)
+- **Accounts page**: ~90% reduction (1 RPC vs 3 full-table scans)
+- **Entry form tab switches**: ~80% fewer reads (5min staleTime cache)
+- **Data transfer**: ~40-50% less per read (explicit columns vs select('*'))
+- **Sales Invoice Dashboard**: ~98% reduction (50 rows without sale_items vs ALL invoices with ALL items)

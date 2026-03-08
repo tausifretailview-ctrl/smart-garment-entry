@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -287,39 +288,8 @@ export default function QuotationEntry() {
     generateQuotationNumber();
   }, [currentOrganization?.id, editingQuotationId]);
 
-  // Fetch customers with pagination
-  const { data: customersData } = useQuery({
-    queryKey: ['customers', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      const allCustomers: any[] = [];
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
-      
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('customers')
-          .select('id, customer_name, phone, email, address, gst_number, discount_percent, transport_details')
-          .eq('organization_id', currentOrganization.id)
-          .is('deleted_at', null)
-          .order('customer_name')
-          .range(offset, offset + PAGE_SIZE - 1);
-        if (error) throw error;
-        if (data && data.length > 0) {
-          allCustomers.push(...data);
-          offset += PAGE_SIZE;
-          hasMore = data.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
-      }
-      return allCustomers;
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 300000,
-    refetchOnWindowFocus: false,
-  });
+  // Server-side customer search (replaces fetch-all loop)
+  const { filteredCustomers, isLoading: isCustomersLoading } = useCustomerSearch(customerSearchInput);
 
   // Fetch products with pagination - NO stock filter for quotations
   const { data: productsData } = useQuery({
@@ -1078,23 +1048,19 @@ export default function QuotationEntry() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[350px] p-0" align="start">
-                  <Command>
+                  <Command shouldFilter={false}>
                     <CommandInput 
                       placeholder="Search by name or phone..." 
                       value={customerSearchInput}
                       onValueChange={setCustomerSearchInput}
                     />
                     <CommandList>
-                      <CommandEmpty>No customer found.</CommandEmpty>
+                      <CommandEmpty>{isCustomersLoading ? "Searching..." : "No customer found."}</CommandEmpty>
                       <CommandGroup>
-                        {customersData?.filter(c => {
-                          if (!customerSearchInput) return true;
-                          const q = customerSearchInput.toLowerCase();
-                          return c.customer_name?.toLowerCase().includes(q) || c.phone?.toLowerCase().includes(q);
-                        }).slice(0, 50).map(customer => (
+                        {filteredCustomers.map(customer => (
                           <CommandItem
                             key={customer.id}
-                            value={`${customer.customer_name} ${customer.phone || ''}`}
+                            value={customer.id}
                             onSelect={() => {
                               setSelectedCustomerId(customer.id);
                               setSelectedCustomer(customer);
