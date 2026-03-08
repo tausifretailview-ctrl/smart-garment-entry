@@ -1310,8 +1310,8 @@ const PurchaseBillDashboard = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    Showing {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, filteredBills.length)} of {filteredBills.length} bills
+                  <div className="text-xs text-muted-foreground tabular-nums">
+                    Showing {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredBills.length)} of <span className="font-semibold text-foreground">{filteredBills.length}</span> bills
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
