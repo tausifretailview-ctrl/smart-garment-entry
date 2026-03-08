@@ -1806,7 +1806,7 @@ Please clear your dues at the earliest. Thank you!`;
                             </TableCell>
                             <TableCell className="font-mono text-sm">
                               {payment.voucherNumber !== '-' ? (
-                                <Badge variant="outline" className="bg-primary/10 text-primary">
+                                <Badge className="bg-primary/10 text-primary border-primary/20 font-mono text-xs">
                                   {payment.voucherNumber}
                                 </Badge>
                               ) : (
