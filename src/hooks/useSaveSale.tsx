@@ -212,8 +212,8 @@ export const useSaveSale = () => {
       // Use POS format for POS sales, Invoice format for regular sales
       if (saleType === 'pos') {
         // Check for custom POS format first
-        if (settings?.sale_settings?.pos_numbering_format) {
-          saleNumber = await generateInvoiceNumber(settings.sale_settings.pos_numbering_format);
+        if (saleSettings?.pos_numbering_format) {
+          saleNumber = await generateInvoiceNumber(saleSettings.pos_numbering_format);
         } else {
           // Use default POS format: POS/YY-YY/N
           const { data: defaultNumber, error: numberError } = await supabase
@@ -223,8 +223,8 @@ export const useSaveSale = () => {
         }
       } else {
         // Sale Invoice format
-        if (settings?.sale_settings?.invoice_numbering_format) {
-          saleNumber = await generateInvoiceNumber(settings.sale_settings.invoice_numbering_format);
+        if (saleSettings?.invoice_numbering_format) {
+          saleNumber = await generateInvoiceNumber(saleSettings.invoice_numbering_format);
         } else {
           // Use default INV format: INV/YY-YY/N
           const { data: defaultNumber, error: numberError } = await supabase
