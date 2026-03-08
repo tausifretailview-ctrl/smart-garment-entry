@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, Printer, Send, Coins } from "lucide-react";
+import { CalendarIcon, Plus, Printer, Send, Coins, LayoutDashboard } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -286,15 +286,20 @@ export default function Accounts() {
   };
 
   return (
-    <div className="w-full px-6 py-6 space-y-6">
+    <div className="w-full px-6 py-6 space-y-6 min-h-screen bg-gradient-to-br from-background via-slate-50/30 to-background dark:via-slate-900/20">
       <BackToDashboard label="Back to Payments" to="/payments-dashboard" />
 
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Accounts Management
-          </h1>
-          <p className="text-muted-foreground mt-2">Manage payments, expenses, vouchers and financial reports</p>
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-md">
+            <LayoutDashboard className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              Accounts Management
+            </h1>
+            <p className="text-sm text-muted-foreground">Payments · Expenses · Vouchers · Financial Reports</p>
+          </div>
         </div>
       </div>
 
@@ -305,18 +310,18 @@ export default function Accounts() {
         onCardClick={handleCardClick}
       />
 
-      <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-10">
-          <TabsTrigger value="customer-ledger">Customer Ledger</TabsTrigger>
-          <TabsTrigger value="supplier-ledger">Supplier Ledger</TabsTrigger>
-          <TabsTrigger value="outstanding">Outstanding</TabsTrigger>
-          <TabsTrigger value="customer-payment">Customer Payment</TabsTrigger>
-          <TabsTrigger value="supplier-payment">Supplier Payment</TabsTrigger>
-          <TabsTrigger value="employee-salary">Employee Salary</TabsTrigger>
-          <TabsTrigger value="expenses">Expenses</TabsTrigger>
-          <TabsTrigger value="voucher-entry">Voucher Entry</TabsTrigger>
-          <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
-          {isAdmin && <TabsTrigger value="balance-adjustment">Balance Adj.</TabsTrigger>}
+      <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
+        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-10 h-10 bg-muted/60 p-1 rounded-xl">
+          <TabsTrigger value="customer-ledger" className="rounded-lg text-xs font-medium">Customer Ledger</TabsTrigger>
+          <TabsTrigger value="supplier-ledger" className="rounded-lg text-xs font-medium">Supplier Ledger</TabsTrigger>
+          <TabsTrigger value="outstanding" className="rounded-lg text-xs font-medium">Outstanding</TabsTrigger>
+          <TabsTrigger value="customer-payment" className="rounded-lg text-xs font-medium">Customer Payment</TabsTrigger>
+          <TabsTrigger value="supplier-payment" className="rounded-lg text-xs font-medium">Supplier Payment</TabsTrigger>
+          <TabsTrigger value="employee-salary" className="rounded-lg text-xs font-medium">Employee Salary</TabsTrigger>
+          <TabsTrigger value="expenses" className="rounded-lg text-xs font-medium">Expenses</TabsTrigger>
+          <TabsTrigger value="voucher-entry" className="rounded-lg text-xs font-medium">Voucher Entry</TabsTrigger>
+          <TabsTrigger value="reconciliation" className="rounded-lg text-xs font-medium">Reconciliation</TabsTrigger>
+          {isAdmin && <TabsTrigger value="balance-adjustment" className="rounded-lg text-xs font-medium">Balance Adj.</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="customer-ledger" className="space-y-6">

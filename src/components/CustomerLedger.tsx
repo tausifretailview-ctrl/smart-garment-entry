@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, CreditCard, Banknote, Wallet, FileDown, Send, MessageCircle } from "lucide-react";
+import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, CreditCard, Banknote, Wallet, FileDown, Send, MessageCircle, Users, AlertCircle, TrendingUp, BookOpen } from "lucide-react";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
@@ -1837,47 +1837,76 @@ Please clear your dues at the earliest. Thank you!`;
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card 
-          className="cursor-pointer hover:shadow-lg transition-shadow"
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card
+          className="cursor-pointer hover:shadow-md transition-all border-l-4 border-l-blue-500 overflow-hidden"
           onClick={() => setPaymentStatusFilter("all")}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{isSchool ? 'Total Students' : 'Total Customers'}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{summary.totalCustomers}</div>
-            <p className="text-xs text-muted-foreground mt-1">{isSchool ? 'Active student accounts' : 'Active customer accounts'}</p>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  {isSchool ? 'Total Students' : 'Total Customers'}
+                </p>
+                <div className="text-3xl font-bold text-blue-700 dark:text-blue-300 tabular-nums mt-1">
+                  {summary.totalCustomers}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {isSchool ? 'Active student accounts' : 'Active customer accounts'}
+                </p>
+              </div>
+              <div className="h-11 w-11 rounded-xl bg-blue-50 dark:bg-blue-950 flex items-center justify-center shrink-0">
+                <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        <Card 
-          className="cursor-pointer hover:shadow-lg transition-shadow"
+        <Card
+          className="cursor-pointer hover:shadow-md transition-all border-l-4 border-l-red-500 overflow-hidden"
           onClick={() => setPaymentStatusFilter("outstanding")}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{isSchool ? 'Total Fees Due' : 'Total Outstanding'}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-red-600 dark:text-red-400">
-              ₹{summary.totalOutstanding.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  {isSchool ? 'Total Fees Due' : 'Total Outstanding'}
+                </p>
+                <div className="text-3xl font-bold text-red-600 dark:text-red-400 tabular-nums mt-1">
+                  ₹{summary.totalOutstanding.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {isSchool ? 'Fees pending collection' : 'Amount pending collection'}
+                </p>
+              </div>
+              <div className="h-11 w-11 rounded-xl bg-red-50 dark:bg-red-950 flex items-center justify-center shrink-0">
+                <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">{isSchool ? 'Fees pending collection' : 'Amount pending collection'}</p>
           </CardContent>
         </Card>
 
-        <Card 
-          className="cursor-pointer hover:shadow-lg transition-shadow"
+        <Card
+          className="cursor-pointer hover:shadow-md transition-all border-l-4 border-l-emerald-500 overflow-hidden"
           onClick={() => setPaymentStatusFilter("all")}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{isSchool ? 'Total Fees Charged' : 'Total Receivable'}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              ₹{summary.totalReceivable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  {isSchool ? 'Total Fees Charged' : 'Total Receivable'}
+                </p>
+                <div className="text-3xl font-bold text-emerald-700 dark:text-emerald-300 tabular-nums mt-1">
+                  ₹{summary.totalReceivable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {isSchool ? 'Total fees value' : 'Total sales value'}
+                </p>
+              </div>
+              <div className="h-11 w-11 rounded-xl bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center shrink-0">
+                <TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">{isSchool ? 'Total fees value' : 'Total sales value'}</p>
           </CardContent>
         </Card>
       </div>
@@ -1885,8 +1914,13 @@ Please clear your dues at the earliest. Thank you!`;
       {/* Customer List */}
       <Card>
         <CardHeader>
-          <CardTitle>{isSchool ? 'Student Account Ledger' : 'Customer Ledger'}</CardTitle>
-          <CardDescription>{isSchool ? 'View detailed fee and payment history for each student' : 'View detailed transaction history for each customer'}</CardDescription>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <BookOpen className="h-5 w-5 text-primary" />
+            {isSchool ? 'Student Account Ledger' : 'Customer Ledger'}
+          </CardTitle>
+          <CardDescription>
+            {isSchool ? 'View detailed fee and payment history for each student' : 'View detailed transaction history for each customer'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col md:flex-row items-start md:items-center gap-4 mb-6">
