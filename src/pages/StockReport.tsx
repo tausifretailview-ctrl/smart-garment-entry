@@ -898,9 +898,16 @@ export default function StockReport() {
   return (
     <div className="w-full px-6 py-6 space-y-6">
       <BackToDashboard />
-      <div>
-        <h1 className="text-3xl font-bold">Stock Report</h1>
-        <p className="text-muted-foreground">Apply filters and search to view inventory levels</p>
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+          <Package className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Stock Report</h1>
+          <p className="text-sm text-muted-foreground">
+            Search · filter · export — all stock, size-wise, and valuations
+          </p>
+        </div>
       </div>
 
       {/* Search Bar */}
@@ -917,7 +924,7 @@ export default function StockReport() {
             placeholder="Search by barcode, product name, brand, size..."
             className="flex-1"
           />
-          <Button onClick={handleSearch} disabled={loading || !hasActiveFilters}>
+          <Button onClick={handleSearch} disabled={loading || !hasActiveFilters} className="shadow-sm font-semibold px-6">
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
             Search
           </Button>
@@ -931,7 +938,7 @@ export default function StockReport() {
         {/* Always visible multi-field filters */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
           <div className="space-y-2 relative">
-            <label className="text-sm font-medium text-muted-foreground">Product Name</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Product Name</label>
             <Input
               placeholder="Filter by name..."
               value={productNameFilter}
@@ -947,7 +954,7 @@ export default function StockReport() {
             </datalist>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground">Brand</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Brand</label>
             <Select value={brandFilter} onValueChange={setBrandFilter}>
               <SelectTrigger className="h-10 !bg-white !text-gray-900">
                 <SelectValue placeholder="All Brands" />
@@ -961,7 +968,7 @@ export default function StockReport() {
             </Select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground">Category</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Category</label>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
               <SelectTrigger className="h-10 !bg-white !text-gray-900">
                 <SelectValue placeholder="All Categories" />
@@ -975,7 +982,7 @@ export default function StockReport() {
             </Select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground">Department</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Department</label>
             <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
               <SelectTrigger className="h-10 !bg-white !text-gray-900">
                 <SelectValue placeholder="All Departments" />
@@ -989,7 +996,7 @@ export default function StockReport() {
             </Select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground">Size</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Size</label>
             <Select value={sizeFilter} onValueChange={setSizeFilter}>
               <SelectTrigger className="h-10 !bg-white !text-gray-900">
                 <SelectValue placeholder="All Sizes" />
@@ -1003,7 +1010,7 @@ export default function StockReport() {
             </Select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground">Color</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Color</label>
             <Select value={colorFilter} onValueChange={setColorFilter}>
               <SelectTrigger className="h-10 !bg-white !text-gray-900">
                 <SelectValue placeholder="All Colors" />
@@ -1017,7 +1024,7 @@ export default function StockReport() {
             </Select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground">Stock Status</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Stock Status</label>
             <Select value={stockStatusFilter} onValueChange={setStockStatusFilter}>
               <SelectTrigger className="h-10 !bg-white !text-gray-900">
                 <SelectValue placeholder="All Status" />
@@ -1044,7 +1051,7 @@ export default function StockReport() {
           <CollapsibleContent className="pt-3">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">Supplier</label>
+                <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Supplier</label>
                 <Select value={supplierFilter} onValueChange={setSupplierFilter}>
                   <SelectTrigger className="h-10 !bg-white !text-gray-900">
                     <SelectValue placeholder="All Suppliers" />
@@ -1058,7 +1065,7 @@ export default function StockReport() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">Supplier Invoice</label>
+                <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Supplier Invoice</label>
                 <Select value={supplierInvoiceFilter} onValueChange={setSupplierInvoiceFilter}>
                   <SelectTrigger className="h-10 !bg-white !text-gray-900">
                     <SelectValue placeholder="All Invoices" />
@@ -1079,24 +1086,26 @@ export default function StockReport() {
       {/* Summary Cards - Always visible */}
       <div className="grid gap-4 md:grid-cols-3 mb-6">
         <Card 
-          className="cursor-pointer hover:shadow-lg transition-shadow bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-lg"
+          className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-indigo-500 shadow-sm"
           onClick={() => hasSearched && setActiveTab("all")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-white/90">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               {hasSearched ? "Filtered Stock" : "Total Stock"}
             </CardTitle>
-            <Package className="h-4 w-4 text-white" />
+            <div className="h-8 w-8 rounded-xl bg-indigo-100 flex items-center justify-center">
+              <Package className="h-4 w-4 text-indigo-600" />
+            </div>
           </CardHeader>
           <CardContent>
             {globalTotals.isLoading && !hasSearched ? (
-              <Loader2 className="h-6 w-6 animate-spin text-white" />
+              <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
             ) : (
               <>
-                <div className="text-2xl font-bold text-white">
+                <div className="text-2xl font-bold text-indigo-600 tabular-nums">
                   {(hasSearched ? totalStock : globalTotals.totalStock).toLocaleString('en-IN')}
                 </div>
-                <p className="text-xs text-white/70">
+                <p className="text-xs text-muted-foreground">
                   {hasSearched ? `${filteredStockItems.length} variants` : `${globalTotals.variantCount} variants`}
                 </p>
               </>
@@ -1104,39 +1113,43 @@ export default function StockReport() {
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-shadow bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-lg">
+        <Card className="hover:shadow-md transition-shadow border-l-4 border-l-amber-500 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-white/90">Stock Value (Cost)</CardTitle>
-            <IndianRupee className="h-4 w-4 text-white" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Stock Value (Cost)</CardTitle>
+            <div className="h-8 w-8 rounded-xl bg-amber-100 flex items-center justify-center">
+              <IndianRupee className="h-4 w-4 text-amber-600" />
+            </div>
           </CardHeader>
           <CardContent>
             {globalTotals.isLoading && !hasSearched ? (
-              <Loader2 className="h-6 w-6 animate-spin text-white" />
+              <Loader2 className="h-6 w-6 animate-spin text-amber-600" />
             ) : (
               <>
-                <div className="text-2xl font-bold text-white">
+                <div className="text-2xl font-bold text-amber-600 tabular-nums">
                   ₹{Math.round(hasSearched ? totalStockValue : globalTotals.stockValue).toLocaleString('en-IN')}
                 </div>
-                <p className="text-xs text-white/70">Purchase price valuation</p>
+                <p className="text-xs text-muted-foreground">Purchase price valuation</p>
               </>
             )}
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-shadow bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-lg">
+        <Card className="hover:shadow-md transition-shadow border-l-4 border-l-emerald-500 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-white/90">Sale Value</CardTitle>
-            <IndianRupee className="h-4 w-4 text-white" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Sale Value</CardTitle>
+            <div className="h-8 w-8 rounded-xl bg-emerald-100 flex items-center justify-center">
+              <IndianRupee className="h-4 w-4 text-emerald-600" />
+            </div>
           </CardHeader>
           <CardContent>
             {globalTotals.isLoading && !hasSearched ? (
-              <Loader2 className="h-6 w-6 animate-spin text-white" />
+              <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
             ) : (
               <>
-                <div className="text-2xl font-bold text-white">
+                <div className="text-2xl font-bold text-emerald-600 tabular-nums">
                   ₹{Math.round(hasSearched ? totalSaleValue : globalTotals.saleValue).toLocaleString('en-IN')}
                 </div>
-                <p className="text-xs text-white/70">Sale price valuation</p>
+                <p className="text-xs text-muted-foreground">Sale price valuation</p>
               </>
             )}
           </CardContent>
@@ -1163,9 +1176,9 @@ export default function StockReport() {
       ) : (
         <>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="flex-wrap h-auto gap-1">
-              <TabsTrigger value="all">All Stock</TabsTrigger>
-              <TabsTrigger value="sizewise" className="gap-1">
+            <TabsList className="h-10 bg-muted/60 p-1 rounded-xl">
+              <TabsTrigger value="all" className="rounded-lg text-xs font-medium">All Stock</TabsTrigger>
+              <TabsTrigger value="sizewise" className="rounded-lg text-xs font-medium gap-1">
                 <Grid3X3 className="h-4 w-4" />
                 Size-wise
               </TabsTrigger>
