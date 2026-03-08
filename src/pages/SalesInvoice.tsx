@@ -2429,24 +2429,23 @@ Thank you for choosing us!`;
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
-            {/* Balance & discount badges below field */}
-            {selectedCustomerId && (
-              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                {selectedCustomer?.discount_percent > 0 && (
-                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary">
-                    {selectedCustomer.discount_percent}% Disc
-                  </span>
-                )}
-                <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
-                  customerBalance > 0 
-                    ? 'bg-destructive/10 text-destructive' 
-                    : customerBalance < 0
-                      ? 'bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-500'
-                      : 'bg-muted text-muted-foreground'
-                }`}>
-                  {isBalanceLoading ? '...' : `₹${Math.abs(customerBalance).toLocaleString('en-IN')} ${customerBalance > 0 ? 'due' : customerBalance < 0 ? 'credit' : ''}`}
-                </span>
+            {/* Balance badge below field */}
+            {selectedCustomerId && !isBalanceLoading && (
+              <div className={`inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border ${
+                customerBalance > 0
+                  ? 'bg-red-50 text-red-600 border-red-200'
+                  : customerBalance < 0
+                    ? 'bg-green-50 text-green-700 border-green-200'
+                    : 'bg-slate-50 text-slate-500 border-slate-200'
+              }`}>
+                <CreditCard className="h-3 w-3" />
+                ₹{Math.abs(customerBalance).toLocaleString('en-IN')} {customerBalance > 0 ? 'due' : customerBalance < 0 ? 'credit' : ''}
               </div>
+            )}
+            {selectedCustomerId && selectedCustomer?.discount_percent > 0 && (
+              <span className="inline-flex text-xs font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary mt-1">
+                {selectedCustomer.discount_percent}% Disc
+              </span>
             )}
             {/* Brand discounts / transport */}
             {selectedCustomer && (
