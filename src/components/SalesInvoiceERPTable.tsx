@@ -103,6 +103,7 @@ export function SalesInvoiceERPTable({
   deliveryHistory,
   saleReturns,
   cnAdjustedMap,
+  loadedItems,
   renderToolbar,
 }: SalesInvoiceERPTableProps) {
   const columns = useMemo<ColumnDef<any, any>[]>(() => {
