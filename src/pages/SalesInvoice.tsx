@@ -2692,20 +2692,20 @@ Thank you for choosing us!`;
           <table className="w-full border-separate border-spacing-0">
             <thead className="sticky top-0 z-10">
               <tr className="bg-slate-800 border-b-2 border-blue-600">
-                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-10 rounded-tl-lg">#</th>
-                <th className="text-left text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 min-w-[200px]">PRODUCT</th>
-                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-20">SIZE</th>
-                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-20">COLOR</th>
-                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-24">BARCODE</th>
-                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-20">HSN</th>
-                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-16">QTY</th>
-                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-16">BOX</th>
-                <th className="text-right text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-24">MRP</th>
-                <th className="text-right text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-24">PRICE</th>
-                <th className="text-right text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-20">DISC%</th>
-                <th className="text-right text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-24">DISC ₹</th>
-                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-16">GST%</th>
-                <th className="text-right text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-28 bg-blue-700 rounded-tr-lg">TOTAL</th>
+                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-10 rounded-tl-lg">#</th>
+                <th className="text-left text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 min-w-[200px]">PRODUCT</th>
+                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">SIZE</th>
+                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">COLOR</th>
+                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-24">BARCODE</th>
+                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">HSN</th>
+                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-16">QTY</th>
+                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-16">BOX</th>
+                <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-24">MRP</th>
+                <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-24">PRICE</th>
+                <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">DISC%</th>
+                <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-24">DISC ₹</th>
+                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-16">GST%</th>
+                <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-28 bg-blue-700 rounded-tr-lg">TOTAL</th>
                 <th className="w-8 px-1 h-10 bg-slate-800"></th>
               </tr>
             </thead>
