@@ -2195,7 +2195,7 @@ Thank you for choosing us!`;
       <header className="bg-gradient-to-r from-slate-800 to-slate-700 text-white px-6 py-0 flex items-center justify-between h-14 shrink-0 shadow-lg">
         {/* Left: Nav + Title */}
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => orgNavigate('/sales-invoice-dashboard')}
+          <Button variant="ghost" size="sm" onClick={() => navigate('/sales-invoice-dashboard')}
             className="text-white/80 hover:text-white hover:bg-white/10 h-8 gap-1.5">
             <ChevronLeft className="h-4 w-4" />
             <span className="hidden sm:inline">Dashboard</span>
