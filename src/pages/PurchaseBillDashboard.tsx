@@ -1042,7 +1042,7 @@ const PurchaseBillDashboard = () => {
                   <TableCell className="text-right">₹{item.sale_price.toFixed(2)}</TableCell>
                   {showMrp && <TableCell className="text-right">₹{(item.mrp || 0).toFixed(2)}</TableCell>}
                   <TableCell className="text-right">{item.gst_per}%</TableCell>
-                  <TableCell className="text-right font-semibold">
+                  <TableCell className="text-right font-bold text-primary tabular-nums">
                     ₹{item.line_total.toFixed(2)}
                   </TableCell>
                 </TableRow>
