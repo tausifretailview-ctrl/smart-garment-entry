@@ -1055,57 +1055,57 @@ const ProductDashboard = () => {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <Card>
+          <Card className="border-l-4 border-l-blue-500 overflow-hidden">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Stock Qty</p>
-                  <p className="text-2xl font-bold text-foreground">{totalStockQty.toLocaleString()}</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Total Stock Qty</p>
+                  <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{totalStockQty.toLocaleString()}</p>
                 </div>
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Package className="h-6 w-6 text-primary" />
+                <div className="h-12 w-12 rounded-xl bg-blue-50 dark:bg-blue-950 flex items-center justify-center">
+                  <Boxes className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-l-4 border-l-violet-500 overflow-hidden">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Items</p>
-                  <p className="text-2xl font-bold text-foreground">{totalItems.toLocaleString()}</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Total Items</p>
+                  <p className="text-2xl font-bold text-violet-700 dark:text-violet-300">{totalItems.toLocaleString()}</p>
                 </div>
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Package className="h-6 w-6 text-primary" />
+                <div className="h-12 w-12 rounded-xl bg-violet-50 dark:bg-violet-950 flex items-center justify-center">
+                  <Tags className="h-6 w-6 text-violet-600 dark:text-violet-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-l-4 border-l-orange-500 overflow-hidden">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Purchase Value</p>
-                  <p className="text-2xl font-bold text-foreground">₹{totalPurchaseValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Purchase Value</p>
+                  <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">₹{totalPurchaseValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Package className="h-6 w-6 text-primary" />
+                <div className="h-12 w-12 rounded-xl bg-orange-50 dark:bg-orange-950 flex items-center justify-center">
+                  <TrendingDown className="h-6 w-6 text-orange-600 dark:text-orange-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-l-4 border-l-emerald-500 overflow-hidden">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Sale Value</p>
-                  <p className="text-2xl font-bold text-foreground">₹{totalSaleValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Sale Value</p>
+                  <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">₹{totalSaleValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Package className="h-6 w-6 text-primary" />
+                <div className="h-12 w-12 rounded-xl bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center">
+                  <TrendingUp className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
                 </div>
               </div>
             </CardContent>
