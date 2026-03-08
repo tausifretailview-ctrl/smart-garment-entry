@@ -440,15 +440,15 @@ export default function SalesInvoiceDashboard() {
       }
       const s = data as any;
       return {
-        totalInvoices: Number(s?.total_invoices || 0),
-        totalAmount: Number(s?.total_amount || 0),
-        totalDiscount: Number(s?.total_discount || 0),
-        totalQty: Number(s?.total_qty || 0),
-        pendingAmount: Number(s?.pending_amount || 0),
-        deliveredCount: Number(s?.delivered_count || 0),
-        deliveredAmount: Number(s?.delivered_amount || 0),
-        undeliveredCount: Number(s?.undelivered_count || 0),
-        undeliveredAmount: Number(s?.undelivered_amount || 0),
+        totalInvoices: Number(s?.totalInvoices ?? s?.total_invoices ?? 0),
+        totalAmount: Number(s?.totalAmount ?? s?.total_amount ?? 0),
+        totalDiscount: Number(s?.totalDiscount ?? s?.total_discount ?? 0),
+        totalQty: Number(s?.totalQty ?? s?.total_qty ?? 0),
+        pendingAmount: Number(s?.pendingAmount ?? s?.pending_amount ?? 0),
+        deliveredCount: Number(s?.deliveredCount ?? s?.delivered_count ?? 0),
+        deliveredAmount: Number(s?.deliveredAmount ?? s?.delivered_amount ?? 0),
+        undeliveredCount: Number(s?.undeliveredCount ?? s?.undelivered_count ?? 0),
+        undeliveredAmount: Number(s?.undeliveredAmount ?? s?.undelivered_amount ?? 0),
       };
     },
     enabled: !!currentOrganization?.id,
