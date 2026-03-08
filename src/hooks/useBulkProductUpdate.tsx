@@ -411,8 +411,8 @@ export const useBulkProductUpdate = () => {
             [discConfig.applyTo]: item.newValue,
             organization_id: currentOrganization.id,
           }));
-          const { error } = await supabase
-            .from("product_variants")
+          const { error } = await (supabase
+            .from("product_variants") as any)
             .upsert(upsertData, { onConflict: 'id' });
           if (error) throw error;
         } else if (updateType === "update_prices") {
