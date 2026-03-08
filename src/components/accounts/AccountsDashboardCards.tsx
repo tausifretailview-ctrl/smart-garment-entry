@@ -211,7 +211,7 @@ export function AccountsDashboardCards({
                 )}>
                   ₹{Math.round(Math.abs(dashboardMetrics.currentMonthPL)).toLocaleString('en-IN')}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-sm text-muted-foreground mt-1">
                   {dashboardMetrics.currentMonthPL >= 0 ? "🟢 Profit" : "🔴 Loss"} for {format(new Date(), "MMMM yyyy")}
                 </p>
               </div>
