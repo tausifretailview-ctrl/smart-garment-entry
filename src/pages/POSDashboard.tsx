@@ -195,23 +195,8 @@ const POSDashboard = () => {
   // Virtual scrolling ref
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
-  // Fetch company settings for receipt branding
-  const { data: settings } = useQuery({
-    queryKey: ['settings', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return null;
-      
-      const { data, error } = await supabase
-        .from('settings')
-        .select('*')
-        .eq('organization_id', currentOrganization.id)
-        .maybeSingle();
-
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!currentOrganization?.id,
-  });
+  // Fetch company settings (centralized, cached 5min)
+  const { data: settings } = useSettings();
 
   // Get item display settings from settings
   const saleSettings = settings?.sale_settings as any;
