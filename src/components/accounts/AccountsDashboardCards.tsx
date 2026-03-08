@@ -179,7 +179,7 @@ export function AccountsDashboardCards({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Monthly Expenses</p>
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Monthly Expenses</p>
                 <div className="text-2xl font-bold text-orange-700 dark:text-orange-300 tabular-nums mt-1">
                   ₹{Math.round(dashboardMetrics.monthlyExpenses).toLocaleString('en-IN')}
                 </div>
