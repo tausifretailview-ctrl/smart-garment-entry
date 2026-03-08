@@ -19,7 +19,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet } from "lucide-react";
+import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet, ChevronLeft } from "lucide-react";
 import { InlineTotalQty } from "@/components/InlineTotalQty";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
@@ -2267,38 +2267,57 @@ const PurchaseEntry = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[hsl(210_20%_97%)] dark:bg-background px-6 py-6">
-      <div className="w-full space-y-4">
-        <BackToDashboard label="Back to Purchase Dashboard" to="/purchase-bills" />
-        
-        {/* Header Card */}
-        <div className="bg-card rounded-xl border shadow-sm p-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <ShoppingCart className="h-5 w-5 text-primary" />
-            <h1 className="text-[18px] font-semibold text-foreground">
-              {isEditMode ? "Edit Purchase Bill" : "Purchase Entry"}
-            </h1>
-          </div>
-          <div className="flex items-center gap-3">
-            <InlineTotalQty 
-              totalQty={lineItems.reduce((sum, item) => sum + item.qty, 0)} 
-              itemCount={lineItems.filter(i => i.product_id).length}
-            />
-            {!isEditMode && lastPurchaseBill && (
-              <div className="bg-primary/5 border border-primary/20 rounded-lg px-3 py-1.5 text-xs">
-                <span className="text-muted-foreground font-medium">Last Bill:</span>{" "}
-                <span className="text-foreground font-semibold">{lastPurchaseBill.software_bill_no}</span>
-                {lastPurchaseBill.supplier_invoice_no && (
-                  <>
-                    {" | "}
-                    <span className="text-muted-foreground font-medium">Supplier Inv:</span>{" "}
-                    <span className="text-foreground font-semibold">{lastPurchaseBill.supplier_invoice_no}</span>
-                  </>
-                )}
-              </div>
+    <div className="h-screen flex flex-col overflow-hidden bg-slate-100">
+      <header className="bg-gradient-to-r from-slate-900 to-slate-800 h-14 flex items-center px-5 gap-3 shrink-0 shadow-[0_2px_12px_rgba(0,0,0,.35)] relative z-50 border-b-2 border-green-500/60">
+        {/* Back button */}
+        <Button variant="ghost" size="sm" onClick={() => navigate('/purchase-bills')}
+          className="text-white/70 hover:text-white hover:bg-white/10 h-8 gap-1.5">
+          <ChevronLeft className="h-4 w-4" />
+          Purchase Dashboard
+        </Button>
+        <div className="w-px h-6 bg-white/15" />
+
+        {/* Title */}
+        <h1 className="text-white font-bold text-[14px] tracking-tight whitespace-nowrap">
+          {isEditMode ? 'Edit Purchase Bill' : 'Purchase Entry'}
+        </h1>
+
+        {/* Auto bill number badge */}
+        {softwareBillNo && (
+          <span className="bg-green-500 text-white font-mono text-[11px] font-bold px-2.5 py-1 rounded-full tracking-wide whitespace-nowrap">
+            {softwareBillNo}
+          </span>
+        )}
+
+        {/* Last bill info pill - center */}
+        {!isEditMode && lastPurchaseBill && (
+          <div className="hidden md:flex items-center gap-2 bg-white/10 rounded-lg px-4 py-1.5 border border-white/20 text-[11px] mx-auto">
+            <span className="text-white/50">Last Bill:</span>
+            <span className="text-green-300 font-semibold font-mono">
+              {lastPurchaseBill.software_bill_no}
+            </span>
+            {lastPurchaseBill.supplier_invoice_no && (
+              <>
+                <span className="text-white/30">|</span>
+                <span className="text-white/50">Sup Inv:</span>
+                <span className="text-green-300 font-semibold font-mono">
+                  {lastPurchaseBill.supplier_invoice_no}
+                </span>
+              </>
             )}
           </div>
+        )}
+
+        {/* Nav + Print on the right */}
+        <div className="flex items-center gap-2 ml-auto">
+          <InlineTotalQty
+            totalQty={lineItems.reduce((sum, item) => sum + item.qty, 0)}
+            itemCount={lineItems.filter(i => i.product_id).length}
+          />
         </div>
+      </header>
+
+      <main className="flex-1 overflow-y-auto overflow-x-hidden">
 
         {/* Supplier & Bill Details Card */}
         <div className="erp-invoice-info-card">
@@ -3176,6 +3195,7 @@ const PurchaseEntry = () => {
           }}
         />
 
+    </main>
     </div>
   );
 };
