@@ -445,44 +445,50 @@ export default function StockAnalysis() {
           {/* Stats Cards */}
           <div className="grid gap-4 md:grid-cols-3">
             <Card 
-              className="cursor-pointer hover:shadow-lg transition-shadow bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-lg"
+              className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-red-500 shadow-sm"
               onClick={() => setActiveTab("low")}
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-white/90">Low Stock</CardTitle>
-                <TrendingDown className="h-4 w-4 text-white" />
+                <CardTitle className="text-sm font-medium text-muted-foreground">Low Stock</CardTitle>
+                <div className="h-8 w-8 rounded-xl bg-red-100 flex items-center justify-center">
+                  <TrendingDown className="h-4 w-4 text-red-600" />
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-white">{lowStockItems.length}</div>
-                <p className="text-xs text-white/70">Below {lowStockThreshold} units</p>
+                <div className="text-2xl font-bold text-red-600 tabular-nums">{lowStockItems.length}</div>
+                <p className="text-xs text-muted-foreground">Below {lowStockThreshold} units</p>
               </CardContent>
             </Card>
 
             <Card 
-              className="cursor-pointer hover:shadow-lg transition-shadow bg-gradient-to-br from-teal-500 to-teal-600 border-0 shadow-lg"
+              className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-emerald-500 shadow-sm"
               onClick={() => setActiveTab("batch")}
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-white/90">Batch Records</CardTitle>
-                <Package className="h-4 w-4 text-white" />
+                <CardTitle className="text-sm font-medium text-muted-foreground">Batch Records</CardTitle>
+                <div className="h-8 w-8 rounded-xl bg-emerald-100 flex items-center justify-center">
+                  <Package className="h-4 w-4 text-emerald-600" />
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-white">{batchStock.length}</div>
-                <p className="text-xs text-white/70">Active batches</p>
+                <div className="text-2xl font-bold text-emerald-600 tabular-nums">{batchStock.length}</div>
+                <p className="text-xs text-muted-foreground">Active batches</p>
               </CardContent>
             </Card>
 
             <Card 
-              className="cursor-pointer hover:shadow-lg transition-shadow bg-gradient-to-br from-sky-500 to-sky-600 border-0 shadow-lg"
+              className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-blue-500 shadow-sm"
               onClick={() => setActiveTab("movements")}
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-white/90">Movements</CardTitle>
-                <History className="h-4 w-4 text-white" />
+                <CardTitle className="text-sm font-medium text-muted-foreground">Movements</CardTitle>
+                <div className="h-8 w-8 rounded-xl bg-blue-100 flex items-center justify-center">
+                  <History className="h-4 w-4 text-blue-600" />
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-white">{movements.length}</div>
-                <p className="text-xs text-white/70">Recent transactions</p>
+                <div className="text-2xl font-bold text-blue-600 tabular-nums">{movements.length}</div>
+                <p className="text-xs text-muted-foreground">Recent transactions</p>
               </CardContent>
             </Card>
           </div>
