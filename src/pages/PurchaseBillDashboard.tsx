@@ -1080,7 +1080,7 @@ const PurchaseBillDashboard = () => {
               )}
               Fix Missing Data
             </Button>
-            <Button onClick={() => navigate("/purchase-entry")} className="gap-2">
+            <Button onClick={() => navigate("/purchase-entry")} className="gap-2 shadow-sm font-semibold">
               <Plus className="h-4 w-4" />
               New Purchase
             </Button>
