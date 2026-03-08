@@ -166,6 +166,7 @@ export const FloatingSupplierLedger = ({
       ...bills.map((bill: any) => ({ date: bill.bill_date, type: "bill" as const, data: bill })),
       ...allVouchers.map((v: any) => ({ date: v.voucher_date, type: "payment" as const, data: v })),
       ...(creditNotes || []).map((cn: any) => ({ date: cn.voucher_date, type: "credit_note" as const, data: cn })),
+      ...(supplierRefunds || []).map((r: any) => ({ date: r.voucher_date, type: "refund_received" as const, data: r })),
     ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     combined.forEach((item) => {
