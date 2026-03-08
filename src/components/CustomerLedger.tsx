@@ -1616,16 +1616,22 @@ Please clear your dues at the earliest. Thank you!`;
                                       <FileText className="h-3 w-3 mr-1" /> FEE
                                     </Badge>
                                   ) : (
-                                    <Badge variant={transaction.type === 'invoice' ? 'default' : 'secondary'}>
+                                    <>
                                       {transaction.type === 'invoice' ? (
-                                        <><FileText className="h-3 w-3 mr-1" /> Invoice</>
+                                        <Badge className="bg-blue-600 hover:bg-blue-700 text-white border-0 text-xs">
+                                          <FileText className="h-3 w-3 mr-1" /> Invoice
+                                        </Badge>
                                       ) : (
-                                        <><IndianRupee className="h-3 w-3 mr-1" /> Payment</>
+                                        <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white border-0 text-xs">
+                                          <IndianRupee className="h-3 w-3 mr-1" /> Payment
+                                        </Badge>
                                       )}
-                                    </Badge>
+                                    </>
                                   )}
                                   {transaction.type === 'invoice' && transaction.paymentStatus === 'completed' && (
-                                    <Badge className="bg-success text-success-foreground text-xs">PAID</Badge>
+                                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 text-xs ml-1">
+                                      ✓ Paid
+                                    </Badge>
                                   )}
                                 </div>
                               )}
