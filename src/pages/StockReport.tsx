@@ -1202,6 +1202,7 @@ export default function StockReport() {
                           <TableHead className="text-right bg-green-50 dark:bg-green-950 text-green-800 dark:text-white">Purchase Qty</TableHead>
                           <TableHead className="text-right bg-orange-50 dark:bg-orange-950 text-orange-800 dark:text-white">Pur Return</TableHead>
                           <TableHead className="text-right bg-red-50 dark:bg-red-950 text-red-800 dark:text-white">Sales Qty</TableHead>
+                          <TableHead className="text-right bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-white">Sale Return</TableHead>
                           <TableHead className="text-right bg-primary/10 font-semibold text-primary dark:text-primary">Current Stock</TableHead>
                           <TableHead className="text-right">Pur Price</TableHead>
                           <TableHead className="text-right">Stock Value</TableHead>
