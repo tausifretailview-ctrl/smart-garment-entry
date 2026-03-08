@@ -2597,6 +2597,7 @@ export type Database = {
           barcode: string | null
           color: string | null
           created_at: string | null
+          current_stock: number | null
           deleted_at: string | null
           deleted_by: string | null
           id: string
@@ -2619,6 +2620,7 @@ export type Database = {
           barcode?: string | null
           color?: string | null
           created_at?: string | null
+          current_stock?: number | null
           deleted_at?: string | null
           deleted_by?: string | null
           id?: string
@@ -2641,6 +2643,7 @@ export type Database = {
           barcode?: string | null
           color?: string | null
           created_at?: string | null
+          current_stock?: number | null
           deleted_at?: string | null
           deleted_by?: string | null
           id?: string
