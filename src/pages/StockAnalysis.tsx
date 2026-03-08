@@ -286,33 +286,48 @@ export default function StockAnalysis() {
       // Fetch batch stock
       let formattedBatch: BatchStock[] = [];
       if (variantIds.length > 0) {
-        const { data: batchStockData } = await supabase
-          .from('batch_stock')
-          .select(`
-            *,
-            product_variants!inner (
-              size,
-              barcode,
-              deleted_at,
-              products!inner (
-                product_name,
-                brand,
-                product_type,
-                deleted_at
+        const allBatchStockData: any[] = [];
+        let batchOffset = 0;
+        const BATCH_PAGE = 1000;
+        let batchHasMore = true;
+        while (batchHasMore) {
+          const { data: batchPage, error: batchError } = await supabase
+            .from('batch_stock')
+            .select(`
+              *,
+              product_variants!inner (
+                size,
+                barcode,
+                deleted_at,
+                products!inner (
+                  product_name,
+                  brand,
+                  product_type,
+                  deleted_at
+                )
+              ),
+              purchase_bills (
+                supplier_name,
+                supplier_invoice_no
               )
-            ),
-            purchase_bills (
-              supplier_name,
-              supplier_invoice_no
-            )
-          `)
-          .eq('organization_id', currentOrganization.id)
-          .in('variant_id', variantIds)
-          .gt('quantity', 0)
-          .is('product_variants.deleted_at', null)
-          .is('product_variants.products.deleted_at', null)
-          .neq('product_variants.products.product_type', 'service')
-          .order('purchase_date', { ascending: true });
+            `)
+            .eq('organization_id', currentOrganization.id)
+            .in('variant_id', variantIds)
+            .gt('quantity', 0)
+            .is('product_variants.deleted_at', null)
+            .is('product_variants.products.deleted_at', null)
+            .neq('product_variants.products.product_type', 'service')
+            .order('purchase_date', { ascending: true })
+            .range(batchOffset, batchOffset + BATCH_PAGE - 1);
+          if (batchError) break;
+          if (batchPage && batchPage.length > 0) {
+            allBatchStockData.push(...batchPage);
+            batchOffset += BATCH_PAGE;
+            batchHasMore = batchPage.length === BATCH_PAGE;
+          } else {
+            batchHasMore = false;
+          }
+        }
 
         formattedBatch = (batchStockData || []).map((item: any) => ({
           id: item.id,
