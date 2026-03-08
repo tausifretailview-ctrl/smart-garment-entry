@@ -186,14 +186,14 @@ export function useCustomerPoints() {
     
     try {
       const { data, error } = await supabase
-        .from('customer_points_history' as any)
+        .from('customer_points_history')
         .select('*')
         .eq('customer_id', customerId)
         .eq('organization_id', currentOrganization.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return (data || []) as unknown as PointsHistory[];
+      return (data || []) as PointsHistory[];
     } catch {
       return [];
     }
