@@ -973,7 +973,7 @@ const PurchaseBillDashboard = () => {
         const bill = row.original;
         return (
           <div className="flex items-center gap-0" onClick={(e) => e.stopPropagation()}>
-            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => handleOpenPaymentDialog(bill, e)} title="Record Payment">
+            <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950" onClick={(e) => handleOpenPaymentDialog(bill, e)} title="Record Payment">
               <Wallet className="h-3.5 w-3.5" />
             </Button>
             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); navigate("/purchase-entry", { state: { editBillId: bill.id } }); }} title="Edit">
