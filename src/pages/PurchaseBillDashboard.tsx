@@ -1195,7 +1195,7 @@ const PurchaseBillDashboard = () => {
 
         {/* Bulk Actions */}
         {selectedBills.size > 0 && (
-          <Card className="mb-4 border-primary/50">
+          <Card className="mb-4 border-primary bg-primary/5 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
