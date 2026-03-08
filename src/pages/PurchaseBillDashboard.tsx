@@ -926,7 +926,7 @@ const PurchaseBillDashboard = () => {
         return disc > 0 ? (
           <span className="text-right block tabular-nums text-sm text-destructive">-₹{disc.toFixed(2)}</span>
         ) : (
-          <span className="text-right block tabular-nums text-sm text-muted-foreground">₹0.00</span>
+          <span className="text-right block tabular-nums text-sm text-muted-foreground/50">₹0.00</span>
         );
       },
       size: 90,
