@@ -359,6 +359,7 @@ export function CustomerHistoryDialog({
         .from('sales')
         .select(`
           id, sale_number, sale_date, net_amount, payment_status, paid_amount, sale_type, refund_amount,
+          discount_amount, flat_discount_amount,
           sale_items (
             id, product_name, size, color, quantity, unit_price, mrp, line_total, barcode
           )
@@ -366,8 +367,7 @@ export function CustomerHistoryDialog({
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .is('deleted_at', null)
-        .order('sale_date', { ascending: false })
-        .limit(50);
+        .order('sale_date', { ascending: false });
       if (error) throw error;
       return data || [];
     },
