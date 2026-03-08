@@ -186,6 +186,15 @@ export function AdjustCustomerCreditNoteDialog({
 
         if (returnError) throw returnError;
 
+        // Insert negative adjustment to reduce customer outstanding
+        await supabase.from('customer_balance_adjustments').insert({
+          organization_id: currentOrganization?.id,
+          customer_id: customerId,
+          outstanding_difference: -creditAmount,  // negative = reduces outstanding
+          adjustment_date: format(new Date(), 'yyyy-MM-dd'),
+          reason: `Credit Note ${returnNumber} adjusted to outstanding`,
+        });
+
         // Update voucher description if creditNoteId exists
         if (creditNoteId) {
           const { error: voucherError } = await supabase
