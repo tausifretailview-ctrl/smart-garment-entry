@@ -50,7 +50,7 @@ export function AccountsDashboardCards({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Invoices</p>
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Total Invoices</p>
                 <div className="text-2xl font-bold text-blue-700 dark:text-blue-300 tabular-nums mt-1">
                   ₹{Math.round(paymentStats.totalAmount).toLocaleString('en-IN')}
                 </div>
