@@ -5118,9 +5118,6 @@ export default function BarcodePrinting() {
 
         #printArea .label-grid {
           display: grid;
-          grid-template-columns: repeat(8, 33mm);
-          grid-auto-rows: 19mm;
-          gap: 1mm;
         }
 
         #printArea .label-cell {
