@@ -1558,14 +1558,14 @@ Please clear your dues at the earliest. Thank you!`;
                 <div className="rounded-md border">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Reference</TableHead>
-                        <TableHead>Description</TableHead>
-                        <TableHead className="text-right">Debit</TableHead>
-                        <TableHead className="text-right">Credit</TableHead>
-                        <TableHead className="text-right">Balance</TableHead>
+                      <TableRow className="bg-slate-50 dark:bg-slate-900/60 border-b-2">
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500 w-[120px]">Date</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Type</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Reference</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Description</TableHead>
+                        <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-red-500">Debit</TableHead>
+                        <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-emerald-600">Credit</TableHead>
+                        <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-slate-500">Balance</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
