@@ -134,7 +134,7 @@ export const FloatingSupplierLedger = ({
   const transactions = useMemo<Transaction[]>(() => {
     if (!ledgerData || !supplier) return [];
 
-    const { bills, vouchersData, openingPayments, creditNotes, billIds } = ledgerData;
+    const { bills, vouchersData, openingPayments, creditNotes, supplierRefunds, billIds } = ledgerData;
     const openingBalance = supplier.opening_balance || 0;
 
     // voucher payments by bill
