@@ -2116,8 +2116,13 @@ export default function Settings() {
 
                   {/* Wholesale Mode Settings - Show when Modern Wholesale template is selected */}
                   {settings.sale_settings?.invoice_template === 'modern-wholesale' && (
-                    <div className="space-y-4 p-4 bg-muted/50 rounded-lg border">
-                      <h4 className="text-sm font-semibold text-primary">Wholesale Mode Settings</h4>
+                    <div className="space-y-4 p-3 rounded-lg border-l-4 border-l-teal-500 bg-teal-50/50 dark:bg-teal-950/20">
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded bg-teal-100 flex items-center justify-center flex-shrink-0">
+                          <span className="text-[10px] font-bold text-teal-700">WHL</span>
+                        </div>
+                        <h4 className="text-sm font-semibold text-teal-700 dark:text-teal-400">Wholesale Mode Settings</h4>
+                      </div>
                       
                       <div className="space-y-2">
                         <Label htmlFor="size_display_format">Size Display Format</Label>
