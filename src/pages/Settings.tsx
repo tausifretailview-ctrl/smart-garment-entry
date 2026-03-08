@@ -3962,6 +3962,153 @@ export default function Settings() {
                 </Card>
 
 
+                {/* ═══ All Org Label Designs ═══ */}
+                {allOrgPresets.length > 0 && (
+                  <div className="space-y-3 pt-4 border-t">
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                        <Copy className="h-4 w-4 text-indigo-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold leading-none">Label Designs from All Your Shops</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Reuse calibrated label designs from your other organizations — import in one click
+                        </p>
+                      </div>
+                    </div>
+
+                    {Array.from(
+                      allOrgPresets.reduce((map, item) => {
+                        if (!map.has(item.orgId)) map.set(item.orgId, {
+                          orgName: item.orgName,
+                          presets: [],
+                          isCurrent: item.orgId === currentOrganization?.id
+                        });
+                        map.get(item.orgId)!.presets.push(item);
+                        return map;
+                      }, new Map<string, { orgName: string; presets: typeof allOrgPresets; isCurrent: boolean }>())
+                    ).map(([orgId, group]) => (
+                      <div key={orgId} className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border ${group.isCurrent ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                            {group.isCurrent ? '● Current Shop' : group.orgName}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {group.presets.length} design{group.presets.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {group.presets.map((item) => {
+                            const p = item.preset;
+                            const isCurrentOrg = item.orgId === currentOrganization?.id;
+                            const alreadyImported = settingsDbPresets.some(
+                              sp => sp.name === p.name && sp.width === p.width && sp.height === p.height
+                            );
+                            const isImporting = importingPresetId === (p.id || p.name);
+
+                            return (
+                              <div
+                                key={p.id || p.name}
+                                className={`flex items-start justify-between p-3 rounded-lg border bg-card gap-3 ${alreadyImported && !isCurrentOrg ? 'opacity-60 border-dashed' : ''}`}
+                              >
+                                <div className="flex gap-2.5 min-w-0">
+                                  <div className={`flex-shrink-0 rounded border-2 ${p.printMode === 'a4' ? 'border-violet-300 bg-violet-50 w-8 h-10' : 'border-teal-300 bg-teal-50 w-10 h-6'} flex items-center justify-center mt-0.5`}>
+                                    <span className="text-[8px] font-bold text-muted-foreground">
+                                      {p.printMode === 'a4' ? 'A4' : '🖨'}
+                                    </span>
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium truncate">{p.name}</p>
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${p.printMode === 'a4' ? 'bg-violet-50 text-violet-700 border-violet-200' : 'bg-teal-50 text-teal-700 border-teal-200'}`}>
+                                        {p.printMode === 'a4' ? 'Laser/A4' : 'Thermal'}
+                                      </span>
+                                      <span className="text-[9px] bg-slate-50 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded-full font-mono">
+                                        {p.width}×{p.height}mm
+                                      </span>
+                                      {p.printMode === 'a4' && p.a4Cols && p.a4Rows && (
+                                        <span className="text-[9px] bg-slate-50 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded-full">
+                                          {p.a4Cols}×{p.a4Rows} grid
+                                        </span>
+                                      )}
+                                      {p.labelConfig && (
+                                        <span className="text-[9px] bg-green-50 text-green-700 border border-green-200 px-1.5 py-0.5 rounded-full">
+                                          ✓ Design saved
+                                        </span>
+                                      )}
+                                      {(p.xOffset !== 0 || p.yOffset !== 0) && (
+                                        <span className="text-[9px] bg-orange-50 text-orange-600 border border-orange-200 px-1.5 py-0.5 rounded-full font-mono">
+                                          ±{p.xOffset},{p.yOffset} offset
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {!isCurrentOrg && (
+                                  <Button
+                                    type="button"
+                                    variant={alreadyImported ? 'ghost' : 'outline'}
+                                    size="sm"
+                                    disabled={isImporting}
+                                    onClick={() => handleImportPreset(item)}
+                                    className="flex-shrink-0 h-8 text-xs"
+                                  >
+                                    {isImporting ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : alreadyImported ? (
+                                      <>
+                                        <CheckCircle2 className="h-3 w-3 mr-1 text-green-600" />
+                                        Imported
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy className="h-3 w-3 mr-1" />
+                                        Import
+                                      </>
+                                    )}
+                                  </Button>
+                                )}
+                                {isCurrentOrg && (
+                                  <span className="text-[10px] text-muted-foreground flex-shrink-0 self-center">
+                                    This shop
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-muted-foreground h-7"
+                      onClick={fetchAllOrgPresets}
+                    >
+                      <RefreshCw className="h-3 w-3 mr-1.5" />
+                      Refresh designs
+                    </Button>
+                  </div>
+                )}
+
+                {allOrgPresets.length === 0 && organizations.length <= 1 && (
+                  <div className="pt-4 border-t">
+                    <div className="rounded-lg border border-dashed p-4 text-center">
+                      <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center mx-auto mb-2">
+                        <Copy className="h-4 w-4 text-slate-400" />
+                      </div>
+                      <p className="text-sm font-medium text-muted-foreground">No other shops to copy from</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Once you create or join another shop, its label designs will appear here for reuse.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <Label>Custom Barcode Templates</Label>
