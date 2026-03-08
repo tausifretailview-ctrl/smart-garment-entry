@@ -180,11 +180,20 @@ export function LabelCalibrationUI({
 }: LabelCalibrationUIProps) {
   const [savePresetOpen, setSavePresetOpen] = useState(false);
   const [newPresetName, setNewPresetName] = useState("");
-  // Use controlled value if provided, otherwise local state
+  // Track the loaded DB preset name with a ref to persist across parent re-renders
   const [localActivePresetName, setLocalActivePresetName] = useState<string | null>(null);
+  const loadedDbPresetRef = useRef<string | null>(null);
   // Use controlled value only when it's a non-null string; otherwise use local state (for printer presets)
   const activePresetName = (activePresetValue !== undefined && activePresetValue !== null) ? activePresetValue : localActivePresetName;
-  const setActivePresetName = (name: string | null) => setLocalActivePresetName(name);
+  const setActivePresetName = (name: string | null) => {
+    setLocalActivePresetName(name);
+    // Track DB preset name separately
+    if (name && presets.some(p => p.name === name)) {
+      loadedDbPresetRef.current = name;
+    } else if (name === null) {
+      loadedDbPresetRef.current = null;
+    }
+  };
   const [saving, setSaving] = useState(false);
   const [saveA4Open, setSaveA4Open] = useState(false);
   const [newA4PresetName, setNewA4PresetName] = useState("");
@@ -194,7 +203,9 @@ export function LabelCalibrationUI({
   const a4UserPresets = presets.filter(p => p.printMode === 'a4');
   const isA4UserPreset = activeA4PresetName ? a4UserPresets.some(p => p.name === activeA4PresetName) : false;
 
-  const isUserPreset = activePresetName ? presets.some((p) => p.name === activePresetName) : false;
+  // Check both active name and ref for DB preset detection
+  const effectivePresetName = activePresetName || loadedDbPresetRef.current;
+  const isUserPreset = effectivePresetName ? presets.some((p) => p.name === effectivePresetName) : false;
 
   // Compute the Select value: templates use "template_" prefix, presets use direct name
   const selectValue = (() => {
