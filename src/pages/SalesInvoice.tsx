@@ -2295,7 +2295,7 @@ Thank you for choosing us!`;
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 items-start">
           {/* Customer Selection */}
           <div className="col-span-2 md:col-span-1 lg:col-span-2">
-            <Label className="text-[11px] font-semibold text-slate-500">Customer <span className="text-red-500">*</span></Label>
+            <Label className="text-[13px] font-semibold text-slate-500">Customer <span className="text-red-500">*</span></Label>
             <div className="flex gap-1.5">
               <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
                 <PopoverTrigger asChild>
