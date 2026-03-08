@@ -648,36 +648,36 @@ export function CustomerHistoryDialog({
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 overflow-hidden flex flex-col">
             <div className="overflow-x-auto -mx-1 px-1">
-              <TabsList className="inline-flex w-auto min-w-full sm:grid sm:grid-cols-8 sm:w-full">
-                <TabsTrigger value="sales" className="gap-1 text-xs whitespace-nowrap">
+              <TabsList className="inline-flex w-auto min-w-full h-9 sm:grid sm:grid-cols-8 sm:w-full bg-muted/60 p-0.5 rounded-lg">
+                <TabsTrigger value="sales" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
                   <Receipt className="h-3 w-3 hidden sm:block" />
                   Sales ({salesHistory?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="legacy" className="gap-1 text-xs whitespace-nowrap">
+                <TabsTrigger value="legacy" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
                   <History className="h-3 w-3 hidden sm:block" />
                   Legacy ({legacyInvoices?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="payments" className="gap-1 text-xs whitespace-nowrap">
+                <TabsTrigger value="payments" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
                   <IndianRupee className="h-3 w-3 hidden sm:block" />
                   Payments ({paymentHistory?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="returns" className="gap-1 text-xs whitespace-nowrap">
+                <TabsTrigger value="returns" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
                   <RotateCcw className="h-3 w-3 hidden sm:block" />
                   Returns ({saleReturns?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="credit-notes" className="gap-1 text-xs whitespace-nowrap">
+                <TabsTrigger value="credit-notes" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
                   <FileText className="h-3 w-3 hidden sm:block" />
                   C/Notes ({creditNotes?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="refunds" className="gap-1 text-xs whitespace-nowrap">
+                <TabsTrigger value="refunds" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
                   <CreditCard className="h-3 w-3 hidden sm:block" />
                   Refunds ({refunds.length})
                 </TabsTrigger>
-                <TabsTrigger value="advances" className="gap-1 text-xs whitespace-nowrap">
+                <TabsTrigger value="advances" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
                   <Wallet className="h-3 w-3 hidden sm:block" />
                   Advances ({customerAdvances?.length || 0})
                 </TabsTrigger>
-                <TabsTrigger value="adjustments" className="gap-1 text-xs whitespace-nowrap">
+                <TabsTrigger value="adjustments" className="gap-1 rounded-md text-[10px] sm:text-xs font-medium px-2 h-8 whitespace-nowrap">
                   <Scale className="h-3 w-3 hidden sm:block" />
                   Adj ({balanceAdjustments?.length || 0})
                 </TabsTrigger>
