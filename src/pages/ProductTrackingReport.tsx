@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Barcode, AlertTriangle } from "lucide-react";
+import { Search, Barcode, AlertTriangle, TrendingUp, TrendingDown } from "lucide-react";
 import { toast } from "sonner";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { format, subDays } from "date-fns";
@@ -30,6 +30,7 @@ interface MovementRecord {
   variant_id: string;
   product_name: string;
   size: string;
+  color: string;
   barcode: string;
   category: string;
   brand: string;
@@ -70,21 +71,33 @@ const columns: ColumnDef<MovementRecord, any>[] = [
     size: 80,
   },
   {
+    id: "color",
+    accessorKey: "color",
+    header: "Color",
+    size: 100,
+    cell: ({ getValue }) => (
+      <span className="text-sm">{getValue() as string || "—"}</span>
+    ),
+  },
+  {
     id: "type",
     accessorKey: "movement_type",
     header: "Type",
     size: 100,
     cell: ({ getValue }) => {
       const type = getValue() as string;
+      const typeConfig: Record<string, { label: string; className: string }> = {
+        purchase:        { label: "Purchase",        className: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+        sale:            { label: "Sale",             className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+        sale_return:     { label: "Sale Return",      className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+        purchase_return: { label: "Purchase Return",  className: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
+        adjustment:      { label: "Adjustment",       className: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
+        purchase_delete: { label: "Bill Deleted",     className: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
+      };
+      const config = typeConfig[type] || { label: type, className: "bg-slate-100 text-slate-600" };
       return (
-        <span
-          className={`px-2 py-1 rounded-full text-xs font-medium ${
-            type === "purchase"
-              ? "bg-green-100 text-green-700"
-              : "bg-red-100 text-red-700"
-          }`}
-        >
-          {type === "purchase" ? "Purchase" : "Sale"}
+        <span className={`px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${config.className}`}>
+          {config.label}
         </span>
       );
     },
@@ -132,12 +145,12 @@ const columns: ColumnDef<MovementRecord, any>[] = [
 ];
 
 const PAGE_SIZE = 100;
-const MAX_DATE_RANGE_DAYS = 90;
+const MAX_DATE_RANGE_DAYS = 365;
 
 const ProductTrackingReport = () => {
   const { currentOrganization } = useOrganization();
   const [searchBarcode, setSearchBarcode] = useState("");
-  const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), "yyyy-MM-dd"));
+  const [startDate, setStartDate] = useState(format(subDays(new Date(), 90), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [movementTypeFilter, setMovementTypeFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -151,7 +164,7 @@ const ProductTrackingReport = () => {
     const end = new Date(endDate);
     if (end < start) return "End date must be after start date";
     const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays > MAX_DATE_RANGE_DAYS) return `Date range cannot exceed ${MAX_DATE_RANGE_DAYS} days`;
+    if (diffDays > MAX_DATE_RANGE_DAYS) return `Date range cannot exceed 1 year`;
     return null;
   }, [startDate, endDate]);
 
@@ -200,18 +213,19 @@ const ProductTrackingReport = () => {
           bill_number,
           notes,
           variant_id,
+          organization_id,
           product_variants!inner (
             barcode,
             size,
+            color,
             products!inner (
               product_name,
-              organization_id,
               category,
               brand
             )
           )
         `, { count: "exact" })
-        .eq("product_variants.products.organization_id", currentOrganization.id)
+        .eq("organization_id", currentOrganization.id)
         .gte("created_at", startDate + "T00:00:00")
         .lte("created_at", endDate + "T23:59:59")
         .order("created_at", { ascending: false });
@@ -222,13 +236,22 @@ const ProductTrackingReport = () => {
       }
 
       if (searchBarcode) {
-        const isNumeric = /^\d+$/.test(searchBarcode.trim());
-        if (isNumeric) {
-          // Barcode search: filter directly on variant barcode
-          query = query.ilike("product_variants.barcode", `%${searchBarcode}%`);
+        const trimmed = searchBarcode.trim();
+        // Detect barcode: numeric-only OR alphanumeric like SZ13777323, EAN codes etc.
+        // Rule: if it contains ANY digit AND is 5+ chars, treat as barcode first
+        const looksLikeBarcode = /\d/.test(trimmed) && trimmed.length >= 5;
+        if (looksLikeBarcode) {
+          // Search barcode on variant — try exact match first, then partial
+          query = query.or(
+            `barcode.eq.${trimmed},barcode.ilike.${trimmed}%`,
+            { referencedTable: "product_variants" }
+          );
         } else {
-          // Text search: filter on product name
-          query = query.ilike("product_variants.products.product_name", `%${searchBarcode}%`);
+          // Pure text — search product name
+          query = query.ilike(
+            "product_variants.products.product_name",
+            `%${trimmed}%`
+          );
         }
       }
 
@@ -259,6 +282,7 @@ const ProductTrackingReport = () => {
         variant_id: movement.variant_id,
         product_name: movement.product_variants.products.product_name,
         size: movement.product_variants.size,
+        color: movement.product_variants.color || "",
         barcode: movement.product_variants.barcode || "",
         category: movement.product_variants.products.category || "",
         brand: movement.product_variants.products.brand || "",
@@ -293,23 +317,25 @@ const ProductTrackingReport = () => {
   return (
     <div className="p-8 space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent flex items-center gap-2">
-              <Barcode className="h-8 w-8 text-primary" />
-              Product Tracking Report
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Track product movements with credit and debit details
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Barcode className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Product Tracking Report</h1>
+              <p className="text-sm text-muted-foreground">
+                Track product movements · purchases · sales · returns · adjustments
+              </p>
+            </div>
           </div>
           <BackToDashboard />
         </div>
 
         {/* Filters */}
-        <Card className="p-6 space-y-4">
+        <Card className="p-4 space-y-4 shadow-sm">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Search by Barcode/Product</label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Search by Barcode / Product</label>
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -322,21 +348,24 @@ const ProductTrackingReport = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Movement Type</label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Movement Type</label>
               <Select value={movementTypeFilter} onValueChange={handleFilterChange(setMovementTypeFilter)}>
                 <SelectTrigger>
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="purchase">Purchase</SelectItem>
-                  <SelectItem value="sale">Sale</SelectItem>
+                  <SelectItem value="purchase">Purchase (Stock In)</SelectItem>
+                  <SelectItem value="sale">Sale (Stock Out)</SelectItem>
+                  <SelectItem value="sale_return">Sale Return (Stock In)</SelectItem>
+                  <SelectItem value="purchase_return">Purchase Return (Stock Out)</SelectItem>
+                  <SelectItem value="adjustment">Stock Adjustment</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Category</label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Category</label>
               <Select value={categoryFilter} onValueChange={handleFilterChange(setCategoryFilter)}>
                 <SelectTrigger>
                   <SelectValue placeholder="All Categories" />
@@ -353,7 +382,7 @@ const ProductTrackingReport = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Brand</label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Brand</label>
               <Select value={brandFilter} onValueChange={handleFilterChange(setBrandFilter)}>
                 <SelectTrigger>
                   <SelectValue placeholder="All Brands" />
@@ -370,7 +399,7 @@ const ProductTrackingReport = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Start Date *</label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Start Date</label>
               <Input
                 type="date"
                 value={startDate}
@@ -379,7 +408,7 @@ const ProductTrackingReport = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">End Date *</label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">End Date</label>
               <Input
                 type="date"
                 value={endDate}
@@ -397,13 +426,16 @@ const ProductTrackingReport = () => {
 
           <div className="flex justify-between items-center pt-2">
             <p className="text-sm text-muted-foreground">
-              {totalCount > 0 ? `Showing ${movements.length} of ${totalCount} records (page ${currentPage}/${totalPages})` : "No records found"}
+              {totalCount > 0
+                ? <span>Found <span className="font-semibold text-foreground">{totalCount}</span> movements — showing page {currentPage} of {totalPages}</span>
+                : <span className="text-muted-foreground/60 italic">No movements found for the selected filters</span>
+              }
             </p>
             <Button
               variant="outline"
               onClick={() => {
                 setSearchBarcode("");
-                setStartDate(format(subDays(new Date(), 30), "yyyy-MM-dd"));
+                setStartDate(format(subDays(new Date(), 90), "yyyy-MM-dd"));
                 setEndDate(format(new Date(), "yyyy-MM-dd"));
                 setMovementTypeFilter("all");
                 setCategoryFilter("all");
@@ -416,8 +448,22 @@ const ProductTrackingReport = () => {
           </div>
         </Card>
 
+        {/* Summary bar */}
+        {totalCount > 0 && movements.length > 0 && (
+          <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-1.5 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 px-3 py-1.5 rounded-lg border border-green-200 dark:border-green-800">
+              <TrendingUp className="h-3.5 w-3.5" />
+              <span className="font-medium">In: {movements.filter(m => m.movement_type === 'purchase' || m.movement_type === 'sale_return').reduce((s, m) => s + Math.abs(m.quantity), 0)} units</span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-800">
+              <TrendingDown className="h-3.5 w-3.5" />
+              <span className="font-medium">Out: {movements.filter(m => m.movement_type === 'sale' || m.movement_type === 'purchase_return').reduce((s, m) => s + Math.abs(m.quantity), 0)} units</span>
+            </div>
+          </div>
+        )}
+
         {/* Movements Table */}
-        <Card>
+        <Card className="shadow-sm overflow-hidden">
           <ERPTable
             tableId="product_tracking"
             columns={columns}
