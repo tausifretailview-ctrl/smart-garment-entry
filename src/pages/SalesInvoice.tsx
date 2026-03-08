@@ -3215,7 +3215,6 @@ Thank you for choosing us!`;
           organizationId={currentOrganization.id}
         />
       )}
-      </main>
     </div>
   );
 }
