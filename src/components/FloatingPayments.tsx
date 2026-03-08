@@ -515,7 +515,7 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
   const { data: supplierBills } = useQuery({
     queryKey: ["supplier-bills", referenceId],
     queryFn: async () => {
-      const { data } = await supabase.from("purchase_bills").select("*").eq("supplier_id", referenceId).is("deleted_at", null).order("bill_date", { ascending: false });
+      const { data } = await supabase.from("purchase_bills").select("id, software_bill_no, supplier_invoice_no, bill_date, net_amount, paid_amount, payment_status").eq("supplier_id", referenceId).is("deleted_at", null).order("bill_date", { ascending: false });
       return data?.filter(b => (b.net_amount || 0) - (b.paid_amount || 0) > 0) || [];
     },
     enabled: !!referenceId,
