@@ -3436,42 +3436,7 @@ export default function Settings() {
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="header_text">Bill Header Text</Label>
-                  <Textarea
-                    id="header_text"
-                    value={settings.bill_barcode_settings?.header_text || ""}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        bill_barcode_settings: {
-                          ...settings.bill_barcode_settings,
-                          header_text: e.target.value,
-                        },
-                      })
-                    }
-                    placeholder="e.g., Thank you for your business!"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="footer_text">Bill Footer Text</Label>
-                  <Textarea
-                    id="footer_text"
-                    value={settings.bill_barcode_settings?.footer_text || ""}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        bill_barcode_settings: {
-                          ...settings.bill_barcode_settings,
-                          footer_text: e.target.value,
-                        },
-                      })
-                    }
-                    placeholder="e.g., Terms and conditions apply"
-                    rows={2}
-                  />
-                </div>
+                <p className="text-xs text-muted-foreground">Invoice header/footer text is configured in the Sale tab → Invoice Customization section</p>
                 <div className="space-y-2">
                   <Label htmlFor="barcode_format">Default Barcode Label Format (for Direct Printing)</Label>
                   <select
