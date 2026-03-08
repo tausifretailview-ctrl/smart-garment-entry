@@ -2624,7 +2624,7 @@ const PurchaseEntry = () => {
                               )
                             }
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-full text-right"
+                            className="w-full text-right bg-green-50 border-green-200 text-green-800 font-bold"
                           />
                         </TableCell>
                         <TableCell className="w-[120px]">
