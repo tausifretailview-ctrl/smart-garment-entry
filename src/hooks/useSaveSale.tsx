@@ -66,7 +66,7 @@ export const useSaveSale = () => {
       
       if (hasPlaceholders) {
         // Get the last invoice number matching this format pattern
-        const { data: lastSale } = await (supabase as any)
+        const { data: lastSale } = await supabase
           .from('sales')
           .select('sale_number')
           .eq('organization_id', currentOrganization?.id)
