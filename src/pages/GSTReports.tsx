@@ -360,34 +360,20 @@ const GSTReports = () => {
     setIsLoading(true);
     try {
       await fetchBusinessInfo();
-      
-      const fromDateObj = new Date(fromDate);
-      const toDateObj = new Date(toDate);
-      toDateObj.setHours(23, 59, 59, 999);
 
-      // Fetch sales
-      const { data: salesData } = await supabase
-        .from("sales")
-        .select("id, net_amount")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .gte("sale_date", fromDateObj.toISOString())
-        .lte("sale_date", toDateObj.toISOString());
+      // Use server-side RPC for outward GST aggregation
+      const { data: gstSummary, error: rpcError } = await supabase.rpc('get_gst_summary', {
+        p_organization_id: currentOrganization.id,
+        p_from_date: fromDate,
+        p_to_date: toDate,
+      });
+      if (rpcError) throw rpcError;
 
-      // Fetch sale items to calculate GST - use paginated fetch to bypass 1000 row limit
-      const saleIds = salesData?.map(s => s.id) || [];
-      const saleItems = saleIds.length > 0 ? await fetchAllSaleItems(saleIds) : [];
-
-      // Calculate GST from sale items
       let outwardTaxable = 0;
       let outwardGST = 0;
-      saleItems?.forEach(item => {
-        const rate = item.gst_percent || 0;
-        const lineTotal = item.line_total || 0;
-        const taxableValue = lineTotal / (1 + rate / 100);
-        const gstAmount = lineTotal - taxableValue;
-        outwardTaxable += taxableValue;
-        outwardGST += gstAmount;
+      (gstSummary || []).forEach((row: any) => {
+        outwardTaxable += Number(row.taxable_amount) || 0;
+        outwardGST += (Number(row.cgst_amount) || 0) + (Number(row.sgst_amount) || 0);
       });
 
       // Fetch purchases

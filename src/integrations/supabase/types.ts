@@ -6131,6 +6131,22 @@ export type Database = {
         Args: { p_end_date: string; p_org_id: string; p_start_date: string }
         Returns: Json
       }
+      get_gst_summary: {
+        Args: {
+          p_from_date: string
+          p_organization_id: string
+          p_to_date: string
+        }
+        Returns: {
+          cgst_amount: number
+          gst_percent: number
+          igst_amount: number
+          invoice_count: number
+          sgst_amount: number
+          taxable_amount: number
+          total_amount: number
+        }[]
+      }
       get_item_sales_summary: {
         Args: {
           p_customer_name?: string
