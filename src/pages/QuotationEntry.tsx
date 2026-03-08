@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
