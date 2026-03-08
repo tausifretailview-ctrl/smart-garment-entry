@@ -120,7 +120,7 @@ export const useSaveSale = () => {
       }
 
       // Check if this number already exists
-      const { data: existing } = await (supabase as any)
+      const { data: existing } = await supabase
         .from('sales')
         .select('id')
         .eq('sale_number', invoiceNumber)
