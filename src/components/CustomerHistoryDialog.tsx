@@ -458,7 +458,7 @@ export function CustomerHistoryDialog({
       if (!customerId || !organizationId) return [];
       const { data, error } = await supabase
         .from('customer_advances')
-        .select('*')
+        .select('id, advance_number, advance_date, amount, used_amount, payment_method, status')
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .order('advance_date', { ascending: false });
