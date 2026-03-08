@@ -1491,43 +1491,47 @@ Please clear your dues at the earliest. Thank you!`;
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-0">
               {selectedCustomer.opening_balance !== 0 && (
-                <Card>
-                  <CardContent className="pt-6">
-                    <div className="text-sm text-muted-foreground mb-1">Opening Balance</div>
+                <Card className="border-l-4 border-l-orange-400 overflow-hidden">
+                  <CardContent className="p-4">
+                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Opening Balance</div>
                     <div className={cn(
-                      "text-2xl font-bold",
-                      selectedCustomer.opening_balance > 0 ? "text-orange-600 dark:text-orange-400" : "text-green-600 dark:text-green-400"
+                      "text-xl font-bold tabular-nums",
+                      selectedCustomer.opening_balance > 0 ? "text-orange-600 dark:text-orange-400" : "text-emerald-600 dark:text-emerald-400"
                     )}>
                       ₹{Math.abs(selectedCustomer.opening_balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                     </div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs text-muted-foreground mt-0.5">
                       {selectedCustomer.opening_balance > 0 ? "Receivable" : "Advance"}
                     </div>
                   </CardContent>
                 </Card>
               )}
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-sm text-muted-foreground mb-1">{isSchool ? 'Total Fees' : 'Total Sales'}</div>
-                  <div className="text-2xl font-bold">
+              <Card className="border-l-4 border-l-blue-400 overflow-hidden">
+                <CardContent className="p-4">
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                    {isSchool ? 'Total Fees' : 'Total Sales'}
+                  </div>
+                  <div className="text-xl font-bold text-blue-700 dark:text-blue-300 tabular-nums">
                     ₹{selectedCustomer.totalSales.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
                 </CardContent>
               </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-sm text-muted-foreground mb-1">{isSchool ? 'Fees Paid' : 'Total Paid'}</div>
-                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+              <Card className="border-l-4 border-l-emerald-400 overflow-hidden">
+                <CardContent className="p-4">
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                    {isSchool ? 'Fees Paid' : 'Total Paid'}
+                  </div>
+                  <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
                     ₹{selectedCustomer.totalPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
                 </CardContent>
               </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-sm text-muted-foreground mb-1">Collection Rate</div>
-                  <div className="text-2xl font-bold">
+              <Card className="border-l-4 border-l-violet-400 overflow-hidden">
+                <CardContent className="p-4">
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Collection Rate</div>
+                  <div className="text-xl font-bold text-violet-700 dark:text-violet-300 tabular-nums">
                     {(selectedCustomer.totalSales + Math.max(0, selectedCustomer.opening_balance)) > 0
                       ? ((selectedCustomer.totalPaid / (selectedCustomer.totalSales + Math.max(0, selectedCustomer.opening_balance))) * 100).toFixed(1)
                       : '0.0'}%
@@ -1536,7 +1540,7 @@ Please clear your dues at the earliest. Thank you!`;
               </Card>
             </div>
 
-            <Separator className="my-6" />
+            <div className="my-4" />
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-2 mb-4">
