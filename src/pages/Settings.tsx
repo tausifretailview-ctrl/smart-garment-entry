@@ -1757,37 +1757,24 @@ export default function Settings() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="invoice_paper_format">Invoice Paper Format</Label>
-                  <Select
-                    value={settings.sale_settings?.invoice_paper_format || "a5-vertical"}
-                    onValueChange={(value) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          invoice_paper_format: value as 'a5-vertical' | 'a5-horizontal' | 'a4',
-                        },
-                      })
-                    }
-                  >
-                    <SelectTrigger id="invoice_paper_format">
-                      <SelectValue placeholder="Select paper format" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="a5-vertical">A5 Vertical (148mm × 210mm) - Most common</SelectItem>
-                      <SelectItem value="a5-horizontal">A5 Horizontal (210mm × 148mm) - Landscape</SelectItem>
-                      <SelectItem value="a4">A4 Full (210mm × 297mm) - Professional</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
                 <div className="space-y-4 pt-4 border-t">
-                  <h3 className="text-lg font-semibold">Bill Format Settings</h3>
-                  <p className="text-sm text-muted-foreground">Configure print formats for sales and POS</p>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                      <Printer className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold leading-none">Print Format</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">Paper size and printer settings for invoices</p>
+                    </div>
+                  </div>
+
+                  {/* Enable preview toggle */}
+                  <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/30">
+                    <div>
+                      <p className="text-sm font-medium">Invoice Preview Dialog</p>
+                      <p className="text-xs text-muted-foreground">Show preview before printing (disable for direct print)</p>
+                    </div>
+                    <Switch
                       id="show_invoice_preview"
                       checked={settings.sale_settings?.show_invoice_preview ?? true}
                       onCheckedChange={(checked) =>
@@ -1800,99 +1787,96 @@ export default function Settings() {
                         })
                       }
                     />
-                    <div>
-                      <Label htmlFor="show_invoice_preview" className="font-normal cursor-pointer">
-                        Enable Invoice Preview
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        When enabled, shows a preview dialog before printing. When disabled, directly opens the print dialog.
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="sales_bill_format">Sales Invoice Bill Format</Label>
-                    <Select
-                      value={settings.sale_settings?.sales_bill_format || "a4"}
-                      onValueChange={(value) =>
-                        setSettings({
-                          ...settings,
-                          sale_settings: {
-                            ...settings.sale_settings,
-                            sales_bill_format: value as 'a4' | 'a5' | 'thermal',
-                          },
-                        })
-                      }
-                    >
-                      <SelectTrigger id="sales_bill_format">
-                        <SelectValue placeholder="Select format" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="a4">A4 (210mm × 297mm)</SelectItem>
-                        <SelectItem value="a5">A5 (148mm × 210mm)</SelectItem>
-                        <SelectItem value="thermal">Thermal (80mm)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Default format for sales invoice printing
-                    </p>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="thermal_receipt_style">Thermal Receipt Style</Label>
-                    <Select
-                      value={settings.sale_settings?.thermal_receipt_style || "classic"}
-                      onValueChange={(value) =>
-                        setSettings({
-                          ...settings,
-                          sale_settings: {
-                            ...settings.sale_settings,
-                            thermal_receipt_style: value as 'classic' | 'compact',
-                          },
-                        })
-                      }
-                    >
-                      <SelectTrigger id="thermal_receipt_style">
-                        <SelectValue placeholder="Select style" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="classic">Classic (Monospace)</SelectItem>
-                        <SelectItem value="compact">Compact (Sans-serif)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Visual style used when printing thermal (80mm) receipts
-                    </p>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="pos_bill_format">POS Bill Format</Label>
-                    <Select
-                      value={settings.sale_settings?.pos_bill_format || "thermal"}
-                      onValueChange={(value) =>
-                        setSettings({
-                          ...settings,
-                          sale_settings: {
-                            ...settings.sale_settings,
-                            pos_bill_format: value as 'a4' | 'a5' | 'a5-horizontal' | 'thermal',
-                          },
-                        })
-                      }
-                    >
-                      <SelectTrigger id="pos_bill_format">
-                        <SelectValue placeholder="Select format" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="thermal">Thermal (80mm) - Most common</SelectItem>
-                        <SelectItem value="a5">A5 Vertical (148mm × 210mm)</SelectItem>
-                        <SelectItem value="a5-horizontal">A5 Horizontal (210mm × 148mm)</SelectItem>
-                        <SelectItem value="a4">A4 (210mm × 297mm)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Default format for POS printing (Thermal recommended)
-                    </p>
+                  {/* 2-column grid: Sale format | POS format */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="invoice_paper_format" className="text-sm font-medium">Sale Invoice Format</Label>
+                      <Select
+                        value={settings.sale_settings?.invoice_paper_format || "a4"}
+                        onValueChange={(value) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              invoice_paper_format: value as any,
+                              // keep sales_bill_format in sync for backward compat
+                              sales_bill_format:
+                                value === 'thermal' ? 'thermal'
+                                : value === 'a5-vertical' ? 'a5'
+                                : 'a4',
+                            },
+                          })
+                        }
+                      >
+                        <SelectTrigger id="invoice_paper_format">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="a4">A4 — Laser / Inkjet</SelectItem>
+                          <SelectItem value="a5-vertical">A5 Portrait</SelectItem>
+                          <SelectItem value="a5-horizontal">A5 Landscape</SelectItem>
+                          <SelectItem value="thermal">Thermal 80mm</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="pos_bill_format" className="text-sm font-medium">POS Bill Format</Label>
+                      <Select
+                        value={settings.sale_settings?.pos_bill_format || "thermal"}
+                        onValueChange={(value) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              pos_bill_format: value as any,
+                            },
+                          })
+                        }
+                      >
+                        <SelectTrigger id="pos_bill_format">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="thermal">Thermal 80mm — Most common</SelectItem>
+                          <SelectItem value="a5-vertical">A5 Portrait</SelectItem>
+                          <SelectItem value="a5-horizontal">A5 Landscape</SelectItem>
+                          <SelectItem value="a4">A4</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
+
+                  {/* Thermal style — shown only when either format is thermal */}
+                  {(settings.sale_settings?.invoice_paper_format === 'thermal' ||
+                    settings.sale_settings?.pos_bill_format === 'thermal') && (
+                    <div className="space-y-2">
+                      <Label htmlFor="thermal_receipt_style" className="text-sm font-medium">Thermal Receipt Style</Label>
+                      <Select
+                        value={settings.sale_settings?.thermal_receipt_style || "classic"}
+                        onValueChange={(value) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              thermal_receipt_style: value as 'classic' | 'compact',
+                            },
+                          })
+                        }
+                      >
+                        <SelectTrigger id="thermal_receipt_style">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="classic">Classic — Monospace receipt</SelectItem>
+                          <SelectItem value="compact">Compact — Sans-serif, denser</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">Applies to all thermal printers (sale + POS)</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Item Details Display Settings */}
