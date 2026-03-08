@@ -691,16 +691,16 @@ export function CustomerHistoryDialog({
                   <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
                 ) : salesHistory && salesHistory.length > 0 ? (
                   <Table>
-                    <TableHeader className="bg-background">
-                      <TableRow className="border-b-2 border-border">
-                        <TableHead className="w-8 text-foreground font-bold"></TableHead>
-                        <TableHead className="text-foreground font-bold">Invoice #</TableHead>
-                        <TableHead className="text-foreground font-bold">Date</TableHead>
-                        <TableHead className="text-foreground font-bold">Type</TableHead>
-                        <TableHead className="text-foreground font-bold">Amount</TableHead>
-                        <TableHead className="text-foreground font-bold">Paid</TableHead>
-                        <TableHead className="text-foreground font-bold">Status</TableHead>
-                        <TableHead className="w-10 text-foreground font-bold"></TableHead>
+                    <TableHeader className="bg-slate-50 dark:bg-slate-900 sticky top-0">
+                      <TableRow className="border-b-2 border-slate-200 dark:border-slate-700">
+                        <TableHead className="w-8 text-xs font-bold uppercase tracking-wide text-slate-600"></TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600">Invoice #</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600">Date</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600">Type</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600">Amount</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600">Paid</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600">Status</TableHead>
+                        <TableHead className="w-10 text-xs font-bold uppercase tracking-wide text-slate-600"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
