@@ -31,6 +31,7 @@ import { useCustomerPoints, useCustomerPointsBalance } from "@/hooks/useCustomer
 import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
 import { useBeepSound } from "@/hooks/useBeepSound";
 import { useCashDrawer } from "@/hooks/useCashDrawer";
+import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { CreditNotePrint } from "@/components/CreditNotePrint";
 import {
   Command,
