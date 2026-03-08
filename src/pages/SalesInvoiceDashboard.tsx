@@ -1512,18 +1512,18 @@ export default function SalesInvoiceDashboard() {
 
         {/* Unsaved Draft Card */}
         {hasDraft && draftData && (
-          <Card className="border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">
-            <CardHeader className="pb-3">
+          <Card className="border border-amber-400/60 bg-amber-50 rounded-xl shadow-sm">
+            <CardHeader className="py-3 px-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                  <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
                     <FileText className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                   </div>
                   <div>
-                    <h3 className="text-base font-semibold text-amber-800 dark:text-amber-200">
+                    <h3 className="text-[13px] font-bold text-amber-800">
                       Unsaved Sales Invoice Found
                     </h3>
-                    <CardDescription className="text-black dark:text-black font-bold">
+                    <CardDescription className="text-[12px] text-amber-700 font-medium mt-0.5">
                       {lastSaved ? `Draft available • Last saved ${formatDistanceToNow(lastSaved, { addSuffix: true })}` : 'Draft available'}
                       {draftData.lineItems?.length > 0 && ` • ${draftData.lineItems.length} item(s)`}
                       {draftData.billData?.customer_name && ` • ${draftData.billData.customer_name}`}
@@ -1541,7 +1541,7 @@ export default function SalesInvoiceDashboard() {
                         description: "The unsaved sales invoice has been removed",
                       });
                     }}
-                    className="gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/30"
+                    className="gap-1.5 h-8 text-[12px] border-amber-300 text-amber-700 hover:bg-amber-100"
                   >
                     <X className="h-4 w-4" />
                     Discard
@@ -1551,11 +1551,15 @@ export default function SalesInvoiceDashboard() {
                     onClick={() => {
                       navigate("/sales-invoice", { state: { loadDraft: true } });
                     }}
-                    className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+                    className="gap-1.5 h-8 text-[12px] bg-amber-500 hover:bg-amber-600 text-white font-semibold shadow-sm"
                   >
                     <Edit className="h-4 w-4" />
                     Resume Draft
                   </Button>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
                 </div>
               </div>
             </CardHeader>
