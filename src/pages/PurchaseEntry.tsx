@@ -2538,9 +2538,9 @@ const PurchaseEntry = () => {
                 </div>
               </div>
           </div>
-          <div className="border rounded-lg overflow-x-auto">
-            <Table className="table-fixed min-w-[1460px]">
-              <TableHeader className="sticky top-0 z-10 erp-invoice-table-header">
+          <div className='flex-1 overflow-auto border-0'>
+            <Table className='table-fixed min-w-[1460px] border-separate border-spacing-0'>
+              <TableHeader className='sticky top-0 z-10 erp-invoice-table-header'>
                   <TableRow>
                     <TableHead className="w-[40px]">
                       <input
