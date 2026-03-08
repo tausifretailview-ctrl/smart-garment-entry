@@ -769,18 +769,30 @@ const PurchaseBillDashboard = () => {
     });
   }, [bills, sortOrder]);
 
-  // Memoize summary statistics
+  // Server-side summary stats via RPC
+  const { data: purchaseSummaryData } = useQuery({
+    queryKey: ['purchase-summary', currentOrganization?.id, startDate, endDate],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_purchase_summary', {
+        p_org_id: currentOrganization!.id,
+        p_start_date: startDate || null,
+        p_end_date: endDate || null,
+      });
+      if (error) throw error;
+      return data as { total_count: number; total_amount: number; paid_amount: number; unpaid_amount: number; partial_amount: number };
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 30_000,
+  });
+
   const summaryStats = useMemo(() => ({
-    totalBills: billsQueryData?.totalCount || filteredBills.length,
-    totalAmount: filteredBills.reduce((sum, bill) => sum + bill.net_amount, 0),
+    totalBills: purchaseSummaryData?.total_count ?? (billsQueryData?.totalCount || 0),
+    totalAmount: purchaseSummaryData?.total_amount ?? 0,
     totalQty: filteredBills.reduce((sum, bill) => sum + (bill.total_qty || 0), 0),
-    paidCount: filteredBills.filter(bill => bill.payment_status === 'paid' || (bill.paid_amount || 0) >= bill.net_amount).length,
-    paidAmount: filteredBills.filter(bill => bill.payment_status === 'paid' || (bill.paid_amount || 0) >= bill.net_amount).reduce((sum, bill) => sum + bill.net_amount, 0),
-    unpaidCount: filteredBills.filter(bill => !bill.payment_status || bill.payment_status === 'unpaid' || (bill.paid_amount || 0) === 0).length,
-    unpaidAmount: filteredBills.filter(bill => !bill.payment_status || bill.payment_status === 'unpaid' || (bill.paid_amount || 0) === 0).reduce((sum, bill) => sum + bill.net_amount, 0),
-    partialCount: filteredBills.filter(bill => bill.payment_status === 'partial' || ((bill.paid_amount || 0) > 0 && (bill.paid_amount || 0) < bill.net_amount)).length,
-    partialAmount: filteredBills.filter(bill => bill.payment_status === 'partial' || ((bill.paid_amount || 0) > 0 && (bill.paid_amount || 0) < bill.net_amount)).reduce((sum, bill) => sum + (bill.net_amount - (bill.paid_amount || 0)), 0),
-  }), [filteredBills, billsQueryData]);
+    paidAmount: purchaseSummaryData?.paid_amount ?? 0,
+    unpaidAmount: purchaseSummaryData?.unpaid_amount ?? 0,
+    partialAmount: purchaseSummaryData?.partial_amount ?? 0,
+  }), [purchaseSummaryData, billsQueryData, filteredBills]);
 
   // Server-side pagination — bills already represent current page
   const totalPages = useMemo(() => Math.ceil((billsQueryData?.totalCount || filteredBills.length) / itemsPerPage), [billsQueryData, filteredBills.length, itemsPerPage]);

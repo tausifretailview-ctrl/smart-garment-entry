@@ -237,17 +237,30 @@ export default function QuotationDashboard() {
     return <Badge className={config.className}>{config.label}</Badge>;
   };
 
-  // Calculate statistics
+  // Server-side summary stats via RPC
+  const { data: quotationSummaryData } = useQuery({
+    queryKey: ['quotation-summary', currentOrganization?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_quotation_summary', {
+        p_org_id: currentOrganization!.id,
+      });
+      if (error) throw error;
+      return data as { total_count: number; total_amount: number; draft_count: number; sent_count: number; accepted_count: number };
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 30_000,
+  });
+
   const allQuotations = quotationsData || [];
   const stats = {
-    total: allQuotations.length,
-    totalValue: allQuotations.reduce((sum: number, q: any) => sum + (q.net_amount || 0), 0),
-    draft: allQuotations.filter((q: any) => q.status === 'draft').length,
-    sent: allQuotations.filter((q: any) => q.status === 'sent').length,
-    confirmed: allQuotations.filter((q: any) => q.status === 'confirmed').length,
+    total: quotationSummaryData?.total_count ?? allQuotations.length,
+    totalValue: quotationSummaryData?.total_amount ?? 0,
+    draft: quotationSummaryData?.draft_count ?? 0,
+    sent: quotationSummaryData?.sent_count ?? 0,
+    confirmed: quotationSummaryData?.accepted_count ?? 0,
     expired: allQuotations.filter((q: any) => q.status === 'expired').length,
-    conversionRate: allQuotations.length > 0 
-      ? ((allQuotations.filter((q: any) => q.status === 'confirmed').length / allQuotations.length) * 100).toFixed(1)
+    conversionRate: (quotationSummaryData?.total_count ?? 0) > 0
+      ? (((quotationSummaryData?.accepted_count ?? 0) / quotationSummaryData!.total_count) * 100).toFixed(1)
       : '0',
   };
 
