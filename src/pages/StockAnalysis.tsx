@@ -20,6 +20,7 @@ interface StockItem {
   purchase_qty: number;
   purchase_return_qty: number;
   sales_qty: number;
+  sale_return_qty: number;
   sale_price: number;
   pur_price: number | null;
   barcode: string;
