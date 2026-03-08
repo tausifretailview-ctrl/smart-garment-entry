@@ -423,7 +423,7 @@ export function CustomerHistoryDialog({
       if (!customerId || !organizationId) return [];
       const { data, error } = await supabase
         .from('sale_returns')
-        .select('*')
+        .select('id, return_number, return_date, original_sale_number, net_amount')
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .is('deleted_at', null)
