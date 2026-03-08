@@ -167,7 +167,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
   const { data: settings } = useQuery({
     queryKey: ["settings", orgId],
     queryFn: async () => {
-      const { data } = await supabase.from("settings").select("sale_settings").eq("organization_id", orgId!).maybeSingle();
+      const { data } = await supabase.from("settings").select("sale_settings, business_name").eq("organization_id", orgId!).maybeSingle();
       return data;
     },
     enabled: !!orgId && open,

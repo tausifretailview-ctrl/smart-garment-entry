@@ -47,7 +47,7 @@ export const FloatingPayments = ({ open, onOpenChange }: FloatingPaymentsProps) 
   const { data: settings } = useQuery({
     queryKey: ["settings", orgId],
     queryFn: async () => {
-      const { data } = await supabase.from("settings").select("sale_settings, business_name, gst_number, bill_barcode_settings").eq("organization_id", orgId).maybeSingle();
+      const { data } = await supabase.from("settings").select("sale_settings, business_name, gst_number, bill_barcode_settings, address, mobile_number, email_id").eq("organization_id", orgId).maybeSingle();
       return data;
     },
     enabled: !!orgId,
