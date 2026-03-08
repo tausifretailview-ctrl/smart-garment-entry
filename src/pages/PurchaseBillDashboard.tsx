@@ -90,6 +90,7 @@ interface PurchaseBill {
   created_at: string;
   payment_status?: string;
   paid_amount?: number;
+  total_qty?: number;
   items?: PurchaseItem[];
 }
 
@@ -178,25 +179,45 @@ const PurchaseBillDashboard = () => {
       {
         label: "Print Barcodes",
         icon: Barcode,
-        onClick: () => {
-          const items = billItems[bill.id] || [];
-          const barcodeItems = items.map(item => ({
-            sku_id: item.id,
-            product_name: item.product_name || "",
-            brand: item.brand || "",
-            category: item.category || "",
-            color: item.color || "",
-            style: item.style || "",
-            size: item.size,
-            sale_price: item.sale_price,
-            mrp: item.mrp,
-            pur_price: item.pur_price,
-            barcode: item.barcode,
-            qty: item.qty,
-            bill_number: bill.software_bill_no || bill.supplier_invoice_no,
-            supplier_code: "",
-          }));
-          navigate("/barcode-printing", { state: { purchaseItems: barcodeItems } });
+        onClick: async () => {
+          try {
+            // Fetch items fresh from database instead of relying on expand cache
+            const { data: items, error } = await supabase
+              .from("purchase_items")
+              .select("id, product_name, brand, category, color, style, size, sale_price, mrp, pur_price, barcode, qty")
+              .eq("bill_id", bill.id);
+            if (error) throw error;
+
+            let supplierCode = "";
+            if (bill.supplier_id) {
+              const { data: supplierData } = await supabase
+                .from("suppliers")
+                .select("supplier_code")
+                .eq("id", bill.supplier_id)
+                .single();
+              supplierCode = supplierData?.supplier_code || "";
+            }
+
+            const barcodeItems = (items || []).map(item => ({
+              sku_id: item.id,
+              product_name: item.product_name || "",
+              brand: item.brand || "",
+              category: item.category || "",
+              color: item.color || "",
+              style: item.style || "",
+              size: item.size,
+              sale_price: item.sale_price,
+              mrp: item.mrp,
+              pur_price: item.pur_price,
+              barcode: item.barcode,
+              qty: item.qty,
+              bill_number: bill.software_bill_no || bill.supplier_invoice_no,
+              supplier_code: supplierCode,
+            }));
+            navigate("/barcode-printing", { state: { purchaseItems: barcodeItems } });
+          } catch (err) {
+            toast({ title: "Error loading items for barcode print", variant: "destructive" });
+          }
         },
       },
     ];
@@ -293,7 +314,7 @@ const PurchaseBillDashboard = () => {
 
       let query = supabase
         .from("purchase_bills")
-        .select("id, supplier_id, supplier_name, supplier_invoice_no, software_bill_no, bill_date, gross_amount, discount_amount, gst_amount, net_amount, notes, created_at, payment_status, paid_amount", { count: "exact" })
+        .select("id, supplier_id, supplier_name, supplier_invoice_no, software_bill_no, bill_date, gross_amount, discount_amount, gst_amount, net_amount, notes, created_at, payment_status, paid_amount, total_qty", { count: "exact" })
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
 
@@ -752,17 +773,14 @@ const PurchaseBillDashboard = () => {
   const summaryStats = useMemo(() => ({
     totalBills: billsQueryData?.totalCount || filteredBills.length,
     totalAmount: filteredBills.reduce((sum, bill) => sum + bill.net_amount, 0),
-    totalQty: filteredBills.reduce((sum, bill) => {
-      const billQty = billItems[bill.id]?.reduce((itemSum, item) => itemSum + item.qty, 0) || 0;
-      return sum + billQty;
-    }, 0),
+    totalQty: filteredBills.reduce((sum, bill) => sum + (bill.total_qty || 0), 0),
     paidCount: filteredBills.filter(bill => bill.payment_status === 'paid' || (bill.paid_amount || 0) >= bill.net_amount).length,
     paidAmount: filteredBills.filter(bill => bill.payment_status === 'paid' || (bill.paid_amount || 0) >= bill.net_amount).reduce((sum, bill) => sum + bill.net_amount, 0),
     unpaidCount: filteredBills.filter(bill => !bill.payment_status || bill.payment_status === 'unpaid' || (bill.paid_amount || 0) === 0).length,
     unpaidAmount: filteredBills.filter(bill => !bill.payment_status || bill.payment_status === 'unpaid' || (bill.paid_amount || 0) === 0).reduce((sum, bill) => sum + bill.net_amount, 0),
     partialCount: filteredBills.filter(bill => bill.payment_status === 'partial' || ((bill.paid_amount || 0) > 0 && (bill.paid_amount || 0) < bill.net_amount)).length,
     partialAmount: filteredBills.filter(bill => bill.payment_status === 'partial' || ((bill.paid_amount || 0) > 0 && (bill.paid_amount || 0) < bill.net_amount)).reduce((sum, bill) => sum + (bill.net_amount - (bill.paid_amount || 0)), 0),
-  }), [filteredBills, billItems, billsQueryData]);
+  }), [filteredBills, billsQueryData]);
 
   // Server-side pagination — bills already represent current page
   const totalPages = useMemo(() => Math.ceil((billsQueryData?.totalCount || filteredBills.length) / itemsPerPage), [billsQueryData, filteredBills.length, itemsPerPage]);
@@ -883,7 +901,7 @@ const PurchaseBillDashboard = () => {
               {bill.supplier_name}
             </span>
             <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
-              {billItems[bill.id]?.reduce((sum, item) => sum + item.qty, 0) || 0}
+              {bill.total_qty || 0}
             </Badge>
           </div>
         );

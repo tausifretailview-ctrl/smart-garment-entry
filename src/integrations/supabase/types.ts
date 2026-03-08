@@ -2752,6 +2752,7 @@ export type Database = {
           supplier_id: string | null
           supplier_invoice_no: string | null
           supplier_name: string
+          total_qty: number | null
           updated_at: string
         }
         Insert: {
@@ -2774,6 +2775,7 @@ export type Database = {
           supplier_id?: string | null
           supplier_invoice_no?: string | null
           supplier_name: string
+          total_qty?: number | null
           updated_at?: string
         }
         Update: {
@@ -2796,6 +2798,7 @@ export type Database = {
           supplier_id?: string | null
           supplier_invoice_no?: string | null
           supplier_name?: string
+          total_qty?: number | null
           updated_at?: string
         }
         Relationships: [
