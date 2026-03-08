@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useSettings } from "@/hooks/useSettings";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useVisibilityRefetch } from "@/hooks/useVisibilityRefetch";
@@ -430,22 +431,8 @@ export default function POSSales() {
     }
   };
 
-  // Fetch settings to apply defaults
-  const { data: settingsData } = useQuery({
-    queryKey: ['pos-settings', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return null;
-      const { data, error } = await supabase
-        .from('settings' as any)
-        .select('*')
-        .eq('organization_id', currentOrganization.id)
-        .maybeSingle();
-      
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!currentOrganization?.id,
-  });
+  // Fetch settings (centralized, cached 5min)
+  const { data: settingsData } = useSettings();
 
   // Direct print hook
   const { isDirectPrintEnabled, isAutoPrintEnabled, directPrint } = useDirectPrint(

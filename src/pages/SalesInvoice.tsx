@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSettings } from "@/hooks/useSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
@@ -369,25 +370,8 @@ export default function SalesInvoice() {
   
   const { getCustomerBalance, getCustomerAdvance } = useCustomerBalances();
 
-  // Fetch settings
-  const { data: settingsData } = useQuery({
-    queryKey: ['settings', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return null;
-      
-      const { data, error } = await supabase
-        .from('settings')
-        .select('business_name, address, mobile_number, email_id, gst_number, sale_settings, bill_barcode_settings')
-        .eq('organization_id', currentOrganization.id)
-        .maybeSingle();
-      
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 300000,
-    refetchOnWindowFocus: false,
-  });
+  // Fetch settings (centralized, cached 5min)
+  const { data: settingsData } = useSettings();
 
   // Read size grid setting from settings
   useEffect(() => {
