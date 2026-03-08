@@ -47,7 +47,7 @@ export const FloatingPayments = ({ open, onOpenChange }: FloatingPaymentsProps) 
   const { data: settings } = useQuery({
     queryKey: ["settings", orgId],
     queryFn: async () => {
-      const { data } = await supabase.from("settings").select("*").eq("organization_id", orgId).maybeSingle();
+      const { data } = await supabase.from("settings").select("sale_settings, business_name, gst_number, bill_barcode_settings, address, mobile_number, email_id").eq("organization_id", orgId).maybeSingle();
       return data;
     },
     enabled: !!orgId,
@@ -186,7 +186,7 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
   const { data: customerInvoices } = useQuery({
     queryKey: ["customer-invoices", referenceId],
     queryFn: async () => {
-      const { data } = await supabase.from("sales").select("*").eq("customer_id", referenceId).in("payment_status", ["pending", "partial"]).is("deleted_at", null).order("sale_date", { ascending: false });
+      const { data } = await supabase.from("sales").select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, customer_name, customer_phone, customer_address").eq("customer_id", referenceId).in("payment_status", ["pending", "partial"]).is("deleted_at", null).order("sale_date", { ascending: false });
       return data || [];
     },
     enabled: !!referenceId,
@@ -500,7 +500,7 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
   const { data: suppliersWithBalance } = useQuery({
     queryKey: ["suppliers-with-balance", organizationId],
     queryFn: async () => {
-      const { data: allSuppliers } = await supabase.from("suppliers").select("*").eq("organization_id", organizationId).is("deleted_at", null).order("supplier_name");
+      const { data: allSuppliers } = await supabase.from("suppliers").select("id, supplier_name, opening_balance, phone").eq("organization_id", organizationId).is("deleted_at", null).order("supplier_name");
       const { data: allBills } = await supabase.from("purchase_bills").select("supplier_id, net_amount, paid_amount").eq("organization_id", organizationId).is("deleted_at", null);
       const balances = new Map<string, number>();
       allBills?.forEach((b: any) => {
@@ -515,7 +515,7 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
   const { data: supplierBills } = useQuery({
     queryKey: ["supplier-bills", referenceId],
     queryFn: async () => {
-      const { data } = await supabase.from("purchase_bills").select("*").eq("supplier_id", referenceId).is("deleted_at", null).order("bill_date", { ascending: false });
+      const { data } = await supabase.from("purchase_bills").select("id, software_bill_no, supplier_invoice_no, bill_date, net_amount, paid_amount, payment_status").eq("supplier_id", referenceId).is("deleted_at", null).order("bill_date", { ascending: false });
       return data?.filter(b => (b.net_amount || 0) - (b.paid_amount || 0) > 0) || [];
     },
     enabled: !!referenceId,
@@ -743,7 +743,7 @@ function ExpenseForm({ organizationId }: { organizationId: string }) {
   const { data: recentExpenses } = useQuery({
     queryKey: ["recent-expenses", organizationId],
     queryFn: async () => {
-      const { data } = await supabase.from("voucher_entries").select("*").eq("organization_id", organizationId).eq("reference_type", "expense").is("deleted_at", null).order("created_at", { ascending: false }).limit(5);
+      const { data } = await supabase.from("voucher_entries").select("id, voucher_number, voucher_date, voucher_type, total_amount, description, category").eq("organization_id", organizationId).eq("reference_type", "expense").is("deleted_at", null).order("created_at", { ascending: false }).limit(5);
       return data || [];
     },
     enabled: !!organizationId,

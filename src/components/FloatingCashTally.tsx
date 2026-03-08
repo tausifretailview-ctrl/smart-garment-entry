@@ -133,7 +133,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
     queryFn: async () => {
       const { data, error } = await supabase
         .from("daily_tally_snapshot")
-        .select("*")
+        .select("opening_cash, physical_cash, expected_cash, difference_amount, denomination_data, deposit_to_bank, handover_to_owner, leave_in_drawer, notes, tally_date")
         .eq("organization_id", orgId!)
         .eq("tally_date", dateStr)
         .maybeSingle();
@@ -167,7 +167,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
   const { data: settings } = useQuery({
     queryKey: ["settings", orgId],
     queryFn: async () => {
-      const { data } = await supabase.from("settings").select("*").eq("organization_id", orgId!).maybeSingle();
+      const { data } = await supabase.from("settings").select("sale_settings, business_name").eq("organization_id", orgId!).maybeSingle();
       return data;
     },
     enabled: !!orgId && open,

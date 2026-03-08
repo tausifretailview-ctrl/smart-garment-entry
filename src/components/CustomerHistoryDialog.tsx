@@ -388,7 +388,7 @@ export function CustomerHistoryDialog({
       const saleIds = sales.map(s => s.id);
       const { data, error } = await supabase
         .from('voucher_entries')
-        .select('*')
+        .select('id, voucher_number, voucher_date, voucher_type, total_amount, description')
         .eq('organization_id', organizationId)
         .in('reference_id', saleIds)
         .or('voucher_type.eq.receipt,voucher_type.eq.RECEIPT')
@@ -406,7 +406,7 @@ export function CustomerHistoryDialog({
       if (!customerId || !organizationId) return [];
       const { data, error } = await supabase
         .from('credit_notes')
-        .select('*')
+        .select('id, credit_note_number, issue_date, credit_amount, used_amount, status')
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .order('issue_date', { ascending: false });
@@ -423,7 +423,7 @@ export function CustomerHistoryDialog({
       if (!customerId || !organizationId) return [];
       const { data, error } = await supabase
         .from('sale_returns')
-        .select('*')
+        .select('id, return_number, return_date, original_sale_number, net_amount')
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .is('deleted_at', null)
@@ -458,7 +458,7 @@ export function CustomerHistoryDialog({
       if (!customerId || !organizationId) return [];
       const { data, error } = await supabase
         .from('customer_advances')
-        .select('*')
+        .select('id, advance_number, advance_date, amount, used_amount, payment_method, status')
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .order('advance_date', { ascending: false });
@@ -475,7 +475,7 @@ export function CustomerHistoryDialog({
       if (!customerId || !organizationId) return [];
       const { data, error } = await supabase
         .from('customer_balance_adjustments')
-        .select('*')
+        .select('id, adjustment_date, reason, previous_outstanding, new_outstanding, outstanding_difference, previous_advance, new_advance, advance_difference')
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .order('adjustment_date', { ascending: false });
