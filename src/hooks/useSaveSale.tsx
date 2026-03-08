@@ -817,7 +817,7 @@ export const useSaveSale = () => {
       };
 
       // Insert sale record with hold status (NO sale_items - no stock impact)
-      const { data: sale, error: saleError } = await (supabase as any)
+      const { data: sale, error: saleError } = await supabase
         .from('sales')
         .insert({
           sale_number: saleNumber,
