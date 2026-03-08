@@ -348,6 +348,19 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
             credit: 0,
             balance: runningBalance,
           });
+        } else if (item.type === 'refund_received') {
+          const r = item.data as any;
+          runningBalance -= r.total_amount;
+          allTransactions.push({
+            id: r.id,
+            date: r.voucher_date,
+            type: 'payment',
+            reference: r.voucher_number,
+            description: r.description || 'Refund Received from Supplier',
+            debit: r.total_amount,
+            credit: 0,
+            balance: runningBalance,
+          });
         } else {
           const voucher = item.data as any;
           runningBalance -= voucher.total_amount;
