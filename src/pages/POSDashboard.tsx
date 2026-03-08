@@ -36,6 +36,7 @@ import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { PaymentReceipt } from "@/components/PaymentReceipt";
 import { useQuery } from "@tanstack/react-query";
+import { useSettings } from "@/hooks/useSettings";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
