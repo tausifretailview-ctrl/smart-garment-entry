@@ -2545,7 +2545,7 @@ Thank you for choosing us!`;
       </section>
 
       {/* Product Entry Bar */}
-      <section className="bg-primary/5 dark:bg-primary/10 border-b border-primary/20 px-6 py-3">
+      <section className="bg-slate-50 border-b border-slate-200 px-5 py-3 shrink-0">
           <div className="flex items-center gap-3 flex-wrap">
             {/* Entry Mode Toggle */}
             {sizeGridEnabled && (
