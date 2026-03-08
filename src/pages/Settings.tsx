@@ -2215,7 +2215,7 @@ export default function Settings() {
                               ...settings,
                               sale_settings: {
                                 ...settings.sale_settings,
-                                min_item_rows: parseInt(e.target.value) || 8,
+                                min_item_rows: parseInt(e.target.value) || 12,
                               },
                             })
                           }
