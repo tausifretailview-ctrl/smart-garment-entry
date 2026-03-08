@@ -924,7 +924,7 @@ export default function StockReport() {
             placeholder="Search by barcode, product name, brand, size..."
             className="flex-1"
           />
-          <Button onClick={handleSearch} disabled={loading || !hasActiveFilters}>
+          <Button onClick={handleSearch} disabled={loading || !hasActiveFilters} className="shadow-sm font-semibold px-6">
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
             Search
           </Button>
