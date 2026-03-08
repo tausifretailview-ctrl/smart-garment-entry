@@ -719,7 +719,18 @@ export function CustomerHistoryDialog({
                               <TableCell>₹{sale.net_amount.toFixed(2)}</TableCell>
                               <TableCell>₹{(sale.paid_amount || 0).toFixed(2)}</TableCell>
                               <TableCell>
-                                <Badge variant={sale.payment_status === 'completed' ? 'default' : 'secondary'}>{sale.payment_status}</Badge>
+                                {(() => {
+                                  const statusConfig: Record<string, string> = {
+                                    completed: "bg-emerald-100 text-emerald-700 border-emerald-300",
+                                    partial:   "bg-amber-100 text-amber-700 border-amber-300",
+                                    pending:   "bg-red-100 text-red-700 border-red-300",
+                                  };
+                                  return (
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border capitalize ${statusConfig[sale.payment_status] || "bg-slate-100 text-slate-600 border-slate-300"}`}>
+                                      {sale.payment_status}
+                                    </span>
+                                  );
+                                })()}
                               </TableCell>
                               <TableCell>
                                 <Button variant="ghost" size="icon" className="h-7 w-7" title="View Invoice" onClick={(e) => { e.stopPropagation(); setPreview({ type: "sale", data: sale }); }}>
