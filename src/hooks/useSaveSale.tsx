@@ -802,7 +802,7 @@ export const useSaveSale = () => {
       if (holdSaleSettings?.invoice_numbering_format) {
         saleNumber = await generateInvoiceNumber(holdSaleSettings.invoice_numbering_format);
       } else {
-        const { data: defaultNumber, error: numberError } = await (supabase as any)
+        const { data: defaultNumber, error: numberError } = await supabase
           .rpc('generate_sale_number', { p_organization_id: currentOrganization.id });
         if (numberError) throw numberError;
         saleNumber = defaultNumber;
