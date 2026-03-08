@@ -1048,23 +1048,19 @@ export default function QuotationEntry() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[350px] p-0" align="start">
-                  <Command>
+                  <Command shouldFilter={false}>
                     <CommandInput 
                       placeholder="Search by name or phone..." 
                       value={customerSearchInput}
                       onValueChange={setCustomerSearchInput}
                     />
                     <CommandList>
-                      <CommandEmpty>No customer found.</CommandEmpty>
+                      <CommandEmpty>{isCustomersLoading ? "Searching..." : "No customer found."}</CommandEmpty>
                       <CommandGroup>
-                        {customersData?.filter(c => {
-                          if (!customerSearchInput) return true;
-                          const q = customerSearchInput.toLowerCase();
-                          return c.customer_name?.toLowerCase().includes(q) || c.phone?.toLowerCase().includes(q);
-                        }).slice(0, 50).map(customer => (
+                        {filteredCustomers.map(customer => (
                           <CommandItem
                             key={customer.id}
-                            value={`${customer.customer_name} ${customer.phone || ''}`}
+                            value={customer.id}
                             onSelect={() => {
                               setSelectedCustomerId(customer.id);
                               setSelectedCustomer(customer);
