@@ -954,7 +954,7 @@ export default function StockReport() {
             </datalist>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground">Brand</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Brand</label>
             <Select value={brandFilter} onValueChange={setBrandFilter}>
               <SelectTrigger className="h-10 !bg-white !text-gray-900">
                 <SelectValue placeholder="All Brands" />
