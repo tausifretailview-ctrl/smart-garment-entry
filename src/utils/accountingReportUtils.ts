@@ -97,92 +97,32 @@ export interface NetProfitSummary {
   generatedAt: string;
 }
 
-// Calculate Trial Balance
+// Calculate Trial Balance — uses server-side RPC
 export async function calculateTrialBalance(
   organizationId: string,
   asOfDate: string
 ): Promise<TrialBalanceEntry[]> {
   const entries: TrialBalanceEntry[] = [];
 
-  // 1. Get customer balances (Debtors)
-  const { data: customers } = await supabase
-    .from("customers")
-    .select("id, customer_name, opening_balance")
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null);
+  // Single RPC replaces 6+ client-side queries with .reduce()
+  const { data: agg, error } = await supabase.rpc('get_trial_balance_aggregates', {
+    p_org_id: organizationId,
+    p_as_of_date: asOfDate,
+  });
 
-  const { data: sales } = await supabase
-    .from("sales")
-    .select("customer_id, net_amount, paid_amount")
-    .eq("organization_id", organizationId)
-    .lte("invoice_date", asOfDate)
-    .is("deleted_at", null);
+  if (error) throw error;
 
-  let totalDebtors = 0;
-  if (customers) {
-    for (const customer of customers) {
-      const openingBal = customer.opening_balance || 0;
-      const customerSales = sales?.filter(s => s.customer_id === customer.id) || [];
-      const totalSales = customerSales.reduce((sum, s) => sum + (s.net_amount || 0), 0);
-      const paidAmount = customerSales.reduce((sum, s) => sum + (s.paid_amount || 0), 0);
-      totalDebtors += openingBal + totalSales - paidAmount;
-    }
-  }
+  const aggData = agg as any;
+  const totalDebtors = aggData?.total_debtors || 0;
+  const totalCreditors = aggData?.total_creditors || 0;
+  const totalSalesRevenue = aggData?.total_sales || 0;
+  const totalPurchasesAmount = aggData?.total_purchases || 0;
+  const totalSaleReturns = aggData?.total_sale_returns || 0;
+  const totalPurchaseReturns = aggData?.total_purchase_returns || 0;
+  const cashBalance = aggData?.cash_balance || 0;
 
-  // 2. Get supplier balances (Creditors)
-  const { data: suppliers } = await supabase
-    .from("suppliers")
-    .select("id, supplier_name, opening_balance")
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null);
-
-  const { data: purchases } = await supabase
-    .from("purchase_bills")
-    .select("supplier_id, net_amount, paid_amount")
-    .eq("organization_id", organizationId)
-    .lte("bill_date", asOfDate)
-    .is("deleted_at", null);
-
-  let totalCreditors = 0;
-  if (suppliers) {
-    for (const supplier of suppliers) {
-      const openingBal = supplier.opening_balance || 0;
-      const supplierPurchases = purchases?.filter(p => p.supplier_id === supplier.id) || [];
-      const totalPurchases = supplierPurchases.reduce((sum, p) => sum + (p.net_amount || 0), 0);
-      const paidAmount = supplierPurchases.reduce((sum, p) => sum + (p.paid_amount || 0), 0);
-      totalCreditors += openingBal + totalPurchases - paidAmount;
-    }
-  }
-
-  // Get total sales
-  const totalSalesRevenue = sales?.reduce((sum, s) => sum + (s.net_amount || 0), 0) || 0;
-  const totalPurchasesAmount = purchases?.reduce((sum, p) => sum + (p.net_amount || 0), 0) || 0;
-
-  // Get sale returns
-  const { data: saleReturns } = await supabase
-    .from("sale_returns")
-    .select("net_amount")
-    .eq("organization_id", organizationId)
-    .lte("return_date", asOfDate)
-    .is("deleted_at", null);
-  const totalSaleReturns = saleReturns?.reduce((sum, sr) => sum + (sr.net_amount || 0), 0) || 0;
-
-  // Get purchase returns
-  const { data: purchaseReturns } = await supabase
-    .from("purchase_returns")
-    .select("net_amount")
-    .eq("organization_id", organizationId)
-    .lte("return_date", asOfDate)
-    .is("deleted_at", null);
-  const totalPurchaseReturns = purchaseReturns?.reduce((sum, pr) => sum + (pr.net_amount || 0), 0) || 0;
-
-  // Calculate cash from paid amounts
-  const cashFromSales = sales?.reduce((sum, s) => sum + (s.paid_amount || 0), 0) || 0;
-  const cashToPurchases = purchases?.reduce((sum, p) => sum + (p.paid_amount || 0), 0) || 0;
-  const cashBalance = cashFromSales - cashToPurchases;
-
-  // Get stock value
-  const stockValue = await calculateStockValue(organizationId);
+  // Get stock value via RPC
+  const { data: stockValue } = await supabase.rpc('get_stock_value', { p_org_id: organizationId });
 
   // Build trial balance entries
   if (cashBalance !== 0) {
@@ -203,8 +143,8 @@ export async function calculateTrialBalance(
     });
   }
 
-  if (stockValue > 0) {
-    entries.push({ accountName: "Inventory (Stock)", accountType: "Asset", debit: stockValue, credit: 0 });
+  if ((stockValue || 0) > 0) {
+    entries.push({ accountName: "Inventory (Stock)", accountType: "Asset", debit: stockValue || 0, credit: 0 });
   }
 
   if (totalCreditors !== 0) {
@@ -235,16 +175,14 @@ export async function calculateTrialBalance(
   return entries;
 }
 
-// Calculate Stock Value at current date
+// Calculate Stock Value at current date — uses server-side RPC
 export async function calculateStockValue(organizationId: string): Promise<number> {
-  const { data: variants } = await supabase
-    .from("product_variants")
-    .select("stock_qty, pur_price")
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null);
-
-  if (!variants) return 0;
-  return variants.reduce((sum, v) => sum + ((v.stock_qty || 0) * (v.pur_price || 0)), 0);
+  const { data, error } = await supabase.rpc('get_stock_value', { p_org_id: organizationId });
+  if (error) {
+    console.error("Error fetching stock value:", error);
+    return 0;
+  }
+  return Number(data) || 0;
 }
 
 // Calculate Stock Value at a specific date (for opening stock)
@@ -348,104 +286,56 @@ export async function calculateProfitLoss(
 ): Promise<ProfitLossData> {
   const warnings: string[] = [];
   
-  // REVENUE SECTION
-  // Gross Sales - use gross_amount (before GST) for GST-exclusive reporting
-  const { data: sales } = await supabase
-    .from("sales")
-    .select("gross_amount, net_amount")
-    .eq("organization_id", organizationId)
-    .gte("sale_date", fromDate)
-    .lte("sale_date", toDate)
-    .is("deleted_at", null);
-  
-  // Use gross_amount (before GST) for GST-exclusive reporting
-  const grossSales = sales?.reduce((sum, s) => sum + (s.gross_amount || s.net_amount || 0), 0) || 0;
+  // Single RPC replaces 5 separate queries + client-side reduces
+  const { data: pnlAgg, error: pnlError } = await supabase.rpc('get_pnl_aggregates', {
+    p_org_id: organizationId,
+    p_from_date: fromDate,
+    p_to_date: toDate,
+  });
+  if (pnlError) throw pnlError;
 
-  // Sales Returns
-  const { data: saleReturns } = await supabase
-    .from("sale_returns")
-    .select("gross_amount, net_amount")
-    .eq("organization_id", organizationId)
-    .gte("return_date", fromDate)
-    .lte("return_date", toDate)
-    .is("deleted_at", null);
-  const salesReturns = saleReturns?.reduce((sum, sr) => sum + (sr.gross_amount || sr.net_amount || 0), 0) || 0;
-
+  const pnl = pnlAgg as any;
+  const grossSales = pnl?.gross_sales || 0;
+  const salesReturns = pnl?.sales_returns || 0;
   const netSales = grossSales - salesReturns;
+  const purchasesAmount = pnl?.purchases_gross || 0;
+  const purchasesGST = pnl?.purchases_gst || 0;
+  const purchaseReturnsAmount = pnl?.purchase_returns || 0;
 
   // COGS SECTION (GST-Exclusive)
-  // Opening Stock = Stock value at the start of the period
   const openingStockDate = format(subDays(new Date(fromDate), 1), "yyyy-MM-dd");
   const openingStock = await calculateStockValueAtDate(organizationId, openingStockDate);
   
-  // Purchases (GST-Exclusive - use gross_amount)
-  const { data: purchases } = await supabase
-    .from("purchase_bills")
-    .select("gross_amount, gst_amount, net_amount")
-    .eq("organization_id", organizationId)
-    .gte("bill_date", fromDate)
-    .lte("bill_date", toDate)
-    .is("deleted_at", null);
-  
-  // gross_amount is the amount BEFORE GST (GST-exclusive)
-  const purchasesAmount = purchases?.reduce((sum, p) => sum + (p.gross_amount || 0), 0) || 0;
-  const purchasesGST = purchases?.reduce((sum, p) => sum + (p.gst_amount || 0), 0) || 0;
-
-  // Purchase Returns (GST-Exclusive)
-  const { data: purchaseReturns } = await supabase
-    .from("purchase_returns")
-    .select("gross_amount, net_amount")
-    .eq("organization_id", organizationId)
-    .gte("return_date", fromDate)
-    .lte("return_date", toDate)
-    .is("deleted_at", null);
-  const purchaseReturnsAmount = purchaseReturns?.reduce((sum, pr) => sum + (pr.gross_amount || pr.net_amount || 0), 0) || 0;
-
-  // Closing Stock (current stock value)
+  // Closing Stock (current stock value) via RPC
   const closingStock = await calculateStockValue(organizationId);
   
-  // Validate closing stock
   if (closingStock < 0) {
     warnings.push("Warning: Negative closing stock detected. Please verify stock entries.");
   }
 
-  // COGS = Opening Stock + Purchases - Purchase Returns - Closing Stock
   const cogs = Math.max(0, openingStock + purchasesAmount - purchaseReturnsAmount - closingStock);
-
-  // Gross Profit
   const grossProfit = netSales - cogs;
   const isGrossLoss = grossProfit < 0;
 
-  // EXPENSES SECTION (from voucher_entries)
-  const { data: expenseVouchers } = await supabase
-    .from("voucher_entries")
-    .select("category, total_amount")
-    .eq("organization_id", organizationId)
-    .eq("voucher_type", "expense")
-    .gte("voucher_date", fromDate)
-    .lte("voucher_date", toDate)
-    .is("deleted_at", null);
-
-  // Group expenses by category
-  const expenseMap = new Map<string, number>();
-  expenseVouchers?.forEach(v => {
-    const category = v.category || "Miscellaneous";
-    const current = expenseMap.get(category) || 0;
-    expenseMap.set(category, current + (v.total_amount || 0));
+  // Expenses by category via RPC
+  const { data: expenseCatData, error: expError } = await supabase.rpc('get_expense_by_category', {
+    p_org_id: organizationId,
+    p_from_date: fromDate,
+    p_to_date: toDate,
   });
+  if (expError) throw expError;
 
-  const expensesByCategory: ExpenseCategory[] = Array.from(expenseMap.entries())
-    .map(([category, amount]) => ({ category, amount }))
-    .sort((a, b) => b.amount - a.amount);
+  const expensesByCategory: ExpenseCategory[] = ((expenseCatData as any) || []).map((e: any) => ({
+    category: e.category,
+    amount: Number(e.amount) || 0,
+  }));
 
   const totalExpenses = expensesByCategory.reduce((sum, e) => sum + e.amount, 0);
 
-  // Net Profit
   const netProfit = grossProfit - totalExpenses;
   const isNetLoss = netProfit < 0;
   const profitMargin = netSales > 0 ? (netProfit / netSales) * 100 : 0;
 
-  // Edge case warnings
   if (netSales === 0 && cogs > 0) {
     warnings.push("No sales recorded for this period, but cost of goods exists.");
   }
@@ -454,7 +344,6 @@ export async function calculateProfitLoss(
     warnings.push("No transactions recorded for this period.");
   }
 
-  // Generate period label
   const fromFormatted = format(new Date(fromDate), "dd MMM yyyy");
   const toFormatted = format(new Date(toDate), "dd MMM yyyy");
   const periodLabel = `${fromFormatted} to ${toFormatted}`;
@@ -482,67 +371,24 @@ export async function calculateProfitLoss(
   };
 }
 
-// Calculate Balance Sheet
+// Calculate Balance Sheet — uses server-side RPC
 export async function calculateBalanceSheet(
   organizationId: string,
   asOfDate: string
 ): Promise<BalanceSheetData> {
-  const { data: sales } = await supabase
-    .from("sales")
-    .select("customer_id, net_amount, paid_amount")
-    .eq("organization_id", organizationId)
-    .lte("invoice_date", asOfDate)
-    .is("deleted_at", null);
+  // Single RPC replaces 4 queries + client-side loops
+  const { data: agg, error } = await supabase.rpc('get_trial_balance_aggregates', {
+    p_org_id: organizationId,
+    p_as_of_date: asOfDate,
+  });
+  if (error) throw error;
 
-  const cashFromSales = sales?.reduce((sum, s) => sum + (s.paid_amount || 0), 0) || 0;
-
-  const { data: purchases } = await supabase
-    .from("purchase_bills")
-    .select("supplier_id, net_amount, paid_amount")
-    .eq("organization_id", organizationId)
-    .lte("bill_date", asOfDate)
-    .is("deleted_at", null);
-
-  const cashToPurchases = purchases?.reduce((sum, p) => sum + (p.paid_amount || 0), 0) || 0;
-  const cashBank = cashFromSales - cashToPurchases;
-
-  // Accounts Receivable
-  const { data: customers } = await supabase
-    .from("customers")
-    .select("id, opening_balance")
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null);
-
-  let accountsReceivable = 0;
-  if (customers) {
-    for (const customer of customers) {
-      const openingBal = customer.opening_balance || 0;
-      const customerSales = sales?.filter(s => s.customer_id === customer.id) || [];
-      const totalSales = customerSales.reduce((sum, s) => sum + (s.net_amount || 0), 0);
-      const paidAmount = customerSales.reduce((sum, s) => sum + (s.paid_amount || 0), 0);
-      accountsReceivable += openingBal + totalSales - paidAmount;
-    }
-  }
+  const aggData = agg as any;
+  const cashBank = aggData?.cash_balance || 0;
+  const accountsReceivable = aggData?.accounts_receivable || 0;
+  const accountsPayable = aggData?.accounts_payable || 0;
 
   const inventory = await calculateStockValue(organizationId);
-
-  // Accounts Payable
-  const { data: suppliers } = await supabase
-    .from("suppliers")
-    .select("id, opening_balance")
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null);
-
-  let accountsPayable = 0;
-  if (suppliers) {
-    for (const supplier of suppliers) {
-      const openingBal = supplier.opening_balance || 0;
-      const supplierPurchases = purchases?.filter(p => p.supplier_id === supplier.id) || [];
-      const totalPurchases = supplierPurchases.reduce((sum, p) => sum + (p.net_amount || 0), 0);
-      const paidAmount = supplierPurchases.reduce((sum, p) => sum + (p.paid_amount || 0), 0);
-      accountsPayable += openingBal + totalPurchases - paidAmount;
-    }
-  }
 
   const totalAssets = Math.max(0, cashBank) + Math.max(0, accountsReceivable) + inventory;
   const totalLiabilities = Math.max(0, accountsPayable);
@@ -574,47 +420,43 @@ export async function calculateNetProfitSummary(
   fromDate: string,
   toDate: string
 ): Promise<NetProfitSummary> {
-  // 1. REVENUE: Total Sales
-  const { data: sales } = await supabase
+  // Use RPC for simple aggregates (total_sales, returns, expenses, input_gst)
+  const { data: npAgg, error: npError } = await supabase.rpc('get_net_profit_aggregates', {
+    p_org_id: organizationId,
+    p_from_date: fromDate,
+    p_to_date: toDate,
+  });
+  if (npError) throw npError;
+
+  const np = npAgg as any;
+  const totalSales = np?.total_sales || 0;
+  const salesReturnsTotal = np?.sales_returns || 0;
+  const netRevenue = totalSales - salesReturnsTotal;
+  const inputGST = np?.input_gst || 0;
+  const totalExpenses = np?.total_expenses || 0;
+  
+  // COGS still needs per-item calculation (pur_price × quantity from sale_items)
+  // We still need sale IDs to fetch sale_items for COGS
+  const { data: saleIdRows } = await supabase
     .from("sales")
-    .select("id, net_amount")
+    .select("id")
     .eq("organization_id", organizationId)
     .gte("sale_date", fromDate)
     .lte("sale_date", toDate)
     .is("deleted_at", null);
   
-  const totalSales = sales?.reduce((sum, s) => sum + (s.net_amount || 0), 0) || 0;
-  const saleIds = sales?.map(s => s.id) || [];
+  const saleIds = saleIdRows?.map(s => s.id) || [];
   
-  // 2. Sale Returns
-  const { data: saleReturns } = await supabase
-    .from("sale_returns")
-    .select("net_amount")
-    .eq("organization_id", organizationId)
-    .gte("return_date", fromDate)
-    .lte("return_date", toDate)
-    .is("deleted_at", null);
-  
-  const salesReturnsTotal = saleReturns?.reduce((sum, sr) => sum + (sr.net_amount || 0), 0) || 0;
-  const netRevenue = totalSales - salesReturnsTotal;
-  
-  // 3. COGS: Calculate from actual sold items (pur_price × quantity)
-  // Fetch sale items with their variant purchase prices
   let cogsFromSaleItems = 0;
   let outputGST = 0;
   
   if (saleIds.length > 0) {
-    // Use paginated fetch to bypass 1000-row limit
     const saleItems = await fetchAllSaleItems(saleIds);
     
     if (saleItems && saleItems.length > 0) {
-      // Get variant purchase prices
       const variantIds = [...new Set(saleItems.map(item => item.variant_id).filter(Boolean))];
-      
-      // Use batched fetch to bypass 1000-row limit
       const { fetchVariantsByIds } = await import("@/utils/fetchAllRows");
       const variants = await fetchVariantsByIds(variantIds, "id, pur_price");
-      
       const variantPriceMap = new Map(variants?.map((v: any) => [v.id, v.pur_price || 0]) || []);
       
       saleItems.forEach(item => {
@@ -622,7 +464,6 @@ export async function calculateNetProfitSummary(
         const purPrice = variantPriceMap.get(item.variant_id) || 0;
         cogsFromSaleItems += qty * purPrice;
         
-        // Output GST = line_total × gst_percent / (100 + gst_percent)
         const lineTotal = item.line_total || 0;
         const gstPer = item.gst_percent || 0;
         if (gstPer > 0) {
@@ -632,37 +473,9 @@ export async function calculateNetProfitSummary(
     }
   }
   
-  // 4. Gross Profit
   const grossProfit = netRevenue - cogsFromSaleItems;
   const isGrossLoss = grossProfit < 0;
-  
-  // 5. INPUT GST: From purchase bills
-  const { data: purchases } = await supabase
-    .from("purchase_bills")
-    .select("gst_amount")
-    .eq("organization_id", organizationId)
-    .gte("bill_date", fromDate)
-    .lte("bill_date", toDate)
-    .is("deleted_at", null);
-  
-  const inputGST = purchases?.reduce((sum, p) => sum + (p.gst_amount || 0), 0) || 0;
-  
-  // 6. Net GST Liability
   const netGSTLiability = outputGST - inputGST;
-  
-  // 7. EXPENSES: From voucher_entries
-  const { data: expenses } = await supabase
-    .from("voucher_entries")
-    .select("total_amount")
-    .eq("organization_id", organizationId)
-    .eq("voucher_type", "expense")
-    .gte("voucher_date", fromDate)
-    .lte("voucher_date", toDate)
-    .is("deleted_at", null);
-  
-  const totalExpenses = expenses?.reduce((sum, e) => sum + (e.total_amount || 0), 0) || 0;
-  
-  // 8. NET PROFIT: Gross Profit - Net GST (if payable) - Expenses
   const gstDeduction = netGSTLiability > 0 ? netGSTLiability : 0;
   const netProfit = grossProfit - gstDeduction - totalExpenses;
   const isNetLoss = netProfit < 0;
