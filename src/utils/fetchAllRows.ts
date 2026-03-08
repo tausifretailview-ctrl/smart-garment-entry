@@ -167,7 +167,7 @@ export async function fetchAllProducts(organizationId: string) {
   while (hasMore) {
     const { data, error } = await supabase
       .from("products")
-      .select("*, product_variants (*)")
+      .select("id, product_name, brand, category, style, product_type, gst_per, hsn_code, status, image_url, organization_id, product_variants(id, size, color, barcode, sale_price, pur_price, mrp, stock_qty, active, deleted_at, product_id, organization_id)")
       .eq("organization_id", organizationId)
       .eq("status", "active")
       .is("deleted_at", null)

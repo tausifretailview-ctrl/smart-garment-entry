@@ -475,7 +475,7 @@ export function CustomerHistoryDialog({
       if (!customerId || !organizationId) return [];
       const { data, error } = await supabase
         .from('customer_balance_adjustments')
-        .select('*')
+        .select('id, adjustment_date, reason, previous_outstanding, new_outstanding, outstanding_difference, previous_advance, new_advance, advance_difference')
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .order('adjustment_date', { ascending: false });
