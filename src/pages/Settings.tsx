@@ -2219,7 +2219,7 @@ export default function Settings() {
                               },
                             })
                           }
-                          placeholder="8"
+                          placeholder="12"
                         />
                         <p className="text-xs text-muted-foreground">
                           Minimum empty rows to display in item table
