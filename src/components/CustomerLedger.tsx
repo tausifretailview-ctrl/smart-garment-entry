@@ -1777,15 +1777,15 @@ Please clear your dues at the earliest. Thank you!`;
                 <div className="rounded-md border">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Voucher No.</TableHead>
-                        <TableHead>Invoice No.</TableHead>
-                        <TableHead>Invoice Amount</TableHead>
-                        <TableHead className="text-right">Cash</TableHead>
-                        <TableHead className="text-right">Card</TableHead>
-                        <TableHead className="text-right">UPI</TableHead>
-                        <TableHead className="text-right">Total Paid</TableHead>
+                      <TableRow className="bg-slate-50 dark:bg-slate-900/60 border-b-2">
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Date</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Voucher No.</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Invoice No.</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Invoice Amount</TableHead>
+                        <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-green-600">Cash</TableHead>
+                        <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-blue-600">Card</TableHead>
+                        <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-violet-600">UPI</TableHead>
+                        <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-emerald-600">Total Paid</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
