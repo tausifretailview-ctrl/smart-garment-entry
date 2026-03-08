@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { Home, Save, Eye, Shield, Printer, Package, Paintbrush } from "lucide-react";
+import { Home, Save, Eye, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -264,7 +264,7 @@ const QZStatusBadge = () => {
 export default function Settings() {
   const { orgNavigate: navigate } = useOrgNavigation();
   const { toast } = useToast();
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, organizations } = useOrganization();
   const [loading, setLoading] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [sizeGroups, setSizeGroups] = useState<any[]>([]);
@@ -395,6 +395,12 @@ export default function Settings() {
   };
 
   const [settingsDbPresets, setSettingsDbPresets] = useState<import("@/components/precision-barcode/LabelCalibrationUI").CalibrationPreset[]>([]);
+  const [allOrgPresets, setAllOrgPresets] = useState<Array<{
+    preset: CalibrationPreset;
+    orgId: string;
+    orgName: string;
+  }>>([]);
+  const [importingPresetId, setImportingPresetId] = useState<string | null>(null);
 
   const fetchDbPresets = async () => {
     if (!currentOrganization?.id) return;
@@ -418,13 +424,109 @@ export default function Settings() {
     }
   };
 
+  const fetchAllOrgPresets = async () => {
+    const otherOrgIds = organizations
+      .filter(o => o.id !== currentOrganization?.id)
+      .map(o => o.id);
+
+    if (otherOrgIds.length === 0 && !currentOrganization?.id) {
+      setAllOrgPresets([]);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('printer_presets')
+        .select('*')
+        .in('organization_id', [...otherOrgIds, currentOrganization?.id || ''])
+        .order('name');
+
+      if (error) throw error;
+
+      const mapped = (data || []).map((p: any) => ({
+        preset: {
+          id: p.id,
+          name: p.name,
+          xOffset: Number(p.x_offset),
+          yOffset: Number(p.y_offset),
+          vGap: Number(p.v_gap),
+          width: Number(p.label_width),
+          height: Number(p.label_height),
+          a4Cols: p.a4_cols,
+          a4Rows: p.a4_rows,
+          printMode: p.print_mode as 'thermal' | 'a4' | undefined,
+          labelConfig: p.label_config,
+          isDefault: p.is_default,
+        } as CalibrationPreset,
+        orgId: p.organization_id,
+        orgName: organizations.find(o => o.id === p.organization_id)?.name || 'Unknown',
+      }));
+
+      setAllOrgPresets(mapped);
+    } catch (err) {
+      console.error('Failed to fetch all org presets:', err);
+    }
+  };
+
+  const handleImportPreset = async (item: {
+    preset: CalibrationPreset;
+    orgId: string;
+    orgName: string;
+  }) => {
+    if (!currentOrganization?.id) return;
+    setImportingPresetId(item.preset.id || item.preset.name);
+
+    try {
+      const existingNames = settingsDbPresets.map(p => p.name.toLowerCase());
+      let importName = item.preset.name;
+      if (existingNames.includes(importName.toLowerCase())) {
+        importName = `${importName} (${item.orgName})`;
+      }
+
+      const { error } = await supabase
+        .from('printer_presets')
+        .insert({
+          organization_id: currentOrganization.id,
+          name: importName,
+          x_offset: item.preset.xOffset,
+          y_offset: item.preset.yOffset,
+          v_gap: item.preset.vGap,
+          label_width: item.preset.width,
+          label_height: item.preset.height,
+          a4_cols: item.preset.a4Cols ?? null,
+          a4_rows: item.preset.a4Rows ?? null,
+          print_mode: item.preset.printMode ?? 'thermal',
+          label_config: item.preset.labelConfig ?? null,
+          is_default: false,
+        } as any);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Label Design Imported',
+        description: `"${importName}" copied from ${item.orgName} to this shop.`,
+      });
+
+      fetchDbPresets();
+    } catch (err: any) {
+      toast({
+        title: 'Import Failed',
+        description: err.message || 'Could not import label design',
+        variant: 'destructive',
+      });
+    } finally {
+      setImportingPresetId(null);
+    }
+  };
+
   useEffect(() => {
     if (currentOrganization?.id) {
       fetchSettings();
       fetchSizeGroups();
       fetchDbPresets();
+      fetchAllOrgPresets();
     }
-  }, [currentOrganization?.id]);
+  }, [currentOrganization?.id, organizations.length]);
 
   const fetchSizeGroups = async () => {
     if (!currentOrganization?.id) return;
@@ -3859,6 +3961,153 @@ export default function Settings() {
                   </CardContent>
                 </Card>
 
+
+                {/* ═══ All Org Label Designs ═══ */}
+                {allOrgPresets.length > 0 && (
+                  <div className="space-y-3 pt-4 border-t">
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                        <Copy className="h-4 w-4 text-indigo-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold leading-none">Label Designs from All Your Shops</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Reuse calibrated label designs from your other organizations — import in one click
+                        </p>
+                      </div>
+                    </div>
+
+                    {Array.from(
+                      allOrgPresets.reduce((map, item) => {
+                        if (!map.has(item.orgId)) map.set(item.orgId, {
+                          orgName: item.orgName,
+                          presets: [],
+                          isCurrent: item.orgId === currentOrganization?.id
+                        });
+                        map.get(item.orgId)!.presets.push(item);
+                        return map;
+                      }, new Map<string, { orgName: string; presets: typeof allOrgPresets; isCurrent: boolean }>())
+                    ).map(([orgId, group]) => (
+                      <div key={orgId} className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border ${group.isCurrent ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                            {group.isCurrent ? '● Current Shop' : group.orgName}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {group.presets.length} design{group.presets.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {group.presets.map((item) => {
+                            const p = item.preset;
+                            const isCurrentOrg = item.orgId === currentOrganization?.id;
+                            const alreadyImported = settingsDbPresets.some(
+                              sp => sp.name === p.name && sp.width === p.width && sp.height === p.height
+                            );
+                            const isImporting = importingPresetId === (p.id || p.name);
+
+                            return (
+                              <div
+                                key={p.id || p.name}
+                                className={`flex items-start justify-between p-3 rounded-lg border bg-card gap-3 ${alreadyImported && !isCurrentOrg ? 'opacity-60 border-dashed' : ''}`}
+                              >
+                                <div className="flex gap-2.5 min-w-0">
+                                  <div className={`flex-shrink-0 rounded border-2 ${p.printMode === 'a4' ? 'border-violet-300 bg-violet-50 w-8 h-10' : 'border-teal-300 bg-teal-50 w-10 h-6'} flex items-center justify-center mt-0.5`}>
+                                    <span className="text-[8px] font-bold text-muted-foreground">
+                                      {p.printMode === 'a4' ? 'A4' : '🖨'}
+                                    </span>
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium truncate">{p.name}</p>
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${p.printMode === 'a4' ? 'bg-violet-50 text-violet-700 border-violet-200' : 'bg-teal-50 text-teal-700 border-teal-200'}`}>
+                                        {p.printMode === 'a4' ? 'Laser/A4' : 'Thermal'}
+                                      </span>
+                                      <span className="text-[9px] bg-slate-50 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded-full font-mono">
+                                        {p.width}×{p.height}mm
+                                      </span>
+                                      {p.printMode === 'a4' && p.a4Cols && p.a4Rows && (
+                                        <span className="text-[9px] bg-slate-50 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded-full">
+                                          {p.a4Cols}×{p.a4Rows} grid
+                                        </span>
+                                      )}
+                                      {p.labelConfig && (
+                                        <span className="text-[9px] bg-green-50 text-green-700 border border-green-200 px-1.5 py-0.5 rounded-full">
+                                          ✓ Design saved
+                                        </span>
+                                      )}
+                                      {(p.xOffset !== 0 || p.yOffset !== 0) && (
+                                        <span className="text-[9px] bg-orange-50 text-orange-600 border border-orange-200 px-1.5 py-0.5 rounded-full font-mono">
+                                          ±{p.xOffset},{p.yOffset} offset
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {!isCurrentOrg && (
+                                  <Button
+                                    type="button"
+                                    variant={alreadyImported ? 'ghost' : 'outline'}
+                                    size="sm"
+                                    disabled={isImporting}
+                                    onClick={() => handleImportPreset(item)}
+                                    className="flex-shrink-0 h-8 text-xs"
+                                  >
+                                    {isImporting ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : alreadyImported ? (
+                                      <>
+                                        <CheckCircle2 className="h-3 w-3 mr-1 text-green-600" />
+                                        Imported
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy className="h-3 w-3 mr-1" />
+                                        Import
+                                      </>
+                                    )}
+                                  </Button>
+                                )}
+                                {isCurrentOrg && (
+                                  <span className="text-[10px] text-muted-foreground flex-shrink-0 self-center">
+                                    This shop
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-muted-foreground h-7"
+                      onClick={fetchAllOrgPresets}
+                    >
+                      <RefreshCw className="h-3 w-3 mr-1.5" />
+                      Refresh designs
+                    </Button>
+                  </div>
+                )}
+
+                {allOrgPresets.length === 0 && organizations.length <= 1 && (
+                  <div className="pt-4 border-t">
+                    <div className="rounded-lg border border-dashed p-4 text-center">
+                      <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center mx-auto mb-2">
+                        <Copy className="h-4 w-4 text-slate-400" />
+                      </div>
+                      <p className="text-sm font-medium text-muted-foreground">No other shops to copy from</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Once you create or join another shop, its label designs will appear here for reuse.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
