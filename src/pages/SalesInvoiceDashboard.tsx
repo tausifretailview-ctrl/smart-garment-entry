@@ -1677,20 +1677,20 @@ export default function SalesInvoiceDashboard() {
           </Card>
         </div>
 
-        <Card className="p-6">
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative flex-1 min-w-[200px] max-w-sm">
+        <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0">
+          <div className="space-y-0">
+            <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-slate-100 bg-white">
+              <div className="relative flex-1 min-w-[200px] max-w-[280px]">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search by invoice, customer, barcode..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 h-9 text-[13px] border-slate-200 bg-slate-50 focus:bg-white"
                 />
               </div>
               <Select value={periodFilter} onValueChange={setPeriodFilter}>
-                <SelectTrigger className="w-[130px]">
+                <SelectTrigger className="w-[120px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Period" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1738,7 +1738,7 @@ export default function SalesInvoiceDashboard() {
                 </>
               )}
               <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
-                <SelectTrigger className="w-[150px]">
+                <SelectTrigger className="w-[145px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Payment Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1749,7 +1749,7 @@ export default function SalesInvoiceDashboard() {
                 </SelectContent>
               </Select>
               <Select value={deliveryFilter} onValueChange={setDeliveryFilter}>
-                <SelectTrigger className="w-[150px]">
+                <SelectTrigger className="w-[145px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Delivery Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1760,7 +1760,7 @@ export default function SalesInvoiceDashboard() {
                   <SelectItem value="order_cancelled" className="text-destructive">Order Cancelled</SelectItem>
                 </SelectContent>
               </Select>
-              <div id="erp-toolbar-portal" className="flex items-center gap-2 ml-auto" />
+              <div id="erp-toolbar-portal" className="flex items-center gap-1.5 ml-auto" />
             </div>
 
             <SalesInvoiceERPTable
@@ -1818,13 +1818,13 @@ export default function SalesInvoiceDashboard() {
                 }}
               />
             {totalCount > 0 && (
-              <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-white">
                 <div className="flex items-center gap-4">
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-[12px] text-slate-500">
                     Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} invoices
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Show:</span>
+                    <span className="text-[12px] text-slate-500">Show:</span>
                     <Select value={itemsPerPage.toString()} onValueChange={handlePageSizeChange}>
                       <SelectTrigger className="w-20 h-8">
                         <SelectValue />
@@ -1845,11 +1845,12 @@ export default function SalesInvoiceDashboard() {
                     size="sm"
                     onClick={handlePreviousPage}
                     disabled={currentPage === 1}
+                    className="h-8 text-[12px] px-3 border-slate-200"
                   >
                     Previous
                   </Button>
                   <div className="flex items-center gap-2 px-3">
-                    <span className="text-sm">
+                    <span className="text-[12px] text-slate-600 font-medium">
                       Page {currentPage} of {totalPages}
                     </span>
                   </div>
@@ -1858,6 +1859,7 @@ export default function SalesInvoiceDashboard() {
                     size="sm"
                     onClick={handleNextPage}
                     disabled={currentPage === totalPages}
+                    className="h-8 text-[12px] px-3 border-slate-200"
                   >
                     Next
                   </Button>

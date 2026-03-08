@@ -273,7 +273,6 @@ All colors MUST be HSL.
 @layer base {
 
 
-
   /* Sidebar menu item height - Full View ERP density */
   [data-sidebar="menu-button"] {
     @apply h-12 text-[15px];
@@ -305,6 +304,23 @@ All colors MUST be HSL.
   table tbody tr {
     @apply hover:bg-primary/5 transition-colors;
   }
+}
+
+/* ERP Toolbar Portal Button Styles */
+#erp-toolbar-portal button {
+  height: 36px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  border-radius: 6px !important;
+  border-color: #e2e8f0 !important;
+  background: #f8fafc !important;
+  color: #475569 !important;
+  padding: 0 12px !important;
+  gap: 6px !important;
+}
+#erp-toolbar-portal button:hover {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
 }
 
 /* Sidebar Active Indicator Bar */
