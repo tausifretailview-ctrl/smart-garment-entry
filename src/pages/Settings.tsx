@@ -1881,8 +1881,15 @@ export default function Settings() {
 
                 {/* Item Details Display Settings */}
                 <div className="space-y-4 pt-4 border-t">
-                  <h3 className="text-lg font-semibold">Item Details Display</h3>
-                  <p className="text-sm text-muted-foreground">Configure which product fields to show on bills and dashboards</p>
+                  <div className="flex items-center gap-2">
+                    <div className="h-7 w-7 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
+                      <Package className="h-3.5 w-3.5 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold leading-none">Item Details Display</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">Fields shown on bills and dashboards</p>
+                    </div>
+                  </div>
                   
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <div className="flex items-center space-x-2">
