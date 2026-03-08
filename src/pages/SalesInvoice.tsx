@@ -2864,173 +2864,137 @@ Thank you for choosing us!`;
         </div>
       </section>
 
-      {/* Notes + Bill Summary - Side by Side */}
-      <div className="flex gap-3 items-start px-6">
-        {/* Notes - Left */}
-        <div className="flex-1 bg-card rounded-lg border shadow-sm p-3">
-          <Label className="text-[12px]">Notes</Label>
-          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} className="mt-1.5 text-[13px]" />
-        </div>
-
-        {/* Bill Summary - Right */}
-        <div className="bg-primary/5 dark:bg-primary/10 rounded-lg border border-primary/20 p-4 w-80 shrink-0">
-          <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">Bill Summary</div>
-          <div className="space-y-1.5">
-            <div className="flex justify-between text-[13px]"><span className="text-muted-foreground">Gross Amount:</span><span className="font-medium">₹{grossAmount.toFixed(2)}</span></div>
-            <div className="flex justify-between text-[13px]"><span className="text-muted-foreground">Line Discount:</span><span className="font-medium text-destructive">-₹{lineItemDiscount.toFixed(2)}</span></div>
-            <div className="flex justify-between items-center text-[13px]">
-              <span className="text-muted-foreground whitespace-nowrap">Flat Disc:</span>
-              <div className="flex items-center gap-1.5">
-                <Input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={flatDiscountPercent || ""}
-                  placeholder="%"
-                  onChange={(e) => setFlatDiscountPercent(parseFloat(e.target.value) || 0)}
-                  onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                  className="w-16 h-8 text-[13px]"
-                />
-                <span className="text-muted-foreground text-xs">%</span>
-                <Input
-                  type="number"
-                  min="0"
-                  value={flatDiscountRupees || ""}
-                  placeholder="₹"
-                  onChange={(e) => setFlatDiscountRupees(parseFloat(e.target.value) || 0)}
-                  onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                  className="w-16 h-8 text-[13px]"
-                />
-                <span className="text-muted-foreground text-xs">₹</span>
-              </div>
-            </div>
-            {(flatDiscountPercent > 0 || flatDiscountRupees > 0) && (
-              <div className="flex justify-between text-[13px]">
-                <span className="text-muted-foreground">Total Flat Discount:</span>
-                <span className="font-medium text-destructive">-₹{flatDiscountAmount.toFixed(2)}</span>
-              </div>
-            )}
-            {taxType === "exclusive" && (
-              <div className="flex justify-between text-[13px]"><span className="text-muted-foreground">GST:</span><span className="font-medium">₹{totalGST.toFixed(2)}</span></div>
-            )}
-            <div className="flex justify-between items-center text-[13px]">
-              <span className="text-muted-foreground">Other Charges:</span>
-              <Input
-                type="number"
-                min="0"
-                value={otherCharges || ""}
-                placeholder="0"
-                onChange={(e) => setOtherCharges(parseFloat(e.target.value) || 0)}
-                onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                className="w-20 h-8 text-[13px]"
-              />
-            </div>
-            <div className="flex justify-between items-center text-[13px]">
-              <span className="text-muted-foreground">Round Off:</span>
-              <Input
-                type="number"
-                step="0.01"
-                value={roundOff || ""}
-                placeholder="0"
-                onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
-                onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                className="w-24 h-8 text-[13px]"
-              />
-            </div>
-            <div className="flex justify-between items-center border-t border-border pt-2.5 mt-1.5">
-              <span className="text-[13px] font-semibold">Net Amount:</span>
-              <span className="text-[20px] font-extrabold text-primary tabular-nums">₹{netAmount.toLocaleString('en-IN')}</span>
-            </div>
+      {/* Collapsible Notes Section */}
+      {showNotesSection && (
+        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200">
+          <div className="flex items-center gap-2 mb-2">
+            <Label className="text-[12px] font-semibold text-slate-600">Notes / Remarks</Label>
+            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-auto" onClick={() => setShowNotesSection(false)}>
+              <X className="h-3.5 w-3.5" />
+            </Button>
           </div>
+          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="text-[13px] bg-white" placeholder="Add notes or remarks..." />
+        </div>
+      )}
+
+      {/* Bill Summary Inline (Flat Disc / Other Charges / Round Off) */}
+      <div className="px-6 py-2.5 bg-slate-50/80 border-t border-slate-100 flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] text-slate-500 whitespace-nowrap">Flat Disc %</span>
+          <Input
+            type="number" min="0" max="100"
+            value={flatDiscountPercent || ""}
+            placeholder="0"
+            onChange={(e) => setFlatDiscountPercent(parseFloat(e.target.value) || 0)}
+            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+            className="w-16 h-7 text-[12px]"
+          />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] text-slate-500 whitespace-nowrap">Flat Disc ₹</span>
+          <Input
+            type="number" min="0"
+            value={flatDiscountRupees || ""}
+            placeholder="0"
+            onChange={(e) => setFlatDiscountRupees(parseFloat(e.target.value) || 0)}
+            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+            className="w-16 h-7 text-[12px]"
+          />
+        </div>
+        <div className="w-px h-5 bg-slate-200" />
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] text-slate-500 whitespace-nowrap">Other Charges</span>
+          <Input
+            type="number" min="0"
+            value={otherCharges || ""}
+            placeholder="0"
+            onChange={(e) => setOtherCharges(parseFloat(e.target.value) || 0)}
+            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+            className="w-20 h-7 text-[12px]"
+          />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] text-slate-500 whitespace-nowrap">Round Off</span>
+          <Input
+            type="number" step="0.01"
+            value={roundOff || ""}
+            placeholder="0"
+            onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
+            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+            className="w-20 h-7 text-[12px]"
+          />
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-[13px] font-semibold text-slate-600">Net:</span>
+          <span className="text-[20px] font-black text-blue-700 font-mono tabular-nums">₹{netAmount.toLocaleString('en-IN')}</span>
         </div>
       </div>
 
       </main>
 
-      {/* Sticky Totals Footer */}
-      <footer className="bg-card border-t-2 border-border px-6 py-3 shrink-0 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
-        <div className="flex items-center justify-between gap-6">
-          {/* Totals row */}
-          <div className="flex items-center gap-6 flex-1">
-            <div className="flex flex-col items-center">
-              <span className="text-xs text-muted-foreground uppercase tracking-wide">Subtotal</span>
-              <span className="text-lg font-bold text-foreground tabular-nums">
-                ₹{grossAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}
-              </span>
-            </div>
+      {/* Sticky Footer */}
+      <footer className="sticky bottom-0 z-20 bg-white border-t-2 border-slate-200 shadow-[0_-4px_16px_rgba(0,0,0,.07)] shrink-0">
+        {/* Footer Row 1: Totals + Action Buttons */}
+        <div className="flex items-center px-5 py-2.5 gap-4 border-b border-slate-100">
+          <span className="text-[12.5px] text-slate-500">Subtotal</span>
+          <span className="text-[14px] font-black text-slate-800 font-mono">₹{grossAmount.toFixed(2)}</span>
+          <span className="text-slate-300 text-lg font-light">—</span>
+          <span className="text-[12.5px] text-slate-500">Discount</span>
+          <span className="text-[14px] font-black text-red-500 font-mono">
+            ₹{(lineItemDiscount + flatDiscountAmount).toFixed(2)}
+          </span>
+          <span className="text-slate-300 text-lg font-light">+</span>
+          <span className="text-[12.5px] text-slate-500">GST</span>
+          <span className="text-[14px] font-black text-slate-800 font-mono">
+            ₹{taxType === 'exclusive' ? totalGST.toFixed(2) : '0.00'}
+          </span>
 
-            {totalDiscount > 0 && (
-              <>
-                <div className="text-muted-foreground/30 text-2xl font-light">−</div>
-                <div className="flex flex-col items-center">
-                  <span className="text-xs text-destructive/70 uppercase tracking-wide">Discount</span>
-                  <span className="text-lg font-bold text-destructive tabular-nums">
-                    ₹{totalDiscount.toLocaleString('en-IN', {minimumFractionDigits: 2})}
-                  </span>
-                </div>
-              </>
-            )}
-
-            {totalGST > 0 && (
-              <>
-                <div className="text-muted-foreground/30 text-2xl font-light">+</div>
-                <div className="flex flex-col items-center">
-                  <span className="text-xs text-accent-foreground/70 uppercase tracking-wide">GST</span>
-                  <span className="text-lg font-bold text-accent-foreground tabular-nums">
-                    ₹{totalGST.toLocaleString('en-IN', {minimumFractionDigits: 2})}
-                  </span>
-                </div>
-              </>
-            )}
-
-            <div className="h-10 w-px bg-border mx-2" />
-
-            {/* Net Amount - prominent */}
-            <div className="flex flex-col items-center bg-primary text-primary-foreground rounded-xl px-6 py-2 min-w-[160px]">
-              <span className="text-xs uppercase tracking-widest text-primary-foreground/70 font-medium">Net Amount</span>
-              <span className="text-2xl font-black tracking-tight tabular-nums">
-                ₹{netAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}
-              </span>
-            </div>
-
-            <div className="flex flex-col items-center ml-2">
-              <span className="text-xs text-muted-foreground uppercase tracking-wide">Items</span>
-              <span className="text-lg font-bold text-foreground tabular-nums">
-                {lineItems.filter(i => i.productId).length}
-              </span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-xs text-muted-foreground uppercase tracking-wide">Total Qty</span>
-              <span className="text-lg font-bold text-foreground tabular-nums">
-                {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
-              </span>
-            </div>
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex items-center gap-3 shrink-0">
-            <Button variant="outline" size="sm" onClick={() => navigate('/sales-invoice-dashboard')}
-              className="h-10 border-border text-muted-foreground hover:bg-destructive/10 hover:border-destructive/30 hover:text-destructive">
-              <X className="h-4 w-4 mr-1" />
+          {/* Action buttons pushed to the right */}
+          <div className="flex items-center gap-2 ml-auto">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowNotesSection(prev => !prev)}
+              className="h-9 px-4 text-[13px] gap-1.5 border-slate-300 text-slate-600 hover:bg-slate-50"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              Notes
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/sales-invoice-dashboard')}
+              className="h-9 px-4 text-[13px] gap-1.5 border-slate-300 text-slate-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+            >
+              <X className="h-3.5 w-3.5" />
               Cancel
             </Button>
-
-            <div className="flex flex-col items-center">
-              <Button
-                size="sm"
-                variant="success"
-                onClick={handleSaveInvoice}
-                disabled={isSaving || savingLockRef.current || !lineItems.some(i => i.productId)}
-                className="h-10 px-8 font-semibold text-sm shadow-md hover:shadow-lg transition-all gap-2">
-                {isSaving ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</>
-                ) : (
-                  <><Check className="h-4 w-4" /> {editingInvoiceId ? 'Update Invoice' : 'Save Invoice'}</>
-                )}
-              </Button>
-              <span className="text-[10px] text-muted-foreground mt-0.5">Ctrl+S to save</span>
-            </div>
+            <Button
+              size="sm"
+              onClick={handleSaveInvoice}
+              disabled={isSaving || savingLockRef.current || !lineItems.some(i => i.productId)}
+              className="h-9 px-6 text-[13px] bg-green-600 hover:bg-green-700 text-white font-bold gap-1.5 shadow-md hover:shadow-lg transition-all"
+            >
+              {isSaving ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...</>
+              ) : (
+                <><Check className="h-3.5 w-3.5" /> {editingInvoiceId ? 'Update Invoice' : 'Save Invoice'}</>
+              )}
+            </Button>
           </div>
+        </div>
+
+        {/* Footer Row 2: Items count + Total Qty + dotted line + Ctrl+S hint */}
+        <div className="flex items-center px-5 py-1.5 gap-4">
+          <span className="text-[12px] text-slate-500">
+            Items <span className="font-bold text-slate-700">{lineItems.filter(i => i.productId).length}</span>
+          </span>
+          <div className="w-px h-4 bg-slate-200" />
+          <span className="text-[12px] text-slate-500">
+            Total Qty <span className="font-bold text-slate-700">{lineItems.reduce((s, i) => s + (i.productId ? i.quantity : 0), 0)}</span>
+          </span>
+          <div className="flex-1 border-t-2 border-dotted border-slate-200 mx-3 opacity-60" />
+          <span className="text-[11px] text-slate-400 font-mono border border-slate-200 bg-slate-50 px-2 py-0.5 rounded">Ctrl+S</span>
         </div>
       </footer>
 
