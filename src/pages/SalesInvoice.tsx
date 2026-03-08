@@ -2782,7 +2782,7 @@ Thank you for choosing us!`;
                           placeholder="1"
                           onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-16 h-8 text-center font-bold text-sm bg-warning/10 border-warning/30 focus:border-warning mx-auto tabular-nums"
+                          className="w-16 h-9 text-center font-bold text-[14px] bg-warning/10 border-warning/30 focus:border-warning mx-auto tabular-nums"
                         />
                       </td>
                       <td className="text-center px-1.5 py-1">
