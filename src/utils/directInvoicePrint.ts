@@ -16,20 +16,72 @@ interface PrintConfig {
  * Check if QZ Tray is available and connected
  */
 export const isQZReady = (): boolean => {
-  return typeof window !== 'undefined' && window.qz !== undefined && window.qz.websocket?.isActive?.();
+  if (typeof window === 'undefined' || !window.qz) return false;
+  return window.qz.websocket?.isActive?.() === true;
 };
 
 /**
- * Connect to QZ Tray if not already connected
+ * Wait for the QZ Tray script to fully load (max 8 seconds).
+ * The script is loaded async in index.html, so window.qz
+ * may not exist immediately when the app boots.
+ */
+export const waitForQZ = (): Promise<boolean> => {
+  return new Promise((resolve) => {
+    if (typeof window !== 'undefined' && window.qz) {
+      resolve(true);
+      return;
+    }
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attempts++;
+      if (typeof window !== 'undefined' && window.qz) {
+        clearInterval(interval);
+        resolve(true);
+      } else if (attempts >= 40) { // 40 × 200ms = 8s timeout
+        clearInterval(interval);
+        resolve(false);
+      }
+    }, 200);
+  });
+};
+
+/**
+ * Connect to QZ Tray if not already connected.
+ * Sets up required security callbacks for QZ Tray 2.x.
  */
 export const ensureQZConnection = async (): Promise<boolean> => {
-  if (typeof window === 'undefined' || !window.qz) return false;
-  
+  // Wait for QZ script to load first
+  const qzLoaded = await waitForQZ();
+  if (!qzLoaded) {
+    console.warn('QZ Tray script not loaded after 8s');
+    return false;
+  }
+
   try {
-    if (window.qz.websocket.isActive()) return true;
-    await window.qz.websocket.connect();
+    const qz = window.qz;
+
+    // REQUIRED: Set up unsigned certificate mode.
+    // QZ Tray 2.x rejects connections without these callbacks.
+    // For self-hosted/intranet use, empty cert + empty sig is
+    // the standard approach — QZ Tray will prompt for approval
+    // once and remember it.
+    if (!qz.security._certSet) {
+      qz.security.setCertificatePromise((resolve: Function) => {
+        resolve(''); // empty = unsigned mode
+      });
+      qz.security.setSignatureAlgorithm('SHA512');
+      qz.security.setSignaturePromise((_toSign: string) => {
+        return new Promise<string>((resolve) => resolve(''));
+      });
+      // Mark as set so we don't re-register on every call
+      qz.security._certSet = true;
+    }
+
+    if (qz.websocket.isActive()) return true;
+
+    await qz.websocket.connect({ retries: 2, delay: 1 });
     return true;
-  } catch (err) {
+  } catch (err: any) {
     console.error('QZ Tray connection failed:', err);
     return false;
   }
@@ -39,11 +91,9 @@ export const ensureQZConnection = async (): Promise<boolean> => {
  * Get list of available printers from QZ Tray
  */
 export const getQZPrinters = async (): Promise<string[]> => {
-  if (!isQZReady()) {
-    const connected = await ensureQZConnection();
-    if (!connected) return [];
-  }
-  
+  const connected = await ensureQZConnection();
+  if (!connected) return [];
+
   try {
     return await window.qz.printers.find();
   } catch (err) {
@@ -128,56 +178,51 @@ export const printViaQZTray = async (
 
 /**
  * Extract the rendered HTML from an invoice ref element.
- * Clones the element and wraps with necessary styles for standalone printing.
+ * Injects the app's full stylesheets so Tailwind classes render
+ * correctly in QZ Tray's headless Chromium instance.
  */
 export const extractInvoiceHTML = (ref: HTMLDivElement): string => {
-  const clone = ref.cloneNode(true) as HTMLElement;
-  
-  // Force visibility
-  clone.style.opacity = '1';
-  clone.style.visibility = 'visible';
-  clone.style.position = 'static';
-  clone.style.pointerEvents = 'auto';
-
-  // Inline computed styles on every element to avoid needing external stylesheets
-  // This keeps the HTML payload small and self-contained
-  const inlineStyles = (source: HTMLElement, target: HTMLElement) => {
-    const computed = window.getComputedStyle(source);
-    const important = [
-      'display', 'position', 'width', 'height', 'margin', 'padding',
-      'border', 'background', 'background-color', 'color', 'font-family',
-      'font-size', 'font-weight', 'line-height', 'text-align', 'text-decoration',
-      'vertical-align', 'box-sizing', 'flex-direction', 'justify-content',
-      'align-items', 'gap', 'grid-template-columns', 'overflow', 'white-space',
-      'word-break', 'border-collapse', 'border-spacing', 'table-layout',
-      'max-width', 'min-width', 'float', 'clear', 'opacity', 'visibility',
-      'letter-spacing', 'text-transform', 'border-radius', 'box-shadow',
-    ];
-    const styleStr = important.map(p => `${p}:${computed.getPropertyValue(p)}`).join(';');
-    target.setAttribute('style', (target.getAttribute('style') || '') + ';' + styleStr);
-    
-    const sourceChildren = source.children;
-    const targetChildren = target.children;
-    for (let i = 0; i < sourceChildren.length; i++) {
-      if (sourceChildren[i] instanceof HTMLElement && targetChildren[i] instanceof HTMLElement) {
-        inlineStyles(sourceChildren[i] as HTMLElement, targetChildren[i] as HTMLElement);
+  // Get the current app's stylesheet content to inject inline
+  const getPageStylesheets = (): string => {
+    const styles: string[] = [];
+    try {
+      const sheets = document.styleSheets;
+      for (let i = 0; i < sheets.length; i++) {
+        try {
+          const rules = sheets[i].cssRules;
+          if (rules) {
+            for (let j = 0; j < rules.length; j++) {
+              styles.push(rules[j].cssText);
+            }
+          }
+        } catch (e) {
+          // Cross-origin stylesheet — skip
+        }
       }
+    } catch (e) {
+      console.warn('Could not extract stylesheets:', e);
     }
+    return styles.join('\n');
   };
 
-  inlineStyles(ref, clone);
+  const outerHTML = ref.outerHTML;
+  const allStyles = getPageStylesheets();
 
-  // Build lightweight standalone HTML - no external stylesheets needed
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { margin: 0; padding: 0; }
-    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    @page { margin: 0; }
+    ${allStyles}
   </style>
 </head>
-<body>${clone.outerHTML}</body>
+<body>
+  ${outerHTML}
+</body>
 </html>`;
 };
 

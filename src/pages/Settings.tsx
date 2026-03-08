@@ -189,8 +189,11 @@ interface BillBarcodeSettings {
   // Direct Printing (QZ Tray) Settings
   enable_direct_print?: boolean;
   direct_print_sale_printer?: string;
+  direct_print_sale_paper?: 'A4' | 'A5' | '80mm' | '58mm';
   direct_print_pos_printer?: string;
+  direct_print_pos_paper?: 'A4' | 'A5' | '80mm' | '58mm';
   direct_print_auto_print?: boolean;
+  direct_print_copies?: number;
   // Precision Pro Barcode Settings
   precision_pro_enabled?: boolean;
   precision_x_offset?: number;
@@ -224,6 +227,39 @@ interface Settings {
   bill_barcode_settings?: BillBarcodeSettings;
   report_settings?: ReportSettings;
 }
+
+const QZStatusBadge = () => {
+  const [status, setStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  
+  useEffect(() => {
+    let mounted = true;
+    const check = async () => {
+      const { waitForQZ, ensureQZConnection, isQZReady } = 
+        await import('@/utils/directInvoicePrint');
+      if (isQZReady()) {
+        if (mounted) setStatus('connected');
+        return;
+      }
+      const loaded = await waitForQZ();
+      if (!loaded) { if (mounted) setStatus('disconnected'); return; }
+      const connected = await ensureQZConnection();
+      if (mounted) setStatus(connected ? 'connected' : 'disconnected');
+    };
+    check();
+    return () => { mounted = false; };
+  }, []);
+
+  if (status === 'checking') {
+    return <span className="text-xs text-muted-foreground animate-pulse">Checking...</span>;
+  }
+  return (
+    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${status === 'connected' 
+      ? 'bg-green-50 text-green-700 border-green-300' 
+      : 'bg-red-50 text-red-700 border-red-300'}`}>
+      {status === 'connected' ? '● Connected' : '○ Not Running'}
+    </span>
+  );
+};
 
 export default function Settings() {
   const { orgNavigate: navigate } = useOrgNavigation();
@@ -3446,8 +3482,11 @@ export default function Settings() {
                 {/* Direct Printing (QZ Tray) Settings */}
                 <Card className="border-dashed">
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      🖨️ Direct Printing (QZ Tray)
+                    <CardTitle className="text-base flex items-center gap-2 justify-between">
+                      <span className="flex items-center gap-2">
+                        🖨️ Direct Printing (QZ Tray)
+                      </span>
+                      <QZStatusBadge />
                     </CardTitle>
                     <CardDescription>
                       Print invoices directly to thermal or laser printers without browser print dialog
@@ -3512,6 +3551,32 @@ export default function Settings() {
                         </div>
 
                         <div className="space-y-2">
+                          <Label>Sale Invoice Paper Size</Label>
+                          <Select
+                            value={settings.bill_barcode_settings?.direct_print_sale_paper || 'A4'}
+                            onValueChange={(value) =>
+                              setSettings({
+                                ...settings,
+                                bill_barcode_settings: {
+                                  ...settings.bill_barcode_settings,
+                                  direct_print_sale_paper: value as any,
+                                },
+                              })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="A4">A4 (210×297mm) — Laser / Inkjet</SelectItem>
+                              <SelectItem value="A5">A5 (148×210mm) — Laser / Inkjet</SelectItem>
+                              <SelectItem value="80mm">80mm Thermal Roll</SelectItem>
+                              <SelectItem value="58mm">58mm Thermal Roll</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
                           <Label>POS Printer</Label>
                           <Select
                             value={settings.bill_barcode_settings?.direct_print_pos_printer || ''}
@@ -3542,6 +3607,32 @@ export default function Settings() {
                           </p>
                         </div>
 
+                        <div className="space-y-2">
+                          <Label>POS Printer Paper Size</Label>
+                          <Select
+                            value={settings.bill_barcode_settings?.direct_print_pos_paper || '80mm'}
+                            onValueChange={(value) =>
+                              setSettings({
+                                ...settings,
+                                bill_barcode_settings: {
+                                  ...settings.bill_barcode_settings,
+                                  direct_print_pos_paper: value as any,
+                                },
+                              })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="80mm">80mm Thermal Roll</SelectItem>
+                              <SelectItem value="58mm">58mm Thermal Roll</SelectItem>
+                              <SelectItem value="A4">A4 (210×297mm) — Laser / Inkjet</SelectItem>
+                              <SelectItem value="A5">A5 (148×210mm) — Laser / Inkjet</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
                         <div className="flex items-center justify-between">
                           <div className="space-y-0.5">
                             <Label htmlFor="direct_print_auto" className="cursor-pointer">
@@ -3560,6 +3651,32 @@ export default function Settings() {
                                 bill_barcode_settings: {
                                   ...settings.bill_barcode_settings,
                                   direct_print_auto_print: checked,
+                                },
+                              })
+                            }
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label htmlFor="direct_print_copies">Print Copies</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Number of copies to print per invoice
+                            </p>
+                          </div>
+                          <input
+                            id="direct_print_copies"
+                            type="number"
+                            min={1}
+                            max={5}
+                            className="w-16 h-9 border rounded-md text-center text-sm"
+                            value={settings.bill_barcode_settings?.direct_print_copies || 1}
+                            onChange={(e) =>
+                              setSettings({
+                                ...settings,
+                                bill_barcode_settings: {
+                                  ...settings.bill_barcode_settings,
+                                  direct_print_copies: Math.max(1, Math.min(5, Number(e.target.value))),
                                 },
                               })
                             }
@@ -3607,7 +3724,10 @@ export default function Settings() {
                                 });
                                 return;
                               }
-                              const success = await printTestReceipt(printer);
+                              const paper = (settings.bill_barcode_settings?.direct_print_pos_paper
+                                || settings.bill_barcode_settings?.direct_print_sale_paper
+                                || 'A4') as '58mm' | '80mm' | 'A4' | 'A5';
+                              const success = await printTestReceipt(printer, paper);
                               if (success) {
                                 toast({ title: "Test Print Sent", description: "Check your printer for the test receipt" });
                               }
@@ -3620,11 +3740,21 @@ export default function Settings() {
                         <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-2">
                           <p className="font-medium">Setup Requirements:</p>
                           <ul className="list-disc list-inside text-muted-foreground space-y-1">
-                            <li>QZ Tray must be installed — <a href="https://qz.io/download/" target="_blank" rel="noopener noreferrer" className="text-primary underline">Download here</a></li>
-                            <li>Click "Detect Printers" to auto-populate the dropdowns above</li>
-                            <li>Select your printers from the list, then click "Test Print"</li>
-                            <li>Shared printers (e.g., \\PC-NAME\PrinterShare) are also detected</li>
-                            <li>PDF print preview remains available as automatic fallback</li>
+                            <li>
+                              <strong>Step 1:</strong> Install QZ Tray on this PC — {' '}
+                              <a href="https://qz.io/download/" target="_blank" 
+                                 rel="noopener noreferrer" className="text-primary underline">
+                                Download QZ Tray
+                              </a>
+                            </li>
+                            <li><strong>Step 2:</strong> Launch QZ Tray — it runs in the system tray</li>
+                            <li><strong>Step 3:</strong> Click "Detect Printers" above — select your printers</li>
+                            <li><strong>Step 4:</strong> Choose correct paper size per printer</li>
+                            <li><strong>Step 5:</strong> Click "Test Print" to verify</li>
+                            <li>First connection will show a QZ Tray approval popup — click <em>Allow</em></li>
+                            <li>Thermal printers: select 80mm or 58mm paper size</li>
+                            <li>Laser/Inkjet printers: select A4 or A5 paper size</li>
+                            <li>Shared network printers are also supported</li>
                           </ul>
                         </div>
                       </>

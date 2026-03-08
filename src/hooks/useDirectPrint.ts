@@ -10,8 +10,11 @@ import {
 interface DirectPrintSettings {
   enable_direct_print?: boolean;
   direct_print_sale_printer?: string;
+  direct_print_sale_paper?: string;
   direct_print_pos_printer?: string;
+  direct_print_pos_paper?: string;
   direct_print_auto_print?: boolean;
+  direct_print_copies?: number;
 }
 
 interface DirectPrintOptions {
@@ -63,6 +66,12 @@ export const useDirectPrint = (billBarcodeSettings?: DirectPrintSettings | null)
         return false;
       }
 
+      // Resolve paper size: caller override > saved setting > default
+      const savedPaperSize = options.context === 'pos'
+        ? billBarcodeSettings?.direct_print_pos_paper
+        : billBarcodeSettings?.direct_print_sale_paper;
+      const resolvedPaperSize = (options.paperSize || savedPaperSize || 'A4') as '58mm' | '80mm' | 'A4' | 'A5';
+
       // Check QZ Tray availability
       if (!isQZReady()) {
         const connected = await ensureQZConnection();
@@ -95,7 +104,8 @@ export const useDirectPrint = (billBarcodeSettings?: DirectPrintSettings | null)
       // Send to QZ Tray
       const success = await printViaQZTray(html, {
         printerName,
-        paperSize: options.paperSize,
+        paperSize: resolvedPaperSize,
+        copies: billBarcodeSettings?.direct_print_copies || 1,
       });
 
       if (success) {
@@ -113,7 +123,7 @@ export const useDirectPrint = (billBarcodeSettings?: DirectPrintSettings | null)
     } finally {
       isPrintingRef.current = false;
     }
-  }, [isDirectPrintEnabled, getPrinterForContext]);
+  }, [isDirectPrintEnabled, getPrinterForContext, billBarcodeSettings]);
 
   return {
     isDirectPrintEnabled,
