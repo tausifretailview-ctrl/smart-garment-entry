@@ -6146,6 +6146,10 @@ export type Database = {
         Args: { p_end_date: string; p_org_id: string; p_start_date: string }
         Returns: Json
       }
+      get_expense_by_category: {
+        Args: { p_from_date: string; p_org_id: string; p_to_date: string }
+        Returns: Json
+      }
       get_gst_summary: {
         Args: {
           p_from_date: string
@@ -6171,6 +6175,10 @@ export type Database = {
         }
         Returns: Json
       }
+      get_net_profit_aggregates: {
+        Args: { p_from_date: string; p_org_id: string; p_to_date: string }
+        Returns: Json
+      }
       get_org_public_info: { Args: { p_slug: string }; Returns: Json }
       get_org_whatsapp_stats: {
         Args: { p_end_date?: string; p_start_date?: string }
@@ -6184,6 +6192,10 @@ export type Database = {
           sent_count: number
           total_count: number
         }[]
+      }
+      get_pnl_aggregates: {
+        Args: { p_from_date: string; p_org_id: string; p_to_date: string }
+        Returns: Json
       }
       get_product_relations: {
         Args: { p_product_id: string }
@@ -6226,6 +6238,11 @@ export type Database = {
       }
       get_stock_report_totals: {
         Args: { p_organization_id: string }
+        Returns: Json
+      }
+      get_stock_value: { Args: { p_org_id: string }; Returns: number }
+      get_trial_balance_aggregates: {
+        Args: { p_as_of_date: string; p_org_id: string }
         Returns: Json
       }
       get_user_organization_ids: {
