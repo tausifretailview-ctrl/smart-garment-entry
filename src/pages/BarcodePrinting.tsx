@@ -1454,7 +1454,7 @@ export default function BarcodePrinting() {
           .eq("organization_id", currentOrganization.id)
           .order("name");
         if (data) {
-          setDbPresets(data.map((p: any) => ({
+          const mapped = data.map((p: any) => ({
             id: p.id,
             name: p.name,
             xOffset: Number(p.x_offset),
@@ -1467,7 +1467,31 @@ export default function BarcodePrinting() {
             printMode: p.print_mode || 'thermal',
             labelConfig: p.label_config,
             isDefault: p.is_default,
-          })));
+          }));
+          setDbPresets(mapped);
+
+          // Auto-load default preset when navigating from purchase dashboard
+          if (location.state?.purchaseItems) {
+            const defaultPreset = mapped.find((p: any) => p.isDefault);
+            if (defaultPreset) {
+              setPrecisionSettings((prev) => ({
+                ...prev,
+                xOffset: defaultPreset.xOffset,
+                yOffset: defaultPreset.yOffset,
+                vGap: defaultPreset.vGap,
+                labelWidth: defaultPreset.width,
+                labelHeight: defaultPreset.height,
+                ...(defaultPreset.a4Cols ? { a4Cols: defaultPreset.a4Cols } : {}),
+                ...(defaultPreset.a4Rows ? { a4Rows: defaultPreset.a4Rows } : {}),
+                printMode: defaultPreset.printMode || 'thermal',
+                ...(defaultPreset.labelConfig ? { labelConfig: defaultPreset.labelConfig } : {}),
+                enabled: true,
+              }));
+              setActiveBarTab("precision");
+              setActivePrecisionTemplateName(null);
+              toast.success(`Auto-loaded default preset "${defaultPreset.name}"`);
+            }
+          }
         }
       } catch (error) {
         console.error("Failed to fetch printer presets:", error);
