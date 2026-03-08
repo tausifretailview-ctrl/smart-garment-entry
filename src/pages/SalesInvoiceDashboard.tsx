@@ -1479,22 +1479,22 @@ export default function SalesInvoiceDashboard() {
   const isEInvoiceEnabled = (settings?.sale_settings as any)?.einvoice_settings?.enabled ?? false;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-accent/5 to-background p-4 md:p-6">
+    <div className="min-h-screen bg-slate-50 px-6 py-6">
       
-      <div className="w-full space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="w-full max-w-[1600px] mx-auto space-y-5">
+        <div className="flex items-center justify-between mb-1">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            <h1 className="text-[26px] font-extrabold text-blue-600 tracking-tight leading-tight">
               Sales Invoice Dashboard
             </h1>
-            <p className="text-muted-foreground mt-1">View and manage all sales invoices</p>
+            <p className="text-slate-400 text-[13px] mt-0.5">View and manage all sales invoices</p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleExportExcel} className="gap-2">
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={handleExportExcel} className="gap-2 h-9 text-[13px] border-slate-300 text-slate-600 hover:bg-slate-100 font-medium">
               <FileSpreadsheet className="h-4 w-4" />
               Export Excel
             </Button>
-            <Button onClick={() => navigate("/sales-invoice")}>
+            <Button onClick={() => navigate("/sales-invoice")} className="h-9 px-5 text-[13px] font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all">
               New Invoice
             </Button>
             {selectedInvoices.size > 0 && hasSpecialPermission('delete_records') && (
