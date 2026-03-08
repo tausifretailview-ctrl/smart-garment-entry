@@ -4113,6 +4113,12 @@ export default function Settings() {
 
                 {/* Cheque Printing Section */}
                 <div className="pt-6 border-t">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="h-7 w-7 rounded-lg bg-amber-100 flex items-center justify-center">
+                      <FileText className="h-3.5 w-3.5 text-amber-700" />
+                    </div>
+                    <div><p className="text-sm font-semibold">Cheque Printing Format</p><p className="text-xs text-muted-foreground">Configure cheque layout for payment vouchers</p></div>
+                  </div>
                   <ChequeFormatManagement />
                 </div>
               </CardContent>
