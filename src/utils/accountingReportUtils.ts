@@ -175,16 +175,14 @@ export async function calculateTrialBalance(
   return entries;
 }
 
-// Calculate Stock Value at current date
+// Calculate Stock Value at current date — uses server-side RPC
 export async function calculateStockValue(organizationId: string): Promise<number> {
-  const { data: variants } = await supabase
-    .from("product_variants")
-    .select("stock_qty, pur_price")
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null);
-
-  if (!variants) return 0;
-  return variants.reduce((sum, v) => sum + ((v.stock_qty || 0) * (v.pur_price || 0)), 0);
+  const { data, error } = await supabase.rpc('get_stock_value', { p_org_id: organizationId });
+  if (error) {
+    console.error("Error fetching stock value:", error);
+    return 0;
+  }
+  return Number(data) || 0;
 }
 
 // Calculate Stock Value at a specific date (for opening stock)
