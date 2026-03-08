@@ -146,7 +146,7 @@ export function SalesInvoiceERPTable({
                   </span>
                 )}
               </div>
-              <span className="text-xs text-foreground/70">
+              <span className="text-sm text-foreground/70">
                 {invoice.sale_date ? format(new Date(invoice.sale_date), 'hh:mm a') : ''}
               </span>
             </div>
@@ -213,7 +213,7 @@ export function SalesInvoiceERPTable({
             <div className="text-right">
               ₹{Math.round((invoice.discount_amount || 0) + (invoice.flat_discount_amount || 0)).toLocaleString('en-IN')}
               {(invoice.sale_return_adjust || 0) > 0 && (
-                <span className="block text-xs text-amber-600">+S/R: ₹{Math.round(invoice.sale_return_adjust).toLocaleString('en-IN')}</span>
+                <span className="block text-sm text-amber-600">+S/R: ₹{Math.round(invoice.sale_return_adjust).toLocaleString('en-IN')}</span>
               )}
             </div>
           );

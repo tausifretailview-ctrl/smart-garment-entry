@@ -875,7 +875,7 @@ const PurchaseBillDashboard = () => {
       accessorKey: "software_bill_no",
       header: "Bill No.",
       cell: ({ row }) => (
-        <span className="font-mono text-xs font-semibold bg-primary/8 text-primary px-2 py-0.5 rounded-md">
+        <span className="font-mono text-sm font-semibold bg-primary/8 text-primary px-2 py-0.5 rounded-md">
           {row.original.software_bill_no || "N/A"}
         </span>
       ),
@@ -886,7 +886,7 @@ const PurchaseBillDashboard = () => {
       accessorKey: "bill_date",
       header: "Date",
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">{format(new Date(row.original.bill_date), "dd MMM yyyy")}</span>
+        <span className="text-sm text-muted-foreground whitespace-nowrap tabular-nums">{format(new Date(row.original.bill_date), "dd MMM yyyy")}</span>
       ),
       size: 100,
       minSize: 90,
@@ -919,7 +919,7 @@ const PurchaseBillDashboard = () => {
             >
               {bill.supplier_name}
             </span>
-            <Badge className="text-[10px] px-1.5 py-0 shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-0 font-semibold tabular-nums">
+            <Badge className="text-xs px-1.5 py-0 shrink-0 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-0 font-semibold tabular-nums">
               {bill.total_qty || 0}
             </Badge>
           </div>
@@ -1085,7 +1085,7 @@ const PurchaseBillDashboard = () => {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-foreground tracking-tight">Purchase Bills</h1>
-              <p className="text-xs text-muted-foreground">Manage supplier invoices & payments</p>
+              <p className="text-sm text-muted-foreground">Manage supplier invoices & payments</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -1167,7 +1167,7 @@ const PurchaseBillDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white tabular-nums">{summaryStats.totalBills}</div>
-              <p className="text-xs text-white/70 mt-1">{summaryStats.totalQty.toLocaleString('en-IN')} items purchased</p>
+              <p className="text-sm text-white/70 mt-1">{summaryStats.totalQty.toLocaleString('en-IN')} items purchased</p>
             </CardContent>
           </Card>
 
@@ -1178,7 +1178,7 @@ const PurchaseBillDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white tabular-nums">₹{summaryStats.paidAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
-              <p className="text-xs text-white/70 mt-1">Paid bills</p>
+              <p className="text-sm text-white/70 mt-1">Paid bills</p>
             </CardContent>
           </Card>
 
@@ -1189,7 +1189,7 @@ const PurchaseBillDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white tabular-nums">₹{summaryStats.partialAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
-              <p className="text-xs text-white/70 mt-1">Partially paid</p>
+              <p className="text-sm text-white/70 mt-1">Partially paid</p>
             </CardContent>
           </Card>
 
@@ -1200,7 +1200,7 @@ const PurchaseBillDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white tabular-nums">₹{summaryStats.unpaidAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
-              <p className="text-xs text-white/70 mt-1">Bills pending</p>
+              <p className="text-sm text-white/70 mt-1">Bills pending</p>
             </CardContent>
           </Card>
 
@@ -1211,7 +1211,7 @@ const PurchaseBillDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white tabular-nums">₹{summaryStats.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
-              <p className="text-xs text-white/70 mt-1">Avg ₹{filteredBills.length > 0 ? (summaryStats.totalAmount / filteredBills.length).toLocaleString('en-IN', { maximumFractionDigits: 0 }) : "0"} / bill</p>
+              <p className="text-sm text-white/70 mt-1">Avg ₹{filteredBills.length > 0 ? (summaryStats.totalAmount / filteredBills.length).toLocaleString('en-IN', { maximumFractionDigits: 0 }) : "0"} / bill</p>
             </CardContent>
           </Card>
         </div>

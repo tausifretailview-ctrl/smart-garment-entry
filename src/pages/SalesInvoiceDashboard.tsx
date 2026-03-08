@@ -1569,14 +1569,14 @@ export default function SalesInvoiceDashboard() {
             onClick={() => setDeliveryFilter("all")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-              <CardDescription className="text-xs font-medium text-white/80">Total Invoices</CardDescription>
+              <CardDescription className="text-sm font-medium text-white/80">Total Invoices</CardDescription>
               <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
                 <FileText className="h-4 w-4 text-white" />
               </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
               <div className="text-[22px] font-black text-white tabular-nums leading-tight">{effectiveStats.totalInvoices}</div>
-              <p className="text-[11px] text-white/65 mt-0.5">All invoices</p>
+              <p className="text-xs text-white/65 mt-0.5">All invoices</p>
             </CardContent>
           </Card>
 
@@ -1585,14 +1585,14 @@ export default function SalesInvoiceDashboard() {
             onClick={() => setDeliveryFilter("all")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-              <CardDescription className="text-xs font-medium text-white/80">Total Qty</CardDescription>
+              <CardDescription className="text-sm font-medium text-white/80">Total Qty</CardDescription>
               <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
                 <Package className="h-4 w-4 text-white" />
               </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
               <div className="text-[22px] font-black text-white tabular-nums leading-tight">{effectiveStats.totalQty}</div>
-              <p className="text-[11px] text-white/65 mt-0.5">Items sold</p>
+              <p className="text-xs text-white/65 mt-0.5">Items sold</p>
             </CardContent>
           </Card>
 
@@ -1601,14 +1601,14 @@ export default function SalesInvoiceDashboard() {
             onClick={() => setDeliveryFilter("all")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-              <CardDescription className="text-xs font-medium text-white/80">Total Revenue</CardDescription>
+              <CardDescription className="text-sm font-medium text-white/80">Total Revenue</CardDescription>
               <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
                 <TrendingUp className="h-4 w-4 text-white" />
               </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
               <div className="text-[22px] font-black text-white tabular-nums leading-tight">₹{effectiveStats.totalAmount.toFixed(0)}</div>
-              <p className="text-[11px] text-white/65 mt-0.5">Net amount</p>
+              <p className="text-xs text-white/65 mt-0.5">Net amount</p>
             </CardContent>
           </Card>
 
@@ -1617,14 +1617,14 @@ export default function SalesInvoiceDashboard() {
             onClick={() => setDeliveryFilter("all")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-              <CardDescription className="text-xs font-medium text-white/80">Total Discount</CardDescription>
+              <CardDescription className="text-sm font-medium text-white/80">Total Discount</CardDescription>
               <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
                 <Percent className="h-4 w-4 text-white" />
               </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
               <div className="text-[22px] font-black text-white tabular-nums leading-tight">₹{effectiveStats.totalDiscount.toFixed(0)}</div>
-              <p className="text-[11px] text-white/65 mt-0.5">Given</p>
+              <p className="text-xs text-white/65 mt-0.5">Given</p>
             </CardContent>
           </Card>
 
@@ -1633,14 +1633,14 @@ export default function SalesInvoiceDashboard() {
             onClick={() => setDeliveryFilter("all")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-              <CardDescription className="text-xs font-medium text-white/80">Pending Amount</CardDescription>
+              <CardDescription className="text-sm font-medium text-white/80">Pending Amount</CardDescription>
               <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
                 <Clock className="h-4 w-4 text-white" />
               </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
               <div className="text-[22px] font-black text-white tabular-nums leading-tight">₹{effectiveStats.pendingAmount.toFixed(0)}</div>
-              <p className="text-[11px] text-white/65 mt-0.5">Outstanding</p>
+              <p className="text-xs text-white/65 mt-0.5">Outstanding</p>
             </CardContent>
           </Card>
 
@@ -1649,14 +1649,14 @@ export default function SalesInvoiceDashboard() {
             onClick={() => setDeliveryFilter("delivered")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-              <CardDescription className="text-xs font-medium text-white/80">Delivered</CardDescription>
+              <CardDescription className="text-sm font-medium text-white/80">Delivered</CardDescription>
               <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
                 <CheckCircle2 className="h-4 w-4 text-white" />
               </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
               <div className="text-[22px] font-black text-white tabular-nums leading-tight">{effectiveStats.deliveredCount}</div>
-              <p className="text-[11px] text-white/65 mt-0.5">₹{effectiveStats.deliveredAmount.toFixed(0)}</p>
+              <p className="text-xs text-white/65 mt-0.5">₹{effectiveStats.deliveredAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
 
@@ -1665,14 +1665,14 @@ export default function SalesInvoiceDashboard() {
             onClick={() => setDeliveryFilter("undelivered")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-              <CardDescription className="text-xs font-medium text-white/80">Undelivered</CardDescription>
+              <CardDescription className="text-sm font-medium text-white/80">Undelivered</CardDescription>
               <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
                 <Package className="h-4 w-4 text-white" />
               </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
               <div className="text-[22px] font-black text-white tabular-nums leading-tight">{effectiveStats.undeliveredCount}</div>
-              <p className="text-[11px] text-white/65 mt-0.5">₹{effectiveStats.undeliveredAmount.toFixed(0)}</p>
+              <p className="text-xs text-white/65 mt-0.5">₹{effectiveStats.undeliveredAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
         </div>

@@ -50,11 +50,11 @@ export function AccountsDashboardCards({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Invoices</p>
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Total Invoices</p>
                 <div className="text-2xl font-bold text-blue-700 dark:text-blue-300 tabular-nums mt-1">
                   ₹{Math.round(paymentStats.totalAmount).toLocaleString('en-IN')}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">{paymentStats.totalInvoices} invoices</p>
+                <p className="text-sm text-muted-foreground mt-1">{paymentStats.totalInvoices} invoices</p>
               </div>
               <div className="h-11 w-11 rounded-xl bg-blue-50 dark:bg-blue-950 flex items-center justify-center shrink-0">
                 <Receipt className="h-5 w-5 text-blue-600 dark:text-blue-400" />
@@ -74,11 +74,11 @@ export function AccountsDashboardCards({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Paid</p>
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Paid</p>
                 <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300 tabular-nums mt-1">
                   ₹{Math.round(paymentStats.completedAmount).toLocaleString('en-IN')}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">{paymentStats.completedCount} completed</p>
+                <p className="text-sm text-muted-foreground mt-1">{paymentStats.completedCount} completed</p>
               </div>
               <div className="h-11 w-11 rounded-xl bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center shrink-0">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
@@ -98,11 +98,11 @@ export function AccountsDashboardCards({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Partial</p>
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Partial</p>
                 <div className="text-2xl font-bold text-amber-700 dark:text-amber-300 tabular-nums mt-1">
                   ₹{Math.round(paymentStats.partialAmount).toLocaleString('en-IN')}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">{paymentStats.partialCount} partial</p>
+                <p className="text-sm text-muted-foreground mt-1">{paymentStats.partialCount} partial</p>
               </div>
               <div className="h-11 w-11 rounded-xl bg-amber-50 dark:bg-amber-950 flex items-center justify-center shrink-0">
                 <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
@@ -122,11 +122,11 @@ export function AccountsDashboardCards({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pending</p>
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Pending</p>
                 <div className="text-2xl font-bold text-red-700 dark:text-red-300 tabular-nums mt-1">
                   ₹{Math.round(paymentStats.pendingAmount).toLocaleString('en-IN')}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">{paymentStats.pendingCount} pending</p>
+                <p className="text-sm text-muted-foreground mt-1">{paymentStats.pendingCount} pending</p>
               </div>
               <div className="h-11 w-11 rounded-xl bg-red-50 dark:bg-red-950 flex items-center justify-center shrink-0">
                 <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
@@ -143,11 +143,11 @@ export function AccountsDashboardCards({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Receivables</p>
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Total Receivables</p>
                 <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300 tabular-nums mt-1">
                   ₹{Math.round(dashboardMetrics.totalReceivables).toLocaleString('en-IN')}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Customer payments received</p>
+                <p className="text-sm text-muted-foreground mt-1">Customer payments received</p>
               </div>
               <div className="h-11 w-11 rounded-xl bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center shrink-0">
                 <TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
@@ -161,11 +161,11 @@ export function AccountsDashboardCards({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Payables</p>
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Total Payables</p>
                 <div className="text-2xl font-bold text-red-700 dark:text-red-300 tabular-nums mt-1">
                   ₹{Math.round(dashboardMetrics.totalPayables).toLocaleString('en-IN')}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Supplier & employee payments</p>
+                <p className="text-sm text-muted-foreground mt-1">Supplier & employee payments</p>
               </div>
               <div className="h-11 w-11 rounded-xl bg-red-50 dark:bg-red-950 flex items-center justify-center shrink-0">
                 <TrendingDown className="h-5 w-5 text-red-600 dark:text-red-400" />
@@ -179,11 +179,11 @@ export function AccountsDashboardCards({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Monthly Expenses</p>
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Monthly Expenses</p>
                 <div className="text-2xl font-bold text-orange-700 dark:text-orange-300 tabular-nums mt-1">
                   ₹{Math.round(dashboardMetrics.monthlyExpenses).toLocaleString('en-IN')}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Current month expenses</p>
+                <p className="text-sm text-muted-foreground mt-1">Current month expenses</p>
               </div>
               <div className="h-11 w-11 rounded-xl bg-orange-50 dark:bg-orange-950 flex items-center justify-center shrink-0">
                 <DollarSign className="h-5 w-5 text-orange-600 dark:text-orange-400" />
@@ -202,7 +202,7 @@ export function AccountsDashboardCards({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Current Month P/L</p>
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Current Month P/L</p>
                 <div className={cn(
                   "text-2xl font-bold tabular-nums mt-1",
                   dashboardMetrics.currentMonthPL >= 0
@@ -211,7 +211,7 @@ export function AccountsDashboardCards({
                 )}>
                   ₹{Math.round(Math.abs(dashboardMetrics.currentMonthPL)).toLocaleString('en-IN')}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-sm text-muted-foreground mt-1">
                   {dashboardMetrics.currentMonthPL >= 0 ? "🟢 Profit" : "🔴 Loss"} for {format(new Date(), "MMMM yyyy")}
                 </p>
               </div>
