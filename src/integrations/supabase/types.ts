@@ -6013,6 +6013,21 @@ export type Database = {
     }
     Functions: {
       aggregate_and_cleanup_whatsapp_logs: { Args: never; Returns: undefined }
+      check_barcode_duplicate: {
+        Args: {
+          p_barcode: string
+          p_exclude_variant_id?: string
+          p_org_id: string
+        }
+        Returns: {
+          barcode: string
+          color: string
+          product_name: string
+          size: string
+          stock_qty: number
+          variant_id: string
+        }[]
+      }
       check_purchase_stock_dependencies: {
         Args: { p_bill_id: string }
         Returns: {
