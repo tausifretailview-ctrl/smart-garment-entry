@@ -97,92 +97,31 @@ export interface NetProfitSummary {
   generatedAt: string;
 }
 
-// Calculate Trial Balance
+// Calculate Trial Balance — uses server-side RPC
 export async function calculateTrialBalance(
   organizationId: string,
   asOfDate: string
 ): Promise<TrialBalanceEntry[]> {
   const entries: TrialBalanceEntry[] = [];
 
-  // 1. Get customer balances (Debtors)
-  const { data: customers } = await supabase
-    .from("customers")
-    .select("id, customer_name, opening_balance")
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null);
+  // Single RPC replaces 6+ client-side queries with .reduce()
+  const { data: agg, error } = await supabase.rpc('get_trial_balance_aggregates', {
+    p_org_id: organizationId,
+    p_as_of_date: asOfDate,
+  });
 
-  const { data: sales } = await supabase
-    .from("sales")
-    .select("customer_id, net_amount, paid_amount")
-    .eq("organization_id", organizationId)
-    .lte("invoice_date", asOfDate)
-    .is("deleted_at", null);
+  if (error) throw error;
 
-  let totalDebtors = 0;
-  if (customers) {
-    for (const customer of customers) {
-      const openingBal = customer.opening_balance || 0;
-      const customerSales = sales?.filter(s => s.customer_id === customer.id) || [];
-      const totalSales = customerSales.reduce((sum, s) => sum + (s.net_amount || 0), 0);
-      const paidAmount = customerSales.reduce((sum, s) => sum + (s.paid_amount || 0), 0);
-      totalDebtors += openingBal + totalSales - paidAmount;
-    }
-  }
+  const totalDebtors = agg?.total_debtors || 0;
+  const totalCreditors = agg?.total_creditors || 0;
+  const totalSalesRevenue = agg?.total_sales || 0;
+  const totalPurchasesAmount = agg?.total_purchases || 0;
+  const totalSaleReturns = agg?.total_sale_returns || 0;
+  const totalPurchaseReturns = agg?.total_purchase_returns || 0;
+  const cashBalance = agg?.cash_balance || 0;
 
-  // 2. Get supplier balances (Creditors)
-  const { data: suppliers } = await supabase
-    .from("suppliers")
-    .select("id, supplier_name, opening_balance")
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null);
-
-  const { data: purchases } = await supabase
-    .from("purchase_bills")
-    .select("supplier_id, net_amount, paid_amount")
-    .eq("organization_id", organizationId)
-    .lte("bill_date", asOfDate)
-    .is("deleted_at", null);
-
-  let totalCreditors = 0;
-  if (suppliers) {
-    for (const supplier of suppliers) {
-      const openingBal = supplier.opening_balance || 0;
-      const supplierPurchases = purchases?.filter(p => p.supplier_id === supplier.id) || [];
-      const totalPurchases = supplierPurchases.reduce((sum, p) => sum + (p.net_amount || 0), 0);
-      const paidAmount = supplierPurchases.reduce((sum, p) => sum + (p.paid_amount || 0), 0);
-      totalCreditors += openingBal + totalPurchases - paidAmount;
-    }
-  }
-
-  // Get total sales
-  const totalSalesRevenue = sales?.reduce((sum, s) => sum + (s.net_amount || 0), 0) || 0;
-  const totalPurchasesAmount = purchases?.reduce((sum, p) => sum + (p.net_amount || 0), 0) || 0;
-
-  // Get sale returns
-  const { data: saleReturns } = await supabase
-    .from("sale_returns")
-    .select("net_amount")
-    .eq("organization_id", organizationId)
-    .lte("return_date", asOfDate)
-    .is("deleted_at", null);
-  const totalSaleReturns = saleReturns?.reduce((sum, sr) => sum + (sr.net_amount || 0), 0) || 0;
-
-  // Get purchase returns
-  const { data: purchaseReturns } = await supabase
-    .from("purchase_returns")
-    .select("net_amount")
-    .eq("organization_id", organizationId)
-    .lte("return_date", asOfDate)
-    .is("deleted_at", null);
-  const totalPurchaseReturns = purchaseReturns?.reduce((sum, pr) => sum + (pr.net_amount || 0), 0) || 0;
-
-  // Calculate cash from paid amounts
-  const cashFromSales = sales?.reduce((sum, s) => sum + (s.paid_amount || 0), 0) || 0;
-  const cashToPurchases = purchases?.reduce((sum, p) => sum + (p.paid_amount || 0), 0) || 0;
-  const cashBalance = cashFromSales - cashToPurchases;
-
-  // Get stock value
-  const stockValue = await calculateStockValue(organizationId);
+  // Get stock value via RPC
+  const { data: stockValue } = await supabase.rpc('get_stock_value', { p_org_id: organizationId });
 
   // Build trial balance entries
   if (cashBalance !== 0) {
@@ -203,8 +142,8 @@ export async function calculateTrialBalance(
     });
   }
 
-  if (stockValue > 0) {
-    entries.push({ accountName: "Inventory (Stock)", accountType: "Asset", debit: stockValue, credit: 0 });
+  if ((stockValue || 0) > 0) {
+    entries.push({ accountName: "Inventory (Stock)", accountType: "Asset", debit: stockValue || 0, credit: 0 });
   }
 
   if (totalCreditors !== 0) {
