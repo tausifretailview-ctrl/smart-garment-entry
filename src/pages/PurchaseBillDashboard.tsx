@@ -1231,7 +1231,7 @@ const PurchaseBillDashboard = () => {
                 placeholder="Start Date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-[160px]"
+                className="w-[150px] h-9"
               />
               <Input
                 type="date"
