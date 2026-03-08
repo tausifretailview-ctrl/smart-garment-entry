@@ -1154,8 +1154,8 @@ const PurchaseBillDashboard = () => {
               <CheckCircle2 className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.paidCount}</div>
-              <p className="text-xs text-white/70">₹{summaryStats.paidAmount.toFixed(0)}</p>
+              <div className="text-2xl font-bold text-white tabular-nums">₹{summaryStats.paidAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
+              <p className="text-xs text-white/70 mt-1">{summaryStats.paidCount} bills cleared</p>
             </CardContent>
           </Card>
 
