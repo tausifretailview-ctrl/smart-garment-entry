@@ -490,6 +490,37 @@ const GSTReports = () => {
     }
   };
 
+  const downloadGstr1Json = async () => {
+    if (!currentOrganization?.id) return;
+    setIsDownloadingGstr1Json(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-gstr1", {
+        body: {
+          organization_id: currentOrganization.id,
+          from_date: fromDate,
+          to_date: toDate,
+        },
+      });
+      if (error) throw error;
+
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `GSTR1_${fromDate}_${toDate}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast({ title: "Downloaded", description: "GSTR-1 JSON file downloaded" });
+    } catch (err: any) {
+      console.error("GSTR-1 JSON download error:", err);
+      toast({ title: "Error", description: "Failed to download GSTR-1 JSON", variant: "destructive" });
+    } finally {
+      setIsDownloadingGstr1Json(false);
+    }
+  };
+
   const exportToExcel = (data: any[], fileName: string, sheetName: string) => {
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();

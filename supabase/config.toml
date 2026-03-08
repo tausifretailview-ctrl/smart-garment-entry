@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.scheduled-backup]
 verify_jwt = false
+
+[functions.generate-gstr1]
+verify_jwt = false
