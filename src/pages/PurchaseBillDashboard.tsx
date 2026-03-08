@@ -1187,8 +1187,8 @@ const PurchaseBillDashboard = () => {
               <IndianRupee className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">₹{summaryStats.totalAmount.toFixed(0)}</div>
-              <p className="text-xs text-white/70">Avg: ₹{filteredBills.length > 0 ? (summaryStats.totalAmount / filteredBills.length).toFixed(0) : "0"}</p>
+              <div className="text-2xl font-bold text-white tabular-nums">₹{summaryStats.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
+              <p className="text-xs text-white/70 mt-1">Avg ₹{filteredBills.length > 0 ? (summaryStats.totalAmount / filteredBills.length).toLocaleString('en-IN', { maximumFractionDigits: 0 }) : "0"} / bill</p>
             </CardContent>
           </Card>
         </div>
