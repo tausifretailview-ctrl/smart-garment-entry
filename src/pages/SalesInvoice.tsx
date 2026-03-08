@@ -2207,22 +2207,22 @@ Thank you for choosing us!`;
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-slate-50 dark:bg-background">
       {/* Professional Header Bar */}
-      <header className="bg-gradient-to-r from-slate-800 to-slate-700 text-white px-6 py-0 flex items-center justify-between h-14 shrink-0 shadow-lg">
-        {/* Left: Nav + Title */}
-        <div className="flex items-center gap-3">
+      <header className="bg-gradient-to-r from-slate-900 to-slate-800 shrink-0 flex flex-col">
+        <div className="h-[52px] flex items-center px-5 gap-3">
+          {/* Left: Nav */}
           <Button variant="ghost" size="sm" onClick={() => navigate('/sales-invoice-dashboard')}
-            className="text-white/80 hover:text-white hover:bg-white/10 h-8 gap-1.5">
+            className="h-8 text-white/70 hover:text-white hover:bg-white/10 border border-white/15 text-xs gap-1.5">
             <ChevronLeft className="h-4 w-4" />
             <span className="hidden sm:inline">Dashboard</span>
           </Button>
-          <div className="w-px h-6 bg-white/20" />
-          <h1 className="text-white font-semibold text-base tracking-tight">
+          <div className="w-px h-6 bg-white/15 mx-1" />
+          <span className="text-white font-bold text-[15px] whitespace-nowrap">
             {editingInvoiceId ? 'Edit Invoice' : 'Sales Invoice'}
-          </h1>
-          <span className="bg-blue-500 text-white text-xs font-mono font-bold px-2.5 py-1 rounded-full tracking-wide">
+          </span>
+          <span className="bg-blue-600 text-white font-mono text-[11px] font-bold px-3 py-1 rounded-md">
             {editingInvoiceId && allInvoiceIds?.[navInvoiceIndex ?? -1]?.sale_number
               ? allInvoiceIds[navInvoiceIndex!].sale_number
-              : 'NEW'}
+              : (savedInvoiceData?.sale_number || 'NEW')}
           </span>
           {navInvoiceIndex !== null && allInvoiceIds && (
             <span className="text-white/50 text-xs hidden lg:inline">
@@ -2230,47 +2230,53 @@ Thank you for choosing us!`;
             </span>
           )}
           {isLoadingNavInvoice && <Loader2 className="h-4 w-4 animate-spin text-white/60" />}
+
+          <div className="flex-1" />
+
+          {/* Right: Actions */}
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={handleLastInvoice}
+              disabled={isLoadingNavInvoice || !allInvoiceIds?.length}
+              className="h-8 text-white/70 hover:text-white hover:bg-white/10 border border-white/15 text-xs gap-1.5 w-8 p-0">
+              <SkipBack className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handlePreviousInvoice}
+              disabled={isLoadingNavInvoice || navInvoiceIndex === null || navInvoiceIndex >= (allInvoiceIds?.length || 0) - 1}
+              className="h-8 text-white/70 hover:text-white hover:bg-white/10 border border-white/15 text-xs gap-1.5 w-8 p-0">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleNextInvoice}
+              disabled={isLoadingNavInvoice || navInvoiceIndex === null || navInvoiceIndex <= 0}
+              className="h-8 text-white/70 hover:text-white hover:bg-white/10 border border-white/15 text-xs gap-1.5 w-8 p-0">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            {(editingInvoiceId || savedInvoiceData) && (
+              <>
+                <div className="w-px h-6 bg-white/20 mx-1" />
+                <Button size="sm" onClick={handlePrintInvoice}
+                  className="h-8 text-white/70 hover:text-white hover:bg-white/10 border border-white/15 text-xs gap-1.5">
+                  <Printer className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Print</span>
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
-        {/* Center: Last invoice info */}
+        {/* Last invoice info row */}
         {lastInvoice && !editingInvoiceId && (
-          <div className="hidden md:flex items-center gap-2 bg-white/10 rounded-lg px-4 py-1.5 border border-white/20 text-sm">
-            <span className="text-white/60 text-xs">Last:</span>
-            <span className="text-blue-300 font-semibold font-mono text-xs">{lastInvoice.sale_number}</span>
-            <span className="text-white/40">|</span>
+          <div className="h-[34px] bg-slate-800/80 border-t border-white/10 flex items-center justify-center gap-2 text-[12px] px-5">
+            <span className="text-white/50">Last:</span>
+            <span className="text-blue-300 font-mono font-bold text-[11px]">{lastInvoice.sale_number}</span>
+            <span className="text-white/25">|</span>
+            <span className="text-white/50">Qty:</span>
+            <span className="text-white font-bold">{lastInvoice.total_qty}</span>
+            <span className="text-white/25">|</span>
             <span className="text-white font-bold">₹{Math.round(lastInvoice.net_amount || 0).toLocaleString('en-IN')}</span>
-            <span className="text-white/60 text-xs truncate max-w-[120px]">{lastInvoice.customer_name}</span>
+            <span className="text-white/25">|</span>
+            <span className="text-white/70">{lastInvoice.customer_name}</span>
           </div>
         )}
-
-        {/* Right: Actions */}
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" onClick={handleLastInvoice}
-            disabled={isLoadingNavInvoice || !allInvoiceIds?.length}
-            className="text-white/80 hover:text-white hover:bg-white/10 h-8 w-8 p-0">
-            <SkipBack className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={handlePreviousInvoice}
-            disabled={isLoadingNavInvoice || navInvoiceIndex === null || navInvoiceIndex >= (allInvoiceIds?.length || 0) - 1}
-            className="text-white/80 hover:text-white hover:bg-white/10 h-8 w-8 p-0">
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={handleNextInvoice}
-            disabled={isLoadingNavInvoice || navInvoiceIndex === null || navInvoiceIndex <= 0}
-            className="text-white/80 hover:text-white hover:bg-white/10 h-8 w-8 p-0">
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          {(editingInvoiceId || savedInvoiceData) && (
-            <>
-              <div className="w-px h-6 bg-white/20 mx-1" />
-              <Button size="sm" onClick={handlePrintInvoice}
-                className="bg-white/10 hover:bg-white/20 text-white border border-white/20 h-8 gap-1.5">
-                <Printer className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Print</span>
-              </Button>
-            </>
-          )}
-        </div>
       </header>
 
       {/* Main content area */}
