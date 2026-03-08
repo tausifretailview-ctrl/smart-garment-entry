@@ -118,7 +118,14 @@ export const FloatingSupplierLedger = ({
         .order("voucher_date", { ascending: true });
       if (cnError) throw cnError;
 
-      return { bills: bills || [], vouchersData, openingPayments: openingPayments || [], creditNotes: creditNotes || [], billIds };
+      // Fetch refunds received from supplier (when CN is marked 'refunded')
+      const { data: supplierRefunds } = await supabase
+        .from('voucher_entries').select('*')
+        .eq('reference_type', 'supplier').eq('reference_id', supplierId)
+        .eq('voucher_type', 'receipt').is('deleted_at', null)
+        .order('voucher_date', { ascending: true });
+
+      return { bills: bills || [], vouchersData, openingPayments: openingPayments || [], creditNotes: creditNotes || [], supplierRefunds: supplierRefunds || [], billIds };
     },
     enabled: isOpen && !!supplierId,
   });
