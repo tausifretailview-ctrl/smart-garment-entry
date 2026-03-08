@@ -1794,6 +1794,7 @@ export default function SalesInvoiceDashboard() {
                 deliveryHistory={deliveryHistory}
                 saleReturns={saleReturns}
                 cnAdjustedMap={cnAdjustedMap || {}}
+                loadedItems={loadedItems}
                 renderToolbar={(toolbar) => {
                   const portalTarget = document.getElementById('erp-toolbar-portal');
                   if (portalTarget) {
