@@ -5201,8 +5201,8 @@ export default function BarcodePrinting() {
         @page { 
           size: ${isThermal1Up() 
             ? `${(sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)) + leftOffset + rightOffset}mm ${(sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)) + topOffset + bottomOffset}mm` 
-            : 'A4'}; 
-          margin: 0 !important;
+            : 'A4 portrait'}; 
+          margin: 0mm !important;
         }
         
         @media print {
