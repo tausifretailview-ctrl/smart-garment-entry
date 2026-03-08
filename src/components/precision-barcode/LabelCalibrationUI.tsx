@@ -359,9 +359,16 @@ export function LabelCalibrationUI({
         </div>
 
         {isUserPreset && (onSavePreset || onPresetsChange) && (
-          <Button type="button" variant="outline" size="xs" className="h-8" onClick={updatePreset} disabled={saving}>
-            <Save className="h-3 w-3 mr-1" />
-            Update
+          <Button 
+            type="button" 
+            variant="default" 
+            size="xs" 
+            className="h-8 bg-primary text-primary-foreground hover:bg-primary/90" 
+            onClick={updatePreset} 
+            disabled={saving}
+          >
+            <RefreshCw className="h-3 w-3 mr-1" />
+            {saving ? "Updating..." : `Update "${effectivePresetName}"`}
           </Button>
         )}
 
