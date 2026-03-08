@@ -207,6 +207,7 @@ const App = () => {
   }));
 
   return (
+    <RootErrorBoundary>
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
     <QueryClientProvider client={queryClient}>
     <TooltipProvider>
