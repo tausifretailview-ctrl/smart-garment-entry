@@ -723,9 +723,25 @@ export default function StockAnalysis() {
                             <TableCell className="font-medium">{movement.product_name}</TableCell>
                             <TableCell>{movement.size}</TableCell>
                             <TableCell>
-                              <Badge variant={movement.movement_type === 'purchase' ? 'default' : 'secondary'}>
-                                {movement.movement_type}
-                              </Badge>
+                              {(() => {
+                                const typeConfig: Record<string, { label: string; className: string }> = {
+                                  purchase:          { label: "Purchase",         className: "bg-green-100 text-green-700 border-green-300" },
+                                  sale:              { label: "Sale",              className: "bg-red-100 text-red-700 border-red-300" },
+                                  sale_return:       { label: "Sale Return",       className: "bg-blue-100 text-blue-700 border-blue-300" },
+                                  purchase_return:   { label: "Purch. Return",     className: "bg-orange-100 text-orange-700 border-orange-300" },
+                                  adjustment:        { label: "Adjustment",        className: "bg-purple-100 text-purple-700 border-purple-300" },
+                                  purchase_delete:   { label: "Bill Deleted",      className: "bg-slate-100 text-slate-600 border-slate-300" },
+                                  purchase_increase: { label: "Stock Added",       className: "bg-teal-100 text-teal-700 border-teal-300" },
+                                  purchase_decrease: { label: "Stock Reduced",     className: "bg-amber-100 text-amber-700 border-amber-300" },
+                                };
+                                const cfg = typeConfig[movement.movement_type] 
+                                  || { label: movement.movement_type, className: "bg-slate-100 text-slate-600 border-slate-300" };
+                                return (
+                                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${cfg.className}`}>
+                                    {cfg.label}
+                                  </span>
+                                );
+                              })()}
                             </TableCell>
                             <TableCell className="text-right">
                               {movement.movement_type === 'purchase' ? '+' : '-'}{movement.quantity}
