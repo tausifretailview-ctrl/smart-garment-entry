@@ -2832,7 +2832,7 @@ Thank you for choosing us!`;
                         {item.discountAmount > 0 ? `-₹${item.discountAmount.toFixed(2)}` : '-'}
                       </td>
                       <td className="text-center px-3 py-2">
-                        <span className="text-xs font-semibold text-muted-foreground">{item.gstPercent}%</span>
+                        <span className="text-sm font-semibold text-muted-foreground">{item.gstPercent}%</span>
                       </td>
                       <td className="text-right px-3 py-2 bg-blue-50/40">
                         <span className="text-sm font-bold text-blue-700 font-mono tabular-nums">
