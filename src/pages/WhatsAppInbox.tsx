@@ -224,13 +224,14 @@ const WhatsAppInbox = () => {
     if (!currentOrganization?.id) return;
 
     const channel = supabase
-      .channel('whatsapp-updates')
+      .channel(`whatsapp-updates-${currentOrganization.id}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'whatsapp_messages',
+          filter: `organization_id=eq.${currentOrganization.id}`,
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ['whatsapp-messages'] });
@@ -243,6 +244,7 @@ const WhatsAppInbox = () => {
           event: '*',
           schema: 'public',
           table: 'whatsapp_conversations',
+          filter: `organization_id=eq.${currentOrganization.id}`,
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations'] });
