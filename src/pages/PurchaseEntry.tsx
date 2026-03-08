@@ -2320,9 +2320,14 @@ const PurchaseEntry = () => {
       <main className="flex-1 overflow-y-auto overflow-x-hidden">
 
         {/* Supplier & Bill Details Card */}
-        <div className="erp-invoice-info-card">
-          <div className="erp-invoice-section-label">Supplier & Bill Details</div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <section className='bg-white border-b border-slate-200 px-6 py-4 flex-shrink-0'>
+          <div className='flex items-center gap-2 mb-3'>
+            <div className='w-[3px] h-[18px] bg-green-600 rounded-full flex-shrink-0' />
+            <span className='text-[10px] font-bold uppercase tracking-widest text-slate-400'>
+              Supplier & Bill Details
+            </span>
+          </div>
+            <div className='grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 items-end'>
               <div className="space-y-2">
                 <Label htmlFor="software_bill_no">Software Bill No</Label>
                 <Input
@@ -2410,8 +2415,19 @@ const PurchaseEntry = () => {
                 </Popover>
               </div>
 
-              <div className="space-y-2 md:col-span-2">
-                <Label>Search Product</Label>
+            </div>
+          </section>
+
+        {/* Products Table Card */}
+        <section className='bg-green-50/40 border-b border-green-100 px-6 py-3 flex-shrink-0'>
+          <div className='flex items-center gap-3 flex-wrap mt-2'>
+            <div className='flex items-center gap-2'>
+              <div className='w-[3px] h-[18px] bg-green-600 rounded-full flex-shrink-0' />
+              <span className='text-[10px] font-bold uppercase tracking-widest text-slate-400'>
+                Products
+              </span>
+            </div>
+              <div className='flex-1'>
                 <div className="relative">
                   <Input
                     ref={searchInputRef}
@@ -2486,13 +2502,7 @@ const PurchaseEntry = () => {
                   )}
                 </div>
               </div>
-            </div>
-          </div>
 
-        {/* Products Table Card */}
-        <div className="bg-card dark:bg-card bg-white rounded-lg border border-border p-4">
-          <div className="flex items-center justify-between flex-wrap gap-4 mb-4">
-            <div className="erp-invoice-section-label mb-0">Products</div>
               <div className="flex items-center gap-4">
                 <Button
                   onClick={() => setShowExcelImport(true)}
@@ -2527,7 +2537,7 @@ const PurchaseEntry = () => {
                   </div>
                 </div>
               </div>
-            </div>
+          </div>
           <div className="border rounded-lg overflow-x-auto">
             <Table className="table-fixed min-w-[1460px]">
               <TableHeader className="sticky top-0 z-10 erp-invoice-table-header">
@@ -2885,7 +2895,7 @@ const PurchaseEntry = () => {
             {lineItems.length === 0 && (
               <p className="text-xs text-center mt-2 text-muted-foreground">Tip: Press Alt+↓ to copy the last row</p>
             )}
-        </div>
+        </section>
 
         {lineItems.length > 0 && (
           <div className="flex justify-end">
