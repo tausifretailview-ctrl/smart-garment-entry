@@ -498,7 +498,7 @@ export default function Settings() {
           print_mode: item.preset.printMode ?? 'thermal',
           label_config: item.preset.labelConfig ?? null,
           is_default: false,
-        });
+        } as any);
 
       if (error) throw error;
 
