@@ -226,7 +226,7 @@ export const useSaveSale = () => {
           saleNumber = await generateInvoiceNumber(settings.sale_settings.invoice_numbering_format);
         } else {
           // Use default INV format: INV/YY-YY/N
-          const { data: defaultNumber, error: numberError } = await (supabase as any)
+          const { data: defaultNumber, error: numberError } = await supabase
             .rpc('generate_sale_number', { p_organization_id: currentOrganization.id });
           if (numberError) throw numberError;
           saleNumber = defaultNumber;
