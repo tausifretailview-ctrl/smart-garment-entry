@@ -406,20 +406,26 @@ export const useBulkProductUpdate = () => {
       if (variantItems.length > 0) {
         if (updateType === "apply_discount") {
           const discConfig = config as DiscountConfig;
-          for (const item of variantItems) {
-            await supabase
-              .from("product_variants")
-              .update({ [discConfig.applyTo]: item.newValue })
-              .eq("id", item.id);
-          }
+          const upsertData = variantItems.map(item => ({
+            id: item.id,
+            [discConfig.applyTo]: item.newValue,
+            organization_id: currentOrganization.id,
+          }));
+          const { error } = await supabase
+            .from("product_variants")
+            .upsert(upsertData, { onConflict: 'id' });
+          if (error) throw error;
         } else if (updateType === "update_prices") {
           const priceConfig = config as PriceConfig;
-          for (const item of variantItems) {
-            await supabase
-              .from("product_variants")
-              .update({ [priceConfig.priceType]: item.newValue })
-              .eq("id", item.id);
-          }
+          const upsertData = variantItems.map(item => ({
+            id: item.id,
+            [priceConfig.priceType]: item.newValue,
+            organization_id: currentOrganization.id,
+          }));
+          const { error } = await supabase
+            .from("product_variants")
+            .upsert(upsertData, { onConflict: 'id' });
+          if (error) throw error;
         }
       }
 
