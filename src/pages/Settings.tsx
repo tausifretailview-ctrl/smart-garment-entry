@@ -1014,18 +1014,16 @@ export default function Settings() {
                     <p className="text-xs text-muted-foreground">Used for sending daily Cash Tally reports via WhatsApp</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email_id">Email ID</Label>
-                    <Input
-                      id="email_id"
-                      type="email"
-                      value={settings.email_id || ""}
-                      onChange={(e) =>
-                        setSettings({ ...settings, email_id: e.target.value })
-                      }
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email_id">Email ID</Label>
+                  <Input
+                    id="email_id"
+                    type="email"
+                    value={settings.email_id || ""}
+                    onChange={(e) =>
+                      setSettings({ ...settings, email_id: e.target.value })
+                    }
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="gst_number">GST Number</Label>
