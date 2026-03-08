@@ -93,40 +93,50 @@ export default function StockAnalysis() {
         setLowStockThreshold((settingsData as any).product_settings.low_stock_threshold);
       }
 
-      // Search for all variants of this product by name
-      const { data: variantsData, error: variantsError } = await supabase
-        .from("product_variants")
-        .select(`
-          id,
-          size,
-          color,
-          stock_qty,
-          opening_qty,
-          sale_price,
-          pur_price,
-          barcode,
-          products!inner (
-            product_name,
-            brand,
-            color,
-            category,
-            style,
-            product_type,
-            deleted_at
-          )
-        `)
-        .eq("organization_id", currentOrganization.id)
-        .eq("active", true)
-        .is("deleted_at", null)
-        .is("products.deleted_at", null)
-        .neq("products.product_type", "service")
-        .ilike("products.product_name", `%${product.product_name}%`)
-        .order("stock_qty", { ascending: true })
-        .limit(500);
+      // Search for all variants of this product by name (paginated)
+      const allVariants: any[] = [];
+      {
+        const PAGE = 1000;
+        let offset = 0;
+        let hasMore = true;
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from("product_variants")
+            .select(`
+              id,
+              size,
+              color,
+              stock_qty,
+              opening_qty,
+              sale_price,
+              pur_price,
+              barcode,
+              products!inner (
+                product_name,
+                brand,
+                color,
+                category,
+                style,
+                product_type,
+                deleted_at
+              )
+            `)
+            .eq("organization_id", currentOrganization.id)
+            .eq("active", true)
+            .is("deleted_at", null)
+            .is("products.deleted_at", null)
+            .neq("products.product_type", "service")
+            .ilike("products.product_name", `%${product.product_name}%`)
+            .order("stock_qty", { ascending: true })
+            .range(offset, offset + PAGE - 1);
+          if (error) throw error;
+          allVariants.push(...(data || []));
+          hasMore = (data?.length ?? 0) === PAGE;
+          offset += PAGE;
+        }
+      }
 
-      if (variantsError) throw variantsError;
-
-      const filteredVariants = variantsData || [];
+      const filteredVariants = allVariants;
       const variantIds = filteredVariants.map((v: any) => v.id);
 
       // Only fetch movements and batch if we have variants
