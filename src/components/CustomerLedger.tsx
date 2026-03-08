@@ -1724,50 +1724,50 @@ Please clear your dues at the earliest. Thank you!`;
 
               <TabsContent value="payments">
                 {/* Payment Summary Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-                  <Card>
-                    <CardContent className="pt-4">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+                  <Card className="border-l-4 border-l-emerald-500 overflow-hidden">
+                    <CardContent className="p-3">
                       <div className="text-xs text-muted-foreground mb-1">Total Received</div>
-                      <div className="text-xl font-bold text-green-600 dark:text-green-400">
+                      <div className="text-lg font-bold text-green-600 dark:text-green-400">
                         ₹{paymentSummary.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </div>
                       <div className="text-xs text-muted-foreground">{paymentSummary.count} payments</div>
                     </CardContent>
                   </Card>
-                  <Card>
-                    <CardContent className="pt-4">
+                  <Card className="border-l-4 border-l-green-400 overflow-hidden">
+                    <CardContent className="p-3">
                       <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                         <Banknote className="h-3 w-3" /> Cash
                       </div>
-                      <div className="text-xl font-bold text-green-600 dark:text-green-400">
+                      <div className="text-lg font-bold text-green-600 dark:text-green-400">
                         ₹{paymentSummary.cash.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </div>
                     </CardContent>
                   </Card>
-                  <Card>
-                    <CardContent className="pt-4">
+                  <Card className="border-l-4 border-l-blue-400 overflow-hidden">
+                    <CardContent className="p-3">
                       <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                         <CreditCard className="h-3 w-3" /> Card
                       </div>
-                      <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                      <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
                         ₹{paymentSummary.card.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </div>
                     </CardContent>
                   </Card>
-                  <Card>
-                    <CardContent className="pt-4">
+                  <Card className="border-l-4 border-l-violet-400 overflow-hidden">
+                    <CardContent className="p-3">
                       <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                         <Wallet className="h-3 w-3" /> UPI
                       </div>
-                      <div className="text-xl font-bold text-purple-600 dark:text-purple-400">
+                      <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
                         ₹{paymentSummary.upi.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </div>
                     </CardContent>
                   </Card>
-                  <Card>
-                    <CardContent className="pt-4">
+                  <Card className="border-l-4 border-l-slate-400 overflow-hidden">
+                    <CardContent className="p-3">
                       <div className="text-xs text-muted-foreground mb-1">Recorded Separately</div>
-                      <div className="text-xl font-bold">
+                      <div className="text-lg font-bold">
                         ₹{(paymentSummary.total - paymentSummary.cash - paymentSummary.card - paymentSummary.upi).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </div>
                     </CardContent>
