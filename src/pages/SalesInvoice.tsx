@@ -2527,9 +2527,9 @@ Thank you for choosing us!`;
 
           {/* Salesman */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Salesman</label>
+            <label className="text-[13px] font-medium text-muted-foreground mb-1 block">Salesman</label>
             <Select value={salesman || "none"} onValueChange={(v) => setSalesman(v === "none" ? "" : v)}>
-              <SelectTrigger className="h-9">
+              <SelectTrigger className="h-10 text-sm">
                 <SelectValue placeholder="Select salesman" />
               </SelectTrigger>
               <SelectContent className="z-50">
