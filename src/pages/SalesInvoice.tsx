@@ -2513,9 +2513,9 @@ Thank you for choosing us!`;
 
           {/* Tax Type */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Tax Type</label>
+            <label className="text-[13px] font-medium text-muted-foreground mb-1 block">Tax Type</label>
             <Select value={taxType} onValueChange={(v: "exclusive" | "inclusive") => setTaxType(v)}>
-              <SelectTrigger className="h-9">
+              <SelectTrigger className="h-10 text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="z-50">
