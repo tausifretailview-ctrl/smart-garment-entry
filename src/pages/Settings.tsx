@@ -2209,7 +2209,7 @@ export default function Settings() {
                           type="number"
                           min="1"
                           max="30"
-                          value={(settings.sale_settings as any)?.min_item_rows || 8}
+                          value={(settings.sale_settings as any)?.min_item_rows || 12}
                           onChange={(e) =>
                             setSettings({
                               ...settings,
