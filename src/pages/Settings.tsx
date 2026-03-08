@@ -1164,10 +1164,6 @@ export default function Settings() {
               </CardContent>
             </Card>
 
-            {/* WhatsApp Templates Section */}
-            <div className="mt-6">
-              <WhatsAppTemplateSettings />
-            </div>
           </TabsContent>
 
           <TabsContent value="sms">
