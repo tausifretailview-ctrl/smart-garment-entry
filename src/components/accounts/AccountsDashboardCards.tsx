@@ -78,7 +78,7 @@ export function AccountsDashboardCards({
                 <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300 tabular-nums mt-1">
                   ₹{Math.round(paymentStats.completedAmount).toLocaleString('en-IN')}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">{paymentStats.completedCount} completed</p>
+                <p className="text-sm text-muted-foreground mt-1">{paymentStats.completedCount} completed</p>
               </div>
               <div className="h-11 w-11 rounded-xl bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center shrink-0">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
