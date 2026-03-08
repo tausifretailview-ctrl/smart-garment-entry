@@ -2261,292 +2261,292 @@ Thank you for choosing us!`;
       {/* Main content area */}
       <main className="flex-1 overflow-auto px-4 py-3 space-y-3">
 
-      {/* Invoice Details Card - Compact */}
-      <div className="bg-secondary/30 dark:bg-muted/20 rounded-lg border shadow-sm p-4">
-        <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-3">Invoice & Customer Details</div>
+      {/* Invoice & Customer Details Section */}
+      <section className="bg-card border-b border-border px-6 py-4">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-1 h-5 bg-primary rounded-full" />
+          <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            Customer & Invoice Details
+          </span>
+        </div>
 
-          {/* 6-col compact form */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-3">
-            {/* Customer Selection */}
-            <div className="col-span-2 md:col-span-1 lg:col-span-2">
-              <div className="flex items-center justify-between mb-1">
-                <Label>Customer<span className="text-destructive">*</span></Label>
-                <div className="flex items-center gap-2">
-                  {selectedCustomer?.discount_percent > 0 && (
-                    <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600">
-                      {selectedCustomer.discount_percent}% Disc
-                    </span>
-                  )}
-                  {selectedCustomerId && (
-                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                      customerBalance > 0 
-                        ? 'bg-destructive/10 text-destructive' 
-                        : customerBalance < 0 
-                          ? 'bg-green-500/10 text-green-600' 
-                          : 'bg-muted text-muted-foreground'
-                    }`}>
-                      {isBalanceLoading ? '...' : `₹${Math.abs(customerBalance).toLocaleString('en-IN')} ${customerBalance > 0 ? 'Due' : customerBalance < 0 ? 'Cr' : ''}`}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={openCustomerSearch}
-                      className="flex-1 justify-between"
-                    >
-                      {selectedCustomer ? (
-                        <span>{selectedCustomer.customer_name} - {selectedCustomer.phone}</span>
-                      ) : (
-                        <span className="text-muted-foreground">Search customer by name, phone...</span>
-                      )}
-                      <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[400px] p-0 z-50" align="start">
-                    <Command shouldFilter={false}>
-                      <CommandInput 
-                        placeholder="Search by name, phone, email..." 
-                        value={customerSearchInput}
-                        onValueChange={(val) => {
-                          setCustomerSearchInput(val);
-                        }}
-                      />
-                      <CommandList className="max-h-[300px]">
-                        {isCustomersLoading ? (
-                          <div className="flex items-center justify-center py-6">
-                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                          </div>
-                        ) : isCustomersError ? (
-                          <CommandEmpty className="py-4 text-center">
-                            <div className="text-destructive flex items-center justify-center gap-2">
-                              <AlertCircle className="h-4 w-4" />
-                              <span>Error loading customers</span>
-                            </div>
-                            <Button
-                              variant="link"
-                              size="sm"
-                              onClick={() => refetchCustomers()}
-                              className="mt-2"
-                            >
-                              Try again
-                            </Button>
-                          </CommandEmpty>
-                        ) : filteredCustomers.length === 0 && customerSearchInput.length >= 1 ? (
-                          <CommandEmpty className="py-3">
-                            <div className="text-center text-sm text-muted-foreground mb-2">No customers found</div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                // Pre-fill phone if search input looks like a phone number
-                                const searchVal = customerSearchInput.trim();
-                                const isPhone = /^\d{10,}$/.test(searchVal.replace(/\D/g, ''));
-                                customerForm.reset({
-                                  customer_name: isPhone ? "" : searchVal,
-                                  phone: isPhone ? searchVal : "",
-                                  email: "",
-                                  address: "",
-                                  gst_number: "",
-                                });
-                                setOpenCustomerSearch(false);
-                                setOpenCustomerDialog(true);
-                              }}
-                              className="gap-1"
-                            >
-                              <Plus className="h-4 w-4" />
-                              Create "{customerSearchInput}"
-                            </Button>
-                          </CommandEmpty>
-                        ) : filteredCustomers.length === 0 ? (
-                          <div className="py-6 text-center text-sm text-muted-foreground">
-                            Start typing to search customers...
-                          </div>
-                        ) : (
-                          <>
-                            <CommandGroup heading={`Found ${filteredCustomers.length} customers${hasMoreCustomers ? ' - refine search for more' : ''}`}>
-                              {filteredCustomers.map((customer: any) => {
-                                const balance = getCustomerBalance(customer);
-                                const advanceAmt = getCustomerAdvance(customer.id);
-                                return (
-                                  <CommandItem
-                                    key={customer.id}
-                                    value={customer.id}
-                                    onSelect={() => {
-                                      setSelectedCustomerId(customer.id);
-                                      setSelectedCustomer(customer);
-                                      setOpenCustomerSearch(false);
-                                      setCustomerSearchInput("");
-                                    }}
-                                    className="cursor-pointer"
-                                  >
-                                    <div className="flex flex-col gap-1 w-full">
-                                      <div className="flex items-center justify-between">
-                                        <span className="font-medium">{customer.customer_name}</span>
-                                        <div className="flex items-center gap-1.5">
-                                          {advanceAmt > 0 && (
-                                            <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-600">
-                                              ₹{advanceAmt.toLocaleString('en-IN')} Adv
-                                            </span>
-                                          )}
-                                          {balance !== 0 && (
-                                            <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                                              balance > 0 
-                                                ? 'bg-destructive/10 text-destructive' 
-                                                : 'bg-green-500/10 text-green-600'
-                                            }`}>
-                                              ₹{Math.abs(balance).toLocaleString('en-IN')} {balance > 0 ? 'Due' : 'Cr'}
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
-                                      <span className="text-sm text-muted-foreground">
-                                        {customer.phone && `Phone: ${customer.phone}`}
-                                        {customer.email && ` | Email: ${customer.email}`}
-                                      </span>
-                                    </div>
-                                  </CommandItem>
-                                );
-                              })}
-                            </CommandGroup>
-                          </>
-                        )}
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                <Button variant="outline" size="icon" onClick={() => setOpenCustomerDialog(true)}>
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-              {/* Customer Discount Indicator */}
-              {selectedCustomer && (
-                <div className="mt-1.5">
-                  {isBrandDiscountsLoading ? (
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Loading brand discounts...
-                    </span>
-                  ) : hasBrandDiscounts && brandDiscounts.length > 0 ? (
-                    <div className="flex flex-wrap gap-1 items-center">
-                      <span className="text-xs text-muted-foreground">Brand Discounts:</span>
-                      {brandDiscounts.map((bd, idx) => (
-                        <span 
-                          key={idx} 
-                          className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium"
-                        >
-                          {bd.brand}: {bd.discount_percent}%
-                        </span>
-                      ))}
-                    </div>
-                  ) : selectedCustomer.discount_percent > 0 ? (
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-muted-foreground">Customer Discount:</span>
-                      <span className="text-xs bg-green-500/10 text-green-600 px-1.5 py-0.5 rounded font-medium">
-                        {selectedCustomer.discount_percent}%
-                      </span>
-                    </div>
-                  ) : null}
-                </div>
-              )}
-              {selectedCustomer?.transport_details && (
-                <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className="font-medium">Transport:</span>
-                  <span>{selectedCustomer.transport_details}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Invoice No */}
-            <div>
-              <Label>Invoice No</Label>
-              <Input 
-                value={editingInvoiceId ? (savedInvoiceData?.sale_number || '') : nextInvoicePreview} 
-                readOnly 
-                className="bg-muted font-mono"
-                placeholder="Auto-generated"
-              />
-            </div>
-
-            {/* Invoice Date */}
-            <div>
-              <Label>Invoice Date</Label>
-              <Popover>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
+          {/* Customer Selection */}
+          <div className="col-span-2 md:col-span-1 lg:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">
+              Customer <span className="text-destructive">*</span>
+            </label>
+            <div className="flex gap-1.5">
+              <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal")}>
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(invoiceDate, "PPP")}
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openCustomerSearch}
+                    className="flex-1 justify-between h-9"
+                  >
+                    {selectedCustomer ? (
+                      <span>{selectedCustomer.customer_name} - {selectedCustomer.phone}</span>
+                    ) : (
+                      <span className="text-muted-foreground">Search customer by name, phone...</span>
+                    )}
+                    <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 z-50">
-                  <Calendar mode="single" selected={invoiceDate} onSelect={(d) => d && setInvoiceDate(d)} />
+                <PopoverContent className="w-[400px] p-0 z-50" align="start">
+                  <Command shouldFilter={false}>
+                    <CommandInput 
+                      placeholder="Search by name, phone, email..." 
+                      value={customerSearchInput}
+                      onValueChange={(val) => {
+                        setCustomerSearchInput(val);
+                      }}
+                    />
+                    <CommandList className="max-h-[300px]">
+                      {isCustomersLoading ? (
+                        <div className="flex items-center justify-center py-6">
+                          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : isCustomersError ? (
+                        <CommandEmpty className="py-4 text-center">
+                          <div className="text-destructive flex items-center justify-center gap-2">
+                            <AlertCircle className="h-4 w-4" />
+                            <span>Error loading customers</span>
+                          </div>
+                          <Button
+                            variant="link"
+                            size="sm"
+                            onClick={() => refetchCustomers()}
+                            className="mt-2"
+                          >
+                            Try again
+                          </Button>
+                        </CommandEmpty>
+                      ) : filteredCustomers.length === 0 && customerSearchInput.length >= 1 ? (
+                        <CommandEmpty className="py-3">
+                          <div className="text-center text-sm text-muted-foreground mb-2">No customers found</div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const searchVal = customerSearchInput.trim();
+                              const isPhone = /^\d{10,}$/.test(searchVal.replace(/\D/g, ''));
+                              customerForm.reset({
+                                customer_name: isPhone ? "" : searchVal,
+                                phone: isPhone ? searchVal : "",
+                                email: "",
+                                address: "",
+                                gst_number: "",
+                              });
+                              setOpenCustomerSearch(false);
+                              setOpenCustomerDialog(true);
+                            }}
+                            className="gap-1"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Create "{customerSearchInput}"
+                          </Button>
+                        </CommandEmpty>
+                      ) : filteredCustomers.length === 0 ? (
+                        <div className="py-6 text-center text-sm text-muted-foreground">
+                          Start typing to search customers...
+                        </div>
+                      ) : (
+                        <>
+                          <CommandGroup heading={`Found ${filteredCustomers.length} customers${hasMoreCustomers ? ' - refine search for more' : ''}`}>
+                            {filteredCustomers.map((customer: any) => {
+                              const balance = getCustomerBalance(customer);
+                              const advanceAmt = getCustomerAdvance(customer.id);
+                              return (
+                                <CommandItem
+                                  key={customer.id}
+                                  value={customer.id}
+                                  onSelect={() => {
+                                    setSelectedCustomerId(customer.id);
+                                    setSelectedCustomer(customer);
+                                    setOpenCustomerSearch(false);
+                                    setCustomerSearchInput("");
+                                  }}
+                                  className="cursor-pointer"
+                                >
+                                  <div className="flex flex-col gap-1 w-full">
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-medium">{customer.customer_name}</span>
+                                      <div className="flex items-center gap-1.5">
+                                        {advanceAmt > 0 && (
+                                          <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-600">
+                                            ₹{advanceAmt.toLocaleString('en-IN')} Adv
+                                          </span>
+                                        )}
+                                        {balance !== 0 && (
+                                          <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                                            balance > 0 
+                                              ? 'bg-destructive/10 text-destructive' 
+                                              : 'bg-green-500/10 text-green-600'
+                                          }`}>
+                                            ₹{Math.abs(balance).toLocaleString('en-IN')} {balance > 0 ? 'Due' : 'Cr'}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <span className="text-sm text-muted-foreground">
+                                      {customer.phone && `Phone: ${customer.phone}`}
+                                      {customer.email && ` | Email: ${customer.email}`}
+                                    </span>
+                                  </div>
+                                </CommandItem>
+                              );
+                            })}
+                          </CommandGroup>
+                        </>
+                      )}
+                    </CommandList>
+                  </Command>
                 </PopoverContent>
               </Popover>
+              <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => setOpenCustomerDialog(true)}>
+                <Plus className="h-4 w-4" />
+              </Button>
             </div>
-
-            {/* Tax Type */}
-            <div>
-              <Label>Tax Type</Label>
-              <Select value={taxType} onValueChange={(v: "exclusive" | "inclusive") => setTaxType(v)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="z-50">
-                  <SelectItem value="exclusive">Exclusive GST</SelectItem>
-                  <SelectItem value="inclusive">Inclusive GST</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Salesman */}
-            <div>
-              <Label>Salesman</Label>
-              <Select value={salesman || "none"} onValueChange={(v) => setSalesman(v === "none" ? "" : v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select salesman" />
-                </SelectTrigger>
-                <SelectContent className="z-50">
-                  <SelectItem value="none">None</SelectItem>
-                  {employeesData?.map(emp => (
-                    <SelectItem key={emp.id} value={emp.employee_name}>
-                      {emp.employee_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-          </div>
-      </div>
-      </div>
-
-      {/* Product Entry Bar - Compact */}
-      <div className="bg-card rounded-lg border shadow-sm p-3">
-          <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">Product Entry</div>
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* Entry Mode Toggle - only show if size grid enabled in settings */}
-            {sizeGridEnabled && (
-            <div className="flex items-center gap-2">
-              <Label className="text-sm">Entry Mode:</Label>
-              <div className="flex items-center gap-2">
-                <span className={`text-sm ${entryMode === "grid" ? "font-semibold" : "text-muted-foreground"}`}>
-                  Size Grid
-                </span>
-                <Switch
-                  checked={entryMode === "inline"}
-                  onCheckedChange={(checked) => setEntryMode(checked ? "inline" : "grid")}
-                />
-                <span className={`text-sm ${entryMode === "inline" ? "font-semibold" : "text-muted-foreground"}`}>
-                  Inline
+            {/* Balance & discount badges below field */}
+            {selectedCustomerId && (
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                {selectedCustomer?.discount_percent > 0 && (
+                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                    {selectedCustomer.discount_percent}% Disc
+                  </span>
+                )}
+                <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                  customerBalance > 0 
+                    ? 'bg-destructive/10 text-destructive' 
+                    : customerBalance < 0
+                      ? 'bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-500'
+                      : 'bg-muted text-muted-foreground'
+                }`}>
+                  {isBalanceLoading ? '...' : `₹${Math.abs(customerBalance).toLocaleString('en-IN')} ${customerBalance > 0 ? 'due' : customerBalance < 0 ? 'credit' : ''}`}
                 </span>
               </div>
+            )}
+            {/* Brand discounts / transport */}
+            {selectedCustomer && (
+              <div className="mt-1.5">
+                {isBrandDiscountsLoading ? (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Loading brand discounts...
+                  </span>
+                ) : hasBrandDiscounts && brandDiscounts.length > 0 ? (
+                  <div className="flex flex-wrap gap-1 items-center">
+                    <span className="text-xs text-muted-foreground">Brand Discounts:</span>
+                    {brandDiscounts.map((bd, idx) => (
+                      <span 
+                        key={idx} 
+                        className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium"
+                      >
+                        {bd.brand}: {bd.discount_percent}%
+                      </span>
+                    ))}
+                  </div>
+                ) : selectedCustomer.discount_percent > 0 ? (
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-muted-foreground">Customer Discount:</span>
+                    <span className="text-xs bg-green-500/10 text-green-600 px-1.5 py-0.5 rounded font-medium">
+                      {selectedCustomer.discount_percent}%
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            )}
+            {selectedCustomer?.transport_details && (
+              <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="font-medium">Transport:</span>
+                <span>{selectedCustomer.transport_details}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Invoice No */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Invoice No</label>
+            <Input 
+              value={editingInvoiceId ? (savedInvoiceData?.sale_number || '') : nextInvoicePreview} 
+              readOnly 
+              className="bg-muted font-mono font-bold text-sm h-9"
+              placeholder="Auto-generated"
+            />
+          </div>
+
+          {/* Invoice Date */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Invoice Date</label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-full justify-start text-left font-normal h-9")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {format(invoiceDate, "PPP")}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0 z-50">
+                <Calendar mode="single" selected={invoiceDate} onSelect={(d) => d && setInvoiceDate(d)} />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          {/* Tax Type */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Tax Type</label>
+            <Select value={taxType} onValueChange={(v: "exclusive" | "inclusive") => setTaxType(v)}>
+              <SelectTrigger className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="z-50">
+                <SelectItem value="exclusive">Exclusive GST</SelectItem>
+                <SelectItem value="inclusive">Inclusive GST</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Salesman */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Salesman</label>
+            <Select value={salesman || "none"} onValueChange={(v) => setSalesman(v === "none" ? "" : v)}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Select salesman" />
+              </SelectTrigger>
+              <SelectContent className="z-50">
+                <SelectItem value="none">None</SelectItem>
+                {employeesData?.map(emp => (
+                  <SelectItem key={emp.id} value={emp.employee_name}>
+                    {emp.employee_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </section>
+
+      {/* Product Entry Bar */}
+      <section className="bg-primary/5 dark:bg-primary/10 border-b border-primary/20 px-6 py-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Entry Mode Toggle */}
+            {sizeGridEnabled && (
+            <div className="flex items-center gap-2 shrink-0">
+              <span className={`text-sm ${entryMode === "grid" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+                Size Grid
+              </span>
+              <Switch
+                checked={entryMode === "inline"}
+                onCheckedChange={(checked) => setEntryMode(checked ? "inline" : "grid")}
+              />
+              <span className={`text-sm ${entryMode === "inline" ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
+                Inline
+              </span>
             </div>
             )}
 
-            {/* Barcode Scan Input - Direct scan like POS */}
-            <div className="relative w-[200px]">
+            {/* Barcode Scan Input */}
+            <div className="relative w-[200px] shrink-0">
               <Scan className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 ref={barcodeInputRef}
@@ -2554,10 +2554,13 @@ Thank you for choosing us!`;
                 value={searchInput}
                 onChange={handleBarcodeInputChange}
                 onKeyDown={handleBarcodeSearch}
-                className="pl-10 pr-4"
+                className="pl-10 pr-4 h-10 font-mono bg-card border-border"
                 autoFocus
               />
             </div>
+
+            {/* Divider */}
+            <div className="text-muted-foreground/30 text-lg font-light select-none">|</div>
 
             {/* Browse Products Search Bar */}
             <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
@@ -2565,8 +2568,8 @@ Thank you for choosing us!`;
                 <div className="relative flex-1 min-w-[250px] cursor-pointer">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Browse Products..."
-                    className="pl-10 pr-4 cursor-pointer"
+                    placeholder="Browse products by name, brand, category, size..."
+                    className="pl-10 pr-4 h-10 bg-card border-border cursor-pointer text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary"
                     readOnly
                     onClick={() => setOpenProductSearch(true)}
                   />
@@ -2617,7 +2620,7 @@ Thank you for choosing us!`;
                                 <div className="flex items-center gap-2">
                                   <span className="font-medium">{product.product_name}</span>
                                   {product.size_range && (
-                                    <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold">
+                                    <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">
                                       {product.size_range}
                                     </span>
                                   )}
@@ -2630,7 +2633,7 @@ Thank you for choosing us!`;
                                   {product.category && <span className="bg-muted px-1.5 py-0.5 rounded">{product.category}</span>}
                                   {product.style && <span className="bg-muted px-1.5 py-0.5 rounded">{product.style}</span>}
                                   {(variant.color || product.color) && (
-                                    <span className="bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 rounded font-medium">{variant.color || product.color}</span>
+                                    <span className="bg-accent/50 text-accent-foreground px-1.5 py-0.5 rounded font-medium">{variant.color || product.color}</span>
                                   )}
                                   <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">Size: {variant.size}</span>
                                 </div>
@@ -2654,15 +2657,15 @@ Thank you for choosing us!`;
               </PopoverContent>
             </Popover>
 
-            {/* Live Total Qty Badge */}
-            <div className="flex items-center gap-1.5 bg-primary/10 px-2.5 py-1.5 rounded-md border border-primary/20 ml-auto">
-              <span className="text-[12px] font-medium text-muted-foreground">Total Qty:</span>
-              <span className="text-[16px] font-bold text-primary tabular-nums">
+            {/* Total Qty Pill */}
+            <div className="flex items-center gap-2 bg-primary text-primary-foreground rounded-lg px-4 py-2 text-sm font-semibold shrink-0 ml-auto">
+              <span>Total Qty:</span>
+              <span className="text-xl font-bold leading-none tabular-nums">
                 {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
               </span>
             </div>
           </div>
-      </div>
+      </section>
 
       {/* Products Table Card - High Density */}
       <div className="bg-card rounded-lg border shadow-sm p-3">
