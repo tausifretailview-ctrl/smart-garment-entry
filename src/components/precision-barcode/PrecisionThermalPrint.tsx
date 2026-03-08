@@ -9,11 +9,12 @@ interface PrecisionThermalPrintProps {
   labelHeight: number;
   xOffset: number;
   yOffset: number;
+  vGap?: number;
   config?: LabelDesignConfig;
 }
 
 export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermalPrintProps>(
-  ({ items, labelWidth, labelHeight, xOffset, yOffset, config }, ref) => {
+  ({ items, labelWidth, labelHeight, xOffset, yOffset, vGap = 0, config }, ref) => {
     const expandedItems: LabelItem[] = [];
     items.forEach((item) => {
       const qty = item.qty || 1;
@@ -24,24 +25,24 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
 
     return (
       <>
-        <PrecisionPrintCSS labelWidth={labelWidth} labelHeight={labelHeight} mode="thermal" />
+        <PrecisionPrintCSS labelWidth={labelWidth} labelHeight={labelHeight + vGap} mode="thermal" />
         <div ref={ref} className="precision-print-area">
           {expandedItems.map((item, idx) => (
             <div
               key={idx}
               style={{
                 width: `${labelWidth}mm`,
-                height: `${labelHeight}mm`,
-                padding: `${yOffset}mm 0 0 ${xOffset}mm`,
-                boxSizing: "border-box",
+                height: `${labelHeight + vGap}mm`,
                 overflow: "hidden",
-                margin: 0,
+                position: "relative",
               }}
             >
               <PrecisionLabelPreview
                 item={item}
-                width={labelWidth - xOffset}
-                height={labelHeight - yOffset}
+                width={labelWidth}
+                height={labelHeight}
+                xOffset={xOffset}
+                yOffset={yOffset}
                 config={config}
               />
             </div>
