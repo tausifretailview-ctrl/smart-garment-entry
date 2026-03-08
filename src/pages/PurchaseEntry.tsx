@@ -3211,7 +3211,6 @@ const PurchaseEntry = () => {
           }}
         />
 
-    </main>
     </div>
   );
 };
