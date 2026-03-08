@@ -1143,8 +1143,8 @@ const PurchaseBillDashboard = () => {
               <Receipt className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.totalBills}</div>
-              <p className="text-xs text-white/70">Qty: {summaryStats.totalQty}</p>
+              <div className="text-2xl font-bold text-white tabular-nums">{summaryStats.totalBills}</div>
+              <p className="text-xs text-white/70 mt-1">{summaryStats.totalQty.toLocaleString('en-IN')} items purchased</p>
             </CardContent>
           </Card>
 
