@@ -567,16 +567,20 @@ export default function StockReport() {
         if (batchStockData) allBatchData.push(...batchStockData);
 
         for (const row of purchaseRows) {
-          if (!variantMovements[row.sku_id]) variantMovements[row.sku_id] = { purchase: 0, purchaseReturn: 0, sales: 0 };
+          if (!variantMovements[row.sku_id]) variantMovements[row.sku_id] = { purchase: 0, purchaseReturn: 0, sales: 0, saleReturn: 0 };
           variantMovements[row.sku_id].purchase += (row.qty || 0);
         }
         for (const row of saleRows) {
-          if (!variantMovements[row.variant_id]) variantMovements[row.variant_id] = { purchase: 0, purchaseReturn: 0, sales: 0 };
+          if (!variantMovements[row.variant_id]) variantMovements[row.variant_id] = { purchase: 0, purchaseReturn: 0, sales: 0, saleReturn: 0 };
           variantMovements[row.variant_id].sales += (row.quantity || 0);
         }
         for (const row of purReturnRows) {
-          if (!variantMovements[row.sku_id]) variantMovements[row.sku_id] = { purchase: 0, purchaseReturn: 0, sales: 0 };
+          if (!variantMovements[row.sku_id]) variantMovements[row.sku_id] = { purchase: 0, purchaseReturn: 0, sales: 0, saleReturn: 0 };
           variantMovements[row.sku_id].purchaseReturn += (row.qty || 0);
+        }
+        for (const row of saleReturnRows) {
+          if (!variantMovements[row.variant_id]) variantMovements[row.variant_id] = { purchase: 0, purchaseReturn: 0, sales: 0, saleReturn: 0 };
+          variantMovements[row.variant_id].saleReturn += (row.quantity || 0);
         }
       }
 
