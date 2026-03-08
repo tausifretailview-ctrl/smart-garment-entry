@@ -369,15 +369,16 @@ export const useBulkProductUpdate = () => {
       if (productItems.length > 0) {
         if (updateType === "find_replace") {
           const frConfig = config as FindReplaceConfig;
-          for (const item of productItems) {
-            await supabase
-              .from("products")
-              .update({ [frConfig.field]: item.newValue })
-              .eq("id", item.id);
+          // Batch update all matching products in one query
+          const ids = productItems.map(i => i.id);
+          const { error } = await supabase
+            .from("products")
+            .update({ [frConfig.field]: productItems[0]?.newValue })
+            .in("id", ids);
+          if (error) throw error;
 
-            // Cascade to transaction items
-            await cascadeToTransactionItems(frConfig.field, item.newValue, [item.id]);
-          }
+          // Cascade to transaction items
+          await cascadeToTransactionItems(frConfig.field, productItems[0]?.newValue, ids);
         } else if (updateType === "update_field") {
           const ufConfig = config as UpdateFieldConfig;
           const ids = productItems.map(i => i.id);
