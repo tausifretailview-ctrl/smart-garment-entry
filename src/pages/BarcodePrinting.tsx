@@ -5240,9 +5240,6 @@ export default function BarcodePrinting() {
             height: auto !important;
             margin: 0 !important;
             padding: 0 !important;
-            ${isThermal1Up() 
-              ? `transform: scale(1.0); transform-origin: top left;` 
-              : `transform: scale(${(printScale / 100) * getAutoFitScale()}); transform-origin: top left;`}
             overflow: visible !important;
           }
           
