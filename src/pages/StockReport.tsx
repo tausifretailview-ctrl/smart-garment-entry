@@ -1086,24 +1086,26 @@ export default function StockReport() {
       {/* Summary Cards - Always visible */}
       <div className="grid gap-4 md:grid-cols-3 mb-6">
         <Card 
-          className="cursor-pointer hover:shadow-lg transition-shadow bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-lg"
+          className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-indigo-500 shadow-sm"
           onClick={() => hasSearched && setActiveTab("all")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-white/90">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
               {hasSearched ? "Filtered Stock" : "Total Stock"}
             </CardTitle>
-            <Package className="h-4 w-4 text-white" />
+            <div className="h-8 w-8 rounded-xl bg-indigo-100 flex items-center justify-center">
+              <Package className="h-4 w-4 text-indigo-600" />
+            </div>
           </CardHeader>
           <CardContent>
             {globalTotals.isLoading && !hasSearched ? (
-              <Loader2 className="h-6 w-6 animate-spin text-white" />
+              <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
             ) : (
               <>
-                <div className="text-2xl font-bold text-white">
+                <div className="text-2xl font-bold text-indigo-600 tabular-nums">
                   {(hasSearched ? totalStock : globalTotals.totalStock).toLocaleString('en-IN')}
                 </div>
-                <p className="text-xs text-white/70">
+                <p className="text-xs text-muted-foreground">
                   {hasSearched ? `${filteredStockItems.length} variants` : `${globalTotals.variantCount} variants`}
                 </p>
               </>
