@@ -1818,13 +1818,13 @@ export default function SalesInvoiceDashboard() {
                 }}
               />
             {totalCount > 0 && (
-              <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-white">
                 <div className="flex items-center gap-4">
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-[12px] text-slate-500">
                     Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} invoices
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Show:</span>
+                    <span className="text-[12px] text-slate-500">Show:</span>
                     <Select value={itemsPerPage.toString()} onValueChange={handlePageSizeChange}>
                       <SelectTrigger className="w-20 h-8">
                         <SelectValue />
@@ -1845,11 +1845,12 @@ export default function SalesInvoiceDashboard() {
                     size="sm"
                     onClick={handlePreviousPage}
                     disabled={currentPage === 1}
+                    className="h-8 text-[12px] px-3 border-slate-200"
                   >
                     Previous
                   </Button>
                   <div className="flex items-center gap-2 px-3">
-                    <span className="text-sm">
+                    <span className="text-[12px] text-slate-600 font-medium">
                       Page {currentPage} of {totalPages}
                     </span>
                   </div>
@@ -1858,6 +1859,7 @@ export default function SalesInvoiceDashboard() {
                     size="sm"
                     onClick={handleNextPage}
                     disabled={currentPage === totalPages}
+                    className="h-8 text-[12px] px-3 border-slate-200"
                   >
                     Next
                   </Button>
