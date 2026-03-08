@@ -1051,7 +1051,7 @@ export default function StockReport() {
           <CollapsibleContent className="pt-3">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">Supplier</label>
+                <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Supplier</label>
                 <Select value={supplierFilter} onValueChange={setSupplierFilter}>
                   <SelectTrigger className="h-10 !bg-white !text-gray-900">
                     <SelectValue placeholder="All Suppliers" />
