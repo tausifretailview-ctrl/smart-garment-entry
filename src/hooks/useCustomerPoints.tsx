@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useOrgQuery } from "@/hooks/useOrgQuery";
 import { useAuth } from "@/contexts/AuthContext";
 
 export interface PointsSettings {
@@ -49,15 +50,13 @@ export function useCustomerPoints() {
   const { user } = useAuth();
 
   // Fetch points settings
-  const { data: pointsSettings, isLoading: isSettingsLoading } = useQuery({
-    queryKey: ['points-settings', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return defaultPointsSettings;
-      
+  const { data: pointsSettings, isLoading: isSettingsLoading } = useOrgQuery<PointsSettings>({
+    queryKey: ['points-settings'],
+    queryFn: async (orgId) => {
       const { data, error } = await supabase
         .from('settings')
         .select('sale_settings')
-        .eq('organization_id', currentOrganization.id)
+        .eq('organization_id', orgId)
         .maybeSingle();
       
       if (error) throw error;
@@ -70,7 +69,6 @@ export function useCustomerPoints() {
         points_rounding: saleSettings?.points_rounding ?? 'floor',
         min_purchase_for_points: saleSettings?.min_purchase_for_points ?? 0,
         points_expiry_days: saleSettings?.points_expiry_days ?? 0,
-        // Redemption settings
         enable_points_redemption: saleSettings?.enable_points_redemption ?? false,
         points_redemption_value: saleSettings?.points_redemption_value ?? 1,
         max_redemption_percent: saleSettings?.max_redemption_percent ?? 50,
@@ -78,7 +76,6 @@ export function useCustomerPoints() {
         min_purchase_for_redemption: saleSettings?.min_purchase_for_redemption ?? 0,
       } as PointsSettings;
     },
-    enabled: !!currentOrganization?.id,
   });
 
   // Calculate points for a given amount

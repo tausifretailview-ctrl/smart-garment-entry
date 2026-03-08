@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSettings } from "@/hooks/useSettings";
+import { useOrgQuery } from "@/hooks/useOrgQuery";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -312,26 +314,8 @@ export default function SalesInvoiceDashboard() {
     pageContextMenu.openMenu(e, undefined);
   };
 
-  // Fetch company settings for receipt branding
-  const { data: settings } = useQuery({
-    queryKey: ['settings', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return null;
-      
-      const { data, error } = await supabase
-        .from('settings')
-        .select('business_name, address, mobile_number, email_id, gst_number, sale_settings, bill_barcode_settings')
-        .eq('organization_id', currentOrganization.id)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error fetching settings:', error);
-        return null;
-      }
-      return data;
-    },
-    enabled: !!currentOrganization?.id,
-  });
+  // Fetch company settings (centralized, cached 5min)
+  const { data: settings } = useSettings();
 
   useEffect(() => {
     if (currentOrganization?.id) {
@@ -477,20 +461,18 @@ export default function SalesInvoiceDashboard() {
   const productsById: Record<string, any> = {};
 
   // Fetch sale returns with credit_status = 'adjusted' linked to invoices
-  const { data: cnAdjustedMap } = useQuery({
-    queryKey: ['cn-adjusted-returns', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return {} as Record<string, any>;
+  const { data: cnAdjustedMap } = useOrgQuery<Record<string, any[]>>({
+    queryKey: ['cn-adjusted-returns'],
+    queryFn: async (orgId) => {
       const { data, error } = await supabase
         .from('sale_returns')
         .select('id, return_number, net_amount, linked_sale_id, credit_status')
-        .eq('organization_id', currentOrganization.id)
+        .eq('organization_id', orgId)
         .is('deleted_at', null)
         .in('credit_status', ['adjusted', 'refunded', 'adjusted_outstanding']);
 
       if (error) throw error;
 
-      // Map by linked_sale_id for quick lookup
       const map: Record<string, any[]> = {};
       (data || []).forEach((sr: any) => {
         if (sr.linked_sale_id) {
@@ -500,8 +482,7 @@ export default function SalesInvoiceDashboard() {
       });
       return map;
     },
-    enabled: !!currentOrganization?.id,
-    staleTime: 2 * 60 * 1000,
+    options: { staleTime: 2 * 60 * 1000 },
   });
 
   // Get item display settings from settings
