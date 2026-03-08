@@ -345,7 +345,7 @@ export const useSaveSale = () => {
         };
       });
 
-      const { error: itemsError } = await (supabase as any)
+      const { error: itemsError } = await supabase
         .from('sale_items')
         .insert(saleItems);
 
