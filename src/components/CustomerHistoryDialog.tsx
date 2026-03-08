@@ -406,7 +406,7 @@ export function CustomerHistoryDialog({
       if (!customerId || !organizationId) return [];
       const { data, error } = await supabase
         .from('credit_notes')
-        .select('*')
+        .select('id, credit_note_number, issue_date, credit_amount, used_amount, status')
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .order('issue_date', { ascending: false });
