@@ -1636,7 +1636,11 @@ Please clear your dues at the earliest. Thank you!`;
                                 </div>
                               )}
                             </TableCell>
-                            <TableCell className="font-mono text-sm">{transaction.reference}</TableCell>
+                            <TableCell>
+                              <span className="font-mono text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded">
+                                {transaction.reference}
+                              </span>
+                            </TableCell>
                             <TableCell>
                               <div className="space-y-1">
                                 <div className="text-muted-foreground">{transaction.description}</div>
