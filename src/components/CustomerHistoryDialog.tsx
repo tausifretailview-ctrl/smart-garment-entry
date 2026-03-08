@@ -388,7 +388,7 @@ export function CustomerHistoryDialog({
       const saleIds = sales.map(s => s.id);
       const { data, error } = await supabase
         .from('voucher_entries')
-        .select('*')
+        .select('id, voucher_number, voucher_date, voucher_type, total_amount, description')
         .eq('organization_id', organizationId)
         .in('reference_id', saleIds)
         .or('voucher_type.eq.receipt,voucher_type.eq.RECEIPT')
