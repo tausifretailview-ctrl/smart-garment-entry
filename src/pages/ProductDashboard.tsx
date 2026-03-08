@@ -926,11 +926,11 @@ const ProductDashboard = () => {
     if (columnVisibility.color) cols.push({ accessorKey: "color", header: "Color", cell: ({ getValue }) => getValue() || "—", size: 100 });
     if (columnVisibility.hsn) cols.push({ accessorKey: "hsn_code", header: "HSN", cell: ({ getValue }) => <span className="text-xs">{getValue() || "—"}</span>, size: 90 });
     if (columnVisibility.gst) cols.push({ accessorKey: "gst_per", header: "GST%", cell: ({ getValue }) => <span className="text-right block">{getValue()}%</span>, size: 70 });
-    if (columnVisibility.purPrice) cols.push({ accessorKey: "default_pur_price", header: "Pur Price", cell: ({ getValue }) => <span className="text-right block">₹{(getValue() as number).toFixed(2)}</span>, size: 110 });
-    if (columnVisibility.salePrice) cols.push({ accessorKey: "default_sale_price", header: "Sale Price", cell: ({ getValue }) => <span className="text-right block">₹{(getValue() as number).toFixed(2)}</span>, size: 110 });
-    if (columnVisibility.status) cols.push({ accessorKey: "status", header: "Status", cell: ({ getValue }) => <Badge variant={getValue() === "active" ? "default" : "secondary"}>{getValue() as string}</Badge>, size: 90 });
-    if (columnVisibility.totalQty) cols.push({ accessorKey: "total_stock", header: "Total Qty", cell: ({ getValue }) => <span className="text-right block font-medium">{getValue() as number}</span>, size: 90 });
-    if (columnVisibility.variants) cols.push({ id: "variants", header: "Variants", cell: ({ row }) => <Badge variant="secondary">{row.original.variants.length}</Badge>, size: 80 });
+    if (columnVisibility.purPrice) cols.push({ accessorKey: "default_pur_price", header: "Pur Price", cell: ({ getValue }) => <span className="text-right block text-orange-700 dark:text-orange-400 font-medium">₹{(getValue() as number).toFixed(2)}</span>, size: 110 });
+    if (columnVisibility.salePrice) cols.push({ accessorKey: "default_sale_price", header: "Sale Price", cell: ({ getValue }) => <span className="text-right block text-emerald-700 dark:text-emerald-400 font-medium">₹{(getValue() as number).toFixed(2)}</span>, size: 110 });
+    if (columnVisibility.status) cols.push({ accessorKey: "status", header: "Status", cell: ({ getValue }) => { const status = getValue() as string; return (<Badge className={status === "active" ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900 dark:text-emerald-300" : "bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-400"}>{status}</Badge>); }, size: 90 });
+    if (columnVisibility.totalQty) cols.push({ accessorKey: "total_stock", header: "Total Qty", cell: ({ getValue }) => { const qty = getValue() as number; return (<span className={`text-right block font-bold tabular-nums ${qty === 0 ? 'text-red-500' : qty <= 5 ? 'text-orange-500' : 'text-foreground'}`}>{qty}</span>); }, size: 90 });
+    if (columnVisibility.variants) cols.push({ id: "variants", header: "Variants", cell: ({ row }) => (<Badge className="bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900 dark:text-blue-300 font-semibold tabular-nums">{row.original.variants.length}</Badge>), size: 80 });
 
     cols.push({
       id: "actions",
