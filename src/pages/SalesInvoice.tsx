@@ -163,6 +163,7 @@ export default function SalesInvoice() {
   const [paymentTerm, setPaymentTerm] = useState<string>("");
   const [termsConditions, setTermsConditions] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
+  const [showNotesSection, setShowNotesSection] = useState(false);
   const [shippingAddress, setShippingAddress] = useState<string>("");
   const [shippingInstructions, setShippingInstructions] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
