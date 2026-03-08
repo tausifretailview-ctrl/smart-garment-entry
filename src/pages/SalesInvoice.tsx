@@ -2835,7 +2835,7 @@ Thank you for choosing us!`;
                         <span className="text-sm font-semibold text-muted-foreground">{item.gstPercent}%</span>
                       </td>
                       <td className="text-right px-3 py-2 bg-blue-50/40">
-                        <span className="text-sm font-bold text-blue-700 font-mono tabular-nums">
+                        <span className="text-[14px] font-bold text-blue-700 font-mono tabular-nums">
                           ₹{item.lineTotal.toFixed(2)}
                         </span>
                       </td>
