@@ -4682,6 +4682,7 @@ export default function BarcodePrinting() {
                 toast.success("Preset deleted");
                 setDbPresets((prev) => prev.filter((p) => p.id !== presetId));
               }}
+              onSetDefault={handleSetDefaultPreset}
               onLoadPreset={(preset) => {
                 if (preset.labelConfig) {
                   setPrecisionSettings((prev) => ({ ...prev, labelConfig: preset.labelConfig }));
