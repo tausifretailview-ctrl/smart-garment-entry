@@ -2289,13 +2289,13 @@ Thank you for choosing us!`;
           <div className="w-[22px] h-[22px] bg-blue-50 rounded-[5px] flex items-center justify-center flex-shrink-0">
             <Lock className="h-3 w-3 text-blue-600" />
           </div>
-          <span className="text-[13px] font-bold text-slate-700 tracking-tight">Customer & Invoice Details</span>
+          <span className="text-[15px] font-bold text-slate-700 tracking-tight">Customer & Invoice Details</span>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 items-start">
           {/* Customer Selection */}
           <div className="col-span-2 md:col-span-1 lg:col-span-2">
-            <Label className="text-[11px] font-semibold text-slate-500">Customer <span className="text-red-500">*</span></Label>
+            <Label className="text-[13px] font-semibold text-slate-500">Customer <span className="text-red-500">*</span></Label>
             <div className="flex gap-1.5">
               <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
                 <PopoverTrigger asChild>
@@ -2303,7 +2303,7 @@ Thank you for choosing us!`;
                     variant="outline"
                     role="combobox"
                     aria-expanded={openCustomerSearch}
-                    className="flex-1 justify-between h-9"
+                    className="flex-1 justify-between h-10 text-sm"
                   >
                     {selectedCustomer ? (
                       <span>{selectedCustomer.customer_name} - {selectedCustomer.phone}</span>
@@ -2486,21 +2486,21 @@ Thank you for choosing us!`;
 
           {/* Invoice No */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Invoice No</label>
+            <label className="text-[13px] font-medium text-muted-foreground mb-1 block">Invoice No</label>
             <Input 
               value={editingInvoiceId ? (savedInvoiceData?.sale_number || '') : nextInvoicePreview} 
               readOnly 
-              className="bg-muted font-mono font-bold text-sm h-9"
+              className="bg-muted font-mono font-bold text-sm h-10"
               placeholder="Auto-generated"
             />
           </div>
 
           {/* Invoice Date */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Invoice Date</label>
+            <label className="text-[13px] font-medium text-muted-foreground mb-1 block">Invoice Date</label>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("w-full justify-start text-left font-normal h-9")}>
+                <Button variant="outline" className={cn("w-full justify-start text-left font-normal h-10 text-sm")}>
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {format(invoiceDate, "PPP")}
                 </Button>
@@ -2513,9 +2513,9 @@ Thank you for choosing us!`;
 
           {/* Tax Type */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Tax Type</label>
+            <label className="text-[13px] font-medium text-muted-foreground mb-1 block">Tax Type</label>
             <Select value={taxType} onValueChange={(v: "exclusive" | "inclusive") => setTaxType(v)}>
-              <SelectTrigger className="h-9">
+              <SelectTrigger className="h-10 text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="z-50">
@@ -2527,9 +2527,9 @@ Thank you for choosing us!`;
 
           {/* Salesman */}
           <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">Salesman</label>
+            <label className="text-[13px] font-medium text-muted-foreground mb-1 block">Salesman</label>
             <Select value={salesman || "none"} onValueChange={(v) => setSalesman(v === "none" ? "" : v)}>
-              <SelectTrigger className="h-9">
+              <SelectTrigger className="h-10 text-sm">
                 <SelectValue placeholder="Select salesman" />
               </SelectTrigger>
               <SelectContent className="z-50">
@@ -2692,20 +2692,20 @@ Thank you for choosing us!`;
           <table className="w-full border-separate border-spacing-0">
             <thead className="sticky top-0 z-10">
               <tr className="bg-slate-800 border-b-2 border-blue-600">
-                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-10 rounded-tl-lg">#</th>
-                <th className="text-left text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 min-w-[200px]">PRODUCT</th>
-                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-20">SIZE</th>
-                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-20">COLOR</th>
-                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-24">BARCODE</th>
-                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-20">HSN</th>
-                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-16">QTY</th>
-                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-16">BOX</th>
-                <th className="text-right text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-24">MRP</th>
-                <th className="text-right text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-24">PRICE</th>
-                <th className="text-right text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-20">DISC%</th>
-                <th className="text-right text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-24">DISC ₹</th>
-                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-16">GST%</th>
-                <th className="text-right text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-28 bg-blue-700 rounded-tr-lg">TOTAL</th>
+                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-10 rounded-tl-lg">#</th>
+                <th className="text-left text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 min-w-[200px]">PRODUCT</th>
+                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">SIZE</th>
+                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">COLOR</th>
+                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-24">BARCODE</th>
+                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">HSN</th>
+                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-16">QTY</th>
+                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-16">BOX</th>
+                <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-24">MRP</th>
+                <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-24">PRICE</th>
+                <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">DISC%</th>
+                <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-24">DISC ₹</th>
+                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-16">GST%</th>
+                <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-28 bg-blue-700 rounded-tr-lg">TOTAL</th>
                 <th className="w-8 px-1 h-10 bg-slate-800"></th>
               </tr>
             </thead>
@@ -2741,7 +2741,7 @@ Thank you for choosing us!`;
                       key={item.id}
                       className={`group border-b border-border/40 transition-colors ${displayIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} hover:bg-blue-50/50`}
                     >
-                      <td className="text-center text-xs text-muted-foreground px-3 py-2">{srNo}</td>
+                      <td className="text-center text-sm text-muted-foreground px-3 py-2">{srNo}</td>
                       <td className="px-3 py-2">
                         <button
                           type="button"
@@ -2756,7 +2756,7 @@ Thank you for choosing us!`;
                       </td>
                       <td className="text-center px-3 py-2">
                         {item.size ? (
-                          <span className={`inline-block text-[11px] font-bold px-2 py-0.5 rounded ${
+                          <span className={`inline-block text-[13px] font-bold px-2 py-0.5 rounded ${
                             ['XS','S','M','L','XL','XXL','XXXL'].includes(item.size?.toUpperCase())
                               ? 'bg-blue-100 text-blue-700'
                               : /^\d+$/.test(item.size)
@@ -2767,13 +2767,13 @@ Thank you for choosing us!`;
                           </span>
                         ) : <span className="text-slate-300">—</span>}
                       </td>
-                      <td className="text-center text-xs text-muted-foreground px-3 py-2 hidden lg:table-cell">
+                      <td className="text-center text-sm text-muted-foreground px-3 py-2 hidden lg:table-cell">
                         {item.color || <span className="text-slate-300">—</span>}
                       </td>
                       <td className="text-center px-3 py-2">
-                        <span className="font-mono text-xs text-muted-foreground">{item.barcode || <span className="text-slate-300">—</span>}</span>
+                        <span className="font-mono text-sm text-muted-foreground">{item.barcode || <span className="text-slate-300">—</span>}</span>
                       </td>
-                      <td className="text-center text-xs text-muted-foreground px-3 py-2">{item.hsnCode || <span className="text-slate-300">—</span>}</td>
+                      <td className="text-center text-sm text-muted-foreground px-3 py-2">{item.hsnCode || <span className="text-slate-300">—</span>}</td>
                       <td className="text-center px-1.5 py-1">
                         <Input
                           type="number"
@@ -2782,7 +2782,7 @@ Thank you for choosing us!`;
                           placeholder="1"
                           onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-16 h-8 text-center font-bold text-sm bg-warning/10 border-warning/30 focus:border-warning mx-auto tabular-nums"
+                          className="w-16 h-9 text-center font-bold text-[14px] bg-warning/10 border-warning/30 focus:border-warning mx-auto tabular-nums"
                         />
                       </td>
                       <td className="text-center px-1.5 py-1">
@@ -2791,7 +2791,7 @@ Thank you for choosing us!`;
                           value={item.box || ''}
                           onChange={(e) => updateBox(item.id, e.target.value)}
                           placeholder=""
-                          className="w-14 h-8 text-center text-xs mx-auto"
+                          className="w-14 h-9 text-center text-sm mx-auto"
                         />
                       </td>
                       <td className="text-right px-1.5 py-1">
@@ -2802,7 +2802,7 @@ Thank you for choosing us!`;
                           placeholder="0"
                           onChange={(e) => updateMRP(item.id, parseFloat(e.target.value) || 0)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-[84px] h-8 text-right text-sm tabular-nums ml-auto"
+                          className="w-[90px] h-9 text-right text-[14px] tabular-nums ml-auto"
                         />
                       </td>
                       <td className="text-right px-1.5 py-1">
@@ -2813,7 +2813,7 @@ Thank you for choosing us!`;
                           placeholder="0"
                           onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-[84px] h-8 text-right text-sm font-semibold tabular-nums ml-auto"
+                          className="w-[90px] h-9 text-right text-[14px] font-semibold tabular-nums ml-auto"
                         />
                       </td>
                       <td className="text-right px-1.5 py-1">
@@ -2825,17 +2825,17 @@ Thank you for choosing us!`;
                           placeholder="0"
                           onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-16 h-8 text-right text-sm tabular-nums ml-auto"
+                          className="w-16 h-9 text-right text-[14px] tabular-nums ml-auto"
                         />
                       </td>
                       <td className="text-right px-3 py-2 text-sm font-medium tabular-nums text-destructive">
                         {item.discountAmount > 0 ? `-₹${item.discountAmount.toFixed(2)}` : '-'}
                       </td>
                       <td className="text-center px-3 py-2">
-                        <span className="text-xs font-semibold text-muted-foreground">{item.gstPercent}%</span>
+                        <span className="text-sm font-semibold text-muted-foreground">{item.gstPercent}%</span>
                       </td>
                       <td className="text-right px-3 py-2 bg-blue-50/40">
-                        <span className="text-sm font-bold text-blue-700 font-mono tabular-nums">
+                        <span className="text-[14px] font-bold text-blue-700 font-mono tabular-nums">
                           ₹{item.lineTotal.toFixed(2)}
                         </span>
                       </td>
@@ -2881,53 +2881,53 @@ Thank you for choosing us!`;
       {/* Bill Summary Inline (Flat Disc / Other Charges / Round Off) */}
       <div className="px-6 py-2.5 bg-slate-50/80 border-t border-slate-100 flex items-center gap-4 flex-wrap">
         <div className="flex items-center gap-1.5">
-          <span className="text-[11px] text-slate-500 whitespace-nowrap">Flat Disc %</span>
+          <span className="text-[13px] text-slate-500 whitespace-nowrap">Flat Disc %</span>
           <Input
             type="number" min="0" max="100"
             value={flatDiscountPercent || ""}
             placeholder="0"
             onChange={(e) => setFlatDiscountPercent(parseFloat(e.target.value) || 0)}
             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-            className="w-16 h-7 text-[12px]"
+            className="w-20 h-9 text-sm"
           />
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-[11px] text-slate-500 whitespace-nowrap">Flat Disc ₹</span>
+          <span className="text-[13px] text-slate-500 whitespace-nowrap">Flat Disc ₹</span>
           <Input
             type="number" min="0"
             value={flatDiscountRupees || ""}
             placeholder="0"
             onChange={(e) => setFlatDiscountRupees(parseFloat(e.target.value) || 0)}
             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-            className="w-16 h-7 text-[12px]"
+            className="w-20 h-9 text-sm"
           />
         </div>
         <div className="w-px h-5 bg-slate-200" />
         <div className="flex items-center gap-1.5">
-          <span className="text-[11px] text-slate-500 whitespace-nowrap">Other Charges</span>
+          <span className="text-[13px] text-slate-500 whitespace-nowrap">Other Charges</span>
           <Input
             type="number" min="0"
             value={otherCharges || ""}
             placeholder="0"
             onChange={(e) => setOtherCharges(parseFloat(e.target.value) || 0)}
             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-            className="w-20 h-7 text-[12px]"
+            className="w-24 h-9 text-sm"
           />
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-[11px] text-slate-500 whitespace-nowrap">Round Off</span>
+          <span className="text-[13px] text-slate-500 whitespace-nowrap">Round Off</span>
           <Input
             type="number" step="0.01"
             value={roundOff || ""}
             placeholder="0"
             onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-            className="w-20 h-7 text-[12px]"
+            className="w-24 h-9 text-sm"
           />
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <span className="text-[13px] font-semibold text-slate-600">Net:</span>
-          <span className="text-[20px] font-black text-blue-700 font-mono tabular-nums">₹{netAmount.toLocaleString('en-IN')}</span>
+          <span className="text-[15px] font-semibold text-slate-600">Net:</span>
+          <span className="text-[22px] font-black text-blue-700 font-mono tabular-nums">₹{netAmount.toLocaleString('en-IN')}</span>
         </div>
       </div>
 
@@ -2937,16 +2937,16 @@ Thank you for choosing us!`;
       <footer className="sticky bottom-0 z-20 bg-white border-t-2 border-slate-200 shadow-[0_-4px_16px_rgba(0,0,0,.07)] shrink-0">
         {/* Footer Row 1: Totals + Action Buttons */}
         <div className="flex items-center px-5 py-2.5 gap-4 border-b border-slate-100">
-          <span className="text-[12.5px] text-slate-500">Subtotal</span>
-          <span className="text-[14px] font-black text-slate-800 font-mono">₹{grossAmount.toFixed(2)}</span>
+          <span className="text-[14px] text-slate-500">Subtotal</span>
+          <span className="text-[15px] font-black text-slate-800 font-mono">₹{grossAmount.toFixed(2)}</span>
           <span className="text-slate-300 text-lg font-light">—</span>
-          <span className="text-[12.5px] text-slate-500">Discount</span>
-          <span className="text-[14px] font-black text-red-500 font-mono">
+          <span className="text-[14px] text-slate-500">Discount</span>
+          <span className="text-[15px] font-black text-red-500 font-mono">
             ₹{(lineItemDiscount + flatDiscountAmount).toFixed(2)}
           </span>
           <span className="text-slate-300 text-lg font-light">+</span>
-          <span className="text-[12.5px] text-slate-500">GST</span>
-          <span className="text-[14px] font-black text-slate-800 font-mono">
+          <span className="text-[14px] text-slate-500">GST</span>
+          <span className="text-[15px] font-black text-slate-800 font-mono">
             ₹{taxType === 'exclusive' ? totalGST.toFixed(2) : '0.00'}
           </span>
 
@@ -2956,25 +2956,25 @@ Thank you for choosing us!`;
               variant="outline"
               size="sm"
               onClick={() => setShowNotesSection(prev => !prev)}
-              className="h-9 px-4 text-[13px] gap-1.5 border-slate-300 text-slate-600 hover:bg-slate-50"
+              className="h-10 px-4 text-sm gap-1.5 border-slate-300 text-slate-600 hover:bg-slate-50"
             >
-              <FileText className="h-3.5 w-3.5" />
+              <FileText className="h-4 w-4" />
               Notes
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate('/sales-invoice-dashboard')}
-              className="h-9 px-4 text-[13px] gap-1.5 border-slate-300 text-slate-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+              className="h-10 px-4 text-sm gap-1.5 border-slate-300 text-slate-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-4 w-4" />
               Cancel
             </Button>
             <Button
               size="sm"
               onClick={handleSaveInvoice}
               disabled={isSaving || savingLockRef.current || !lineItems.some(i => i.productId)}
-              className="h-9 px-6 text-[13px] bg-green-600 hover:bg-green-700 text-white font-bold gap-1.5 shadow-md hover:shadow-lg transition-all"
+              className="h-10 px-6 text-sm bg-green-600 hover:bg-green-700 text-white font-bold gap-1.5 shadow-md hover:shadow-lg transition-all"
             >
               {isSaving ? (
                 <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...</>
@@ -2987,11 +2987,11 @@ Thank you for choosing us!`;
 
         {/* Footer Row 2: Items count + Total Qty + dotted line + Ctrl+S hint */}
         <div className="flex items-center px-5 py-1.5 gap-4">
-          <span className="text-[12px] text-slate-500">
+          <span className="text-[13px] text-slate-500">
             Items <span className="font-bold text-slate-700">{lineItems.filter(i => i.productId).length}</span>
           </span>
           <div className="w-px h-4 bg-slate-200" />
-          <span className="text-[12px] text-slate-500">
+          <span className="text-[13px] text-slate-500">
             Total Qty <span className="font-bold text-slate-700">{lineItems.reduce((s, i) => s + (i.productId ? i.quantity : 0), 0)}</span>
           </span>
           <div className="flex-1 border-t-2 border-dotted border-slate-200 mx-3 opacity-60" />
