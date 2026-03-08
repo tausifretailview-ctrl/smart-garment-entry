@@ -2881,14 +2881,14 @@ Thank you for choosing us!`;
       {/* Bill Summary Inline (Flat Disc / Other Charges / Round Off) */}
       <div className="px-6 py-2.5 bg-slate-50/80 border-t border-slate-100 flex items-center gap-4 flex-wrap">
         <div className="flex items-center gap-1.5">
-          <span className="text-[11px] text-slate-500 whitespace-nowrap">Flat Disc %</span>
+          <span className="text-[13px] text-slate-500 whitespace-nowrap">Flat Disc %</span>
           <Input
             type="number" min="0" max="100"
             value={flatDiscountPercent || ""}
             placeholder="0"
             onChange={(e) => setFlatDiscountPercent(parseFloat(e.target.value) || 0)}
             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-            className="w-16 h-7 text-[12px]"
+            className="w-20 h-9 text-sm"
           />
         </div>
         <div className="flex items-center gap-1.5">
