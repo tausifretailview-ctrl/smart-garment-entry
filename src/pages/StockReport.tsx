@@ -1292,6 +1292,9 @@ export default function StockReport() {
                             <TableCell className="text-right bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400">
                               -{filteredStockItems.reduce((s, i) => s + i.sales_qty, 0).toLocaleString('en-IN')}
                             </TableCell>
+                            <TableCell className="text-right bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400">
+                              +{filteredStockItems.reduce((s, i) => s + i.sale_return_qty, 0).toLocaleString('en-IN')}
+                            </TableCell>
                             <TableCell className="text-right bg-primary/10 text-primary">
                               {filteredStockItems.reduce((s, i) => s + i.stock_qty, 0).toLocaleString('en-IN')}
                             </TableCell>
