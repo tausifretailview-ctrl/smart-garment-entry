@@ -183,7 +183,7 @@ export function AccountsDashboardCards({
                 <div className="text-2xl font-bold text-orange-700 dark:text-orange-300 tabular-nums mt-1">
                   ₹{Math.round(dashboardMetrics.monthlyExpenses).toLocaleString('en-IN')}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Current month expenses</p>
+                <p className="text-sm text-muted-foreground mt-1">Current month expenses</p>
               </div>
               <div className="h-11 w-11 rounded-xl bg-orange-50 dark:bg-orange-950 flex items-center justify-center shrink-0">
                 <DollarSign className="h-5 w-5 text-orange-600 dark:text-orange-400" />
