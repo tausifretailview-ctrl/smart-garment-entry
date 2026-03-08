@@ -3657,6 +3657,32 @@ export default function Settings() {
                           />
                         </div>
 
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label htmlFor="direct_print_copies">Print Copies</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Number of copies to print per invoice
+                            </p>
+                          </div>
+                          <input
+                            id="direct_print_copies"
+                            type="number"
+                            min={1}
+                            max={5}
+                            className="w-16 h-9 border rounded-md text-center text-sm"
+                            value={settings.bill_barcode_settings?.direct_print_copies || 1}
+                            onChange={(e) =>
+                              setSettings({
+                                ...settings,
+                                bill_barcode_settings: {
+                                  ...settings.bill_barcode_settings,
+                                  direct_print_copies: Math.max(1, Math.min(5, Number(e.target.value))),
+                                },
+                              })
+                            }
+                          />
+                        </div>
+
                         <div className="flex gap-2">
                           <Button
                             type="button"
