@@ -543,6 +543,9 @@ export default function StockAnalysis() {
                               <TableCell className="text-right bg-red-50 dark:bg-red-950 font-bold text-red-700 dark:text-red-400">
                                 -{lowStockItems.reduce((sum, i) => sum + i.sales_qty, 0)}
                               </TableCell>
+                              <TableCell className="text-right bg-emerald-50 dark:bg-emerald-950 font-bold text-emerald-700 dark:text-emerald-400">
+                                +{lowStockItems.reduce((sum, i) => sum + i.sale_return_qty, 0)}
+                              </TableCell>
                               <TableCell className="text-right bg-primary/10 font-bold text-destructive">
                                 {lowStockItems.reduce((sum, i) => sum + i.stock_qty, 0)}
                               </TableCell>
