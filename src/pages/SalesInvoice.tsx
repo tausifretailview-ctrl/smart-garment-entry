@@ -2937,16 +2937,16 @@ Thank you for choosing us!`;
       <footer className="sticky bottom-0 z-20 bg-white border-t-2 border-slate-200 shadow-[0_-4px_16px_rgba(0,0,0,.07)] shrink-0">
         {/* Footer Row 1: Totals + Action Buttons */}
         <div className="flex items-center px-5 py-2.5 gap-4 border-b border-slate-100">
-          <span className="text-[12.5px] text-slate-500">Subtotal</span>
-          <span className="text-[14px] font-black text-slate-800 font-mono">₹{grossAmount.toFixed(2)}</span>
+          <span className="text-[14px] text-slate-500">Subtotal</span>
+          <span className="text-[15px] font-black text-slate-800 font-mono">₹{grossAmount.toFixed(2)}</span>
           <span className="text-slate-300 text-lg font-light">—</span>
-          <span className="text-[12.5px] text-slate-500">Discount</span>
-          <span className="text-[14px] font-black text-red-500 font-mono">
+          <span className="text-[14px] text-slate-500">Discount</span>
+          <span className="text-[15px] font-black text-red-500 font-mono">
             ₹{(lineItemDiscount + flatDiscountAmount).toFixed(2)}
           </span>
           <span className="text-slate-300 text-lg font-light">+</span>
-          <span className="text-[12.5px] text-slate-500">GST</span>
-          <span className="text-[14px] font-black text-slate-800 font-mono">
+          <span className="text-[14px] text-slate-500">GST</span>
+          <span className="text-[15px] font-black text-slate-800 font-mono">
             ₹{taxType === 'exclusive' ? totalGST.toFixed(2) : '0.00'}
           </span>
 
