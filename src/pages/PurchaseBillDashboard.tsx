@@ -780,7 +780,7 @@ const PurchaseBillDashboard = () => {
     unpaidAmount: filteredBills.filter(bill => !bill.payment_status || bill.payment_status === 'unpaid' || (bill.paid_amount || 0) === 0).reduce((sum, bill) => sum + bill.net_amount, 0),
     partialCount: filteredBills.filter(bill => bill.payment_status === 'partial' || ((bill.paid_amount || 0) > 0 && (bill.paid_amount || 0) < bill.net_amount)).length,
     partialAmount: filteredBills.filter(bill => bill.payment_status === 'partial' || ((bill.paid_amount || 0) > 0 && (bill.paid_amount || 0) < bill.net_amount)).reduce((sum, bill) => sum + (bill.net_amount - (bill.paid_amount || 0)), 0),
-  }), [filteredBills, billItems, billsQueryData]);
+  }), [filteredBills, billsQueryData]);
 
   // Server-side pagination — bills already represent current page
   const totalPages = useMemo(() => Math.ceil((billsQueryData?.totalCount || filteredBills.length) / itemsPerPage), [billsQueryData, filteredBills.length, itemsPerPage]);
