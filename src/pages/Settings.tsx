@@ -1579,28 +1579,6 @@ export default function Settings() {
                     Available placeholders: {"{YYYY}"} (year), {"{MM}"} (month), {"{####}"} (auto-increment). Leave empty for default POS/25-26/1 format.
                   </p>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="min_rows">Min No. of Rows in Item Table</Label>
-                  <Input
-                    id="min_rows"
-                    type="number"
-                    min="1"
-                    max="50"
-                    value={(settings.sale_settings as any)?.min_item_rows || 12}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          min_item_rows: parseInt(e.target.value) || 12,
-                        } as any,
-                      })
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Minimum number of rows to display in the item table
-                  </p>
-                </div>
                 
                 <div className="space-y-2">
                   <Label>Default Entry Mode (Sale Order / Quotation)</Label>
