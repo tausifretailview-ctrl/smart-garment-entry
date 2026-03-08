@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useSettings } from "@/hooks/useSettings";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useVisibilityRefetch } from "@/hooks/useVisibilityRefetch";
