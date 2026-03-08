@@ -1134,20 +1134,22 @@ export default function StockReport() {
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-shadow bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-lg">
+        <Card className="hover:shadow-md transition-shadow border-l-4 border-l-emerald-500 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-white/90">Sale Value</CardTitle>
-            <IndianRupee className="h-4 w-4 text-white" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Sale Value</CardTitle>
+            <div className="h-8 w-8 rounded-xl bg-emerald-100 flex items-center justify-center">
+              <IndianRupee className="h-4 w-4 text-emerald-600" />
+            </div>
           </CardHeader>
           <CardContent>
             {globalTotals.isLoading && !hasSearched ? (
-              <Loader2 className="h-6 w-6 animate-spin text-white" />
+              <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
             ) : (
               <>
-                <div className="text-2xl font-bold text-white">
+                <div className="text-2xl font-bold text-emerald-600 tabular-nums">
                   ₹{Math.round(hasSearched ? totalSaleValue : globalTotals.saleValue).toLocaleString('en-IN')}
                 </div>
-                <p className="text-xs text-white/70">Sale price valuation</p>
+                <p className="text-xs text-muted-foreground">Sale price valuation</p>
               </>
             )}
           </CardContent>
