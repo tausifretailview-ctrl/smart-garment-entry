@@ -209,9 +209,10 @@ export function LabelCalibrationUI({
 
   // Compute the Select value: templates use "template_" prefix, presets use direct name
   const selectValue = (() => {
-    if (!activePresetName) return undefined;
-    if (savedTemplates.some(t => t.name === activePresetName)) return `template_${activePresetName}`;
-    if (allPresets.some(p => p.name === activePresetName)) return activePresetName;
+    const name = effectivePresetName;
+    if (!name) return undefined;
+    if (savedTemplates.some(t => t.name === name)) return `template_${name}`;
+    if (allPresets.some(p => p.name === name)) return name;
     return undefined;
   })();
 
