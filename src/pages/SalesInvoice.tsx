@@ -2754,17 +2754,25 @@ Thank you for choosing us!`;
                         )}
                       </td>
                       <td className="text-center px-3 py-2">
-                        <span className="inline-block bg-muted text-foreground text-xs font-semibold px-2 py-0.5 rounded">
-                          {item.size || '-'}
-                        </span>
+                        {item.size ? (
+                          <span className={`inline-block text-[11px] font-bold px-2 py-0.5 rounded ${
+                            ['XS','S','M','L','XL','XXL','XXXL'].includes(item.size?.toUpperCase())
+                              ? 'bg-blue-100 text-blue-700'
+                              : /^\d+$/.test(item.size)
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {item.size}
+                          </span>
+                        ) : <span className="text-slate-300">—</span>}
                       </td>
                       <td className="text-center text-xs text-muted-foreground px-3 py-2 hidden lg:table-cell">
-                        {item.color || '-'}
+                        {item.color || <span className="text-slate-300">—</span>}
                       </td>
                       <td className="text-center px-3 py-2">
-                        <span className="font-mono text-xs text-muted-foreground">{item.barcode || '-'}</span>
+                        <span className="font-mono text-xs text-muted-foreground">{item.barcode || <span className="text-slate-300">—</span>}</span>
                       </td>
-                      <td className="text-center text-xs text-muted-foreground px-3 py-2">{item.hsnCode || '-'}</td>
+                      <td className="text-center text-xs text-muted-foreground px-3 py-2">{item.hsnCode || <span className="text-slate-300">—</span>}</td>
                       <td className="text-center px-1.5 py-1">
                         <Input
                           type="number"
