@@ -2926,8 +2926,8 @@ Thank you for choosing us!`;
           />
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <span className="text-[13px] font-semibold text-slate-600">Net:</span>
-          <span className="text-[20px] font-black text-blue-700 font-mono tabular-nums">₹{netAmount.toLocaleString('en-IN')}</span>
+          <span className="text-[15px] font-semibold text-slate-600">Net:</span>
+          <span className="text-[22px] font-black text-blue-700 font-mono tabular-nums">₹{netAmount.toLocaleString('en-IN')}</span>
         </div>
       </div>
 
