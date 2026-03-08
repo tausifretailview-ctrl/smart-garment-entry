@@ -6193,6 +6193,7 @@ export type Database = {
           total_count: number
         }[]
       }
+      get_outstanding_summary: { Args: { p_org_id: string }; Returns: Json }
       get_pnl_aggregates: {
         Args: { p_from_date: string; p_org_id: string; p_to_date: string }
         Returns: Json
@@ -6205,6 +6206,11 @@ export type Database = {
           sample_references: string[]
         }[]
       }
+      get_purchase_summary: {
+        Args: { p_end_date: string; p_org_id: string; p_start_date: string }
+        Returns: Json
+      }
+      get_quotation_summary: { Args: { p_org_id: string }; Returns: Json }
       get_sales_invoice_dashboard_stats: {
         Args: {
           p_date_end?: string
@@ -6223,6 +6229,10 @@ export type Database = {
           p_organization_id: string
           p_start_date?: string
         }
+        Returns: Json
+      }
+      get_sales_summary: {
+        Args: { p_end_date: string; p_org_id: string; p_start_date: string }
         Returns: Json
       }
       get_stock_at_time: {
