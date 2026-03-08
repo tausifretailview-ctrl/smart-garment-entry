@@ -1502,6 +1502,22 @@ export default function BarcodePrinting() {
     fetchDbPresets();
   }, [currentOrganization?.id]);
 
+  // Set a preset as default for auto-loading from purchase
+  const handleSetDefaultPreset = async (presetId: string, presetName: string) => {
+    if (!currentOrganization?.id) return;
+    await supabase
+      .from("printer_presets")
+      .update({ is_default: false })
+      .eq("organization_id", currentOrganization.id);
+    const { error } = await supabase
+      .from("printer_presets")
+      .update({ is_default: true })
+      .eq("id", presetId);
+    if (error) { toast.error("Failed to set default"); return; }
+    toast.success(`"${presetName}" set as default preset`);
+    setDbPresets(prev => prev.map(p => ({ ...p, isDefault: p.id === presetId })));
+  };
+
   // Recalculate purchase codes when alphabet changes (handles timing issues)
   useEffect(() => {
     if (purchaseCodeAlphabet && labelItems.length > 0) {
