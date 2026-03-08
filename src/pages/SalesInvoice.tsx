@@ -2956,25 +2956,25 @@ Thank you for choosing us!`;
               variant="outline"
               size="sm"
               onClick={() => setShowNotesSection(prev => !prev)}
-              className="h-9 px-4 text-[13px] gap-1.5 border-slate-300 text-slate-600 hover:bg-slate-50"
+              className="h-10 px-4 text-sm gap-1.5 border-slate-300 text-slate-600 hover:bg-slate-50"
             >
-              <FileText className="h-3.5 w-3.5" />
+              <FileText className="h-4 w-4" />
               Notes
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate('/sales-invoice-dashboard')}
-              className="h-9 px-4 text-[13px] gap-1.5 border-slate-300 text-slate-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+              className="h-10 px-4 text-sm gap-1.5 border-slate-300 text-slate-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-4 w-4" />
               Cancel
             </Button>
             <Button
               size="sm"
               onClick={handleSaveInvoice}
               disabled={isSaving || savingLockRef.current || !lineItems.some(i => i.productId)}
-              className="h-9 px-6 text-[13px] bg-green-600 hover:bg-green-700 text-white font-bold gap-1.5 shadow-md hover:shadow-lg transition-all"
+              className="h-10 px-6 text-sm bg-green-600 hover:bg-green-700 text-white font-bold gap-1.5 shadow-md hover:shadow-lg transition-all"
             >
               {isSaving ? (
                 <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...</>
