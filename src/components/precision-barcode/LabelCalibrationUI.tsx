@@ -336,6 +336,7 @@ export function LabelCalibrationUI({
             <SelectContent>
               {allPresets.map((p) => (
                 <SelectItem key={p.name} value={p.name} className="text-xs">
+                  {p.isDefault && <Star className="h-3 w-3 inline mr-1 text-amber-500 fill-amber-500" />}
                   {p.name}
                   <span className="ml-1 text-muted-foreground">
                     ({p.width}×{p.height})
