@@ -110,6 +110,7 @@ const GSTReports = () => {
   const [gstr3bData, setGstr3bData] = useState<GSTR3BSummary | null>(null);
   const [hsnData, setHsnData] = useState<HSNSummary[]>([]);
   const [businessInfo, setBusinessInfo] = useState<{ name: string; gstin: string }>({ name: "", gstin: "" });
+  const [isDownloadingGstr1Json, setIsDownloadingGstr1Json] = useState(false);
 
   // Get current financial year
   const getCurrentFY = () => {
@@ -489,6 +490,37 @@ const GSTReports = () => {
     }
   };
 
+  const downloadGstr1Json = async () => {
+    if (!currentOrganization?.id) return;
+    setIsDownloadingGstr1Json(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-gstr1", {
+        body: {
+          organization_id: currentOrganization.id,
+          from_date: fromDate,
+          to_date: toDate,
+        },
+      });
+      if (error) throw error;
+
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `GSTR1_${fromDate}_${toDate}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast({ title: "Downloaded", description: "GSTR-1 JSON file downloaded" });
+    } catch (err: any) {
+      console.error("GSTR-1 JSON download error:", err);
+      toast({ title: "Error", description: "Failed to download GSTR-1 JSON", variant: "destructive" });
+    } finally {
+      setIsDownloadingGstr1Json(false);
+    }
+  };
+
   const exportToExcel = (data: any[], fileName: string, sheetName: string) => {
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -665,7 +697,16 @@ const GSTReports = () => {
                   <CardTitle>GSTR-1 - Outward Supplies</CardTitle>
                   <CardDescription>Details of outward supplies for {format(new Date(fromDate), "MMM yyyy")}</CardDescription>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={downloadGstr1Json}
+                    disabled={isDownloadingGstr1Json}
+                  >
+                    <FileText className="h-4 w-4 mr-1" />
+                    {isDownloadingGstr1Json ? "Generating…" : "Download GSTR-1 JSON"}
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => exportToExcel(gstr1Data.b2b, "GSTR1_B2B", "B2B")}>
                     <Download className="h-4 w-4 mr-1" />
                     B2B
