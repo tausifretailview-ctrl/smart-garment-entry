@@ -254,8 +254,9 @@ export function LabelCalibrationUI({
   };
 
   const updatePreset = async () => {
-    if (!activePresetName || !isUserPreset) return;
-    const existing = presets.find((p) => p.name === activePresetName);
+    const presetName = effectivePresetName;
+    if (!presetName || !isUserPreset) return;
+    const existing = presets.find((p) => p.name === presetName);
     if (!existing) return;
 
     const updatedPreset: CalibrationPreset = {
@@ -272,7 +273,7 @@ export function LabelCalibrationUI({
       setSaving(true);
       try { await onSavePreset(updatedPreset); } finally { setSaving(false); }
     } else if (onPresetsChange) {
-      const updated = presets.map((p) => p.name === activePresetName ? updatedPreset : p);
+      const updated = presets.map((p) => p.name === presetName ? updatedPreset : p);
       onPresetsChange(updated);
     }
   };
