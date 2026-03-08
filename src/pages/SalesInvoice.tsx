@@ -24,7 +24,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, AlertCircle, Scan, Printer, ChevronLeft, ChevronRight, SkipBack } from "lucide-react";
+import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, AlertCircle, Scan, Printer, ChevronLeft, ChevronRight, SkipBack, Lock, CreditCard } from "lucide-react";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { useBeepSound } from "@/hooks/useBeepSound";
 
@@ -2283,20 +2283,18 @@ Thank you for choosing us!`;
       <main className="flex-1 overflow-auto px-4 py-3 space-y-3">
 
       {/* Invoice & Customer Details Section */}
-      <section className="bg-card border-b border-border px-6 py-4">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-1 h-5 bg-primary rounded-full" />
-          <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            Customer & Invoice Details
-          </span>
+      <section className="bg-white border-b border-slate-100 px-5 py-4 shrink-0">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-[22px] h-[22px] bg-blue-50 rounded-[5px] flex items-center justify-center flex-shrink-0">
+            <Lock className="h-3 w-3 text-blue-600" />
+          </div>
+          <span className="text-[13px] font-bold text-slate-700 tracking-tight">Customer & Invoice Details</span>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 items-start">
           {/* Customer Selection */}
           <div className="col-span-2 md:col-span-1 lg:col-span-2">
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">
-              Customer <span className="text-destructive">*</span>
-            </label>
+            <Label className="text-[11px] font-semibold text-slate-500">Customer <span className="text-red-500">*</span></Label>
             <div className="flex gap-1.5">
               <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
                 <PopoverTrigger asChild>
@@ -2429,24 +2427,23 @@ Thank you for choosing us!`;
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
-            {/* Balance & discount badges below field */}
-            {selectedCustomerId && (
-              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                {selectedCustomer?.discount_percent > 0 && (
-                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary">
-                    {selectedCustomer.discount_percent}% Disc
-                  </span>
-                )}
-                <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
-                  customerBalance > 0 
-                    ? 'bg-destructive/10 text-destructive' 
-                    : customerBalance < 0
-                      ? 'bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-500'
-                      : 'bg-muted text-muted-foreground'
-                }`}>
-                  {isBalanceLoading ? '...' : `₹${Math.abs(customerBalance).toLocaleString('en-IN')} ${customerBalance > 0 ? 'due' : customerBalance < 0 ? 'credit' : ''}`}
-                </span>
+            {/* Balance badge below field */}
+            {selectedCustomerId && !isBalanceLoading && (
+              <div className={`inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border ${
+                customerBalance > 0
+                  ? 'bg-red-50 text-red-600 border-red-200'
+                  : customerBalance < 0
+                    ? 'bg-green-50 text-green-700 border-green-200'
+                    : 'bg-slate-50 text-slate-500 border-slate-200'
+              }`}>
+                <CreditCard className="h-3 w-3" />
+                ₹{Math.abs(customerBalance).toLocaleString('en-IN')} {customerBalance > 0 ? 'due' : customerBalance < 0 ? 'credit' : ''}
               </div>
+            )}
+            {selectedCustomerId && selectedCustomer?.discount_percent > 0 && (
+              <span className="inline-flex text-xs font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary mt-1">
+                {selectedCustomer.discount_percent}% Disc
+              </span>
             )}
             {/* Brand discounts / transport */}
             {selectedCustomer && (
@@ -2548,7 +2545,7 @@ Thank you for choosing us!`;
       </section>
 
       {/* Product Entry Bar */}
-      <section className="bg-primary/5 dark:bg-primary/10 border-b border-primary/20 px-6 py-3">
+      <section className="bg-slate-50 border-b border-slate-200 px-5 py-3 shrink-0">
           <div className="flex items-center gap-3 flex-wrap">
             {/* Entry Mode Toggle */}
             {sizeGridEnabled && (
