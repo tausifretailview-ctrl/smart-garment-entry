@@ -1176,9 +1176,9 @@ export default function StockReport() {
       ) : (
         <>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="flex-wrap h-auto gap-1">
-              <TabsTrigger value="all">All Stock</TabsTrigger>
-              <TabsTrigger value="sizewise" className="gap-1">
+            <TabsList className="h-10 bg-muted/60 p-1 rounded-xl">
+              <TabsTrigger value="all" className="rounded-lg text-xs font-medium">All Stock</TabsTrigger>
+              <TabsTrigger value="sizewise" className="rounded-lg text-xs font-medium gap-1">
                 <Grid3X3 className="h-4 w-4" />
                 Size-wise
               </TabsTrigger>
