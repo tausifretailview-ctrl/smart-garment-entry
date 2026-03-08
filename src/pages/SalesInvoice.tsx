@@ -2289,7 +2289,7 @@ Thank you for choosing us!`;
           <div className="w-[22px] h-[22px] bg-blue-50 rounded-[5px] flex items-center justify-center flex-shrink-0">
             <Lock className="h-3 w-3 text-blue-600" />
           </div>
-          <span className="text-[13px] font-bold text-slate-700 tracking-tight">Customer & Invoice Details</span>
+          <span className="text-[15px] font-bold text-slate-700 tracking-tight">Customer & Invoice Details</span>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 items-start">
