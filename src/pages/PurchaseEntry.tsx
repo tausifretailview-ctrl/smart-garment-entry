@@ -2607,7 +2607,7 @@ const PurchaseEntry = () => {
                               )
                             }
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-full text-right px-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className="w-full text-right px-2 bg-amber-50 border-amber-200 text-center font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                         </TableCell>
                         <TableCell className="w-[120px]">
