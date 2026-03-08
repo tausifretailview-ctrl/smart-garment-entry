@@ -422,8 +422,8 @@ export const useBulkProductUpdate = () => {
             [priceConfig.priceType]: item.newValue,
             organization_id: currentOrganization.id,
           }));
-          const { error } = await supabase
-            .from("product_variants")
+          const { error } = await (supabase
+            .from("product_variants") as any)
             .upsert(upsertData, { onConflict: 'id' });
           if (error) throw error;
         }
