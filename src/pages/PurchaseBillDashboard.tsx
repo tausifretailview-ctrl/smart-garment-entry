@@ -936,7 +936,7 @@ const PurchaseBillDashboard = () => {
       accessorKey: "gst_amount",
       header: "GST",
       cell: ({ row }) => (
-        <span className="text-right block tabular-nums text-sm">₹{row.original.gst_amount.toFixed(2)}</span>
+        <span className="text-right block tabular-nums text-sm text-blue-600 dark:text-blue-400">₹{row.original.gst_amount.toFixed(2)}</span>
       ),
       size: 85,
       minSize: 70,
