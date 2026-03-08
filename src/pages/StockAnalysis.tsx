@@ -20,6 +20,7 @@ interface StockItem {
   purchase_qty: number;
   purchase_return_qty: number;
   sales_qty: number;
+  sale_return_qty: number;
   sale_price: number;
   pur_price: number | null;
   barcode: string;
@@ -161,30 +162,47 @@ export default function StockAnalysis() {
 
         const variantMovements = (movementsData || []).reduce((acc: any, movement: any) => {
           if (!acc[movement.variant_id]) {
-            acc[movement.variant_id] = { purchase: 0, purchaseReturn: 0, sales: 0 };
+            acc[movement.variant_id] = { purchase: 0, purchaseReturn: 0, sales: 0, saleReturn: 0 };
           }
-          
-          if (movement.movement_type === 'purchase' || movement.movement_type === 'purchase_increase') {
-            acc[movement.variant_id].purchase += movement.quantity;
-          } else if (movement.movement_type === 'purchase_delete' || 
-                     movement.movement_type === 'soft_delete_purchase' ||
-                     movement.movement_type === 'purchase_decrease') {
-            acc[movement.variant_id].purchase += movement.quantity;
-          } else if (movement.movement_type === 'purchase_return') {
-            acc[movement.variant_id].purchaseReturn += Math.abs(movement.quantity);
-          } else if (movement.movement_type === 'purchase_return_delete') {
-            acc[movement.variant_id].purchaseReturn -= Math.abs(movement.quantity);
-          } else if (movement.movement_type === 'sale') {
-            acc[movement.variant_id].sales += Math.abs(movement.quantity);
-          } else if (movement.movement_type === 'sale_delete' || movement.movement_type === 'soft_delete_sale') {
-            acc[movement.variant_id].sales -= Math.abs(movement.quantity);
+          const m = movement.movement_type;
+          const q = movement.quantity;
+
+          // PURCHASES (positive movements)
+          if (['purchase', 'purchase_increase', 'restore_purchase'].includes(m)) {
+            acc[movement.variant_id].purchase += Math.abs(q);
           }
-          
+          // PURCHASE REVERSALS (negative movements)
+          else if (['purchase_delete', 'soft_delete_purchase', 'purchase_decrease'].includes(m)) {
+            acc[movement.variant_id].purchase += q; // q is negative
+          }
+          // PURCHASE RETURNS
+          else if (m === 'purchase_return') {
+            acc[movement.variant_id].purchaseReturn += Math.abs(q);
+          }
+          else if (['purchase_return_delete', 'soft_delete_purchase_return', 'restore_purchase_return'].includes(m)) {
+            acc[movement.variant_id].purchaseReturn -= Math.abs(q);
+          }
+          // SALES (negative movements = stock out)
+          else if (['sale', 'sale_update_decrease', 'challan'].includes(m)) {
+            acc[movement.variant_id].sales += Math.abs(q);
+          }
+          // SALE REVERSALS
+          else if (['sale_delete', 'soft_delete_sale', 'sale_update_increase', 'challan_delete', 'restore_sale'].includes(m)) {
+            acc[movement.variant_id].sales -= Math.abs(q);
+          }
+          // SALE RETURNS (stock comes back)
+          else if (['sale_return', 'restore_sale_return'].includes(m)) {
+            acc[movement.variant_id].saleReturn += Math.abs(q);
+          }
+          else if (['sale_return_delete', 'soft_delete_sale_return'].includes(m)) {
+            acc[movement.variant_id].saleReturn -= Math.abs(q);
+          }
+
           return acc;
         }, {});
 
         const formattedData = filteredVariants.map((item: any) => {
-          const movements = variantMovements[item.id] || { purchase: 0, purchaseReturn: 0, sales: 0 };
+          const movements = variantMovements[item.id] || { purchase: 0, purchaseReturn: 0, sales: 0, saleReturn: 0 };
           const supplierInfo = variantSuppliers[item.id] || { supplier_name: '', supplier_invoice_no: '' };
           const netSalesQty = Math.max(0, movements.sales);
           
@@ -199,6 +217,7 @@ export default function StockAnalysis() {
             purchase_qty: Math.max(0, movements.purchase),
             purchase_return_qty: Math.max(0, movements.purchaseReturn),
             sales_qty: netSalesQty,
+            sale_return_qty: Math.max(0, movements.saleReturn || 0),
             sale_price: item.sale_price,
             pur_price: item.pur_price || null,
             barcode: item.barcode || "",
@@ -481,6 +500,7 @@ export default function StockAnalysis() {
                             <TableHead className="text-right bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-white">Opening Qty</TableHead>
                             <TableHead className="text-right bg-green-50 dark:bg-green-950 text-green-800 dark:text-white">Purchase Qty</TableHead>
                             <TableHead className="text-right bg-red-50 dark:bg-red-950 text-red-800 dark:text-white">Sales Qty</TableHead>
+                            <TableHead className="text-right bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-white">Sale Return</TableHead>
                             <TableHead className="text-right bg-primary/10 font-semibold text-primary dark:text-white">Current Stock</TableHead>
                             <TableHead className="text-right">Sale Price</TableHead>
                           </TableRow>
@@ -502,6 +522,9 @@ export default function StockAnalysis() {
                               <TableCell className="text-right bg-red-50 dark:bg-red-950 font-medium text-red-700 dark:text-red-400">
                                 -{item.sales_qty}
                               </TableCell>
+                              <TableCell className="text-right bg-emerald-50 dark:bg-emerald-950 font-medium text-emerald-700 dark:text-emerald-400">
+                                {item.sale_return_qty > 0 ? `+${item.sale_return_qty}` : '0'}
+                              </TableCell>
                               <TableCell className="text-right bg-primary/10 font-bold text-destructive">
                                 {item.stock_qty}
                               </TableCell>
@@ -519,6 +542,9 @@ export default function StockAnalysis() {
                               </TableCell>
                               <TableCell className="text-right bg-red-50 dark:bg-red-950 font-bold text-red-700 dark:text-red-400">
                                 -{lowStockItems.reduce((sum, i) => sum + i.sales_qty, 0)}
+                              </TableCell>
+                              <TableCell className="text-right bg-emerald-50 dark:bg-emerald-950 font-bold text-emerald-700 dark:text-emerald-400">
+                                +{lowStockItems.reduce((sum, i) => sum + i.sale_return_qty, 0)}
                               </TableCell>
                               <TableCell className="text-right bg-primary/10 font-bold text-destructive">
                                 {lowStockItems.reduce((sum, i) => sum + i.stock_qty, 0)}
