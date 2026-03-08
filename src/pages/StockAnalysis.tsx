@@ -312,8 +312,7 @@ export default function StockAnalysis() {
           .is('product_variants.deleted_at', null)
           .is('product_variants.products.deleted_at', null)
           .neq('product_variants.products.product_type', 'service')
-          .order('purchase_date', { ascending: true })
-          .limit(500);
+          .order('purchase_date', { ascending: true });
 
         formattedBatch = (batchStockData || []).map((item: any) => ({
           id: item.id,
