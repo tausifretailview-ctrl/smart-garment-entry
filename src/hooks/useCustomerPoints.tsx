@@ -61,7 +61,7 @@ export function useCustomerPoints() {
       
       if (error) throw error;
       
-      const saleSettings = data?.sale_settings as any;
+      const saleSettings = data?.sale_settings as Record<string, unknown> | null;
       return {
         enable_points_system: saleSettings?.enable_points_system ?? false,
         points_ratio_amount: saleSettings?.points_ratio_amount ?? 100,
