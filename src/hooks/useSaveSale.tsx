@@ -207,6 +207,7 @@ export const useSaveSale = () => {
         .maybeSingle();
 
       let saleNumber: string;
+      const saleSettings = settings?.sale_settings as Record<string, any> | null;
       
       // Use POS format for POS sales, Invoice format for regular sales
       if (saleType === 'pos') {
