@@ -1157,7 +1157,7 @@ const ProductDashboard = () => {
                 <div className="ml-auto">
                   <Button
                     size="sm"
-                    className="gap-2"
+                    className="gap-2 bg-primary hover:bg-primary/90 shadow-sm font-semibold"
                     onClick={() => navigate("/product-entry")}
                   >
                     <Plus className="h-4 w-4" />
