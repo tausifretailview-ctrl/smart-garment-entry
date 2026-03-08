@@ -264,7 +264,7 @@ const QZStatusBadge = () => {
 export default function Settings() {
   const { orgNavigate: navigate } = useOrgNavigation();
   const { toast } = useToast();
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, organizations } = useOrganization();
   const [loading, setLoading] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [sizeGroups, setSizeGroups] = useState<any[]>([]);
