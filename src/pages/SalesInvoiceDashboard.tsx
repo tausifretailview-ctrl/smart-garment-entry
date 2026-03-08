@@ -1592,7 +1592,7 @@ export default function SalesInvoiceDashboard() {
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
               <div className="text-[22px] font-black text-white tabular-nums leading-tight">{effectiveStats.totalQty}</div>
-              <p className="text-[11px] text-white/65 mt-0.5">Items sold</p>
+              <p className="text-xs text-white/65 mt-0.5">Items sold</p>
             </CardContent>
           </Card>
 
