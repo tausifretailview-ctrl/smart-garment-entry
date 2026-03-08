@@ -2676,9 +2676,9 @@ Thank you for choosing us!`;
             </Popover>
 
             {/* Total Qty Pill */}
-            <div className="flex items-center gap-2 bg-primary text-primary-foreground rounded-lg px-4 py-2 text-sm font-semibold shrink-0 ml-auto">
-              <span>Total Qty:</span>
-              <span className="text-xl font-bold leading-none tabular-nums">
+            <div className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg ml-auto cursor-default transition-colors">
+              <span className="text-[12px] font-semibold text-white/80">Total Qty</span>
+              <span className="text-[18px] font-black text-white tabular-nums font-mono leading-none">
                 {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
               </span>
             </div>
@@ -2690,22 +2690,22 @@ Thank you for choosing us!`;
         <div ref={tableContainerRef} className="overflow-y-auto isolate">
           <table className="w-full border-separate border-spacing-0">
             <thead className="sticky top-0 z-10">
-              <tr className="bg-muted-foreground dark:bg-muted text-primary-foreground dark:text-foreground">
-                <th className="text-center text-xs font-semibold px-3 py-2.5 w-10 rounded-tl-lg">#</th>
-                <th className="text-left text-xs font-semibold px-3 py-2.5 min-w-[200px]">PRODUCT</th>
-                <th className="text-center text-xs font-semibold px-3 py-2.5 w-20">SIZE</th>
-                <th className="text-center text-xs font-semibold px-3 py-2.5 w-20">COLOR</th>
-                <th className="text-center text-xs font-semibold px-3 py-2.5 w-24">BARCODE</th>
-                <th className="text-center text-xs font-semibold px-3 py-2.5 w-20">HSN</th>
-                <th className="text-center text-xs font-semibold px-3 py-2.5 w-16">QTY</th>
-                <th className="text-center text-xs font-semibold px-3 py-2.5 w-16">BOX</th>
-                <th className="text-right text-xs font-semibold px-3 py-2.5 w-24">MRP</th>
-                <th className="text-right text-xs font-semibold px-3 py-2.5 w-24">PRICE</th>
-                <th className="text-right text-xs font-semibold px-3 py-2.5 w-20">DISC%</th>
-                <th className="text-right text-xs font-semibold px-3 py-2.5 w-24">DISC ₹</th>
-                <th className="text-center text-xs font-semibold px-3 py-2.5 w-16">GST%</th>
-                <th className="text-right text-xs font-semibold px-3 py-2.5 w-28 bg-primary text-primary-foreground rounded-tr-lg">TOTAL</th>
-                <th className="w-8 px-1 py-2.5 bg-muted-foreground dark:bg-muted"></th>
+              <tr className="bg-slate-800 border-b-2 border-blue-600">
+                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white/88 px-3 w-10 rounded-tl-lg">#</th>
+                <th className="text-left text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white/88 px-3 min-w-[200px]">PRODUCT</th>
+                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white/88 px-3 w-20">SIZE</th>
+                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white/88 px-3 w-20">COLOR</th>
+                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white/88 px-3 w-24">BARCODE</th>
+                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white/88 px-3 w-20">HSN</th>
+                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white/88 px-3 w-16">QTY</th>
+                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white/88 px-3 w-16">BOX</th>
+                <th className="text-right text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white/88 px-3 w-24">MRP</th>
+                <th className="text-right text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white/88 px-3 w-24">PRICE</th>
+                <th className="text-right text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white/88 px-3 w-20">DISC%</th>
+                <th className="text-right text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white/88 px-3 w-24">DISC ₹</th>
+                <th className="text-center text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white/88 px-3 w-16">GST%</th>
+                <th className="text-right text-[10px] uppercase tracking-[.06em] font-bold h-10 text-white/88 px-3 w-28 bg-blue-700 rounded-tr-lg">TOTAL</th>
+                <th className="w-8 px-1 h-10 bg-slate-800"></th>
               </tr>
             </thead>
             <tbody>
@@ -2738,10 +2738,7 @@ Thank you for choosing us!`;
                   return (
                     <tr
                       key={item.id}
-                      className={cn(
-                        "group border-b border-border/40 hover:bg-primary/[0.04] transition-colors",
-                        displayIndex % 2 === 0 ? "bg-card" : "bg-muted/30"
-                      )}
+                      className={`group border-b border-border/40 transition-colors ${displayIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} hover:bg-blue-50/50`}
                     >
                       <td className="text-center text-xs text-muted-foreground px-3 py-2">{srNo}</td>
                       <td className="px-3 py-2">
@@ -2757,17 +2754,25 @@ Thank you for choosing us!`;
                         )}
                       </td>
                       <td className="text-center px-3 py-2">
-                        <span className="inline-block bg-muted text-foreground text-xs font-semibold px-2 py-0.5 rounded">
-                          {item.size || '-'}
-                        </span>
+                        {item.size ? (
+                          <span className={`inline-block text-[11px] font-bold px-2 py-0.5 rounded ${
+                            ['XS','S','M','L','XL','XXL','XXXL'].includes(item.size?.toUpperCase())
+                              ? 'bg-blue-100 text-blue-700'
+                              : /^\d+$/.test(item.size)
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {item.size}
+                          </span>
+                        ) : <span className="text-slate-300">—</span>}
                       </td>
                       <td className="text-center text-xs text-muted-foreground px-3 py-2 hidden lg:table-cell">
-                        {item.color || '-'}
+                        {item.color || <span className="text-slate-300">—</span>}
                       </td>
                       <td className="text-center px-3 py-2">
-                        <span className="font-mono text-xs text-muted-foreground">{item.barcode || '-'}</span>
+                        <span className="font-mono text-xs text-muted-foreground">{item.barcode || <span className="text-slate-300">—</span>}</span>
                       </td>
-                      <td className="text-center text-xs text-muted-foreground px-3 py-2">{item.hsnCode || '-'}</td>
+                      <td className="text-center text-xs text-muted-foreground px-3 py-2">{item.hsnCode || <span className="text-slate-300">—</span>}</td>
                       <td className="text-center px-1.5 py-1">
                         <Input
                           type="number"
@@ -2828,8 +2833,8 @@ Thank you for choosing us!`;
                       <td className="text-center px-3 py-2">
                         <span className="text-xs font-semibold text-muted-foreground">{item.gstPercent}%</span>
                       </td>
-                      <td className="text-right px-3 py-2 bg-primary/5">
-                        <span className="text-sm font-bold text-primary tabular-nums">
+                      <td className="text-right px-3 py-2 bg-blue-50/40">
+                        <span className="text-sm font-bold text-blue-700 font-mono tabular-nums">
                           ₹{item.lineTotal.toFixed(2)}
                         </span>
                       </td>
