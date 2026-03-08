@@ -913,7 +913,7 @@ const PurchaseBillDashboard = () => {
       accessorKey: "gross_amount",
       header: "Gross Amt",
       cell: ({ row }) => (
-        <span className="text-right block tabular-nums text-sm">₹{row.original.gross_amount.toFixed(2)}</span>
+        <span className="text-right block tabular-nums text-sm text-slate-600 dark:text-slate-400">₹{row.original.gross_amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
       ),
       size: 100,
       minSize: 80,
