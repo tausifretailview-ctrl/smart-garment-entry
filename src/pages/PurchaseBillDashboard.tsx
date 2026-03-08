@@ -856,7 +856,7 @@ const PurchaseBillDashboard = () => {
       accessorKey: "software_bill_no",
       header: "Bill No.",
       cell: ({ row }) => (
-        <span className="font-mono text-sm font-medium">
+        <span className="font-mono text-xs font-semibold bg-primary/8 text-primary px-2 py-0.5 rounded-md">
           {row.original.software_bill_no || "N/A"}
         </span>
       ),
