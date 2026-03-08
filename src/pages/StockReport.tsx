@@ -611,6 +611,7 @@ export default function StockReport() {
           purchase_qty: Math.max(0, movements.purchase),
           purchase_return_qty: Math.max(0, movements.purchaseReturn),
           sales_qty: netSalesQty,
+          sale_return_qty: Math.max(0, movements.saleReturn || 0),
           sale_price: item.sale_price,
           pur_price: item.pur_price || null,
           barcode: item.barcode || "",
