@@ -126,7 +126,7 @@ export function AccountsDashboardCards({
                 <div className="text-2xl font-bold text-red-700 dark:text-red-300 tabular-nums mt-1">
                   ₹{Math.round(paymentStats.pendingAmount).toLocaleString('en-IN')}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">{paymentStats.pendingCount} pending</p>
+                <p className="text-sm text-muted-foreground mt-1">{paymentStats.pendingCount} pending</p>
               </div>
               <div className="h-11 w-11 rounded-xl bg-red-50 dark:bg-red-950 flex items-center justify-center shrink-0">
                 <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
