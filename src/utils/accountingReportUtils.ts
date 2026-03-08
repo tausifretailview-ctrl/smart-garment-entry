@@ -371,67 +371,24 @@ export async function calculateProfitLoss(
   };
 }
 
-// Calculate Balance Sheet
+// Calculate Balance Sheet — uses server-side RPC
 export async function calculateBalanceSheet(
   organizationId: string,
   asOfDate: string
 ): Promise<BalanceSheetData> {
-  const { data: sales } = await supabase
-    .from("sales")
-    .select("customer_id, net_amount, paid_amount")
-    .eq("organization_id", organizationId)
-    .lte("invoice_date", asOfDate)
-    .is("deleted_at", null);
+  // Single RPC replaces 4 queries + client-side loops
+  const { data: agg, error } = await supabase.rpc('get_trial_balance_aggregates', {
+    p_org_id: organizationId,
+    p_as_of_date: asOfDate,
+  });
+  if (error) throw error;
 
-  const cashFromSales = sales?.reduce((sum, s) => sum + (s.paid_amount || 0), 0) || 0;
-
-  const { data: purchases } = await supabase
-    .from("purchase_bills")
-    .select("supplier_id, net_amount, paid_amount")
-    .eq("organization_id", organizationId)
-    .lte("bill_date", asOfDate)
-    .is("deleted_at", null);
-
-  const cashToPurchases = purchases?.reduce((sum, p) => sum + (p.paid_amount || 0), 0) || 0;
-  const cashBank = cashFromSales - cashToPurchases;
-
-  // Accounts Receivable
-  const { data: customers } = await supabase
-    .from("customers")
-    .select("id, opening_balance")
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null);
-
-  let accountsReceivable = 0;
-  if (customers) {
-    for (const customer of customers) {
-      const openingBal = customer.opening_balance || 0;
-      const customerSales = sales?.filter(s => s.customer_id === customer.id) || [];
-      const totalSales = customerSales.reduce((sum, s) => sum + (s.net_amount || 0), 0);
-      const paidAmount = customerSales.reduce((sum, s) => sum + (s.paid_amount || 0), 0);
-      accountsReceivable += openingBal + totalSales - paidAmount;
-    }
-  }
+  const aggData = agg as any;
+  const cashBank = aggData?.cash_balance || 0;
+  const accountsReceivable = aggData?.accounts_receivable || 0;
+  const accountsPayable = aggData?.accounts_payable || 0;
 
   const inventory = await calculateStockValue(organizationId);
-
-  // Accounts Payable
-  const { data: suppliers } = await supabase
-    .from("suppliers")
-    .select("id, opening_balance")
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null);
-
-  let accountsPayable = 0;
-  if (suppliers) {
-    for (const supplier of suppliers) {
-      const openingBal = supplier.opening_balance || 0;
-      const supplierPurchases = purchases?.filter(p => p.supplier_id === supplier.id) || [];
-      const totalPurchases = supplierPurchases.reduce((sum, p) => sum + (p.net_amount || 0), 0);
-      const paidAmount = supplierPurchases.reduce((sum, p) => sum + (p.paid_amount || 0), 0);
-      accountsPayable += openingBal + totalPurchases - paidAmount;
-    }
-  }
 
   const totalAssets = Math.max(0, cashBank) + Math.max(0, accountsReceivable) + inventory;
   const totalLiabilities = Math.max(0, accountsPayable);
