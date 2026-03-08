@@ -2487,7 +2487,6 @@ const PurchaseEntry = () => {
                 </div>
               </div>
             </div>
-            </div>
           </div>
 
         {/* Products Table Card */}
