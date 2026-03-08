@@ -30,20 +30,8 @@ export const useOrganizationReset = () => {
   const [isResetting, setIsResetting] = useState(false);
   const [progress, setProgress] = useState<ResetProgress | null>(null);
 
-  // Calculate barcode starting value based on organization number
-  const getBarcodeStartValue = (): number => {
-    if (!currentOrganization) return 90001001;
-    
-    // Check if organization has a custom starting value in settings
-    const settings = currentOrganization.settings as Record<string, any>;
-    if (settings?.barcodeStartValue) {
-      return settings.barcodeStartValue;
-    }
-    
-    // Default pattern: {org_number}0001001 (e.g., org 9 = 90001001)
-    // For safety, default to 90001001 if we can't determine
-    return 90001001;
-  };
+  // Barcode sequences now use prefix-based table; reset always starts at 1
+  const getBarcodeStartValue = (): number => 1;
 
   // Fetch data counts for the current organization
   const { data: dataCounts, isLoading: isLoadingCounts, refetch: refetchCounts } = useQuery({
