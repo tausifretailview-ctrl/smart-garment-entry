@@ -1,4 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from "react";
+import { RootErrorBoundary } from "@/components/RootErrorBoundary";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -206,6 +207,7 @@ const App = () => {
   }));
 
   return (
+    <RootErrorBoundary>
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
     <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -1120,6 +1122,7 @@ const App = () => {
     </TooltipProvider>
     </QueryClientProvider>
     </ThemeProvider>
+    </RootErrorBoundary>
   );
 };
 
