@@ -753,10 +753,7 @@ const PurchaseBillDashboard = () => {
   const summaryStats = useMemo(() => ({
     totalBills: billsQueryData?.totalCount || filteredBills.length,
     totalAmount: filteredBills.reduce((sum, bill) => sum + bill.net_amount, 0),
-    totalQty: filteredBills.reduce((sum, bill) => {
-      const billQty = billItems[bill.id]?.reduce((itemSum, item) => itemSum + item.qty, 0) || 0;
-      return sum + billQty;
-    }, 0),
+    totalQty: filteredBills.reduce((sum, bill) => sum + (bill.total_qty || 0), 0),
     paidCount: filteredBills.filter(bill => bill.payment_status === 'paid' || (bill.paid_amount || 0) >= bill.net_amount).length,
     paidAmount: filteredBills.filter(bill => bill.payment_status === 'paid' || (bill.paid_amount || 0) >= bill.net_amount).reduce((sum, bill) => sum + bill.net_amount, 0),
     unpaidCount: filteredBills.filter(bill => !bill.payment_status || bill.payment_status === 'unpaid' || (bill.paid_amount || 0) === 0).length,
