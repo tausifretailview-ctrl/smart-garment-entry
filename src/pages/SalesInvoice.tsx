@@ -2283,15 +2283,15 @@ Thank you for choosing us!`;
       <main className="flex-1 overflow-auto px-4 py-3 space-y-3">
 
       {/* Invoice & Customer Details Section */}
-      <section className="bg-card border-b border-border px-6 py-4">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-1 h-5 bg-primary rounded-full" />
-          <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            Customer & Invoice Details
-          </span>
+      <section className="bg-white border-b border-slate-100 px-5 py-4 shrink-0">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-[22px] h-[22px] bg-blue-50 rounded-[5px] flex items-center justify-center flex-shrink-0">
+            <Lock className="h-3 w-3 text-blue-600" />
+          </div>
+          <span className="text-[13px] font-bold text-slate-700 tracking-tight">Customer & Invoice Details</span>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 items-start">
           {/* Customer Selection */}
           <div className="col-span-2 md:col-span-1 lg:col-span-2">
             <label className="text-xs font-medium text-muted-foreground mb-1 block">
