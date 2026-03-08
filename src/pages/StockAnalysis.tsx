@@ -162,25 +162,42 @@ export default function StockAnalysis() {
 
         const variantMovements = (movementsData || []).reduce((acc: any, movement: any) => {
           if (!acc[movement.variant_id]) {
-            acc[movement.variant_id] = { purchase: 0, purchaseReturn: 0, sales: 0 };
+            acc[movement.variant_id] = { purchase: 0, purchaseReturn: 0, sales: 0, saleReturn: 0 };
           }
-          
-          if (movement.movement_type === 'purchase' || movement.movement_type === 'purchase_increase') {
-            acc[movement.variant_id].purchase += movement.quantity;
-          } else if (movement.movement_type === 'purchase_delete' || 
-                     movement.movement_type === 'soft_delete_purchase' ||
-                     movement.movement_type === 'purchase_decrease') {
-            acc[movement.variant_id].purchase += movement.quantity;
-          } else if (movement.movement_type === 'purchase_return') {
-            acc[movement.variant_id].purchaseReturn += Math.abs(movement.quantity);
-          } else if (movement.movement_type === 'purchase_return_delete') {
-            acc[movement.variant_id].purchaseReturn -= Math.abs(movement.quantity);
-          } else if (movement.movement_type === 'sale') {
-            acc[movement.variant_id].sales += Math.abs(movement.quantity);
-          } else if (movement.movement_type === 'sale_delete' || movement.movement_type === 'soft_delete_sale') {
-            acc[movement.variant_id].sales -= Math.abs(movement.quantity);
+          const m = movement.movement_type;
+          const q = movement.quantity;
+
+          // PURCHASES (positive movements)
+          if (['purchase', 'purchase_increase', 'restore_purchase'].includes(m)) {
+            acc[movement.variant_id].purchase += Math.abs(q);
           }
-          
+          // PURCHASE REVERSALS (negative movements)
+          else if (['purchase_delete', 'soft_delete_purchase', 'purchase_decrease'].includes(m)) {
+            acc[movement.variant_id].purchase += q; // q is negative
+          }
+          // PURCHASE RETURNS
+          else if (m === 'purchase_return') {
+            acc[movement.variant_id].purchaseReturn += Math.abs(q);
+          }
+          else if (['purchase_return_delete', 'soft_delete_purchase_return', 'restore_purchase_return'].includes(m)) {
+            acc[movement.variant_id].purchaseReturn -= Math.abs(q);
+          }
+          // SALES (negative movements = stock out)
+          else if (['sale', 'sale_update_decrease', 'challan'].includes(m)) {
+            acc[movement.variant_id].sales += Math.abs(q);
+          }
+          // SALE REVERSALS
+          else if (['sale_delete', 'soft_delete_sale', 'sale_update_increase', 'challan_delete', 'restore_sale'].includes(m)) {
+            acc[movement.variant_id].sales -= Math.abs(q);
+          }
+          // SALE RETURNS (stock comes back)
+          else if (['sale_return', 'restore_sale_return'].includes(m)) {
+            acc[movement.variant_id].saleReturn += Math.abs(q);
+          }
+          else if (['sale_return_delete', 'soft_delete_sale_return'].includes(m)) {
+            acc[movement.variant_id].saleReturn -= Math.abs(q);
+          }
+
           return acc;
         }, {});
 
