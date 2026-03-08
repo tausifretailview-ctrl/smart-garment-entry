@@ -280,7 +280,7 @@ export const useSaveSale = () => {
       }
 
       // Insert sale record
-      const { data: sale, error: saleError } = await (supabase as any)
+      const { data: sale, error: saleError } = await supabase
         .from('sales')
         .insert({
           sale_number: saleNumber,
