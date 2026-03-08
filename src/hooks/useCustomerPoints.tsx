@@ -328,16 +328,15 @@ export function useCustomerPoints() {
 
       // Decrement gift stock - fetch current and update
       const { data: gift } = await supabase
-        .from('gift_rewards' as any)
+        .from('gift_rewards')
         .select('stock_qty')
         .eq('id', giftRewardId)
         .single();
       
       if (gift) {
-        const giftData = gift as any;
         await supabase
-          .from('gift_rewards' as any)
-          .update({ stock_qty: Math.max(0, (giftData.stock_qty || 0) - 1) })
+          .from('gift_rewards')
+          .update({ stock_qty: Math.max(0, (gift.stock_qty || 0) - 1) })
           .eq('id', giftRewardId);
       }
 
