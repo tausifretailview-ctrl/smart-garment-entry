@@ -314,26 +314,8 @@ export default function SalesInvoiceDashboard() {
     pageContextMenu.openMenu(e, undefined);
   };
 
-  // Fetch company settings for receipt branding
-  const { data: settings } = useQuery({
-    queryKey: ['settings', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return null;
-      
-      const { data, error } = await supabase
-        .from('settings')
-        .select('business_name, address, mobile_number, email_id, gst_number, sale_settings, bill_barcode_settings')
-        .eq('organization_id', currentOrganization.id)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error fetching settings:', error);
-        return null;
-      }
-      return data;
-    },
-    enabled: !!currentOrganization?.id,
-  });
+  // Fetch company settings (centralized, cached 5min)
+  const { data: settings } = useSettings();
 
   useEffect(() => {
     if (currentOrganization?.id) {
