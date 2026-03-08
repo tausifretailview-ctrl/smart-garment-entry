@@ -286,7 +286,7 @@ export function useCustomerPoints() {
     try {
       const today = new Date().toISOString().split('T')[0];
       const { data, error } = await supabase
-        .from('gift_rewards' as any)
+        .from('gift_rewards')
         .select('*')
         .eq('organization_id', currentOrganization.id)
         .eq('is_active', true)
