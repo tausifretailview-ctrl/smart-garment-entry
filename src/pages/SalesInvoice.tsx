@@ -2632,35 +2632,35 @@ Thank you for choosing us!`;
                             key={variant.id}
                             value={variant.id}
                             onSelect={() => addProductToInvoice(product, variant)}
-                            className="cursor-pointer py-2"
+                            className="cursor-pointer py-2 group"
                           >
                             <div className="flex flex-col w-full gap-1">
                               <div className="flex justify-between items-center">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-medium">{product.product_name}</span>
+                                  <span className="font-medium group-data-[selected=true]:text-white">{product.product_name}</span>
                                   {product.size_range && (
-                                    <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">
+                                    <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white">
                                       {product.size_range}
                                     </span>
                                   )}
                                 </div>
-                                <span className="font-semibold text-primary">₹{variant.sale_price}</span>
+                                <span className="font-semibold text-primary group-data-[selected=true]:text-white">₹{variant.sale_price}</span>
                               </div>
-                              <div className="flex justify-between items-center text-xs text-muted-foreground">
+                              <div className="flex justify-between items-center text-xs text-muted-foreground group-data-[selected=true]:text-white/80">
                                 <div className="flex gap-2 flex-wrap">
-                                  {product.brand && <span className="bg-muted px-1.5 py-0.5 rounded">{product.brand}</span>}
-                                  {product.category && <span className="bg-muted px-1.5 py-0.5 rounded">{product.category}</span>}
-                                  {product.style && <span className="bg-muted px-1.5 py-0.5 rounded">{product.style}</span>}
+                                  {product.brand && <span className="bg-muted px-1.5 py-0.5 rounded group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white">{product.brand}</span>}
+                                  {product.category && <span className="bg-muted px-1.5 py-0.5 rounded group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white">{product.category}</span>}
+                                  {product.style && <span className="bg-muted px-1.5 py-0.5 rounded group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white">{product.style}</span>}
                                   {(variant.color || product.color) && (
-                                    <span className="bg-accent/50 text-accent-foreground px-1.5 py-0.5 rounded font-medium">{variant.color || product.color}</span>
+                                    <span className="bg-accent/50 text-accent-foreground px-1.5 py-0.5 rounded font-medium group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white">{variant.color || product.color}</span>
                                   )}
-                                  <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">Size: {variant.size}</span>
+                                  <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium group-data-[selected=true]:bg-white/25 group-data-[selected=true]:text-white">Size: {variant.size}</span>
                                 </div>
                                 <div className="flex gap-2 items-center">
                                   {variant.mrp && variant.mrp !== variant.sale_price && (
-                                    <span className="line-through">MRP: ₹{variant.mrp}</span>
+                                    <span className="line-through group-data-[selected=true]:text-white/70">MRP: ₹{variant.mrp}</span>
                                   )}
-                                  <span className={variant.stock_qty > 5 ? 'text-green-600' : 'text-orange-500'}>
+                                  <span className={`${variant.stock_qty > 5 ? 'text-green-600' : 'text-orange-500'} group-data-[selected=true]:text-white/90`}>
                                     Stock: {variant.stock_qty}
                                   </span>
                                 </div>
