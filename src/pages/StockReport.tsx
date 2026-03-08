@@ -996,7 +996,7 @@ export default function StockReport() {
             </Select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-muted-foreground">Size</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Size</label>
             <Select value={sizeFilter} onValueChange={setSizeFilter}>
               <SelectTrigger className="h-10 !bg-white !text-gray-900">
                 <SelectValue placeholder="All Sizes" />
