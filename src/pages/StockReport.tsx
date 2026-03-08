@@ -898,9 +898,16 @@ export default function StockReport() {
   return (
     <div className="w-full px-6 py-6 space-y-6">
       <BackToDashboard />
-      <div>
-        <h1 className="text-3xl font-bold">Stock Report</h1>
-        <p className="text-muted-foreground">Apply filters and search to view inventory levels</p>
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+          <Package className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Stock Report</h1>
+          <p className="text-sm text-muted-foreground">
+            Search · filter · export — all stock, size-wise, and valuations
+          </p>
+        </div>
       </div>
 
       {/* Search Bar */}
