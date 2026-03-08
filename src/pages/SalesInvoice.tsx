@@ -836,10 +836,22 @@ export default function SalesInvoice() {
           .is("deleted_at", null)
           .gt("stock_qty", 0);
 
-        if (productIds.length > 0) {
-          variantsQuery = variantsQuery.or(`barcode.ilike.%${query}%,product_id.in.(${productIds.join(",")})`);
+        const isBarcode = /^[A-Z]{2,4}[0-9]{5,}$|^[0-9]{6,}$/.test(query.trim());
+
+        if (isBarcode) {
+          // Exact + prefix match — uses B-tree index
+          if (productIds.length > 0) {
+            variantsQuery = variantsQuery.or(`barcode.eq.${query.trim()},barcode.ilike.${query.trim()}%,product_id.in.(${productIds.join(",")})`);
+          } else {
+            variantsQuery = variantsQuery.or(`barcode.eq.${query.trim()},barcode.ilike.${query.trim()}%`);
+          }
         } else {
-          variantsQuery = variantsQuery.ilike("barcode", `%${query}%`);
+          // Fuzzy search — uses trgm index
+          if (productIds.length > 0) {
+            variantsQuery = variantsQuery.or(`barcode.ilike.%${query}%,color.ilike.%${query}%,size.ilike.%${query}%,product_id.in.(${productIds.join(",")})`);
+          } else {
+            variantsQuery = variantsQuery.or(`barcode.ilike.%${query}%,color.ilike.%${query}%,size.ilike.%${query}%`);
+          }
         }
 
         const { data, error } = await variantsQuery.limit(100);
