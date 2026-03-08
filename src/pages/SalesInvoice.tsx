@@ -2987,11 +2987,11 @@ Thank you for choosing us!`;
 
         {/* Footer Row 2: Items count + Total Qty + dotted line + Ctrl+S hint */}
         <div className="flex items-center px-5 py-1.5 gap-4">
-          <span className="text-[12px] text-slate-500">
+          <span className="text-[13px] text-slate-500">
             Items <span className="font-bold text-slate-700">{lineItems.filter(i => i.productId).length}</span>
           </span>
           <div className="w-px h-4 bg-slate-200" />
-          <span className="text-[12px] text-slate-500">
+          <span className="text-[13px] text-slate-500">
             Total Qty <span className="font-bold text-slate-700">{lineItems.reduce((s, i) => s + (i.productId ? i.quantity : 0), 0)}</span>
           </span>
           <div className="flex-1 border-t-2 border-dotted border-slate-200 mx-3 opacity-60" />
