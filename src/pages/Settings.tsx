@@ -228,6 +228,39 @@ interface Settings {
   report_settings?: ReportSettings;
 }
 
+const QZStatusBadge = () => {
+  const [status, setStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  
+  useEffect(() => {
+    let mounted = true;
+    const check = async () => {
+      const { waitForQZ, ensureQZConnection, isQZReady } = 
+        await import('@/utils/directInvoicePrint');
+      if (isQZReady()) {
+        if (mounted) setStatus('connected');
+        return;
+      }
+      const loaded = await waitForQZ();
+      if (!loaded) { if (mounted) setStatus('disconnected'); return; }
+      const connected = await ensureQZConnection();
+      if (mounted) setStatus(connected ? 'connected' : 'disconnected');
+    };
+    check();
+    return () => { mounted = false; };
+  }, []);
+
+  if (status === 'checking') {
+    return <span className="text-xs text-muted-foreground animate-pulse">Checking...</span>;
+  }
+  return (
+    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${status === 'connected' 
+      ? 'bg-green-50 text-green-700 border-green-300' 
+      : 'bg-red-50 text-red-700 border-red-300'}`}>
+      {status === 'connected' ? '● Connected' : '○ Not Running'}
+    </span>
+  );
+};
+
 export default function Settings() {
   const { orgNavigate: navigate } = useOrgNavigation();
   const { toast } = useToast();
