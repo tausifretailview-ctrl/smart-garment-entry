@@ -3112,12 +3112,15 @@ export default function BarcodePrinting() {
     
     // Suppress browser headers/footers by clearing document title during print
     const originalTitle = document.title;
+    const originalZoom = (document.body.style as any).zoom;
     document.title = ' ';
+    (document.body.style as any).zoom = '1';
     
     // Print immediately since barcodes are pre-rendered
     setTimeout(() => {
       window.print();
       document.title = originalTitle;
+      (document.body.style as any).zoom = originalZoom || '';
     }, 200);
   };
 
@@ -3927,7 +3930,7 @@ export default function BarcodePrinting() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="printScaleCustom">Print Scale (%)</Label>
+                  <Label htmlFor="printScaleCustom">PDF Export Scale (%)</Label>
                   <Input
                     id="printScaleCustom"
                     type="number"
@@ -3938,7 +3941,7 @@ export default function BarcodePrinting() {
                     onChange={(e) => setPrintScale(Math.max(50, Math.min(300, parseInt(e.target.value) || 100)))}
                     placeholder="e.g., 110, 150, 170"
                   />
-                  <p className="text-xs text-muted-foreground">100% = auto-fit to page</p>
+                  <p className="text-xs text-muted-foreground">Only affects PDF export. Direct printing always uses 100%.</p>
                 </div>
               </div>
               
@@ -5118,9 +5121,6 @@ export default function BarcodePrinting() {
 
         #printArea .label-grid {
           display: grid;
-          grid-template-columns: repeat(8, 33mm);
-          grid-auto-rows: 19mm;
-          gap: 1mm;
         }
 
         #printArea .label-cell {
@@ -5204,8 +5204,8 @@ export default function BarcodePrinting() {
         @page { 
           size: ${isThermal1Up() 
             ? `${(sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)) + leftOffset + rightOffset}mm ${(sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)) + topOffset + bottomOffset}mm` 
-            : 'A4'}; 
-          margin: 0 !important;
+            : 'A4 portrait'}; 
+          margin: 0mm !important;
         }
         
         @media print {
@@ -5243,9 +5243,6 @@ export default function BarcodePrinting() {
             height: auto !important;
             margin: 0 !important;
             padding: 0 !important;
-            ${isThermal1Up() 
-              ? `transform: scale(1.0); transform-origin: top left;` 
-              : `transform: scale(${(printScale / 100) * getAutoFitScale()}); transform-origin: top left;`}
             overflow: visible !important;
           }
           
