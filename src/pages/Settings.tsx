@@ -3183,18 +3183,56 @@ export default function Settings() {
               
               {/* Live Preview Panel */}
               <Card className="sticky top-6 h-fit">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Eye className="h-5 w-5" />
-                    Live Invoice Preview
-                  </CardTitle>
-                  <CardDescription>
-                    See real-time changes as you customize
-                  </CardDescription>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base">Live Invoice Preview</CardTitle>
+                      <CardDescription className="text-xs mt-1">Updates as you change settings</CardDescription>
+                    </div>
+                    {/* Format switcher buttons */}
+                    <div className="flex gap-1">
+                      {(['a4', 'a5-vertical', 'a5-horizontal', 'thermal'] as const).map(fmt => (
+                        <button
+                          key={fmt}
+                          type="button"
+                          onClick={() =>
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                invoice_paper_format: fmt as any,
+                              },
+                            })
+                          }
+                          className={`px-2 py-1 text-[10px] font-semibold rounded border transition-colors
+                            ${settings.sale_settings?.invoice_paper_format === fmt
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-background text-muted-foreground border-border hover:border-primary'
+                            }`}
+                        >
+                          {fmt === 'a5-vertical' ? 'A5↑'
+                           : fmt === 'a5-horizontal' ? 'A5→'
+                           : fmt === 'thermal' ? '80mm'
+                           : 'A4'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="border rounded-lg p-4 bg-muted/50 overflow-auto max-h-[calc(100vh-200px)]">
-                    <div className="flex justify-center scale-75 origin-top">
+                    <div
+                      className="flex justify-center origin-top"
+                      style={{
+                        transform:
+                          settings.sale_settings?.invoice_paper_format === 'thermal'
+                            ? 'scale(0.9)'
+                            : settings.sale_settings?.invoice_paper_format === 'a4'
+                            ? 'scale(0.6)'
+                            : 'scale(0.72)',
+                        transformOrigin: 'top center',
+                      }}
+                    >
                       <InvoiceWrapper
                         billNo={sampleInvoiceData.billNo}
                         date={sampleInvoiceData.date}
@@ -3213,7 +3251,13 @@ export default function Settings() {
                         paymentMethod="cash"
                         template={settings.sale_settings?.invoice_template}
                         colorScheme={settings.sale_settings?.invoice_color_scheme}
-                        format={settings.sale_settings?.invoice_paper_format}
+                        format={
+                          settings.sale_settings?.invoice_paper_format === 'thermal'
+                            ? 'thermal'
+                            : (settings.sale_settings?.invoice_paper_format
+                               || (settings.sale_settings?.sales_bill_format === 'a5' ? 'a5-vertical' : undefined)
+                               || 'a4') as any
+                        }
                         showHSN={settings.sale_settings?.show_hsn_code ?? true}
                         showBarcode={settings.sale_settings?.show_barcode ?? true}
                         showGSTBreakdown={settings.sale_settings?.show_gst_breakdown ?? true}
