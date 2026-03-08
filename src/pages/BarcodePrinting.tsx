@@ -3202,6 +3202,80 @@ export default function BarcodePrinting() {
       }
     }
 
+    // Precision Pro Thermal: use html2canvas on PrecisionLabelPreview per label
+    if (precisionSettings.enabled && precisionSettings.printMode === 'thermal') {
+      toast.info("Generating PDF...");
+      try {
+        const { labelWidth, labelHeight, xOffset, yOffset, vGap, labelConfig } = precisionSettings;
+        const totalLabels = labelItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+        if (totalLabels === 0) { toast.error("No labels to print"); return; }
+
+        const pdf = new jsPDF({
+          orientation: "portrait",
+          unit: "mm",
+          format: [labelWidth, labelHeight],
+        });
+
+        // Expand items by qty
+        const allItems: LabelItem[] = [];
+        labelItems.forEach(item => {
+          for (let i = 0; i < (item.qty || 0); i++) allItems.push({ ...item, businessName });
+        });
+
+        // Create a hidden container
+        const container = document.createElement("div");
+        container.style.cssText = `position:absolute;left:-9999px;top:0;width:${labelWidth}mm;`;
+        document.body.appendChild(container);
+
+        // Dynamically import ReactDOM to render PrecisionLabelPreview into container per label
+        const { createRoot } = await import("react-dom/client");
+        const { createElement } = await import("react");
+        const { PrecisionLabelPreview } = await import("@/components/precision-barcode/PrecisionLabelPreview");
+
+        for (let i = 0; i < allItems.length; i++) {
+          if (i > 0) pdf.addPage();
+
+          container.innerHTML = "";
+          const wrapper = document.createElement("div");
+          wrapper.style.cssText = `width:${labelWidth}mm;height:${labelHeight}mm;overflow:hidden;background:#fff;`;
+          container.appendChild(wrapper);
+
+          const root = createRoot(wrapper);
+          root.render(createElement(PrecisionLabelPreview, {
+            item: allItems[i],
+            width: labelWidth,
+            height: labelHeight,
+            xOffset,
+            yOffset,
+            config: labelConfig || undefined,
+          }));
+
+          await new Promise(resolve => setTimeout(resolve, 150));
+
+          const canvas = await html2canvas(wrapper, {
+            scale: 4,
+            backgroundColor: "#ffffff",
+            logging: false,
+            useCORS: true,
+            width: labelWidth * 3.7795,
+            height: labelHeight * 3.7795,
+          });
+
+          root.unmount();
+          pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, labelWidth, labelHeight);
+        }
+
+        document.body.removeChild(container);
+        const timestamp = new Date().toISOString().split("T")[0];
+        pdf.save(`barcode-labels-${timestamp}.pdf`);
+        toast.success(`PDF generated with ${allItems.length} label${allItems.length > 1 ? 's' : ''}`);
+      } catch (err) {
+        console.error("Precision PDF error:", err);
+        toast.error("Failed to export PDF");
+      }
+      return;
+    }
+
     toast.info("Generating PDF...");
 
     try {
