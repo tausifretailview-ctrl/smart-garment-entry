@@ -102,7 +102,7 @@ export function AccountsDashboardCards({
                 <div className="text-2xl font-bold text-amber-700 dark:text-amber-300 tabular-nums mt-1">
                   ₹{Math.round(paymentStats.partialAmount).toLocaleString('en-IN')}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">{paymentStats.partialCount} partial</p>
+                <p className="text-sm text-muted-foreground mt-1">{paymentStats.partialCount} partial</p>
               </div>
               <div className="h-11 w-11 rounded-xl bg-amber-50 dark:bg-amber-950 flex items-center justify-center shrink-0">
                 <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
