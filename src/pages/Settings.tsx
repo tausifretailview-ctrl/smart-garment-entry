@@ -189,8 +189,11 @@ interface BillBarcodeSettings {
   // Direct Printing (QZ Tray) Settings
   enable_direct_print?: boolean;
   direct_print_sale_printer?: string;
+  direct_print_sale_paper?: 'A4' | 'A5' | '80mm' | '58mm';
   direct_print_pos_printer?: string;
+  direct_print_pos_paper?: 'A4' | 'A5' | '80mm' | '58mm';
   direct_print_auto_print?: boolean;
+  direct_print_copies?: number;
   // Precision Pro Barcode Settings
   precision_pro_enabled?: boolean;
   precision_x_offset?: number;
