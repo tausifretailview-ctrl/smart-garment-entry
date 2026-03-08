@@ -1011,7 +1011,7 @@ const PurchaseBillDashboard = () => {
         <div className="border rounded-lg overflow-hidden">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/30">
+              <TableRow className="bg-slate-50 dark:bg-slate-900/50">
                 <TableHead>Product Description</TableHead>
                 <TableHead>Barcode</TableHead>
                 <TableHead className="text-right">Quantity</TableHead>
