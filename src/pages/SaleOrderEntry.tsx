@@ -299,39 +299,10 @@ export default function SaleOrderEntry() {
     generateOrderNumber();
   }, [currentOrganization?.id, editingOrderId]);
 
-  // Fetch customers with pagination
-  const { data: customersData } = useQuery({
-    queryKey: ['customers', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      const allCustomers: any[] = [];
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
-      
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('customers')
-          .select('id, customer_name, phone, email, address, gst_number, discount_percent')
-          .eq('organization_id', currentOrganization.id)
-          .is('deleted_at', null)
-          .order('customer_name')
-          .range(offset, offset + PAGE_SIZE - 1);
-        if (error) throw error;
-        if (data && data.length > 0) {
-          allCustomers.push(...data);
-          offset += PAGE_SIZE;
-          hasMore = data.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
-      }
-      return allCustomers;
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 300000,
-    refetchOnWindowFocus: false,
-  });
+  // Server-side customer search (replaces fetch-all loop)
+  const [customerSearchInput, setCustomerSearchInput] = useState("");
+  const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
+  const { filteredCustomers, isLoading: isCustomersLoading } = useCustomerSearch(customerSearchInput);
 
   // Fetch products with pagination
   const { data: productsData } = useQuery({
