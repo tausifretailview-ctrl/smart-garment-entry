@@ -292,6 +292,11 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
           type: 'credit_note' as const,
           data: cn,
         })),
+        ...(supplierRefunds || []).map((r) => ({
+          date: r.voucher_date,
+          type: 'refund_received' as const,
+          data: r,
+        })),
       ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
       combined.forEach((item) => {
