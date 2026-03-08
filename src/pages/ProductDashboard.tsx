@@ -1120,8 +1120,8 @@ const ProductDashboard = () => {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Sale Value</p>
-                  <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">₹{totalSaleValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-1">Sale Value</p>
+                  <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">₹{totalSaleValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
                 <div className="h-12 w-12 rounded-xl bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center">
                   <TrendingUp className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
