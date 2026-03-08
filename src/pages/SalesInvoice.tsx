@@ -2892,14 +2892,14 @@ Thank you for choosing us!`;
           />
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-[11px] text-slate-500 whitespace-nowrap">Flat Disc ₹</span>
+          <span className="text-[13px] text-slate-500 whitespace-nowrap">Flat Disc ₹</span>
           <Input
             type="number" min="0"
             value={flatDiscountRupees || ""}
             placeholder="0"
             onChange={(e) => setFlatDiscountRupees(parseFloat(e.target.value) || 0)}
             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-            className="w-16 h-7 text-[12px]"
+            className="w-20 h-9 text-sm"
           />
         </div>
         <div className="w-px h-5 bg-slate-200" />
