@@ -1078,8 +1078,8 @@ const ProductDashboard = () => {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Total Stock Qty</p>
-                  <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{totalStockQty.toLocaleString()}</p>
+                  <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-1">Total Stock Qty</p>
+                  <p className="text-2xl font-bold text-blue-700 dark:text-blue-300 tabular-nums">{totalStockQty.toLocaleString()}</p>
                 </div>
                 <div className="h-12 w-12 rounded-xl bg-blue-50 dark:bg-blue-950 flex items-center justify-center">
                   <Boxes className="h-6 w-6 text-blue-600 dark:text-blue-400" />
