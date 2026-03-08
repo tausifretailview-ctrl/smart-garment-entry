@@ -87,12 +87,17 @@ export default function Accounts() {
 
   // Old voucher fetch removed — now lazy-loaded per tab below
 
-  // Fetch dashboard stats via RPC (replaces heavy fetchAll queries for metrics)
+  // Fetch dashboard stats via single RPC (replaces 4+ separate queries)
+  const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
+  const monthEnd = format(endOfMonth(new Date()), "yyyy-MM-dd");
+
   const { data: dashboardStats } = useQuery({
-    queryKey: ["accounts-dashboard-stats", currentOrganization?.id],
+    queryKey: ["accounts-dashboard-metrics", currentOrganization?.id, monthStart, monthEnd],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_accounts_dashboard_stats", {
+      const { data, error } = await supabase.rpc("get_accounts_dashboard_metrics", {
         p_org_id: currentOrganization!.id,
+        p_month_start: monthStart,
+        p_month_end: monthEnd,
       });
       if (error) throw error;
       return data as any;
