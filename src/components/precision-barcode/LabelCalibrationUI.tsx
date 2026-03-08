@@ -6,7 +6,7 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { HelpCircle, Minus, Plus, Save, Trash2, RefreshCw } from "lucide-react";
+import { HelpCircle, Minus, Plus, Save, Trash2, RefreshCw, Star } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PrecisionLabelPreview } from "./PrecisionLabelPreview";
 import { LabelDesignConfig, LabelItem, LabelTemplate } from "@/types/labelTypes";
@@ -142,6 +142,7 @@ interface LabelCalibrationUIProps {
   onSavePreset?: (preset: CalibrationPreset) => Promise<void> | void;
   onDeletePreset?: (presetId: string) => Promise<void> | void;
   onLoadPreset?: (preset: CalibrationPreset) => void;
+  onSetDefault?: (presetId: string, presetName: string) => Promise<void> | void;
   labelConfig?: LabelDesignConfig;
   compact?: boolean;
   sampleItem?: LabelItem;
@@ -165,6 +166,7 @@ export function LabelCalibrationUI({
   onSavePreset,
   onDeletePreset,
   onLoadPreset,
+  onSetDefault,
   onPresetsChange,
   labelConfig,
   compact = false,
@@ -334,6 +336,7 @@ export function LabelCalibrationUI({
             <SelectContent>
               {allPresets.map((p) => (
                 <SelectItem key={p.name} value={p.name} className="text-xs">
+                  {p.isDefault && <Star className="h-3 w-3 inline mr-1 text-amber-500 fill-amber-500" />}
                   {p.name}
                   <span className="ml-1 text-muted-foreground">
                     ({p.width}×{p.height})
@@ -372,6 +375,33 @@ export function LabelCalibrationUI({
             {saving ? "Updating..." : `Update "${effectivePresetName}"`}
           </Button>
         )}
+
+        {isUserPreset && onSetDefault && (() => {
+          const activePreset = presets.find(p => p.name === effectivePresetName);
+          const isAlreadyDefault = activePreset?.isDefault;
+          return activePreset?.id ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant={isAlreadyDefault ? "default" : "outline"}
+                    size="xs"
+                    className={`h-8 ${isAlreadyDefault ? 'bg-amber-500 hover:bg-amber-600 text-white' : ''}`}
+                    onClick={() => onSetDefault(activePreset.id!, activePreset.name)}
+                    disabled={saving}
+                  >
+                    <Star className={`h-3 w-3 mr-1 ${isAlreadyDefault ? 'fill-white' : ''}`} />
+                    {isAlreadyDefault ? "Default" : "Set Default"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs">{isAlreadyDefault ? "This is the default preset for purchase barcode printing" : "Set as default preset for auto-loading from purchase"}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : null;
+        })()}
 
         {(onSavePreset || onPresetsChange) && (
           <Dialog open={savePresetOpen} onOpenChange={setSavePresetOpen}>
