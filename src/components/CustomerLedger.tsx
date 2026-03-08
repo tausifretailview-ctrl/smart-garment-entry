@@ -1697,9 +1697,9 @@ Please clear your dues at the earliest. Thank you!`;
                       )}
                       {/* Totals Row */}
                       {transactions.length > 0 && (
-                        <TableRow className="bg-muted/70 font-bold border-t-2">
-                          <TableCell colSpan={4} className="text-right">
-                            TOTAL
+                        <TableRow className="bg-slate-100 dark:bg-slate-800 font-bold border-t-2 border-slate-300 dark:border-slate-600">
+                          <TableCell colSpan={4} className="text-right text-sm font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+                            Totals
                           </TableCell>
                           <TableCell className="text-right text-red-600 dark:text-red-400">
                             ₹{transactionTotals.totalDebit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
