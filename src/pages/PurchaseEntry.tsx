@@ -2538,9 +2538,9 @@ const PurchaseEntry = () => {
                 </div>
               </div>
           </div>
-          <div className="border rounded-lg overflow-x-auto">
-            <Table className="table-fixed min-w-[1460px]">
-              <TableHeader className="sticky top-0 z-10 erp-invoice-table-header">
+          <div className='flex-1 overflow-auto border-0'>
+            <Table className='table-fixed min-w-[1460px] border-separate border-spacing-0'>
+              <TableHeader className='sticky top-0 z-10 erp-invoice-table-header'>
                   <TableRow>
                     <TableHead className="w-[40px]">
                       <input
@@ -2555,13 +2555,13 @@ const PurchaseEntry = () => {
                     <TableHead className="w-[50px]">SIZE</TableHead>
                     <TableHead className="w-[120px]">BARCODE</TableHead>
                     <TableHead className="w-[80px] text-right">QTY</TableHead>
-                    <TableHead className="w-[120px] text-right">PUR.RATE</TableHead>
-                    <TableHead className="w-[120px] text-right">SALE.RATE</TableHead>
+                    <TableHead className='w-[120px] text-right pur-rate-col'>PUR.RATE</TableHead>
+                    <TableHead className='w-[120px] text-right sale-rate-col'>SALE.RATE</TableHead>
                     {showMrp && <TableHead className="w-[120px] text-right">MRP</TableHead>}
                     <TableHead className="w-[100px] text-right">GST %</TableHead>
                     <TableHead className="w-[120px] text-right">SUB TOTAL</TableHead>
                     <TableHead className="w-[100px] text-right">DISC %</TableHead>
-                    <TableHead className="w-[120px] text-right">TOTAL</TableHead>
+                    <TableHead className='w-[120px] text-right total-col'>TOTAL</TableHead>
                     <TableHead className="w-[40px]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -2575,7 +2575,7 @@ const PurchaseEntry = () => {
                     const gstAmount = (total * item.gst_per) / 100;
                     
                     return (
-                      <TableRow key={item.temp_id} className="hover:bg-[hsl(210_20%_98%)] dark:hover:bg-primary/5">
+                      <TableRow key={item.temp_id} className={`hover:bg-green-50/40 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}>
                         <TableCell className="w-[40px]">
                           <Checkbox
                             checked={selectedForPrint.has(item.temp_id)}
@@ -2607,7 +2607,7 @@ const PurchaseEntry = () => {
                               )
                             }
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-full text-right px-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className="w-full text-right px-2 bg-amber-50 border-amber-200 text-center font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                         </TableCell>
                         <TableCell className="w-[120px]">
@@ -2624,7 +2624,7 @@ const PurchaseEntry = () => {
                               )
                             }
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-full text-right"
+                            className="w-full text-right bg-green-50 border-green-200 text-green-800 font-bold"
                           />
                         </TableCell>
                         <TableCell className="w-[120px]">
@@ -2641,7 +2641,7 @@ const PurchaseEntry = () => {
                               )
                             }
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-full text-right"
+                            className="w-full text-right bg-blue-50 border-blue-200 text-blue-800 font-bold"
                           />
                         </TableCell>
                         {showMrp && (
@@ -2703,7 +2703,7 @@ const PurchaseEntry = () => {
                             className="w-full text-right"
                           />
                         </TableCell>
-                        <TableCell className="w-[120px] text-right font-semibold tabular-nums">
+                        <TableCell className="w-[120px] text-right font-bold tabular-nums text-green-700 bg-green-50/40 font-mono">
                           ₹{total.toFixed(2)}
                         </TableCell>
                         <TableCell className="w-[40px]">
