@@ -1675,9 +1675,6 @@ export default function SalesInvoiceDashboard() {
               <p className="text-[11px] text-white/65 mt-0.5">₹{effectiveStats.undeliveredAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
-              <p className="text-xs text-white/70">₹{effectiveStats.undeliveredAmount.toFixed(0)}</p>
-            </CardContent>
-          </Card>
         </div>
 
         <Card className="p-6">
