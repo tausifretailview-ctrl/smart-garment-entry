@@ -6138,6 +6138,10 @@ export type Database = {
         Args: { p_date?: string; p_type: string }
         Returns: string
       }
+      get_accounts_dashboard_metrics: {
+        Args: { p_month_end: string; p_month_start: string; p_org_id: string }
+        Returns: Json
+      }
       get_accounts_dashboard_stats: {
         Args: { p_org_id: string }
         Returns: Json
