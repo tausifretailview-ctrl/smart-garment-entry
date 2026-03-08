@@ -179,25 +179,45 @@ const PurchaseBillDashboard = () => {
       {
         label: "Print Barcodes",
         icon: Barcode,
-        onClick: () => {
-          const items = billItems[bill.id] || [];
-          const barcodeItems = items.map(item => ({
-            sku_id: item.id,
-            product_name: item.product_name || "",
-            brand: item.brand || "",
-            category: item.category || "",
-            color: item.color || "",
-            style: item.style || "",
-            size: item.size,
-            sale_price: item.sale_price,
-            mrp: item.mrp,
-            pur_price: item.pur_price,
-            barcode: item.barcode,
-            qty: item.qty,
-            bill_number: bill.software_bill_no || bill.supplier_invoice_no,
-            supplier_code: "",
-          }));
-          navigate("/barcode-printing", { state: { purchaseItems: barcodeItems } });
+        onClick: async () => {
+          try {
+            // Fetch items fresh from database instead of relying on expand cache
+            const { data: items, error } = await supabase
+              .from("purchase_items")
+              .select("id, product_name, brand, category, color, style, size, sale_price, mrp, pur_price, barcode, qty")
+              .eq("bill_id", bill.id);
+            if (error) throw error;
+
+            let supplierCode = "";
+            if (bill.supplier_id) {
+              const { data: supplierData } = await supabase
+                .from("suppliers")
+                .select("supplier_code")
+                .eq("id", bill.supplier_id)
+                .single();
+              supplierCode = supplierData?.supplier_code || "";
+            }
+
+            const barcodeItems = (items || []).map(item => ({
+              sku_id: item.id,
+              product_name: item.product_name || "",
+              brand: item.brand || "",
+              category: item.category || "",
+              color: item.color || "",
+              style: item.style || "",
+              size: item.size,
+              sale_price: item.sale_price,
+              mrp: item.mrp,
+              pur_price: item.pur_price,
+              barcode: item.barcode,
+              qty: item.qty,
+              bill_number: bill.software_bill_no || bill.supplier_invoice_no,
+              supplier_code: supplierCode,
+            }));
+            navigate("/barcode-printing", { state: { purchaseItems: barcodeItems } });
+          } catch (err) {
+            toast({ title: "Error loading items for barcode print", variant: "destructive" });
+          }
         },
       },
     ];
