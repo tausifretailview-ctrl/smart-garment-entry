@@ -2624,6 +2624,12 @@ const PurchaseEntry = () => {
                           <Badge variant="outline" className="font-mono text-xs">
                             {item.barcode || "—"}
                           </Badge>
+                          {barcodeWarnings.has(item.temp_id) && (
+                            <div className="flex items-start gap-1.5 mt-1 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded px-2 py-1.5">
+                              <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                              <span>{barcodeWarnings.get(item.temp_id)}</span>
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="w-[80px]">
                           <Input
