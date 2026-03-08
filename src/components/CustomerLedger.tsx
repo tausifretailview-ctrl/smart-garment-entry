@@ -1412,108 +1412,126 @@ Please clear your dues at the earliest. Thank you!`;
           </div>
         </div>
 
-        <Card>
-          <CardHeader>
+        <Card className="overflow-hidden border-0 shadow-md">
+          <div className="h-1.5 bg-gradient-to-r from-primary via-blue-500 to-accent" />
+          <CardHeader className="pb-4">
             <div className="flex items-start justify-between">
               <div className="space-y-2">
                 <CardTitle className="text-2xl">
                   <button
-                    className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-2xl font-bold"
+                    className="text-foreground hover:text-primary cursor-pointer bg-transparent border-none p-0 text-2xl font-bold tracking-tight transition-colors"
                     onClick={() => openHistory(selectedCustomer.id, selectedCustomer.customer_name)}
                   >
                     {selectedCustomer.customer_name}
                   </button>
                 </CardTitle>
-                <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                <div className="flex flex-wrap gap-2 mt-1">
                   {isSchool && selectedCustomer.admissionNumber && (
-                    <div className="flex items-center gap-1">
-                      <FileText className="h-3 w-3" />
-                      Adm: {selectedCustomer.admissionNumber}
+                    <div className="flex items-center gap-1.5 text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2.5 py-1 rounded-full">
+                      <FileText className="h-3 w-3 shrink-0" />
+                      <span>Adm: {selectedCustomer.admissionNumber}</span>
                     </div>
                   )}
                   {isSchool && selectedCustomer.className && (
-                    <div className="flex items-center gap-1">
-                      Class: {selectedCustomer.className}{selectedCustomer.division ? ` - ${selectedCustomer.division}` : ''}
+                    <div className="flex items-center gap-1.5 text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2.5 py-1 rounded-full">
+                      <span>Class: {selectedCustomer.className}{selectedCustomer.division ? ` - ${selectedCustomer.division}` : ''}</span>
                     </div>
                   )}
                   {selectedCustomer.phone && (
-                    <div className="flex items-center gap-1">
-                      <Phone className="h-3 w-3" />
-                      {selectedCustomer.phone}
+                    <div className="flex items-center gap-1.5 text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2.5 py-1 rounded-full">
+                      <Phone className="h-3 w-3 shrink-0" />
+                      <span>{selectedCustomer.phone}</span>
                     </div>
                   )}
                   {selectedCustomer.email && (
-                    <div className="flex items-center gap-1">
-                      <Mail className="h-3 w-3" />
-                      {selectedCustomer.email}
+                    <div className="flex items-center gap-1.5 text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2.5 py-1 rounded-full">
+                      <Mail className="h-3 w-3 shrink-0" />
+                      <span>{selectedCustomer.email}</span>
                     </div>
                   )}
                   {selectedCustomer.address && (
-                    <div className="flex items-center gap-1">
-                      <MapPin className="h-3 w-3" />
-                      {selectedCustomer.address}
+                    <div className="flex items-center gap-1.5 text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2.5 py-1 rounded-full">
+                      <MapPin className="h-3 w-3 shrink-0" />
+                      <span>{selectedCustomer.address}</span>
                     </div>
                   )}
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-sm text-muted-foreground mb-1">Outstanding Balance</div>
+              <div className={cn(
+                "text-right px-5 py-4 rounded-xl min-w-[160px]",
+                selectedCustomer.balance > 0
+                  ? "bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800"
+                  : selectedCustomer.balance < 0
+                  ? "bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800"
+                  : "bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
+              )}>
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                  Outstanding Balance
+                </div>
                 <div className={cn(
-                  "text-3xl font-bold",
-                  selectedCustomer.balance > 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
+                  "text-3xl font-bold tabular-nums",
+                  selectedCustomer.balance > 0 ? "text-red-600 dark:text-red-400"
+                  : selectedCustomer.balance < 0 ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-foreground"
                 )}>
                   ₹{Math.abs(selectedCustomer.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                 </div>
-                {selectedCustomer.balance > 0 && (
-                  <Badge variant="destructive" className="mt-2">Outstanding</Badge>
-                )}
-                {selectedCustomer.balance < 0 && (
-                  <Badge variant="default" className="mt-2 bg-green-600">Advance</Badge>
-                )}
-                {selectedCustomer.balance === 0 && (
-                  <Badge variant="outline" className="mt-2">Settled</Badge>
-                )}
+                <div className="mt-2">
+                  {selectedCustomer.balance > 0 && (
+                    <Badge className="bg-red-600 hover:bg-red-700 text-white border-0">Outstanding</Badge>
+                  )}
+                  {selectedCustomer.balance < 0 && (
+                    <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white border-0">Advance</Badge>
+                  )}
+                  {selectedCustomer.balance === 0 && (
+                    <Badge variant="outline" className="text-slate-500">Settled ✓</Badge>
+                  )}
+                </div>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-0">
               {selectedCustomer.opening_balance !== 0 && (
-                <Card>
-                  <CardContent className="pt-6">
-                    <div className="text-sm text-muted-foreground mb-1">Opening Balance</div>
+                <Card className="border-l-4 border-l-orange-400 overflow-hidden">
+                  <CardContent className="p-4">
+                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Opening Balance</div>
                     <div className={cn(
-                      "text-2xl font-bold",
-                      selectedCustomer.opening_balance > 0 ? "text-orange-600 dark:text-orange-400" : "text-green-600 dark:text-green-400"
+                      "text-xl font-bold tabular-nums",
+                      selectedCustomer.opening_balance > 0 ? "text-orange-600 dark:text-orange-400" : "text-emerald-600 dark:text-emerald-400"
                     )}>
                       ₹{Math.abs(selectedCustomer.opening_balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                     </div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs text-muted-foreground mt-0.5">
                       {selectedCustomer.opening_balance > 0 ? "Receivable" : "Advance"}
                     </div>
                   </CardContent>
                 </Card>
               )}
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-sm text-muted-foreground mb-1">{isSchool ? 'Total Fees' : 'Total Sales'}</div>
-                  <div className="text-2xl font-bold">
+              <Card className="border-l-4 border-l-blue-400 overflow-hidden">
+                <CardContent className="p-4">
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                    {isSchool ? 'Total Fees' : 'Total Sales'}
+                  </div>
+                  <div className="text-xl font-bold text-blue-700 dark:text-blue-300 tabular-nums">
                     ₹{selectedCustomer.totalSales.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
                 </CardContent>
               </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-sm text-muted-foreground mb-1">{isSchool ? 'Fees Paid' : 'Total Paid'}</div>
-                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+              <Card className="border-l-4 border-l-emerald-400 overflow-hidden">
+                <CardContent className="p-4">
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                    {isSchool ? 'Fees Paid' : 'Total Paid'}
+                  </div>
+                  <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
                     ₹{selectedCustomer.totalPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
                 </CardContent>
               </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-sm text-muted-foreground mb-1">Collection Rate</div>
-                  <div className="text-2xl font-bold">
+              <Card className="border-l-4 border-l-violet-400 overflow-hidden">
+                <CardContent className="p-4">
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Collection Rate</div>
+                  <div className="text-xl font-bold text-violet-700 dark:text-violet-300 tabular-nums">
                     {(selectedCustomer.totalSales + Math.max(0, selectedCustomer.opening_balance)) > 0
                       ? ((selectedCustomer.totalPaid / (selectedCustomer.totalSales + Math.max(0, selectedCustomer.opening_balance))) * 100).toFixed(1)
                       : '0.0'}%
@@ -1522,15 +1540,15 @@ Please clear your dues at the earliest. Thank you!`;
               </Card>
             </div>
 
-            <Separator className="my-6" />
+            <div className="my-4" />
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="transactions" className="flex items-center gap-2">
+              <TabsList className="grid w-full grid-cols-2 mb-4 h-10 bg-muted/60 rounded-xl p-1">
+                <TabsTrigger value="transactions" className="flex items-center gap-2 rounded-lg text-sm font-medium">
                   <FileText className="h-4 w-4" />
                   Transaction History
                 </TabsTrigger>
-                <TabsTrigger value="payments" className="flex items-center gap-2">
+                <TabsTrigger value="payments" className="flex items-center gap-2 rounded-lg text-sm font-medium">
                   <IndianRupee className="h-4 w-4" />
                   Payment History
                 </TabsTrigger>
@@ -1540,14 +1558,14 @@ Please clear your dues at the earliest. Thank you!`;
                 <div className="rounded-md border">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Reference</TableHead>
-                        <TableHead>Description</TableHead>
-                        <TableHead className="text-right">Debit</TableHead>
-                        <TableHead className="text-right">Credit</TableHead>
-                        <TableHead className="text-right">Balance</TableHead>
+                      <TableRow className="bg-slate-50 dark:bg-slate-900/60 border-b-2">
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500 w-[120px]">Date</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Type</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Reference</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Description</TableHead>
+                        <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-red-500">Debit</TableHead>
+                        <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-emerald-600">Credit</TableHead>
+                        <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-slate-500">Balance</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1559,22 +1577,24 @@ Please clear your dues at the earliest. Thank you!`;
                         </TableRow>
                       ) : (
                         transactions.map((transaction) => (
-                          <TableRow key={transaction.id} className={transaction.id === 'opening-balance' ? 'bg-muted/50' : ''}>
+                          <TableRow key={transaction.id} className={transaction.id === 'opening-balance'
+                            ? 'bg-orange-50/60 dark:bg-orange-950/20 border-l-4 border-l-orange-400'
+                            : 'hover:bg-slate-50/50 dark:hover:bg-slate-900/30'
+                          }>
                             <TableCell>
-                              <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-muted-foreground" />
-                                {transaction.id === 'opening-balance' 
-                                  ? <span className="font-semibold">Opening</span>
-                                  : <div>
-                                      <div>{format(new Date(transaction.date), "dd MMM yyyy")}</div>
-                                      {transaction.timestamp && (
-                                        <div className="text-xs text-muted-foreground">
-                                          {format(new Date(transaction.timestamp), "hh:mm a")}
-                                        </div>
-                                      )}
+                              {transaction.id === 'opening-balance'
+                                ? <span className="font-bold text-orange-600 dark:text-orange-400 text-sm">B/F Opening</span>
+                                : <div>
+                                    <div className="text-sm font-medium tabular-nums">
+                                      {format(new Date(transaction.date), "dd MMM yyyy")}
                                     </div>
-                                }
-                              </div>
+                                    {transaction.timestamp && (
+                                      <div className="text-xs text-muted-foreground tabular-nums">
+                                        {format(new Date(transaction.timestamp), "hh:mm a")}
+                                      </div>
+                                    )}
+                                  </div>
+                              }
                             </TableCell>
                             <TableCell>
                               {transaction.id === 'opening-balance' ? (
@@ -1596,21 +1616,31 @@ Please clear your dues at the earliest. Thank you!`;
                                       <FileText className="h-3 w-3 mr-1" /> FEE
                                     </Badge>
                                   ) : (
-                                    <Badge variant={transaction.type === 'invoice' ? 'default' : 'secondary'}>
+                                    <>
                                       {transaction.type === 'invoice' ? (
-                                        <><FileText className="h-3 w-3 mr-1" /> Invoice</>
+                                        <Badge className="bg-blue-600 hover:bg-blue-700 text-white border-0 text-xs">
+                                          <FileText className="h-3 w-3 mr-1" /> Invoice
+                                        </Badge>
                                       ) : (
-                                        <><IndianRupee className="h-3 w-3 mr-1" /> Payment</>
+                                        <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white border-0 text-xs">
+                                          <IndianRupee className="h-3 w-3 mr-1" /> Payment
+                                        </Badge>
                                       )}
-                                    </Badge>
+                                    </>
                                   )}
                                   {transaction.type === 'invoice' && transaction.paymentStatus === 'completed' && (
-                                    <Badge className="bg-success text-success-foreground text-xs">PAID</Badge>
+                                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 text-xs ml-1">
+                                      ✓ Paid
+                                    </Badge>
                                   )}
                                 </div>
                               )}
                             </TableCell>
-                            <TableCell className="font-mono text-sm">{transaction.reference}</TableCell>
+                            <TableCell>
+                              <span className="font-mono text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded">
+                                {transaction.reference}
+                              </span>
+                            </TableCell>
                             <TableCell>
                               <div className="space-y-1">
                                 <div className="text-muted-foreground">{transaction.description}</div>
@@ -1667,9 +1697,9 @@ Please clear your dues at the earliest. Thank you!`;
                       )}
                       {/* Totals Row */}
                       {transactions.length > 0 && (
-                        <TableRow className="bg-muted/70 font-bold border-t-2">
-                          <TableCell colSpan={4} className="text-right">
-                            TOTAL
+                        <TableRow className="bg-slate-100 dark:bg-slate-800 font-bold border-t-2 border-slate-300 dark:border-slate-600">
+                          <TableCell colSpan={4} className="text-right text-sm font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+                            Totals
                           </TableCell>
                           <TableCell className="text-right text-red-600 dark:text-red-400">
                             ₹{transactionTotals.totalDebit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
@@ -1694,50 +1724,50 @@ Please clear your dues at the earliest. Thank you!`;
 
               <TabsContent value="payments">
                 {/* Payment Summary Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-                  <Card>
-                    <CardContent className="pt-4">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+                  <Card className="border-l-4 border-l-emerald-500 overflow-hidden">
+                    <CardContent className="p-3">
                       <div className="text-xs text-muted-foreground mb-1">Total Received</div>
-                      <div className="text-xl font-bold text-green-600 dark:text-green-400">
+                      <div className="text-lg font-bold text-green-600 dark:text-green-400">
                         ₹{paymentSummary.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </div>
                       <div className="text-xs text-muted-foreground">{paymentSummary.count} payments</div>
                     </CardContent>
                   </Card>
-                  <Card>
-                    <CardContent className="pt-4">
+                  <Card className="border-l-4 border-l-green-400 overflow-hidden">
+                    <CardContent className="p-3">
                       <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                         <Banknote className="h-3 w-3" /> Cash
                       </div>
-                      <div className="text-xl font-bold text-green-600 dark:text-green-400">
+                      <div className="text-lg font-bold text-green-600 dark:text-green-400">
                         ₹{paymentSummary.cash.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </div>
                     </CardContent>
                   </Card>
-                  <Card>
-                    <CardContent className="pt-4">
+                  <Card className="border-l-4 border-l-blue-400 overflow-hidden">
+                    <CardContent className="p-3">
                       <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                         <CreditCard className="h-3 w-3" /> Card
                       </div>
-                      <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                      <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
                         ₹{paymentSummary.card.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </div>
                     </CardContent>
                   </Card>
-                  <Card>
-                    <CardContent className="pt-4">
+                  <Card className="border-l-4 border-l-violet-400 overflow-hidden">
+                    <CardContent className="p-3">
                       <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                         <Wallet className="h-3 w-3" /> UPI
                       </div>
-                      <div className="text-xl font-bold text-purple-600 dark:text-purple-400">
+                      <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
                         ₹{paymentSummary.upi.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </div>
                     </CardContent>
                   </Card>
-                  <Card>
-                    <CardContent className="pt-4">
+                  <Card className="border-l-4 border-l-slate-400 overflow-hidden">
+                    <CardContent className="p-3">
                       <div className="text-xs text-muted-foreground mb-1">Recorded Separately</div>
-                      <div className="text-xl font-bold">
+                      <div className="text-lg font-bold">
                         ₹{(paymentSummary.total - paymentSummary.cash - paymentSummary.card - paymentSummary.upi).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </div>
                     </CardContent>
@@ -1747,15 +1777,15 @@ Please clear your dues at the earliest. Thank you!`;
                 <div className="rounded-md border">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Voucher No.</TableHead>
-                        <TableHead>Invoice No.</TableHead>
-                        <TableHead>Invoice Amount</TableHead>
-                        <TableHead className="text-right">Cash</TableHead>
-                        <TableHead className="text-right">Card</TableHead>
-                        <TableHead className="text-right">UPI</TableHead>
-                        <TableHead className="text-right">Total Paid</TableHead>
+                      <TableRow className="bg-slate-50 dark:bg-slate-900/60 border-b-2">
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Date</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Voucher No.</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Invoice No.</TableHead>
+                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Invoice Amount</TableHead>
+                        <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-green-600">Cash</TableHead>
+                        <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-blue-600">Card</TableHead>
+                        <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-violet-600">UPI</TableHead>
+                        <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-emerald-600">Total Paid</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1776,7 +1806,7 @@ Please clear your dues at the earliest. Thank you!`;
                             </TableCell>
                             <TableCell className="font-mono text-sm">
                               {payment.voucherNumber !== '-' ? (
-                                <Badge variant="outline" className="bg-primary/10 text-primary">
+                                <Badge className="bg-primary/10 text-primary border-primary/20 font-mono text-xs">
                                   {payment.voucherNumber}
                                 </Badge>
                               ) : (
