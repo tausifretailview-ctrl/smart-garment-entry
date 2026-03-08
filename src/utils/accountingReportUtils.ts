@@ -286,104 +286,56 @@ export async function calculateProfitLoss(
 ): Promise<ProfitLossData> {
   const warnings: string[] = [];
   
-  // REVENUE SECTION
-  // Gross Sales - use gross_amount (before GST) for GST-exclusive reporting
-  const { data: sales } = await supabase
-    .from("sales")
-    .select("gross_amount, net_amount")
-    .eq("organization_id", organizationId)
-    .gte("sale_date", fromDate)
-    .lte("sale_date", toDate)
-    .is("deleted_at", null);
-  
-  // Use gross_amount (before GST) for GST-exclusive reporting
-  const grossSales = sales?.reduce((sum, s) => sum + (s.gross_amount || s.net_amount || 0), 0) || 0;
+  // Single RPC replaces 5 separate queries + client-side reduces
+  const { data: pnlAgg, error: pnlError } = await supabase.rpc('get_pnl_aggregates', {
+    p_org_id: organizationId,
+    p_from_date: fromDate,
+    p_to_date: toDate,
+  });
+  if (pnlError) throw pnlError;
 
-  // Sales Returns
-  const { data: saleReturns } = await supabase
-    .from("sale_returns")
-    .select("gross_amount, net_amount")
-    .eq("organization_id", organizationId)
-    .gte("return_date", fromDate)
-    .lte("return_date", toDate)
-    .is("deleted_at", null);
-  const salesReturns = saleReturns?.reduce((sum, sr) => sum + (sr.gross_amount || sr.net_amount || 0), 0) || 0;
-
+  const pnl = pnlAgg as any;
+  const grossSales = pnl?.gross_sales || 0;
+  const salesReturns = pnl?.sales_returns || 0;
   const netSales = grossSales - salesReturns;
+  const purchasesAmount = pnl?.purchases_gross || 0;
+  const purchasesGST = pnl?.purchases_gst || 0;
+  const purchaseReturnsAmount = pnl?.purchase_returns || 0;
 
   // COGS SECTION (GST-Exclusive)
-  // Opening Stock = Stock value at the start of the period
   const openingStockDate = format(subDays(new Date(fromDate), 1), "yyyy-MM-dd");
   const openingStock = await calculateStockValueAtDate(organizationId, openingStockDate);
   
-  // Purchases (GST-Exclusive - use gross_amount)
-  const { data: purchases } = await supabase
-    .from("purchase_bills")
-    .select("gross_amount, gst_amount, net_amount")
-    .eq("organization_id", organizationId)
-    .gte("bill_date", fromDate)
-    .lte("bill_date", toDate)
-    .is("deleted_at", null);
-  
-  // gross_amount is the amount BEFORE GST (GST-exclusive)
-  const purchasesAmount = purchases?.reduce((sum, p) => sum + (p.gross_amount || 0), 0) || 0;
-  const purchasesGST = purchases?.reduce((sum, p) => sum + (p.gst_amount || 0), 0) || 0;
-
-  // Purchase Returns (GST-Exclusive)
-  const { data: purchaseReturns } = await supabase
-    .from("purchase_returns")
-    .select("gross_amount, net_amount")
-    .eq("organization_id", organizationId)
-    .gte("return_date", fromDate)
-    .lte("return_date", toDate)
-    .is("deleted_at", null);
-  const purchaseReturnsAmount = purchaseReturns?.reduce((sum, pr) => sum + (pr.gross_amount || pr.net_amount || 0), 0) || 0;
-
-  // Closing Stock (current stock value)
+  // Closing Stock (current stock value) via RPC
   const closingStock = await calculateStockValue(organizationId);
   
-  // Validate closing stock
   if (closingStock < 0) {
     warnings.push("Warning: Negative closing stock detected. Please verify stock entries.");
   }
 
-  // COGS = Opening Stock + Purchases - Purchase Returns - Closing Stock
   const cogs = Math.max(0, openingStock + purchasesAmount - purchaseReturnsAmount - closingStock);
-
-  // Gross Profit
   const grossProfit = netSales - cogs;
   const isGrossLoss = grossProfit < 0;
 
-  // EXPENSES SECTION (from voucher_entries)
-  const { data: expenseVouchers } = await supabase
-    .from("voucher_entries")
-    .select("category, total_amount")
-    .eq("organization_id", organizationId)
-    .eq("voucher_type", "expense")
-    .gte("voucher_date", fromDate)
-    .lte("voucher_date", toDate)
-    .is("deleted_at", null);
-
-  // Group expenses by category
-  const expenseMap = new Map<string, number>();
-  expenseVouchers?.forEach(v => {
-    const category = v.category || "Miscellaneous";
-    const current = expenseMap.get(category) || 0;
-    expenseMap.set(category, current + (v.total_amount || 0));
+  // Expenses by category via RPC
+  const { data: expenseCatData, error: expError } = await supabase.rpc('get_expense_by_category', {
+    p_org_id: organizationId,
+    p_from_date: fromDate,
+    p_to_date: toDate,
   });
+  if (expError) throw expError;
 
-  const expensesByCategory: ExpenseCategory[] = Array.from(expenseMap.entries())
-    .map(([category, amount]) => ({ category, amount }))
-    .sort((a, b) => b.amount - a.amount);
+  const expensesByCategory: ExpenseCategory[] = ((expenseCatData as any) || []).map((e: any) => ({
+    category: e.category,
+    amount: Number(e.amount) || 0,
+  }));
 
   const totalExpenses = expensesByCategory.reduce((sum, e) => sum + e.amount, 0);
 
-  // Net Profit
   const netProfit = grossProfit - totalExpenses;
   const isNetLoss = netProfit < 0;
   const profitMargin = netSales > 0 ? (netProfit / netSales) * 100 : 0;
 
-  // Edge case warnings
   if (netSales === 0 && cogs > 0) {
     warnings.push("No sales recorded for this period, but cost of goods exists.");
   }
@@ -392,7 +344,6 @@ export async function calculateProfitLoss(
     warnings.push("No transactions recorded for this period.");
   }
 
-  // Generate period label
   const fromFormatted = format(new Date(fromDate), "dd MMM yyyy");
   const toFormatted = format(new Date(toDate), "dd MMM yyyy");
   const periodLabel = `${fromFormatted} to ${toFormatted}`;
