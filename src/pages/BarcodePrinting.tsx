@@ -188,7 +188,7 @@ interface MarginPreset {
   description?: string;
 }
 
-type SheetType_placeholder_removed = never; // placeholder removed
+
 
 type SheetType = 
   // A4 Sheet Types
