@@ -112,13 +112,14 @@ export async function calculateTrialBalance(
 
   if (error) throw error;
 
-  const totalDebtors = agg?.total_debtors || 0;
-  const totalCreditors = agg?.total_creditors || 0;
-  const totalSalesRevenue = agg?.total_sales || 0;
-  const totalPurchasesAmount = agg?.total_purchases || 0;
-  const totalSaleReturns = agg?.total_sale_returns || 0;
-  const totalPurchaseReturns = agg?.total_purchase_returns || 0;
-  const cashBalance = agg?.cash_balance || 0;
+  const aggData = agg as any;
+  const totalDebtors = aggData?.total_debtors || 0;
+  const totalCreditors = aggData?.total_creditors || 0;
+  const totalSalesRevenue = aggData?.total_sales || 0;
+  const totalPurchasesAmount = aggData?.total_purchases || 0;
+  const totalSaleReturns = aggData?.total_sale_returns || 0;
+  const totalPurchaseReturns = aggData?.total_purchase_returns || 0;
+  const cashBalance = aggData?.cash_balance || 0;
 
   // Get stock value via RPC
   const { data: stockValue } = await supabase.rpc('get_stock_value', { p_org_id: organizationId });
