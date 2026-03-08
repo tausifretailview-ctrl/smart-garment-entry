@@ -54,6 +54,7 @@ interface SalesInvoiceERPTableProps {
   deliveryHistory: Record<string, any[]>;
   saleReturns: Record<string, any[]>;
   cnAdjustedMap: Record<string, any[]>;
+  loadedItems?: Record<string, any[]>;
   renderToolbar?: (toolbar: React.ReactNode) => React.ReactNode;
 }
 
