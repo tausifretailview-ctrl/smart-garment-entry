@@ -867,7 +867,7 @@ const PurchaseBillDashboard = () => {
       accessorKey: "bill_date",
       header: "Date",
       cell: ({ row }) => (
-        <span className="text-sm whitespace-nowrap">{format(new Date(row.original.bill_date), "dd MMM yyyy")}</span>
+        <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">{format(new Date(row.original.bill_date), "dd MMM yyyy")}</span>
       ),
       size: 100,
       minSize: 90,
