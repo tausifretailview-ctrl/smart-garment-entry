@@ -90,6 +90,7 @@ interface PurchaseBill {
   created_at: string;
   payment_status?: string;
   paid_amount?: number;
+  total_qty?: number;
   items?: PurchaseItem[];
 }
 
