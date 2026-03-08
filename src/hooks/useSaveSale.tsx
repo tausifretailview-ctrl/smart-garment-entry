@@ -694,7 +694,7 @@ export const useSaveSale = () => {
       if (itemsError) throw itemsError;
 
       // Step 3: Update the sales record
-      const { data: sale, error: saleError } = await (supabase as any)
+      const { data: sale, error: saleError } = await supabase
         .from('sales')
         .update({
           customer_id: saleData.customerId || null,
