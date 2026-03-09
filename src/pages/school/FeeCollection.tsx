@@ -375,7 +375,7 @@ const FeeCollection = () => {
       try {
         await sendMessageAsync({
           phone,
-          message: `Fee Reminder - ${currentOrganization?.name}\nStudent: ${student.student_name} (${student.admission_number})\nClass: ${student.school_classes?.class_name || "-"}\nPending Amount: Rs.${student.totalDue.toLocaleString("en-IN")}\n${upiId ? `UPI ID: ${upiId}` : ""}`,
+          message: `Respected Sir/Madam,\n\nFee Reminder - ${currentOrganization?.name}\nAdmission No: ${student.admission_number}er}\nClass: ${student.school_classes?.class_name || "-"}\nPending Amount: Rs.${student.totalDue.toLocaleString("en-IN")}\n${upiId ? `UPI ID: ${upiId}` : ""}`,
           templateType: "fee_reminder",
           templateName,
           saleData: {
@@ -396,7 +396,7 @@ const FeeCollection = () => {
       }
     } else {
       const amountStr = `Rs.${student.totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
-      const msg = `Dear Parent,\n\nFee Reminder - ${currentOrganization?.name || "School"}\nStudent: ${student.student_name} (${student.admission_number})\nClass: ${student.school_classes?.class_name || "-"}\nPending Amount: ${amountStr}\n${upiId ? `\n💳 *Pay Online*\nUPI ID: ${upiId}\nAmount: ${amountStr}\n\n👉 Click to pay: ${paymentLink}` : ""}\n\nPlease pay at the earliest.\nThank you!`;
+      const msg = `Respected Sir/Madam,\n\nFee Reminder - ${currentOrganization?.name || "School"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\nPending Amount: ${amountStr}\n${upiId ? `\n💳 *Pay Online*\nUPI ID: ${upiId}\nAmount: ${amountStr}\n\n👉 Click to pay: ${paymentLink}` : ""}\n\nPlease pay at the earliest.\nThank you!`;
       sendWhatsApp(phone, msg);
     }
   };
