@@ -15,7 +15,8 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { ArrowRight, Loader2, Users, CheckCircle2, AlertTriangle } from "lucide-react";
+import { ArrowRight, Loader2, Users, CheckCircle2, AlertTriangle, History, GraduationCap, UserCheck, UserX } from "lucide-react";
+import { format } from "date-fns";
 
 const StudentPromotion = () => {
   const { currentOrganization } = useOrganization();
@@ -27,7 +28,7 @@ const StudentPromotion = () => {
   const [selectedClassId, setSelectedClassId] = useState<string>("all");
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [carryForward, setCarryForward] = useState(true);
-  const [promotionResults, setPromotionResults] = useState<{ promoted: number; failed: number } | null>(null);
+  const [promotionResults, setPromotionResults] = useState<{ promoted: number; failed: number; passedOut: number } | null>(null);
 
   // Fetch academic years
   const { data: years = [] } = useQuery({
@@ -62,11 +63,54 @@ const StudentPromotion = () => {
     enabled: !!orgId,
   });
 
+  // Fetch promotion history
+  const { data: promotionHistoryRaw = [] } = useQuery({
+    queryKey: ["promotion-history", orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const { data, error } = await supabase
+        .from("promotion_history")
+        .select("*")
+        .eq("organization_id", orgId)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!orgId,
+  });
+
+  // Cast to proper type
+  const promotionHistory = promotionHistoryRaw as Array<{
+    id: string;
+    from_year_name: string;
+    to_year_name: string;
+    total_promoted: number;
+    total_failed: number;
+    total_passed_out: number;
+    carry_forward_enabled: boolean;
+    promoted_by: string | null;
+    created_at: string;
+  }>;
+
+  // Summary stats from history
+  const totalEverPromoted = useMemo(() => {
+    return promotionHistory.reduce((sum, h) => sum + (h.total_promoted || 0), 0);
+  }, [promotionHistory]);
+
+  const totalEverPassedOut = useMemo(() => {
+    return promotionHistory.reduce((sum, h) => sum + (h.total_passed_out || 0), 0);
+  }, [promotionHistory]);
+
+  const totalEverFailed = useMemo(() => {
+    return promotionHistory.reduce((sum, h) => sum + (h.total_failed || 0), 0);
+  }, [promotionHistory]);
+
   // Build class mapping: current class -> next class by display_order
   const classMapping = useMemo(() => {
     const map: Record<string, string | null> = {};
     for (let i = 0; i < classes.length; i++) {
-      map[classes[i].id] = i + 1 < classes.length ? classes[i + 1].id : null; // last class = passed out
+      map[classes[i].id] = i + 1 < classes.length ? classes[i + 1].id : null;
     }
     return map;
   }, [classes]);
@@ -95,7 +139,7 @@ const StudentPromotion = () => {
     enabled: !!orgId && !!fromYearId,
   });
 
-  // Fetch fee structures for fromYear to calculate pending dues
+  // Fetch fee structures for fromYear
   const { data: feeStructures = [] } = useQuery({
     queryKey: ["promotion-fee-structures", orgId, fromYearId],
     queryFn: async () => {
@@ -111,7 +155,7 @@ const StudentPromotion = () => {
     enabled: !!orgId && !!fromYearId,
   });
 
-  // Fetch paid amounts for students
+  // Fetch paid amounts
   const { data: paidAmounts = {} } = useQuery({
     queryKey: ["promotion-paid-amounts", orgId, fromYearId],
     queryFn: async () => {
@@ -132,7 +176,6 @@ const StudentPromotion = () => {
     enabled: !!orgId && !!fromYearId,
   });
 
-  // Calculate total fee per class from structures
   const classFeeTotal = useMemo(() => {
     const map: Record<string, number> = {};
     feeStructures.forEach((fs: any) => {
@@ -141,13 +184,11 @@ const StudentPromotion = () => {
     return map;
   }, [feeStructures]);
 
-  // Filtered students
   const filteredStudents = useMemo(() => {
     if (selectedClassId === "all") return students;
     return students.filter((s: any) => s.class_id === selectedClassId);
   }, [students, selectedClassId]);
 
-  // Unique classes in student list
   const studentClasses = useMemo(() => {
     const classIds = new Set(students.map((s: any) => s.class_id));
     return classes.filter((c: any) => classIds.has(c.id));
@@ -176,6 +217,7 @@ const StudentPromotion = () => {
 
       let promoted = 0;
       let failed = 0;
+      let passedOut = 0;
       const batchSize = 50;
 
       for (let i = 0; i < selected.length; i += batchSize) {
@@ -185,7 +227,6 @@ const StudentPromotion = () => {
           const nextClassId = classMapping[student.class_id] || null;
           const isLastClass = nextClassId === null;
 
-          // Calculate carry-forward balance
           let newClosingBalance = 0;
           if (carryForward) {
             const totalFee = classFeeTotal[student.class_id] || (student.closing_fees_balance || 0);
@@ -200,6 +241,7 @@ const StudentPromotion = () => {
 
           if (isLastClass) {
             updateData.status = "passed_out";
+            passedOut++;
           } else {
             updateData.class_id = nextClassId;
             updateData.status = "active";
@@ -219,13 +261,29 @@ const StudentPromotion = () => {
         }
       }
 
-      return { promoted, failed };
+      // Log promotion history
+      const fromYear = years.find((y: any) => y.id === fromYearId);
+      const toYear = years.find((y: any) => y.id === toYearId);
+      await supabase.from("promotion_history").insert({
+        organization_id: orgId,
+        from_year_id: fromYearId,
+        to_year_id: toYearId,
+        from_year_name: fromYear?.year_name || "",
+        to_year_name: toYear?.year_name || "",
+        total_promoted: promoted,
+        total_failed: failed,
+        total_passed_out: passedOut,
+        carry_forward_enabled: carryForward,
+      } as any);
+
+      return { promoted, failed, passedOut };
     },
     onSuccess: (result) => {
       setPromotionResults(result);
       setSelectedStudents(new Set());
       queryClient.invalidateQueries({ queryKey: ["promotion-students"] });
       queryClient.invalidateQueries({ queryKey: ["students"] });
+      queryClient.invalidateQueries({ queryKey: ["promotion-history"] });
       toast.success(`${result.promoted} students promoted successfully${result.failed > 0 ? `, ${result.failed} failed` : ""}`);
     },
     onError: (error: any) => {
@@ -246,6 +304,62 @@ const StudentPromotion = () => {
         <p className="text-muted-foreground">
           Promote students from one academic year to the next with automatic class progression
         </p>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Users className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{totalEverPromoted + totalEverPassedOut}</p>
+                <p className="text-xs text-muted-foreground">Total Promoted</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-green-500/10">
+                <UserCheck className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{totalEverPromoted}</p>
+                <p className="text-xs text-muted-foreground">Promoted to Next Class</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/10">
+                <GraduationCap className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{totalEverPassedOut}</p>
+                <p className="text-xs text-muted-foreground">Passed Out</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-destructive/10">
+                <UserX className="h-5 w-5 text-destructive" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{totalEverFailed}</p>
+                <p className="text-xs text-muted-foreground">Failed</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Year Selection */}
@@ -326,6 +440,7 @@ const StudentPromotion = () => {
               <div>
                 <p className="font-semibold text-green-700 dark:text-green-400">
                   Promotion Complete: {promotionResults.promoted} students promoted
+                  {promotionResults.passedOut > 0 ? `, ${promotionResults.passedOut} passed out` : ""}
                   {fromYear && toYear ? ` from ${fromYear.year_name} to ${toYear.year_name}` : ""}
                 </p>
                 {promotionResults.failed > 0 && (
@@ -442,6 +557,63 @@ const StudentPromotion = () => {
                     );
                   })
                 )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Promotion History */}
+      {promotionHistory.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Promotion History
+            </CardTitle>
+            <CardDescription>Past promotion batches</CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>From Year</TableHead>
+                  <TableHead>To Year</TableHead>
+                  <TableHead className="text-center">Promoted</TableHead>
+                  <TableHead className="text-center">Passed Out</TableHead>
+                  <TableHead className="text-center">Failed</TableHead>
+                  <TableHead>Carry Forward</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {promotionHistory.map((h) => (
+                  <TableRow key={h.id}>
+                    <TableCell className="text-sm">
+                      {h.created_at ? format(new Date(h.created_at), "dd MMM yyyy, hh:mm a") : "—"}
+                    </TableCell>
+                    <TableCell>{h.from_year_name}</TableCell>
+                    <TableCell>{h.to_year_name}</TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant="default">{h.total_promoted}</Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant="secondary">{h.total_passed_out || 0}</Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {(h.total_failed || 0) > 0 ? (
+                        <Badge variant="destructive">{h.total_failed}</Badge>
+                      ) : (
+                        <Badge variant="outline">0</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={h.carry_forward_enabled ? "default" : "outline"}>
+                        {h.carry_forward_enabled ? "Yes" : "No"}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </CardContent>
