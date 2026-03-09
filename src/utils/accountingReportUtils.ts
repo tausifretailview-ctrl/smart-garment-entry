@@ -321,8 +321,8 @@ export async function calculateProfitLoss(
   const openingStockDate = format(subDays(new Date(fromDate), 1), "yyyy-MM-dd");
   const openingStock = await calculateStockValueAtDate(organizationId, openingStockDate);
   
-  // Closing Stock (current stock value) via RPC
-  const closingStock = await calculateStockValue(organizationId);
+  // Closing Stock at period end (not live stock)
+  const closingStock = await calculateStockValueAtDate(organizationId, toDate);
   
   if (closingStock < 0) {
     warnings.push("Warning: Negative closing stock detected. Please verify stock entries.");
