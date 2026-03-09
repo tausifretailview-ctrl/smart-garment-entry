@@ -470,7 +470,6 @@ export async function calculateNetProfitSummary(
     
     if (saleItems && saleItems.length > 0) {
       const variantIds = [...new Set(saleItems.map(item => item.variant_id).filter(Boolean))];
-      const { fetchVariantsByIds } = await import("@/utils/fetchAllRows");
       const variants = await fetchVariantsByIds(variantIds, "id, pur_price");
       const variantPriceMap = new Map(variants?.map((v: any) => [v.id, v.pur_price || 0]) || []);
       
