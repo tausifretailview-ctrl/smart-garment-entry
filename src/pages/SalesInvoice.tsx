@@ -2128,6 +2128,7 @@ Thank you for choosing us!`;
         );
         setSelectedCustomerId("");
         setSelectedCustomer(null);
+        setPointsToRedeem(0);
         setInvoiceDate(new Date());
         setDueDate(new Date());
         setPaymentTerm("");
