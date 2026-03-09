@@ -15,11 +15,12 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter,
 } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import { format, isToday } from "date-fns";
 import {
   CalendarIcon, RefreshCw, Save, Printer, FileSpreadsheet,
   TrendingUp, TrendingDown, Wallet, ArrowDownLeft, ArrowUpRight, IndianRupee,
-  CheckCircle2, AlertTriangle, XCircle,
+  CheckCircle2, AlertTriangle, XCircle, Clock,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,7 @@ import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { useReactToPrint } from "react-to-print";
 import DailyTallyReport from "@/components/DailyTallyReport";
+import { fetchAllSalesWithFilters } from "@/utils/fetchAllRows";
 
 // ─── helpers ───────────────────────────────────────────────────────────
 const fmt = (n: number) =>
@@ -46,8 +48,8 @@ interface PaymentBreakdown {
 }
 const emptyBreakdown = (): PaymentBreakdown => ({ cash: 0, upi: 0, card: 0, bank: 0, credit: 0, total: 0 });
 
-const DENOMINATIONS = [2000, 500, 200, 100, 50] as const;
-const DEFAULT_DENOM_COUNTS: Record<number, number> = { 2000: 0, 500: 0, 200: 0, 100: 0, 50: 0 };
+const DENOMINATIONS = [2000, 500, 200, 100, 50, 20, 10] as const;
+const DEFAULT_DENOM_COUNTS: Record<number, number> = { 2000: 0, 500: 0, 200: 0, 100: 0, 50: 0, 20: 0, 10: 0 };
 
 
 // ─── Component ─────────────────────────────────────────────────────────
@@ -78,11 +80,10 @@ const DailyTally = () => {
 
   const REPORT_CACHE = { staleTime: 5 * 60 * 1000, gcTime: 30 * 60 * 1000, refetchOnWindowFocus: false as const };
 
-  // Sales (POS + Invoice)
+  // Sales (POS + Invoice) — FIX 1: static import
   const { data: salesData, isLoading: salesLoading, refetch: refetchSales } = useQuery({
     queryKey: ["daily-tally-sales", orgId, dateStr],
     queryFn: async () => {
-      const { fetchAllSalesWithFilters } = await import("@/utils/fetchAllRows");
       return fetchAllSalesWithFilters(orgId!, { startDate: startISO, endDate: endISO });
     },
     enabled: !!orgId,
@@ -220,6 +221,17 @@ const DailyTally = () => {
       setLeaveInDrawer(Number(snapshot.leave_in_drawer) || 0);
       setDepositToBank(Number(snapshot.deposit_to_bank) || 0);
       setNotes(snapshot.notes || "");
+      // FIX 4: Restore denomination data from snapshot
+      if (snapshot.denomination_data) {
+        try {
+          const saved = typeof snapshot.denomination_data === 'string' 
+            ? JSON.parse(snapshot.denomination_data) 
+            : snapshot.denomination_data;
+          if (saved.counts) setDenomCounts(saved.counts);
+          if (saved.coins !== undefined) setCoinsBulk(saved.coins);
+          if (tallyTab === "denomination" && saved.total) setPhysicalCash(saved.total || 0);
+        } catch (e) { /* ignore parse error */ }
+      }
     } else {
       // Use yesterday's leave_in_drawer as today's opening cash
       const yesterdayClosing = Number(yesterdaySnapshot?.leave_in_drawer) || 0;
@@ -228,10 +240,10 @@ const DailyTally = () => {
       setLeaveInDrawer(0);
       setDepositToBank(0);
       setNotes("");
+      // Reset denomination counts
+      setDenomCounts({ ...DEFAULT_DENOM_COUNTS });
+      setCoinsBulk(0);
     }
-    // Reset denomination counts
-    setDenomCounts({ ...DEFAULT_DENOM_COUNTS });
-    setCoinsBulk(0);
   }, [snapshot, yesterdaySnapshot]);
 
   // ─── Aggregation ───────────────────────────────────────────────────
@@ -265,7 +277,7 @@ const DailyTally = () => {
       target.total += net;
     });
 
-    // Process vouchers
+    // Process vouchers — FIX 8: strict voucher_type check only for expenses
     (vouchersData || []).forEach((v: any) => {
       const amt = Number(v.total_amount) || 0;
       const mode = parsePaymentMode(v.description);
@@ -280,7 +292,7 @@ const DailyTally = () => {
         addToMode(supplierPayments);
       } else if (v.voucher_type === "payment" && v.reference_type === "employee") {
         addToMode(employeeSalary);
-      } else if (v.voucher_type === "expense" || v.reference_type === "expense") {
+      } else if (v.voucher_type === "expense") {
         addToMode(expenses);
       }
     });
@@ -326,9 +338,11 @@ const DailyTally = () => {
   }, [aggregated]);
 
   const totalSales = aggregated.posSales.total + aggregated.invoiceSales.total;
-  const totalCollection = totalIn.total;
+  // FIX 2 & 3: Use actual collected amounts (excluding credit)
+  const actualCollected = totalIn.cash + totalIn.upi + totalIn.card + totalIn.bank;
+  const actualPaidOut = totalOut.cash + totalOut.upi + totalOut.card + totalOut.bank;
   const totalPaymentsOut = totalOut.total;
-  const netMovement = totalCollection - totalPaymentsOut;
+  const netMovement = actualCollected - actualPaidOut;
 
   const expectedCash = openingCash + totalIn.cash - totalOut.cash;
   const difference = physicalCash - expectedCash;
@@ -345,6 +359,7 @@ const DailyTally = () => {
   // ─── Save snapshot ─────────────────────────────────────────────────
   const saveMutation = useMutation({
     mutationFn: async () => {
+      // FIX 4: Include denomination_data in snapshot
       const payload = {
         organization_id: orgId!,
         tally_date: dateStr,
@@ -357,6 +372,7 @@ const DailyTally = () => {
         handover_to_owner: handoverToOwner,
         notes: notes || null,
         created_by: user?.id || null,
+        denomination_data: JSON.stringify({ counts: denomCounts, coins: coinsBulk, total: denomTotal }),
       };
 
       // Upsert
@@ -422,12 +438,14 @@ const DailyTally = () => {
     XLSX.writeFile(wb, `Daily_Tally_${dateStr}.xlsx`);
   }, [selectedDate, aggregated, totalIn, totalOut, openingCash, expectedCash, physicalCash, difference, leaveInDrawer, depositToBank, handoverToOwner, settings, dateStr]);
 
-  // ─── Table row helper ──────────────────────────────────────────────
+  // ─── Table row helper — UI-5: highlight non-zero rows ──────────────
   const MoneyRow = ({ label, data, highlight, type }: { label: string; data: PaymentBreakdown; highlight?: boolean; type?: "in" | "out" }) => (
     <TableRow className={cn(
       highlight && type === "in" ? "bg-emerald-50 dark:bg-emerald-950/30 font-bold" :
       highlight && type === "out" ? "bg-rose-50 dark:bg-rose-950/30 font-bold" :
       highlight ? "bg-muted/50 font-bold" :
+      !highlight && data.total > 0 && type === "in" ? "border-l-4 border-l-emerald-400 bg-emerald-50/30" :
+      !highlight && data.total > 0 && type === "out" ? "border-l-4 border-l-rose-400 bg-rose-50/30" :
       "even:bg-slate-50/50 dark:even:bg-slate-900/30"
     )}>
       <TableCell className={cn("font-medium text-sm", !highlight && "text-slate-600 dark:text-slate-400")}>{label}</TableCell>
@@ -440,12 +458,13 @@ const DailyTally = () => {
     </TableRow>
   );
 
-  // ─── Hero card data ────────────────────────────────────────────────
+  // ─── Hero card data — FIX 2: Total Collection = actual collected, add Credit Extended card ─
   const heroCards = [
     { title: "Total Sales", value: totalSales, icon: IndianRupee, borderColor: "border-l-emerald-600", iconBg: "bg-emerald-100 dark:bg-emerald-900/40", iconColor: "text-emerald-600" },
-    { title: "Total Collection", value: totalCollection, icon: ArrowDownLeft, borderColor: "border-l-blue-600", iconBg: "bg-blue-100 dark:bg-blue-900/40", iconColor: "text-blue-600" },
+    { title: "Total Collection", value: actualCollected, icon: ArrowDownLeft, borderColor: "border-l-blue-600", iconBg: "bg-blue-100 dark:bg-blue-900/40", iconColor: "text-blue-600" },
     { title: "Total Payments", value: totalPaymentsOut, icon: ArrowUpRight, borderColor: "border-l-rose-600", iconBg: "bg-rose-100 dark:bg-rose-900/40", iconColor: "text-rose-600" },
     { title: "Net Movement", value: netMovement, icon: TrendingUp, borderColor: netMovement >= 0 ? "border-l-emerald-600" : "border-l-rose-600", iconBg: netMovement >= 0 ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-rose-100 dark:bg-rose-900/40", iconColor: netMovement >= 0 ? "text-emerald-600" : "text-rose-600" },
+    { title: "Credit Extended", value: totalIn.credit, icon: Clock, borderColor: "border-l-amber-500", iconBg: "bg-amber-100 dark:bg-amber-900/40", iconColor: "text-amber-600" },
   ];
 
   // ─── Render ────────────────────────────────────────────────────────
@@ -477,6 +496,13 @@ const DailyTally = () => {
               />
             </PopoverContent>
           </Popover>
+          {/* UI-2: Today quick button */}
+          {!isToday(selectedDate) && (
+            <Button variant="outline" size="sm" onClick={() => setSelectedDate(new Date())}
+              className="text-xs border-[1.5px] border-indigo-300 text-indigo-700 hover:bg-indigo-50">
+              Today
+            </Button>
+          )}
           <Button variant="outline" size="icon" onClick={handleRefresh} disabled={isLoading} className="border-[1.5px] border-slate-200 dark:border-slate-700">
             <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
           </Button>
@@ -497,8 +523,34 @@ const DailyTally = () => {
         </div>
       </div>
 
+      {/* UI-4: Skeleton loading state */}
+      {isLoading ? (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            {[1,2,3,4,5].map(i => (
+              <Card key={i} className="border-[1.5px] border-slate-200 dark:border-slate-700 border-l-4 border-l-slate-300">
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <Skeleton className="h-3 w-20" />
+                </CardHeader>
+                <CardContent className="px-4 pb-4 pt-0">
+                  <Skeleton className="h-8 w-32" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {[1,2].map(i => (
+              <Card key={i} className="border-[1.5px] border-slate-200 dark:border-slate-700">
+                <CardHeader className="pb-3"><Skeleton className="h-5 w-24" /></CardHeader>
+                <CardContent><Skeleton className="h-40 w-full" /></CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      ) : (
+      <>
       {/* ═══ Hero Summary Cards ═══ */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {heroCards.map((c) => (
           <Card key={c.title} className={cn("border-[1.5px] border-slate-200 dark:border-slate-700 border-l-4 hover:shadow-lg transition-shadow", c.borderColor)}>
             <CardHeader className="flex flex-row items-center justify-between pb-2 pt-4 px-4">
@@ -521,6 +573,10 @@ const DailyTally = () => {
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-emerald-600 font-bold">
               <ArrowDownLeft className="h-5 w-5" /> Money In
+              {/* UI-3: transaction count badge */}
+              <Badge variant="secondary" className="ml-2 text-xs font-normal">
+                {(salesData?.length || 0) + (vouchersData?.filter((v: any) => v.voucher_type === "receipt").length || 0)} txns
+              </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -538,10 +594,10 @@ const DailyTally = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <MoneyRow label="POS Sales" data={aggregated.posSales} />
-                  <MoneyRow label="Sales Invoice" data={aggregated.invoiceSales} />
-                  <MoneyRow label="Old Balance Received" data={aggregated.receipts} />
-                  <MoneyRow label="Advance Received" data={aggregated.advances} />
+                  <MoneyRow label="POS Sales" data={aggregated.posSales} type="in" />
+                  <MoneyRow label="Sales Invoice" data={aggregated.invoiceSales} type="in" />
+                  <MoneyRow label="Old Balance Received" data={aggregated.receipts} type="in" />
+                  <MoneyRow label="Advance Received" data={aggregated.advances} type="in" />
                 </TableBody>
                 <TableFooter>
                   <MoneyRow label="Total Inward" data={totalIn} highlight type="in" />
@@ -556,6 +612,10 @@ const DailyTally = () => {
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-rose-600 font-bold">
               <ArrowUpRight className="h-5 w-5" /> Money Out
+              {/* UI-3: transaction count badge */}
+              <Badge variant="secondary" className="ml-2 text-xs font-normal">
+                {(vouchersData?.filter((v: any) => v.voucher_type !== "receipt").length || 0) + (refundsData?.length || 0)} txns
+              </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -573,10 +633,10 @@ const DailyTally = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <MoneyRow label="Supplier Payment" data={aggregated.supplierPayments} />
-                  <MoneyRow label="Shop Expense" data={aggregated.expenses} />
-                  <MoneyRow label="Employee Salary" data={aggregated.employeeSalary} />
-                  <MoneyRow label="Sale Return Refund" data={aggregated.saleReturnRefunds} />
+                  <MoneyRow label="Supplier Payment" data={aggregated.supplierPayments} type="out" />
+                  <MoneyRow label="Shop Expense" data={aggregated.expenses} type="out" />
+                  <MoneyRow label="Employee Salary" data={aggregated.employeeSalary} type="out" />
+                  <MoneyRow label="Sale Return Refund" data={aggregated.saleReturnRefunds} type="out" />
                 </TableBody>
                 <TableFooter>
                   <MoneyRow label="Total Outward" data={totalOut} highlight type="out" />
@@ -613,12 +673,24 @@ const DailyTally = () => {
                   className="text-lg font-bold tabular-nums"
                 />
               </div>
+              {/* FIX 7: Improved Expected Cash formula label */}
               <div className="rounded-lg border-[1.5px] border-slate-200 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-800/50">
                 <p className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1">Expected Cash</p>
                 <p className="text-3xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{fmt(expectedCash)}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums">
-                  Opening ({fmt(openingCash)}) + Cash In ({fmt(totalIn.cash)}) − Cash Out ({fmt(totalOut.cash)})
-                </p>
+                <div className="mt-2 font-mono text-xs text-slate-500 dark:text-slate-400 space-y-0.5">
+                  <div className="flex justify-between">
+                    <span>Opening Cash</span><span className="tabular-nums">{fmt(openingCash)}</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-600">
+                    <span>+ Cash In (POS+Invoice+RCP+Adv)</span><span className="tabular-nums">{fmt(totalIn.cash)}</span>
+                  </div>
+                  <div className="flex justify-between text-rose-600">
+                    <span>− Cash Out (Expenses+Supplier+Salary)</span><span className="tabular-nums">{fmt(totalOut.cash)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-slate-700 dark:text-slate-300 border-t border-slate-200 dark:border-slate-600 pt-1">
+                    <span>= Expected Cash</span><span className="tabular-nums">{fmt(expectedCash)}</span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -651,7 +723,7 @@ const DailyTally = () => {
                         🧮 Physical Tally (Blind Count) — Count what's in your drawer. Don't rely on system figures.
                       </p>
                     </div>
-                    {/* Denomination rows */}
+                    {/* Denomination rows — FIX 5: includes ₹20 and ₹10 */}
                     <div className="space-y-2">
                       {DENOMINATIONS.map((denom) => (
                         <div key={denom} className="flex items-center gap-3 py-1.5">
@@ -758,11 +830,25 @@ const DailyTally = () => {
               <label className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">Deposit to Bank</label>
               <Input type="number" value={depositToBank || ""} onChange={(e) => setDepositToBank(Number(e.target.value) || 0)} placeholder="0.00" className="font-semibold tabular-nums" />
             </div>
+            {/* FIX 6: Conditional styling for negative handover */}
             <div>
               <label className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">Handover to Owner</label>
-              <div className="rounded-lg border-[1.5px] border-indigo-200 dark:border-indigo-800 p-3 bg-indigo-50 dark:bg-indigo-950/30">
-                <p className="text-xl font-bold tabular-nums text-indigo-700 dark:text-indigo-400">{fmt(handoverToOwner)}</p>
-                <p className="text-xs text-indigo-500 dark:text-indigo-400 font-medium">Auto-calculated</p>
+              <div className={cn(
+                "rounded-lg border-[1.5px] p-3",
+                handoverToOwner < 0
+                  ? "border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30"
+                  : "border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/30"
+              )}>
+                <p className={cn(
+                  "text-xl font-bold tabular-nums",
+                  handoverToOwner < 0 ? "text-red-700 dark:text-red-400" : "text-indigo-700 dark:text-indigo-400"
+                )}>{fmt(handoverToOwner)}</p>
+                <p className={cn(
+                  "text-xs font-medium",
+                  handoverToOwner < 0 ? "text-red-500 dark:text-red-400" : "text-indigo-500 dark:text-indigo-400"
+                )}>
+                  {handoverToOwner < 0 ? "⚠️ Over-allocated — reduce Drawer or Bank" : "Auto-calculated"}
+                </p>
               </div>
             </div>
           </div>
@@ -770,6 +856,35 @@ const DailyTally = () => {
             <label className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">Notes</label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional settlement notes…" rows={2} />
           </div>
+        </CardContent>
+      </Card>
+
+      {/* UI-1: Day-End Cash Summary strip */}
+      <Card className="border-[1.5px] border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30">
+        <CardContent className="py-4">
+          <p className="text-xs uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mb-3">Day-End Cash Summary</p>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            {[
+              { label: "Opening Cash", value: openingCash, color: "text-slate-700 dark:text-slate-300" },
+              { label: "Cash In", value: totalIn.cash, color: "text-emerald-700 dark:text-emerald-400" },
+              { label: "Cash Out", value: totalOut.cash, color: "text-red-700 dark:text-red-400" },
+              { label: "Expected Closing", value: expectedCash, color: "text-indigo-700 dark:text-indigo-400" },
+              { label: "Physical Counted", value: physicalCash, color: difference === 0 ? "text-emerald-700 dark:text-emerald-400" : Math.abs(difference) <= 100 ? "text-amber-700 dark:text-amber-400" : "text-red-700 dark:text-red-400" },
+            ].map(item => (
+              <div key={item.label} className="text-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2.5">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mb-1">{item.label}</p>
+                <p className={cn("text-lg font-bold tabular-nums", item.color)}>{fmt(item.value)}</p>
+              </div>
+            ))}
+          </div>
+          {difference !== 0 && (
+            <div className={cn(
+              "mt-3 text-center text-sm font-semibold rounded-md py-1.5",
+              difference > 0 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400" : "bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400"
+            )}>
+              {difference > 0 ? `Cash surplus: +${fmt(difference)}` : `Cash shortage: ${fmt(difference)}`}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -783,6 +898,8 @@ const DailyTally = () => {
           <Save className="h-5 w-5" /> Save Snapshot
         </Button>
       </div>
+      </>
+      )}
 
       {/* Print-only component (hidden) */}
       <div className="hidden">
