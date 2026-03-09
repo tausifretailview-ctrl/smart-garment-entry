@@ -12,7 +12,8 @@ import {
   Receipt,
   ArrowUpRight,
   ArrowDownLeft,
-  Package
+  Package,
+  AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import * as XLSX from "xlsx";
 import {
   calculateGSTBreakup,
@@ -77,6 +79,11 @@ interface GSTR3BSummary {
     sgst: number;
   };
   netTaxPayable: {
+    igst: number;
+    cgst: number;
+    sgst: number;
+  };
+  itcCarryForward?: {
     igst: number;
     cgst: number;
     sgst: number;
@@ -165,7 +172,7 @@ const GSTReports = () => {
   };
 
   const fetchBusinessInfo = async () => {
-    if (!currentOrganization?.id) return;
+    if (!currentOrganization?.id) return null;
     
     const { data: settings } = await supabase
       .from("settings")
@@ -189,7 +196,9 @@ const GSTReports = () => {
 
     setIsLoading(true);
     try {
-      await fetchBusinessInfo();
+      // FIX G1: Capture businessGSTIN from fetchBusinessInfo
+      const settings = await fetchBusinessInfo();
+      const businessGSTIN = settings?.gst_number || "";
       
       const fromDateObj = new Date(fromDate);
       const toDateObj = new Date(toDate);
@@ -209,7 +218,6 @@ const GSTReports = () => {
         .order("sale_date", { ascending: true });
 
       const saleIds = salesData?.map(s => s.id) || [];
-      // Use paginated fetch to bypass 1000 row limit
       const saleItems = saleIds.length > 0 ? await fetchAllSaleItems(saleIds) : [];
 
       // Group items by sale
@@ -222,8 +230,8 @@ const GSTReports = () => {
 
       // B2B - Sales to registered dealers
       const b2b: any[] = [];
-      // B2CS - Sales to unregistered dealers
-      const b2cs: any[] = [];
+      // FIX G2: B2CS aggregated by rate (not per-invoice)
+      const b2csMap = new Map<string, { rate: number; taxableValue: number; cgst: number; sgst: number; igst: number }>();
       // HSN Summary
       const hsnMap = new Map<string, HSNSummary>();
 
@@ -236,21 +244,26 @@ const GSTReports = () => {
         const customerGSTIN = (sale.customers as any)?.gst_number || "";
         const items = saleItemsMap.get(sale.id) || [];
         const isB2B = customerGSTIN && customerGSTIN.length === 15;
+        // FIX G1: Inter-state detection
+        const interState = isInterState(businessGSTIN, customerGSTIN);
 
-        // Calculate GST from items
         let saleGstAmount = 0;
         items.forEach(item => {
           const rate = item.gst_percent || 0;
           const lineTotal = item.line_total || 0;
           const taxableValue = lineTotal / (1 + rate / 100);
           const gstAmount = lineTotal - taxableValue;
-          const cgst = gstAmount / 2;
-          const sgst = gstAmount / 2;
 
           saleGstAmount += gstAmount;
           totalTaxableValue += taxableValue;
-          totalCGST += cgst;
-          totalSGST += sgst;
+
+          // FIX G1: Split based on inter-state
+          if (interState) {
+            totalIGST += gstAmount;
+          } else {
+            totalCGST += gstAmount / 2;
+            totalSGST += gstAmount / 2;
+          }
 
           // HSN aggregation
           const hsnCode = item.hsn_code || "00000000";
@@ -269,8 +282,12 @@ const GSTReports = () => {
           existing.totalQty += item.quantity || 1;
           existing.totalValue += lineTotal;
           existing.taxableValue += taxableValue;
-          existing.cgst += cgst;
-          existing.sgst += sgst;
+          if (interState) {
+            existing.igst += gstAmount;
+          } else {
+            existing.cgst += gstAmount / 2;
+            existing.sgst += gstAmount / 2;
+          }
           hsnMap.set(hsnCode, existing);
         });
 
@@ -285,23 +302,41 @@ const GSTReports = () => {
             invoiceValue: sale.net_amount,
             taxableValue: taxableValue,
             gstRate: items[0]?.gst_percent || 0,
-            cgst: saleGstAmount / 2,
-            sgst: saleGstAmount / 2,
-            igst: 0
+            cgst: interState ? 0 : saleGstAmount / 2,
+            sgst: interState ? 0 : saleGstAmount / 2,
+            igst: interState ? saleGstAmount : 0
           });
         } else {
-          b2cs.push({
-            partyName: sale.customer_name,
-            invoiceNo: sale.sale_number,
-            invoiceDate: format(new Date(sale.sale_date), "dd-MM-yyyy"),
-            invoiceValue: sale.net_amount,
-            taxableValue: taxableValue,
-            gstRate: items[0]?.gst_percent || 0,
-            cgst: saleGstAmount / 2,
-            sgst: saleGstAmount / 2
+          // FIX G2: Aggregate B2CS by rate
+          items.forEach(item => {
+            const rate = item.gst_percent || 0;
+            const lineTotal = item.line_total || 0;
+            const taxable = lineTotal / (1 + rate / 100);
+            const gst = lineTotal - taxable;
+            const key = `${rate}`;
+            const existing = b2csMap.get(key) || { rate, taxableValue: 0, cgst: 0, sgst: 0, igst: 0 };
+            existing.taxableValue += taxable;
+            if (interState) {
+              existing.igst += gst;
+            } else {
+              existing.cgst += gst / 2;
+              existing.sgst += gst / 2;
+            }
+            b2csMap.set(key, existing);
           });
         }
       });
+
+      // Convert B2CS map to array
+      const b2cs = Array.from(b2csMap.values()).map((row, i) => ({
+        sno: i + 1,
+        supplyType: row.igst > 0 ? "Inter-State" : "Intra-State",
+        rate: row.rate,
+        taxableValue: Math.round(row.taxableValue * 100) / 100,
+        cgst: Math.round(row.cgst * 100) / 100,
+        sgst: Math.round(row.sgst * 100) / 100,
+        igst: Math.round(row.igst * 100) / 100,
+      }));
 
       // Fetch credit notes / sale returns for CDNR
       const { data: saleReturns } = await supabase
@@ -360,7 +395,9 @@ const GSTReports = () => {
 
     setIsLoading(true);
     try {
-      await fetchBusinessInfo();
+      // FIX G5: Capture businessGSTIN
+      const settings = await fetchBusinessInfo();
+      const businessGSTIN = settings?.gst_number || "";
 
       // Use server-side RPC for outward GST aggregation
       const { data: gstSummary, error: rpcError } = await supabase.rpc('get_gst_summary', {
@@ -377,6 +414,24 @@ const GSTReports = () => {
         outwardGST += (Number(row.cgst_amount) || 0) + (Number(row.sgst_amount) || 0);
       });
 
+      // FIX G4: Deduct sale returns from outward supplies
+      const { data: saleReturnsData } = await supabase
+        .from("sale_returns")
+        .select("id, net_amount, gst_amount")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .gte("return_date", fromDate)
+        .lte("return_date", toDate);
+
+      const returnTaxable = (saleReturnsData || []).reduce((sum, r) => {
+        const gst = r.gst_amount || 0;
+        return sum + ((r.net_amount || 0) - gst);
+      }, 0);
+      const returnGST = (saleReturnsData || []).reduce((sum, r) => sum + (r.gst_amount || 0), 0);
+
+      const netOutwardTaxable = outwardTaxable - returnTaxable;
+      const netOutwardGST = outwardGST - returnGST;
+
       // Fetch purchases
       const { data: purchaseData } = await supabase
         .from("purchase_bills")
@@ -389,15 +444,39 @@ const GSTReports = () => {
       const inwardTaxable = purchaseData?.reduce((acc, p) => acc + ((p.net_amount || 0) - (p.gst_amount || 0)), 0) || 0;
       const inwardGST = purchaseData?.reduce((acc, p) => acc + (p.gst_amount || 0), 0) || 0;
 
-      const netCGST = (outwardGST / 2) - (inwardGST / 2);
-      const netSGST = (outwardGST / 2) - (inwardGST / 2);
+      // FIX G6+G7: ITC cross-utilization
+      // For now, treat all outward as intra-state split (CGST/SGST) since RPC doesn't distinguish
+      const liabilityIGST = 0; // RPC doesn't separate inter/intra yet
+      const liabilityCGST = netOutwardGST / 2;
+      const liabilitySGST = netOutwardGST / 2;
+
+      const itcIGST = 0; // purchases don't have inter-state split from this query
+      const itcCGST = inwardGST / 2;
+      const itcSGST = inwardGST / 2;
+
+      // Step 1: Apply IGST ITC against IGST liability
+      let remainingIGST_ITC = Math.max(0, itcIGST - liabilityIGST);
+      const payableIGST = Math.max(0, liabilityIGST - itcIGST);
+
+      // Step 2: Apply remaining IGST ITC against CGST
+      const cgstAfterIGST = Math.max(0, liabilityCGST - remainingIGST_ITC);
+      remainingIGST_ITC = Math.max(0, remainingIGST_ITC - liabilityCGST);
+
+      // Step 3: Apply CGST ITC
+      const payableCGST = Math.max(0, cgstAfterIGST - itcCGST);
+      const carryForwardCGST = Math.max(0, itcCGST - cgstAfterIGST);
+
+      // Step 4: Apply remaining IGST ITC against SGST, then SGST ITC
+      const sgstAfterIGST = Math.max(0, liabilitySGST - remainingIGST_ITC);
+      const payableSGST = Math.max(0, sgstAfterIGST - itcSGST);
+      const carryForwardSGST = Math.max(0, itcSGST - sgstAfterIGST);
 
       setGstr3bData({
         outwardSupplies: {
-          taxable: outwardTaxable,
+          taxable: netOutwardTaxable,
           igst: 0,
-          cgst: outwardGST / 2,
-          sgst: outwardGST / 2
+          cgst: netOutwardGST / 2,
+          sgst: netOutwardGST / 2
         },
         inwardSupplies: {
           taxable: inwardTaxable,
@@ -406,14 +485,19 @@ const GSTReports = () => {
           sgst: inwardGST / 2
         },
         itcAvailable: {
-          igst: 0,
-          cgst: inwardGST / 2,
-          sgst: inwardGST / 2
+          igst: itcIGST,
+          cgst: itcCGST,
+          sgst: itcSGST
         },
         netTaxPayable: {
+          igst: payableIGST,
+          cgst: payableCGST,
+          sgst: payableSGST
+        },
+        itcCarryForward: {
           igst: 0,
-          cgst: Math.max(0, netCGST),
-          sgst: Math.max(0, netSGST)
+          cgst: carryForwardCGST,
+          sgst: carryForwardSGST
         }
       });
 
@@ -437,7 +521,6 @@ const GSTReports = () => {
       const toDateObj = new Date(toDate);
       toDateObj.setHours(23, 59, 59, 999);
 
-      // Fetch all sale items with HSN
       const { data: salesData } = await supabase
         .from("sales")
         .select("id")
@@ -447,7 +530,6 @@ const GSTReports = () => {
         .lte("sale_date", toDateObj.toISOString());
 
       const saleIds = salesData?.map(s => s.id) || [];
-      // Use paginated fetch to bypass 1000 row limit
       const saleItems = saleIds.length > 0 ? await fetchAllSaleItems(saleIds) : [];
 
       const hsnMap = new Map<string, HSNSummary>();
@@ -528,6 +610,17 @@ const GSTReports = () => {
     XLSX.writeFile(wb, `${fileName}_${fromDate}_to_${toDate}.xlsx`);
   };
 
+  // UI-3: Combined GSTR-1 Excel export
+  const exportGSTR1ToExcel = () => {
+    if (!gstr1Data) return;
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.b2b), "B2B");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.b2cs), "B2CS");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.cdnr), "CDNR");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.hsn), "HSN");
+    XLSX.writeFile(wb, `GSTR1_${format(new Date(fromDate), "MMM-yyyy")}.xlsx`);
+  };
+
   const handleGenerateReport = () => {
     switch (activeReport) {
       case "gstr1":
@@ -601,6 +694,18 @@ const GSTReports = () => {
           </Badge>
         )}
       </div>
+
+      {/* UI-1: GSTIN warning */}
+      {!businessInfo.gstin && gstr1Data && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>GSTIN Not Configured</AlertTitle>
+          <AlertDescription>
+            Inter-state detection requires your business GSTIN in Settings → Business Info.
+            Without it, all transactions are treated as intra-state (CGST+SGST).
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Period Selection */}
       <Card>
@@ -707,6 +812,11 @@ const GSTReports = () => {
                     <FileText className="h-4 w-4 mr-1" />
                     {isDownloadingGstr1Json ? "Generating…" : "Download GSTR-1 JSON"}
                   </Button>
+                  {/* UI-3: Combined Excel export */}
+                  <Button variant="outline" size="sm" onClick={exportGSTR1ToExcel}>
+                    <Download className="h-4 w-4 mr-1" />
+                    Export All Excel
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => exportToExcel(gstr1Data.b2b, "GSTR1_B2B", "B2B")}>
                     <Download className="h-4 w-4 mr-1" />
                     B2B
@@ -723,27 +833,27 @@ const GSTReports = () => {
               </div>
             </CardHeader>
             <CardContent>
-              {/* Summary Cards */}
+              {/* UI-2: Summary card strip */}
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
                 <div className="bg-muted/50 p-3 rounded-lg">
-                  <p className="text-xs text-muted-foreground">Total Invoices</p>
-                  <p className="text-xl font-bold">{gstr1Data.summary.totalInvoices}</p>
+                  <p className="text-xs text-muted-foreground">B2B Invoices</p>
+                  <p className="text-xl font-bold text-blue-700 dark:text-blue-400">{gstr1Data.b2b.length}</p>
+                </div>
+                <div className="bg-muted/50 p-3 rounded-lg">
+                  <p className="text-xs text-muted-foreground">B2CS Rates</p>
+                  <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{gstr1Data.b2cs.length}</p>
+                </div>
+                <div className="bg-muted/50 p-3 rounded-lg">
+                  <p className="text-xs text-muted-foreground">Credit Notes</p>
+                  <p className="text-xl font-bold text-amber-700 dark:text-amber-400">{gstr1Data.cdnr.length}</p>
                 </div>
                 <div className="bg-muted/50 p-3 rounded-lg">
                   <p className="text-xs text-muted-foreground">Taxable Value</p>
                   <p className="text-xl font-bold">{formatCurrency(gstr1Data.summary.totalTaxableValue)}</p>
                 </div>
                 <div className="bg-muted/50 p-3 rounded-lg">
-                  <p className="text-xs text-muted-foreground">CGST</p>
-                  <p className="text-xl font-bold">{formatCurrency(gstr1Data.summary.totalCGST)}</p>
-                </div>
-                <div className="bg-muted/50 p-3 rounded-lg">
-                  <p className="text-xs text-muted-foreground">SGST</p>
-                  <p className="text-xl font-bold">{formatCurrency(gstr1Data.summary.totalSGST)}</p>
-                </div>
-                <div className="bg-muted/50 p-3 rounded-lg">
                   <p className="text-xs text-muted-foreground">Total Tax</p>
-                  <p className="text-xl font-bold">{formatCurrency(gstr1Data.summary.totalCGST + gstr1Data.summary.totalSGST)}</p>
+                  <p className="text-xl font-bold text-rose-700 dark:text-rose-400">{formatCurrency(gstr1Data.summary.totalCGST + gstr1Data.summary.totalSGST + gstr1Data.summary.totalIGST)}</p>
                 </div>
               </div>
 
@@ -765,6 +875,7 @@ const GSTReports = () => {
                           <TableHead className="text-right">Taxable</TableHead>
                           <TableHead className="text-right">CGST</TableHead>
                           <TableHead className="text-right">SGST</TableHead>
+                          <TableHead className="text-right">IGST</TableHead>
                           <TableHead className="text-right">Total</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -778,6 +889,7 @@ const GSTReports = () => {
                             <TableCell className="text-right">{formatCurrency(row.taxableValue)}</TableCell>
                             <TableCell className="text-right">{formatCurrency(row.cgst)}</TableCell>
                             <TableCell className="text-right">{formatCurrency(row.sgst)}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(row.igst)}</TableCell>
                             <TableCell className="text-right font-medium">{formatCurrency(row.invoiceValue)}</TableCell>
                           </TableRow>
                         ))}
@@ -785,30 +897,31 @@ const GSTReports = () => {
                     </Table>
                   </ScrollArea>
                 </TabsContent>
+                {/* FIX G2: B2CS now shows aggregated by rate */}
                 <TabsContent value="b2cs">
                   <ScrollArea className="h-[300px]">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Party Name</TableHead>
-                          <TableHead>Invoice No</TableHead>
-                          <TableHead>Date</TableHead>
-                          <TableHead className="text-right">Taxable</TableHead>
+                          <TableHead>S.No</TableHead>
+                          <TableHead>Supply Type</TableHead>
+                          <TableHead className="text-right">Rate %</TableHead>
+                          <TableHead className="text-right">Taxable Value</TableHead>
                           <TableHead className="text-right">CGST</TableHead>
                           <TableHead className="text-right">SGST</TableHead>
-                          <TableHead className="text-right">Total</TableHead>
+                          <TableHead className="text-right">IGST</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {gstr1Data.b2cs.map((row, idx) => (
                           <TableRow key={idx}>
-                            <TableCell>{row.partyName}</TableCell>
-                            <TableCell>{row.invoiceNo}</TableCell>
-                            <TableCell>{row.invoiceDate}</TableCell>
+                            <TableCell>{row.sno}</TableCell>
+                            <TableCell>{row.supplyType}</TableCell>
+                            <TableCell className="text-right">{row.rate}%</TableCell>
                             <TableCell className="text-right">{formatCurrency(row.taxableValue)}</TableCell>
                             <TableCell className="text-right">{formatCurrency(row.cgst)}</TableCell>
                             <TableCell className="text-right">{formatCurrency(row.sgst)}</TableCell>
-                            <TableCell className="text-right font-medium">{formatCurrency(row.invoiceValue)}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(row.igst)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -866,7 +979,7 @@ const GSTReports = () => {
               <div>
                 <h3 className="font-semibold mb-3 flex items-center gap-2">
                   <Badge variant="outline">3.1</Badge>
-                  Outward Supplies (other than zero rated, nil rated and exempted)
+                  Outward Supplies (net of returns)
                 </h3>
                 <div className="grid grid-cols-4 gap-4">
                   <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
@@ -945,6 +1058,33 @@ const GSTReports = () => {
                   </p>
                 </div>
               </div>
+
+              {/* FIX G7: ITC Carry-Forward */}
+              {gstr3bData.itcCarryForward && (gstr3bData.itcCarryForward.cgst > 0 || gstr3bData.itcCarryForward.sgst > 0 || gstr3bData.itcCarryForward.igst > 0) && (
+                <>
+                  <Separator />
+                  <div>
+                    <h3 className="font-semibold mb-3 flex items-center gap-2">
+                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">ITC</Badge>
+                      ITC Carry-Forward (Excess Credit)
+                    </h3>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-lg">
+                        <p className="text-sm text-muted-foreground">IGST</p>
+                        <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(gstr3bData.itcCarryForward.igst)}</p>
+                      </div>
+                      <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-lg">
+                        <p className="text-sm text-muted-foreground">CGST</p>
+                        <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(gstr3bData.itcCarryForward.cgst)}</p>
+                      </div>
+                      <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-lg">
+                        <p className="text-sm text-muted-foreground">SGST</p>
+                        <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(gstr3bData.itcCarryForward.sgst)}</p>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         )}

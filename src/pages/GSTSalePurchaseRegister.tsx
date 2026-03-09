@@ -22,7 +22,13 @@ import {
   PurchaseRegisterRow,
   PurchaseReturnRegisterRow,
 } from "@/utils/gstRegisterUtils";
-import { fetchAllSaleItems } from "@/utils/fetchAllRows";
+// FIX G8: Static imports instead of dynamic
+import {
+  fetchAllSaleItems,
+  fetchSaleReturnItemsByIds,
+  fetchPurchaseItemsByBillIds,
+  fetchPurchaseReturnItemsByIds,
+} from "@/utils/fetchAllRows";
 
 type PeriodType = "custom" | "this-month" | "last-month" | "this-quarter" | "last-quarter" | "this-fy" | "last-fy";
 
@@ -47,7 +53,7 @@ const GSTSalePurchaseRegister = () => {
   const getCurrentFY = () => {
     const month = today.getMonth();
     const year = today.getFullYear();
-    if (month >= 3) { // April onwards
+    if (month >= 3) {
       return { start: new Date(year, 3, 1), end: new Date(year + 1, 2, 31) };
     } else {
       return { start: new Date(year - 1, 3, 1), end: new Date(year, 2, 31) };
@@ -154,11 +160,11 @@ const GSTSalePurchaseRegister = () => {
         .lte("sale_date", toDateObj.toISOString())
         .order("sale_date", { ascending: true });
 
-      // Fetch sale items for GST breakup (invoice sales) - use paginated fetch
+      // Fetch sale items for GST breakup (invoice sales)
       const saleIds = salesData?.map(s => s.id) || [];
       const saleItems = saleIds.length > 0 ? await fetchAllSaleItems(saleIds) : [];
 
-      // Fetch POS sale items for GST breakup - use paginated fetch
+      // Fetch POS sale items for GST breakup
       const posSaleIds = posSalesData?.map(s => s.id) || [];
       const posSaleItems = posSaleIds.length > 0 ? await fetchAllSaleItems(posSaleIds) : [];
 
@@ -170,7 +176,6 @@ const GSTSalePurchaseRegister = () => {
         saleItemsMap.set(item.sale_id, existing);
       });
 
-      // Group POS items by sale_id
       const posSaleItemsMap = new Map<string, typeof posSaleItems>();
       posSaleItems?.forEach(item => {
         const existing = posSaleItemsMap.get(item.sale_id) || [];
@@ -178,7 +183,7 @@ const GSTSalePurchaseRegister = () => {
         posSaleItemsMap.set(item.sale_id, existing);
       });
 
-      // Process sales register (invoice sales)
+      // FIX G9: Process sales register with IGST columns
       const salesRegister: SalesRegisterRow[] = (salesData || []).map((sale, index) => {
         const items = saleItemsMap.get(sale.id) || [];
         const customerGSTIN = (sale.customers as any)?.gst_number || "";
@@ -195,20 +200,24 @@ const GSTSalePurchaseRegister = () => {
           taxable_5: breakup.taxable_5,
           cgst_2_5: breakup.cgst_2_5,
           sgst_2_5: breakup.sgst_2_5,
+          igst_5: breakup.igst_5,
           taxable_12: breakup.taxable_12,
           cgst_6: breakup.cgst_6,
           sgst_6: breakup.sgst_6,
+          igst_12: breakup.igst_12,
           taxable_18: breakup.taxable_18,
           cgst_9: breakup.cgst_9,
           sgst_9: breakup.sgst_9,
+          igst_18: breakup.igst_18,
           taxable_28: breakup.taxable_28,
           cgst_14: breakup.cgst_14,
           sgst_14: breakup.sgst_14,
+          igst_28: breakup.igst_28,
           invoiceValue: sale.net_amount,
         };
       });
 
-      // Process POS sales register
+      // Process POS sales register with IGST columns
       const posSalesRegister: SalesRegisterRow[] = (posSalesData || []).map((sale, index) => {
         const items = posSaleItemsMap.get(sale.id) || [];
         const customerGSTIN = (sale.customers as any)?.gst_number || "";
@@ -225,15 +234,19 @@ const GSTSalePurchaseRegister = () => {
           taxable_5: breakup.taxable_5,
           cgst_2_5: breakup.cgst_2_5,
           sgst_2_5: breakup.sgst_2_5,
+          igst_5: breakup.igst_5,
           taxable_12: breakup.taxable_12,
           cgst_6: breakup.cgst_6,
           sgst_6: breakup.sgst_6,
+          igst_12: breakup.igst_12,
           taxable_18: breakup.taxable_18,
           cgst_9: breakup.cgst_9,
           sgst_9: breakup.sgst_9,
+          igst_18: breakup.igst_18,
           taxable_28: breakup.taxable_28,
           cgst_14: breakup.cgst_14,
           sgst_14: breakup.sgst_14,
+          igst_28: breakup.igst_28,
           invoiceValue: sale.net_amount,
         };
       });
@@ -252,8 +265,7 @@ const GSTSalePurchaseRegister = () => {
         .order("return_date", { ascending: true });
 
       const saleReturnIds = saleReturnsData?.map(sr => sr.id) || [];
-      // Use batched fetch to bypass 1000-row limit
-      const { fetchSaleReturnItemsByIds } = await import("@/utils/fetchAllRows");
+      // FIX G8: Use static import
       const saleReturnItems = saleReturnIds.length > 0 
         ? await fetchSaleReturnItemsByIds(saleReturnIds, "return_id, gst_percent, line_total") 
         : [];
@@ -304,8 +316,7 @@ const GSTSalePurchaseRegister = () => {
         .order("bill_date", { ascending: true });
 
       const purchaseIds = purchaseData?.map(p => p.id) || [];
-      // Use batched fetch to bypass 1000-row limit
-      const { fetchPurchaseItemsByBillIds } = await import("@/utils/fetchAllRows");
+      // FIX G8: Use static import
       const purchaseItems = purchaseIds.length > 0 
         ? await fetchPurchaseItemsByBillIds(purchaseIds, "bill_id, gst_per, line_total") 
         : [];
@@ -368,8 +379,7 @@ const GSTSalePurchaseRegister = () => {
         .order("return_date", { ascending: true });
 
       const purchaseReturnIds = purchaseReturnsData?.map(pr => pr.id) || [];
-      // Use batched fetch to bypass 1000-row limit
-      const { fetchPurchaseReturnItemsByIds } = await import("@/utils/fetchAllRows");
+      // FIX G8: Use static import
       const purchaseReturnItems = purchaseReturnIds.length > 0 
         ? await fetchPurchaseReturnItemsByIds(purchaseReturnIds, "return_id, gst_per, line_total") 
         : [];
@@ -539,6 +549,24 @@ const GSTSalePurchaseRegister = () => {
             </AlertDescription>
           </Alert>
 
+          {/* UI-4: Stats preview */}
+          {stats && (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {[
+                { label: "Invoice Sales", value: stats.salesCount },
+                { label: "POS Sales", value: stats.posSalesCount },
+                { label: "Sale Returns", value: stats.saleReturnCount },
+                { label: "Purchases", value: stats.purchaseCount },
+                { label: "Purchase Returns", value: stats.purchaseReturnCount },
+              ].map(s => (
+                <div key={s.label} className="bg-muted/50 p-3 rounded-lg text-center">
+                  <p className="text-xs text-muted-foreground">{s.label}</p>
+                  <p className="text-xl font-bold">{s.value}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Export Button */}
           <div className="flex items-center gap-4">
             <Button
@@ -550,16 +578,6 @@ const GSTSalePurchaseRegister = () => {
               <Download className="h-5 w-5" />
               {isExporting ? "Generating..." : "Export to Excel"}
             </Button>
-
-            {stats && (
-              <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                <span>Invoice Sales: <strong className="text-foreground">{stats.salesCount}</strong></span>
-                <span>POS Sales: <strong className="text-foreground">{stats.posSalesCount}</strong></span>
-                <span>Sale Returns: <strong className="text-foreground">{stats.saleReturnCount}</strong></span>
-                <span>Purchases: <strong className="text-foreground">{stats.purchaseCount}</strong></span>
-                <span>Purchase Returns: <strong className="text-foreground">{stats.purchaseReturnCount}</strong></span>
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>
@@ -578,7 +596,7 @@ const GSTSalePurchaseRegister = () => {
               <h4 className="font-semibold mb-2">Sales Register</h4>
               <ul className="list-disc list-inside space-y-1 text-muted-foreground">
                 <li>GST calculated using <strong>Inclusive</strong> method (GST extracted from price)</li>
-                <li>CGST/SGST split for intra-state transactions</li>
+                <li>CGST/SGST split for intra-state, IGST for inter-state transactions</li>
                 <li>Supports all GST slabs: 0%, 5%, 12%, 18%, 28%</li>
               </ul>
             </div>

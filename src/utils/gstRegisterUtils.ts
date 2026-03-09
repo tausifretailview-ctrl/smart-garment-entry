@@ -13,6 +13,7 @@ export interface GSTBreakup {
   taxable_28: number; cgst_14: number; sgst_14: number; igst_28: number;
 }
 
+// FIX G9: Add IGST columns to SalesRegisterRow
 export interface SalesRegisterRow {
   sno: number;
   invoiceNo: string;
@@ -23,15 +24,19 @@ export interface SalesRegisterRow {
   taxable_5: number;
   cgst_2_5: number;
   sgst_2_5: number;
+  igst_5: number;
   taxable_12: number;
   cgst_6: number;
   sgst_6: number;
+  igst_12: number;
   taxable_18: number;
   cgst_9: number;
   sgst_9: number;
+  igst_18: number;
   taxable_28: number;
   cgst_14: number;
   sgst_14: number;
+  igst_28: number;
   invoiceValue: number;
 }
 
@@ -96,7 +101,6 @@ export const extractStateCode = (gstin: string | null): string => {
 // Validate GSTIN format (basic validation)
 export const validateGSTIN = (gstin: string | null): boolean => {
   if (!gstin) return false;
-  // GSTIN format: 2 digits state code + 10 char PAN + 1 digit entity + 1 char Z + 1 check digit
   const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
   return gstinRegex.test(gstin.toUpperCase());
 };
@@ -118,7 +122,7 @@ export const calculateTaxableFromInclusive = (total: number, gstPercent: number)
   return total / (1 + gstPercent / 100);
 };
 
-// Calculate GST breakup for a list of items
+// FIX G10: Calculate GST breakup — accumulate exact values, round only at the end
 export const calculateGSTBreakup = (
   items: Array<{ gst_percent: number; line_total: number; unit_price?: number; quantity?: number }>,
   taxType: 'inclusive' | 'exclusive' = 'inclusive',
@@ -145,9 +149,7 @@ export const calculateGSTBreakup = (
       gstAmount = taxableAmount * (gstPercent / 100);
     }
 
-    // Round to 2 decimal places
-    taxableAmount = Math.round(taxableAmount * 100) / 100;
-    gstAmount = Math.round(gstAmount * 100) / 100;
+    // FIX G10: Do NOT round per item — accumulate exact values
 
     switch (gstPercent) {
       case 0:
@@ -192,7 +194,7 @@ export const calculateGSTBreakup = (
     }
   });
 
-  // Round all values
+  // Round all values at the end (invoice-level rounding)
   Object.keys(breakup).forEach(key => {
     breakup[key as keyof GSTBreakup] = Math.round(breakup[key as keyof GSTBreakup] * 100) / 100;
   });
@@ -225,49 +227,51 @@ export const generateGSTRegisterExcel = (
   const dateRange = `${format(fromDate, 'dd-MMMM-yyyy')} TO ${format(toDate, 'dd-MMMM-yyyy')}`;
   const printDate = format(new Date(), 'dd-MM-yyyy HH:mm');
 
-  // Helper to create header rows
   const createHeader = (sheetName: string) => [
     [`${sheetName}`],
     [`Business Name: ${businessName}`],
     [`GSTIN: ${businessGSTIN}`],
     [`Period: ${dateRange}`],
     [`Print Date: ${printDate}`],
-    [], // Empty row before data
+    [],
   ];
 
-  // ===== Sales Register Sheet =====
+  // FIX G9: Sales headers now include IGST columns
   const salesHeaders = [
     'S.No', 'Invoice No', 'Invoice Date', 'Party Name', 'GSTIN',
-    'Taxable 0%', 'Taxable 5%', 'CGST 2.5%', 'SGST 2.5%',
-    'Taxable 12%', 'CGST 6%', 'SGST 6%',
-    'Taxable 18%', 'CGST 9%', 'SGST 9%',
-    'Taxable 28%', 'CGST 14%', 'SGST 14%',
+    'Taxable 0%',
+    'Taxable 5%', 'CGST 2.5%', 'SGST 2.5%', 'IGST 5%',
+    'Taxable 12%', 'CGST 6%', 'SGST 6%', 'IGST 12%',
+    'Taxable 18%', 'CGST 9%', 'SGST 9%', 'IGST 18%',
+    'Taxable 28%', 'CGST 14%', 'SGST 14%', 'IGST 28%',
     'Invoice Value'
   ];
 
+  // FIX G9: Sales rows now include IGST values
   const salesRows = salesData.map(row => [
     row.sno, row.invoiceNo, row.invoiceDate, row.partyName, row.gstin,
-    row.taxable_0, row.taxable_5, row.cgst_2_5, row.sgst_2_5,
-    row.taxable_12, row.cgst_6, row.sgst_6,
-    row.taxable_18, row.cgst_9, row.sgst_9,
-    row.taxable_28, row.cgst_14, row.sgst_14,
+    row.taxable_0,
+    row.taxable_5, row.cgst_2_5, row.sgst_2_5, row.igst_5,
+    row.taxable_12, row.cgst_6, row.sgst_6, row.igst_12,
+    row.taxable_18, row.cgst_9, row.sgst_9, row.igst_18,
+    row.taxable_28, row.cgst_14, row.sgst_14, row.igst_28,
     row.invoiceValue
   ]);
 
-  // Calculate totals
   const salesTotals = calculateSalesTotals(salesData);
   salesRows.push([
     '', 'TOTAL', '', '', '',
-    salesTotals.taxable_0, salesTotals.taxable_5, salesTotals.cgst_2_5, salesTotals.sgst_2_5,
-    salesTotals.taxable_12, salesTotals.cgst_6, salesTotals.sgst_6,
-    salesTotals.taxable_18, salesTotals.cgst_9, salesTotals.sgst_9,
-    salesTotals.taxable_28, salesTotals.cgst_14, salesTotals.sgst_14,
+    salesTotals.taxable_0,
+    salesTotals.taxable_5, salesTotals.cgst_2_5, salesTotals.sgst_2_5, salesTotals.igst_5,
+    salesTotals.taxable_12, salesTotals.cgst_6, salesTotals.sgst_6, salesTotals.igst_12,
+    salesTotals.taxable_18, salesTotals.cgst_9, salesTotals.sgst_9, salesTotals.igst_18,
+    salesTotals.taxable_28, salesTotals.cgst_14, salesTotals.sgst_14, salesTotals.igst_28,
     salesTotals.invoiceValue
   ]);
 
   const salesSheetData = [...createHeader('SALES REGISTER'), salesHeaders, ...salesRows];
   const salesSheet = XLSX.utils.aoa_to_sheet(salesSheetData);
-  setColumnWidths(salesSheet, [5, 15, 12, 25, 18, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 14]);
+  setColumnWidths(salesSheet, [5, 15, 12, 25, 18, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 14]);
   XLSX.utils.book_append_sheet(workbook, salesSheet, 'Sales Register');
 
   // ===== Sale Return Register Sheet =====
@@ -354,26 +358,28 @@ export const generateGSTRegisterExcel = (
   if (posSalesData && posSalesData.length > 0) {
     const posSalesRows = posSalesData.map(row => [
       row.sno, row.invoiceNo, row.invoiceDate, row.partyName, row.gstin,
-      row.taxable_0, row.taxable_5, row.cgst_2_5, row.sgst_2_5,
-      row.taxable_12, row.cgst_6, row.sgst_6,
-      row.taxable_18, row.cgst_9, row.sgst_9,
-      row.taxable_28, row.cgst_14, row.sgst_14,
+      row.taxable_0,
+      row.taxable_5, row.cgst_2_5, row.sgst_2_5, row.igst_5,
+      row.taxable_12, row.cgst_6, row.sgst_6, row.igst_12,
+      row.taxable_18, row.cgst_9, row.sgst_9, row.igst_18,
+      row.taxable_28, row.cgst_14, row.sgst_14, row.igst_28,
       row.invoiceValue
     ]);
 
     const posSalesTotals = calculateSalesTotals(posSalesData);
     posSalesRows.push([
       '', 'TOTAL', '', '', '',
-      posSalesTotals.taxable_0, posSalesTotals.taxable_5, posSalesTotals.cgst_2_5, posSalesTotals.sgst_2_5,
-      posSalesTotals.taxable_12, posSalesTotals.cgst_6, posSalesTotals.sgst_6,
-      posSalesTotals.taxable_18, posSalesTotals.cgst_9, posSalesTotals.sgst_9,
-      posSalesTotals.taxable_28, posSalesTotals.cgst_14, posSalesTotals.sgst_14,
+      posSalesTotals.taxable_0,
+      posSalesTotals.taxable_5, posSalesTotals.cgst_2_5, posSalesTotals.sgst_2_5, posSalesTotals.igst_5,
+      posSalesTotals.taxable_12, posSalesTotals.cgst_6, posSalesTotals.sgst_6, posSalesTotals.igst_12,
+      posSalesTotals.taxable_18, posSalesTotals.cgst_9, posSalesTotals.sgst_9, posSalesTotals.igst_18,
+      posSalesTotals.taxable_28, posSalesTotals.cgst_14, posSalesTotals.sgst_14, posSalesTotals.igst_28,
       posSalesTotals.invoiceValue
     ]);
 
     const posSalesSheetData = [...createHeader('POS SALES REGISTER'), salesHeaders, ...posSalesRows];
     const posSalesSheet = XLSX.utils.aoa_to_sheet(posSalesSheetData);
-    setColumnWidths(posSalesSheet, [5, 15, 12, 25, 18, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 14]);
+    setColumnWidths(posSalesSheet, [5, 15, 12, 25, 18, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 14]);
     XLSX.utils.book_append_sheet(workbook, posSalesSheet, 'POS Sales Register');
   }
 
@@ -385,21 +391,25 @@ const setColumnWidths = (sheet: XLSX.WorkSheet, widths: number[]) => {
   sheet['!cols'] = widths.map(w => ({ wch: w }));
 };
 
-// Calculate totals for sales
+// FIX G9: Calculate totals for sales (now includes IGST)
 const calculateSalesTotals = (data: SalesRegisterRow[]) => ({
   taxable_0: round(data.reduce((sum, r) => sum + r.taxable_0, 0)),
   taxable_5: round(data.reduce((sum, r) => sum + r.taxable_5, 0)),
   cgst_2_5: round(data.reduce((sum, r) => sum + r.cgst_2_5, 0)),
   sgst_2_5: round(data.reduce((sum, r) => sum + r.sgst_2_5, 0)),
+  igst_5: round(data.reduce((sum, r) => sum + r.igst_5, 0)),
   taxable_12: round(data.reduce((sum, r) => sum + r.taxable_12, 0)),
   cgst_6: round(data.reduce((sum, r) => sum + r.cgst_6, 0)),
   sgst_6: round(data.reduce((sum, r) => sum + r.sgst_6, 0)),
+  igst_12: round(data.reduce((sum, r) => sum + r.igst_12, 0)),
   taxable_18: round(data.reduce((sum, r) => sum + r.taxable_18, 0)),
   cgst_9: round(data.reduce((sum, r) => sum + r.cgst_9, 0)),
   sgst_9: round(data.reduce((sum, r) => sum + r.sgst_9, 0)),
+  igst_18: round(data.reduce((sum, r) => sum + r.igst_18, 0)),
   taxable_28: round(data.reduce((sum, r) => sum + r.taxable_28, 0)),
   cgst_14: round(data.reduce((sum, r) => sum + r.cgst_14, 0)),
   sgst_14: round(data.reduce((sum, r) => sum + r.sgst_14, 0)),
+  igst_28: round(data.reduce((sum, r) => sum + r.igst_28, 0)),
   invoiceValue: round(data.reduce((sum, r) => sum + r.invoiceValue, 0)),
 });
 
