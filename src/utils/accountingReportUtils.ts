@@ -527,7 +527,7 @@ export function getIndiaFinancialYear(offset: number = 0): { fromDate: string; t
   return { fromDate, toDate, label };
 }
 
-// Get quarter dates
+// Get quarter dates (calendar quarters - kept for backward compat)
 export function getCurrentQuarter(): { fromDate: string; toDate: string; label: string } {
   const today = new Date();
   const quarter = Math.floor(today.getMonth() / 3);
@@ -541,4 +541,24 @@ export function getCurrentQuarter(): { fromDate: string; toDate: string; label: 
     toDate: format(quarterEnd, "yyyy-MM-dd"),
     label: `${quarterNames[quarter]} ${today.getFullYear()}`,
   };
+}
+
+// Get India FY Quarters (Apr-Jun Q1, Jul-Sep Q2, Oct-Dec Q3, Jan-Mar Q4)
+export function getAllIndiaFYQuarters(): Array<{ fromDate: string; toDate: string; label: string; isCurrent: boolean }> {
+  const today = new Date();
+  const month = today.getMonth();
+  const fyYear = month >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+  const currentQIdx = month >= 3 && month <= 5 ? 0 : month >= 6 && month <= 8 ? 1 : month >= 9 ? 2 : 3;
+  const quarters = [
+    { label: `Q1 Apr-Jun ${fyYear}`, from: new Date(fyYear, 3, 1), to: new Date(fyYear, 5, 30) },
+    { label: `Q2 Jul-Sep ${fyYear}`, from: new Date(fyYear, 6, 1), to: new Date(fyYear, 8, 30) },
+    { label: `Q3 Oct-Dec ${fyYear}`, from: new Date(fyYear, 9, 1), to: new Date(fyYear, 11, 31) },
+    { label: `Q4 Jan-Mar ${fyYear + 1}`, from: new Date(fyYear + 1, 0, 1), to: new Date(fyYear + 1, 2, 31) },
+  ];
+  return quarters.map((q, i) => ({
+    fromDate: format(q.from, "yyyy-MM-dd"),
+    toDate: format(q.to, "yyyy-MM-dd"),
+    label: q.label,
+    isCurrent: i === currentQIdx,
+  }));
 }
