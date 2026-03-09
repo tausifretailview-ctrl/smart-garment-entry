@@ -1996,6 +1996,30 @@ Thank you for choosing us!`;
 
         if (itemsError) throw itemsError;
 
+        // CRM: Redeem points if requested
+        if (pointsToRedeem > 0 && selectedCustomerId) {
+          redeemPoints(
+            selectedCustomerId,
+            saleData.id,
+            pointsToRedeem,
+            saleNumber
+          ).then(() => {
+            queryClient.invalidateQueries({ queryKey: ['customer-points', selectedCustomerId] });
+          });
+        }
+
+        // CRM: Award points for this purchase
+        if (isPointsEnabled && selectedCustomerId) {
+          awardPoints(
+            selectedCustomerId,
+            saleData.id,
+            netAmount,
+            saleNumber
+          ).then(() => {
+            queryClient.invalidateQueries({ queryKey: ['customer-points', selectedCustomerId] });
+          });
+        }
+
         // Auto-send WhatsApp invoice notification - FIRE AND FORGET (non-blocking)
         if (selectedCustomer?.phone && currentOrganization?.id) {
           (async () => { try {
