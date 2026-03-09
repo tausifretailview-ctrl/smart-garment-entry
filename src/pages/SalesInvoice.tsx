@@ -2213,7 +2213,9 @@ Thank you for choosing us!`;
     }
   }, 0);
   
-  const netBeforeRoundOff = taxType === "inclusive" ? amountAfterDiscount : amountAfterDiscount + totalGST;
+  // Points redemption
+  const pointsRedemptionValue = calculateRedemptionValue(pointsToRedeem);
+  const netBeforeRoundOff = (taxType === "inclusive" ? amountAfterDiscount : amountAfterDiscount + totalGST) - pointsRedemptionValue;
   
   // Auto-calculate round-off to make final amount a whole number
   const calculatedRoundOff = Math.round(netBeforeRoundOff) - netBeforeRoundOff;
