@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { fetchAllSaleItems } from "@/utils/fetchAllRows";
+import { fetchAllSaleItems, fetchVariantsByIds } from "@/utils/fetchAllRows";
 import { format, subDays } from "date-fns";
 
 export interface TrialBalanceEntry {
