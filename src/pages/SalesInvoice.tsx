@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerSearch, useCustomerBalances } from "@/hooks/useCustomerSearch";
+import { useCustomerPoints, useCustomerPointsBalance } from "@/hooks/useCustomerPoints";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, AlertCircle, Scan, Printer, ChevronLeft, ChevronRight, SkipBack, Lock, CreditCard, FileText } from "lucide-react";
+import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, AlertCircle, Scan, Printer, ChevronLeft, ChevronRight, SkipBack, Lock, CreditCard, FileText, Coins } from "lucide-react";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { useBeepSound } from "@/hooks/useBeepSound";
 
@@ -117,6 +118,20 @@ export default function SalesInvoice() {
   );
   // Customer brand discounts hook
   const { getBrandDiscount, hasBrandDiscounts, brandDiscounts, isLoading: isBrandDiscountsLoading } = useCustomerBrandDiscounts(selectedCustomerId || null);
+
+  // CRM Loyalty Points
+  const {
+    calculatePoints,
+    isPointsEnabled,
+    isRedemptionEnabled,
+    calculateMaxRedeemablePoints,
+    calculateRedemptionValue,
+    redeemPoints,
+    awardPoints,
+    pointsSettings,
+  } = useCustomerPoints();
+  const { data: customerPointsData } = useCustomerPointsBalance(selectedCustomerId || null);
+  const [pointsToRedeem, setPointsToRedeem] = useState<number>(0);
   const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
   const [dueDate, setDueDate] = useState<Date>(new Date());
   const invoiceSavedRef = useRef(false); // Track if invoice was saved to prevent draft re-save
@@ -1864,6 +1879,7 @@ Thank you for choosing us!`;
             other_charges: otherCharges,
             round_off: roundOff,
             net_amount: netAmount,
+            points_redeemed_amount: pointsRedemptionValue,
             due_date: dueDate.toISOString().split('T')[0],
             payment_term: paymentTerm || null,
             terms_conditions: termsConditions || null,
@@ -1940,6 +1956,7 @@ Thank you for choosing us!`;
             other_charges: otherCharges,
             round_off: roundOff,
             net_amount: netAmount,
+            points_redeemed_amount: pointsRedemptionValue,
             payment_method: 'pay_later',
             payment_status: 'pending',
             organization_id: currentOrganization?.id,
@@ -1978,6 +1995,30 @@ Thank you for choosing us!`;
           .insert(saleItems);
 
         if (itemsError) throw itemsError;
+
+        // CRM: Redeem points if requested
+        if (pointsToRedeem > 0 && selectedCustomerId) {
+          redeemPoints(
+            selectedCustomerId,
+            saleData.id,
+            pointsToRedeem,
+            saleNumber
+          ).then(() => {
+            queryClient.invalidateQueries({ queryKey: ['customer-points', selectedCustomerId] });
+          });
+        }
+
+        // CRM: Award points for this purchase
+        if (isPointsEnabled && selectedCustomerId) {
+          awardPoints(
+            selectedCustomerId,
+            saleData.id,
+            netAmount,
+            saleNumber
+          ).then(() => {
+            queryClient.invalidateQueries({ queryKey: ['customer-points', selectedCustomerId] });
+          });
+        }
 
         // Auto-send WhatsApp invoice notification - FIRE AND FORGET (non-blocking)
         if (selectedCustomer?.phone && currentOrganization?.id) {
@@ -2087,6 +2128,7 @@ Thank you for choosing us!`;
         );
         setSelectedCustomerId("");
         setSelectedCustomer(null);
+        setPointsToRedeem(0);
         setInvoiceDate(new Date());
         setDueDate(new Date());
         setPaymentTerm("");
@@ -2198,7 +2240,9 @@ Thank you for choosing us!`;
     }
   }, 0);
   
-  const netBeforeRoundOff = taxType === "inclusive" ? amountAfterDiscount : amountAfterDiscount + totalGST;
+  // Points redemption
+  const pointsRedemptionValue = calculateRedemptionValue(pointsToRedeem);
+  const netBeforeRoundOff = (taxType === "inclusive" ? amountAfterDiscount : amountAfterDiscount + totalGST) - pointsRedemptionValue;
   
   // Auto-calculate round-off to make final amount a whole number
   const calculatedRoundOff = Math.round(netBeforeRoundOff) - netBeforeRoundOff;
@@ -2396,6 +2440,7 @@ Thank you for choosing us!`;
                                   onSelect={() => {
                                     setSelectedCustomerId(customer.id);
                                     setSelectedCustomer(customer);
+                                    setPointsToRedeem(0);
                                     setOpenCustomerSearch(false);
                                     setCustomerSearchInput("");
                                   }}
@@ -2486,6 +2531,51 @@ Thank you for choosing us!`;
                     </span>
                   </div>
                 ) : null}
+              </div>
+            )}
+            {/* CRM Loyalty Points */}
+            {selectedCustomerId && isPointsEnabled && (
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                {/* Points Balance Badge */}
+                <div className="flex items-center gap-1.5 bg-amber-500 text-white px-2.5 py-1 rounded-lg text-xs font-semibold">
+                  <Coins className="h-3.5 w-3.5" />
+                  <span>{customerPointsData?.balance || 0} pts</span>
+                  {lineItems.filter(i => i.productId).length > 0 && (
+                    <span className="text-amber-100 text-xs">
+                      +{calculatePoints(lineItems.reduce((s, i) => s + i.lineTotal, 0))} earn
+                    </span>
+                  )}
+                </div>
+
+                {/* Redeem Input */}
+                {isRedemptionEnabled &&
+                 (customerPointsData?.balance || 0) >= (pointsSettings?.min_points_for_redemption || 10) && (
+                  <div className="flex items-center gap-1.5 bg-green-600 px-2.5 py-1 rounded-lg">
+                    <span className="text-white text-xs font-medium">Redeem:</span>
+                    <Input
+                      type="number"
+                      className="w-16 h-7 bg-white text-green-700 text-center text-xs font-semibold rounded border-0"
+                      value={pointsToRedeem || ""}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        const max = calculateMaxRedeemablePoints(
+                          grossAmount - lineItemDiscount - flatDiscountAmount,
+                          customerPointsData?.balance || 0
+                        );
+                        setPointsToRedeem(Math.min(Math.max(0, val), max));
+                      }}
+                      min={0}
+                      max={calculateMaxRedeemablePoints(
+                        grossAmount - lineItemDiscount - flatDiscountAmount,
+                        customerPointsData?.balance || 0
+                      )}
+                    />
+                    <span className="text-white text-xs whitespace-nowrap">
+                      pts = ₹{calculateRedemptionValue(pointsToRedeem).toFixed(0)}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
             {selectedCustomer?.transport_details && (
@@ -2926,6 +3016,17 @@ Thank you for choosing us!`;
             className="w-24 h-9 text-sm"
           />
         </div>
+        {pointsToRedeem > 0 && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[13px] text-amber-600 flex items-center gap-1">
+              <Coins className="h-3 w-3 text-amber-500" />
+              Points ({pointsToRedeem} pts):
+            </span>
+            <span className="font-medium text-green-600 text-[13px]">
+              -₹{pointsRedemptionValue.toFixed(2)}
+            </span>
+          </div>
+        )}
         <div className="flex items-center gap-1.5">
           <span className="text-[13px] text-slate-500 whitespace-nowrap">Round Off</span>
           <Input
