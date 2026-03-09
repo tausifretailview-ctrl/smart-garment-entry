@@ -2440,6 +2440,7 @@ Thank you for choosing us!`;
                                   onSelect={() => {
                                     setSelectedCustomerId(customer.id);
                                     setSelectedCustomer(customer);
+                                    setPointsToRedeem(0);
                                     setOpenCustomerSearch(false);
                                     setCustomerSearchInput("");
                                   }}
