@@ -183,6 +183,11 @@ const FeeCollection = () => {
         .is("deleted_at", null)
         .order("student_name", { ascending: true });
 
+      // Filter by selected academic year so only promoted/enrolled students show
+      if (activeYear?.id) {
+        query = query.eq("academic_year_id", activeYear.id);
+      }
+
       if (searchQuery) {
         query = query.or(`student_name.ilike.%${searchQuery}%,admission_number.ilike.%${searchQuery}%,parent_phone.ilike.%${searchQuery}%`);
       }
