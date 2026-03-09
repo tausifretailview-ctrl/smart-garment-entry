@@ -2193,7 +2193,9 @@ Thank you for choosing us!`;
             handlePrint();
           },
           onSuccess: () => {
-            setSavedInvoiceData(null);
+            if (!editingInvoiceId) {
+              setSavedInvoiceData(null);
+            }
             setShowPrintDialog(false);
           },
         });
