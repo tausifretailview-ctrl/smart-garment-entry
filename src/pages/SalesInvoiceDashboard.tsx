@@ -194,8 +194,9 @@ export default function SalesInvoiceDashboard() {
       {
         label: "Print Invoice",
         icon: Printer,
-        onClick: () => {
-          setInvoiceToPrint(invoice);
+        onClick: async () => {
+          const invoiceWithItems = await ensureSaleItems(invoice);
+          setInvoiceToPrint(invoiceWithItems);
           setShowPrintPreview(true);
         },
       },
