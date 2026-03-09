@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerSearch, useCustomerBalances } from "@/hooks/useCustomerSearch";
+import { useCustomerPoints, useCustomerPointsBalance } from "@/hooks/useCustomerPoints";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
