@@ -396,7 +396,7 @@ const FeeCollection = () => {
       }
     } else {
       const amountStr = `Rs.${student.totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
-      const msg Respected Sir/Madam,\n\nFee Reminder - ${currentOrganization?.name || "School"}\nAdmission No: ${student.admission_number}r})\nClass: ${student.school_classes?.class_name || "-"}\nPending Amount: ${amountStr}\n${upiId ? `\n💳 *Pay Online*\nUPI ID: ${upiId}\nAmount: ${amountStr}\n\n👉 Click to pay: ${paymentLink}` : ""}\n\nPlease pay at the earliest.\nThank you!`;
+      const msg = `Respected Sir/Madam,\n\nFee Reminder - ${currentOrganization?.name || "School"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\nPending Amount: ${amountStr}\n${upiId ? `\n💳 *Pay Online*\nUPI ID: ${upiId}\nAmount: ${amountStr}\n\n👉 Click to pay: ${paymentLink}` : ""}\n\nPlease pay at the earliest.\nThank you!`;
       sendWhatsApp(phone, msg);
     }
   };
