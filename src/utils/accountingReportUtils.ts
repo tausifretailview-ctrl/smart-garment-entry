@@ -231,11 +231,11 @@ export async function calculateStockValueAtDate(
     .from("sale_items")
     .select(`
       quantity, variant_id,
-      sales!inner(id, organization_id, invoice_date, deleted_at),
+      sales!inner(id, organization_id, sale_date, deleted_at),
       product_variants(pur_price)
     `)
     .eq("sales.organization_id", organizationId)
-    .gt("sales.invoice_date", asOfDate)
+    .gt("sales.sale_date", asOfDate)
     .is("sales.deleted_at", null)
     .is("deleted_at", null);
   
