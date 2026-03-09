@@ -2776,6 +2776,80 @@ export type Database = {
           },
         ]
       }
+      promotion_history: {
+        Row: {
+          carry_forward_enabled: boolean
+          created_at: string | null
+          from_year_id: string
+          from_year_name: string
+          id: string
+          organization_id: string
+          promoted_by: string | null
+          to_year_id: string
+          to_year_name: string
+          total_failed: number
+          total_passed_out: number
+          total_promoted: number
+        }
+        Insert: {
+          carry_forward_enabled?: boolean
+          created_at?: string | null
+          from_year_id: string
+          from_year_name: string
+          id?: string
+          organization_id: string
+          promoted_by?: string | null
+          to_year_id: string
+          to_year_name: string
+          total_failed?: number
+          total_passed_out?: number
+          total_promoted?: number
+        }
+        Update: {
+          carry_forward_enabled?: boolean
+          created_at?: string | null
+          from_year_id?: string
+          from_year_name?: string
+          id?: string
+          organization_id?: string
+          promoted_by?: string | null
+          to_year_id?: string
+          to_year_name?: string
+          total_failed?: number
+          total_passed_out?: number
+          total_promoted?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promotion_history_from_year_id_fkey"
+            columns: ["from_year_id"]
+            isOneToOne: false
+            referencedRelation: "academic_years"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promotion_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promotion_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "promotion_history_to_year_id_fkey"
+            columns: ["to_year_id"]
+            isOneToOne: false
+            referencedRelation: "academic_years"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       purchase_bills: {
         Row: {
           bill_date: string
