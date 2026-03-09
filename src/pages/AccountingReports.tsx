@@ -11,9 +11,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { 
   Loader2, Download, Printer, TrendingUp, TrendingDown, Wallet, PieChart, 
-  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink
+  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw
 } from "lucide-react";
-import { format, startOfYear, startOfMonth, endOfMonth } from "date-fns";
+import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import {
@@ -22,7 +22,7 @@ import {
   calculateBalanceSheet,
   calculateNetProfitSummary,
   getIndiaFinancialYear,
-  getCurrentQuarter,
+  getAllIndiaFYQuarters,
   TrialBalanceEntry,
   ProfitLossData,
   BalanceSheetData,
@@ -66,42 +66,132 @@ const ReportHeader = ({
   </div>
 );
 
-// Financial Year Presets Component
-const FYPresets = ({ 
-  onSelect, 
-  currentSelection 
-}: { 
-  onSelect: (from: string, to: string) => void; 
-  currentSelection?: string;
+// Period Selector Component
+const PeriodSelector = ({
+  periodType,
+  setPeriodType,
+  fromDate,
+  toDate,
+  setFromDate,
+  setToDate,
+}: {
+  periodType: "monthly" | "quarterly" | "yearly" | "custom";
+  setPeriodType: (v: "monthly" | "quarterly" | "yearly" | "custom") => void;
+  fromDate: string;
+  toDate: string;
+  setFromDate: (v: string) => void;
+  setToDate: (v: string) => void;
 }) => {
-  const currentFY = getIndiaFinancialYear(0);
-  const previousFY = getIndiaFinancialYear(-1);
-  const currentQ = getCurrentQuarter();
-  
+  const pills: Array<{ value: "monthly" | "quarterly" | "yearly" | "custom"; label: string }> = [
+    { value: "monthly", label: "Monthly" },
+    { value: "quarterly", label: "Quarterly" },
+    { value: "yearly", label: "Yearly" },
+    { value: "custom", label: "Custom" },
+  ];
+
+  const setThisMonth = () => { setFromDate(format(startOfMonth(new Date()), "yyyy-MM-dd")); setToDate(format(endOfMonth(new Date()), "yyyy-MM-dd")); };
+  const setLastMonth = () => { const d = subMonths(new Date(), 1); setFromDate(format(startOfMonth(d), "yyyy-MM-dd")); setToDate(format(endOfMonth(d), "yyyy-MM-dd")); };
+
+  // Generate month buttons for current FY
+  const fy = getIndiaFinancialYear(0);
+  const fyStartYear = new Date(fy.fromDate).getFullYear();
+  const monthButtons = Array.from({ length: 12 }, (_, i) => {
+    const monthIdx = (3 + i) % 12; // Start from April
+    const year = monthIdx < 3 ? fyStartYear + 1 : fyStartYear;
+    const d = new Date(year, monthIdx, 1);
+    return {
+      label: format(d, "MMM"),
+      from: format(startOfMonth(d), "yyyy-MM-dd"),
+      to: format(endOfMonth(d), "yyyy-MM-dd"),
+    };
+  });
+
+  const quarters = getAllIndiaFYQuarters();
+  const fyPresets = [0, -1, -2].map(offset => getIndiaFinancialYear(offset));
+
+  const isActive = (f: string, t: string) => fromDate === f && toDate === t;
+
   return (
-    <div className="flex flex-wrap gap-2 print:hidden">
-      <Button
-        variant={currentSelection === "currentFY" ? "default" : "outline"}
-        size="sm"
-        onClick={() => onSelect(currentFY.fromDate, currentFY.toDate)}
-      >
-        <Calendar className="h-3 w-3 mr-1" />
-        {currentFY.label}
-      </Button>
-      <Button
-        variant={currentSelection === "previousFY" ? "default" : "outline"}
-        size="sm"
-        onClick={() => onSelect(previousFY.fromDate, previousFY.toDate)}
-      >
-        {previousFY.label}
-      </Button>
-      <Button
-        variant={currentSelection === "currentQ" ? "default" : "outline"}
-        size="sm"
-        onClick={() => onSelect(currentQ.fromDate, currentQ.toDate)}
-      >
-        {currentQ.label}
-      </Button>
+    <div className="space-y-2 print:hidden">
+      {/* Pills */}
+      <div className="flex gap-1.5 flex-wrap">
+        {pills.map(p => (
+          <Button
+            key={p.value}
+            variant={periodType === p.value ? "default" : "outline"}
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => setPeriodType(p.value)}
+          >
+            {p.label}
+          </Button>
+        ))}
+      </div>
+
+      {/* Contextual presets */}
+      <div className="flex gap-2 flex-wrap">
+        {periodType === "monthly" && (
+          <>
+            <Button variant={isActive(format(startOfMonth(new Date()), "yyyy-MM-dd"), format(endOfMonth(new Date()), "yyyy-MM-dd")) ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={setThisMonth}>This Month</Button>
+            <Button variant={isActive(format(startOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd"), format(endOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd")) ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={setLastMonth}>Last Month</Button>
+            <Separator orientation="vertical" className="h-7" />
+            {monthButtons.map(m => (
+              <Button key={m.from} variant={isActive(m.from, m.to) ? "default" : "outline"} size="sm" className="h-7 text-xs px-2" onClick={() => { setFromDate(m.from); setToDate(m.to); }}>
+                {m.label}
+              </Button>
+            ))}
+          </>
+        )}
+        {periodType === "quarterly" && quarters.map(q => (
+          <Button key={q.label} variant={isActive(q.fromDate, q.toDate) ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => { setFromDate(q.fromDate); setToDate(q.toDate); }}>
+            {q.isCurrent ? `● ${q.label}` : q.label}
+          </Button>
+        ))}
+        {periodType === "yearly" && fyPresets.map(fy => (
+          <Button key={fy.label} variant={isActive(fy.fromDate, fy.toDate) ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => { setFromDate(fy.fromDate); setToDate(fy.toDate); }}>
+            {fy.label}
+          </Button>
+        ))}
+        {periodType === "custom" && (
+          <>
+            <div className="flex items-center gap-2">
+              <Label className="text-xs">From:</Label>
+              <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-36 h-7 text-xs" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Label className="text-xs">To:</Label>
+              <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-36 h-7 text-xs" />
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Period display */}
+      <p className="text-xs text-muted-foreground">
+        Period: {format(new Date(fromDate), "d MMM yyyy")} – {format(new Date(toDate), "d MMM yyyy")}
+      </p>
+    </div>
+  );
+};
+
+// As-of date presets
+const AsOfDatePresets = ({ asOfDate, setAsOfDate }: { asOfDate: string; setAsOfDate: (v: string) => void }) => {
+  const fy = getIndiaFinancialYear(0);
+  return (
+    <div className="space-y-2 print:hidden">
+      <div className="flex items-center gap-2">
+        <Label className="text-xs whitespace-nowrap">As of Date:</Label>
+        <Input type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} className="w-40 h-8 text-xs" />
+      </div>
+      <div className="flex gap-2 flex-wrap">
+        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAsOfDate(format(new Date(), "yyyy-MM-dd"))}>Today</Button>
+        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAsOfDate(format(endOfMonth(new Date()), "yyyy-MM-dd"))}>End of This Month</Button>
+        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAsOfDate(format(endOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd"))}>End of Last Month</Button>
+        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAsOfDate(fy.toDate)}>End of {fy.label}</Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        As of: {format(new Date(asOfDate), "d MMM yyyy")}
+      </p>
     </div>
   );
 };
@@ -111,10 +201,10 @@ export default function AccountingReports() {
   const { orgNavigate } = useOrgNavigation();
   const [activeTab, setActiveTab] = useState("trial-balance");
   const [loading, setLoading] = useState(false);
+  const [periodType, setPeriodType] = useState<"monthly" | "quarterly" | "yearly" | "custom">("monthly");
 
-  // Date filters - default to current month for Net Profit, FY for others
-  const currentFY = getIndiaFinancialYear(0);
-  const [asOfDate, setAsOfDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  // Date filters
+  const [asOfDate, setAsOfDate] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
   const [fromDate, setFromDate] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
 
@@ -176,23 +266,23 @@ export default function AccountingReports() {
     setLoading(false);
   };
 
+  // Auto-load reports when tab, dates, or org changes
   useEffect(() => {
+    if (!currentOrganization?.id) return;
+    if (activeTab === "trial-balance" || activeTab === "balance-sheet") {
+      if (activeTab === "trial-balance") fetchTrialBalance();
+      else fetchBalanceSheet();
+    } else {
+      if (activeTab === "profit-loss") fetchProfitLoss();
+      else if (activeTab === "net-profit") fetchNetProfitSummary();
+    }
+  }, [activeTab, currentOrganization?.id, fromDate, toDate, asOfDate]);
+
+  const handleRefresh = () => {
     if (activeTab === "trial-balance") fetchTrialBalance();
     else if (activeTab === "profit-loss") fetchProfitLoss();
     else if (activeTab === "balance-sheet") fetchBalanceSheet();
     else if (activeTab === "net-profit") fetchNetProfitSummary();
-  }, [activeTab, currentOrganization?.id]);
-
-  const handleGenerateReport = () => {
-    if (activeTab === "trial-balance") fetchTrialBalance();
-    else if (activeTab === "profit-loss") fetchProfitLoss();
-    else if (activeTab === "balance-sheet") fetchBalanceSheet();
-    else if (activeTab === "net-profit") fetchNetProfitSummary();
-  };
-
-  const handleFYSelect = (from: string, to: string) => {
-    setFromDate(from);
-    setToDate(to);
   };
 
   const exportToExcel = () => {
@@ -242,7 +332,7 @@ export default function AccountingReports() {
         { Particulars: "", Amount: "" },
         { Particulars: "LIABILITIES", Amount: "" },
         { Particulars: "Accounts Payable", Amount: balanceSheet.liabilities.accountsPayable },
-        { Particulars: "GST Payable", Amount: balanceSheet.liabilities.gstPayable },
+        ...(balanceSheet.liabilities.gstPayable > 0 ? [{ Particulars: "GST Payable", Amount: balanceSheet.liabilities.gstPayable }] : []),
         { Particulars: "Total Liabilities", Amount: balanceSheet.liabilities.totalLiabilities },
         { Particulars: "", Amount: "" },
         { Particulars: "OWNER'S EQUITY", Amount: "" },
@@ -279,6 +369,9 @@ export default function AccountingReports() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="ghost" size="icon" onClick={handleRefresh} disabled={loading} title="Refresh">
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
           <Button variant="outline" onClick={handlePrint}>
             <Printer className="h-4 w-4 mr-2" />
             Print
@@ -294,19 +387,19 @@ export default function AccountingReports() {
         <TabsList className="grid w-full grid-cols-4 print:hidden">
           <TabsTrigger value="trial-balance" className="flex items-center gap-2">
             <Scale className="h-4 w-4" />
-            <span className="hidden sm:inline">Trial Balance</span>
+            Trial Balance
           </TabsTrigger>
           <TabsTrigger value="profit-loss" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
-            <span className="hidden sm:inline">Profit & Loss</span>
+            Profit & Loss
           </TabsTrigger>
           <TabsTrigger value="balance-sheet" className="flex items-center gap-2">
             <FileSpreadsheet className="h-4 w-4" />
-            <span className="hidden sm:inline">Balance Sheet</span>
+            Balance Sheet
           </TabsTrigger>
           <TabsTrigger value="net-profit" className="flex items-center gap-2">
             <PieChart className="h-4 w-4" />
-            <span className="hidden sm:inline">Net Profit</span>
+            Net Profit
           </TabsTrigger>
         </TabsList>
 
@@ -319,23 +412,8 @@ export default function AccountingReports() {
                   <Scale className="h-5 w-5" />
                   Trial Balance
                 </CardTitle>
-                <div className="flex items-center gap-4 print:hidden">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="asOfDate">As of Date:</Label>
-                    <Input
-                      id="asOfDate"
-                      type="date"
-                      value={asOfDate}
-                      onChange={(e) => setAsOfDate(e.target.value)}
-                      className="w-40"
-                    />
-                  </div>
-                  <Button onClick={handleGenerateReport} disabled={loading}>
-                    {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Generate
-                  </Button>
-                </div>
               </div>
+              <AsOfDatePresets asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
               <div className="hidden print:block">
                 <ReportHeader 
                   title="Trial Balance" 
@@ -344,9 +422,6 @@ export default function AccountingReports() {
                   generatedAt={format(new Date(), "dd MMM yyyy, hh:mm a")}
                 />
               </div>
-              <p className="text-sm text-muted-foreground print:hidden">
-                As of: {format(new Date(asOfDate), "dd MMM yyyy")}
-              </p>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -379,7 +454,7 @@ export default function AccountingReports() {
                     {trialBalance.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                          No data available. Click Generate to load the report.
+                          No data available. Select a date to load the report.
                         </TableCell>
                       </TableRow>
                     )}
@@ -392,11 +467,18 @@ export default function AccountingReports() {
                         <TableCell className="text-right">{formatCurrency(tbTotals.credit)}</TableCell>
                       </TableRow>
                       {Math.abs(tbTotals.debit - tbTotals.credit) > 0.01 && (
-                        <TableRow className="text-destructive">
-                          <TableCell colSpan={4} className="text-center">
-                            ⚠️ Trial Balance does not match. Difference: {formatCurrency(Math.abs(tbTotals.debit - tbTotals.credit))}
-                          </TableCell>
-                        </TableRow>
+                        <>
+                          <TableRow className="text-destructive">
+                            <TableCell colSpan={4} className="text-center">
+                              ⚠️ Trial Balance does not match. Difference: {formatCurrency(Math.abs(tbTotals.debit - tbTotals.credit))}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center text-xs text-muted-foreground">
+                              Note: Trial balance differences may indicate unrecorded transactions.
+                            </TableCell>
+                          </TableRow>
+                        </>
                       )}
                     </TableFooter>
                   )}
@@ -410,45 +492,14 @@ export default function AccountingReports() {
         <TabsContent value="profit-loss" className="space-y-4">
           <Card className="print:shadow-none print:border-0">
             <CardHeader className="print:pb-2">
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <CardTitle className="flex items-center gap-2 print:hidden">
-                    <TrendingUp className="h-5 w-5" />
-                    Profit & Loss Statement
-                    <Badge variant="outline" className="ml-2">GST Compliant</Badge>
-                  </CardTitle>
-                  <div className="flex flex-wrap items-center gap-4 print:hidden">
-                    <FYPresets onSelect={handleFYSelect} />
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-4 print:hidden">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="fromDate">From:</Label>
-                    <Input
-                      id="fromDate"
-                      type="date"
-                      value={fromDate}
-                      onChange={(e) => setFromDate(e.target.value)}
-                      className="w-40"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="toDate">To:</Label>
-                    <Input
-                      id="toDate"
-                      type="date"
-                      value={toDate}
-                      onChange={(e) => setToDate(e.target.value)}
-                      className="w-40"
-                    />
-                  </div>
-                  <Button onClick={handleGenerateReport} disabled={loading}>
-                    {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Generate
-                  </Button>
-                </div>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <CardTitle className="flex items-center gap-2 print:hidden">
+                  <TrendingUp className="h-5 w-5" />
+                  Profit & Loss Statement
+                  <Badge variant="outline" className="ml-2">GST Compliant</Badge>
+                </CardTitle>
               </div>
-              
+              <PeriodSelector periodType={periodType} setPeriodType={setPeriodType} fromDate={fromDate} toDate={toDate} setFromDate={setFromDate} setToDate={setToDate} />
               {/* Print Header */}
               <div className="hidden print:block">
                 <ReportHeader 
@@ -458,10 +509,6 @@ export default function AccountingReports() {
                   generatedAt={profitLoss?.generatedAt}
                 />
               </div>
-              
-              <p className="text-sm text-muted-foreground print:hidden">
-                Period: {format(new Date(fromDate), "dd MMM yyyy")} - {format(new Date(toDate), "dd MMM yyyy")}
-              </p>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -523,7 +570,10 @@ export default function AccountingReports() {
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span>Opening Stock</span>
-                        <span className="text-right font-mono">{formatCurrency(profitLoss.openingStock)}</span>
+                        <span className="text-right font-mono">
+                          {formatCurrency(profitLoss.openingStock)}
+                          {profitLoss.openingStock === 0 && <span className="text-xs text-muted-foreground ml-1">(Estimated from transaction history)</span>}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span>Add: Purchases (Excl. GST)</span>
@@ -535,7 +585,10 @@ export default function AccountingReports() {
                       </div>
                       <div className="flex justify-between text-muted-foreground print:text-gray-600">
                         <span>Less: Closing Stock</span>
-                        <span className="text-right font-mono text-destructive">({formatCurrency(profitLoss.closingStock)})</span>
+                        <span className="text-right font-mono text-destructive">
+                          ({formatCurrency(profitLoss.closingStock)})
+                          {profitLoss.closingStock === 0 && <span className="text-xs ml-1">(Estimated from transaction history)</span>}
+                        </span>
                       </div>
                       <Separator className="my-2" />
                       <div className="flex justify-between font-semibold text-lg">
@@ -589,7 +642,7 @@ export default function AccountingReports() {
                       <Separator className="my-2" />
                       <div className="flex justify-between font-semibold text-lg">
                         <span>TOTAL EXPENSES</span>
-                        <span className="text-right font-mono">{formatCurrency(profitLoss.totalExpenses)}</span>
+                        <span className="text-right font-mono text-destructive">{formatCurrency(profitLoss.totalExpenses)}</span>
                       </div>
                     </div>
                   </div>
@@ -626,7 +679,7 @@ export default function AccountingReports() {
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
-                  No data available. Click Generate to load the report.
+                  No data available. Select a period to load the report.
                 </div>
               )}
             </CardContent>
@@ -642,23 +695,8 @@ export default function AccountingReports() {
                   <FileSpreadsheet className="h-5 w-5" />
                   Balance Sheet
                 </CardTitle>
-                <div className="flex items-center gap-4 print:hidden">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="bsAsOfDate">As of Date:</Label>
-                    <Input
-                      id="bsAsOfDate"
-                      type="date"
-                      value={asOfDate}
-                      onChange={(e) => setAsOfDate(e.target.value)}
-                      className="w-40"
-                    />
-                  </div>
-                  <Button onClick={handleGenerateReport} disabled={loading}>
-                    {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Generate
-                  </Button>
-                </div>
               </div>
+              <AsOfDatePresets asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
               <div className="hidden print:block">
                 <ReportHeader 
                   title="Balance Sheet" 
@@ -667,9 +705,6 @@ export default function AccountingReports() {
                   generatedAt={format(new Date(), "dd MMM yyyy, hh:mm a")}
                 />
               </div>
-              <p className="text-sm text-muted-foreground print:hidden">
-                As of: {format(new Date(asOfDate), "dd MMM yyyy")}
-              </p>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -720,10 +755,12 @@ export default function AccountingReports() {
                           <span>Accounts Payable</span>
                           <span className="font-mono">{formatCurrency(balanceSheet.liabilities.accountsPayable)}</span>
                         </div>
-                        <div className="flex justify-between pl-4">
-                          <span>GST Payable</span>
-                          <span className="font-mono">{formatCurrency(balanceSheet.liabilities.gstPayable)}</span>
-                        </div>
+                        {balanceSheet.liabilities.gstPayable > 0 && (
+                          <div className="flex justify-between pl-4">
+                            <span>GST Payable</span>
+                            <span className="font-mono">{formatCurrency(balanceSheet.liabilities.gstPayable)}</span>
+                          </div>
+                        )}
                         <div className="flex justify-between font-bold border-t pt-2">
                           <span>Total Liabilities</span>
                           <span className="font-mono">{formatCurrency(balanceSheet.liabilities.totalLiabilities)}</span>
@@ -739,7 +776,7 @@ export default function AccountingReports() {
                       <div className="space-y-3">
                         <div className="flex justify-between font-bold border-t pt-2">
                           <span>Closing Capital</span>
-                          <span className="text-green-600 font-mono">{formatCurrency(balanceSheet.equity.closingCapital)}</span>
+                          <span className={`font-mono ${balanceSheet.equity.closingCapital >= 0 ? 'text-green-600' : 'text-destructive'}`}>{formatCurrency(balanceSheet.equity.closingCapital)}</span>
                         </div>
                       </div>
                     </div>
@@ -756,7 +793,7 @@ export default function AccountingReports() {
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
-                  No data available. Click Generate to load the report.
+                  No data available. Select a date to load the report.
                 </div>
               )}
             </CardContent>
@@ -767,42 +804,14 @@ export default function AccountingReports() {
         <TabsContent value="net-profit" className="space-y-4">
           <Card className="print:shadow-none print:border-0">
             <CardHeader className="print:pb-2">
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <CardTitle className="flex items-center gap-2 print:hidden">
-                    <PieChart className="h-5 w-5" />
-                    Income Statement
-                    <Badge variant="outline" className="ml-2">Net Profit Report</Badge>
-                  </CardTitle>
-                  <FYPresets onSelect={handleFYSelect} />
-                </div>
-                <div className="flex flex-wrap items-center gap-4 print:hidden">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="npFromDate">From:</Label>
-                    <Input
-                      id="npFromDate"
-                      type="date"
-                      value={fromDate}
-                      onChange={(e) => setFromDate(e.target.value)}
-                      className="w-40"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="npToDate">To:</Label>
-                    <Input
-                      id="npToDate"
-                      type="date"
-                      value={toDate}
-                      onChange={(e) => setToDate(e.target.value)}
-                      className="w-40"
-                    />
-                  </div>
-                  <Button onClick={handleGenerateReport} disabled={loading}>
-                    {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Generate
-                  </Button>
-                </div>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <CardTitle className="flex items-center gap-2 print:hidden">
+                  <PieChart className="h-5 w-5" />
+                  Income Statement
+                  <Badge variant="outline" className="ml-2">Net Profit Report</Badge>
+                </CardTitle>
               </div>
+              <PeriodSelector periodType={periodType} setPeriodType={setPeriodType} fromDate={fromDate} toDate={toDate} setFromDate={setFromDate} setToDate={setToDate} />
               <div className="hidden print:block">
                 <ReportHeader 
                   title="Income Statement" 
@@ -811,9 +820,6 @@ export default function AccountingReports() {
                   generatedAt={format(new Date(), "dd MMM yyyy, hh:mm a")}
                 />
               </div>
-              <p className="text-sm text-muted-foreground print:hidden">
-                Period: {format(new Date(fromDate), "dd MMM yyyy")} - {format(new Date(toDate), "dd MMM yyyy")}
-              </p>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -833,7 +839,7 @@ export default function AccountingReports() {
                         <span>Total Sales</span>
                         <span className="font-mono">{formatCurrency(netProfitSummary.totalSales)}</span>
                       </div>
-                      <div className="flex justify-between text-red-600 dark:text-red-400">
+                      <div className="flex justify-between text-destructive">
                         <span>Less: Sales Returns</span>
                         <span className="font-mono">({formatCurrency(netProfitSummary.salesReturns)})</span>
                       </div>
@@ -853,7 +859,7 @@ export default function AccountingReports() {
                     </h3>
                     <div className="flex justify-between font-bold">
                       <span>Purchase Cost of Items Sold</span>
-                      <span className="font-mono text-amber-700 dark:text-amber-300">({formatCurrency(netProfitSummary.cogsFromSaleItems)})</span>
+                      <span className="font-mono text-destructive">({formatCurrency(netProfitSummary.cogsFromSaleItems)})</span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       Calculated from pur_price × quantity of all items sold
@@ -861,10 +867,10 @@ export default function AccountingReports() {
                   </div>
 
                   {/* GROSS PROFIT */}
-                  <div className={`border-2 rounded-lg p-4 ${netProfitSummary.isGrossLoss ? 'border-red-500 bg-red-50 dark:bg-red-950/30' : 'border-purple-500 bg-purple-50 dark:bg-purple-950/30'}`}>
+                  <div className={`border-2 rounded-lg p-4 ${netProfitSummary.isGrossLoss ? 'border-destructive bg-destructive/10 dark:bg-destructive/20' : 'border-purple-500 bg-purple-50 dark:bg-purple-950/30'}`}>
                     <div className="flex justify-between font-bold text-lg">
                       <span>{netProfitSummary.isGrossLoss ? 'GROSS LOSS' : 'GROSS PROFIT'}</span>
-                      <span className={`font-mono ${netProfitSummary.isGrossLoss ? 'text-red-600 dark:text-red-400' : 'text-purple-600 dark:text-purple-400'}`}>
+                      <span className={`font-mono ${netProfitSummary.isGrossLoss ? 'text-destructive' : 'text-purple-600 dark:text-purple-400'}`}>
                         {netProfitSummary.isGrossLoss && '-'}{formatCurrency(Math.abs(netProfitSummary.grossProfit))}
                       </span>
                     </div>
@@ -873,12 +879,13 @@ export default function AccountingReports() {
                     </p>
                   </div>
 
-                  {/* GST SECTION */}
+                  {/* GST INFORMATION */}
                   <div className="border rounded-lg p-4">
-                    <h3 className="font-semibold text-lg mb-3 text-orange-600 dark:text-orange-400 flex items-center gap-2">
+                    <h3 className="font-semibold text-lg mb-1 text-orange-600 dark:text-orange-400 flex items-center gap-2">
                       <Calculator className="h-5 w-5" />
-                      GST ADJUSTMENT
+                      GST INFORMATION
                     </h3>
+                    <p className="text-xs text-muted-foreground mb-3">(Pass-through tax — not deducted from profit)</p>
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span>Output GST (Sales)</span>
@@ -891,7 +898,7 @@ export default function AccountingReports() {
                       <Separator />
                       <div className="flex justify-between font-bold">
                         <span>{netProfitSummary.netGSTLiability >= 0 ? 'Net GST Payable' : 'Net GST Receivable'}</span>
-                        <span className={`font-mono ${netProfitSummary.netGSTLiability >= 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                        <span className={`font-mono ${netProfitSummary.netGSTLiability >= 0 ? 'text-destructive' : 'text-green-600 dark:text-green-400'}`}>
                           {netProfitSummary.netGSTLiability >= 0 ? formatCurrency(netProfitSummary.netGSTLiability) : `(${formatCurrency(Math.abs(netProfitSummary.netGSTLiability))})`}
                         </span>
                       </div>
@@ -906,7 +913,7 @@ export default function AccountingReports() {
                     </h3>
                     <div className="flex justify-between font-bold">
                       <span>Total Expenses</span>
-                      <span className="font-mono text-red-600 dark:text-red-400">({formatCurrency(netProfitSummary.totalExpenses)})</span>
+                      <span className="font-mono text-destructive">({formatCurrency(netProfitSummary.totalExpenses)})</span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       From expense vouchers recorded in the period
@@ -914,17 +921,19 @@ export default function AccountingReports() {
                   </div>
 
                   {/* FINAL NET PROFIT CARD */}
-                  <div className={`border-4 rounded-lg p-6 ${netProfitSummary.isNetLoss ? 'border-red-600 bg-red-100 dark:bg-red-950/50' : 'border-green-600 bg-green-100 dark:bg-green-950/50'}`}>
+                  <div className={`border-4 rounded-lg p-6 ${netProfitSummary.isNetLoss ? 'border-destructive bg-destructive/10 dark:bg-destructive/20' : 'border-green-600 bg-green-100 dark:bg-green-950/50'}`}>
                     <div className="flex justify-between items-center">
                       <div>
                         <h2 className="text-2xl font-bold">{netProfitSummary.isNetLoss ? 'NET LOSS' : 'NET PROFIT'}</h2>
                         <p className="text-sm text-muted-foreground">Take-home Profit After All Deductions</p>
                       </div>
                       <div className="text-right">
-                        <span className={`text-3xl font-bold font-mono ${netProfitSummary.isNetLoss ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400'}`}>
+                        <span className={`text-3xl font-bold font-mono ${netProfitSummary.isNetLoss ? 'text-destructive' : 'text-green-600'}`}>
                           {netProfitSummary.isNetLoss && '-'}{formatCurrency(Math.abs(netProfitSummary.netProfit))}
                         </span>
-                        <p className="text-sm text-muted-foreground">Margin: {netProfitSummary.profitMarginPercent.toFixed(2)}%</p>
+                        <p className={`text-sm ${netProfitSummary.profitMarginPercent < 0 ? 'text-destructive' : 'text-green-600'}`}>
+                          Margin: {netProfitSummary.profitMarginPercent.toFixed(2)}%
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -952,21 +961,14 @@ export default function AccountingReports() {
                           <TableRow>
                             <TableCell className="font-medium">Gross Profit</TableCell>
                             <TableCell className="text-sm text-muted-foreground">Revenue - Purchase Cost of Goods</TableCell>
-                            <TableCell className={`text-right font-mono ${netProfitSummary.isGrossLoss ? 'text-red-600' : ''}`}>
+                            <TableCell className={`text-right font-mono ${netProfitSummary.isGrossLoss ? 'text-destructive' : ''}`}>
                               {formatCurrency(netProfitSummary.grossProfit)}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell className="font-medium">GST Adjustment</TableCell>
-                            <TableCell className="text-sm text-muted-foreground">Sales GST - Purchase GST</TableCell>
-                            <TableCell className={`text-right font-mono ${netProfitSummary.netGSTLiability >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                              {formatCurrency(netProfitSummary.netGSTLiability)}
                             </TableCell>
                           </TableRow>
                           <TableRow className="font-bold bg-muted/50">
                             <TableCell>Net Profit</TableCell>
-                            <TableCell className="text-sm">Gross Profit - Net GST - Expenses</TableCell>
-                            <TableCell className={`text-right font-mono ${netProfitSummary.isNetLoss ? 'text-red-600' : 'text-green-600'}`}>
+                            <TableCell className="text-sm">Gross Profit - Operating Expenses</TableCell>
+                            <TableCell className={`text-right font-mono ${netProfitSummary.isNetLoss ? 'text-destructive' : 'text-green-600'}`}>
                               {formatCurrency(netProfitSummary.netProfit)}
                             </TableCell>
                           </TableRow>
@@ -999,7 +1001,7 @@ export default function AccountingReports() {
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
-                  No data available. Click Generate to load the report.
+                  No data available. Select a period to load the report.
                 </div>
               )}
             </CardContent>

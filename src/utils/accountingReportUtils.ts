@@ -119,7 +119,18 @@ export async function calculateTrialBalance(
   const totalPurchasesAmount = aggData?.total_purchases || 0;
   const totalSaleReturns = aggData?.total_sale_returns || 0;
   const totalPurchaseReturns = aggData?.total_purchase_returns || 0;
-  const cashBalance = aggData?.cash_balance || 0;
+
+  // Fetch expense vouchers for cash calculation
+  const { data: expenseVouchers } = await supabase
+    .from("voucher_entries")
+    .select("total_amount")
+    .eq("organization_id", organizationId)
+    .eq("voucher_type", "expense")
+    .lte("voucher_date", asOfDate)
+    .is("deleted_at", null);
+  const totalExpensesPaid = expenseVouchers?.reduce((sum, v) => sum + ((v as any).total_amount || 0), 0) || 0;
+
+  const cashBalance = (aggData?.cash_balance || 0) - totalExpensesPaid;
 
   // Get stock value via RPC
   const { data: stockValue } = await supabase.rpc('get_stock_value', { p_org_id: organizationId });
@@ -170,6 +181,10 @@ export async function calculateTrialBalance(
 
   if (totalPurchaseReturns > 0) {
     entries.push({ accountName: "Purchase Returns", accountType: "Expense", debit: 0, credit: totalPurchaseReturns });
+  }
+
+  if (totalExpensesPaid > 0) {
+    entries.push({ accountName: "Operating Expenses", accountType: "Expense", debit: totalExpensesPaid, credit: 0 });
   }
 
   return entries;
@@ -306,8 +321,8 @@ export async function calculateProfitLoss(
   const openingStockDate = format(subDays(new Date(fromDate), 1), "yyyy-MM-dd");
   const openingStock = await calculateStockValueAtDate(organizationId, openingStockDate);
   
-  // Closing Stock (current stock value) via RPC
-  const closingStock = await calculateStockValue(organizationId);
+  // Closing Stock at period end (not live stock)
+  const closingStock = await calculateStockValueAtDate(organizationId, toDate);
   
   if (closingStock < 0) {
     warnings.push("Warning: Negative closing stock detected. Please verify stock entries.");
@@ -476,8 +491,7 @@ export async function calculateNetProfitSummary(
   const grossProfit = netRevenue - cogsFromSaleItems;
   const isGrossLoss = grossProfit < 0;
   const netGSTLiability = outputGST - inputGST;
-  const gstDeduction = netGSTLiability > 0 ? netGSTLiability : 0;
-  const netProfit = grossProfit - gstDeduction - totalExpenses;
+  const netProfit = grossProfit - totalExpenses; // GST is pass-through, not deducted
   const isNetLoss = netProfit < 0;
   const profitMarginPercent = netRevenue > 0 ? (netProfit / netRevenue) * 100 : 0;
   
@@ -513,7 +527,7 @@ export function getIndiaFinancialYear(offset: number = 0): { fromDate: string; t
   return { fromDate, toDate, label };
 }
 
-// Get quarter dates
+// Get quarter dates (calendar quarters - kept for backward compat)
 export function getCurrentQuarter(): { fromDate: string; toDate: string; label: string } {
   const today = new Date();
   const quarter = Math.floor(today.getMonth() / 3);
@@ -527,4 +541,24 @@ export function getCurrentQuarter(): { fromDate: string; toDate: string; label: 
     toDate: format(quarterEnd, "yyyy-MM-dd"),
     label: `${quarterNames[quarter]} ${today.getFullYear()}`,
   };
+}
+
+// Get India FY Quarters (Apr-Jun Q1, Jul-Sep Q2, Oct-Dec Q3, Jan-Mar Q4)
+export function getAllIndiaFYQuarters(): Array<{ fromDate: string; toDate: string; label: string; isCurrent: boolean }> {
+  const today = new Date();
+  const month = today.getMonth();
+  const fyYear = month >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+  const currentQIdx = month >= 3 && month <= 5 ? 0 : month >= 6 && month <= 8 ? 1 : month >= 9 ? 2 : 3;
+  const quarters = [
+    { label: `Q1 Apr-Jun ${fyYear}`, from: new Date(fyYear, 3, 1), to: new Date(fyYear, 5, 30) },
+    { label: `Q2 Jul-Sep ${fyYear}`, from: new Date(fyYear, 6, 1), to: new Date(fyYear, 8, 30) },
+    { label: `Q3 Oct-Dec ${fyYear}`, from: new Date(fyYear, 9, 1), to: new Date(fyYear, 11, 31) },
+    { label: `Q4 Jan-Mar ${fyYear + 1}`, from: new Date(fyYear + 1, 0, 1), to: new Date(fyYear + 1, 2, 31) },
+  ];
+  return quarters.map((q, i) => ({
+    fromDate: format(q.from, "yyyy-MM-dd"),
+    toDate: format(q.to, "yyyy-MM-dd"),
+    label: q.label,
+    isCurrent: i === currentQIdx,
+  }));
 }
