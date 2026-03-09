@@ -119,7 +119,48 @@ Order Details:
 
 We will update you once it's ready for delivery.
 
-Thank you for your order!`
+Thank you for your order!`,
+
+  school_fee_reminder: `📢 Fees Reminder
+
+Respected Sir/Madam,
+
+🏫 {organization_name}
+
+👦 Admission No: {admission_number}
+
+📚 Class: {class_name}
+
+💰 Pending Fees: {amount}
+
+⏰ Due Date: Please pay at the earliest.
+
+Kindly clear the pending fees to avoid inconvenience.
+
+🙏 Thank you for your cooperation.
+
+{organization_name}`,
+
+  school_fee_receipt: `✅ Fee Receipt
+
+Respected Sir/Madam,
+
+🏫 {organization_name}
+
+🧾 Receipt No: {receipt_number}
+📅 Date: {receipt_date}
+👦 Admission No: {admission_number}
+📚 Class: {class_name}
+
+💰 Amount Paid: {amount}
+💳 Payment Mode: {payment_method}
+📊 Balance: {balance_amount}
+
+{fee_details}
+
+🙏 Thank you for your payment.
+
+{organization_name}`
 };
 
 const templateLabels = {
@@ -129,7 +170,9 @@ const templateLabels = {
   sales_invoice: "Sales Invoice / POS Billing Message",
   payment_reminder: "Payment Reminder Message",
   quotation: "Quotation Message",
-  sale_order: "Sale Order Message"
+  sale_order: "Sale Order Message",
+  school_fee_reminder: "School Fee Reminder Message",
+  school_fee_receipt: "School Fee Receipt Message"
 };
 
 export const WhatsAppTemplateSettings = () => {
