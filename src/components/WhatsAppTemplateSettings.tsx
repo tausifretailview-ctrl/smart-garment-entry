@@ -170,7 +170,9 @@ const templateLabels = {
   sales_invoice: "Sales Invoice / POS Billing Message",
   payment_reminder: "Payment Reminder Message",
   quotation: "Quotation Message",
-  sale_order: "Sale Order Message"
+  sale_order: "Sale Order Message",
+  school_fee_reminder: "School Fee Reminder Message",
+  school_fee_receipt: "School Fee Receipt Message"
 };
 
 export const WhatsAppTemplateSettings = () => {
