@@ -2168,8 +2168,11 @@ Thank you for choosing us!`;
         title: "Success",
         description: "Invoice printed successfully",
       });
-      // Clear saved data after printing so form is fully ready for new invoice
-      setSavedInvoiceData(null);
+      // Don't clear savedInvoiceData if viewing a navigated invoice (editingInvoiceId is set)
+      // so that the Print button remains available for re-printing
+      if (!editingInvoiceId) {
+        setSavedInvoiceData(null);
+      }
       setShowPrintDialog(false);
     },
   });
