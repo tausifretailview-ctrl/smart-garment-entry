@@ -808,7 +808,8 @@ export default function SalesInvoiceDashboard() {
   };
 
   const handleDownloadPDF = async (invoice: any) => {
-    setInvoiceToPrint(invoice);
+    const invoiceWithItems = await ensureSaleItems(invoice);
+    setInvoiceToPrint(invoiceWithItems);
     toast({
       title: "Generating PDF",
       description: "Please wait while PDF is being generated...",
