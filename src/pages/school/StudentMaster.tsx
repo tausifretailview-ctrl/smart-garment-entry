@@ -127,17 +127,18 @@ const StudentMaster = () => {
         .eq("status", "active")
         .is("deleted_at", null);
 
-      // New admissions: students created in the current academic year (April 1 onwards)
+      // New admissions: students with admission_date in the current academic year (April 1 onwards)
       const now = new Date();
       const currentYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-      const academicStart = `${currentYear}-04-01T00:00:00`;
+      const academicStart = `${currentYear}-04-01`;
 
       const { count: newAdmissions } = await supabase
         .from("students")
         .select("*", { count: "exact", head: true })
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
-        .gte("created_at", academicStart);
+        .not("admission_date", "is", null)
+        .gte("admission_date", academicStart);
 
       return { total: total || 0, active: active || 0, newAdmissions: newAdmissions || 0 };
     },
