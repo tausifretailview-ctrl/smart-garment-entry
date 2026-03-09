@@ -576,7 +576,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       <style>
         {`
           @media print {
-            @page { size: ${format === 'a5-vertical' ? '148mm 210mm' : format === 'a5-horizontal' ? 'A5 landscape' : 'A4'}; margin: ${format === 'a5-vertical' ? '1mm' : '5mm'}; }
+            @page { size: ${format === 'a5-vertical' ? '148mm 210mm' : format === 'a5-horizontal' ? 'A5 landscape' : 'A4'}; margin: 0; }
             body { margin: 0; padding: 0; }
             .invoice-page { 
               box-shadow: none !important; 
