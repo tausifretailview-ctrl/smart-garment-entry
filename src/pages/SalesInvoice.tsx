@@ -1956,6 +1956,7 @@ Thank you for choosing us!`;
             other_charges: otherCharges,
             round_off: roundOff,
             net_amount: netAmount,
+            points_redeemed_amount: pointsRedemptionValue,
             payment_method: 'pay_later',
             payment_status: 'pending',
             organization_id: currentOrganization?.id,
