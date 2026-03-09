@@ -777,7 +777,7 @@ const FeeCollection = () => {
                 </div>
               </CardContent>
             </Card>
-          </div>}
+          </div>
 
           {/* Search + Table */}
           <Card>
