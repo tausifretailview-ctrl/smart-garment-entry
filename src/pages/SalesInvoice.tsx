@@ -118,6 +118,20 @@ export default function SalesInvoice() {
   );
   // Customer brand discounts hook
   const { getBrandDiscount, hasBrandDiscounts, brandDiscounts, isLoading: isBrandDiscountsLoading } = useCustomerBrandDiscounts(selectedCustomerId || null);
+
+  // CRM Loyalty Points
+  const {
+    calculatePoints,
+    isPointsEnabled,
+    isRedemptionEnabled,
+    calculateMaxRedeemablePoints,
+    calculateRedemptionValue,
+    redeemPoints,
+    awardPoints,
+    pointsSettings,
+  } = useCustomerPoints();
+  const { data: customerPointsData } = useCustomerPointsBalance(selectedCustomerId || null);
+  const [pointsToRedeem, setPointsToRedeem] = useState<number>(0);
   const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
   const [dueDate, setDueDate] = useState<Date>(new Date());
   const invoiceSavedRef = useRef(false); // Track if invoice was saved to prevent draft re-save
