@@ -112,7 +112,7 @@ const StudentMaster = () => {
   const { data: stats } = useQuery({
     queryKey: ["student-stats", currentOrganization?.id],
     queryFn: async () => {
-      if (!currentOrganization?.id) return { total: 0, active: 0 };
+      if (!currentOrganization?.id) return { total: 0, active: 0, newAdmissions: 0 };
 
       const { count: total } = await supabase
         .from("students")
@@ -127,7 +127,19 @@ const StudentMaster = () => {
         .eq("status", "active")
         .is("deleted_at", null);
 
-      return { total: total || 0, active: active || 0 };
+      // New admissions: students created in the current academic year (April 1 onwards)
+      const now = new Date();
+      const currentYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+      const academicStart = `${currentYear}-04-01T00:00:00`;
+
+      const { count: newAdmissions } = await supabase
+        .from("students")
+        .select("*", { count: "exact", head: true })
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .gte("created_at", academicStart);
+
+      return { total: total || 0, active: active || 0, newAdmissions: newAdmissions || 0 };
     },
     enabled: !!currentOrganization?.id,
   });
