@@ -375,7 +375,7 @@ const FeeCollection = () => {
       try {
         await sendMessageAsync({
           phone,
-          message: `Respected Sir/Madam,\n\nFee Reminder - ${currentOrganization?.name}\nAdmission No: ${student.admission_number}er}\nClass: ${student.school_classes?.class_name || "-"}\nPending Amount: Rs.${student.totalDue.toLocaleString("en-IN")}\n${upiId ? `UPI ID: ${upiId}` : ""}`,
+          message: `📢 Fees Reminder\n\nRespected Sir/Madam,\n\n🏫 ${currentOrganization?.name || "School"}\n\n👦 Admission No: ${student.admission_number}\n\n📚 Class: ${student.school_classes?.class_name || "-"}\n\n💰 Pending Fees: Rs.${student.totalDue.toLocaleString("en-IN")}\n\n⏰ Due Date: Please pay at the earliest.\n\nKindly clear the pending fees to avoid inconvenience.\n\n🙏 Thank you for your cooperation.\n\n${currentOrganization?.name || "School"}`,
           templateType: "fee_reminder",
           templateName,
           saleData: {
@@ -396,7 +396,7 @@ const FeeCollection = () => {
       }
     } else {
       const amountStr = `Rs.${student.totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
-      const msg = `Respected Sir/Madam,\n\nFee Reminder - ${currentOrganization?.name || "School"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\nPending Amount: ${amountStr}\n${upiId ? `\n💳 *Pay Online*\nUPI ID: ${upiId}\nAmount: ${amountStr}\n\n👉 Click to pay: ${paymentLink}` : ""}\n\nPlease pay at the earliest.\nThank you!`;
+      const msg = `📢 Fees Reminder\n\nRespected Sir/Madam,\n\n🏫 ${currentOrganization?.name || "School"}\n\n👦 Admission No: ${student.admission_number}\n\n📚 Class: ${student.school_classes?.class_name || "-"}\n\n💰 Pending Fees: ${amountStr}\n\n⏰ Due Date: Please pay at the earliest.\n\nKindly clear the pending fees to avoid inconvenience.${upiId ? `\n\n💳 *Pay Online*\nUPI ID: ${upiId}\nAmount: ${amountStr}\n\n👉 Click to pay: ${paymentLink}` : ""}\n\n🙏 Thank you for your cooperation.\n\n${currentOrganization?.name || "School"}`;
       sendWhatsApp(phone, msg);
     }
   };
