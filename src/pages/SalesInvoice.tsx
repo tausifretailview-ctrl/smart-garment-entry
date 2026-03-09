@@ -1879,6 +1879,7 @@ Thank you for choosing us!`;
             other_charges: otherCharges,
             round_off: roundOff,
             net_amount: netAmount,
+            points_redeemed_amount: pointsRedemptionValue,
             due_date: dueDate.toISOString().split('T')[0],
             payment_term: paymentTerm || null,
             terms_conditions: termsConditions || null,
