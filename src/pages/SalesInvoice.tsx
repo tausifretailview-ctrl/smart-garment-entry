@@ -2988,6 +2988,17 @@ Thank you for choosing us!`;
             className="w-24 h-9 text-sm"
           />
         </div>
+        {pointsToRedeem > 0 && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[13px] text-amber-600 flex items-center gap-1">
+              <Coins className="h-3 w-3 text-amber-500" />
+              Points ({pointsToRedeem} pts):
+            </span>
+            <span className="font-medium text-green-600 text-[13px]">
+              -₹{pointsRedemptionValue.toFixed(2)}
+            </span>
+          </div>
+        )}
         <div className="flex items-center gap-1.5">
           <span className="text-[13px] text-slate-500 whitespace-nowrap">Round Off</span>
           <Input
