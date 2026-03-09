@@ -375,7 +375,7 @@ const FeeCollection = () => {
       try {
         await sendMessageAsync({
           phone,
-          message: `Fee Reminder - ${currentOrganization?.name}\nStudent: ${student.student_name} (${student.admission_number})\nClass: ${student.school_classes?.class_name || "-"}\nPending Amount: Rs.${student.totalDue.toLocaleString("en-IN")}\n${upiId ? `UPI ID: ${upiId}` : ""}`,
+          message: `Respected Sir/Madam,\n\nFee Reminder - ${currentOrganization?.name}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\nPending Amount: Rs.${student.totalDue.toLocaleString("en-IN")}\n${upiId ? `UPI ID: ${upiId}` : ""}`,
           templateType: "fee_reminder",
           templateName,
           saleData: {
