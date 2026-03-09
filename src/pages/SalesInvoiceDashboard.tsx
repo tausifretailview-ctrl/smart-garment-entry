@@ -764,8 +764,26 @@ export default function SalesInvoiceDashboard() {
     },
   });
 
-  const handlePrintInvoice = (invoice: any) => {
-    setInvoiceToPrint(invoice);
+  const ensureSaleItems = async (invoice: any) => {
+    if (invoice.sale_items && invoice.sale_items.length > 0) return invoice;
+    try {
+      const { data, error } = await supabase
+        .from('sale_items')
+        .select('*, products:product_id(brand, color, style)')
+        .eq('sale_id', invoice.id)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return { ...invoice, sale_items: data || [] };
+    } catch (err) {
+      console.error('Error fetching sale items for print:', err);
+      return { ...invoice, sale_items: [] };
+    }
+  };
+
+  const handlePrintInvoice = async (invoice: any) => {
+    const invoiceWithItems = await ensureSaleItems(invoice);
+    setInvoiceToPrint(invoiceWithItems);
     if (showInvoicePreviewSetting) {
       setShowPrintPreview(true);
     } else {
