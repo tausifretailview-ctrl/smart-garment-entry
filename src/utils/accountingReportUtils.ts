@@ -119,7 +119,18 @@ export async function calculateTrialBalance(
   const totalPurchasesAmount = aggData?.total_purchases || 0;
   const totalSaleReturns = aggData?.total_sale_returns || 0;
   const totalPurchaseReturns = aggData?.total_purchase_returns || 0;
-  const cashBalance = aggData?.cash_balance || 0;
+
+  // Fetch expense vouchers for cash calculation
+  const { data: expenseVouchers } = await supabase
+    .from("voucher_entries")
+    .select("total_amount")
+    .eq("organization_id", organizationId)
+    .eq("voucher_type", "expense")
+    .lte("voucher_date", asOfDate)
+    .is("deleted_at", null);
+  const totalExpensesPaid = expenseVouchers?.reduce((sum, v) => sum + ((v as any).total_amount || 0), 0) || 0;
+
+  const cashBalance = (aggData?.cash_balance || 0) - totalExpensesPaid;
 
   // Get stock value via RPC
   const { data: stockValue } = await supabase.rpc('get_stock_value', { p_org_id: organizationId });
@@ -170,6 +181,10 @@ export async function calculateTrialBalance(
 
   if (totalPurchaseReturns > 0) {
     entries.push({ accountName: "Purchase Returns", accountType: "Expense", debit: 0, credit: totalPurchaseReturns });
+  }
+
+  if (totalExpensesPaid > 0) {
+    entries.push({ accountName: "Operating Expenses", accountType: "Expense", debit: totalExpensesPaid, credit: 0 });
   }
 
   return entries;
