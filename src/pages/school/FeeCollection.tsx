@@ -147,6 +147,7 @@ const FeeCollection = () => {
         .from("students")
         .select("id, class_id, closing_fees_balance")
         .eq("organization_id", currentOrganization!.id)
+        .eq("academic_year_id", activeYear.id)
         .is("deleted_at", null);
 
       const { data: allPayments } = await supabase
