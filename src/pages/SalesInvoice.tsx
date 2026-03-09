@@ -2505,6 +2505,51 @@ Thank you for choosing us!`;
                 ) : null}
               </div>
             )}
+            {/* CRM Loyalty Points */}
+            {selectedCustomerId && isPointsEnabled && (
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                {/* Points Balance Badge */}
+                <div className="flex items-center gap-1.5 bg-amber-500 text-white px-2.5 py-1 rounded-lg text-xs font-semibold">
+                  <Coins className="h-3.5 w-3.5" />
+                  <span>{customerPointsData?.balance || 0} pts</span>
+                  {lineItems.filter(i => i.productId).length > 0 && (
+                    <span className="text-amber-100 text-xs">
+                      +{calculatePoints(lineItems.reduce((s, i) => s + i.lineTotal, 0))} earn
+                    </span>
+                  )}
+                </div>
+
+                {/* Redeem Input */}
+                {isRedemptionEnabled &&
+                 (customerPointsData?.balance || 0) >= (pointsSettings?.min_points_for_redemption || 10) && (
+                  <div className="flex items-center gap-1.5 bg-green-600 px-2.5 py-1 rounded-lg">
+                    <span className="text-white text-xs font-medium">Redeem:</span>
+                    <Input
+                      type="number"
+                      className="w-16 h-7 bg-white text-green-700 text-center text-xs font-semibold rounded border-0"
+                      value={pointsToRedeem || ""}
+                      placeholder="0"
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        const max = calculateMaxRedeemablePoints(
+                          grossAmount - lineItemDiscount - flatDiscountAmount,
+                          customerPointsData?.balance || 0
+                        );
+                        setPointsToRedeem(Math.min(Math.max(0, val), max));
+                      }}
+                      min={0}
+                      max={calculateMaxRedeemablePoints(
+                        grossAmount - lineItemDiscount - flatDiscountAmount,
+                        customerPointsData?.balance || 0
+                      )}
+                    />
+                    <span className="text-white text-xs whitespace-nowrap">
+                      pts = ₹{calculateRedemptionValue(pointsToRedeem).toFixed(0)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
             {selectedCustomer?.transport_details && (
               <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <span className="font-medium">Transport:</span>
