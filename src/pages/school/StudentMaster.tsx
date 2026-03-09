@@ -112,7 +112,7 @@ const StudentMaster = () => {
   const { data: stats } = useQuery({
     queryKey: ["student-stats", currentOrganization?.id],
     queryFn: async () => {
-      if (!currentOrganization?.id) return { total: 0, active: 0 };
+      if (!currentOrganization?.id) return { total: 0, active: 0, newAdmissions: 0 };
 
       const { count: total } = await supabase
         .from("students")
@@ -127,7 +127,19 @@ const StudentMaster = () => {
         .eq("status", "active")
         .is("deleted_at", null);
 
-      return { total: total || 0, active: active || 0 };
+      // New admissions: students created in the current academic year (April 1 onwards)
+      const now = new Date();
+      const currentYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+      const academicStart = `${currentYear}-04-01T00:00:00`;
+
+      const { count: newAdmissions } = await supabase
+        .from("students")
+        .select("*", { count: "exact", head: true })
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .gte("created_at", academicStart);
+
+      return { total: total || 0, active: active || 0, newAdmissions: newAdmissions || 0 };
     },
     enabled: !!currentOrganization?.id,
   });
@@ -198,7 +210,7 @@ const StudentMaster = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -217,6 +229,17 @@ const StudentMaster = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">{stats?.active || 0}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-emerald-600">
+              New Admissions
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-emerald-600">{stats?.newAdmissions || 0}</div>
+            <p className="text-xs text-muted-foreground">This academic year</p>
           </CardContent>
         </Card>
         <Card>
