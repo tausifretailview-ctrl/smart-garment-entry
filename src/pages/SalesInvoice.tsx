@@ -2168,8 +2168,11 @@ Thank you for choosing us!`;
         title: "Success",
         description: "Invoice printed successfully",
       });
-      // Clear saved data after printing so form is fully ready for new invoice
-      setSavedInvoiceData(null);
+      // Don't clear savedInvoiceData if viewing a navigated invoice (editingInvoiceId is set)
+      // so that the Print button remains available for re-printing
+      if (!editingInvoiceId) {
+        setSavedInvoiceData(null);
+      }
       setShowPrintDialog(false);
     },
   });
@@ -2190,7 +2193,9 @@ Thank you for choosing us!`;
             handlePrint();
           },
           onSuccess: () => {
-            setSavedInvoiceData(null);
+            if (!editingInvoiceId) {
+              setSavedInvoiceData(null);
+            }
             setShowPrintDialog(false);
           },
         });
@@ -2294,24 +2299,27 @@ Thank you for choosing us!`;
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="sm" onClick={handleLastInvoice}
               disabled={isLoadingNavInvoice || !allInvoiceIds?.length}
-              className="h-8 text-white/70 hover:text-white hover:bg-white/10 border border-white/15 text-xs gap-1.5 w-8 p-0">
+              className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 w-8 p-0"
+              title="Last Record">
               <SkipBack className="h-3.5 w-3.5" />
             </Button>
             <Button variant="ghost" size="sm" onClick={handlePreviousInvoice}
               disabled={isLoadingNavInvoice || navInvoiceIndex === null || navInvoiceIndex >= (allInvoiceIds?.length || 0) - 1}
-              className="h-8 text-white/70 hover:text-white hover:bg-white/10 border border-white/15 text-xs gap-1.5 w-8 p-0">
+              className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 w-8 p-0"
+              title="Previous">
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <Button variant="ghost" size="sm" onClick={handleNextInvoice}
               disabled={isLoadingNavInvoice || navInvoiceIndex === null || navInvoiceIndex <= 0}
-              className="h-8 text-white/70 hover:text-white hover:bg-white/10 border border-white/15 text-xs gap-1.5 w-8 p-0">
+              className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 w-8 p-0"
+              title="Next">
               <ChevronRight className="h-4 w-4" />
             </Button>
             {(editingInvoiceId || savedInvoiceData) && (
               <>
                 <div className="w-px h-6 bg-white/20 mx-1" />
                 <Button size="sm" onClick={handlePrintInvoice}
-                  className="h-8 text-white/70 hover:text-white hover:bg-white/10 border border-white/15 text-xs gap-1.5">
+                  className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white border-0 text-xs gap-1.5">
                   <Printer className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Print</span>
                 </Button>
