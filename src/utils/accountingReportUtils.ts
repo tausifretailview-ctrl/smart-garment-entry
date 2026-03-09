@@ -491,8 +491,7 @@ export async function calculateNetProfitSummary(
   const grossProfit = netRevenue - cogsFromSaleItems;
   const isGrossLoss = grossProfit < 0;
   const netGSTLiability = outputGST - inputGST;
-  const gstDeduction = netGSTLiability > 0 ? netGSTLiability : 0;
-  const netProfit = grossProfit - gstDeduction - totalExpenses;
+  const netProfit = grossProfit - totalExpenses; // GST is pass-through, not deducted
   const isNetLoss = netProfit < 0;
   const profitMarginPercent = netRevenue > 0 ? (netProfit / netRevenue) * 100 : 0;
   
