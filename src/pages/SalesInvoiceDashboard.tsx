@@ -622,6 +622,7 @@ export default function SalesInvoiceDashboard() {
     }
   };
 
+  const handleCancelInvoice = async () => {
     if (!invoiceToCancel) return;
     setIsCancelling(true);
     try {
