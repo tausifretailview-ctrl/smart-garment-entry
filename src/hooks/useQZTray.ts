@@ -74,20 +74,32 @@ export const useQZTray = () => {
 
   // Get list of available printers
   const getPrinters = useCallback(async (): Promise<string[]> => {
-    // Check live websocket status instead of React state to avoid stale closures
+    // Check live websocket status — don't rely on React state (avoids stale closures)
     const isActive = typeof window !== 'undefined' && window.qz?.websocket?.isActive?.() === true;
-    if (!isActive && !state.isConnected) return [];
+    
+    if (!isActive) {
+      // Try to connect first if not active
+      try {
+        const { ensureQZConnection } = await import('@/utils/directInvoicePrint');
+        const connected = await ensureQZConnection();
+        if (!connected) return [];
+        // Update React state to reflect connection
+        setState(prev => ({ ...prev, isConnected: true }));
+      } catch {
+        return [];
+      }
+    }
 
     try {
       const printers = await window.qz.printers.find();
-      setState(prev => ({ ...prev, printers }));
+      setState(prev => ({ ...prev, printers, error: null }));
       return printers;
     } catch (err: any) {
       console.error('Failed to get printers:', err);
       setState(prev => ({ ...prev, error: 'Failed to get printer list' }));
       return [];
     }
-  }, [state.isConnected]);
+  }, []);
 
   // Find thermal printers (common TSC printer names)
   const findThermalPrinters = useCallback(async (): Promise<string[]> => {
