@@ -889,13 +889,15 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           const amount = sr.net_amount || 0;
           runningBalance -= amount;
           
-          let description = `Credit Note - ${sr.return_number}`;
+          let description = `Sale Return - ${sr.return_number}`;
           if (sr.credit_status === 'adjusted' && sr.linkedSaleNumber) {
             description += ` (Adjusted against ${sr.linkedSaleNumber})`;
           } else if (sr.credit_status === 'refunded') {
-            description += ` (Refunded)`;
+            description += ` (Cash Refunded)`;
           } else if (sr.credit_status === 'adjusted_outstanding') {
             description += ` (Adjusted to Outstanding)`;
+          } else if (sr.credit_status === 'pending') {
+            description += ` (Pending — not yet applied)`;
           }
           
           allTransactions.push({
@@ -905,6 +907,48 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             type: 'return' as const,
             reference: sr.return_number,
             description,
+            debit: 0,
+            credit: amount,
+            balance: runningBalance,
+          });
+        } else if (item.type === 'refund') {
+          const refund = item.data as any;
+          const amount = refund.refund_amount || 0;
+          runningBalance += amount;
+
+          const methodText = refund.payment_method
+            ? refund.payment_method.charAt(0).toUpperCase() + refund.payment_method.slice(1)
+            : 'Cash';
+          let description = `Advance Refund - ${methodText}`;
+          if (refund.reason) description += ` (${refund.reason})`;
+
+          allTransactions.push({
+            id: `refund-${refund.id}`,
+            date: refund.refund_date,
+            timestamp: refund.created_at || null,
+            type: 'refund',
+            reference: 'REFUND',
+            description,
+            debit: amount,
+            credit: 0,
+            balance: runningBalance,
+          });
+        } else if (item.type === 'credit_note') {
+          const cn = item.data as any;
+          const amount = cn.credit_amount || 0;
+          runningBalance -= amount;
+
+          const usedText = cn.used_amount > 0
+            ? ` (Used: ₹${cn.used_amount.toLocaleString('en-IN')}, Remaining: ₹${(amount - cn.used_amount).toLocaleString('en-IN')})`
+            : '';
+
+          allTransactions.push({
+            id: `cn-${cn.id}`,
+            date: cn.issue_date ? cn.issue_date.substring(0, 10) : '',
+            timestamp: cn.created_at || null,
+            type: 'credit_note',
+            reference: cn.credit_note_number,
+            description: `Credit Note${cn.notes ? ` - ${cn.notes}` : ''}${usedText}`,
             debit: 0,
             credit: amount,
             balance: runningBalance,
