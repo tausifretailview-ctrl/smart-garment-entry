@@ -1171,7 +1171,7 @@ Please clear your dues at the earliest. Thank you!`;
       const row: any = {
         Date: dateStr,
         Time: timeStr,
-        Type: t.type === 'invoice' ? 'Invoice' : 'Payment',
+        Type: t.type === 'invoice' ? 'Invoice' : t.type === 'return' ? 'Sale Return' : t.type === 'advance' ? 'Advance' : t.type === 'adjustment' ? 'Adjustment' : 'Payment',
         Reference: t.reference,
         Description: t.description,
         Debit: t.debit > 0 ? t.debit.toFixed(2) : '',
