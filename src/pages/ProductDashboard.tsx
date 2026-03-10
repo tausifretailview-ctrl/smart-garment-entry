@@ -321,7 +321,7 @@ const ProductDashboard = () => {
 
   // Debounced search
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const searchTimerRef2 = useState<NodeJS.Timeout | null>(null);
+  const searchTimerRef2 = useState<ReturnType<typeof setTimeout> | null>(null);
   
   useEffect(() => {
     if (searchTimerRef2[0]) clearTimeout(searchTimerRef2[0]);

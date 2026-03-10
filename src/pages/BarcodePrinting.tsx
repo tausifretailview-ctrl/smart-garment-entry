@@ -1191,7 +1191,7 @@ export default function BarcodePrinting() {
   const [testPrintActive, setTestPrintActive] = useState(false);
   const [activeBarTab, setActiveBarTab] = useState<string>("standard");
   const [activePrecisionTemplateName, setActivePrecisionTemplateName] = useState<string | null>(null);
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Helper function to check if a template is the current default
   const getDefaultTemplateName = (): string | null => {
     try {

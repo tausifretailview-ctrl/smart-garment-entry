@@ -181,7 +181,7 @@ const CustomerMaster = () => {
   };
 
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const searchTimerRef = useState<NodeJS.Timeout | null>(null);
+  const searchTimerRef = useState<ReturnType<typeof setTimeout> | null>(null);
   
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);

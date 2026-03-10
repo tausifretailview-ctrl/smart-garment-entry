@@ -83,7 +83,7 @@ const PurchaseReturnEntry = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [showDraftDialog, setShowDraftDialog] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lineItemsRef = useRef<LineItem[]>([]);
   const initialDraftCheckDone = useRef(false);
   const [stockAlertOpen, setStockAlertOpen] = useState(false);

@@ -73,7 +73,7 @@ const SupplierMaster = () => {
 
   // Debounced search for server-side filtering
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const searchTimerRef = useState<NodeJS.Timeout | null>(null);
+  const searchTimerRef = useState<ReturnType<typeof setTimeout> | null>(null);
   
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
