@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ERPTable } from "@/components/erp-table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Printer, Edit, Trash2, Loader2, MessageCircle, Link2, Package, IndianRupee, Send, Download, Percent, Zap, FileDown, Lock, CheckCircle2, MoreHorizontal } from "lucide-react";
+import { Printer, Edit, Trash2, Loader2, MessageCircle, Link2, Package, IndianRupee, Send, Download, Percent, Zap, FileDown, Lock, CheckCircle2, MoreHorizontal, Ban } from "lucide-react";
 import { format } from "date-fns";
 
 interface SalesInvoiceERPTableProps {
