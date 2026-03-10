@@ -163,6 +163,7 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
     totalPaid: data?.totalPaid || 0,
     adjustmentTotal: data?.adjustmentTotal || 0,
     unusedAdvanceTotal: data?.unusedAdvanceTotal || 0,
+    saleReturnTotal: data?.saleReturnTotal || 0,
     isLoading,
   };
 }

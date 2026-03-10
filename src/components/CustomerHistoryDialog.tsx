@@ -646,12 +646,16 @@ export function CustomerHistoryDialog({
                     </p>
                   </CardContent>
                 </Card>
-                <Card className={`border-l-4 ${balance > 0 ? 'border-l-red-500' : 'border-l-emerald-500'}`}>
+                <Card className={`border-l-4 ${balance > 0 ? 'border-l-red-500' : balance < 0 ? 'border-l-emerald-500' : 'border-l-slate-400'}`}>
                   <CardContent className="p-2">
-                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Current Bal</p>
-                    <p className={`text-xs sm:text-sm font-bold truncate tabular-nums mt-0.5 ${balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">
+                      {balance > 0 ? 'Outstanding (Dr)' : balance < 0 ? 'Advance Bal (Cr)' : 'Current Bal'}
+                    </p>
+                    <p className={`text-xs sm:text-sm font-bold truncate tabular-nums mt-0.5 ${balance > 0 ? 'text-red-600' : balance < 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
                       ₹{Math.abs(balance).toFixed(2)}
-                      {balance < 0 && ' CR'}
+                    </p>
+                    <p className={`text-[10px] font-semibold mt-0.5 ${balance > 0 ? 'text-red-500' : balance < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                      {balance > 0 ? 'Customer Owes' : balance < 0 ? 'In Advance / Overpaid' : 'Fully Settled ✓'}
                     </p>
                   </CardContent>
                 </Card>
