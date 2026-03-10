@@ -744,6 +744,20 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           type: 'cn_adjustment' as const,
           data: { ...sr, linkedSaleNumber: linkedSaleMap[sr.linked_sale_id] || null },
         })),
+        ...(filteredAdvanceRefunds || []).map((refund: any) => ({
+          date: refund.refund_date,
+          timestamp: refund.created_at,
+          type: 'refund' as const,
+          data: refund,
+        })),
+        ...(creditNotesData || [])
+          .filter((cn: any) => !cn.sale_id || !(saleReturnsData || []).some((sr: any) => sr.linked_sale_id === cn.sale_id))
+          .map((cn: any) => ({
+            date: cn.issue_date ? cn.issue_date.substring(0, 10) : '',
+            timestamp: cn.created_at,
+            type: 'credit_note' as const,
+            data: cn,
+          })),
       ].sort((a, b) => {
         // Sort by timestamp (created_at) for accurate chronological ordering
         const tsA = a.timestamp ? new Date(a.timestamp).getTime() : new Date(a.date).getTime();
