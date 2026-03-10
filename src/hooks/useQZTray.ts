@@ -196,6 +196,13 @@ export const useQZTray = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 
+  // Fetch printers whenever connection is established and list is empty
+  useEffect(() => {
+    if (state.isConnected && state.printers.length === 0) {
+      getPrinters();
+    }
+  }, [state.isConnected, state.printers.length, getPrinters]);
+
   return {
     ...state,
     isQZAvailable: isQZAvailable(),
