@@ -139,8 +139,8 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
         .is('deleted_at', null);
       const totalRefundsPaid = refundVouchers?.reduce((s, v) => s + (v.total_amount || 0), 0) || 0;
 
-      // Balance = Opening + Sales - Paid + Adjustments - Unused Advances - Refunds
-      const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - unusedAdvanceTotal - totalRefundsPaid);
+      // Balance = Opening + Sales - Paid + Adjustments - Unused Advances - Sale Returns - Refunds
+      const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - unusedAdvanceTotal - saleReturnTotal - totalRefundsPaid);
 
       return {
         balance,
@@ -149,6 +149,7 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
         totalPaid: Math.round(totalPaid),
         adjustmentTotal: Math.round(adjustmentTotal),
         unusedAdvanceTotal: Math.round(unusedAdvanceTotal),
+        saleReturnTotal: Math.round(saleReturnTotal),
       };
     },
     enabled: !!customerId && !!organizationId,
