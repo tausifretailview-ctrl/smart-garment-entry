@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { ReportSkeleton, TableSkeleton } from "@/components/ui/skeletons";
 import { LoadingButton } from "@/components/ui/loading-button";
 
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap, FileDown, Lock, X, Plus, RefreshCw, Copy, Ban, Eye, MoreHorizontal, FileSpreadsheet, User, Phone } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap, FileDown, Lock, X, Plus, RefreshCw, Copy, Ban, Eye, MoreHorizontal, FileSpreadsheet, User, Phone, AlertTriangle } from "lucide-react";
 import * as XLSX from "xlsx";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import html2canvas from "html2canvas";
@@ -110,6 +110,13 @@ export default function SalesInvoiceDashboard() {
   const [itemCountToDelete, setItemCountToDelete] = useState<number | null>(null);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  // Cancel invoice state
+  const [invoiceToCancel, setInvoiceToCancel] = useState<any>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
+  // Hard delete state
+  const [invoiceToHardDelete, setInvoiceToHardDelete] = useState<any>(null);
+  const [isHardDeleting, setIsHardDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [invoiceToPrint, setInvoiceToPrint] = useState<any>(null);
@@ -250,10 +257,21 @@ export default function SalesInvoiceDashboard() {
         icon: Copy,
         onClick: () => navigate('/sales-invoice', { state: { duplicateInvoiceId: invoice.id } }),
       },
+      { label: "", separator: true, onClick: () => {} },
       {
-        label: "Delete Invoice",
+        label: "Cancel Invoice",
+        icon: Ban,
+        onClick: () => {
+          setCancelReason('');
+          setInvoiceToCancel(invoice);
+        },
+        disabled: !canDelete || invoice.is_cancelled,
+        destructive: true,
+      },
+      {
+        label: "Permanently Delete",
         icon: Trash2,
-        onClick: () => handleInitiateDelete(invoice),
+        onClick: () => setInvoiceToHardDelete(invoice),
         disabled: !canDelete,
         destructive: true,
       },
@@ -383,7 +401,7 @@ export default function SalesInvoiceDashboard() {
 
       let query = supabase
         .from('sales')
-        .select('id, sale_number, sale_date, customer_id, customer_name, customer_phone, customer_email, customer_address, gross_amount, discount_amount, flat_discount_amount, flat_discount_percent, other_charges, round_off, net_amount, paid_amount, payment_method, payment_status, delivery_status, salesman, notes, total_qty, created_at, updated_at, irn, ack_no, einvoice_status, einvoice_error, einvoice_qr_code, sale_return_adjust, due_date, shipping_address, sale_type, customers:customer_id (gst_number)', { count: 'exact' })
+        .select('id, sale_number, sale_date, customer_id, customer_name, customer_phone, customer_email, customer_address, gross_amount, discount_amount, flat_discount_amount, flat_discount_percent, other_charges, round_off, net_amount, paid_amount, payment_method, payment_status, delivery_status, salesman, notes, total_qty, created_at, updated_at, irn, ack_no, einvoice_status, einvoice_error, einvoice_qr_code, sale_return_adjust, due_date, shipping_address, sale_type, is_cancelled, cancelled_at, cancelled_reason, customers:customer_id (gst_number)', { count: 'exact' })
         .eq('organization_id', currentOrganization.id)
         .eq('sale_type', 'invoice')
         .is('deleted_at', null)
@@ -497,7 +515,7 @@ export default function SalesInvoiceDashboard() {
 
   // Stock restoration is now handled automatically by database triggers
   // No need for manual stock restoration code
-  const { softDelete, bulkSoftDelete } = useSoftDelete();
+  const { softDelete, bulkSoftDelete, hardDelete } = useSoftDelete();
   
   const handleInitiateDelete = async (invoice: any) => {
     setItemCountToDelete(null);
@@ -567,6 +585,52 @@ export default function SalesInvoiceDashboard() {
     }
   };
 
+  const handleCancelInvoice = async () => {
+    if (!invoiceToCancel) return;
+    setIsCancelling(true);
+    try {
+      const { data, error } = await supabase.rpc('cancel_invoice', {
+        p_sale_id: invoiceToCancel.id,
+        p_reason: cancelReason.trim() || null,
+      });
+
+      if (error) throw error;
+      const result = data as any;
+      if (!result.success) throw new Error(result.error);
+
+      toast({ title: 'Invoice Cancelled', description: result.message });
+      setInvoiceToCancel(null);
+      setCancelReason('');
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleHardDeleteInvoice = async () => {
+    if (!invoiceToHardDelete) return;
+    setIsHardDeleting(true);
+    try {
+      const success = await hardDelete('sales', invoiceToHardDelete.id);
+      if (!success) throw new Error('Failed to permanently delete invoice');
+
+      toast({
+        title: 'Invoice Permanently Deleted',
+        description: `Invoice ${invoiceToHardDelete.sale_number} has been permanently deleted and stock restored.`,
+      });
+      setInvoiceToHardDelete(null);
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsHardDeleting(false);
+    }
+  };
+
   // Note: toggleSelectAll moved after filteredInvoices is defined
 
   const fetchSaleReturns = async (saleNumber: string, saleId: string) => {
@@ -627,12 +691,15 @@ export default function SalesInvoiceDashboard() {
   const totalPages = Math.ceil(totalCount / itemsPerPage);
 
   // Page totals computed from current page data (no sale_items, use total_qty)
-  const pageTotals = useMemo(() => ({
-    qty: paginatedInvoices.reduce((sum: number, inv: any) => sum + (inv.total_qty || 0), 0),
-    discount: paginatedInvoices.reduce((sum: number, inv: any) => sum + (inv.discount_amount || 0) + (inv.flat_discount_amount || 0), 0),
-    amount: paginatedInvoices.reduce((sum: number, inv: any) => sum + (inv.net_amount || 0), 0),
-    balance: paginatedInvoices.reduce((sum: number, inv: any) => sum + ((inv.net_amount || 0) - (inv.paid_amount || 0)), 0),
-  }), [paginatedInvoices]);
+  const pageTotals = useMemo(() => {
+    const activeInvoices = paginatedInvoices.filter((inv: any) => !inv.is_cancelled);
+    return {
+      qty: activeInvoices.reduce((sum: number, inv: any) => sum + (inv.total_qty || 0), 0),
+      discount: activeInvoices.reduce((sum: number, inv: any) => sum + (inv.discount_amount || 0) + (inv.flat_discount_amount || 0), 0),
+      amount: activeInvoices.reduce((sum: number, inv: any) => sum + (inv.net_amount || 0), 0),
+      balance: activeInvoices.reduce((sum: number, inv: any) => sum + ((inv.net_amount || 0) - (inv.paid_amount || 0)), 0),
+    };
+  }, [paginatedInvoices]);
 
   // Fallback summary stats if RPC hasn't loaded yet
   const effectiveStats = summaryStats || {
@@ -1840,6 +1907,8 @@ export default function SalesInvoiceDashboard() {
                 hasSpecialPermission={hasSpecialPermission}
                 navigate={navigate}
                 setInvoiceToDelete={handleInitiateDelete}
+                setInvoiceToCancel={(inv: any) => { setCancelReason(''); setInvoiceToCancel(inv); }}
+                setInvoiceToHardDelete={setInvoiceToHardDelete}
                 pageTotals={pageTotals}
                 showItemBrand={showItemBrand}
                 showItemColor={showItemColor}
@@ -1912,25 +1981,85 @@ export default function SalesInvoiceDashboard() {
         </Card>
       </div>
 
-      <AlertDialog open={!!invoiceToDelete} onOpenChange={() => { setInvoiceToDelete(null); setItemCountToDelete(null); }}>
+      {/* CANCEL INVOICE DIALOG */}
+      <Dialog open={!!invoiceToCancel} onOpenChange={(open) => { if (!open) { setInvoiceToCancel(null); setCancelReason(''); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-orange-600">
+              <Ban className="h-5 w-5" />
+              Cancel Invoice
+            </DialogTitle>
+            <DialogDescription>
+              Invoice {invoiceToCancel?.sale_number} will be marked as CANCELLED.
+              Stock will be automatically restored. The invoice number is preserved in the system — no gap in your series.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Label>Cancellation Reason (optional)</Label>
+            <Textarea
+              placeholder="e.g. Customer requested cancellation, Wrong items billed..."
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              className="resize-none"
+              rows={3}
+            />
+            <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>Stock for all items in this invoice will be automatically returned to inventory.</span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setInvoiceToCancel(null); setCancelReason(''); }}>
+              Keep Invoice
+            </Button>
+            <Button
+              variant="default"
+              className="bg-orange-600 hover:bg-orange-700"
+              onClick={handleCancelInvoice}
+              disabled={isCancelling}
+            >
+              {isCancelling
+                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Cancelling...</>
+                : <><Ban className="h-4 w-4 mr-2" /> Cancel Invoice</>
+              }
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* PERMANENTLY DELETE DIALOG */}
+      <AlertDialog open={!!invoiceToHardDelete} onOpenChange={(open) => { if (!open) setInvoiceToHardDelete(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Invoice</AlertDialogTitle>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Permanently Delete Invoice?
+            </AlertDialogTitle>
             <AlertDialogDescription asChild>
-              <div className="space-y-1">
-                <p>Are you sure you want to delete invoice <strong>{invoiceToDelete?.sale_number}</strong>?</p>
-                {itemCountToDelete !== null && (
-                  <p>This will reverse <strong>{itemCountToDelete} stock movement{itemCountToDelete !== 1 ? 's' : ''}</strong> across {itemCountToDelete} line item{itemCountToDelete !== 1 ? 's' : ''}.</p>
-                )}
-                <p className="text-destructive font-medium">This action cannot be undone.</p>
+              <div className="space-y-2">
+                <p>
+                  Invoice <strong>{invoiceToHardDelete?.sale_number}</strong> will be
+                  <strong> permanently deleted</strong> from the database.
+                </p>
+                <p>Stock will be restored for all items in this invoice.</p>
+                <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive font-medium">
+                  ⚠️ This is irreversible. Use only for test or trial data cleanup.
+                  For real business cancellations, use "Cancel Invoice" instead.
+                </div>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteInvoice} className="bg-destructive hover:bg-destructive/90" disabled={isDeleting}>
-              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Delete
+            <AlertDialogCancel disabled={isHardDeleting}>Keep Invoice</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleHardDeleteInvoice}
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={isHardDeleting}
+            >
+              {isHardDeleting
+                ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Deleting...</>
+                : <><Trash2 className="h-4 w-4 mr-2" /> Yes, Permanently Delete</>
+              }
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

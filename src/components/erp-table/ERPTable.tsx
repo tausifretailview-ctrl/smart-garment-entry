@@ -53,6 +53,8 @@ export interface ERPTableProps<T> {
   onToggleExpand?: (id: string) => void;
   /** Extract unique ID from row data */
   getRowId?: (row: T) => string;
+  /** Optional className for each row based on row data */
+  getRowClassName?: (row: T) => string;
   /** Render prop that receives toolbar element for custom placement */
   renderToolbar?: (toolbar: React.ReactNode) => React.ReactNode;
 }
@@ -75,6 +77,7 @@ export function ERPTable<T>({
   expandedRows,
   onToggleExpand,
   getRowId,
+  getRowClassName,
   renderToolbar,
 }: ERPTableProps<T>) {
   const defaultColIds = useMemo(() => columns.map((c) => (c as any).accessorKey ?? (c as any).id ?? ""), [columns]);
@@ -214,7 +217,8 @@ export function ERPTable<T>({
                             rowHeight,
                             "border-b border-muted/80 hover:bg-primary/5 transition-colors",
                             onRowClick && "cursor-pointer",
-                            hasSubRows && "cursor-pointer"
+                            hasSubRows && "cursor-pointer",
+                            getRowClassName?.(row.original)
                           )}
                           onClick={() => {
                             if (hasSubRows && onToggleExpand) {

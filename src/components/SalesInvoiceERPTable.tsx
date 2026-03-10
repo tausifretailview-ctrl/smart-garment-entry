@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ERPTable } from "@/components/erp-table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Printer, Edit, Trash2, Loader2, MessageCircle, Link2, Package, IndianRupee, Send, Download, Percent, Zap, FileDown, Lock, CheckCircle2, MoreHorizontal } from "lucide-react";
+import { Printer, Edit, Trash2, Loader2, MessageCircle, Link2, Package, IndianRupee, Send, Download, Percent, Zap, FileDown, Lock, CheckCircle2, MoreHorizontal, Ban } from "lucide-react";
 import { format } from "date-fns";
 
 interface SalesInvoiceERPTableProps {
@@ -44,6 +44,8 @@ interface SalesInvoiceERPTableProps {
   hasSpecialPermission: (permission: string) => boolean;
   navigate: (path: string, options?: any) => void;
   setInvoiceToDelete: (invoice: any) => void;
+  setInvoiceToCancel?: (invoice: any) => void;
+  setInvoiceToHardDelete?: (invoice: any) => void;
   pageTotals: { qty: number; discount: number; amount: number; balance: number };
   showItemBrand: boolean;
   showItemColor: boolean;
@@ -93,6 +95,8 @@ export function SalesInvoiceERPTable({
   hasSpecialPermission,
   navigate,
   setInvoiceToDelete,
+  setInvoiceToCancel,
+  setInvoiceToHardDelete,
   pageTotals,
   showItemBrand,
   showItemColor,
@@ -236,6 +240,15 @@ export function SalesInvoiceERPTable({
           cell: ({ row }) => {
             const invoice = row.original;
             const cnAdjusted = cnAdjustedMap[invoice.id];
+            if (invoice.is_cancelled) {
+              return (
+                <div className="text-center">
+                  <Badge className="min-w-[80px] justify-center whitespace-nowrap bg-red-700 hover:bg-red-800 text-white">
+                    CANCELLED
+                  </Badge>
+                </div>
+              );
+            }
             const effectiveStatus = invoice.payment_status === 'hold' ? 'hold'
               : (invoice.paid_amount || 0) >= invoice.net_amount ? 'completed'
               : (invoice.paid_amount || 0) > 0 ? 'partial' : 'pending';
@@ -372,9 +385,28 @@ export function SalesInvoiceERPTable({
                     <Lock className="h-4 w-4 text-muted-foreground" />
                   </Button>
                 ) : (
-                  <Button variant="ghost" size="icon" onClick={() => setInvoiceToDelete(invoice)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" title="Cancel / Delete">
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-popover z-[60]">
+                      <DropdownMenuItem
+                        onClick={() => setInvoiceToCancel?.(invoice)}
+                        disabled={invoice.is_cancelled}
+                        className="text-orange-600"
+                      >
+                        <Ban className="h-4 w-4 mr-2" /> Cancel Invoice
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setInvoiceToHardDelete?.(invoice)}
+                        className="text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" /> Permanently Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )
               )}
             </div>
@@ -454,9 +486,14 @@ export function SalesInvoiceERPTable({
                         <Lock className="h-4 w-4 mr-2 text-muted-foreground" /> Delete (Locked)
                       </DropdownMenuItem>
                     ) : (
-                      <DropdownMenuItem onClick={() => setInvoiceToDelete(invoice)} className="text-destructive">
-                        <Trash2 className="h-4 w-4 mr-2" /> Delete Invoice
-                      </DropdownMenuItem>
+                      <>
+                        <DropdownMenuItem onClick={() => setInvoiceToCancel?.(invoice)} disabled={invoice.is_cancelled} className="text-orange-600">
+                          <Ban className="h-4 w-4 mr-2" /> Cancel Invoice
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setInvoiceToHardDelete?.(invoice)} className="text-destructive">
+                          <Trash2 className="h-4 w-4 mr-2" /> Permanently Delete
+                        </DropdownMenuItem>
+                      </>
                     )
                   )}
                 </DropdownMenuContent>
@@ -601,6 +638,10 @@ export function SalesInvoiceERPTable({
     </tr>
   ) : undefined;
 
+  const getRowClassName = useCallback((invoice: any) => {
+    return invoice.is_cancelled ? "opacity-55 bg-red-50/30 dark:bg-red-900/10" : "";
+  }, []);
+
   return (
     <ERPTable
       tableId="sales_invoice"
@@ -609,6 +650,7 @@ export function SalesInvoiceERPTable({
       stickyFirstColumn={false}
       isLoading={isLoading}
       emptyMessage="No invoices found"
+      getRowClassName={getRowClassName}
       renderSubRow={renderSubRow}
       expandedRows={expandedRows}
       onToggleExpand={(id) => {
