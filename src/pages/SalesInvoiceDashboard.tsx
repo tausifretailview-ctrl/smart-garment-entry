@@ -1643,14 +1643,25 @@ export default function SalesInvoiceDashboard() {
               New Invoice
             </Button>
             {selectedInvoices.size > 0 && hasSpecialPermission('delete_records') && (
-              <Button
-                onClick={() => setShowBulkDeleteDialog(true)}
-                disabled={isDeleting}
-                variant="destructive"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete Selected ({selectedInvoices.size})
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => { setBulkCancelReason(''); setShowBulkCancelDialog(true); }}
+                  disabled={isBulkCancelling}
+                  variant="outline"
+                  className="border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+                >
+                  <Ban className="h-4 w-4 mr-2" />
+                  Cancel Selected ({selectedInvoices.size})
+                </Button>
+                <Button
+                  onClick={() => setShowBulkDeleteDialog(true)}
+                  disabled={isDeleting}
+                  variant="destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Selected ({selectedInvoices.size})
+                </Button>
+              </div>
             )}
           </div>
         </div>
