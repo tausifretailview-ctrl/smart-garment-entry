@@ -757,16 +757,14 @@ const ProductEntry = () => {
       }];
       setVariants(newVariants);
       setShowVariants(true);
+    setTimeout(() => {
+      variantsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       setTimeout(() => {
-        variantsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        // Focus the first barcode input after scroll
-        setTimeout(() => {
-          const firstBarcodeInput = variantsSectionRef.current?.querySelector('input[placeholder="Barcode"]') as HTMLInputElement;
-          firstBarcodeInput?.focus();
-        }, 400);
-      }, 100);
-      return;
-    }
+        autoGenerateBtnRef.current?.focus();
+      }, 400);
+    }, 100);
+    return;
+  }
 
     const selectedGroup = sizeGroups.find((g) => g.id === formData.size_group_id);
     if (!selectedGroup) {
