@@ -155,7 +155,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
         {(customerName || customerPhone) && (
           <>
             <div style={sep}>{DASH}</div>
-            <div style={{ fontSize: '11px', marginBottom: '3px', fontWeight: 800 }}>
+            <div style={{ fontSize: '12px', marginBottom: '4px', fontWeight: 700 }}>
               {customerName && <div><b>Customer:</b> {customerName.length > 28 ? customerName.substring(0, 26) + '..' : customerName}</div>}
               {customerPhone && <div><b>Mobile:</b> {customerPhone}</div>}
               {customerAddress && <div><b>Addr:</b> {customerAddress.length > 32 ? customerAddress.substring(0, 30) + '..' : customerAddress}</div>}
