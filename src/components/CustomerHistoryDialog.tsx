@@ -639,8 +639,11 @@ export function CustomerHistoryDialog({
                 </Card>
                 <Card className="border-l-4 border-l-pink-500">
                   <CardContent className="p-2">
-                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">CR Pending</p>
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Returns / CR</p>
                     <p className="text-xs sm:text-sm font-bold text-pink-600 truncate tabular-nums mt-0.5">₹{crPending.toFixed(2)}</p>
+                    <p className="text-[10px] text-pink-400 mt-0.5">
+                      {crPending > 0 ? 'Pending adjustment' : 'None pending'}
+                    </p>
                   </CardContent>
                 </Card>
                 <Card className={`border-l-4 ${balance > 0 ? 'border-l-red-500' : 'border-l-emerald-500'}`}>
