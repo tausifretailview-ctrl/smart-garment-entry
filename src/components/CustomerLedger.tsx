@@ -1253,10 +1253,12 @@ Please clear your dues at the earliest. Thank you!`;
       yPos += 5;
     }
 
-    // Outstanding Balance
+    // Outstanding Balance with Dr/Cr
     doc.setFont("helvetica", "bold");
-    const balanceText = `Outstanding Balance: Rs. ${Math.abs(selectedCustomer.balance).toLocaleString("en-IN")}`;
-    doc.text(balanceText, pageWidth - margin, yPos, { align: "right" });
+    const hdrBalance = selectedCustomer.balance < 0
+      ? `Advance Balance: Rs. ${Math.abs(selectedCustomer.balance).toLocaleString("en-IN")} Cr`
+      : `Outstanding Balance: Rs. ${selectedCustomer.balance.toLocaleString("en-IN")} Dr`;
+    doc.text(hdrBalance, pageWidth - margin, yPos, { align: "right" });
     yPos += 10;
 
     // Table Headers
