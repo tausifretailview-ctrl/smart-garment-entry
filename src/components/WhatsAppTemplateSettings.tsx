@@ -149,6 +149,7 @@ Respected Sir/Madam,
 
 🧾 Receipt No: {receipt_number}
 📅 Date: {receipt_date}
+👤 Student: {student_name}
 👦 Admission No: {admission_number}
 📚 Class: {class_name}
 

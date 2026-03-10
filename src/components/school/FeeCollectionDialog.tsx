@@ -280,7 +280,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           const feeLines = data.selectedItems.map((item: any) => `• ${item.head_name}: Rs.${item.paying.toLocaleString("en-IN")}`).join("\n");
           await sendMessageAsync({
             phone,
-            message: `✅ Fee Receipt\n\nRespected Sir/Madam,\n\n🏫 ${currentOrganization?.name || "School"}\n\n🧾 Receipt No: ${data.receiptNumber}\n📅 Date: ${format(new Date(data.paidDate), "dd/MM/yyyy")}\n👦 Admission No: ${student?.admission_number}\n📚 Class: ${student?.school_classes?.class_name || "-"}\n\n💰 Amount Paid: Rs.${data.totalPaying.toLocaleString("en-IN")}\n💳 Payment Mode: ${data.paymentMethod}\n\n${feeLines}\n\n🙏 Thank you for your payment.\n\n${currentOrganization?.name || "School"}`,
+            message: `✅ Fee Receipt\n\nRespected Sir/Madam,\n\n🏫 ${currentOrganization?.name || "School"}\n\n🧾 Receipt No: ${data.receiptNumber}\n📅 Date: ${format(new Date(data.paidDate), "dd/MM/yyyy")}\n👤 Student: ${student?.student_name || "-"}\n👦 Admission No: ${student?.admission_number}\n📚 Class: ${student?.school_classes?.class_name || "-"}\n\n💰 Amount Paid: Rs.${data.totalPaying.toLocaleString("en-IN")}\n💳 Payment Mode: ${data.paymentMethod}\n\n${feeLines}\n\n🙏 Thank you for your payment.\n\n${currentOrganization?.name || "School"}`,
             templateType: "fee_receipt",
             templateName,
             saleData: {
