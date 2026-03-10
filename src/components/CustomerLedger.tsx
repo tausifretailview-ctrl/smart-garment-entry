@@ -1486,8 +1486,8 @@ Please clear your dues at the earliest. Thank you!`;
                   ? "bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800"
                   : "bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
               )}>
-                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                  Outstanding Balance
+                <div className="text-sm text-muted-foreground mb-1">
+                  {selectedCustomer.balance > 0 ? "Outstanding (Dr)" : selectedCustomer.balance < 0 ? "Advance Balance (Cr)" : "Balance"}
                 </div>
                 <div className={cn(
                   "text-3xl font-bold tabular-nums",
@@ -1499,13 +1499,13 @@ Please clear your dues at the earliest. Thank you!`;
                 </div>
                 <div className="mt-2">
                   {selectedCustomer.balance > 0 && (
-                    <Badge className="bg-red-600 hover:bg-red-700 text-white border-0">Outstanding</Badge>
+                    <Badge variant="destructive">Customer Owes</Badge>
                   )}
                   {selectedCustomer.balance < 0 && (
-                    <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white border-0">Advance</Badge>
+                    <Badge className="bg-green-100 text-green-800">In Advance / Overpaid</Badge>
                   )}
                   {selectedCustomer.balance === 0 && (
-                    <Badge variant="outline" className="text-slate-500">Settled ✓</Badge>
+                    <Badge variant="outline">Fully Settled</Badge>
                   )}
                 </div>
               </div>
