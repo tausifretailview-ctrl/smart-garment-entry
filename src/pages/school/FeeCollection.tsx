@@ -17,6 +17,7 @@ import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { BalanceEditDialog } from "@/components/school/BalanceEditDialog";
 import { FeeReceiptReprintDialog } from "@/components/school/FeeReceiptReprintDialog";
+import { ModifyFeeReceiptDialog } from "@/components/school/ModifyFeeReceiptDialog";
 import { toast } from "sonner";
 import { format, startOfDay, endOfDay, startOfMonth, startOfQuarter, startOfYear, subDays } from "date-fns";
 
@@ -38,6 +39,8 @@ const FeeCollection = () => {
   const [balanceEditOpen, setBalanceEditOpen] = useState(false);
   const [reprintReceiptId, setReprintReceiptId] = useState<string | null>(null);
   const [reprintOpen, setReprintOpen] = useState(false);
+  const [modifyFee, setModifyFee] = useState<any>(null);
+  const [modifyOpen, setModifyOpen] = useState(false);
   const { settings: whatsAppSettings, sendMessageAsync } = useWhatsAppAPI();
   const { sendWhatsApp } = useWhatsAppSend();
   const [activeTab, setActiveTab] = useState("collect");
@@ -824,6 +827,7 @@ const FeeCollection = () => {
                       <TableHead>Fee Head</TableHead>
                       <TableHead>Payment</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="w-14 text-center">Modify</TableHead>
                       <TableHead className="w-14 text-center">Print</TableHead>
                       <TableHead className="w-14 text-center">Delete</TableHead>
                     </TableRow>
@@ -861,6 +865,17 @@ const FeeCollection = () => {
                           <Badge variant="secondary">{fee.payment_method || "Cash"}</Badge>
                         </TableCell>
                         <TableCell className="text-right font-medium">₹{(fee.paid_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
+                        <TableCell className="text-center">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            title="Modify Receipt"
+                            onClick={() => { setModifyFee(fee); setModifyOpen(true); }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                         <TableCell className="text-center">
                           {fee.payment_receipt_id && (
                             <Button
@@ -956,6 +971,12 @@ const FeeCollection = () => {
         open={reprintOpen}
         onOpenChange={setReprintOpen}
         receiptId={reprintReceiptId}
+      />
+
+      <ModifyFeeReceiptDialog
+        open={modifyOpen}
+        onOpenChange={setModifyOpen}
+        fee={modifyFee}
       />
     </div>
   );
