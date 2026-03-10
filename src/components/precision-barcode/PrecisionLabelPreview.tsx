@@ -88,12 +88,15 @@ export function PrecisionLabelPreview({
           transform: `translate(${u(xOffset)}, ${u(yOffset)})`,
           border: showBorder ? "0.5px dashed #ccc" : "none",
           boxSizing: "border-box",
+          fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+          color: "#000000",
+          WebkitFontSmoothing: "none",
         }}
       >
-        <div style={{ position: "absolute", top: u(1), left: u(1), right: u(1), fontSize: fs(Math.max(7, Math.min(10, width * 0.18))), fontWeight: 700, textAlign: "center", lineHeight: 1.1, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+        <div style={{ position: "absolute", top: u(1), left: u(1), right: u(1), fontSize: fs(Math.max(8, Math.min(12, width * 0.22))), fontWeight: 900, textAlign: "center", lineHeight: 1.2, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", letterSpacing: "0.2px" }}>
           {item.product_name}
         </div>
-        <div style={{ position: "absolute", top: u(height * 0.2), left: u(1), right: u(1), display: "flex", justifyContent: "space-between", fontSize: fs(Math.max(7, Math.min(9, width * 0.16))), fontWeight: 600 }}>
+        <div style={{ position: "absolute", top: u(height * 0.2), left: u(1), right: u(1), display: "flex", justifyContent: "space-between", fontSize: fs(Math.max(8, Math.min(11, width * 0.2))), fontWeight: 800 }}>
           <span>Size: {item.size}</span>
           <span>₹{item.sale_price}</span>
         </div>
@@ -102,7 +105,7 @@ export function PrecisionLabelPreview({
             <svg ref={barcodeRef} className="precision-barcode-svg" style={{ maxWidth: u(width - 2), imageRendering: "pixelated" }} />
           </div>
         )}
-        <div style={{ position: "absolute", bottom: u(0.5), left: u(1), right: u(1), fontSize: fs(Math.max(6, Math.min(8, width * 0.14))), textAlign: "center", letterSpacing: "0.5px" }}>
+        <div style={{ position: "absolute", bottom: u(0.5), left: u(1), right: u(1), fontSize: fs(Math.max(7, Math.min(9, width * 0.16))), textAlign: "center", letterSpacing: "0.5px", fontWeight: 700 }}>
           {item.barcode}
         </div>
       </div>
@@ -128,7 +131,9 @@ export function PrecisionLabelPreview({
         transform: `translate(${u(xOffset)}, ${u(yOffset)})`,
         border: showBorder ? "0.5px dashed #ccc" : "none",
         boxSizing: "border-box",
-        fontFamily: "Arial, Helvetica, sans-serif",
+        fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+        WebkitFontSmoothing: "none",
+        color: "#000000",
       }}
     >
       {/* Render text fields */}
@@ -137,6 +142,9 @@ export function PrecisionLabelPreview({
         if (!field) return null;
         const content = getFieldContent(key, item, config.customTextValue);
         if (!content) return null;
+
+        // Use field-level fontFamily if set, else default
+        const fieldFont = field.fontFamily || '"Helvetica Neue", Helvetica, Arial, sans-serif';
 
         return (
           <div
@@ -147,12 +155,16 @@ export function PrecisionLabelPreview({
               left: u(field.x ?? 0),
               width: field.width ? u(field.width) : "auto",
               fontSize: fs(field.fontSize),
-              fontWeight: field.bold ? 700 : 400,
+              fontWeight: field.bold ? 900 : 600,
+              fontFamily: fieldFont,
               textAlign: (field.textAlign as any) || "left",
-              lineHeight: 1.15,
+              lineHeight: field.lineHeight ?? 1.2,
               overflow: "hidden",
               whiteSpace: "nowrap",
               textOverflow: "ellipsis",
+              color: "#000000",
+              letterSpacing: "0.2px",
+              WebkitTextStroke: field.bold ? "0.3px #000" : "none",
             }}
           >
             {content}
