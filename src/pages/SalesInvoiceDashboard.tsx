@@ -504,7 +504,7 @@ export default function SalesInvoiceDashboard() {
 
   // Stock restoration is now handled automatically by database triggers
   // No need for manual stock restoration code
-  const { softDelete, bulkSoftDelete } = useSoftDelete();
+  const { softDelete, bulkSoftDelete, hardDelete } = useSoftDelete();
   
   const handleInitiateDelete = async (invoice: any) => {
     setItemCountToDelete(null);
