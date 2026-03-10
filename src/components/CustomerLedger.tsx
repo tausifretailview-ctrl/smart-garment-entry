@@ -1636,6 +1636,10 @@ Please clear your dues at the earliest. Thank you!`;
                                     <Badge className="bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30">
                                       <FileText className="h-3 w-3 mr-1" /> FEE
                                     </Badge>
+                                  ) : transaction.type === 'return' ? (
+                                    <Badge className="bg-amber-100 text-amber-800 border border-amber-300 text-xs">
+                                      Sale Return
+                                    </Badge>
                                   ) : (
                                     <>
                                       {transaction.type === 'invoice' ? (
