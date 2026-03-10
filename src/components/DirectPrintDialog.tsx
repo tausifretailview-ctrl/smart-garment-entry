@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -192,6 +192,13 @@ export const DirectPrintDialog = ({
       leftOffset: printerConfig.leftOffset,
     };
   };
+
+  // Auto-fetch printers when dialog opens and QZ is connected but printer list is empty
+  useEffect(() => {
+    if (open && isConnected && printers.length === 0) {
+      getPrinters();
+    }
+  }, [open, isConnected, printers.length, getPrinters]);
 
   const handleConnect = async () => {
     const connected = await connect();
