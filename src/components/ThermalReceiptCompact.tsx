@@ -193,7 +193,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
         <div style={sep}>{DASH}</div>
 
         {/* TOTALS */}
-        <div style={{ fontSize: '12px', fontWeight: 800 }}>
+        <div style={{ fontSize: '14px', fontWeight: 700 }}>
           <div style={row}><span>Subtotal ({totalQty} items)</span><span><b>₹{fmtAmt(subTotal)}</b></span></div>
           {discount > 0 && <div style={row}><span>Discount</span><span><b>-₹{fmtAmt(discount)}</b></span></div>}
           {saleReturnAdjust > 0 && <div style={row}><span>S/R Adjust</span><span><b>-₹{fmtAmt(saleReturnAdjust)}</b></span></div>}
