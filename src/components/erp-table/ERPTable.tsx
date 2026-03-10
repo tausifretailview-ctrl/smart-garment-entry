@@ -77,6 +77,7 @@ export function ERPTable<T>({
   expandedRows,
   onToggleExpand,
   getRowId,
+  getRowClassName,
   renderToolbar,
 }: ERPTableProps<T>) {
   const defaultColIds = useMemo(() => columns.map((c) => (c as any).accessorKey ?? (c as any).id ?? ""), [columns]);
