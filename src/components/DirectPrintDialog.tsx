@@ -527,8 +527,10 @@ export const DirectPrintDialog = ({
                   <SelectValue placeholder="Choose a printer..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {printers.length === 0 ? (
-                    <div className="p-2 text-sm text-muted-foreground">No printers found</div>
+              {printers.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground">
+                      {isFetchingPrinters ? 'Searching for printers...' : 'No printers found'}
+                    </div>
                   ) : (
                     printers.map(printer => (
                       <SelectItem key={printer} value={printer}>{printer}</SelectItem>

@@ -180,7 +180,15 @@ export const useQZTray = () => {
       if (!loaded || cancelled) return;
       const connected = await connect();
       if (connected && !cancelled) {
-        getPrinters();
+        // Small delay to let websocket fully stabilize before fetching printers
+        await new Promise(r => setTimeout(r, 300));
+        if (cancelled) return;
+        let printerList = await getPrinters();
+        // Retry once if empty (websocket may need more time)
+        if (printerList.length === 0 && !cancelled) {
+          await new Promise(r => setTimeout(r, 500));
+          if (!cancelled) await getPrinters();
+        }
       }
     };
     tryConnect();
