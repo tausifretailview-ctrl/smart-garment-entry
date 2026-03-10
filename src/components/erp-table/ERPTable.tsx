@@ -217,7 +217,8 @@ export function ERPTable<T>({
                             rowHeight,
                             "border-b border-muted/80 hover:bg-primary/5 transition-colors",
                             onRowClick && "cursor-pointer",
-                            hasSubRows && "cursor-pointer"
+                            hasSubRows && "cursor-pointer",
+                            getRowClassName?.(row.original)
                           )}
                           onClick={() => {
                             if (hasSubRows && onToggleExpand) {
