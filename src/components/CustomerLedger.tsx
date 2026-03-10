@@ -1289,14 +1289,16 @@ Please clear your dues at the earliest. Thank you!`;
       const dateTimeStr = t.id === 'opening-balance' 
         ? 'Opening' 
         : format(new Date(t.date), "dd/MM/yy") + (t.timestamp ? ' ' + format(new Date(t.timestamp), "hh:mm a") : '');
+      const bNum = Math.round(t.balance);
+      const bStr = bNum === 0 ? "Rs. 0" : `Rs. ${Math.abs(bNum).toLocaleString("en-IN")} ${bNum < 0 ? "Cr" : "Dr"}`;
       const rowData = [
         dateTimeStr,
-        t.type === 'invoice' ? 'Invoice' : 'Payment',
+        t.type === 'invoice' ? 'Invoice' : t.type === 'return' ? 'Sale Return' : t.type === 'advance' ? 'Advance' : t.type === 'adjustment' ? 'Adjustment' : 'Payment',
         t.reference,
         t.description.length > 28 ? t.description.substring(0, 28) + "..." : t.description,
         t.debit > 0 ? `Rs. ${Math.round(t.debit).toLocaleString("en-IN")}` : "",
         t.credit > 0 ? `Rs. ${Math.round(t.credit).toLocaleString("en-IN")}` : "",
-        `Rs. ${Math.abs(Math.round(t.balance)).toLocaleString("en-IN")}`,
+        bStr,
       ];
 
       rowData.forEach((cell, i) => {
