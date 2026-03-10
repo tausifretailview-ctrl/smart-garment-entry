@@ -143,7 +143,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
         <div style={sep}>{DASH}</div>
 
         {/* META */}
-        <div style={{ fontSize: '12px', marginBottom: '4px', fontWeight: 800 }}>
+        <div style={{ fontSize: '13px', marginBottom: '5px', fontWeight: 700 }}>
           <div style={row}><span>{docLabel}: <b>{billNo}</b></span><span>{format(date, 'dd/MM/yy')}</span></div>
           <div style={row}>
             <span>{format(date, 'hh:mm a')}</span>
