@@ -73,6 +73,7 @@ import { useDraftSave } from "@/hooks/useDraftSave";
 import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
+import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
 
 interface LineItem {
   id: string;
@@ -198,6 +199,8 @@ export default function SalesInvoice() {
   const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
   const [sizeGridEnabled, setSizeGridEnabled] = useState(true);
   const [showSizeGrid, setShowSizeGrid] = useState(false);
+  const [showPriceSelectionDialog, setShowPriceSelectionDialog] = useState(false);
+  const [pendingPriceSelection, setPendingPriceSelection] = useState<any>(null);
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
   
@@ -1160,12 +1163,25 @@ export default function SalesInvoice() {
       }
     }
     
-    // Auto-apply customer price if available (no dialog)
-    if (!overridePrice && customerPrice !== null) {
-      overridePrice = {
-        sale_price: customerPrice.sale_price,
-        mrp: masterMrp,
-      };
+    // If no override provided, check if prices differ and show selection dialog
+    if (!overridePrice) {
+      const hasLastPurchaseDiff = lastPurchaseSalePrice !== null && lastPurchaseSalePrice !== masterSalePrice;
+      const hasCustomerDiff = customerPrice !== null;
+
+      if (hasLastPurchaseDiff || hasCustomerDiff) {
+        setPendingPriceSelection({
+          product,
+          variant,
+          masterPrice: { sale_price: masterSalePrice, mrp: masterMrp },
+          lastPurchasePrice: hasLastPurchaseDiff ? {
+            sale_price: lastPurchaseSalePrice!,
+            mrp: lastPurchaseMrp ?? masterMrp,
+          } : undefined,
+          customerPrice: hasCustomerDiff ? customerPrice : undefined,
+        });
+        setShowPriceSelectionDialog(true);
+        return;
+      }
     }
     
     const salePrice = overridePrice?.sale_price ?? masterSalePrice;
@@ -3307,6 +3323,28 @@ Thank you for choosing us!`;
           productId={historyProduct.id}
           productName={historyProduct.name}
           organizationId={currentOrganization.id}
+        />
+      )}
+
+      {/* Price Selection Dialog */}
+      {pendingPriceSelection && (
+        <PriceSelectionDialog
+          open={showPriceSelectionDialog}
+          onOpenChange={(open) => {
+            setShowPriceSelectionDialog(open);
+            if (!open) setPendingPriceSelection(null);
+          }}
+          productName={pendingPriceSelection.product?.product_name || ''}
+          size={pendingPriceSelection.variant?.size || ''}
+          masterPrice={pendingPriceSelection.masterPrice}
+          lastPurchasePrice={pendingPriceSelection.lastPurchasePrice}
+          customerPrice={pendingPriceSelection.customerPrice}
+          onSelect={(source, prices) => {
+            const { product, variant } = pendingPriceSelection;
+            setShowPriceSelectionDialog(false);
+            setPendingPriceSelection(null);
+            addProductToInvoice(product, variant, prices);
+          }}
         />
       )}
     </div>
