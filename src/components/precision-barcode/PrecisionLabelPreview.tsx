@@ -128,7 +128,9 @@ export function PrecisionLabelPreview({
         transform: `translate(${u(xOffset)}, ${u(yOffset)})`,
         border: showBorder ? "0.5px dashed #ccc" : "none",
         boxSizing: "border-box",
-        fontFamily: "Arial, Helvetica, sans-serif",
+        fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+        WebkitFontSmoothing: "none",
+        color: "#000000",
       }}
     >
       {/* Render text fields */}
@@ -137,6 +139,9 @@ export function PrecisionLabelPreview({
         if (!field) return null;
         const content = getFieldContent(key, item, config.customTextValue);
         if (!content) return null;
+
+        // Use field-level fontFamily if set, else default
+        const fieldFont = field.fontFamily || '"Helvetica Neue", Helvetica, Arial, sans-serif';
 
         return (
           <div
@@ -147,12 +152,16 @@ export function PrecisionLabelPreview({
               left: u(field.x ?? 0),
               width: field.width ? u(field.width) : "auto",
               fontSize: fs(field.fontSize),
-              fontWeight: field.bold ? 700 : 400,
+              fontWeight: field.bold ? 900 : 600,
+              fontFamily: fieldFont,
               textAlign: (field.textAlign as any) || "left",
-              lineHeight: 1.15,
+              lineHeight: field.lineHeight ?? 1.2,
               overflow: "hidden",
               whiteSpace: "nowrap",
               textOverflow: "ellipsis",
+              color: "#000000",
+              letterSpacing: "0.2px",
+              WebkitTextStroke: field.bold ? "0.3px #000" : "none",
             }}
           >
             {content}
