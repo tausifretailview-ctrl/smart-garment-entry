@@ -491,22 +491,22 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         style={{
           display: "flex",
           justifyContent: "space-between",
-          padding: isA5 ? "8px 6px 4px" : "20px 10px 10px",
+          padding: isA5 ? "4px 6px 2px" : "20px 10px 10px",
           borderTop: "1px solid #374151",
         }}
       >
-        <div style={{ fontSize: isA5 ? "6.5pt" : "8pt" }}>
-          <p>
+        <div style={{ fontSize: isA5 ? "6pt" : "8pt" }}>
+          <p style={{ margin: 0 }}>
             <strong>Terms:</strong> 1. Goods once sold will not be taken back.
             <br />
             2. Subject to local jurisdiction.
           </p>
         </div>
         <div style={{ textAlign: "center", width: isA5 ? "150px" : "200px" }}>
-          <div style={{ fontSize: isA5 ? "6.5pt" : "8pt", marginBottom: isA5 ? "20px" : "30px" }}>
+          <div style={{ fontSize: isA5 ? "6pt" : "8pt", marginBottom: isA5 ? "12px" : "30px" }}>
             For <strong>{businessName}</strong>
           </div>
-          <div style={{ borderTop: "1px solid #000", fontSize: isA5 ? "6.5pt" : "8pt" }}>Authorised Signatory</div>
+          <div style={{ borderTop: "1px solid #000", fontSize: isA5 ? "6pt" : "8pt" }}>Authorised Signatory</div>
         </div>
       </div>
     </>
