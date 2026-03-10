@@ -39,6 +39,8 @@ const FeeCollection = () => {
   const [balanceEditOpen, setBalanceEditOpen] = useState(false);
   const [reprintReceiptId, setReprintReceiptId] = useState<string | null>(null);
   const [reprintOpen, setReprintOpen] = useState(false);
+  const [modifyFee, setModifyFee] = useState<any>(null);
+  const [modifyOpen, setModifyOpen] = useState(false);
   const { settings: whatsAppSettings, sendMessageAsync } = useWhatsAppAPI();
   const { sendWhatsApp } = useWhatsAppSend();
   const [activeTab, setActiveTab] = useState("collect");
