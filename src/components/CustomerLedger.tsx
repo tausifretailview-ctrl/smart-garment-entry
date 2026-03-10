@@ -1729,6 +1729,14 @@ Please clear your dues at the earliest. Thank you!`;
                                     <Badge className="bg-amber-100 text-amber-800 border border-amber-300 text-xs">
                                       Sale Return
                                     </Badge>
+                                  ) : transaction.type === 'refund' ? (
+                                    <Badge className="bg-red-100 text-red-700 border border-red-300 text-xs">
+                                      Adv. Refund
+                                    </Badge>
+                                  ) : transaction.type === 'credit_note' ? (
+                                    <Badge className="bg-purple-100 text-purple-700 border border-purple-300 text-xs">
+                                      Credit Note
+                                    </Badge>
                                   ) : (
                                     <>
                                       {transaction.type === 'invoice' ? (
