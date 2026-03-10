@@ -214,9 +214,9 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
 
   const totalPages = pages.length;
 
-  // When all items fit on a single page, reduce empty rows to prevent footer overflow
+  // When all items fit on a single page, minimize empty rows to prevent footer overflow to 2nd page
   const effectiveMinItemRows = totalPages === 1 
-    ? Math.min(minItemRows, Math.max(groupedItems.length, Math.min(minItemRows, format === 'a4' ? 10 : format === 'a5-horizontal' ? 5 : 7)))
+    ? Math.min(minItemRows, groupedItems.length + (format === 'a5-vertical' ? 1 : format === 'a5-horizontal' ? 2 : 3))
     : minItemRows;
 
   const isA5 = format === 'a5-vertical' || format === 'a5-horizontal';
