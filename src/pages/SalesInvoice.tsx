@@ -1163,12 +1163,25 @@ export default function SalesInvoice() {
       }
     }
     
-    // Auto-apply customer price if available (no dialog)
-    if (!overridePrice && customerPrice !== null) {
-      overridePrice = {
-        sale_price: customerPrice.sale_price,
-        mrp: masterMrp,
-      };
+    // If no override provided, check if prices differ and show selection dialog
+    if (!overridePrice) {
+      const hasLastPurchaseDiff = lastPurchaseSalePrice !== null && lastPurchaseSalePrice !== masterSalePrice;
+      const hasCustomerDiff = customerPrice !== null;
+
+      if (hasLastPurchaseDiff || hasCustomerDiff) {
+        setPendingPriceSelection({
+          product,
+          variant,
+          masterPrice: { sale_price: masterSalePrice, mrp: masterMrp },
+          lastPurchasePrice: hasLastPurchaseDiff ? {
+            sale_price: lastPurchaseSalePrice!,
+            mrp: lastPurchaseMrp ?? masterMrp,
+          } : undefined,
+          customerPrice: hasCustomerDiff ? customerPrice : undefined,
+        });
+        setShowPriceSelectionDialog(true);
+        return;
+      }
     }
     
     const salePrice = overridePrice?.sale_price ?? masterSalePrice;
