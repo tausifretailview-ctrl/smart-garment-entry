@@ -240,6 +240,15 @@ export function SalesInvoiceERPTable({
           cell: ({ row }) => {
             const invoice = row.original;
             const cnAdjusted = cnAdjustedMap[invoice.id];
+            if (invoice.is_cancelled) {
+              return (
+                <div className="text-center">
+                  <Badge className="min-w-[80px] justify-center whitespace-nowrap bg-red-700 hover:bg-red-800 text-white">
+                    CANCELLED
+                  </Badge>
+                </div>
+              );
+            }
             const effectiveStatus = invoice.payment_status === 'hold' ? 'hold'
               : (invoice.paid_amount || 0) >= invoice.net_amount ? 'completed'
               : (invoice.paid_amount || 0) > 0 ? 'partial' : 'pending';
