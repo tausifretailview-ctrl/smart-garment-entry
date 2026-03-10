@@ -17,6 +17,7 @@ import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { BalanceEditDialog } from "@/components/school/BalanceEditDialog";
 import { FeeReceiptReprintDialog } from "@/components/school/FeeReceiptReprintDialog";
+import { ModifyFeeReceiptDialog } from "@/components/school/ModifyFeeReceiptDialog";
 import { toast } from "sonner";
 import { format, startOfDay, endOfDay, startOfMonth, startOfQuarter, startOfYear, subDays } from "date-fns";
 
