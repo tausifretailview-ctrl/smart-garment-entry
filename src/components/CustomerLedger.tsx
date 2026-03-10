@@ -1709,13 +1709,15 @@ Please clear your dues at the earliest. Thank you!`;
                                 </span>
                               )}
                             </TableCell>
-                            <TableCell className={cn(
-                              "text-right font-bold",
-                              transaction.balance > 0 ? "text-red-600 dark:text-red-400" : 
-                              transaction.balance < 0 ? "text-emerald-700 dark:text-emerald-300" : 
-                              "text-foreground"
-                            )}>
-                              ₹{Math.abs(transaction.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            <TableCell className="text-right">
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className={`font-semibold text-sm ${transaction.balance > 0 ? "text-red-600" : transaction.balance < 0 ? "text-green-700" : "text-slate-500"}`}>
+                                  ₹{Math.abs(Math.round(transaction.balance)).toLocaleString("en-IN")}
+                                </span>
+                                {transaction.balance > 0 && <Badge variant="destructive" className="text-[9px] h-4 px-1">Dr</Badge>}
+                                {transaction.balance < 0 && <Badge className="text-[9px] h-4 px-1 bg-green-100 text-green-800 border border-green-300">Cr</Badge>}
+                                {transaction.balance === 0 && <Badge variant="outline" className="text-[9px] h-4 px-1">Settled</Badge>}
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))
