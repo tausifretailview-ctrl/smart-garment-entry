@@ -609,14 +609,13 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
       if (adjustmentsError) throw adjustmentsError;
 
-      // Fetch sale returns with CN adjustments for this customer
+      // Fetch ALL sale returns for this customer (all statuses)
       let saleReturnsQuery = supabase
         .from("sale_returns")
-        .select("id, return_number, return_date, net_amount, credit_status, linked_sale_id, refund_type")
+        .select("id, return_number, return_date, net_amount, credit_status, linked_sale_id, refund_type, created_at")
         .eq("customer_id", selectedCustomer.id)
         .eq("organization_id", organizationId)
-        .is("deleted_at", null)
-        .in("credit_status", ["adjusted", "refunded", "adjusted_outstanding"]);
+        .is("deleted_at", null);
 
       if (startDate) {
         saleReturnsQuery = saleReturnsQuery.gte("return_date", format(startDate, 'yyyy-MM-dd'));
@@ -638,6 +637,36 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           .in("id", linkedSaleIds);
         linkedSales?.forEach((s: any) => { linkedSaleMap[s.id] = s.sale_number; });
       }
+
+      // Fetch advance refunds for this customer
+      const customerAdvanceIds = (advancesData || []).map((a: any) => a.id);
+      let filteredAdvanceRefunds: any[] = [];
+      if (customerAdvanceIds.length > 0) {
+        const { data: advanceRefundsData } = await supabase
+          .from("advance_refunds")
+          .select("id, advance_id, refund_amount, refund_date, payment_method, reason, created_at")
+          .eq("organization_id", organizationId)
+          .in("advance_id", customerAdvanceIds)
+          .order("refund_date", { ascending: true });
+        filteredAdvanceRefunds = advanceRefundsData || [];
+      }
+
+      // Fetch credit notes for this customer
+      let creditNotesQuery = supabase
+        .from("credit_notes")
+        .select("id, credit_note_number, issue_date, credit_amount, used_amount, status, notes, sale_id, created_at")
+        .eq("customer_id", selectedCustomer.id)
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null);
+
+      if (startDate) {
+        creditNotesQuery = creditNotesQuery.gte("issue_date", format(startDate, 'yyyy-MM-dd'));
+      }
+      if (endDate) {
+        creditNotesQuery = creditNotesQuery.lte("issue_date", format(endDate, 'yyyy-MM-dd') + 'T23:59:59');
+      }
+
+      const { data: creditNotesData } = await creditNotesQuery.order("issue_date", { ascending: true });
 
       console.log('Sales for customer:', salesData?.length || 0);
       console.log('All customer sale IDs:', allSaleIds.length);
