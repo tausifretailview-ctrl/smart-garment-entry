@@ -8,6 +8,7 @@ interface CustomerBalanceResult {
   totalPaid: number;
   adjustmentTotal: number;
   unusedAdvanceTotal: number;
+  saleReturnTotal: number;
   isLoading: boolean;
 }
 
@@ -115,6 +116,18 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
         return sum + Math.max(0, (adv.amount || 0) - (adv.used_amount || 0));
       }, 0) || 0;
 
+      // Fetch sale returns (credit notes) for this customer
+      const { data: saleReturns, error: srError } = await supabase
+        .from('sale_returns')
+        .select('net_amount')
+        .eq('customer_id', customerId)
+        .eq('organization_id', organizationId)
+        .is('deleted_at', null);
+
+      if (srError) throw srError;
+
+      const saleReturnTotal = saleReturns?.reduce((sum, sr) => sum + (sr.net_amount || 0), 0) || 0;
+
       // Fetch refund payments made to customer (from CN refund)
       const { data: refundVouchers } = await supabase
         .from('voucher_entries')
@@ -126,8 +139,8 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
         .is('deleted_at', null);
       const totalRefundsPaid = refundVouchers?.reduce((s, v) => s + (v.total_amount || 0), 0) || 0;
 
-      // Balance = Opening + Sales - Paid + Adjustments - Unused Advances - Refunds
-      const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - unusedAdvanceTotal - totalRefundsPaid);
+      // Balance = Opening + Sales - Paid + Adjustments - Unused Advances - Sale Returns - Refunds
+      const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - unusedAdvanceTotal - saleReturnTotal - totalRefundsPaid);
 
       return {
         balance,
@@ -136,6 +149,7 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
         totalPaid: Math.round(totalPaid),
         adjustmentTotal: Math.round(adjustmentTotal),
         unusedAdvanceTotal: Math.round(unusedAdvanceTotal),
+        saleReturnTotal: Math.round(saleReturnTotal),
       };
     },
     enabled: !!customerId && !!organizationId,
@@ -149,6 +163,7 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
     totalPaid: data?.totalPaid || 0,
     adjustmentTotal: data?.adjustmentTotal || 0,
     unusedAdvanceTotal: data?.unusedAdvanceTotal || 0,
+    saleReturnTotal: data?.saleReturnTotal || 0,
     isLoading,
   };
 }

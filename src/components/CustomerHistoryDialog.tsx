@@ -595,12 +595,22 @@ export function CustomerHistoryDialog({
             }
 
             // Business mode: original 6-card layout
-            const crPending = (creditNotes || []).reduce((sum, cn) => {
+            const creditNotesPending = (creditNotes || []).reduce((sum, cn) => {
               if (cn.status === 'active' || cn.status === 'partially_used') {
                 return sum + Math.max(0, (cn.credit_amount || 0) - (cn.used_amount || 0));
               }
               return sum;
             }, 0);
+
+            // Sale returns also create credit for the customer
+            const saleReturnsPending = (saleReturns || []).reduce((sum: number, sr: any) => {
+              const alreadyInCN = (creditNotes || []).some((cn: any) =>
+                cn.notes?.includes(sr.return_number) || cn.sale_id === sr.linked_sale_id
+              );
+              return alreadyInCN ? sum : sum + (sr.net_amount || 0);
+            }, 0);
+
+            const crPending = creditNotesPending + saleReturnsPending;
             return (
               <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6 sm:gap-2 py-2">
                 <Card className="border-l-4 border-l-blue-500">
@@ -629,16 +639,23 @@ export function CustomerHistoryDialog({
                 </Card>
                 <Card className="border-l-4 border-l-pink-500">
                   <CardContent className="p-2">
-                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">CR Pending</p>
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Returns / CR</p>
                     <p className="text-xs sm:text-sm font-bold text-pink-600 truncate tabular-nums mt-0.5">₹{crPending.toFixed(2)}</p>
+                    <p className="text-[10px] text-pink-400 mt-0.5">
+                      {crPending > 0 ? 'Pending adjustment' : 'None pending'}
+                    </p>
                   </CardContent>
                 </Card>
-                <Card className={`border-l-4 ${balance > 0 ? 'border-l-red-500' : 'border-l-emerald-500'}`}>
+                <Card className={`border-l-4 ${balance > 0 ? 'border-l-red-500' : balance < 0 ? 'border-l-emerald-500' : 'border-l-slate-400'}`}>
                   <CardContent className="p-2">
-                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Current Bal</p>
-                    <p className={`text-xs sm:text-sm font-bold truncate tabular-nums mt-0.5 ${balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">
+                      {balance > 0 ? 'Outstanding (Dr)' : balance < 0 ? 'Advance Bal (Cr)' : 'Current Bal'}
+                    </p>
+                    <p className={`text-xs sm:text-sm font-bold truncate tabular-nums mt-0.5 ${balance > 0 ? 'text-red-600' : balance < 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
                       ₹{Math.abs(balance).toFixed(2)}
-                      {balance < 0 && ' CR'}
+                    </p>
+                    <p className={`text-[10px] font-semibold mt-0.5 ${balance > 0 ? 'text-red-500' : balance < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                      {balance > 0 ? 'Customer Owes' : balance < 0 ? 'In Advance / Overpaid' : 'Fully Settled ✓'}
                     </p>
                   </CardContent>
                 </Card>
