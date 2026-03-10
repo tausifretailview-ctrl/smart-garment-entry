@@ -573,16 +573,15 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         <div style={separatorStyle}>{SEPARATOR_LINE}</div>
         <div style={{ 
           ...centerStyle, 
-          fontSize: '14px',
+          fontSize: '16px',
           fontWeight: 900,
           margin: '6px 0 4px',
           letterSpacing: '1.5px',
           textTransform: 'uppercase',
-          WebkitTextStroke: '0.5px #000',
         }}>
           THANK YOU!
         </div>
-        <div style={{ ...centerStyle, fontSize: '12px', marginBottom: '2px', fontWeight: 800 }}>
+        <div style={{ ...centerStyle, fontSize: '13px', marginBottom: '3px', fontWeight: 700 }}>
           Visit Again
         </div>
 
