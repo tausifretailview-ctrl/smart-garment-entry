@@ -186,24 +186,22 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
     const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
 
     // Base thermal print styles - optimized for 80mm (72mm printable area)
-    // INCREASED FONT SIZES & WEIGHT for better thermal print visibility
+    // Clean sans-serif font with high weight for crisp thermal output
     const baseStyle: React.CSSProperties = {
       width: '70mm',
       maxWidth: '70mm',
       padding: '2mm',
       backgroundColor: 'white',
-      fontFamily: '"Courier New", Courier, monospace',
-      fontSize: '13px',
-      lineHeight: '1.45',
+      fontFamily: 'Arial, Helvetica, sans-serif',
+      fontSize: '14px',
+      lineHeight: '1.5',
       color: '#000000',
-      fontWeight: 900,
-      WebkitFontSmoothing: 'none',
+      fontWeight: 700,
       boxSizing: 'border-box',
       WebkitPrintColorAdjust: 'exact',
       printColorAdjust: 'exact',
-      letterSpacing: '0.2px',
+      letterSpacing: '0.3px',
       overflow: 'hidden',
-      WebkitTextStroke: '0.5px #000',
     };
 
     const centerStyle: React.CSSProperties = {
@@ -223,9 +221,9 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
 
     const separatorStyle: React.CSSProperties = {
       textAlign: 'center',
-      fontSize: '11px',
+      fontSize: '12px',
       letterSpacing: '-0.5px',
-      margin: '3px 0',
+      margin: '4px 0',
       color: '#000000',
       overflow: 'hidden',
       whiteSpace: 'nowrap',
