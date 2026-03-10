@@ -186,28 +186,22 @@ export function ModifyFeeReceiptDialog({ open, onOpenChange, fee }: ModifyFeeRec
             <div ref={receiptRef}>
               <SchoolFeeReceipt
                 receiptNumber={fee.payment_receipt_id}
-                receiptDate={paidDate}
-                organizationName={currentOrganization?.name || ""}
-                organizationAddress={currentOrganization?.address || ""}
-                organizationPhone={currentOrganization?.phone || ""}
-                organizationEmail={currentOrganization?.email || ""}
-                organizationLogo={currentOrganization?.logo_url || ""}
+                paidDate={paidDate}
+                paymentMethod={paymentMethod}
+                transactionId={transactionId}
                 academicYear={fee.academic_years?.year_name || ""}
                 student={{
                   student_name: studentName,
                   admission_number: admissionNumber,
                   parent_name: fee.students?.parent_name,
                   class_name: className,
-                  section_name: fee.students?.school_sections?.section_name,
                 }}
-                feeItems={[{
+                items={[{
                   head_name: feeHeadName,
-                  amount: fee.amount || paidAmount,
-                  paid: paidAmount,
+                  paying: paidAmount,
                 }]}
-                totalAmount={paidAmount}
-                paymentMethod={paymentMethod}
-                transactionId={transactionId}
+                totalPaying={paidAmount}
+                remainingBalance={0}
               />
             </div>
             <div className="flex justify-end gap-2">
