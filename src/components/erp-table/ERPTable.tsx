@@ -53,6 +53,8 @@ export interface ERPTableProps<T> {
   onToggleExpand?: (id: string) => void;
   /** Extract unique ID from row data */
   getRowId?: (row: T) => string;
+  /** Optional className for each row based on row data */
+  getRowClassName?: (row: T) => string;
   /** Render prop that receives toolbar element for custom placement */
   renderToolbar?: (toolbar: React.ReactNode) => React.ReactNode;
 }
