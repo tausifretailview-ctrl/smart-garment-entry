@@ -8,6 +8,7 @@ interface CustomerBalanceResult {
   totalPaid: number;
   adjustmentTotal: number;
   unusedAdvanceTotal: number;
+  saleReturnTotal: number;
   isLoading: boolean;
 }
 
