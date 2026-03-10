@@ -300,7 +300,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         {(customerName || customerPhone) && (
           <>
             <div style={separatorStyle}>{DASHED_LINE}</div>
-            <div style={{ fontSize: '12px', marginBottom: '4px', fontWeight: 800 }}>
+            <div style={{ fontSize: '13px', marginBottom: '5px', fontWeight: 700 }}>
               {customerName && (
                 <div><span style={boldText}>Customer:</span> {truncateText(customerName, 26)}</div>
               )}
@@ -308,7 +308,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
                 <div><span style={boldText}>Mobile:</span> {customerPhone}</div>
               )}
               {customerAddress && (
-                <div style={{ lineHeight: '1.3' }}><span style={boldText}>Addr:</span> {truncateText(customerAddress, 30)}</div>
+                <div style={{ lineHeight: '1.35' }}><span style={boldText}>Addr:</span> {truncateText(customerAddress, 30)}</div>
               )}
             </div>
           </>
