@@ -382,16 +382,16 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
           {/* Right Column: Summary Rows + Authorized Signatory */}
           <div style={{ display: "flex", flexDirection: "column", fontSize: fsTotals }}>
-            {totalDiscount > 0 && (
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "28px", borderBottom: B, padding: "0 8px" }}>
-                <span>Discount</span>
-                <span>- ₹{fmt(totalDiscount)}</span>
-              </div>
-            )}
             {saleReturnAdjust > 0 && (
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "28px", borderBottom: B, padding: "0 8px", color: "#b45309" }}>
                 <span>S/R Adjust</span>
                 <span>- ₹{fmt(saleReturnAdjust)}</span>
+              </div>
+            )}
+            {totalDiscount > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "28px", borderBottom: B, padding: "0 8px" }}>
+                <span>Discount</span>
+                <span>- ₹{fmt(totalDiscount)}</span>
               </div>
             )}
             {/* Bill Total - highlighted box */}
