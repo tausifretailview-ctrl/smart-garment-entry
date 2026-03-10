@@ -597,14 +597,26 @@ export default function SalesInvoiceDashboard() {
       let successCount = 0;
       let failCount = 0;
       for (const id of invoiceIds) {
-        const { data, error } = await supabase.rpc('cancel_invoice', {
-          p_sale_id: id,
-          p_reason: bulkCancelReason.trim() || null,
-        });
-        if (error || !(data as any)?.success) {
+        try {
+          const { data, error } = await supabase.rpc('cancel_invoice', {
+            p_sale_id: id,
+            p_reason: bulkCancelReason.trim() || null,
+          });
+          console.log('Cancel invoice result:', id, { data, error });
+          if (error) {
+            console.error('Cancel invoice error:', id, error);
+            failCount++;
+          } else if (data && typeof data === 'object' && (data as any).success) {
+            successCount++;
+          } else if (typeof data === 'boolean' && data === true) {
+            successCount++;
+          } else {
+            console.error('Cancel invoice unexpected result:', id, data);
+            failCount++;
+          }
+        } catch (e) {
+          console.error('Cancel invoice exception:', id, e);
           failCount++;
-        } else {
-          successCount++;
         }
       }
       toast({
