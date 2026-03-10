@@ -55,6 +55,7 @@ interface SizeGridDialogProps {
   defaultSalePrice?: number;
   defaultMrp?: number;
   showMrp?: boolean;
+  showSizePrices?: boolean;
   onColorAdded?: (color: string) => void;
 }
 
