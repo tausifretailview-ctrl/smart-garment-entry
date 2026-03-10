@@ -972,6 +972,12 @@ const FeeCollection = () => {
         onOpenChange={setReprintOpen}
         receiptId={reprintReceiptId}
       />
+
+      <ModifyFeeReceiptDialog
+        open={modifyOpen}
+        onOpenChange={setModifyOpen}
+        fee={modifyFee}
+      />
     </div>
   );
 };
