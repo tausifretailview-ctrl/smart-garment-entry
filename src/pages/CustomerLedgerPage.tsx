@@ -17,7 +17,7 @@ export default function CustomerLedgerPage() {
 
   return (
     <div className="space-y-4 p-4">
-      <CustomerLedger preSelectedCustomerId={preSelectedCustomerId} />
+      <CustomerLedger organizationId={currentOrganization.id} preSelectedCustomerId={preSelectedCustomerId} />
     </div>
   );
 }
