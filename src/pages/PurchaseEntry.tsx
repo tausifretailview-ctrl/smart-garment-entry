@@ -126,6 +126,7 @@ const PurchaseEntry = () => {
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
   const [billDate, setBillDate] = useState<Date>(new Date());
+  const [billDateOpen, setBillDateOpen] = useState(false);
   const [grossAmount, setGrossAmount] = useState(0);
   const [gstAmount, setGstAmount] = useState(0);
   const [netAmount, setNetAmount] = useState(0);
