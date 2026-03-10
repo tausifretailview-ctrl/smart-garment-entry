@@ -1981,25 +1981,85 @@ export default function SalesInvoiceDashboard() {
         </Card>
       </div>
 
-      <AlertDialog open={!!invoiceToDelete} onOpenChange={() => { setInvoiceToDelete(null); setItemCountToDelete(null); }}>
+      {/* CANCEL INVOICE DIALOG */}
+      <Dialog open={!!invoiceToCancel} onOpenChange={(open) => { if (!open) { setInvoiceToCancel(null); setCancelReason(''); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-orange-600">
+              <Ban className="h-5 w-5" />
+              Cancel Invoice
+            </DialogTitle>
+            <DialogDescription>
+              Invoice {invoiceToCancel?.sale_number} will be marked as CANCELLED.
+              Stock will be automatically restored. The invoice number is preserved in the system — no gap in your series.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Label>Cancellation Reason (optional)</Label>
+            <Textarea
+              placeholder="e.g. Customer requested cancellation, Wrong items billed..."
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              className="resize-none"
+              rows={3}
+            />
+            <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>Stock for all items in this invoice will be automatically returned to inventory.</span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setInvoiceToCancel(null); setCancelReason(''); }}>
+              Keep Invoice
+            </Button>
+            <Button
+              variant="default"
+              className="bg-orange-600 hover:bg-orange-700"
+              onClick={handleCancelInvoice}
+              disabled={isCancelling}
+            >
+              {isCancelling
+                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Cancelling...</>
+                : <><Ban className="h-4 w-4 mr-2" /> Cancel Invoice</>
+              }
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* PERMANENTLY DELETE DIALOG */}
+      <AlertDialog open={!!invoiceToHardDelete} onOpenChange={(open) => { if (!open) setInvoiceToHardDelete(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Invoice</AlertDialogTitle>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Permanently Delete Invoice?
+            </AlertDialogTitle>
             <AlertDialogDescription asChild>
-              <div className="space-y-1">
-                <p>Are you sure you want to delete invoice <strong>{invoiceToDelete?.sale_number}</strong>?</p>
-                {itemCountToDelete !== null && (
-                  <p>This will reverse <strong>{itemCountToDelete} stock movement{itemCountToDelete !== 1 ? 's' : ''}</strong> across {itemCountToDelete} line item{itemCountToDelete !== 1 ? 's' : ''}.</p>
-                )}
-                <p className="text-destructive font-medium">This action cannot be undone.</p>
+              <div className="space-y-2">
+                <p>
+                  Invoice <strong>{invoiceToHardDelete?.sale_number}</strong> will be
+                  <strong> permanently deleted</strong> from the database.
+                </p>
+                <p>Stock will be restored for all items in this invoice.</p>
+                <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive font-medium">
+                  ⚠️ This is irreversible. Use only for test or trial data cleanup.
+                  For real business cancellations, use "Cancel Invoice" instead.
+                </div>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteInvoice} className="bg-destructive hover:bg-destructive/90" disabled={isDeleting}>
-              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Delete
+            <AlertDialogCancel disabled={isHardDeleting}>Keep Invoice</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleHardDeleteInvoice}
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={isHardDeleting}
+            >
+              {isHardDeleting
+                ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Deleting...</>
+                : <><Trash2 className="h-4 w-4 mr-2" /> Yes, Permanently Delete</>
+              }
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
