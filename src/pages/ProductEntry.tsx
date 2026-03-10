@@ -838,6 +838,10 @@ const ProductEntry = () => {
         }
       }
       setVariants(updatedVariants);
+      // After barcodes generated, focus Save button for keyboard flow
+      setTimeout(() => {
+        saveBtnRef.current?.focus();
+      }, 100);
     } catch (error) {
       toast({
         title: "Error",
