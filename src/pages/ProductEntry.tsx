@@ -2181,6 +2181,7 @@ const ProductEntry = () => {
                     {formData.product_type === 'service' ? 'Service Details' : `Variants (${variants.length})`}
                   </h3>
                   <Button
+                    ref={autoGenerateBtnRef}
                     onClick={handleAutoGenerateBarcodes}
                     size="sm"
                     className="gap-1 h-6 text-xs"
