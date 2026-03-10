@@ -107,20 +107,20 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
     const gst = gstBreakdown || { cgst: (grandTotal - subTotal + discount) / 2, sgst: (grandTotal - subTotal + discount) / 2 };
     const totalQty = items.reduce((s, i) => s + i.qty, 0);
 
-    // INCREASED FONT SIZES & WEIGHT for better thermal visibility
+    // Clean sans-serif font for crisp thermal output — no WebkitTextStroke
     const base: React.CSSProperties = {
       width: '70mm', maxWidth: '70mm', padding: '2mm',
-      backgroundColor: 'white', fontFamily: '"Courier New", Courier, monospace',
-      fontSize: '13px', lineHeight: '1.4', color: '#000',
-      fontWeight: 800,
+      backgroundColor: 'white', fontFamily: 'Arial, Helvetica, sans-serif',
+      fontSize: '14px', lineHeight: '1.5', color: '#000',
+      fontWeight: 700,
       boxSizing: 'border-box', WebkitPrintColorAdjust: 'exact',
       printColorAdjust: 'exact', overflow: 'hidden',
-      WebkitTextStroke: '0.4px #000',
+      letterSpacing: '0.3px',
     };
 
     const center: React.CSSProperties = { textAlign: 'center', width: '100%' };
     const row: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', width: '100%' };
-    const sep: React.CSSProperties = { textAlign: 'center', fontSize: '10px', margin: '3px 0', color: '#000', overflow: 'hidden', whiteSpace: 'nowrap', letterSpacing: '-0.3px' };
+    const sep: React.CSSProperties = { textAlign: 'center', fontSize: '11px', margin: '4px 0', color: '#000', overflow: 'hidden', whiteSpace: 'nowrap', letterSpacing: '-0.3px' };
 
     return (
       <div ref={ref} className="thermal-print-80mm thermal-receipt-container" style={base}>
