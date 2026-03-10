@@ -589,7 +589,39 @@ export default function SalesInvoiceDashboard() {
     }
   };
 
-  const handleCancelInvoice = async () => {
+  const handleBulkCancel = async () => {
+    if (selectedInvoices.size === 0) return;
+    setIsBulkCancelling(true);
+    try {
+      const invoiceIds = Array.from(selectedInvoices);
+      let successCount = 0;
+      let failCount = 0;
+      for (const id of invoiceIds) {
+        const { data, error } = await supabase.rpc('cancel_invoice', {
+          p_sale_id: id,
+          p_reason: bulkCancelReason.trim() || null,
+        });
+        if (error || !(data as any)?.success) {
+          failCount++;
+        } else {
+          successCount++;
+        }
+      }
+      toast({
+        title: 'Invoices Cancelled',
+        description: `${successCount} invoice(s) cancelled successfully${failCount > 0 ? `, ${failCount} failed` : ''}. Stock has been restored.`,
+      });
+      setSelectedInvoices(new Set());
+      setShowBulkCancelDialog(false);
+      setBulkCancelReason('');
+      refetch();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsBulkCancelling(false);
+    }
+  };
+
     if (!invoiceToCancel) return;
     setIsCancelling(true);
     try {
