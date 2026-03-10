@@ -49,7 +49,7 @@ interface Transaction {
   id: string;
   date: string;
   timestamp: string | null;
-  type: 'invoice' | 'payment' | 'advance' | 'adjustment' | 'fee' | 'return';
+  type: 'invoice' | 'payment' | 'advance' | 'adjustment' | 'fee' | 'return' | 'refund' | 'credit_note';
   reference: string;
   description: string;
   debit: number;
