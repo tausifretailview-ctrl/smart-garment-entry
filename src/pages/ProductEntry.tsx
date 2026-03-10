@@ -806,8 +806,7 @@ const ProductEntry = () => {
     setTimeout(() => {
       variantsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       setTimeout(() => {
-        const firstBarcodeInput = variantsSectionRef.current?.querySelector('input[placeholder="Barcode"]') as HTMLInputElement;
-        firstBarcodeInput?.focus();
+        autoGenerateBtnRef.current?.focus();
       }, 400);
     }, 100);
   };
