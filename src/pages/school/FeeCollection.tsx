@@ -827,6 +827,7 @@ const FeeCollection = () => {
                       <TableHead>Fee Head</TableHead>
                       <TableHead>Payment</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="w-14 text-center">Modify</TableHead>
                       <TableHead className="w-14 text-center">Print</TableHead>
                       <TableHead className="w-14 text-center">Delete</TableHead>
                     </TableRow>
