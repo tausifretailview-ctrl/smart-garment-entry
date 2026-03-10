@@ -126,6 +126,7 @@ const PurchaseEntry = () => {
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
   const [billDate, setBillDate] = useState<Date>(new Date());
+  const [billDateOpen, setBillDateOpen] = useState(false);
   const [grossAmount, setGrossAmount] = useState(0);
   const [gstAmount, setGstAmount] = useState(0);
   const [netAmount, setNetAmount] = useState(0);
@@ -2422,7 +2423,7 @@ const PurchaseEntry = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="bill_date">Bill Date</Label>
-                <Popover>
+                <Popover open={billDateOpen} onOpenChange={setBillDateOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
@@ -2439,7 +2440,7 @@ const PurchaseEntry = () => {
                     <Calendar
                       mode="single"
                       selected={billDate}
-                      onSelect={(date) => date && setBillDate(date)}
+                      onSelect={(date) => { if (date) { setBillDate(date); setBillDateOpen(false); } }}
                       initialFocus
                       className={cn("p-3 pointer-events-auto")}
                     />
