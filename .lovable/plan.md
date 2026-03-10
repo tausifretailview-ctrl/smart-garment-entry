@@ -1,43 +1,37 @@
 
 
-## Completed: Heavy Query Load Optimization
+## Invoice Cancel + Hard Delete Implementation
 
-All 5 priority pages optimized:
+### Database Migration
+Add cancellation columns to `sales` table and create `cancel_invoice` RPC function as specified in the user's SQL. This handles atomic cancellation: deletes sale_items (triggering stock restore), marks invoice as cancelled, and nullifies linked vouchers.
 
-1. **PurchaseBillDashboard** — Server-side pagination + search + date filters via `useQuery`, removed Phase 2 bulk item pre-fetch (lazy-load on expand only), staleTime 30s
-2. **SaleReturnDashboard** — Converted from useEffect/setState to `useQuery` with server-side pagination + debounced search, lazy item loading with cache
-3. **PurchaseReturnDashboard** — Server-side pagination + debounced search + date filters via `useQuery`, staleTime 30s
-4. **Accounts** — Created `get_accounts_dashboard_stats` RPC for summary cards (replaces 3x fetchAll calls), lazy tab loading (vouchers/sales/customers/suppliers only fetched when their tab is active)
-5. **SalesAnalyticsDashboard** — Added staleTime 60s + refetchOnWindowFocus:false to all queries
+### Code Changes in `SalesInvoiceDashboard.tsx`
 
-## Completed: Sales Invoice Dashboard Optimization
+1. **Destructure `hardDelete`** from `useSoftDelete()` (line 500)
 
-1. **Server-side pagination** — Replaced fetch-all-invoices loop with paginated query (50 rows per page, `{ count: 'exact' }`)
-2. **No more `sale_items(*)` in list** — Removed nested sale_items fetch, uses `total_qty` column instead
-3. **Server-side filtering** — Search (debounced 300ms), date range, payment status, delivery status all applied server-side
-4. **Summary stats via RPC** — Uses `get_sales_invoice_dashboard_stats` RPC instead of client-side computation
-5. **Default period = This Month** — Fast first load instead of fetching all-time data
-6. **staleTime 30s + refetchOnWindowFocus: false** — Prevents redundant re-fetches
-7. **Cache invalidation after save/update** — SalesInvoice.tsx invalidates `['invoices']` and `['invoice-dashboard-stats']` after create/update
-8. **useDashboardInvalidation** — Added `['invoices']` and `['invoice-dashboard-stats']` to `invalidateSales()`
+2. **Add state variables** for cancel and hard delete flows (after line 112):
+   - `invoiceToCancel`, `cancelReason`, `isCancelling`
+   - `invoiceToHardDelete`, `isHardDeleting`
 
-## Completed: Entry Form Query Optimization (ELLA NOOR slow billing fix)
+3. **Add `handleCancelInvoice`** function — calls `supabase.rpc('cancel_invoice', ...)`, shows toast, refetches
 
-All entry forms optimized with caching + explicit columns:
+4. **Add `handleHardDeleteInvoice`** function — calls `hardDelete('sales', id)`, shows toast, refetches
 
-1. **QuotationEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*')` with explicit columns
-2. **SaleOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*, product_variants(*)')` with explicit columns
-3. **PurchaseOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to suppliers & products queries, replaced `select('*')` with explicit columns
-4. **DeliveryChallanEntry** — Added staleTime 5min + refetchOnWindowFocus:false to products query, replaced `select('*, product_variants(*), size_groups(*)')` with explicit columns
-5. **PurchaseEntry** — Replaced `select('*')` with explicit columns for suppliers (already had staleTime)
-6. **POSSales** — Already optimized (explicit columns + staleTime 5min)
-7. **SalesInvoice** — Already optimized
+5. **Replace single "Delete Invoice"** menu item (lines 253-259) with separator + "Cancel Invoice" (icon: `Ban`) + "Permanently Delete" (icon: `Trash2`). Cancel disabled if already cancelled.
 
-## Completed: Cloud Usage Impact Analysis
+6. **Add CANCELLED badge** next to payment status badge for cancelled invoices, plus row dimming with `opacity-55 bg-red-50/30`
 
-Estimated impact of all optimizations:
-- **Dashboard reads**: ~95% reduction (server-side pagination, 50 rows vs ALL)
-- **Accounts page**: ~90% reduction (1 RPC vs 3 full-table scans)
-- **Entry form tab switches**: ~80% fewer reads (5min staleTime cache)
-- **Data transfer**: ~40-50% less per read (explicit columns vs select('*'))
-- **Sales Invoice Dashboard**: ~98% reduction (50 rows without sale_items vs ALL invoices with ALL items)
+7. **Filter cancelled invoices from page totals** — wrap `pageTotals` reduce calls to skip `is_cancelled` invoices
+
+8. **Add Cancel Invoice Dialog** — Dialog with reason textarea, amber warning about stock restoration, orange confirm button
+
+9. **Add Permanently Delete Dialog** — AlertDialog with destructive styling, warning that it's irreversible and only for test data
+
+10. **Imports** — `AlertTriangle` from lucide-react (Ban, Trash2, Loader2 already imported). Dialog/Textarea/AlertDialog already imported.
+
+### Technical Notes
+- Stock restoration uses the existing `handle_sale_item_delete` trigger — no new stock logic needed
+- Cancelled invoices remain visible in the list with a red CANCELLED badge and dimmed row
+- The `cancel_invoice` RPC is `SECURITY DEFINER` and uses `auth.uid()` for the `cancelled_by` field
+- The existing soft-delete dialog (lines 1915-1937) will be replaced by the two new dialogs
+
