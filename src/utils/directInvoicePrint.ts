@@ -46,36 +46,29 @@ export const waitForQZ = (): Promise<boolean> => {
 };
 
 /**
- * Connect to QZ Tray if not already connected.
- * Sets up required security callbacks for QZ Tray 2.x.
+ * Setup QZ security for anonymous mode — must be called before connect() and printers.find()
+ */
+function setupQZSecurity() {
+  if (!window.qz) return;
+  window.qz.security.setCertificatePromise(function(resolve: Function, reject: Function) {
+    resolve();
+  });
+  window.qz.security.setSignaturePromise(function(toSign: string, resolve: Function, reject: Function) {
+    resolve();
+  });
+}
+
+/**
+ * Connect to QZ Tray if not already connected
  */
 export const ensureQZConnection = async (): Promise<boolean> => {
-  // Wait for QZ script to load first
-  const qzLoaded = await waitForQZ();
-  if (!qzLoaded) {
-    console.warn('QZ Tray script not loaded after 8s');
-    return false;
-  }
-
+  if (typeof window === 'undefined' || !window.qz) return false;
   try {
-    const qz = window.qz;
-
-    if (qz.websocket.isActive()) return true;
-
-    // Set up security callbacks BEFORE connect()
-    // Anonymous mode: no certificate — QZ shows Allow popup once.
-    // User clicks Allow + "Remember this decision" to stop future prompts.
-    qz.security.setCertificatePromise(function(resolve: Function) {
-      resolve();
-    });
-    qz.security.setSignatureAlgorithm('SHA512');
-    qz.security.setSignaturePromise(function(_toSign: string, resolve: Function) {
-      resolve();
-    });
-
-    await qz.websocket.connect({ retries: 2, delay: 1 });
+    if (window.qz.websocket.isActive()) return true;
+    setupQZSecurity();
+    await window.qz.websocket.connect();
     return true;
-  } catch (err: any) {
+  } catch (err) {
     console.error('QZ Tray connection failed:', err);
     return false;
   }
@@ -87,9 +80,10 @@ export const ensureQZConnection = async (): Promise<boolean> => {
 export const getQZPrinters = async (): Promise<string[]> => {
   const connected = await ensureQZConnection();
   if (!connected) return [];
-
   try {
-    return await window.qz.printers.find();
+    setupQZSecurity(); // re-apply before find
+    const result = await window.qz.printers.find();
+    return Array.isArray(result) ? result : (result ? [result] : []);
   } catch (err) {
     console.error('Failed to get printers:', err);
     return [];
