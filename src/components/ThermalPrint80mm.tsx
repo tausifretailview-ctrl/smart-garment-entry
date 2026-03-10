@@ -283,7 +283,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         <div style={separatorStyle}>{SEPARATOR_LINE}</div>
 
         {/* ============ INVOICE META ============ */}
-        <div style={{ fontSize: '13px', marginBottom: '4px', fontWeight: 800 }}>
+        <div style={{ fontSize: '14px', marginBottom: '5px', fontWeight: 700 }}>
           <div style={leftRightRow}>
             <span>{getDocumentNoLabel()}: <span style={boldText}>{billNo}</span></span>
             <span>Date: {format(date, 'dd/MM/yy')}</span>
