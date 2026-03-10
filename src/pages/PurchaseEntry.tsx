@@ -3054,6 +3054,7 @@ const PurchaseEntry = () => {
           defaultSalePrice={selectedProduct?.default_sale_price}
           defaultMrp={sizeGridVariants[0]?.mrp || selectedProduct?.default_sale_price}
           showMrp={showMrp}
+          showSizePrices={false}
         />
 
         {/* Print Barcode Dialog with Smart Selection */}

@@ -55,6 +55,7 @@ interface SizeGridDialogProps {
   defaultSalePrice?: number;
   defaultMrp?: number;
   showMrp?: boolean;
+  showSizePrices?: boolean;
   onColorAdded?: (color: string) => void;
 }
 
@@ -74,6 +75,7 @@ export function SizeGridDialog({
   defaultSalePrice,
   defaultMrp,
   showMrp = false,
+  showSizePrices = true,
   onColorAdded,
 }: SizeGridDialogProps) {
   const { toast } = useToast();
@@ -580,20 +582,22 @@ export function SizeGridDialog({
                                 Stock: {v.stock_qty || 0}
                               </span>
                             )}
-                            <input
-                              type="number"
-                              min="0"
-                              className="w-16 text-center border rounded p-1 text-xs bg-background"
-                              value={(multiColorPrices[color] || {})[v.id] ?? (v.sale_price || "")}
-                              onChange={(e) =>
-                                setMultiColorPrices(prev => ({
-                                  ...prev,
-                                  [color]: { ...(prev[color] || {}), [v.id]: e.target.value }
-                                }))
-                              }
-                              placeholder="Price"
-                              title="Sale Price"
-                            />
+                            {showSizePrices && (
+                              <input
+                                type="number"
+                                min="0"
+                                className="w-16 text-center border rounded p-1 text-xs bg-background"
+                                value={(multiColorPrices[color] || {})[v.id] ?? (v.sale_price || "")}
+                                onChange={(e) =>
+                                  setMultiColorPrices(prev => ({
+                                    ...prev,
+                                    [color]: { ...(prev[color] || {}), [v.id]: e.target.value }
+                                  }))
+                                }
+                                placeholder="Price"
+                                title="Sale Price"
+                              />
+                            )}
                           </div>
                         ))}
                       </div>
@@ -900,17 +904,19 @@ export function SizeGridDialog({
                             Stock: {v.stock_qty || 0}
                           </span>
                         )}
-                        <input
-                          type="number"
-                          min="0"
-                          className="w-16 text-center border rounded p-1 text-xs bg-background"
-                          value={sizePrices[v.id] ?? (v.sale_price || "")}
-                          onChange={(e) =>
-                            setSizePrices({ ...sizePrices, [v.id]: e.target.value })
-                          }
-                          placeholder="Price"
-                          title="Sale Price"
-                        />
+                        {showSizePrices && (
+                          <input
+                            type="number"
+                            min="0"
+                            className="w-16 text-center border rounded p-1 text-xs bg-background"
+                            value={sizePrices[v.id] ?? (v.sale_price || "")}
+                            onChange={(e) =>
+                              setSizePrices({ ...sizePrices, [v.id]: e.target.value })
+                            }
+                            placeholder="Price"
+                            title="Sale Price"
+                          />
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1042,10 +1048,12 @@ export function SizeGridDialog({
                 )}
 
                 {filteredVariants.length > 0 && (
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Sale Price (editable per size above)</Label>
-                    </div>
+                  <div className={`grid ${showSizePrices ? 'grid-cols-2' : 'grid-cols-1'} gap-3 mb-4`}>
+                    {showSizePrices && (
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Sale Price (editable per size above)</Label>
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <Label>GST %</Label>
                       <Input
