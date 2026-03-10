@@ -2321,7 +2321,7 @@ const ProductEntry = () => {
                                       e.target.value
                                     )
                                   }
-                                  className="w-28 h-6 text-xs"
+                                  className="w-36 h-6 text-xs font-mono"
                                   placeholder="Barcode"
                                 />
                               )}
