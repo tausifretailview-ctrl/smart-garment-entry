@@ -764,7 +764,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         const tsB = b.timestamp ? new Date(b.timestamp).getTime() : new Date(b.date).getTime();
         if (tsA !== tsB) return tsA - tsB;
         // Stable tiebreaker: invoice < cn_adjustment = advance < payment < adjustment
-        const typeOrder: Record<string, number> = { invoice: 0, cn_adjustment: 1, advance: 1, payment: 2, adjustment: 3 };
+        const typeOrder: Record<string, number> = { invoice: 0, cn_adjustment: 1, advance: 1, refund: 1, credit_note: 1, payment: 2, adjustment: 3 };
         return (typeOrder[a.type] ?? 1) - (typeOrder[b.type] ?? 1);
       });
 
