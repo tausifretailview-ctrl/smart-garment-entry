@@ -119,8 +119,9 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   const colors = colorSchemes[colorScheme] || colorSchemes.blue;
   const font = fontFamilyMap[fontFamily] || fontFamilyMap.inter;
 
+  // Use "Rs." instead of ₹ for Windows 7 compatibility (₹ renders as a block/line on older systems)
   const formatCurrency = (amount: number) => {
-    return `₹${amount.toLocaleString("en-IN", {
+    return `Rs.${amount.toLocaleString("en-IN", {
       minimumFractionDigits: amountWithDecimal ? 2 : 0,
       maximumFractionDigits: 2,
     })}`;
@@ -213,9 +214,9 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
 
   const totalPages = pages.length;
 
-  // When all items fit on a single page, reduce empty rows to prevent footer overflow
+  // When all items fit on a single page, minimize empty rows to prevent footer overflow to 2nd page
   const effectiveMinItemRows = totalPages === 1 
-    ? Math.min(minItemRows, Math.max(groupedItems.length, Math.min(minItemRows, format === 'a4' ? 10 : format === 'a5-horizontal' ? 5 : 7)))
+    ? Math.min(minItemRows, groupedItems.length + (format === 'a5-vertical' ? 1 : format === 'a5-horizontal' ? 2 : 3))
     : minItemRows;
 
   const isA5 = format === 'a5-vertical' || format === 'a5-horizontal';
@@ -359,8 +360,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             {showGSTBreakdown && <td style={{ ...cellStyle, textAlign: "center", fontSize: isA5 ? "6.5pt" : "7.5pt" }}>{item.gstPercent}%</td>}
             {showGSTBreakdown && (
               <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "6pt" : "7pt" }}>
-                {item.gstAmount > 0 ? `₹${item.gstAmount.toFixed(2)}` : '-'}
-              </td>
+                 {item.gstAmount > 0 ? `Rs.${item.gstAmount.toFixed(2)}` : '-'}
+               </td>
             )}
             <td style={{ ...cellStyle, textAlign: "right", fontWeight: "700", fontSize: isA5 ? "7pt" : "7.5pt", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
               {formatCurrency(item.totalAmount)}
@@ -490,22 +491,22 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         style={{
           display: "flex",
           justifyContent: "space-between",
-          padding: isA5 ? "8px 6px 4px" : "20px 10px 10px",
+          padding: isA5 ? "4px 6px 2px" : "20px 10px 10px",
           borderTop: "1px solid #374151",
         }}
       >
-        <div style={{ fontSize: isA5 ? "6.5pt" : "8pt" }}>
-          <p>
+        <div style={{ fontSize: isA5 ? "6pt" : "8pt" }}>
+          <p style={{ margin: 0 }}>
             <strong>Terms:</strong> 1. Goods once sold will not be taken back.
             <br />
             2. Subject to local jurisdiction.
           </p>
         </div>
         <div style={{ textAlign: "center", width: isA5 ? "150px" : "200px" }}>
-          <div style={{ fontSize: isA5 ? "6.5pt" : "8pt", marginBottom: isA5 ? "20px" : "30px" }}>
+          <div style={{ fontSize: isA5 ? "6pt" : "8pt", marginBottom: isA5 ? "12px" : "30px" }}>
             For <strong>{businessName}</strong>
           </div>
-          <div style={{ borderTop: "1px solid #000", fontSize: isA5 ? "6.5pt" : "8pt" }}>Authorised Signatory</div>
+          <div style={{ borderTop: "1px solid #000", fontSize: isA5 ? "6pt" : "8pt" }}>Authorised Signatory</div>
         </div>
       </div>
     </>
