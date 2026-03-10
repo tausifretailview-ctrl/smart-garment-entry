@@ -49,7 +49,7 @@ interface Transaction {
   id: string;
   date: string;
   timestamp: string | null;
-  type: 'invoice' | 'payment' | 'advance' | 'adjustment' | 'fee' | 'return';
+  type: 'invoice' | 'payment' | 'advance' | 'adjustment' | 'fee' | 'return' | 'refund' | 'credit_note';
   reference: string;
   description: string;
   debit: number;
@@ -609,14 +609,13 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
       if (adjustmentsError) throw adjustmentsError;
 
-      // Fetch sale returns with CN adjustments for this customer
+      // Fetch ALL sale returns for this customer (all statuses)
       let saleReturnsQuery = supabase
         .from("sale_returns")
-        .select("id, return_number, return_date, net_amount, credit_status, linked_sale_id, refund_type")
+        .select("id, return_number, return_date, net_amount, credit_status, linked_sale_id, refund_type, created_at")
         .eq("customer_id", selectedCustomer.id)
         .eq("organization_id", organizationId)
-        .is("deleted_at", null)
-        .in("credit_status", ["adjusted", "refunded", "adjusted_outstanding"]);
+        .is("deleted_at", null);
 
       if (startDate) {
         saleReturnsQuery = saleReturnsQuery.gte("return_date", format(startDate, 'yyyy-MM-dd'));
@@ -639,6 +638,36 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         linkedSales?.forEach((s: any) => { linkedSaleMap[s.id] = s.sale_number; });
       }
 
+      // Fetch advance refunds for this customer
+      const customerAdvanceIds = (advancesData || []).map((a: any) => a.id);
+      let filteredAdvanceRefunds: any[] = [];
+      if (customerAdvanceIds.length > 0) {
+        const { data: advanceRefundsData } = await supabase
+          .from("advance_refunds")
+          .select("id, advance_id, refund_amount, refund_date, payment_method, reason, created_at")
+          .eq("organization_id", organizationId)
+          .in("advance_id", customerAdvanceIds)
+          .order("refund_date", { ascending: true });
+        filteredAdvanceRefunds = advanceRefundsData || [];
+      }
+
+      // Fetch credit notes for this customer
+      let creditNotesQuery = supabase
+        .from("credit_notes")
+        .select("id, credit_note_number, issue_date, credit_amount, used_amount, status, notes, sale_id, created_at")
+        .eq("customer_id", selectedCustomer.id)
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null);
+
+      if (startDate) {
+        creditNotesQuery = creditNotesQuery.gte("issue_date", format(startDate, 'yyyy-MM-dd'));
+      }
+      if (endDate) {
+        creditNotesQuery = creditNotesQuery.lte("issue_date", format(endDate, 'yyyy-MM-dd') + 'T23:59:59');
+      }
+
+      const { data: creditNotesData } = await creditNotesQuery.order("issue_date", { ascending: true });
+
       console.log('Sales for customer:', salesData?.length || 0);
       console.log('All customer sale IDs:', allSaleIds.length);
       console.log('Invoice payments found:', vouchersData?.length || 0);
@@ -646,6 +675,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       console.log('Advances found:', advancesData?.length || 0);
       console.log('Adjustments found:', adjustmentsData?.length || 0);
       console.log('CN Adjustments found:', saleReturnsData?.length || 0);
+      console.log('Advance refunds found:', filteredAdvanceRefunds.length);
+      console.log('Credit notes found:', creditNotesData?.length || 0);
 
       // Calculate total voucher payments per sale to exclude from "payment at sale"
       const voucherPaymentsBySaleId: Record<string, number> = {};
@@ -713,13 +744,27 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           type: 'cn_adjustment' as const,
           data: { ...sr, linkedSaleNumber: linkedSaleMap[sr.linked_sale_id] || null },
         })),
+        ...(filteredAdvanceRefunds || []).map((refund: any) => ({
+          date: refund.refund_date,
+          timestamp: refund.created_at,
+          type: 'refund' as const,
+          data: refund,
+        })),
+        ...(creditNotesData || [])
+          .filter((cn: any) => !cn.sale_id || !(saleReturnsData || []).some((sr: any) => sr.linked_sale_id === cn.sale_id))
+          .map((cn: any) => ({
+            date: cn.issue_date ? cn.issue_date.substring(0, 10) : '',
+            timestamp: cn.created_at,
+            type: 'credit_note' as const,
+            data: cn,
+          })),
       ].sort((a, b) => {
         // Sort by timestamp (created_at) for accurate chronological ordering
         const tsA = a.timestamp ? new Date(a.timestamp).getTime() : new Date(a.date).getTime();
         const tsB = b.timestamp ? new Date(b.timestamp).getTime() : new Date(b.date).getTime();
         if (tsA !== tsB) return tsA - tsB;
         // Stable tiebreaker: invoice < cn_adjustment = advance < payment < adjustment
-        const typeOrder: Record<string, number> = { invoice: 0, cn_adjustment: 1, advance: 1, payment: 2, adjustment: 3 };
+        const typeOrder: Record<string, number> = { invoice: 0, cn_adjustment: 1, advance: 1, refund: 1, credit_note: 1, payment: 2, adjustment: 3 };
         return (typeOrder[a.type] ?? 1) - (typeOrder[b.type] ?? 1);
       });
 
@@ -844,13 +889,15 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           const amount = sr.net_amount || 0;
           runningBalance -= amount;
           
-          let description = `Credit Note - ${sr.return_number}`;
+          let description = `Sale Return - ${sr.return_number}`;
           if (sr.credit_status === 'adjusted' && sr.linkedSaleNumber) {
             description += ` (Adjusted against ${sr.linkedSaleNumber})`;
           } else if (sr.credit_status === 'refunded') {
-            description += ` (Refunded)`;
+            description += ` (Cash Refunded)`;
           } else if (sr.credit_status === 'adjusted_outstanding') {
             description += ` (Adjusted to Outstanding)`;
+          } else if (sr.credit_status === 'pending') {
+            description += ` (Pending — not yet applied)`;
           }
           
           allTransactions.push({
@@ -860,6 +907,48 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             type: 'return' as const,
             reference: sr.return_number,
             description,
+            debit: 0,
+            credit: amount,
+            balance: runningBalance,
+          });
+        } else if (item.type === 'refund') {
+          const refund = item.data as any;
+          const amount = refund.refund_amount || 0;
+          runningBalance += amount;
+
+          const methodText = refund.payment_method
+            ? refund.payment_method.charAt(0).toUpperCase() + refund.payment_method.slice(1)
+            : 'Cash';
+          let description = `Advance Refund - ${methodText}`;
+          if (refund.reason) description += ` (${refund.reason})`;
+
+          allTransactions.push({
+            id: `refund-${refund.id}`,
+            date: refund.refund_date,
+            timestamp: refund.created_at || null,
+            type: 'refund',
+            reference: 'REFUND',
+            description,
+            debit: amount,
+            credit: 0,
+            balance: runningBalance,
+          });
+        } else if (item.type === 'credit_note') {
+          const cn = item.data as any;
+          const amount = cn.credit_amount || 0;
+          runningBalance -= amount;
+
+          const usedText = cn.used_amount > 0
+            ? ` (Used: ₹${cn.used_amount.toLocaleString('en-IN')}, Remaining: ₹${(amount - cn.used_amount).toLocaleString('en-IN')})`
+            : '';
+
+          allTransactions.push({
+            id: `cn-${cn.id}`,
+            date: cn.issue_date ? cn.issue_date.substring(0, 10) : '',
+            timestamp: cn.created_at || null,
+            type: 'credit_note',
+            reference: cn.credit_note_number,
+            description: `Credit Note${cn.notes ? ` - ${cn.notes}` : ''}${usedText}`,
             debit: 0,
             credit: amount,
             balance: runningBalance,
@@ -1639,6 +1728,14 @@ Please clear your dues at the earliest. Thank you!`;
                                   ) : transaction.type === 'return' ? (
                                     <Badge className="bg-amber-100 text-amber-800 border border-amber-300 text-xs">
                                       Sale Return
+                                    </Badge>
+                                  ) : transaction.type === 'refund' ? (
+                                    <Badge className="bg-red-100 text-red-700 border border-red-300 text-xs">
+                                      Adv. Refund
+                                    </Badge>
+                                  ) : transaction.type === 'credit_note' ? (
+                                    <Badge className="bg-purple-100 text-purple-700 border border-purple-300 text-xs">
+                                      Credit Note
                                     </Badge>
                                   ) : (
                                     <>
