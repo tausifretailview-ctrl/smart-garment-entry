@@ -486,9 +486,14 @@ export function SalesInvoiceERPTable({
                         <Lock className="h-4 w-4 mr-2 text-muted-foreground" /> Delete (Locked)
                       </DropdownMenuItem>
                     ) : (
-                      <DropdownMenuItem onClick={() => setInvoiceToDelete(invoice)} className="text-destructive">
-                        <Trash2 className="h-4 w-4 mr-2" /> Delete Invoice
-                      </DropdownMenuItem>
+                      <>
+                        <DropdownMenuItem onClick={() => setInvoiceToCancel?.(invoice)} disabled={invoice.is_cancelled} className="text-orange-600">
+                          <Ban className="h-4 w-4 mr-2" /> Cancel Invoice
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setInvoiceToHardDelete?.(invoice)} className="text-destructive">
+                          <Trash2 className="h-4 w-4 mr-2" /> Permanently Delete
+                        </DropdownMenuItem>
+                      </>
                     )
                   )}
                 </DropdownMenuContent>
