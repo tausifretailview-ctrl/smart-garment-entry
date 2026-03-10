@@ -138,7 +138,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
         <div style={sep}>{DASH}</div>
 
         {/* DOC TITLE */}
-        <div style={{ ...center, fontWeight: 900, fontSize: '14px', letterSpacing: '1px', margin: '3px 0', textTransform: 'uppercase', WebkitTextStroke: '0.5px #000' }}>{docTitle}</div>
+        <div style={{ ...center, fontWeight: 900, fontSize: '16px', letterSpacing: '1px', margin: '4px 0', textTransform: 'uppercase' }}>{docTitle}</div>
 
         <div style={sep}>{DASH}</div>
 
