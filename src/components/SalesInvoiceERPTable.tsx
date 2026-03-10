@@ -638,6 +638,10 @@ export function SalesInvoiceERPTable({
     </tr>
   ) : undefined;
 
+  const getRowClassName = useCallback((invoice: any) => {
+    return invoice.is_cancelled ? "opacity-55 bg-red-50/30 dark:bg-red-900/10" : "";
+  }, []);
+
   return (
     <ERPTable
       tableId="sales_invoice"
@@ -646,6 +650,7 @@ export function SalesInvoiceERPTable({
       stickyFirstColumn={false}
       isLoading={isLoading}
       emptyMessage="No invoices found"
+      getRowClassName={getRowClassName}
       renderSubRow={renderSubRow}
       expandedRows={expandedRows}
       onToggleExpand={(id) => {
