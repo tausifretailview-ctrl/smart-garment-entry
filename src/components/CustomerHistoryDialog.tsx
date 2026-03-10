@@ -595,12 +595,22 @@ export function CustomerHistoryDialog({
             }
 
             // Business mode: original 6-card layout
-            const crPending = (creditNotes || []).reduce((sum, cn) => {
+            const creditNotesPending = (creditNotes || []).reduce((sum, cn) => {
               if (cn.status === 'active' || cn.status === 'partially_used') {
                 return sum + Math.max(0, (cn.credit_amount || 0) - (cn.used_amount || 0));
               }
               return sum;
             }, 0);
+
+            // Sale returns also create credit for the customer
+            const saleReturnsPending = (saleReturns || []).reduce((sum: number, sr: any) => {
+              const alreadyInCN = (creditNotes || []).some((cn: any) =>
+                cn.notes?.includes(sr.return_number) || cn.sale_id === sr.linked_sale_id
+              );
+              return alreadyInCN ? sum : sum + (sr.net_amount || 0);
+            }, 0);
+
+            const crPending = creditNotesPending + saleReturnsPending;
             return (
               <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6 sm:gap-2 py-2">
                 <Card className="border-l-4 border-l-blue-500">
