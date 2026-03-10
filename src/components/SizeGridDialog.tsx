@@ -75,6 +75,7 @@ export function SizeGridDialog({
   defaultSalePrice,
   defaultMrp,
   showMrp = false,
+  showSizePrices = true,
   onColorAdded,
 }: SizeGridDialogProps) {
   const { toast } = useToast();
