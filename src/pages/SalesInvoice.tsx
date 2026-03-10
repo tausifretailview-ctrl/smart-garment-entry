@@ -199,6 +199,8 @@ export default function SalesInvoice() {
   const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
   const [sizeGridEnabled, setSizeGridEnabled] = useState(true);
   const [showSizeGrid, setShowSizeGrid] = useState(false);
+  const [showPriceSelectionDialog, setShowPriceSelectionDialog] = useState(false);
+  const [pendingPriceSelection, setPendingPriceSelection] = useState<any>(null);
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
   
