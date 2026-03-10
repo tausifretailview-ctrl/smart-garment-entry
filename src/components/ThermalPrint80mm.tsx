@@ -233,34 +233,33 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
       <div ref={ref} className="thermal-print-80mm thermal-receipt-container" style={baseStyle}>
         
         {/* ============ HEADER SECTION ============ */}
-        <div style={{ ...centerStyle, marginBottom: '5px' }}>
+        <div style={{ ...centerStyle, marginBottom: '6px' }}>
           {/* Business Name */}
           <div style={{ 
             fontWeight: 900, 
-            fontSize: '18px', 
-            letterSpacing: '0.8px', 
+            fontSize: '20px', 
+            letterSpacing: '1px', 
             textTransform: 'uppercase',
-            marginBottom: '3px',
-            WebkitTextStroke: '0.7px #000',
+            marginBottom: '4px',
           }}>
             {settings?.business_name || 'STORE NAME'}
           </div>
           
           {/* Address */}
-          <div style={{ fontSize: '12px', lineHeight: '1.35', marginBottom: '2px', fontWeight: 800 }}>
+          <div style={{ fontSize: '13px', lineHeight: '1.4', marginBottom: '2px', fontWeight: 700 }}>
             {settings?.address || 'Store Address'}
           </div>
           
           {/* Contact */}
           {settings?.mobile_number && (
-            <div style={{ fontSize: '12px', fontWeight: 800 }}>
+            <div style={{ fontSize: '13px', fontWeight: 700 }}>
               Tel: {settings.mobile_number}
             </div>
           )}
           
           {/* GSTIN */}
           {settings?.gst_number && (
-            <div style={{ fontSize: '12px', fontWeight: 900, marginTop: '2px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 900, marginTop: '2px' }}>
               GSTIN: {settings.gst_number}
             </div>
           )}
