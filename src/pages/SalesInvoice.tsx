@@ -3325,6 +3325,28 @@ Thank you for choosing us!`;
           organizationId={currentOrganization.id}
         />
       )}
+
+      {/* Price Selection Dialog */}
+      {pendingPriceSelection && (
+        <PriceSelectionDialog
+          open={showPriceSelectionDialog}
+          onOpenChange={(open) => {
+            setShowPriceSelectionDialog(open);
+            if (!open) setPendingPriceSelection(null);
+          }}
+          productName={pendingPriceSelection.product?.product_name || ''}
+          size={pendingPriceSelection.variant?.size || ''}
+          masterPrice={pendingPriceSelection.masterPrice}
+          lastPurchasePrice={pendingPriceSelection.lastPurchasePrice}
+          customerPrice={pendingPriceSelection.customerPrice}
+          onSelect={(source, prices) => {
+            const { product, variant } = pendingPriceSelection;
+            setShowPriceSelectionDialog(false);
+            setPendingPriceSelection(null);
+            addProductToInvoice(product, variant, prices);
+          }}
+        />
+      )}
     </div>
   );
 }
