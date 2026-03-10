@@ -98,7 +98,7 @@ export function AppSidebar() {
   const masterPaths = ["/customers", "/suppliers", "/employees"];
   const inventoryPaths = ["/purchase-bills", "/purchase-returns", "/purchase-entry", "/purchase-orders", "/purchase-order-entry", "/product-entry", "/products", "/bulk-product-update"];
   const salesPaths = ["/quotation-entry", "/quotation-dashboard", "/sale-order-entry", "/sale-order-dashboard", "/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard", "/sale-return-entry", "/sale-returns", "/delivery-challan-entry", "/delivery-challan-dashboard", "/advance-booking-dashboard"];
-  const reportsPaths = ["/stock-report", "/stock-analysis", "/stock-ageing", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/daily-tally", "/item-wise-sales", "/item-wise-stock", "/price-history", "/gst-reports", "/gst-register", "/tally-export", "/sales-analytics", "/accounting-reports"];
+  const reportsPaths = ["/stock-report", "/stock-analysis", "/stock-ageing", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/daily-tally", "/item-wise-sales", "/item-wise-stock", "/price-history", "/gst-reports", "/gst-register", "/tally-export", "/sales-analytics", "/accounting-reports", "/customer-ledger-report"];
   const accountsPaths = ["/accounts", "/payments-dashboard"];
   const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
   const schoolPaths = ["/students", "/student-entry", "/teachers", "/fee-collection", "/fee-heads", "/fee-structures", "/academic-years", "/classes", "/student-reports", "/student-promotion"];
@@ -745,6 +745,16 @@ export function AppSidebar() {
                               <NavLink to="/accounting-reports" className="flex items-center gap-3 group">
                                 <FileSpreadsheet className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
                                 <span className="dark:text-white">Accounting Reports</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("customer_ledger")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/customer-ledger-report")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/customer-ledger-report" className="flex items-center gap-3 group">
+                                <BookOpen className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Customer Ledger</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>

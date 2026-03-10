@@ -78,6 +78,7 @@ const RecycleBin = lazy(() => import("./pages/RecycleBin"));
 const StockAdjustment = lazy(() => import("./pages/StockAdjustment"));
 const StockAnalysis = lazy(() => import("./pages/StockAnalysis"));
 const StockAgeingReport = lazy(() => import("./pages/StockAgeingReport"));
+const CustomerLedgerPage = lazy(() => import("./pages/CustomerLedgerPage"));
 const BulkProductUpdate = lazy(() => import("./pages/BulkProductUpdate"));
 const DeliveryChallanEntry = lazy(() => import("./pages/DeliveryChallanEntry"));
 const DeliveryChallanDashboard = lazy(() => import("./pages/DeliveryChallanDashboard"));
@@ -925,6 +926,16 @@ const App = () => {
                           <AccountingReports />
                         </Layout>
                       </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="customer-ledger-report"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <CustomerLedgerPage />
+                      </Layout>
                     </ProtectedRoute>
                   }
                 />
