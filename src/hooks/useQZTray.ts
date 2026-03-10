@@ -74,20 +74,32 @@ export const useQZTray = () => {
 
   // Get list of available printers
   const getPrinters = useCallback(async (): Promise<string[]> => {
-    // Check live websocket status instead of React state to avoid stale closures
+    // Check live websocket status — don't rely on React state (avoids stale closures)
     const isActive = typeof window !== 'undefined' && window.qz?.websocket?.isActive?.() === true;
-    if (!isActive && !state.isConnected) return [];
+    
+    if (!isActive) {
+      // Try to connect first if not active
+      try {
+        const { ensureQZConnection } = await import('@/utils/directInvoicePrint');
+        const connected = await ensureQZConnection();
+        if (!connected) return [];
+        // Update React state to reflect connection
+        setState(prev => ({ ...prev, isConnected: true }));
+      } catch {
+        return [];
+      }
+    }
 
     try {
       const printers = await window.qz.printers.find();
-      setState(prev => ({ ...prev, printers }));
+      setState(prev => ({ ...prev, printers, error: null }));
       return printers;
     } catch (err: any) {
       console.error('Failed to get printers:', err);
       setState(prev => ({ ...prev, error: 'Failed to get printer list' }));
       return [];
     }
-  }, [state.isConnected]);
+  }, []);
 
   // Find thermal printers (common TSC printer names)
   const findThermalPrinters = useCallback(async (): Promise<string[]> => {
@@ -168,7 +180,15 @@ export const useQZTray = () => {
       if (!loaded || cancelled) return;
       const connected = await connect();
       if (connected && !cancelled) {
-        getPrinters();
+        // Small delay to let websocket fully stabilize before fetching printers
+        await new Promise(r => setTimeout(r, 300));
+        if (cancelled) return;
+        let printerList = await getPrinters();
+        // Retry once if empty (websocket may need more time)
+        if (printerList.length === 0 && !cancelled) {
+          await new Promise(r => setTimeout(r, 500));
+          if (!cancelled) await getPrinters();
+        }
       }
     };
     tryConnect();

@@ -193,11 +193,27 @@ export const DirectPrintDialog = ({
     };
   };
 
-  // Auto-fetch printers when dialog opens and QZ is connected but printer list is empty
+  const [isFetchingPrinters, setIsFetchingPrinters] = useState(false);
+
+  // Auto-fetch printers when dialog opens, with retry
   useEffect(() => {
-    if (open && isConnected && printers.length === 0) {
-      getPrinters();
-    }
+    if (!open || !isConnected) return;
+    if (printers.length > 0) return;
+    
+    let cancelled = false;
+    const fetchWithRetry = async () => {
+      setIsFetchingPrinters(true);
+      let list = await getPrinters();
+      // Retry up to 2 times with delay if empty
+      for (let i = 0; i < 2 && list.length === 0 && !cancelled; i++) {
+        await new Promise(r => setTimeout(r, 600));
+        if (cancelled) break;
+        list = await getPrinters();
+      }
+      if (!cancelled) setIsFetchingPrinters(false);
+    };
+    fetchWithRetry();
+    return () => { cancelled = true; };
   }, [open, isConnected, printers.length, getPrinters]);
 
   const handleConnect = async () => {
@@ -511,8 +527,10 @@ export const DirectPrintDialog = ({
                   <SelectValue placeholder="Choose a printer..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {printers.length === 0 ? (
-                    <div className="p-2 text-sm text-muted-foreground">No printers found</div>
+              {printers.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground">
+                      {isFetchingPrinters ? 'Searching for printers...' : 'No printers found'}
+                    </div>
                   ) : (
                     printers.map(printer => (
                       <SelectItem key={printer} value={printer}>{printer}</SelectItem>
