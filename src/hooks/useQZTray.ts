@@ -72,7 +72,7 @@ export const useQZTray = () => {
     }
   }, [isQZAvailable, state.isConnected]);
 
-  // Get list of available printers
+  // Get list of available printers (with retry + stabilization delay)
   const getPrinters = useCallback(async (): Promise<string[]> => {
     // Check live websocket status — don't rely on React state (avoids stale closures)
     const isActive = typeof window !== 'undefined' && window.qz?.websocket?.isActive?.() === true;
@@ -85,20 +85,42 @@ export const useQZTray = () => {
         if (!connected) return [];
         // Update React state to reflect connection
         setState(prev => ({ ...prev, isConnected: true }));
+        // Give QZ Tray time to stabilize after fresh connection
+        await new Promise(r => setTimeout(r, 500));
       } catch {
         return [];
       }
     }
 
-    try {
-      const printers = await window.qz.printers.find();
-      setState(prev => ({ ...prev, printers, error: null }));
-      return printers;
-    } catch (err: any) {
-      console.error('Failed to get printers:', err);
-      setState(prev => ({ ...prev, error: 'Failed to get printer list' }));
-      return [];
+    // Retry up to 3 times with increasing delay — QZ may need time after connect
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        console.log(`[QZ] printers.find() attempt ${attempt}`);
+        const printers = await window.qz.printers.find();
+        if (printers && printers.length > 0) {
+          console.log(`[QZ] Found ${printers.length} printers on attempt ${attempt}`);
+          setState(prev => ({ ...prev, printers, error: null }));
+          return printers;
+        }
+        // Got empty list — retry after delay
+        if (attempt < 3) {
+          await new Promise(r => setTimeout(r, 400 * attempt));
+        }
+      } catch (err: any) {
+        console.error(`[QZ] printers.find() attempt ${attempt} failed:`, err?.message || err);
+        if (attempt < 3) {
+          await new Promise(r => setTimeout(r, 400 * attempt));
+        } else {
+          setState(prev => ({ ...prev, error: 'Failed to get printer list' }));
+          return [];
+        }
+      }
     }
+
+    // All retries returned empty
+    console.warn('[QZ] No printers found after 3 attempts');
+    setState(prev => ({ ...prev, printers: [], error: null }));
+    return [];
   }, []);
 
   // Find thermal printers (common TSC printer names)
