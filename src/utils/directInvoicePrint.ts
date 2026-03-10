@@ -62,7 +62,12 @@ function setupQZSecurity() {
  * Connect to QZ Tray if not already connected
  */
 export const ensureQZConnection = async (): Promise<boolean> => {
-  if (typeof window === 'undefined' || !window.qz) return false;
+  if (typeof window === 'undefined') return false;
+  // Wait for QZ script to load (it's async in index.html)
+  if (!window.qz) {
+    const loaded = await waitForQZ();
+    if (!loaded) return false;
+  }
   try {
     if (window.qz.websocket.isActive()) return true;
     setupQZSecurity();
