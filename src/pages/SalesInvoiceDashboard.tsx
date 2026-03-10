@@ -574,6 +574,52 @@ export default function SalesInvoiceDashboard() {
     }
   };
 
+  const handleCancelInvoice = async () => {
+    if (!invoiceToCancel) return;
+    setIsCancelling(true);
+    try {
+      const { data, error } = await supabase.rpc('cancel_invoice', {
+        p_sale_id: invoiceToCancel.id,
+        p_reason: cancelReason.trim() || null,
+      });
+
+      if (error) throw error;
+      const result = data as any;
+      if (!result.success) throw new Error(result.error);
+
+      toast({ title: 'Invoice Cancelled', description: result.message });
+      setInvoiceToCancel(null);
+      setCancelReason('');
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleHardDeleteInvoice = async () => {
+    if (!invoiceToHardDelete) return;
+    setIsHardDeleting(true);
+    try {
+      const success = await hardDelete('sales', invoiceToHardDelete.id);
+      if (!success) throw new Error('Failed to permanently delete invoice');
+
+      toast({
+        title: 'Invoice Permanently Deleted',
+        description: `Invoice ${invoiceToHardDelete.sale_number} has been permanently deleted and stock restored.`,
+      });
+      setInvoiceToHardDelete(null);
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsHardDeleting(false);
+    }
+  };
+
   // Note: toggleSelectAll moved after filteredInvoices is defined
 
   const fetchSaleReturns = async (saleNumber: string, saleId: string) => {
