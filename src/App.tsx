@@ -930,6 +930,16 @@ const App = () => {
                   }
                 />
                 <Route
+                  path="customer-ledger-report"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <CustomerLedgerPage />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="stock-analysis"
                   element={
                     <ProtectedRoute>

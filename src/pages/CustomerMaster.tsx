@@ -626,6 +626,9 @@ const CustomerMaster = () => {
             <button className="h-8 w-8 rounded-md hover:bg-muted flex items-center justify-center transition" onClick={() => navigate("/accounts?tab=customer-ledger&customer=" + customer.id)} title="Account Ledger">
               <BookOpen className="h-4 w-4 text-primary" />
             </button>
+            <button className="h-8 w-8 rounded-md hover:bg-muted flex items-center justify-center transition" onClick={() => navigate(`/customer-ledger-report?customer=${customer.id}`)} title="Customer Ledger Report">
+              <FileText className="h-4 w-4 text-primary" />
+            </button>
             <button className="h-8 w-8 rounded-md hover:bg-muted flex items-center justify-center transition" onClick={() => { setSelectedCustomerForBrandDiscount({ id: customer.id, name: customer.customer_name }); setShowBrandDiscountDialog(true); }} title="Brand-wise Discount">
               <Tag className="h-4 w-4 text-muted-foreground" />
             </button>
