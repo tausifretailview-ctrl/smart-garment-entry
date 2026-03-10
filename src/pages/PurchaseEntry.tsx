@@ -3192,6 +3192,21 @@ const PurchaseEntry = () => {
                 )}
 
                 <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setShowPrintDialog(false);
+                    if (savedBillId) {
+                      // Re-open the same bill in edit mode to add more products
+                      navigate("/purchase-entry", { state: { editBillId: savedBillId } });
+                    }
+                  }}
+                  className="w-full gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Continue Adding Products
+                </Button>
+
+                <Button
                   variant="outline"
                   onClick={() => setShowPrintDialog(false)}
                   className="w-full"
