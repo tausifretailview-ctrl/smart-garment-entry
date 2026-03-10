@@ -1907,6 +1907,8 @@ export default function SalesInvoiceDashboard() {
                 hasSpecialPermission={hasSpecialPermission}
                 navigate={navigate}
                 setInvoiceToDelete={handleInitiateDelete}
+                setInvoiceToCancel={(inv: any) => { setCancelReason(''); setInvoiceToCancel(inv); }}
+                setInvoiceToHardDelete={setInvoiceToHardDelete}
                 pageTotals={pageTotals}
                 showItemBrand={showItemBrand}
                 showItemColor={showItemColor}
