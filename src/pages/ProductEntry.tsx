@@ -93,6 +93,8 @@ const ProductEntry = () => {
   const [showMrp, setShowMrp] = useState(false);
   const productNameInputRef = useRef<HTMLInputElement>(null);
   const variantsSectionRef = useRef<HTMLDivElement>(null);
+  const autoGenerateBtnRef = useRef<HTMLButtonElement>(null);
+  const saveBtnRef = useRef<HTMLButtonElement>(null);
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showCreateSizeGroup, setShowCreateSizeGroup] = useState(false);
   const [newSizeGroup, setNewSizeGroup] = useState({ group_name: "", sizes: "" });
@@ -755,16 +757,14 @@ const ProductEntry = () => {
       }];
       setVariants(newVariants);
       setShowVariants(true);
+    setTimeout(() => {
+      variantsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       setTimeout(() => {
-        variantsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        // Focus the first barcode input after scroll
-        setTimeout(() => {
-          const firstBarcodeInput = variantsSectionRef.current?.querySelector('input[placeholder="Barcode"]') as HTMLInputElement;
-          firstBarcodeInput?.focus();
-        }, 400);
-      }, 100);
-      return;
-    }
+        autoGenerateBtnRef.current?.focus();
+      }, 400);
+    }, 100);
+    return;
+  }
 
     const selectedGroup = sizeGroups.find((g) => g.id === formData.size_group_id);
     if (!selectedGroup) {
@@ -806,8 +806,7 @@ const ProductEntry = () => {
     setTimeout(() => {
       variantsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       setTimeout(() => {
-        const firstBarcodeInput = variantsSectionRef.current?.querySelector('input[placeholder="Barcode"]') as HTMLInputElement;
-        firstBarcodeInput?.focus();
+        autoGenerateBtnRef.current?.focus();
       }, 400);
     }, 100);
   };
@@ -839,6 +838,10 @@ const ProductEntry = () => {
         }
       }
       setVariants(updatedVariants);
+      // After barcodes generated, focus Save button for keyboard flow
+      setTimeout(() => {
+        saveBtnRef.current?.focus();
+      }, 100);
     } catch (error) {
       toast({
         title: "Error",
@@ -2178,6 +2181,7 @@ const ProductEntry = () => {
                     {formData.product_type === 'service' ? 'Service Details' : `Variants (${variants.length})`}
                   </h3>
                   <Button
+                    ref={autoGenerateBtnRef}
                     onClick={handleAutoGenerateBarcodes}
                     size="sm"
                     className="gap-1 h-6 text-xs"
@@ -2365,6 +2369,7 @@ const ProductEntry = () => {
             {/* Save Button */}
             <div className="flex justify-end pt-2">
               <Button
+                ref={saveBtnRef}
                 onClick={handleSave}
                 disabled={loading}
                 size="sm"
