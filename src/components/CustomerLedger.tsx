@@ -272,7 +272,20 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         }
       });
 
-      console.log(`CustomerLedger: Fetched ${customersData.length} customers, ${salesData.length} sales, ${allVouchers?.length || 0} voucher payments, ${allAdjustments?.length || 0} adjustments, ${allAdvances?.length || 0} advances`);
+      // Fetch all sale returns (credit notes) for this org
+      const { data: allCreditNotes } = await supabase
+        .from("sale_returns")
+        .select("customer_id, net_amount")
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null);
+
+      const customerCreditNotes = new Map<string, number>();
+      (allCreditNotes || []).forEach((sr: any) => {
+        if (sr.customer_id)
+          customerCreditNotes.set(sr.customer_id, (customerCreditNotes.get(sr.customer_id) || 0) + (sr.net_amount || 0));
+      });
+
+      console.log(`CustomerLedger: Fetched ${customersData.length} customers, ${salesData.length} sales, ${allVouchers?.length || 0} voucher payments, ${allAdjustments?.length || 0} adjustments, ${allAdvances?.length || 0} advances, ${allCreditNotes?.length || 0} credit notes`);
 
       // Calculate totals per customer using Math.max to avoid double-counting
       const customerTotals = customersData.map((customer: any) => {
@@ -291,8 +304,9 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         const openingBalance = customer.opening_balance || 0;
         const adjustmentTotal = customerAdjustments.get(customer.id) || 0;
         const unusedAdvanceTotal = customerUnusedAdvances.get(customer.id) || 0;
-        // Balance = Opening + Sales - Paid + Adjustments - Unused Advances
-        const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - unusedAdvanceTotal);
+        const creditNoteTotal = customerCreditNotes.get(customer.id) || 0;
+        // Balance = Opening + Sales - Paid + Adjustments - Unused Advances - Credit Notes
+        const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - unusedAdvanceTotal - creditNoteTotal);
 
         return {
           ...customer,
