@@ -691,12 +691,15 @@ export default function SalesInvoiceDashboard() {
   const totalPages = Math.ceil(totalCount / itemsPerPage);
 
   // Page totals computed from current page data (no sale_items, use total_qty)
-  const pageTotals = useMemo(() => ({
-    qty: paginatedInvoices.reduce((sum: number, inv: any) => sum + (inv.total_qty || 0), 0),
-    discount: paginatedInvoices.reduce((sum: number, inv: any) => sum + (inv.discount_amount || 0) + (inv.flat_discount_amount || 0), 0),
-    amount: paginatedInvoices.reduce((sum: number, inv: any) => sum + (inv.net_amount || 0), 0),
-    balance: paginatedInvoices.reduce((sum: number, inv: any) => sum + ((inv.net_amount || 0) - (inv.paid_amount || 0)), 0),
-  }), [paginatedInvoices]);
+  const pageTotals = useMemo(() => {
+    const activeInvoices = paginatedInvoices.filter((inv: any) => !inv.is_cancelled);
+    return {
+      qty: activeInvoices.reduce((sum: number, inv: any) => sum + (inv.total_qty || 0), 0),
+      discount: activeInvoices.reduce((sum: number, inv: any) => sum + (inv.discount_amount || 0) + (inv.flat_discount_amount || 0), 0),
+      amount: activeInvoices.reduce((sum: number, inv: any) => sum + (inv.net_amount || 0), 0),
+      balance: activeInvoices.reduce((sum: number, inv: any) => sum + ((inv.net_amount || 0) - (inv.paid_amount || 0)), 0),
+    };
+  }, [paginatedInvoices]);
 
   // Fallback summary stats if RPC hasn't loaded yet
   const effectiveStats = summaryStats || {
