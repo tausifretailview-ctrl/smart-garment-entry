@@ -72,56 +72,40 @@ export const useQZTray = () => {
     }
   }, [isQZAvailable, state.isConnected]);
 
-  // Get list of available printers (with retry + stabilization delay)
+  // Get list of available printers
   const getPrinters = useCallback(async (): Promise<string[]> => {
-    // Check live websocket status — don't rely on React state (avoids stale closures)
-    const isActive = typeof window !== 'undefined' && window.qz?.websocket?.isActive?.() === true;
-    
-    if (!isActive) {
-      // Try to connect first if not active
-      try {
-        const { ensureQZConnection } = await import('@/utils/directInvoicePrint');
-        const connected = await ensureQZConnection();
-        if (!connected) return [];
-        // Update React state to reflect connection
-        setState(prev => ({ ...prev, isConnected: true }));
-        // Give QZ Tray time to stabilize after fresh connection
-        await new Promise(r => setTimeout(r, 500));
-      } catch {
-        return [];
-      }
+    if (!isQZAvailable()) {
+      return [];
     }
 
-    // Retry up to 3 times with increasing delay — QZ may need time after connect
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        console.log(`[QZ] printers.find() attempt ${attempt}`);
-        const printers = await window.qz.printers.find();
-        if (printers && printers.length > 0) {
-          console.log(`[QZ] Found ${printers.length} printers on attempt ${attempt}`);
-          setState(prev => ({ ...prev, printers, error: null }));
-          return printers;
-        }
-        // Got empty list — retry after delay
-        if (attempt < 3) {
-          await new Promise(r => setTimeout(r, 400 * attempt));
-        }
-      } catch (err: any) {
-        console.error(`[QZ] printers.find() attempt ${attempt} failed:`, err?.message || err);
-        if (attempt < 3) {
-          await new Promise(r => setTimeout(r, 400 * attempt));
-        } else {
-          setState(prev => ({ ...prev, error: 'Failed to get printer list' }));
-          return [];
-        }
-      }
+    // Use LIVE websocket check instead of stale state.isConnected
+    const qz = window.qz;
+    if (!qz?.websocket?.isActive()) {
+      return [];
     }
 
-    // All retries returned empty
-    console.warn('[QZ] No printers found after 3 attempts');
-    setState(prev => ({ ...prev, printers: [], error: null }));
-    return [];
-  }, []);
+    try {
+      // Re-apply security callbacks before each printers.find() call
+      // This prevents "Failed to get printer list" when security context resets
+      qz.security.setCertificatePromise(function(resolve: Function) {
+        resolve();
+      });
+      qz.security.setSignatureAlgorithm('SHA512');
+      qz.security.setSignaturePromise(function(_toSign: string, resolve: Function) {
+        resolve();
+      });
+
+      const printers = await qz.printers.find();
+      const printerList = Array.isArray(printers) ? printers : [];
+      setState(prev => ({ ...prev, printers: printerList, error: null }));
+      return printerList;
+    } catch (err: any) {
+      console.error('Failed to get printers:', err);
+      setState(prev => ({ ...prev, error: 'Failed to get printer list' }));
+      return [];
+    }
+  }, [isQZAvailable]);
+  // NOTE: removed state.isConnected from deps — we use live websocket check instead
 
   // Find thermal printers (common TSC printer names)
   const findThermalPrinters = useCallback(async (): Promise<string[]> => {
