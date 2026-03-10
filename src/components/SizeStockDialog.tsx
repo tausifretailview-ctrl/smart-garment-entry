@@ -68,7 +68,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
   const [sizeWiseData, setSizeWiseData] = useState<{ sizes: string[]; rows: SizeWiseRow[] }>({ sizes: [], rows: [] });
   const [productDisplayLimit, setProductDisplayLimit] = useState(100);
   const [popoverOpen, setPopoverOpen] = useState(false);
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Clear data when dialog closes
   useEffect(() => {

@@ -43,7 +43,7 @@ export function StockAnalysisSearch({
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastKeystrokeRef = useRef<number>(0);
 
   const { recordKeystroke, reset: resetScanner, detectScannerInput } = useBarcodeScanner({

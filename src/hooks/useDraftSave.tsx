@@ -19,7 +19,7 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
   const [draftData, setDraftData] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentDataRef = useRef<any>(null);
   const draftClearedRef = useRef(false); // Track when draft was intentionally cleared
 
