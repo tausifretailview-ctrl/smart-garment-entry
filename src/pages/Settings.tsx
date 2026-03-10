@@ -176,6 +176,7 @@ interface BillBarcodeSettings {
   invoice_format?: string;
   show_product_details?: boolean;
   barcode_format?: string;
+  barcode_digits?: number;
   brand_color?: string;
   login_display_name?: string;
   instagram_link?: string;
