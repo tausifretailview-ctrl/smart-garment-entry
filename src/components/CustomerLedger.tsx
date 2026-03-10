@@ -49,7 +49,7 @@ interface Transaction {
   id: string;
   date: string;
   timestamp: string | null;
-  type: 'invoice' | 'payment' | 'advance' | 'adjustment' | 'fee';
+  type: 'invoice' | 'payment' | 'advance' | 'adjustment' | 'fee' | 'return';
   reference: string;
   description: string;
   debit: number;
@@ -272,7 +272,20 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         }
       });
 
-      console.log(`CustomerLedger: Fetched ${customersData.length} customers, ${salesData.length} sales, ${allVouchers?.length || 0} voucher payments, ${allAdjustments?.length || 0} adjustments, ${allAdvances?.length || 0} advances`);
+      // Fetch all sale returns (credit notes) for this org
+      const { data: allCreditNotes } = await supabase
+        .from("sale_returns")
+        .select("customer_id, net_amount")
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null);
+
+      const customerCreditNotes = new Map<string, number>();
+      (allCreditNotes || []).forEach((sr: any) => {
+        if (sr.customer_id)
+          customerCreditNotes.set(sr.customer_id, (customerCreditNotes.get(sr.customer_id) || 0) + (sr.net_amount || 0));
+      });
+
+      console.log(`CustomerLedger: Fetched ${customersData.length} customers, ${salesData.length} sales, ${allVouchers?.length || 0} voucher payments, ${allAdjustments?.length || 0} adjustments, ${allAdvances?.length || 0} advances, ${allCreditNotes?.length || 0} credit notes`);
 
       // Calculate totals per customer using Math.max to avoid double-counting
       const customerTotals = customersData.map((customer: any) => {
@@ -291,8 +304,9 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         const openingBalance = customer.opening_balance || 0;
         const adjustmentTotal = customerAdjustments.get(customer.id) || 0;
         const unusedAdvanceTotal = customerUnusedAdvances.get(customer.id) || 0;
-        // Balance = Opening + Sales - Paid + Adjustments - Unused Advances
-        const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - unusedAdvanceTotal);
+        const creditNoteTotal = customerCreditNotes.get(customer.id) || 0;
+        // Balance = Opening + Sales - Paid + Adjustments - Unused Advances - Credit Notes
+        const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - unusedAdvanceTotal - creditNoteTotal);
 
         return {
           ...customer,
@@ -703,7 +717,10 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         // Sort by timestamp (created_at) for accurate chronological ordering
         const tsA = a.timestamp ? new Date(a.timestamp).getTime() : new Date(a.date).getTime();
         const tsB = b.timestamp ? new Date(b.timestamp).getTime() : new Date(b.date).getTime();
-        return tsA - tsB;
+        if (tsA !== tsB) return tsA - tsB;
+        // Stable tiebreaker: invoice < cn_adjustment = advance < payment < adjustment
+        const typeOrder: Record<string, number> = { invoice: 0, cn_adjustment: 1, advance: 1, payment: 2, adjustment: 3 };
+        return (typeOrder[a.type] ?? 1) - (typeOrder[b.type] ?? 1);
       });
 
       combined.forEach((item) => {
@@ -840,7 +857,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             id: `cn-${sr.id}`,
             date: sr.return_date,
             timestamp: item.timestamp || null,
-            type: 'payment',
+            type: 'return' as const,
             reference: sr.return_number,
             description,
             debit: 0,
@@ -1154,7 +1171,7 @@ Please clear your dues at the earliest. Thank you!`;
       const row: any = {
         Date: dateStr,
         Time: timeStr,
-        Type: t.type === 'invoice' ? 'Invoice' : 'Payment',
+        Type: t.type === 'invoice' ? 'Invoice' : t.type === 'return' ? 'Sale Return' : t.type === 'advance' ? 'Advance' : t.type === 'adjustment' ? 'Adjustment' : 'Payment',
         Reference: t.reference,
         Description: t.description,
         Debit: t.debit > 0 ? t.debit.toFixed(2) : '',
@@ -1236,10 +1253,12 @@ Please clear your dues at the earliest. Thank you!`;
       yPos += 5;
     }
 
-    // Outstanding Balance
+    // Outstanding Balance with Dr/Cr
     doc.setFont("helvetica", "bold");
-    const balanceText = `Outstanding Balance: Rs. ${Math.abs(selectedCustomer.balance).toLocaleString("en-IN")}`;
-    doc.text(balanceText, pageWidth - margin, yPos, { align: "right" });
+    const hdrBalance = selectedCustomer.balance < 0
+      ? `Advance Balance: Rs. ${Math.abs(selectedCustomer.balance).toLocaleString("en-IN")} Cr`
+      : `Outstanding Balance: Rs. ${selectedCustomer.balance.toLocaleString("en-IN")} Dr`;
+    doc.text(hdrBalance, pageWidth - margin, yPos, { align: "right" });
     yPos += 10;
 
     // Table Headers
@@ -1270,14 +1289,16 @@ Please clear your dues at the earliest. Thank you!`;
       const dateTimeStr = t.id === 'opening-balance' 
         ? 'Opening' 
         : format(new Date(t.date), "dd/MM/yy") + (t.timestamp ? ' ' + format(new Date(t.timestamp), "hh:mm a") : '');
+      const bNum = Math.round(t.balance);
+      const bStr = bNum === 0 ? "Rs. 0" : `Rs. ${Math.abs(bNum).toLocaleString("en-IN")} ${bNum < 0 ? "Cr" : "Dr"}`;
       const rowData = [
         dateTimeStr,
-        t.type === 'invoice' ? 'Invoice' : 'Payment',
+        t.type === 'invoice' ? 'Invoice' : t.type === 'return' ? 'Sale Return' : t.type === 'advance' ? 'Advance' : t.type === 'adjustment' ? 'Adjustment' : 'Payment',
         t.reference,
         t.description.length > 28 ? t.description.substring(0, 28) + "..." : t.description,
         t.debit > 0 ? `Rs. ${Math.round(t.debit).toLocaleString("en-IN")}` : "",
         t.credit > 0 ? `Rs. ${Math.round(t.credit).toLocaleString("en-IN")}` : "",
-        `Rs. ${Math.abs(Math.round(t.balance)).toLocaleString("en-IN")}`,
+        bStr,
       ];
 
       rowData.forEach((cell, i) => {
@@ -1465,8 +1486,8 @@ Please clear your dues at the earliest. Thank you!`;
                   ? "bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800"
                   : "bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
               )}>
-                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                  Outstanding Balance
+                <div className="text-sm text-muted-foreground mb-1">
+                  {selectedCustomer.balance > 0 ? "Outstanding (Dr)" : selectedCustomer.balance < 0 ? "Advance Balance (Cr)" : "Balance"}
                 </div>
                 <div className={cn(
                   "text-3xl font-bold tabular-nums",
@@ -1478,13 +1499,13 @@ Please clear your dues at the earliest. Thank you!`;
                 </div>
                 <div className="mt-2">
                   {selectedCustomer.balance > 0 && (
-                    <Badge className="bg-red-600 hover:bg-red-700 text-white border-0">Outstanding</Badge>
+                    <Badge variant="destructive">Customer Owes</Badge>
                   )}
                   {selectedCustomer.balance < 0 && (
-                    <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white border-0">Advance</Badge>
+                    <Badge className="bg-green-100 text-green-800">In Advance / Overpaid</Badge>
                   )}
                   {selectedCustomer.balance === 0 && (
-                    <Badge variant="outline" className="text-slate-500">Settled ✓</Badge>
+                    <Badge variant="outline">Fully Settled</Badge>
                   )}
                 </div>
               </div>
@@ -1615,6 +1636,10 @@ Please clear your dues at the earliest. Thank you!`;
                                     <Badge className="bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30">
                                       <FileText className="h-3 w-3 mr-1" /> FEE
                                     </Badge>
+                                  ) : transaction.type === 'return' ? (
+                                    <Badge className="bg-amber-100 text-amber-800 border border-amber-300 text-xs">
+                                      Sale Return
+                                    </Badge>
                                   ) : (
                                     <>
                                       {transaction.type === 'invoice' ? (
@@ -1684,13 +1709,15 @@ Please clear your dues at the earliest. Thank you!`;
                                 </span>
                               )}
                             </TableCell>
-                            <TableCell className={cn(
-                              "text-right font-bold",
-                              transaction.balance > 0 ? "text-red-600 dark:text-red-400" : 
-                              transaction.balance < 0 ? "text-emerald-700 dark:text-emerald-300" : 
-                              "text-foreground"
-                            )}>
-                              ₹{Math.abs(transaction.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            <TableCell className="text-right">
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className={`font-semibold text-sm ${transaction.balance > 0 ? "text-red-600" : transaction.balance < 0 ? "text-green-700" : "text-slate-500"}`}>
+                                  ₹{Math.abs(Math.round(transaction.balance)).toLocaleString("en-IN")}
+                                </span>
+                                {transaction.balance > 0 && <Badge variant="destructive" className="text-[9px] h-4 px-1">Dr</Badge>}
+                                {transaction.balance < 0 && <Badge className="text-[9px] h-4 px-1 bg-green-100 text-green-800 border border-green-300">Cr</Badge>}
+                                {transaction.balance === 0 && <Badge variant="outline" className="text-[9px] h-4 px-1">Settled</Badge>}
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))
