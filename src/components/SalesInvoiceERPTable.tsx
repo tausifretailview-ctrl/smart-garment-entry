@@ -44,6 +44,8 @@ interface SalesInvoiceERPTableProps {
   hasSpecialPermission: (permission: string) => boolean;
   navigate: (path: string, options?: any) => void;
   setInvoiceToDelete: (invoice: any) => void;
+  setInvoiceToCancel?: (invoice: any) => void;
+  setInvoiceToHardDelete?: (invoice: any) => void;
   pageTotals: { qty: number; discount: number; amount: number; balance: number };
   showItemBrand: boolean;
   showItemColor: boolean;
