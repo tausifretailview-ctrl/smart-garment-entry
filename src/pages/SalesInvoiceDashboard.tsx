@@ -110,6 +110,13 @@ export default function SalesInvoiceDashboard() {
   const [itemCountToDelete, setItemCountToDelete] = useState<number | null>(null);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  // Cancel invoice state
+  const [invoiceToCancel, setInvoiceToCancel] = useState<any>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
+  // Hard delete state
+  const [invoiceToHardDelete, setInvoiceToHardDelete] = useState<any>(null);
+  const [isHardDeleting, setIsHardDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [invoiceToPrint, setInvoiceToPrint] = useState<any>(null);
