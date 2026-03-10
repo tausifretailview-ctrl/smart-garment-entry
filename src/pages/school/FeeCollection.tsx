@@ -866,6 +866,17 @@ const FeeCollection = () => {
                         </TableCell>
                         <TableCell className="text-right font-medium">₹{(fee.paid_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
                         <TableCell className="text-center">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            title="Modify Receipt"
+                            onClick={() => { setModifyFee(fee); setModifyOpen(true); }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                        <TableCell className="text-center">
                           {fee.payment_receipt_id && (
                             <Button
                               variant="ghost"
