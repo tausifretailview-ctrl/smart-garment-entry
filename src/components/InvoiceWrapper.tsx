@@ -343,6 +343,26 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       if (format === 'thermal-receipt' || format === 'thermal') {
         const thermalStyle = (settings?.sale_settings as any)?.thermal_receipt_style || 'classic';
         const ThermalComponent = thermalStyle === 'compact' ? ThermalReceiptCompact : ThermalPrint80mm;
+        // Compute rate-wise GST breakdown for thermal receipt
+        const rateMap = new Map<number, { taxable: number; tax: number }>();
+        props.items.forEach(item => {
+          const gstPct = item.gstPercent || 0;
+          if (gstPct <= 0) return;
+          const gstAmt = (item.total * gstPct) / (100 + gstPct);
+          const taxable = item.total - gstAmt;
+          const existing = rateMap.get(gstPct) || { taxable: 0, tax: 0 };
+          rateMap.set(gstPct, { taxable: existing.taxable + taxable, tax: existing.tax + gstAmt });
+        });
+        const gstRateBreakdown = Array.from(rateMap.entries())
+          .sort((a, b) => a[0] - b[0])
+          .map(([rate, { taxable, tax }]) => ({
+            rate,
+            taxableAmount: taxable,
+            cgst: tax / 2,
+            sgst: tax / 2,
+            totalTax: tax,
+          }));
+
         return (
           <ThermalComponent
             billNo={props.billNo}
@@ -365,6 +385,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               cgst: cgstAmount,
               sgst: sgstAmount,
             }}
+            gstRateBreakdown={gstRateBreakdown.length > 0 ? gstRateBreakdown : undefined}
             paymentMethod={props.paymentMethod}
             cashPaid={props.cashPaid || props.cashAmount}
             upiPaid={props.upiPaid || props.upiAmount}

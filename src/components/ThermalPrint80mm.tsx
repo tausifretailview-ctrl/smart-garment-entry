@@ -13,6 +13,15 @@ interface ThermalItem {
   total: number;
 }
 
+interface GSTRateEntry {
+  rate: number;
+  taxableAmount: number;
+  cgst: number;
+  sgst: number;
+  igst?: number;
+  totalTax: number;
+}
+
 interface ThermalPrint80mmProps {
   billNo: string;
   date: Date;
@@ -29,6 +38,7 @@ interface ThermalPrint80mmProps {
     sgst: number;
     igst?: number;
   };
+  gstRateBreakdown?: GSTRateEntry[];
   paymentMethod?: string;
   cashPaid?: number;
   upiPaid?: number;
@@ -55,6 +65,10 @@ const formatAmount = (amount: number): string => {
   return Math.round(amount).toLocaleString('en-IN');
 };
 
+const formatAmountDecimal = (amount: number): string => {
+  return amount.toFixed(2);
+};
+
 // Text separator line
 const SEPARATOR_LINE = '------------------------------------------------';
 const DASHED_LINE = '- - - - - - - - - - - - - - - - - - - - - - - - ';
@@ -74,6 +88,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
       saleReturnAdjust = 0,
       grandTotal,
       gstBreakdown,
+      gstRateBreakdown,
       paymentMethod,
       cashPaid = 0,
       upiPaid = 0,
@@ -171,23 +186,24 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
     const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
 
     // Base thermal print styles - optimized for 80mm (72mm printable area)
+    // INCREASED FONT SIZES & WEIGHT for better thermal print visibility
     const baseStyle: React.CSSProperties = {
       width: '70mm',
       maxWidth: '70mm',
       padding: '2mm',
       backgroundColor: 'white',
-      fontFamily: 'Arial, Helvetica, sans-serif',
-      fontSize: '11px',
-      lineHeight: '1.4',
+      fontFamily: '"Courier New", Courier, monospace',
+      fontSize: '13px',
+      lineHeight: '1.45',
       color: '#000000',
-      fontWeight: 800,
+      fontWeight: 900,
       WebkitFontSmoothing: 'none',
       boxSizing: 'border-box',
       WebkitPrintColorAdjust: 'exact',
       printColorAdjust: 'exact',
-      letterSpacing: '0.1px',
+      letterSpacing: '0.2px',
       overflow: 'hidden',
-      WebkitTextStroke: '0.3px #000',
+      WebkitTextStroke: '0.5px #000',
     };
 
     const centerStyle: React.CSSProperties = {
@@ -207,9 +223,9 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
 
     const separatorStyle: React.CSSProperties = {
       textAlign: 'center',
-      fontSize: '10px',
+      fontSize: '11px',
       letterSpacing: '-0.5px',
-      margin: '2px 0',
+      margin: '3px 0',
       color: '#000000',
       overflow: 'hidden',
       whiteSpace: 'nowrap',
@@ -219,33 +235,34 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
       <div ref={ref} className="thermal-print-80mm thermal-receipt-container" style={baseStyle}>
         
         {/* ============ HEADER SECTION ============ */}
-        <div style={{ ...centerStyle, marginBottom: '4px' }}>
+        <div style={{ ...centerStyle, marginBottom: '5px' }}>
           {/* Business Name */}
           <div style={{ 
             fontWeight: 900, 
-            fontSize: '16px', 
-            letterSpacing: '0.5px', 
+            fontSize: '18px', 
+            letterSpacing: '0.8px', 
             textTransform: 'uppercase',
-            marginBottom: '2px'
+            marginBottom: '3px',
+            WebkitTextStroke: '0.7px #000',
           }}>
             {settings?.business_name || 'STORE NAME'}
           </div>
           
           {/* Address */}
-          <div style={{ fontSize: '10px', lineHeight: '1.3', marginBottom: '2px' }}>
+          <div style={{ fontSize: '12px', lineHeight: '1.35', marginBottom: '2px', fontWeight: 800 }}>
             {settings?.address || 'Store Address'}
           </div>
           
           {/* Contact */}
           {settings?.mobile_number && (
-            <div style={{ fontSize: '10px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 800 }}>
               Tel: {settings.mobile_number}
             </div>
           )}
           
           {/* GSTIN */}
           {settings?.gst_number && (
-            <div style={{ fontSize: '10px', fontWeight: 900, marginTop: '2px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 900, marginTop: '2px' }}>
               GSTIN: {settings.gst_number}
             </div>
           )}
@@ -258,10 +275,11 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         <div style={{ 
           ...centerStyle, 
           fontWeight: 900, 
-          fontSize: '14px',
-          letterSpacing: '1px',
+          fontSize: '16px',
+          letterSpacing: '1.5px',
           margin: '4px 0',
-          textTransform: 'uppercase'
+          textTransform: 'uppercase',
+          WebkitTextStroke: '0.6px #000',
         }}>
           {getDocumentTitle()}
         </div>
@@ -269,7 +287,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         <div style={separatorStyle}>{SEPARATOR_LINE}</div>
 
         {/* ============ INVOICE META ============ */}
-        <div style={{ fontSize: '11px', marginBottom: '4px' }}>
+        <div style={{ fontSize: '13px', marginBottom: '4px', fontWeight: 800 }}>
           <div style={leftRightRow}>
             <span>{getDocumentNoLabel()}: <span style={boldText}>{billNo}</span></span>
             <span>Date: {format(date, 'dd/MM/yy')}</span>
@@ -286,15 +304,15 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         {(customerName || customerPhone) && (
           <>
             <div style={separatorStyle}>{DASHED_LINE}</div>
-            <div style={{ fontSize: '10px', marginBottom: '4px' }}>
+            <div style={{ fontSize: '12px', marginBottom: '4px', fontWeight: 800 }}>
               {customerName && (
-                <div><span style={boldText}>Customer:</span> {truncateText(customerName, 28)}</div>
+                <div><span style={boldText}>Customer:</span> {truncateText(customerName, 26)}</div>
               )}
               {customerPhone && (
                 <div><span style={boldText}>Mobile:</span> {customerPhone}</div>
               )}
               {customerAddress && (
-                <div style={{ lineHeight: '1.2' }}><span style={boldText}>Addr:</span> {truncateText(customerAddress, 32)}</div>
+                <div style={{ lineHeight: '1.3' }}><span style={boldText}>Addr:</span> {truncateText(customerAddress, 30)}</div>
               )}
             </div>
           </>
@@ -305,9 +323,9 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         {/* ============ ITEMS HEADER ============ */}
         <div style={{ 
           display: 'flex', 
-          fontSize: '10px', 
+          fontSize: '12px', 
           fontWeight: 900,
-          marginBottom: '2px',
+          marginBottom: '3px',
           textTransform: 'uppercase',
           borderBottom: '1px solid #000',
           paddingBottom: '2px'
@@ -321,27 +339,27 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         {/* ============ ITEMS LIST ============ */}
         <div style={{ marginBottom: '4px' }}>
           {items.map((item, index) => (
-            <div key={index} style={{ fontSize: '10px', marginBottom: '3px' }}>
+            <div key={index} style={{ fontSize: '12px', marginBottom: '4px' }}>
               {/* Item name on its own line for readability */}
               <div style={{ 
-                fontWeight: 800, 
-                fontSize: '10px',
+                fontWeight: 900, 
+                fontSize: '12px',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 maxWidth: '100%'
               }}>
-                {truncateText(item.particulars, 40)}
+                {truncateText(item.particulars, 36)}
               </div>
               {/* Barcode number for sale returns */}
               {item.barcode && (
-                <div style={{ fontSize: '9px', color: '#000', fontWeight: 700 }}>BC: {item.barcode}</div>
+                <div style={{ fontSize: '11px', color: '#000', fontWeight: 800 }}>BC: {item.barcode}</div>
               )}
               {/* Qty, Rate, Amount */}
               <div style={{ display: 'flex' }}>
                 <div style={{ width: '48%', textAlign: 'left' }}></div>
                 <div style={{ width: '12%', textAlign: 'center', fontWeight: 900 }}>{item.qty}</div>
-                <div style={{ width: '18%', textAlign: 'right' }}>{formatAmount(item.rate)}</div>
+                <div style={{ width: '18%', textAlign: 'right', fontWeight: 800 }}>{formatAmount(item.rate)}</div>
                 <div style={{ width: '22%', textAlign: 'right', fontWeight: 900 }}>{formatAmount(item.total)}</div>
               </div>
             </div>
@@ -351,16 +369,16 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         <div style={separatorStyle}>{SEPARATOR_LINE}</div>
 
         {/* ============ TOTALS SECTION ============ */}
-        <div style={{ fontSize: '11px' }}>
+        <div style={{ fontSize: '13px' }}>
           {/* Subtotal with Qty */}
-          <div style={{ ...leftRightRow, marginBottom: '2px' }}>
+          <div style={{ ...leftRightRow, marginBottom: '3px' }}>
             <span>SubTotal ({totalQty} items)</span>
             <span style={boldText}>₹{formatAmount(subTotal)}</span>
           </div>
 
           {/* Discount if any */}
           {discount > 0 && (
-            <div style={{ ...leftRightRow, marginBottom: '2px' }}>
+            <div style={{ ...leftRightRow, marginBottom: '3px' }}>
               <span>Discount</span>
               <span style={boldText}>-₹{formatAmount(discount)}</span>
             </div>
@@ -368,7 +386,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
 
           {/* Sale Return Adjust if any */}
           {saleReturnAdjust > 0 && (
-            <div style={{ ...leftRightRow, marginBottom: '2px' }}>
+            <div style={{ ...leftRightRow, marginBottom: '3px' }}>
               <span>S/R Adjust</span>
               <span style={boldText}>-₹{formatAmount(saleReturnAdjust)}</span>
             </div>
@@ -376,17 +394,54 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
 
           {/* Points Redemption if any */}
           {pointsRedeemed > 0 && pointsRedemptionValue > 0 && (
-            <div style={{ ...leftRightRow, marginBottom: '2px' }}>
+            <div style={{ ...leftRightRow, marginBottom: '3px' }}>
               <span>Points ({pointsRedeemed} pts)</span>
               <span style={boldText}>-₹{formatAmount(pointsRedemptionValue)}</span>
             </div>
           )}
 
-          {/* GST Breakdown */}
-          {(calculatedGst.cgst > 0 || calculatedGst.sgst > 0) && (
+          {/* ============ GST RATE-WISE BREAKDOWN ============ */}
+          {gstRateBreakdown && gstRateBreakdown.length > 0 ? (
             <>
-              <div style={{ ...separatorStyle, margin: '3px 0' }}>{DASHED_LINE}</div>
-              <div style={{ fontSize: '10px' }}>
+              <div style={{ ...separatorStyle, margin: '4px 0' }}>{DASHED_LINE}</div>
+              <div style={{ fontSize: '11px', fontWeight: 900, marginBottom: '3px', textAlign: 'center' }}>
+                GST DETAILS
+              </div>
+              {/* GST Table Header */}
+              <div style={{ 
+                display: 'flex', 
+                fontSize: '11px', 
+                fontWeight: 900, 
+                borderBottom: '1px solid #000',
+                paddingBottom: '2px',
+                marginBottom: '2px'
+              }}>
+                <div style={{ width: '22%', textAlign: 'left' }}>GST%</div>
+                <div style={{ width: '26%', textAlign: 'right' }}>Taxable</div>
+                <div style={{ width: '26%', textAlign: 'right' }}>CGST</div>
+                <div style={{ width: '26%', textAlign: 'right' }}>SGST</div>
+              </div>
+              {/* GST Rate Rows */}
+              {gstRateBreakdown.map((entry, idx) => (
+                <div key={idx} style={{ display: 'flex', fontSize: '11px', fontWeight: 800, marginBottom: '2px' }}>
+                  <div style={{ width: '22%', textAlign: 'left' }}>{entry.rate}%</div>
+                  <div style={{ width: '26%', textAlign: 'right' }}>₹{formatAmountDecimal(entry.taxableAmount)}</div>
+                  <div style={{ width: '26%', textAlign: 'right' }}>₹{formatAmountDecimal(entry.cgst)}</div>
+                  <div style={{ width: '26%', textAlign: 'right' }}>₹{formatAmountDecimal(entry.sgst)}</div>
+                </div>
+              ))}
+              {/* GST Total Row */}
+              <div style={{ display: 'flex', fontSize: '11px', fontWeight: 900, borderTop: '1px solid #000', paddingTop: '2px', marginTop: '2px' }}>
+                <div style={{ width: '22%', textAlign: 'left' }}>Total</div>
+                <div style={{ width: '26%', textAlign: 'right' }}>₹{formatAmountDecimal(gstRateBreakdown.reduce((s, e) => s + e.taxableAmount, 0))}</div>
+                <div style={{ width: '26%', textAlign: 'right' }}>₹{formatAmountDecimal(gstRateBreakdown.reduce((s, e) => s + e.cgst, 0))}</div>
+                <div style={{ width: '26%', textAlign: 'right' }}>₹{formatAmountDecimal(gstRateBreakdown.reduce((s, e) => s + e.sgst, 0))}</div>
+              </div>
+            </>
+          ) : (calculatedGst.cgst > 0 || calculatedGst.sgst > 0) ? (
+            <>
+              <div style={{ ...separatorStyle, margin: '4px 0' }}>{DASHED_LINE}</div>
+              <div style={{ fontSize: '12px', fontWeight: 800 }}>
                 {calculatedGst.cgst > 0 && (
                   <div style={leftRightRow}>
                     <span>CGST</span>
@@ -407,17 +462,18 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
                 )}
               </div>
             </>
-          )}
+          ) : null}
         </div>
 
         {/* ============ GRAND TOTAL ============ */}
         <div style={separatorStyle}>{DOUBLE_LINE}</div>
         <div style={{ 
           ...leftRightRow, 
-          fontSize: '16px',
+          fontSize: '18px',
           fontWeight: 900,
-          margin: '4px 0',
-          letterSpacing: '0.5px'
+          margin: '5px 0',
+          letterSpacing: '0.5px',
+          WebkitTextStroke: '0.7px #000',
         }}>
           <span>TOTAL</span>
           <span>₹{formatAmount(grandTotal)}</span>
@@ -426,7 +482,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
 
         {/* ============ PAYMENT DETAILS ============ */}
         {(cashPaid > 0 || upiPaid > 0 || cardPaid > 0 || paymentMethod) && (
-          <div style={{ fontSize: '10px', margin: '4px 0' }}>
+          <div style={{ fontSize: '12px', margin: '4px 0', fontWeight: 800 }}>
             {/* Payment Mode */}
             <div style={{ ...leftRightRow, marginBottom: '2px' }}>
               <span style={boldText}>Payment:</span>
@@ -470,11 +526,12 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
           <>
             <div style={separatorStyle}>{DASHED_LINE}</div>
             <div style={{ 
-              fontSize: '10px',
+              fontSize: '12px',
               margin: '4px 0',
               padding: '3px',
               border: '1px solid #000',
-              borderRadius: '0'
+              borderRadius: '0',
+              fontWeight: 800,
             }}>
               <div style={{ ...centerStyle, fontWeight: 900, marginBottom: '2px' }}>LOYALTY POINTS</div>
               {pointsRedeemed > 0 && (
@@ -495,9 +552,9 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         {qrCodeUrl && settings?.bill_barcode_settings?.upi_id && (
           <div style={{ ...centerStyle, margin: '6px 0' }}>
             <div style={separatorStyle}>{DASHED_LINE}</div>
-            <div style={{ fontSize: '10px', fontWeight: 900, marginBottom: '3px' }}>SCAN TO PAY</div>
-            <img src={qrCodeUrl} alt="UPI QR" style={{ width: '80px', height: '80px', margin: '0 auto', display: 'block' }} />
-            <div style={{ fontSize: '9px', marginTop: '2px' }}>{settings.bill_barcode_settings.upi_id}</div>
+            <div style={{ fontSize: '12px', fontWeight: 900, marginBottom: '3px' }}>SCAN TO PAY</div>
+            <img src={qrCodeUrl} alt="UPI QR" style={{ width: '85px', height: '85px', margin: '0 auto', display: 'block' }} />
+            <div style={{ fontSize: '10px', marginTop: '2px', fontWeight: 800 }}>{settings.bill_barcode_settings.upi_id}</div>
           </div>
         )}
 
@@ -506,10 +563,11 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
           <>
             <div style={separatorStyle}>{DASHED_LINE}</div>
             <div style={{ 
-              fontSize: '9px', 
-              lineHeight: '1.3',
+              fontSize: '11px', 
+              lineHeight: '1.35',
               marginTop: '4px',
-              whiteSpace: 'pre-wrap'
+              whiteSpace: 'pre-wrap',
+              fontWeight: 800,
             }}>
               {termsConditions}
             </div>
@@ -520,27 +578,28 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         <div style={separatorStyle}>{SEPARATOR_LINE}</div>
         <div style={{ 
           ...centerStyle, 
-          fontSize: '12px',
+          fontSize: '14px',
           fontWeight: 900,
           margin: '6px 0 4px',
-          letterSpacing: '1px',
-          textTransform: 'uppercase'
+          letterSpacing: '1.5px',
+          textTransform: 'uppercase',
+          WebkitTextStroke: '0.5px #000',
         }}>
           THANK YOU!
         </div>
-        <div style={{ ...centerStyle, fontSize: '10px', marginBottom: '2px' }}>
+        <div style={{ ...centerStyle, fontSize: '12px', marginBottom: '2px', fontWeight: 800 }}>
           Visit Again
         </div>
 
         {/* Custom Footer Text */}
         {settings?.bill_barcode_settings?.footer_text && (
-          <div style={{ ...centerStyle, fontSize: '9px', marginTop: '4px', whiteSpace: 'pre-wrap' }}>
+          <div style={{ ...centerStyle, fontSize: '11px', marginTop: '4px', whiteSpace: 'pre-wrap', fontWeight: 800 }}>
             {settings.bill_barcode_settings.footer_text}
           </div>
         )}
 
         {/* Powered By / Software info - optional */}
-        <div style={{ ...centerStyle, fontSize: '8px', marginTop: '6px', color: '#000' }}>
+        <div style={{ ...centerStyle, fontSize: '10px', marginTop: '6px', color: '#000', fontWeight: 700 }}>
           {format(date, 'dd-MM-yyyy HH:mm:ss')}
         </div>
       </div>
