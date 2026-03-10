@@ -110,13 +110,17 @@ export default function SalesInvoiceDashboard() {
   const [itemCountToDelete, setItemCountToDelete] = useState<number | null>(null);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  // Cancel invoice state
-  const [invoiceToCancel, setInvoiceToCancel] = useState<any>(null);
-  const [cancelReason, setCancelReason] = useState('');
-  const [isCancelling, setIsCancelling] = useState(false);
-  // Hard delete state
-  const [invoiceToHardDelete, setInvoiceToHardDelete] = useState<any>(null);
-  const [isHardDeleting, setIsHardDeleting] = useState(false);
+   // Cancel invoice state
+   const [invoiceToCancel, setInvoiceToCancel] = useState<any>(null);
+   const [cancelReason, setCancelReason] = useState('');
+   const [isCancelling, setIsCancelling] = useState(false);
+   // Bulk cancel state
+   const [showBulkCancelDialog, setShowBulkCancelDialog] = useState(false);
+   const [bulkCancelReason, setBulkCancelReason] = useState('');
+   const [isBulkCancelling, setIsBulkCancelling] = useState(false);
+   // Hard delete state
+   const [invoiceToHardDelete, setInvoiceToHardDelete] = useState<any>(null);
+   const [isHardDeleting, setIsHardDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [invoiceToPrint, setInvoiceToPrint] = useState<any>(null);
@@ -585,7 +589,39 @@ export default function SalesInvoiceDashboard() {
     }
   };
 
-  const handleCancelInvoice = async () => {
+  const handleBulkCancel = async () => {
+    if (selectedInvoices.size === 0) return;
+    setIsBulkCancelling(true);
+    try {
+      const invoiceIds = Array.from(selectedInvoices);
+      let successCount = 0;
+      let failCount = 0;
+      for (const id of invoiceIds) {
+        const { data, error } = await supabase.rpc('cancel_invoice', {
+          p_sale_id: id,
+          p_reason: bulkCancelReason.trim() || null,
+        });
+        if (error || !(data as any)?.success) {
+          failCount++;
+        } else {
+          successCount++;
+        }
+      }
+      toast({
+        title: 'Invoices Cancelled',
+        description: `${successCount} invoice(s) cancelled successfully${failCount > 0 ? `, ${failCount} failed` : ''}. Stock has been restored.`,
+      });
+      setSelectedInvoices(new Set());
+      setShowBulkCancelDialog(false);
+      setBulkCancelReason('');
+      refetch();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsBulkCancelling(false);
+    }
+  };
+
     if (!invoiceToCancel) return;
     setIsCancelling(true);
     try {
@@ -1607,14 +1643,25 @@ export default function SalesInvoiceDashboard() {
               New Invoice
             </Button>
             {selectedInvoices.size > 0 && hasSpecialPermission('delete_records') && (
-              <Button
-                onClick={() => setShowBulkDeleteDialog(true)}
-                disabled={isDeleting}
-                variant="destructive"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete Selected ({selectedInvoices.size})
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => { setBulkCancelReason(''); setShowBulkCancelDialog(true); }}
+                  disabled={isBulkCancelling}
+                  variant="outline"
+                  className="border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+                >
+                  <Ban className="h-4 w-4 mr-2" />
+                  Cancel Selected ({selectedInvoices.size})
+                </Button>
+                <Button
+                  onClick={() => setShowBulkDeleteDialog(true)}
+                  disabled={isDeleting}
+                  variant="destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Selected ({selectedInvoices.size})
+                </Button>
+              </div>
             )}
           </div>
         </div>
@@ -2099,7 +2146,50 @@ export default function SalesInvoiceDashboard() {
         </AlertDialogContent>
         </AlertDialog>
 
-        {/* Delivery Status Update Dialog */}
+        {/* BULK CANCEL DIALOG */}
+        <Dialog open={showBulkCancelDialog} onOpenChange={(open) => { if (!open) { setShowBulkCancelDialog(false); setBulkCancelReason(''); } }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-orange-600">
+                <Ban className="h-5 w-5" />
+                Cancel {selectedInvoices.size} Invoice(s)
+              </DialogTitle>
+              <DialogDescription>
+                All selected invoices will be marked as CANCELLED. Stock will be automatically restored for all items.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <Textarea
+                placeholder="Cancellation reason (optional)"
+                value={bulkCancelReason}
+                onChange={(e) => setBulkCancelReason(e.target.value)}
+                className="resize-none"
+                rows={3}
+              />
+              <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>Stock for all items in {selectedInvoices.size} invoice(s) will be returned to inventory.</span>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setShowBulkCancelDialog(false); setBulkCancelReason(''); }}>
+                Keep Invoices
+              </Button>
+              <Button
+                variant="default"
+                className="bg-orange-600 hover:bg-orange-700"
+                onClick={handleBulkCancel}
+                disabled={isBulkCancelling}
+              >
+                {isBulkCancelling
+                  ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Cancelling...</>
+                  : <><Ban className="h-4 w-4 mr-2" /> Cancel All</>
+                }
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={showStatusDialog} onOpenChange={setShowStatusDialog}>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
