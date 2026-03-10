@@ -2369,6 +2369,7 @@ const ProductEntry = () => {
             {/* Save Button */}
             <div className="flex justify-end pt-2">
               <Button
+                ref={saveBtnRef}
                 onClick={handleSave}
                 disabled={loading}
                 size="sm"
