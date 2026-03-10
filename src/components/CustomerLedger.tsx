@@ -857,7 +857,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             id: `cn-${sr.id}`,
             date: sr.return_date,
             timestamp: item.timestamp || null,
-            type: 'payment',
+            type: 'return' as const,
             reference: sr.return_number,
             description,
             debit: 0,
