@@ -107,43 +107,43 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
     const gst = gstBreakdown || { cgst: (grandTotal - subTotal + discount) / 2, sgst: (grandTotal - subTotal + discount) / 2 };
     const totalQty = items.reduce((s, i) => s + i.qty, 0);
 
-    // INCREASED FONT SIZES & WEIGHT for better thermal visibility
+    // Clean sans-serif font for crisp thermal output — no WebkitTextStroke
     const base: React.CSSProperties = {
       width: '70mm', maxWidth: '70mm', padding: '2mm',
-      backgroundColor: 'white', fontFamily: '"Courier New", Courier, monospace',
-      fontSize: '13px', lineHeight: '1.4', color: '#000',
-      fontWeight: 800,
+      backgroundColor: 'white', fontFamily: 'Arial, Helvetica, sans-serif',
+      fontSize: '14px', lineHeight: '1.5', color: '#000',
+      fontWeight: 700,
       boxSizing: 'border-box', WebkitPrintColorAdjust: 'exact',
       printColorAdjust: 'exact', overflow: 'hidden',
-      WebkitTextStroke: '0.4px #000',
+      letterSpacing: '0.3px',
     };
 
     const center: React.CSSProperties = { textAlign: 'center', width: '100%' };
     const row: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', width: '100%' };
-    const sep: React.CSSProperties = { textAlign: 'center', fontSize: '10px', margin: '3px 0', color: '#000', overflow: 'hidden', whiteSpace: 'nowrap', letterSpacing: '-0.3px' };
+    const sep: React.CSSProperties = { textAlign: 'center', fontSize: '11px', margin: '4px 0', color: '#000', overflow: 'hidden', whiteSpace: 'nowrap', letterSpacing: '-0.3px' };
 
     return (
       <div ref={ref} className="thermal-print-80mm thermal-receipt-container" style={base}>
 
         {/* HEADER */}
         <div style={{ ...center, marginBottom: '5px' }}>
-          <div style={{ fontWeight: 900, fontSize: '17px', textTransform: 'uppercase', marginBottom: '2px', WebkitTextStroke: '0.6px #000' }}>
+          <div style={{ fontWeight: 900, fontSize: '20px', textTransform: 'uppercase', marginBottom: '3px', letterSpacing: '1px' }}>
             {settings?.business_name || 'STORE NAME'}
           </div>
-          <div style={{ fontSize: '11px', lineHeight: '1.3', fontWeight: 800 }}>{settings?.address || 'Store Address'}</div>
-          {settings?.mobile_number && <div style={{ fontSize: '11px', fontWeight: 800 }}>Ph: {settings.mobile_number}</div>}
-          {settings?.gst_number && <div style={{ fontSize: '11px', fontWeight: 900, marginTop: '1px' }}>GSTIN: {settings.gst_number}</div>}
+          <div style={{ fontSize: '13px', lineHeight: '1.4', fontWeight: 700 }}>{settings?.address || 'Store Address'}</div>
+          {settings?.mobile_number && <div style={{ fontSize: '13px', fontWeight: 700 }}>Ph: {settings.mobile_number}</div>}
+          {settings?.gst_number && <div style={{ fontSize: '13px', fontWeight: 900, marginTop: '1px' }}>GSTIN: {settings.gst_number}</div>}
         </div>
 
         <div style={sep}>{DASH}</div>
 
         {/* DOC TITLE */}
-        <div style={{ ...center, fontWeight: 900, fontSize: '14px', letterSpacing: '1px', margin: '3px 0', textTransform: 'uppercase', WebkitTextStroke: '0.5px #000' }}>{docTitle}</div>
+        <div style={{ ...center, fontWeight: 900, fontSize: '16px', letterSpacing: '1px', margin: '4px 0', textTransform: 'uppercase' }}>{docTitle}</div>
 
         <div style={sep}>{DASH}</div>
 
         {/* META */}
-        <div style={{ fontSize: '12px', marginBottom: '4px', fontWeight: 800 }}>
+        <div style={{ fontSize: '13px', marginBottom: '5px', fontWeight: 700 }}>
           <div style={row}><span>{docLabel}: <b>{billNo}</b></span><span>{format(date, 'dd/MM/yy')}</span></div>
           <div style={row}>
             <span>{format(date, 'hh:mm a')}</span>
@@ -155,7 +155,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
         {(customerName || customerPhone) && (
           <>
             <div style={sep}>{DASH}</div>
-            <div style={{ fontSize: '11px', marginBottom: '3px', fontWeight: 800 }}>
+            <div style={{ fontSize: '12px', marginBottom: '4px', fontWeight: 700 }}>
               {customerName && <div><b>Customer:</b> {customerName.length > 28 ? customerName.substring(0, 26) + '..' : customerName}</div>}
               {customerPhone && <div><b>Mobile:</b> {customerPhone}</div>}
               {customerAddress && <div><b>Addr:</b> {customerAddress.length > 32 ? customerAddress.substring(0, 30) + '..' : customerAddress}</div>}
@@ -166,25 +166,25 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
         <div style={sep}>{DASH}</div>
 
         {/* ITEMS TABLE HEADER */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', marginBottom: '3px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', marginBottom: '4px' }}>
           <thead>
-            <tr style={{ borderBottom: '1px solid #000' }}>
-              <th style={{ textAlign: 'left', padding: '2px 0', fontWeight: 900, width: '44%' }}>Description</th>
-              <th style={{ textAlign: 'center', padding: '2px 0', fontWeight: 900, width: '12%' }}>Qty</th>
-              <th style={{ textAlign: 'right', padding: '2px 0', fontWeight: 900, width: '20%' }}>Price</th>
-              <th style={{ textAlign: 'right', padding: '2px 0', fontWeight: 900, width: '24%' }}>Total</th>
+            <tr style={{ borderBottom: '1.5px solid #000' }}>
+              <th style={{ textAlign: 'left', padding: '3px 0', fontWeight: 900, width: '44%' }}>Description</th>
+              <th style={{ textAlign: 'center', padding: '3px 0', fontWeight: 900, width: '12%' }}>Qty</th>
+              <th style={{ textAlign: 'right', padding: '3px 0', fontWeight: 900, width: '20%' }}>Price</th>
+              <th style={{ textAlign: 'right', padding: '3px 0', fontWeight: 900, width: '24%' }}>Total</th>
             </tr>
           </thead>
           <tbody>
             {items.map((item, i) => (
               <tr key={i} style={{ borderBottom: '0.5px dotted #000' }}>
-                <td style={{ padding: '3px 0', lineHeight: '1.25', wordBreak: 'break-word', fontWeight: 800 }}>
+                <td style={{ padding: '4px 0', lineHeight: '1.3', wordBreak: 'break-word', fontWeight: 700 }}>
                   {item.particulars.length > 20 ? item.particulars.substring(0, 18) + '..' : item.particulars}
-                  {item.barcode && <div style={{ fontSize: '10px', fontWeight: 700 }}>BC: {item.barcode}</div>}
+                  {item.barcode && <div style={{ fontSize: '11px', fontWeight: 700 }}>BC: {item.barcode}</div>}
                 </td>
-                <td style={{ textAlign: 'center', padding: '3px 0', fontWeight: 900 }}>{item.qty}</td>
-                <td style={{ textAlign: 'right', padding: '3px 0', fontWeight: 800 }}>{fmtAmt(item.rate)}</td>
-                <td style={{ textAlign: 'right', padding: '3px 0', fontWeight: 900 }}>{fmtAmt(item.total)}</td>
+                <td style={{ textAlign: 'center', padding: '4px 0', fontWeight: 900 }}>{item.qty}</td>
+                <td style={{ textAlign: 'right', padding: '4px 0', fontWeight: 700 }}>{fmtAmt(item.rate)}</td>
+                <td style={{ textAlign: 'right', padding: '4px 0', fontWeight: 900 }}>{fmtAmt(item.total)}</td>
               </tr>
             ))}
           </tbody>
@@ -193,7 +193,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
         <div style={sep}>{DASH}</div>
 
         {/* TOTALS */}
-        <div style={{ fontSize: '12px', fontWeight: 800 }}>
+        <div style={{ fontSize: '14px', fontWeight: 700 }}>
           <div style={row}><span>Subtotal ({totalQty} items)</span><span><b>₹{fmtAmt(subTotal)}</b></span></div>
           {discount > 0 && <div style={row}><span>Discount</span><span><b>-₹{fmtAmt(discount)}</b></span></div>}
           {saleReturnAdjust > 0 && <div style={row}><span>S/R Adjust</span><span><b>-₹{fmtAmt(saleReturnAdjust)}</b></span></div>}
@@ -242,8 +242,8 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
         </div>
 
         {/* NET AMOUNT */}
-        <div style={{ ...sep, margin: '3px 0' }}>{DASH}</div>
-        <div style={{ ...row, fontSize: '16px', fontWeight: 900, margin: '4px 0', WebkitTextStroke: '0.6px #000' }}>
+        <div style={{ ...sep, margin: '4px 0' }}>{DASH}</div>
+        <div style={{ ...row, fontSize: '20px', fontWeight: 900, margin: '5px 0' }}>
           <span>NET AMOUNT</span><span>₹{fmtAmt(grandTotal)}</span>
         </div>
         <div style={sep}>{DASH}</div>
@@ -291,8 +291,8 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
 
         {/* FOOTER */}
         <div style={sep}>{DASH}</div>
-        <div style={{ ...center, fontSize: '13px', fontWeight: 900, margin: '5px 0 3px', letterSpacing: '1px', WebkitTextStroke: '0.5px #000' }}>Thank You!</div>
-        <div style={{ ...center, fontSize: '11px', marginBottom: '2px', fontWeight: 800 }}>Visit Again</div>
+        <div style={{ ...center, fontSize: '16px', fontWeight: 900, margin: '5px 0 3px', letterSpacing: '1px' }}>Thank You!</div>
+        <div style={{ ...center, fontSize: '13px', marginBottom: '3px', fontWeight: 700 }}>Visit Again</div>
 
         {settings?.bill_barcode_settings?.footer_text && (
           <div style={{ ...center, fontSize: '10px', marginTop: '3px', whiteSpace: 'pre-wrap', fontWeight: 800 }}>{settings.bill_barcode_settings.footer_text}</div>
