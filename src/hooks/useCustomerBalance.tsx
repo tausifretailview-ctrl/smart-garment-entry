@@ -116,6 +116,18 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
         return sum + Math.max(0, (adv.amount || 0) - (adv.used_amount || 0));
       }, 0) || 0;
 
+      // Fetch sale returns (credit notes) for this customer
+      const { data: saleReturns, error: srError } = await supabase
+        .from('sale_returns')
+        .select('net_amount')
+        .eq('customer_id', customerId)
+        .eq('organization_id', organizationId)
+        .is('deleted_at', null);
+
+      if (srError) throw srError;
+
+      const saleReturnTotal = saleReturns?.reduce((sum, sr) => sum + (sr.net_amount || 0), 0) || 0;
+
       // Fetch refund payments made to customer (from CN refund)
       const { data: refundVouchers } = await supabase
         .from('voucher_entries')
