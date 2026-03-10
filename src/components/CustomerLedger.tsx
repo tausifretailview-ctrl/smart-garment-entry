@@ -675,6 +675,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       console.log('Advances found:', advancesData?.length || 0);
       console.log('Adjustments found:', adjustmentsData?.length || 0);
       console.log('CN Adjustments found:', saleReturnsData?.length || 0);
+      console.log('Advance refunds found:', filteredAdvanceRefunds.length);
+      console.log('Credit notes found:', creditNotesData?.length || 0);
 
       // Calculate total voucher payments per sale to exclude from "payment at sale"
       const voucherPaymentsBySaleId: Record<string, number> = {};
