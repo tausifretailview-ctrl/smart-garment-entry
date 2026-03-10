@@ -176,6 +176,7 @@ interface BillBarcodeSettings {
   invoice_format?: string;
   show_product_details?: boolean;
   barcode_format?: string;
+  barcode_digits?: number;
   brand_color?: string;
   login_display_name?: string;
   instagram_link?: string;
@@ -3461,18 +3462,46 @@ export default function Settings() {
                       <SelectItem value="a4_12x4">A4 12x4 (4 cols, 50x24mm)</SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">Used when printing barcodes directly from Purchase Bills</p>
-                  <Button
+                   <p className="text-xs text-muted-foreground">Used when printing barcodes directly from Purchase Bills</p>
+                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={handleTestPrintBarcodes}
                     className="mt-2"
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    Test Print Preview
-                  </Button>
-                </div>
+                   >
+                     <Eye className="h-4 w-4 mr-2" />
+                     Test Print Preview
+                   </Button>
+                 </div>
+                 <div className="space-y-2">
+                   <Label htmlFor="barcode_digits">Barcode Digit Length</Label>
+                   <Select
+                     value={String(settings.bill_barcode_settings?.barcode_digits || "13")}
+                     onValueChange={(value) =>
+                       setSettings({
+                         ...settings,
+                         bill_barcode_settings: {
+                           ...settings.bill_barcode_settings,
+                           barcode_digits: parseInt(value),
+                         },
+                       })
+                     }
+                   >
+                     <SelectTrigger id="barcode_digits">
+                       <SelectValue />
+                     </SelectTrigger>
+                     <SelectContent>
+                       <SelectItem value="8">8 Digits</SelectItem>
+                       <SelectItem value="9">9 Digits</SelectItem>
+                       <SelectItem value="10">10 Digits</SelectItem>
+                       <SelectItem value="11">11 Digits</SelectItem>
+                       <SelectItem value="12">12 Digits</SelectItem>
+                       <SelectItem value="13">13 Digits (Default)</SelectItem>
+                     </SelectContent>
+                   </Select>
+                   <p className="text-xs text-muted-foreground">Number of digits for auto-generated barcodes. Use 8-12 for BarTender compatibility.</p>
+                 </div>
 
                 {/* Enable/Disable Barcode Prompt after Purchase Save */}
                 <div className="flex items-center justify-between p-4 border rounded-lg">
