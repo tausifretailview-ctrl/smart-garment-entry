@@ -73,6 +73,7 @@ import { useDraftSave } from "@/hooks/useDraftSave";
 import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
+import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
 
 interface LineItem {
   id: string;
