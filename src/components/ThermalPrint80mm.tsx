@@ -333,29 +333,29 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         </div>
 
         {/* ============ ITEMS LIST ============ */}
-        <div style={{ marginBottom: '4px' }}>
+        <div style={{ marginBottom: '5px' }}>
           {items.map((item, index) => (
-            <div key={index} style={{ fontSize: '12px', marginBottom: '4px' }}>
+            <div key={index} style={{ fontSize: '13px', marginBottom: '5px' }}>
               {/* Item name on its own line for readability */}
               <div style={{ 
                 fontWeight: 900, 
-                fontSize: '12px',
+                fontSize: '13px',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 maxWidth: '100%'
               }}>
-                {truncateText(item.particulars, 36)}
+                {truncateText(item.particulars, 34)}
               </div>
               {/* Barcode number for sale returns */}
               {item.barcode && (
-                <div style={{ fontSize: '11px', color: '#000', fontWeight: 800 }}>BC: {item.barcode}</div>
+                <div style={{ fontSize: '12px', color: '#000', fontWeight: 700 }}>BC: {item.barcode}</div>
               )}
               {/* Qty, Rate, Amount */}
               <div style={{ display: 'flex' }}>
                 <div style={{ width: '48%', textAlign: 'left' }}></div>
                 <div style={{ width: '12%', textAlign: 'center', fontWeight: 900 }}>{item.qty}</div>
-                <div style={{ width: '18%', textAlign: 'right', fontWeight: 800 }}>{formatAmount(item.rate)}</div>
+                <div style={{ width: '18%', textAlign: 'right', fontWeight: 700 }}>{formatAmount(item.rate)}</div>
                 <div style={{ width: '22%', textAlign: 'right', fontWeight: 900 }}>{formatAmount(item.total)}</div>
               </div>
             </div>
