@@ -319,12 +319,12 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         {/* ============ ITEMS HEADER ============ */}
         <div style={{ 
           display: 'flex', 
-          fontSize: '12px', 
+          fontSize: '13px', 
           fontWeight: 900,
-          marginBottom: '3px',
+          marginBottom: '4px',
           textTransform: 'uppercase',
-          borderBottom: '1px solid #000',
-          paddingBottom: '2px'
+          borderBottom: '1.5px solid #000',
+          paddingBottom: '3px'
         }}>
           <div style={{ width: '48%', textAlign: 'left' }}>ITEM</div>
           <div style={{ width: '12%', textAlign: 'center' }}>QTY</div>
