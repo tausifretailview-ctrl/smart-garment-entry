@@ -272,11 +272,10 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         <div style={{ 
           ...centerStyle, 
           fontWeight: 900, 
-          fontSize: '16px',
+          fontSize: '17px',
           letterSpacing: '1.5px',
           margin: '4px 0',
           textTransform: 'uppercase',
-          WebkitTextStroke: '0.6px #000',
         }}>
           {getDocumentTitle()}
         </div>
