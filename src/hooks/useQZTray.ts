@@ -74,7 +74,9 @@ export const useQZTray = () => {
 
   // Get list of available printers
   const getPrinters = useCallback(async (): Promise<string[]> => {
-    if (!state.isConnected) return [];
+    // Check live websocket status instead of React state to avoid stale closures
+    const isActive = typeof window !== 'undefined' && window.qz?.websocket?.isActive?.() === true;
+    if (!isActive && !state.isConnected) return [];
 
     try {
       const printers = await window.qz.printers.find();
