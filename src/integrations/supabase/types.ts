@@ -4042,6 +4042,9 @@ export type Database = {
         Row: {
           ack_date: string | null
           ack_no: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          cancelled_reason: string | null
           card_amount: number | null
           cash_amount: number | null
           created_at: string
@@ -4068,6 +4071,7 @@ export type Database = {
           id: string
           invoice_type: string | null
           irn: string | null
+          is_cancelled: boolean
           net_amount: number
           notes: string | null
           organization_id: string
@@ -4097,6 +4101,9 @@ export type Database = {
         Insert: {
           ack_date?: string | null
           ack_no?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          cancelled_reason?: string | null
           card_amount?: number | null
           cash_amount?: number | null
           created_at?: string
@@ -4123,6 +4130,7 @@ export type Database = {
           id?: string
           invoice_type?: string | null
           irn?: string | null
+          is_cancelled?: boolean
           net_amount?: number
           notes?: string | null
           organization_id: string
@@ -4152,6 +4160,9 @@ export type Database = {
         Update: {
           ack_date?: string | null
           ack_no?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          cancelled_reason?: string | null
           card_amount?: number | null
           cash_amount?: number | null
           created_at?: string
@@ -4178,6 +4189,7 @@ export type Database = {
           id?: string
           invoice_type?: string | null
           irn?: string | null
+          is_cancelled?: boolean
           net_amount?: number
           notes?: string | null
           organization_id?: string
@@ -6087,6 +6099,10 @@ export type Database = {
     }
     Functions: {
       aggregate_and_cleanup_whatsapp_logs: { Args: never; Returns: undefined }
+      cancel_invoice: {
+        Args: { p_reason?: string; p_sale_id: string }
+        Returns: Json
+      }
       check_barcode_duplicate: {
         Args: {
           p_barcode: string
