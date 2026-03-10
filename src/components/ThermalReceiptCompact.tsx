@@ -242,8 +242,8 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
         </div>
 
         {/* NET AMOUNT */}
-        <div style={{ ...sep, margin: '3px 0' }}>{DASH}</div>
-        <div style={{ ...row, fontSize: '16px', fontWeight: 900, margin: '4px 0', WebkitTextStroke: '0.6px #000' }}>
+        <div style={{ ...sep, margin: '4px 0' }}>{DASH}</div>
+        <div style={{ ...row, fontSize: '20px', fontWeight: 900, margin: '5px 0' }}>
           <span>NET AMOUNT</span><span>₹{fmtAmt(grandTotal)}</span>
         </div>
         <div style={sep}>{DASH}</div>
