@@ -3477,30 +3477,30 @@ export default function Settings() {
                  <div className="space-y-2">
                    <Label htmlFor="barcode_digits">Barcode Digit Length</Label>
                    <Select
-                     value={String(settings.bill_barcode_settings?.barcode_digits || "13")}
-                     onValueChange={(value) =>
-                       setSettings({
-                         ...settings,
-                         bill_barcode_settings: {
-                           ...settings.bill_barcode_settings,
-                           barcode_digits: parseInt(value),
-                         },
-                       })
-                     }
-                   >
-                     <SelectTrigger id="barcode_digits">
-                       <SelectValue />
-                     </SelectTrigger>
-                     <SelectContent>
-                       <SelectItem value="8">8 Digits</SelectItem>
-                       <SelectItem value="9">9 Digits</SelectItem>
-                       <SelectItem value="10">10 Digits</SelectItem>
-                       <SelectItem value="11">11 Digits</SelectItem>
-                       <SelectItem value="12">12 Digits</SelectItem>
-                       <SelectItem value="13">13 Digits (Default)</SelectItem>
-                     </SelectContent>
-                   </Select>
-                   <p className="text-xs text-muted-foreground">Number of digits for auto-generated barcodes. Use 8-12 for BarTender compatibility.</p>
+                      value={String(settings.bill_barcode_settings?.barcode_digits || "8")}
+                      onValueChange={(value) =>
+                        setSettings({
+                          ...settings,
+                          bill_barcode_settings: {
+                            ...settings.bill_barcode_settings,
+                            barcode_digits: parseInt(value),
+                          },
+                        })
+                      }
+                    >
+                      <SelectTrigger id="barcode_digits">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="8">8 Digits (Default)</SelectItem>
+                        <SelectItem value="9">9 Digits</SelectItem>
+                        <SelectItem value="10">10 Digits</SelectItem>
+                        <SelectItem value="11">11 Digits</SelectItem>
+                        <SelectItem value="12">12 Digits</SelectItem>
+                        <SelectItem value="13">13 Digits</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">Starting digit length for barcodes. Auto-scales to next digit when series is full (e.g. 8→9→10).</p>
                  </div>
 
                 {/* Enable/Disable Barcode Prompt after Purchase Save */}
