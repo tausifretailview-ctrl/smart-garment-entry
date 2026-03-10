@@ -60,24 +60,18 @@ export const ensureQZConnection = async (): Promise<boolean> => {
   try {
     const qz = window.qz;
 
-    // REQUIRED: Set up unsigned certificate mode.
-    // QZ Tray 2.x rejects connections without these callbacks.
-    // For self-hosted/intranet use, empty cert + empty sig is
-    // the standard approach — QZ Tray will prompt for approval
-    // once and remember it.
-    if (!qz.security._certSet) {
-      qz.security.setCertificatePromise((resolve: Function) => {
-        resolve(''); // empty = unsigned mode
-      });
-      qz.security.setSignatureAlgorithm('SHA512');
-      qz.security.setSignaturePromise((_toSign: string) => {
-        return new Promise<string>((resolve) => resolve(''));
-      });
-      // Mark as set so we don't re-register on every call
-      qz.security._certSet = true;
-    }
-
     if (qz.websocket.isActive()) return true;
+
+    // Set up security callbacks BEFORE connect()
+    // Anonymous mode: no certificate — QZ shows Allow popup once.
+    // User clicks Allow + "Remember this decision" to stop future prompts.
+    qz.security.setCertificatePromise(function(resolve: Function) {
+      resolve();
+    });
+    qz.security.setSignatureAlgorithm('SHA512');
+    qz.security.setSignaturePromise(function(_toSign: string, resolve: Function) {
+      resolve();
+    });
 
     await qz.websocket.connect({ retries: 2, delay: 1 });
     return true;
