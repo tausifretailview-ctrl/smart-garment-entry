@@ -193,6 +193,13 @@ export const DirectPrintDialog = ({
     };
   };
 
+  // Auto-fetch printers when dialog opens and QZ is connected but printer list is empty
+  useEffect(() => {
+    if (open && isConnected && printers.length === 0) {
+      getPrinters();
+    }
+  }, [open, isConnected, printers.length, getPrinters]);
+
   const handleConnect = async () => {
     const connected = await connect();
     if (connected) {
