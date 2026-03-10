@@ -717,7 +717,10 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         // Sort by timestamp (created_at) for accurate chronological ordering
         const tsA = a.timestamp ? new Date(a.timestamp).getTime() : new Date(a.date).getTime();
         const tsB = b.timestamp ? new Date(b.timestamp).getTime() : new Date(b.date).getTime();
-        return tsA - tsB;
+        if (tsA !== tsB) return tsA - tsB;
+        // Stable tiebreaker: invoice < cn_adjustment = advance < payment < adjustment
+        const typeOrder: Record<string, number> = { invoice: 0, cn_adjustment: 1, advance: 1, payment: 2, adjustment: 3 };
+        return (typeOrder[a.type] ?? 1) - (typeOrder[b.type] ?? 1);
       });
 
       combined.forEach((item) => {
