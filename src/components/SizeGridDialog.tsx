@@ -1047,10 +1047,12 @@ export function SizeGridDialog({
                 )}
 
                 {filteredVariants.length > 0 && (
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Sale Price (editable per size above)</Label>
-                    </div>
+                  <div className={`grid ${showSizePrices ? 'grid-cols-2' : 'grid-cols-1'} gap-3 mb-4`}>
+                    {showSizePrices && (
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Sale Price (editable per size above)</Label>
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <Label>GST %</Label>
                       <Input
