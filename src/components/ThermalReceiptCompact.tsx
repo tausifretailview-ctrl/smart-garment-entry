@@ -127,12 +127,12 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
 
         {/* HEADER */}
         <div style={{ ...center, marginBottom: '5px' }}>
-          <div style={{ fontWeight: 900, fontSize: '17px', textTransform: 'uppercase', marginBottom: '2px', WebkitTextStroke: '0.6px #000' }}>
+          <div style={{ fontWeight: 900, fontSize: '20px', textTransform: 'uppercase', marginBottom: '3px', letterSpacing: '1px' }}>
             {settings?.business_name || 'STORE NAME'}
           </div>
-          <div style={{ fontSize: '11px', lineHeight: '1.3', fontWeight: 800 }}>{settings?.address || 'Store Address'}</div>
-          {settings?.mobile_number && <div style={{ fontSize: '11px', fontWeight: 800 }}>Ph: {settings.mobile_number}</div>}
-          {settings?.gst_number && <div style={{ fontSize: '11px', fontWeight: 900, marginTop: '1px' }}>GSTIN: {settings.gst_number}</div>}
+          <div style={{ fontSize: '13px', lineHeight: '1.4', fontWeight: 700 }}>{settings?.address || 'Store Address'}</div>
+          {settings?.mobile_number && <div style={{ fontSize: '13px', fontWeight: 700 }}>Ph: {settings.mobile_number}</div>}
+          {settings?.gst_number && <div style={{ fontSize: '13px', fontWeight: 900, marginTop: '1px' }}>GSTIN: {settings.gst_number}</div>}
         </div>
 
         <div style={sep}>{DASH}</div>
