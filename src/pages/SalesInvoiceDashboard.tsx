@@ -257,10 +257,21 @@ export default function SalesInvoiceDashboard() {
         icon: Copy,
         onClick: () => navigate('/sales-invoice', { state: { duplicateInvoiceId: invoice.id } }),
       },
+      { label: "", separator: true, onClick: () => {} },
       {
-        label: "Delete Invoice",
+        label: "Cancel Invoice",
+        icon: Ban,
+        onClick: () => {
+          setCancelReason('');
+          setInvoiceToCancel(invoice);
+        },
+        disabled: !canDelete || invoice.is_cancelled,
+        destructive: true,
+      },
+      {
+        label: "Permanently Delete",
         icon: Trash2,
-        onClick: () => handleInitiateDelete(invoice),
+        onClick: () => setInvoiceToHardDelete(invoice),
         disabled: !canDelete,
         destructive: true,
       },
