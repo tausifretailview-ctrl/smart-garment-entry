@@ -95,6 +95,8 @@ export function SalesInvoiceERPTable({
   hasSpecialPermission,
   navigate,
   setInvoiceToDelete,
+  setInvoiceToCancel,
+  setInvoiceToHardDelete,
   pageTotals,
   showItemBrand,
   showItemColor,
