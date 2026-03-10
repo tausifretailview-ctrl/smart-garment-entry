@@ -291,8 +291,8 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
 
         {/* FOOTER */}
         <div style={sep}>{DASH}</div>
-        <div style={{ ...center, fontSize: '13px', fontWeight: 900, margin: '5px 0 3px', letterSpacing: '1px', WebkitTextStroke: '0.5px #000' }}>Thank You!</div>
-        <div style={{ ...center, fontSize: '11px', marginBottom: '2px', fontWeight: 800 }}>Visit Again</div>
+        <div style={{ ...center, fontSize: '16px', fontWeight: 900, margin: '5px 0 3px', letterSpacing: '1px' }}>Thank You!</div>
+        <div style={{ ...center, fontSize: '13px', marginBottom: '3px', fontWeight: 700 }}>Visit Again</div>
 
         {settings?.bill_barcode_settings?.footer_text && (
           <div style={{ ...center, fontSize: '10px', marginTop: '3px', whiteSpace: 'pre-wrap', fontWeight: 800 }}>{settings.bill_barcode_settings.footer_text}</div>
