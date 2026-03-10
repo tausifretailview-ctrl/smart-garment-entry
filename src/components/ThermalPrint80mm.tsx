@@ -465,11 +465,10 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         <div style={separatorStyle}>{DOUBLE_LINE}</div>
         <div style={{ 
           ...leftRightRow, 
-          fontSize: '18px',
+          fontSize: '20px',
           fontWeight: 900,
-          margin: '5px 0',
+          margin: '6px 0',
           letterSpacing: '0.5px',
-          WebkitTextStroke: '0.7px #000',
         }}>
           <span>TOTAL</span>
           <span>₹{formatAmount(grandTotal)}</span>
