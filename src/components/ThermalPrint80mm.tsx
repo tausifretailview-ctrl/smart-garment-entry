@@ -365,9 +365,9 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         <div style={separatorStyle}>{SEPARATOR_LINE}</div>
 
         {/* ============ TOTALS SECTION ============ */}
-        <div style={{ fontSize: '13px' }}>
+        <div style={{ fontSize: '14px' }}>
           {/* Subtotal with Qty */}
-          <div style={{ ...leftRightRow, marginBottom: '3px' }}>
+          <div style={{ ...leftRightRow, marginBottom: '4px' }}>
             <span>SubTotal ({totalQty} items)</span>
             <span style={boldText}>₹{formatAmount(subTotal)}</span>
           </div>
