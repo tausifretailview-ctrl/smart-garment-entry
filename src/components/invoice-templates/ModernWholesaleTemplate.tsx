@@ -359,6 +359,16 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       </colgroup>
       <thead>
         <tr>
+          <th style={headerCellStyle}>SR</th>
+          <th style={headerCellStyle}>PARTICULARS</th>
+          <th style={headerCellStyle}>HSN</th>
+          <th style={headerCellStyle}>SIZE / QTY</th>
+          <th style={headerCellStyle}>QTY</th>
+          {!isA5 && <th style={headerCellStyle}>MRP</th>}
+          <th style={headerCellStyle}>RATE</th>
+          {showGSTBreakdown && <th style={headerCellStyle}>GST%</th>}
+          {showGSTBreakdown && <th style={headerCellStyle}>GST AMT</th>}
+          <th style={headerCellStyle}>AMOUNT</th>
         </tr>
       </thead>
       <tbody>
