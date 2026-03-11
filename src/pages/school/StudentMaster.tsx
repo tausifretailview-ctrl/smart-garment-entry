@@ -285,8 +285,8 @@ const StudentMaster = () => {
         </Card>
       </div>
 
-      {/* Search */}
-      <div className="flex gap-4">
+      {/* Search & Year Filter */}
+      <div className="flex gap-4 items-center">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -296,6 +296,18 @@ const StudentMaster = () => {
             className="pl-9"
           />
         </div>
+        <Select value={selectedYearId || ""} onValueChange={(val) => { setSelectedYearId(val); setCurrentPage(1); }}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Academic Year" />
+          </SelectTrigger>
+          <SelectContent>
+            {(academicYears || []).map((y: any) => (
+              <SelectItem key={y.id} value={y.id}>
+                {y.year_name} {y.is_current ? "(Current)" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table */}
