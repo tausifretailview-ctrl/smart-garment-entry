@@ -36,6 +36,11 @@ import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/componen
 import { ERPTable } from "@/components/erp-table";
 import { cn } from "@/lib/utils";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
+import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
+import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface PurchaseItem {
   id: string;
@@ -1074,6 +1079,145 @@ const PurchaseBillDashboard = () => {
   }, [billItems, showMrp]);
 
   // No full-page blocker — layout renders immediately, ERPTable shows skeletons via isLoading
+  const isMobile = useIsMobile();
+
+  if (isMobile) {
+    const fmt = (n: number) => n >= 100000 ? `₹${(n/100000).toFixed(1)}L` : `₹${Math.round(n).toLocaleString("en-IN")}`;
+    return (
+      <div className="flex flex-col min-h-screen bg-muted/30 pb-24">
+        <MobilePageHeader
+          title="Purchase Bills"
+          subtitle={`${summaryStats.totalBills} bills`}
+          rightContent={
+            <button onClick={() => navigate("/purchase-entry")}
+              className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shadow-sm active:scale-90 touch-manipulation">
+              <Plus className="h-5 w-5 text-primary-foreground" />
+            </button>
+          }
+        />
+
+        <div className="px-4 pt-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search bills..." value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 h-10 bg-card border-border/60 rounded-xl text-sm" />
+          </div>
+        </div>
+
+        <MobileStatStrip stats={[
+          { label: "Total", value: fmt(summaryStats.totalAmount), color: "text-blue-600", bg: "bg-blue-50" },
+          { label: "Paid", value: fmt(summaryStats.paidAmount), color: "text-emerald-600", bg: "bg-emerald-50" },
+          { label: "Unpaid", value: fmt(summaryStats.unpaidAmount), color: "text-rose-600", bg: "bg-rose-50" },
+          { label: "Bills", value: String(summaryStats.totalBills), color: "text-purple-600", bg: "bg-purple-50" },
+        ]} />
+
+        <div className="flex-1 px-4 space-y-2.5 pb-4">
+          {billsQueryLoading ? (
+            Array.from({length: 5}).map((_,i) => (
+              <Skeleton key={i} className="h-20 rounded-2xl" />
+            ))
+          ) : paginatedBills.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+              <Receipt className="h-12 w-12 mb-3 opacity-30" />
+              <p className="text-sm font-medium">No bills found</p>
+            </div>
+          ) : paginatedBills.map((bill) => {
+            const isPaid = bill.payment_status === 'paid' || (bill.paid_amount||0) >= bill.net_amount;
+            const isPartial = bill.payment_status === 'partial' || ((bill.paid_amount||0) > 0 && (bill.paid_amount||0) < bill.net_amount);
+            const pending = Math.max(0, bill.net_amount - (bill.paid_amount||0));
+            const statusCls = isPaid ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+              : isPartial ? "bg-amber-50 text-amber-700 border-amber-200"
+              : "bg-rose-50 text-rose-700 border-rose-200";
+            const statusLabel = isPaid ? "Paid" : isPartial ? "Partial" : "Unpaid";
+            return (
+              <div key={bill.id} onClick={() => navigate(`/purchase-entry/${bill.id}`)}
+                className="bg-card rounded-2xl p-3.5 border border-border/40 shadow-sm active:scale-[0.99] transition-all touch-manipulation">
+                <div className="flex items-start justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-xs font-bold text-primary">{bill.software_bill_no}</span>
+                      <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border", statusCls)}>
+                        {statusLabel}
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium text-foreground mt-1 truncate">{bill.supplier_name}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {format(new Date(bill.bill_date), "d MMM yyyy")}
+                      {bill.supplier_invoice_no ? ` · ${bill.supplier_invoice_no}` : ""}
+                      {` · ${bill.total_qty || 0} pcs`}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0 ml-3">
+                    <p className="text-sm font-bold tabular-nums">₹{bill.net_amount.toLocaleString("en-IN")}</p>
+                    {pending > 0 && <p className="text-[11px] text-amber-600 font-medium">Due ₹{pending.toLocaleString("en-IN")}</p>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 bg-card border-t border-border">
+            <button onClick={() => setCurrentPage(p => Math.max(1,p-1))} disabled={currentPage===1}
+              className="px-4 py-2 rounded-xl bg-muted text-sm font-medium disabled:opacity-40 touch-manipulation">← Prev</button>
+            <span className="text-xs text-muted-foreground">Page {currentPage}</span>
+            <button onClick={() => setCurrentPage(p => p+1)} disabled={currentPage>=totalPages}
+              className="px-4 py-2 rounded-xl bg-muted text-sm font-medium disabled:opacity-40 touch-manipulation">Next →</button>
+          </div>
+        )}
+
+        {/* Dialogs — payment dialog shared */}
+        <AlertDialog open={showPaymentDialog} onOpenChange={() => setShowPaymentDialog(false)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Record Payment</AlertDialogTitle>
+              <AlertDialogDescription>
+                {selectedBillForPayment && `Record payment for ${selectedBillForPayment.software_bill_no} — ₹${Math.max(0, selectedBillForPayment.net_amount - (selectedBillForPayment.paid_amount||0)).toFixed(2)} pending`}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label>Payment Amount</Label>
+                <Input type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Payment Method</Label>
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-popover z-50">
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="upi">UPI</SelectItem>
+                    <SelectItem value="cheque">Cheque</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isRecordingPayment}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleRecordPayment} disabled={isRecordingPayment}>
+                {isRecordingPayment ? "Recording..." : "Record Payment"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {selectedSupplierForHistory && currentOrganization && (
+          <SupplierHistoryDialog
+            isOpen={showSupplierHistory}
+            onClose={() => setShowSupplierHistory(false)}
+            supplierId={selectedSupplierForHistory.id}
+            supplierName={selectedSupplierForHistory.name}
+            organizationId={currentOrganization.id}
+          />
+        )}
+
+        <MobileBottomNav />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-accent/5 to-background px-6 py-6">

@@ -8,6 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Package, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
+import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
+import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { ProductSearchDropdown } from "@/components/ProductSearchDropdown";
 import { Input } from "@/components/ui/input";
@@ -894,6 +898,81 @@ export default function StockReport() {
     
     doc.save(`SizeWise_Stock_Report_${format(new Date(), "yyyy-MM-dd")}.pdf`);
   };
+  const isMobile = useIsMobile();
+
+  if (isMobile) {
+    return (
+      <div className="flex flex-col min-h-screen bg-muted/30 pb-24">
+        <MobilePageHeader title="Stock Report" backTo="/" subtitle={`${globalTotals.variantCount} variants`} />
+
+        <div className="px-4 pt-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search by barcode, product, brand..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="pl-9 h-10 bg-card border-border/60 rounded-xl text-sm" />
+          </div>
+        </div>
+
+        <MobileStatStrip stats={[
+          { label: "Stock Value", value: `₹${(hasSearched ? totalStockValue : globalTotals.stockValue) >= 100000 ? ((hasSearched ? totalStockValue : globalTotals.stockValue)/100000).toFixed(1)+"L" : Math.round(hasSearched ? totalStockValue : globalTotals.stockValue).toLocaleString("en-IN")}`, color: "text-blue-600", bg: "bg-blue-50" },
+          { label: "Total Qty", value: globalTotals.isLoading ? "…" : (hasSearched ? totalStock : globalTotals.totalStock).toLocaleString("en-IN"), color: "text-amber-600", bg: "bg-amber-50" },
+          { label: "Variants", value: globalTotals.isLoading ? "…" : (hasSearched ? `${filteredStockItems.length}` : `${globalTotals.variantCount}`), color: "text-purple-600", bg: "bg-purple-50" },
+        ]} />
+
+        <div className="flex-1 px-4 py-2 space-y-2">
+          {!hasSearched && searchTerm.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+              <Search className="h-12 w-12 mb-3 opacity-30" />
+              <p className="text-sm font-medium">Search to view stock items</p>
+              <p className="text-xs mt-1">Enter barcode, product name or brand</p>
+              <Button onClick={handleSearch} className="mt-4" size="sm">
+                <Search className="h-4 w-4 mr-2" /> Search All Stock
+              </Button>
+            </div>
+          ) : loading ? (
+            Array.from({length: 6}).map((_,i) => (
+              <div key={i} className="h-16 bg-card rounded-2xl animate-pulse" />
+            ))
+          ) : filteredStockItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+              <Package className="h-12 w-12 mb-3 opacity-30" />
+              <p className="text-sm font-medium">No stock items found</p>
+            </div>
+          ) : filteredStockItems.slice(0, 100).map((item) => (
+            <div key={item.id} className="bg-card rounded-2xl p-3 border border-border/40 shadow-sm">
+              <div className="flex items-start justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground truncate">{item.product_name}</p>
+                  {item.brand && <p className="text-[11px] text-muted-foreground">{item.brand}</p>}
+                  <div className="flex gap-1.5 mt-1 flex-wrap">
+                    {item.barcode && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono">{item.barcode}</span>}
+                    {item.size && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{item.size}</span>}
+                    {item.color && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{item.color}</span>}
+                  </div>
+                </div>
+                <div className="text-right shrink-0 ml-3">
+                  <p className={cn("text-lg font-bold tabular-nums", item.stock_qty <= 0 ? "text-destructive" : item.stock_qty <= lowStockThreshold ? "text-amber-600" : "text-foreground")}>
+                    {item.stock_qty}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">qty</p>
+                  {item.pur_price && item.stock_qty > 0 && (
+                    <p className="text-[10px] text-muted-foreground tabular-nums">
+                      ₹{Math.round(item.pur_price * item.stock_qty).toLocaleString("en-IN")}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <MobileBottomNav />
+      </div>
+    );
+  }
 
   return (
     <div className="w-full px-6 py-6 pb-24 lg:pb-6 space-y-6">
