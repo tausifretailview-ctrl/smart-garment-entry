@@ -28,6 +28,9 @@ interface SendWhatsAppRequest {
   documentUrl?: string; // Public URL of PDF document
   documentFilename?: string; // Display filename for the document
   documentCaption?: string; // Caption for the document message
+  // Image attachment (e.g., school logo)
+  imageUrl?: string; // Public URL of image
+  imageCaption?: string; // Caption for the image message
   // Document header template (direct PDF in template - bypasses 24h window)
   useDocumentHeaderTemplate?: boolean;
   documentHeaderTemplateName?: string;
