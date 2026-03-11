@@ -391,12 +391,12 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "6.5pt" : "7.5pt" }}>{item.rate.toFixed(2)}</td>
             {showGSTBreakdown && <td style={{ ...cellStyle, textAlign: "center", fontSize: isA5 ? "6.5pt" : "7.5pt" }}>{item.gstPercent}%</td>}
             {showGSTBreakdown && (
-              <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "6pt" : "7pt" }}>
-                 {item.gstAmount > 0 ? `Rs.${item.gstAmount.toFixed(2)}` : '-'}
+               <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "6pt" : "7pt" }}>
+                 {item.gstAmount > 0 ? item.gstAmount.toFixed(2) : '-'}
                </td>
             )}
-            <td style={{ ...cellStyle, textAlign: "right", fontWeight: "700", fontSize: isA5 ? "7pt" : "7.5pt", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-              {formatCurrency(item.totalAmount)}
+            <td style={{ ...cellStyle, textAlign: "right", fontWeight: "700", fontSize: isA5 ? "7pt" : "7.5pt", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", paddingRight: isA5 ? "5px" : "6px" }}>
+              {formatCurrencyPlain(item.totalAmount)}
             </td>
           </tr>
         ))}
