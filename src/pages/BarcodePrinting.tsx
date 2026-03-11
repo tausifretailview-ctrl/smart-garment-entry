@@ -1057,6 +1057,7 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig, fieldLabels 
 
 export default function BarcodePrinting() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
