@@ -596,8 +596,8 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
         case 'category': return sampleItem.category || '';
         case 'color': return sampleItem.color ? `Color: ${sampleItem.color}` : '';
         case 'style': return sampleItem.style || '';
-        case 'price': return `₹${sampleItem.sale_price}`;
-        case 'mrp': return sampleItem.mrp ? `MRP ₹${sampleItem.mrp}` : '';
+        case 'price': return `Rs.${sampleItem.sale_price}`;
+        case 'mrp': return sampleItem.mrp ? `MRP Rs.${sampleItem.mrp}` : '';
         case 'customText': return labelConfig.customTextValue || '';
         case 'barcodeText': return sampleItem.barcode || '';
         case 'billNumber': return sampleItem.bill_number ? `Bill: ${sampleItem.bill_number}` : '';
