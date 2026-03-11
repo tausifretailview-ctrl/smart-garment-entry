@@ -2050,7 +2050,7 @@ const PurchaseEntry = () => {
 
       // Navigate to barcode printing page with items
       navigate("/barcode-printing", { 
-        state: { purchaseItems: barcodeItems, billId: savedBillId } 
+        state: { purchaseItems: barcodeItems, billId: savedBillId || editingBillId } 
       });
     } catch (error) {
       console.error("Error preparing barcode data:", error);
