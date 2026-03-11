@@ -491,7 +491,7 @@ function DraggablePreviewField({ fieldKey, labelConfig, businessName, sampleItem
       case 'style':
         return 'Style: Classic';
       case 'price':
-        return 'MRP: ₹999';
+        return 'MRP: Rs.999';
       case 'barcodeText':
         return '12345678';
       case 'billNumber':
