@@ -128,7 +128,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   };
 
   const formatCurrencyWithRs = (amount: number) => {
-    return `Rs.${formatCurrencyPlain(amount)}`;
+    return formatCurrencyPlain(amount);
   };
 
   const getItemGstPercent = (item: WholesaleItem): number => {
