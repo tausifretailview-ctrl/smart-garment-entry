@@ -445,6 +445,8 @@ serve(async (req) => {
       documentUrl,
       documentFilename,
       documentCaption,
+      imageUrl,
+      imageCaption,
       useDocumentHeaderTemplate,
       documentHeaderTemplateName,
       pdfBlob
