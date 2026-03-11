@@ -168,8 +168,13 @@ const PurchaseEntry = () => {
   const [newlyAddedItems, setNewlyAddedItems] = useState<LineItem[]>([]);
   const [savedBillId, setSavedBillId] = useState<string | null>(null);
   
+  // Bill navigation state (like Sales Invoice)
+  const [navBillIndex, setNavBillIndex] = useState<number | null>(null);
+  const [isLoadingNavBill, setIsLoadingNavBill] = useState(false);
+  
   // Barcode duplicate warning state
-  const [barcodeWarnings, setBarcodeWarnings] = useState<Map<string, string>>(new Map());
+  const barcodeWarnings_state = useState<Map<string, string>>(new Map());
+  const [barcodeWarnings, setBarcodeWarnings] = barcodeWarnings_state;
   const barcodeCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [billData, setBillData] = useState({
