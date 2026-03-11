@@ -166,18 +166,15 @@ const StudentMaster = () => {
         .eq("status", "active")
         .is("deleted_at", null);
 
-      // New admissions: students with admission_date in the selected academic year
-      const selectedYear = (academicYears || []).find((y: any) => y.id === selectedYearId);
-      const academicStart = selectedYear?.start_date || "2025-04-01";
-
+      // New admissions: students created within the selected academic year period
+      // This excludes promoted students (whose created_at is from previous years)
       const { count: newAdmissions } = await supabase
         .from("students")
         .select("*", { count: "exact", head: true })
         .eq("organization_id", currentOrganization.id)
         .eq("academic_year_id", selectedYearId)
         .is("deleted_at", null)
-        .not("admission_date", "is", null)
-        .gte("admission_date", academicStart);
+        .gte("created_at", academicStart);
 
       return { total: total || 0, active: active || 0, newAdmissions: newAdmissions || 0 };
     },
