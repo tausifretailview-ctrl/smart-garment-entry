@@ -448,60 +448,112 @@ export const DirectPrintDialog = ({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 py-4">
-          {/* Connection Status */}
-          <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-            <div className="flex items-center gap-2">
-              {isConnected ? (
-                <Wifi className="h-4 w-4 text-green-500" />
-              ) : (
-                <WifiOff className="h-4 w-4 text-destructive" />
-              )}
-              <span className="text-sm font-medium">
-                QZ Tray {isConnected ? 'Connected' : 'Disconnected'}
-              </span>
+          {/* Transport selector — USB Direct vs QZ Tray */}
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setPrintTransport('usb')}
+                className={`flex flex-col items-center gap-1 p-3 rounded-lg border-2 text-sm font-medium transition-colors ${
+                  printTransport === 'usb'
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border bg-muted/50 text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                <Usb className="h-5 w-5" />
+                USB Direct
+                <span className="text-xs font-normal opacity-70">No install needed</span>
+              </button>
+              <button
+                onClick={() => setPrintTransport('qz')}
+                className={`flex flex-col items-center gap-1 p-3 rounded-lg border-2 text-sm font-medium transition-colors ${
+                  printTransport === 'qz'
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border bg-muted/50 text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                <Printer className="h-5 w-5" />
+                QZ Tray
+                <span className="text-xs font-normal opacity-70">Requires install</span>
+              </button>
             </div>
-            
-            {!isQZAvailable ? (
-              <Button 
-                size="sm" 
-                variant="outline"
-                onClick={() => window.open('https://qz.io/download/', '_blank')}
-              >
-                <Download className="h-4 w-4 mr-1" />
-                Install QZ Tray
-              </Button>
-            ) : !isConnected ? (
-              <Button 
-                size="sm" 
-                variant="outline"
-                onClick={handleConnect}
-                disabled={isConnecting}
-              >
-                {isConnecting ? 'Connecting...' : 'Connect'}
-              </Button>
-            ) : null}
-          </div>
 
-          {/* QZ Tray Not Installed Notice */}
-          {!isQZAvailable && (
-            <div className="p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg text-sm">
-              <p className="font-medium text-amber-800 dark:text-amber-200 mb-2">
-                QZ Tray Required
-              </p>
-              <p className="text-amber-700 dark:text-amber-300 mb-2">
-                QZ Tray enables direct printing to thermal printers without browser dialogs.
-              </p>
-              <Button 
-                size="sm" 
-                variant="link" 
-                className="p-0 h-auto text-amber-800 dark:text-amber-200"
-                onClick={() => window.open('https://qz.io/download/', '_blank')}
-              >
-                <ExternalLink className="h-3 w-3 mr-1" />
-                Download QZ Tray
-              </Button>
-            </div>
-          )}
+            {/* USB Direct panel */}
+            {printTransport === 'usb' && (
+              <div className="p-3 rounded-lg border bg-card">
+                {!isUsbSupported ? (
+                  <div className="text-sm text-destructive">
+                    USB Direct requires Chrome or Edge browser. Safari and Firefox are not supported.
+                  </div>
+                ) : isUsbConnected ? (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Usb className="h-4 w-4 text-green-500" />
+                      <span className="text-sm font-medium">
+                        {usbPrinterName || 'USB Printer'} — Connected
+                      </span>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={disconnectUsb}>
+                      Disconnect
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Plug in your thermal printer via USB, then click Connect.
+                      Works with TSC, Godex, Xprinter, HPRT printers.
+                    </p>
+                    <Button size="sm" onClick={connectUsb} disabled={isUsbConnecting}>
+                      <Usb className="h-4 w-4 mr-1" />
+                      {isUsbConnecting ? 'Connecting...' : 'Connect USB Printer'}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* QZ Tray panel */}
+            {printTransport === 'qz' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <div className="flex items-center gap-2">
+                    {isConnected ? (
+                      <Wifi className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <WifiOff className="h-4 w-4 text-destructive" />
+                    )}
+                    <span className="text-sm font-medium">
+                      QZ Tray {isConnected ? 'Connected' : 'Disconnected'}
+                    </span>
+                  </div>
+                  {!isQZAvailable ? (
+                    <Button size="sm" variant="outline" onClick={() => window.open('https://qz.io/download/', '_blank')}>
+                      <Download className="h-4 w-4 mr-1" />
+                      Install QZ Tray
+                    </Button>
+                  ) : !isConnected ? (
+                    <Button size="sm" variant="outline" onClick={handleConnect} disabled={isConnecting}>
+                      {isConnecting ? 'Connecting...' : 'Connect'}
+                    </Button>
+                  ) : null}
+                </div>
+                {!isQZAvailable && (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg text-sm">
+                    <p className="font-medium text-amber-800 dark:text-amber-200 mb-2">
+                      QZ Tray requires Java and a separate install.
+                    </p>
+                    <p className="text-amber-700 dark:text-amber-300 mb-1">
+                      Consider using USB Direct above — it requires no installation.
+                    </p>
+                    <Button size="sm" variant="link" className="p-0 h-auto text-amber-800 dark:text-amber-200"
+                      onClick={() => window.open('https://qz.io/download/', '_blank')}>
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      Download QZ Tray
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Printer Selection */}
           {isConnected && (
