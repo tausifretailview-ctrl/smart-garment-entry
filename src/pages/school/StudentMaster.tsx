@@ -93,6 +93,7 @@ const StudentMaster = () => {
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
     setCurrentPage(1);
+    setFilterNewAdmissions(false);
   };
 
   const { data: studentsResult, isLoading } = useQuery({
