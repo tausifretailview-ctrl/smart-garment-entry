@@ -93,6 +93,7 @@ const SalesmanOrderEntry = () => {
   const [orderNumber, setOrderNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showDraftDialog, setShowDraftDialog] = useState(false);
 
   // Size Grid state
