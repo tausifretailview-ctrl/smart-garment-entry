@@ -79,12 +79,12 @@ export const DirectPrintDialog = ({
     printRaw,
   } = useQZTray();
 
-  // Fetch printers each time the dialog opens
+  // Fetch printers every time the dialog opens
   useEffect(() => {
-    if (open && isQZAvailable) {
+    if (open) {
       getPrinters();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const [isPrinting, setIsPrinting] = useState(false);
