@@ -1076,6 +1076,30 @@ const App = () => {
                   }
                 />
 
+                {/* Mobile Sales Hub */}
+                <Route
+                  path="mobile-sales"
+                  element={
+                    <ProtectedRoute>
+                      <Suspense fallback={<LazyFallback />}>
+                        <MobileSalesHub />
+                      </Suspense>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Mobile Accounts Page */}
+                <Route
+                  path="mobile-accounts"
+                  element={
+                    <ProtectedRoute>
+                      <Suspense fallback={<LazyFallback />}>
+                        <MobileAccountsPage />
+                      </Suspense>
+                    </ProtectedRoute>
+                  }
+                />
+
                 {/* Recycle Bin - Admin Only */}
                 <Route
                   path="recycle-bin"

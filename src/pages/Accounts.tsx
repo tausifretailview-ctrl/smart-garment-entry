@@ -292,7 +292,7 @@ export default function Accounts() {
   };
 
   return (
-    <div className="w-full px-6 py-6 space-y-6 min-h-screen bg-gradient-to-br from-background via-slate-50/30 to-background dark:via-slate-900/20">
+    <div className="w-full px-6 py-6 pb-24 lg:pb-6 space-y-6 min-h-screen bg-gradient-to-br from-background via-slate-50/30 to-background dark:via-slate-900/20">
       <BackToDashboard label="Back to Payments" to="/payments-dashboard" />
 
       <div className="flex items-center justify-between">

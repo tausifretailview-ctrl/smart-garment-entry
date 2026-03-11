@@ -645,7 +645,7 @@ const CustomerMaster = () => {
   ], [customers, selectedCustomers, advanceBalances, startIndex, navigate]);
 
   return (
-    <div className="bg-slate-50/50 min-h-screen" onContextMenu={handlePageContextMenu}>
+    <div className="bg-slate-50/50 min-h-screen pb-24 lg:pb-0" onContextMenu={handlePageContextMenu}>
       <div className="space-y-4 p-4">
         <BackToDashboard />
         

@@ -1637,7 +1637,7 @@ export default function SalesInvoiceDashboard() {
   const isEInvoiceEnabled = (settings?.sale_settings as any)?.einvoice_settings?.enabled ?? false;
 
   return (
-    <div className="min-h-screen bg-slate-50 px-6 py-6">
+    <div className="min-h-screen bg-slate-50 px-6 py-6 pb-24 lg:pb-6">
       
       <div className="w-full max-w-[1600px] mx-auto space-y-5">
         <div className="flex items-center justify-between mb-1">

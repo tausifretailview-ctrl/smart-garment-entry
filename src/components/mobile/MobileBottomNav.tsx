@@ -1,4 +1,4 @@
-import { Home, ShoppingCart, BarChart3, Wallet, MoreHorizontal } from "lucide-react";
+import { Home, ShoppingCart, Receipt, Wallet, MoreHorizontal } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { cn } from "@/lib/utils";
@@ -18,28 +18,28 @@ const navItems: NavItem[] = [
     matchPaths: ["/"]
   },
   { 
+    icon: Receipt, 
+    label: "Sales", 
+    path: "/mobile-sales",
+    matchPaths: ["/mobile-sales", "/sales-invoice-dashboard", "/sale-return-entry"]
+  },
+  { 
     icon: ShoppingCart, 
     label: "POS", 
     path: "/pos-sales",
-    matchPaths: ["/pos-sales", "/pos", "/pos-dashboard", "/sales-invoice"]
-  },
-  { 
-    icon: BarChart3, 
-    label: "Reports", 
-    path: "/mobile-reports",
-    matchPaths: ["/mobile-reports", "/stock-report", "/sales-invoice-dashboard", "/daily-cashier-report", "/item-wise-sales", "/item-wise-stock", "/stock-analysis", "/purchase-bills", "/net-profit-analysis", "/gst-reports"]
+    matchPaths: ["/pos-sales", "/pos", "/pos-dashboard"]
   },
   { 
     icon: Wallet, 
     label: "Accounts", 
-    path: "/accounts",
-    matchPaths: ["/accounts", "/payments-dashboard"]
+    path: "/mobile-accounts",
+    matchPaths: ["/mobile-accounts", "/accounts", "/payments-dashboard", "/customer-ledger-report"]
   },
   { 
     icon: MoreHorizontal, 
     label: "More", 
     path: "/mobile-more",
-    matchPaths: ["/mobile-more", "/settings", "/customers", "/suppliers", "/employees", "/products", "/barcode-printing", "/stock-adjustment"]
+    matchPaths: ["/mobile-more", "/settings", "/customers", "/suppliers", "/products", "/barcode-printing", "/stock-adjustment", "/mobile-reports", "/stock-report", "/purchase-bills", "/purchase-entry"]
   },
 ];
 
@@ -82,25 +82,22 @@ export const MobileBottomNav = () => {
             <button
               key={item.path}
               onClick={() => orgNavigate(item.path)}
-              className={cn(
-                "flex flex-col items-center justify-center flex-1 h-full py-1 transition-all duration-150",
-                "active:scale-95 touch-manipulation",
-                active
-                  ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
+              className="relative flex flex-col items-center justify-start flex-1 h-full pt-1 gap-0.5 touch-manipulation transition-all duration-150 active:scale-90"
             >
+              {active && (
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-1 rounded-b-full bg-primary" />
+              )}
               <div className={cn(
-                "flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-150",
+                "flex items-center justify-center w-10 h-8 rounded-xl transition-all duration-150",
                 active && "bg-primary/10"
               )}>
                 <Icon className={cn(
                   "h-5 w-5 transition-transform",
-                  active && "scale-110"
+                  active ? "text-primary scale-110" : "text-muted-foreground"
                 )} />
               </div>
               <span className={cn(
-                "text-[10px] mt-0.5 font-medium transition-all",
+                "text-[10px] font-medium transition-all",
                 active ? "text-primary" : "text-muted-foreground"
               )}>
                 {item.label}
