@@ -141,25 +141,25 @@ Thank you for your cooperation.
 
 {organization_name}`,
 
-  school_fee_receipt: `✅ Fee Receipt
+  school_fee_receipt: `Fee Receipt
 
 Respected Sir/Madam,
 
-🏫 {organization_name}
+{organization_name}
 
-🧾 Receipt No: {receipt_number}
-📅 Date: {receipt_date}
-👤 Student: {student_name}
-👦 Admission No: {admission_number}
-📚 Class: {class_name}
+Receipt No: {receipt_number}
+Date: {receipt_date}
+Student: {student_name}
+Admission No: {admission_number}
+Class: {class_name}
 
-💰 Amount Paid: {amount}
-💳 Payment Mode: {payment_method}
-📊 Balance: {balance_amount}
+Amount Paid: {amount}
+Payment Mode: {payment_method}
+Balance: {balance_amount}
 
 {fee_details}
 
-🙏 Thank you for your payment.
+Thank you for your payment.
 
 {organization_name}`
 };
