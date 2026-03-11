@@ -51,6 +51,7 @@ export default function MobileMoreMenu() {
         { icon: Users, label: "Customers", path: "/customers", color: "text-purple-500" },
         { icon: Building2, label: "Suppliers", path: "/suppliers", color: "text-orange-500" },
         { icon: ShoppingBag, label: "Purchase Entry", path: "/purchase-entry", color: "text-amber-500" },
+        { icon: FileText, label: "Purchase Bills", path: "/purchase-bills", color: "text-blue-500" },
         { icon: RotateCcw, label: "Purchase Return", path: "/purchase-return-entry", color: "text-rose-500" },
         { icon: Undo2, label: "Sale Return", path: "/sale-return-entry", color: "text-red-500" },
         { icon: Wallet, label: "Payments", path: "/payments-dashboard", color: "text-blue-500" },
@@ -63,6 +64,15 @@ export default function MobileMoreMenu() {
         { icon: BarChart3, label: "Stock Report", path: "/stock-report", color: "text-green-500" },
         { icon: FileText, label: "Stock Adjustment", path: "/stock-adjustment", color: "text-blue-500" },
         { icon: FileSpreadsheet, label: "Barcode Printing", path: "/barcode-printing", color: "text-purple-500" },
+      ],
+    },
+    {
+      title: "Reports",
+      items: [
+        { icon: BarChart3, label: "All Reports", path: "/mobile-reports", color: "text-green-500" },
+        { icon: TrendingUp, label: "Daily Cashier", path: "/daily-cashier-report", color: "text-purple-500" },
+        { icon: Package, label: "Stock Report", path: "/stock-report", color: "text-amber-500" },
+        { icon: Receipt, label: "GST Reports", path: "/gst-reports", color: "text-indigo-500" },
       ],
     },
     {
@@ -93,7 +103,7 @@ export default function MobileMoreMenu() {
 
       {/* Menu Sections */}
       <div className="px-4 py-4 space-y-6">
-        {menuSections.map((section, sectionIndex) => (
+        {menuSections.map((section) => (
           <div key={section.title}>
             <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3 px-1">
               {section.title}

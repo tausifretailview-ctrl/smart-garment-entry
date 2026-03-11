@@ -95,6 +95,8 @@ const WhatsAppLogs = lazy(() => import("./pages/WhatsAppLogs"));
 const WhatsAppInbox = lazy(() => import("./pages/WhatsAppInbox"));
 const MobileMoreMenu = lazy(() => import("./pages/mobile/MobileMoreMenu"));
 const MobileReportsHub = lazy(() => import("./pages/mobile/MobileReportsHub"));
+const MobileSalesHub = lazy(() => import("./pages/mobile/MobileSalesHub"));
+const MobileAccountsPage = lazy(() => import("./pages/mobile/MobileAccountsPage"));
 const StudentMaster = lazy(() => import("./pages/school/StudentMaster"));
 const StudentEntry = lazy(() => import("./pages/school/StudentEntry"));
 const AcademicYearSetup = lazy(() => import("./pages/school/AcademicYearSetup"));
@@ -1070,6 +1072,30 @@ const App = () => {
                   element={
                     <ProtectedRoute>
                       <MobileReportsHub />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Mobile Sales Hub */}
+                <Route
+                  path="mobile-sales"
+                  element={
+                    <ProtectedRoute>
+                      <Suspense fallback={<LazyFallback />}>
+                        <MobileSalesHub />
+                      </Suspense>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Mobile Accounts Page */}
+                <Route
+                  path="mobile-accounts"
+                  element={
+                    <ProtectedRoute>
+                      <Suspense fallback={<LazyFallback />}>
+                        <MobileAccountsPage />
+                      </Suspense>
                     </ProtectedRoute>
                   }
                 />

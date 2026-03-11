@@ -72,13 +72,14 @@ export default defineConfig(({ mode }) => ({
       manifest: {
         name: 'EzzyERP - Easy Billing, Smart Business',
         short_name: 'EzzyERP',
-        description: 'EzzyERP - Easy Billing, Smart Business',
-        theme_color: '#6366F1',
-        background_color: '#0f172a',
+        description: 'EzzyERP - Easy Billing, Smart Business for garment & retail businesses',
+        theme_color: '#2563eb',
+        background_color: '#0a0f1e',
         display: 'standalone',
         orientation: 'portrait',
         scope: '/',
         start_url: '/',
+        categories: ['business', 'finance', 'productivity'],
         icons: [
           {
             src: '/icon-192.png',
