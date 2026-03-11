@@ -3498,10 +3498,25 @@ export default function BarcodePrinting() {
   return (
     <div className="w-full px-6 py-6 space-y-6">
       {location.state?.purchaseItems ? (
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <BackToDashboard label="Back to Purchase Bill Dashboard" to="/purchase-bills" />
           {location.state?.billId && (
-            <BackToDashboard label="Back to Purchase Bill" to={`/purchase-entry?edit=${location.state.billId}`} />
+            <>
+              <BackToDashboard label="Back to Purchase Bill" to={`/purchase-entry?edit=${location.state.billId}`} />
+              <Button
+                variant="default"
+                size="sm"
+                className="gap-2 ml-auto"
+                onClick={() => {
+                  const nav = document.createElement('a');
+                  // Use navigate to go back to the same bill in edit mode
+                  window.location.href = `/purchase-entry?edit=${location.state.billId}`;
+                }}
+              >
+                <Plus className="h-4 w-4" />
+                Continue Adding Products
+              </Button>
+            </>
           )}
         </div>
       ) : (
