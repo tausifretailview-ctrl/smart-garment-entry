@@ -64,6 +64,7 @@ const StudentMaster = () => {
   const [historyStudent, setHistoryStudent] = useState<any>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedYearId, setSelectedYearId] = useState<string | null>(null);
+  const [filterNewAdmissions, setFilterNewAdmissions] = useState(false);
 
   // Fetch academic years
   const { data: academicYears } = useQuery({
@@ -92,10 +93,15 @@ const StudentMaster = () => {
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
     setCurrentPage(1);
+    setFilterNewAdmissions(false);
   };
 
+  // Get academic start date for new admissions filter
+  const selectedYear = (academicYears || []).find((y: any) => y.id === selectedYearId);
+  const academicStart = selectedYear?.start_date || "2026-04-01";
+
   const { data: studentsResult, isLoading } = useQuery({
-    queryKey: ["students", currentOrganization?.id, searchTerm, currentPage, selectedYearId],
+    queryKey: ["students", currentOrganization?.id, searchTerm, currentPage, selectedYearId, filterNewAdmissions],
     queryFn: async () => {
       if (!currentOrganization?.id || !selectedYearId) return { data: [], count: 0 };
 
@@ -122,6 +128,11 @@ const StudentMaster = () => {
 
       if (searchTerm) {
         query = query.or(`student_name.ilike.%${searchTerm}%,admission_number.ilike.%${searchTerm}%,parent_phone.ilike.%${searchTerm}%`);
+      }
+
+      // Filter for new admissions: created_at within the academic year
+      if (filterNewAdmissions) {
+        query = query.gte("created_at", academicStart);
       }
 
       const { data, error, count } = await query;
@@ -155,18 +166,15 @@ const StudentMaster = () => {
         .eq("status", "active")
         .is("deleted_at", null);
 
-      // New admissions: students with admission_date in the selected academic year
-      const selectedYear = (academicYears || []).find((y: any) => y.id === selectedYearId);
-      const academicStart = selectedYear?.start_date || "2025-04-01";
-
+      // New admissions: students created within the selected academic year period
+      // This excludes promoted students (whose created_at is from previous years)
       const { count: newAdmissions } = await supabase
         .from("students")
         .select("*", { count: "exact", head: true })
         .eq("organization_id", currentOrganization.id)
         .eq("academic_year_id", selectedYearId)
         .is("deleted_at", null)
-        .not("admission_date", "is", null)
-        .gte("admission_date", academicStart);
+        .gte("created_at", academicStart);
 
       return { total: total || 0, active: active || 0, newAdmissions: newAdmissions || 0 };
     },
@@ -260,7 +268,10 @@ const StudentMaster = () => {
             <div className="text-2xl font-bold text-primary">{stats?.active || 0}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-md ${filterNewAdmissions ? 'ring-2 ring-emerald-500' : ''}`}
+          onClick={() => { setFilterNewAdmissions(!filterNewAdmissions); setCurrentPage(1); }}
+        >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-emerald-600">
               New Admissions
@@ -268,7 +279,9 @@ const StudentMaster = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-emerald-600">{stats?.newAdmissions || 0}</div>
-            <p className="text-xs text-muted-foreground">This academic year</p>
+            <p className="text-xs text-muted-foreground">
+              {filterNewAdmissions ? "Showing filtered" : "This academic year"}
+            </p>
           </CardContent>
         </Card>
         <Card>
