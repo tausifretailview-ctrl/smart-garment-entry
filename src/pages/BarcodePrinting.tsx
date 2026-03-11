@@ -3518,7 +3518,7 @@ export default function BarcodePrinting() {
                 size="sm"
                 className="gap-2 ml-auto"
                 onClick={() => {
-                  window.location.href = `/purchase-entry?edit=${location.state.billId}`;
+                  orgNavigate('/purchase-entry', { state: { editBillId: location.state.billId } });
                 }}
               >
                 <Plus className="h-4 w-4" />
