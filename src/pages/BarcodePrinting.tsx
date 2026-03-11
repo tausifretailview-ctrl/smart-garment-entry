@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import JsBarcode from "jsbarcode";
-import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer, AlertTriangle } from "lucide-react";
+import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer, AlertTriangle, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -3498,10 +3498,23 @@ export default function BarcodePrinting() {
   return (
     <div className="w-full px-6 py-6 space-y-6">
       {location.state?.purchaseItems ? (
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <BackToDashboard label="Back to Purchase Bill Dashboard" to="/purchase-bills" />
           {location.state?.billId && (
-            <BackToDashboard label="Back to Purchase Bill" to={`/purchase-entry?edit=${location.state.billId}`} />
+            <>
+              <BackToDashboard label="Back to Purchase Bill" to={`/purchase-entry?edit=${location.state.billId}`} />
+              <Button
+                variant="default"
+                size="sm"
+                className="gap-2 ml-auto"
+                onClick={() => {
+                  window.location.href = `/purchase-entry?edit=${location.state.billId}`;
+                }}
+              >
+                <Plus className="h-4 w-4" />
+                Continue Adding Products
+              </Button>
+            </>
           )}
         </div>
       ) : (
