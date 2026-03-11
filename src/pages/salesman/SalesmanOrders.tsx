@@ -71,6 +71,8 @@ const SalesmanOrders = () => {
   }, [currentOrganization?.id, user?.id, activeTab]);
 
   const fetchOrders = async () => {
+    setLoading(true);
+    setOrders([]);
     try {
       let query = supabase
         .from("sale_orders")
