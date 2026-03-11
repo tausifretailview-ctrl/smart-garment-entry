@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Button } from "@/components/ui/button";
@@ -62,6 +63,30 @@ const StudentMaster = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [historyStudent, setHistoryStudent] = useState<any>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [selectedYearId, setSelectedYearId] = useState<string | null>(null);
+
+  // Fetch academic years
+  const { data: academicYears } = useQuery({
+    queryKey: ["academic-years-list", currentOrganization?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("academic_years")
+        .select("*")
+        .eq("organization_id", currentOrganization!.id)
+        .order("start_date", { ascending: false });
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  // Set default to current academic year
+  useEffect(() => {
+    if (academicYears && academicYears.length > 0 && !selectedYearId) {
+      const current = academicYears.find((y: any) => y.is_current);
+      if (current) setSelectedYearId(current.id);
+      else setSelectedYearId(academicYears[0].id);
+    }
+  }, [academicYears, selectedYearId]);
 
   // Reset to page 1 when search changes
   const handleSearchChange = (value: string) => {
@@ -70,9 +95,9 @@ const StudentMaster = () => {
   };
 
   const { data: studentsResult, isLoading } = useQuery({
-    queryKey: ["students", currentOrganization?.id, searchTerm, currentPage],
+    queryKey: ["students", currentOrganization?.id, searchTerm, currentPage, selectedYearId],
     queryFn: async () => {
-      if (!currentOrganization?.id) return { data: [], count: 0 };
+      if (!currentOrganization?.id || !selectedYearId) return { data: [], count: 0 };
 
       const from = (currentPage - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
@@ -90,6 +115,7 @@ const StudentMaster = () => {
           )
         `, { count: "exact" })
         .eq("organization_id", currentOrganization.id)
+        .eq("academic_year_id", selectedYearId)
         .is("deleted_at", null)
         .order("student_name")
         .range(from, to);
@@ -102,7 +128,7 @@ const StudentMaster = () => {
       if (error) throw error;
       return { data: data || [], count: count || 0 };
     },
-    enabled: !!currentOrganization?.id,
+    enabled: !!currentOrganization?.id && !!selectedYearId,
   });
 
   const students = studentsResult?.data || [];
@@ -110,39 +136,41 @@ const StudentMaster = () => {
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   const { data: stats } = useQuery({
-    queryKey: ["student-stats", currentOrganization?.id],
+    queryKey: ["student-stats", currentOrganization?.id, selectedYearId],
     queryFn: async () => {
-      if (!currentOrganization?.id) return { total: 0, active: 0, newAdmissions: 0 };
+      if (!currentOrganization?.id || !selectedYearId) return { total: 0, active: 0, newAdmissions: 0 };
 
       const { count: total } = await supabase
         .from("students")
         .select("*", { count: "exact", head: true })
         .eq("organization_id", currentOrganization.id)
+        .eq("academic_year_id", selectedYearId)
         .is("deleted_at", null);
 
       const { count: active } = await supabase
         .from("students")
         .select("*", { count: "exact", head: true })
         .eq("organization_id", currentOrganization.id)
+        .eq("academic_year_id", selectedYearId)
         .eq("status", "active")
         .is("deleted_at", null);
 
-      // New admissions: students with admission_date in the current academic year (April 1 onwards)
-      const now = new Date();
-      const currentYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-      const academicStart = `${currentYear}-04-01`;
+      // New admissions: students with admission_date in the selected academic year
+      const selectedYear = (academicYears || []).find((y: any) => y.id === selectedYearId);
+      const academicStart = selectedYear?.start_date || "2025-04-01";
 
       const { count: newAdmissions } = await supabase
         .from("students")
         .select("*", { count: "exact", head: true })
         .eq("organization_id", currentOrganization.id)
+        .eq("academic_year_id", selectedYearId)
         .is("deleted_at", null)
         .not("admission_date", "is", null)
         .gte("admission_date", academicStart);
 
       return { total: total || 0, active: active || 0, newAdmissions: newAdmissions || 0 };
     },
-    enabled: !!currentOrganization?.id,
+    enabled: !!currentOrganization?.id && !!selectedYearId,
   });
 
   const handleDeleteStudent = async () => {
@@ -257,8 +285,8 @@ const StudentMaster = () => {
         </Card>
       </div>
 
-      {/* Search */}
-      <div className="flex gap-4">
+      {/* Search & Year Filter */}
+      <div className="flex gap-4 items-center">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -268,6 +296,18 @@ const StudentMaster = () => {
             className="pl-9"
           />
         </div>
+        <Select value={selectedYearId || ""} onValueChange={(val) => { setSelectedYearId(val); setCurrentPage(1); }}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Academic Year" />
+          </SelectTrigger>
+          <SelectContent>
+            {(academicYears || []).map((y: any) => (
+              <SelectItem key={y.id} value={y.id}>
+                {y.year_name} {y.is_current ? "(Current)" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table */}
