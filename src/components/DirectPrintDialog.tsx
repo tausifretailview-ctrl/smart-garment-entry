@@ -585,7 +585,7 @@ export const DirectPrintDialog = ({
           )}
 
           {/* Printer Settings (per-printer config) */}
-          {isConnected && selectedPrinter && (
+          {printTransport === 'qz' && isConnected && selectedPrinter && (
             <div className="space-y-2">
               <button
                 onClick={() => setShowPrinterSettings(!showPrinterSettings)}
