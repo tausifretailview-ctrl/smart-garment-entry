@@ -67,6 +67,21 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
   const [studentSearch, setStudentSearch] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(initialStudent);
 
+  // Fetch organization logo URL for WhatsApp messages
+  const { data: orgLogoSettings } = useQuery({
+    queryKey: ["org-logo-url", currentOrganization?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("settings")
+        .select("bill_barcode_settings")
+        .eq("organization_id", currentOrganization!.id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+  });
+  const logoUrl = (orgLogoSettings?.bill_barcode_settings as any)?.logo_url || "";
+
   const student = initialStudent || selectedStudent;
 
   // Search students when no initial student provided
@@ -283,6 +298,8 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
             message: `Fee Receipt\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nReceipt No: ${data.receiptNumber}\nDate: ${format(new Date(data.paidDate), "dd/MM/yyyy")}\nStudent: ${student?.student_name || "-"}\nAdmission No: ${student?.admission_number}\nClass: ${student?.school_classes?.class_name || "-"}\n\nAmount Paid: Rs.${data.totalPaying.toLocaleString("en-IN")}\nPayment Mode: ${data.paymentMethod}\n\n${feeLines}\n\nThank you for your payment.\n\n${currentOrganization?.name || "School"}`,
             templateType: "fee_receipt",
             templateName,
+            imageUrl: logoUrl || undefined,
+            imageCaption: currentOrganization?.name || "",
             saleData: {
               student_name: student?.student_name,
               admission_number: student?.admission_number,

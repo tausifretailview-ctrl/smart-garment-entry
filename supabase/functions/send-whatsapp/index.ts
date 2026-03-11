@@ -28,6 +28,9 @@ interface SendWhatsAppRequest {
   documentUrl?: string; // Public URL of PDF document
   documentFilename?: string; // Display filename for the document
   documentCaption?: string; // Caption for the document message
+  // Image attachment (e.g., school logo)
+  imageUrl?: string; // Public URL of image
+  imageCaption?: string; // Caption for the image message
   // Document header template (direct PDF in template - bypasses 24h window)
   useDocumentHeaderTemplate?: boolean;
   documentHeaderTemplateName?: string;
@@ -442,6 +445,8 @@ serve(async (req) => {
       documentUrl,
       documentFilename,
       documentCaption,
+      imageUrl,
+      imageCaption,
       useDocumentHeaderTemplate,
       documentHeaderTemplateName,
       pdfBlob
@@ -1134,6 +1139,45 @@ serve(async (req) => {
       } catch (followUpError) {
         // Don't fail the main request if marking fails
         console.error('Failed to mark pending follow-up:', followUpError);
+      }
+    }
+
+    // Send image attachment if provided (e.g., school logo - sent before text/document)
+    if (imageUrl && response.ok) {
+      console.log('Sending image attachment:', imageUrl);
+      
+      const imagePayload = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: formattedPhone,
+        type: "image",
+        image: {
+          link: imageUrl,
+          caption: imageCaption || ""
+        }
+      };
+
+      try {
+        const imgResponse = await fetch(metaApiUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${settings.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(imagePayload),
+        });
+
+        const imgResponseData = await imgResponse.json();
+        console.log('Image API Response:', JSON.stringify(imgResponseData));
+
+        if (imgResponse.ok && imgResponseData.messages?.[0]?.id) {
+          console.log('Image sent successfully:', imgResponseData.messages[0].id);
+        } else {
+          console.error('Image send failed:', imgResponseData);
+        }
+      } catch (imgError) {
+        console.error('Error sending image:', imgError);
+        // Don't fail the main request if image fails
       }
     }
 

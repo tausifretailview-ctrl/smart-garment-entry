@@ -114,6 +114,9 @@ export interface SendMessageParams {
   documentUrl?: string;
   documentFilename?: string;
   documentCaption?: string;
+  // Image attachment (e.g., logo)
+  imageUrl?: string;
+  imageCaption?: string;
   // Document header template (PDF embedded in template)
   useDocumentHeaderTemplate?: boolean;
   documentHeaderTemplateName?: string;
@@ -259,6 +262,9 @@ export const useWhatsAppAPI = () => {
           documentUrl: params.documentUrl,
           documentFilename: params.documentFilename,
           documentCaption: params.documentCaption,
+          // Image attachment (e.g., logo)
+          imageUrl: params.imageUrl,
+          imageCaption: params.imageCaption,
           // Document header template (PDF embedded in template)
           useDocumentHeaderTemplate: params.useDocumentHeaderTemplate,
           documentHeaderTemplateName: params.documentHeaderTemplateName,
