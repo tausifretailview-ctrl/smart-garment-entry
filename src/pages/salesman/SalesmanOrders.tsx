@@ -62,6 +62,7 @@ const SalesmanOrders = () => {
   const [activeTab, setActiveTab] = useState("today");
   const [orderToAccept, setOrderToAccept] = useState<SaleOrder | null>(null);
   const [isAccepting, setIsAccepting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if (currentOrganization?.id && user?.id) {
