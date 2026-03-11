@@ -19,7 +19,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet, ChevronLeft, ChevronRight, Check, AlertTriangle, SkipBack } from "lucide-react";
+import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet, ChevronLeft, ChevronRight, Check, AlertTriangle, SkipBack, Search, Save, Trash2 } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
+import { Skeleton } from "@/components/ui/skeleton";
 import { InlineTotalQty } from "@/components/InlineTotalQty";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
@@ -2416,6 +2419,147 @@ const PurchaseEntry = () => {
       description,
     });
   };
+
+  const isMobile = useIsMobile();
+
+  if (isMobile) {
+    const filledItems = lineItems.filter(i => i.product_id);
+    const totalQty = filledItems.reduce((s, i) => s + (i.qty || 0), 0);
+    return (
+      <div className="flex flex-col min-h-screen bg-muted/30">
+        <MobilePageHeader
+          title={isEditMode ? "Edit Purchase" : "Purchase Entry"}
+          subtitle={softwareBillNo || "NEW"}
+          backTo="/purchase-bills"
+        />
+
+        <div className="flex-1 overflow-y-auto pb-40 space-y-3 px-4 pt-3">
+          {/* Supplier section */}
+          <div className="bg-background rounded-2xl p-3.5 border border-border/40 shadow-sm space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Supplier & Bill Details</p>
+            <Select value={billData.supplier_id} onValueChange={(value) => {
+              const s = suppliers.find((s: any) => s.id === value);
+              setBillData({ ...billData, supplier_id: value, supplier_name: s?.supplier_name || "" });
+            }}>
+              <SelectTrigger className="h-10 rounded-xl"><SelectValue placeholder="Select Supplier" /></SelectTrigger>
+              <SelectContent>{suppliers.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.supplier_name}</SelectItem>)}</SelectContent>
+            </Select>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-[11px]">Bill Date</Label>
+                <Input type="date" value={format(billDate, "yyyy-MM-dd")} onChange={(e) => setBillDate(new Date(e.target.value))} className="h-9 text-sm rounded-xl" />
+              </div>
+              <div>
+                <Label className="text-[11px]">Supplier Inv. No.</Label>
+                <Input value={billData.supplier_invoice_no} onChange={(e) => setBillData({ ...billData, supplier_invoice_no: e.target.value })} placeholder="Inv #" className="h-9 text-sm rounded-xl" />
+              </div>
+            </div>
+          </div>
+
+          {/* Product search */}
+          <div className="bg-background rounded-2xl p-3.5 border border-border/40 shadow-sm space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Add Products</p>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                ref={searchInputRef}
+                placeholder="Scan barcode or search…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 h-11 text-base rounded-xl"
+                autoComplete="off"
+                autoCapitalize="off"
+              />
+            </div>
+          </div>
+
+          {/* Items list */}
+          {filledItems.length > 0 && (
+            <div className="bg-background rounded-2xl border border-border/40 shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-border/30">
+                <p className="text-xs font-semibold text-foreground">Items ({filledItems.length})</p>
+                <p className="text-xs text-muted-foreground">{totalQty} pcs</p>
+              </div>
+              <div className="divide-y divide-border/20">
+                {filledItems.map((item) => {
+                  const realIdx = lineItems.indexOf(item);
+                  return (
+                    <div key={item.temp_id} className="flex items-center justify-between px-3.5 py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-foreground truncate">{item.product_name || item.barcode}</p>
+                        <p className="text-[11px] text-muted-foreground">{item.size} {item.color}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <button onClick={() => { const u = [...lineItems]; if (u[realIdx].qty > 1) { u[realIdx] = { ...u[realIdx], qty: u[realIdx].qty - 1 }; setLineItems(u); } }}
+                            className="w-8 h-8 bg-muted rounded-lg text-base font-bold flex items-center justify-center active:scale-90 touch-manipulation">−</button>
+                          <span className="w-8 text-center text-sm font-semibold tabular-nums">{item.qty}</span>
+                          <button onClick={() => { const u = [...lineItems]; u[realIdx] = { ...u[realIdx], qty: u[realIdx].qty + 1 }; setLineItems(u); }}
+                            className="w-8 h-8 bg-muted rounded-lg text-base font-bold flex items-center justify-center active:scale-90 touch-manipulation">+</button>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0 ml-3">
+                        <Input
+                          type="number"
+                          value={item.pur_price}
+                          onChange={(e) => { const u = [...lineItems]; u[realIdx] = { ...u[realIdx], pur_price: +e.target.value }; setLineItems(u); }}
+                          className="w-20 h-8 text-right text-sm rounded-lg border"
+                          placeholder="Price"
+                        />
+                        <p className="text-xs font-semibold text-foreground mt-1 tabular-nums">= ₹{Math.round((item.pur_price || 0) * (item.qty || 0)).toLocaleString("en-IN")}</p>
+                        <button onClick={() => setLineItems(lineItems.filter((_, i) => i !== realIdx))} className="text-[10px] text-destructive font-medium mt-1">Remove</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Totals */}
+          {filledItems.length > 0 && (
+            <div className="bg-background rounded-2xl p-3.5 border border-border/40 shadow-sm space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Total Qty</span>
+                <span className="font-medium tabular-nums">{totalQty} pcs</span>
+              </div>
+              <div className="flex justify-between text-base font-bold pt-1 border-t border-border/30">
+                <span>Grand Total</span>
+                <span className="tabular-nums">₹{Math.round(totals.netAmount || 0).toLocaleString("en-IN")}</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Fixed save bar */}
+        <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border p-4 z-30" style={{ paddingBottom: "env(safe-area-inset-bottom, 16px)" }}>
+          <button
+            onClick={handleSave}
+            disabled={loading || lineItems.length === 0}
+            className="w-full bg-primary text-primary-foreground rounded-xl h-12 font-semibold text-sm flex items-center justify-center gap-2 active:scale-95 touch-manipulation shadow-sm disabled:opacity-50"
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {loading ? "Saving…" : `Save Bill${filledItems.length > 0 ? ` · ₹${Math.round(totals.netAmount || 0).toLocaleString("en-IN")}` : ""}`}
+          </button>
+        </div>
+
+        {/* All existing dialogs */}
+        <Dialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Bill Saved</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <Button variant="outline" onClick={() => { setShowPrintDialog(false); navigate("/barcode-printing", { state: { purchaseItems: savedPurchaseItems.length > 0 ? savedPurchaseItems : lineItems, billId: savedBillId || editingBillId } }); }} className="w-full gap-2"><Printer className="h-4 w-4" /> Print Barcodes</Button>
+              <Button variant="secondary" onClick={() => { setShowPrintDialog(false); if (savedBillId) navigate("/purchase-entry", { state: { editBillId: savedBillId } }); }} className="w-full gap-2"><Plus className="h-4 w-4" /> Continue Adding</Button>
+              <Button variant="outline" onClick={() => setShowPrintDialog(false)} className="w-full">Skip</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+        <ExcelImportDialog open={showExcelImport} onClose={() => setShowExcelImport(false)} targetFields={purchaseBillFields} onImport={handleExcelImport} title="Import Purchase Bill" sampleData={purchaseBillSampleData} sampleFileName="Purchase_Bill_Sample.xlsx" />
+        <ProductEntryDialog open={showProductDialog} onOpenChange={setShowProductDialog} onProductCreated={handleProductCreated} hideOpeningQty />
+        <PriceUpdateConfirmDialog open={showPriceUpdateDialog} onOpenChange={setShowPriceUpdateDialog} priceChanges={detectedPriceChanges} onConfirm={handlePriceUpdateConfirm} onSkip={handlePriceUpdateSkip} />
+        <AddSupplierDialog open={showAddSupplierDialog} onClose={() => setShowAddSupplierDialog(false)} onSupplierCreated={(supplier) => { refetchSuppliers(); setBillData((prev) => ({ ...prev, supplier_id: supplier.id, supplier_name: supplier.supplier_name })); }} />
+        <SizeGridDialog open={showSizeGrid} onClose={() => setShowSizeGrid(false)} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} />
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-slate-100">

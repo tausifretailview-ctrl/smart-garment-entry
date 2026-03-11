@@ -1,5 +1,9 @@
 import { useState, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
+import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
+import { ArrowDownLeft, ArrowUpRight, BookOpen, AlertCircle, Receipt, FileText as FileTextIcon2 } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -290,6 +294,134 @@ export default function Accounts() {
     navigator.clipboard.writeText(message).then(() => { toast.success(`✓ Message copied! Paste with ${shortcut} if it doesn't auto-fill`, { duration: 5000 }); }).catch(() => { toast.warning("Couldn't copy to clipboard automatically"); });
     setTimeout(() => { window.open(waUrl, '_blank'); }, 300);
   };
+
+  const isMobile = useIsMobile();
+
+  if (isMobile) {
+    const tabs = [
+      { id: "customer-ledger", label: "Cust. Ledger", icon: BookOpen },
+      { id: "supplier-ledger", label: "Supp. Ledger", icon: BookOpen },
+      { id: "outstanding", label: "Outstanding", icon: AlertCircle },
+      { id: "customer-payment", label: "Receive ₹", icon: ArrowDownLeft },
+      { id: "supplier-payment", label: "Pay ₹", icon: ArrowUpRight },
+      { id: "expenses", label: "Expenses", icon: Receipt },
+      { id: "employee-salary", label: "Salaries", icon: Receipt },
+      { id: "voucher-entry", label: "Vouchers", icon: FileTextIcon2 },
+      { id: "reconciliation", label: "Reconcile", icon: Receipt },
+    ];
+
+    const fmt = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+
+    return (
+      <div className="flex flex-col min-h-screen bg-muted/30 pb-24">
+        <MobilePageHeader title="Accounts" backTo="/payments-dashboard" />
+
+        {/* Summary cards */}
+        <div className="grid grid-cols-2 gap-2 px-4 py-3">
+          <div className="rounded-xl p-3 bg-emerald-50 border border-emerald-200">
+            <p className="text-[10px] font-medium text-muted-foreground">Receivable</p>
+            <p className="text-sm font-bold text-emerald-700 tabular-nums">{fmt(dashboardMetrics.totalReceivables)}</p>
+          </div>
+          <div className="rounded-xl p-3 bg-rose-50 border border-rose-200">
+            <p className="text-[10px] font-medium text-muted-foreground">Payable</p>
+            <p className="text-sm font-bold text-rose-700 tabular-nums">{fmt(dashboardMetrics.totalPayables)}</p>
+          </div>
+          <div className="rounded-xl p-3 bg-amber-50 border border-amber-200">
+            <p className="text-[10px] font-medium text-muted-foreground">Monthly Expenses</p>
+            <p className="text-sm font-bold text-amber-700 tabular-nums">{fmt(dashboardMetrics.monthlyExpenses)}</p>
+          </div>
+          <div className="rounded-xl p-3 bg-blue-50 border border-blue-200">
+            <p className="text-[10px] font-medium text-muted-foreground">Net P/L</p>
+            <p className={cn("text-sm font-bold tabular-nums", dashboardMetrics.currentMonthPL >= 0 ? "text-emerald-700" : "text-rose-700")}>
+              {fmt(dashboardMetrics.currentMonthPL)}
+            </p>
+          </div>
+        </div>
+
+        {/* Tab chips */}
+        <div className="flex gap-2 px-4 overflow-x-auto no-scrollbar pb-2">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setSelectedTab(t.id)}
+              className={cn(
+                "flex-shrink-0 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all touch-manipulation",
+                selectedTab === t.id ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted text-muted-foreground"
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        <div className="flex-1 overflow-y-auto px-4 py-3">
+          {selectedTab === "customer-ledger" && currentOrganization?.id && (
+            <CustomerLedger organizationId={currentOrganization.id} paymentFilter={paymentCardFilter} preSelectedCustomerId={urlCustomerId} />
+          )}
+          {selectedTab === "supplier-ledger" && currentOrganization?.id && (
+            <SupplierLedger organizationId={currentOrganization.id} />
+          )}
+          {selectedTab === "outstanding" && currentOrganization?.id && (
+            <OutstandingDashboardTab organizationId={currentOrganization.id} />
+          )}
+          {selectedTab === "customer-payment" && currentOrganization?.id && (
+            <CustomerPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} sales={sales} customers={customers} settings={settings} onShowReceipt={handleShowReceipt} onShowAdvanceDialog={() => setShowAdvanceDialog(true)} onEditPayment={openEditPaymentDialog} />
+          )}
+          {selectedTab === "supplier-payment" && currentOrganization?.id && (
+            <SupplierPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} suppliers={suppliers} onEditPayment={openEditPaymentDialog} />
+          )}
+          {selectedTab === "employee-salary" && currentOrganization?.id && (
+            <EmployeeSalaryTab organizationId={currentOrganization.id} vouchers={vouchers} />
+          )}
+          {selectedTab === "expenses" && currentOrganization?.id && (
+            <ExpensesTab organizationId={currentOrganization.id} vouchers={vouchers} />
+          )}
+          {selectedTab === "voucher-entry" && <VoucherEntryTab vouchers={vouchers} />}
+          {selectedTab === "reconciliation" && currentOrganization?.id && (
+            <ReconciliationTab organizationId={currentOrganization.id} customers={customers} />
+          )}
+        </div>
+
+        <MobileBottomNav />
+
+        {/* All dialogs */}
+        <Dialog open={showReceiptDialog} onOpenChange={setShowReceiptDialog}>
+          <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+            {receiptData ? (
+              <>
+                <DialogHeader><DialogTitle>Payment Receipt</DialogTitle></DialogHeader>
+                <div className="hidden"><PaymentReceipt ref={receiptRef} receiptData={receiptData} companyDetails={{ businessName: settings?.business_name, address: settings?.address, mobileNumber: settings?.mobile_number, emailId: settings?.email_id, gstNumber: settings?.gst_number, upiId: (settings?.sale_settings as any)?.upiId }} receiptSettings={{ showCompanyLogo: false, showQrCode: !!(settings?.sale_settings as any)?.upiId, showSignature: true, signatureLabel: "Authorized Signature" }} /></div>
+                <div className="border rounded-lg p-4"><PaymentReceipt receiptData={receiptData} companyDetails={{ businessName: settings?.business_name, address: settings?.address, mobileNumber: settings?.mobile_number, emailId: settings?.email_id, gstNumber: settings?.gst_number, upiId: (settings?.sale_settings as any)?.upiId }} receiptSettings={{ showCompanyLogo: false, showQrCode: !!(settings?.sale_settings as any)?.upiId, showSignature: true, signatureLabel: "Authorized Signature" }} /></div>
+                <DialogFooter className="gap-2">
+                  <Button variant="outline" onClick={handlePrintReceipt}><Printer className="mr-2 h-4 w-4" /> Print</Button>
+                  {receiptData.customerPhone && <Button onClick={handleSendWhatsApp}><Send className="mr-2 h-4 w-4" /> WhatsApp</Button>}
+                </DialogFooter>
+              </>
+            ) : <div className="p-4 text-center text-muted-foreground">Loading…</div>}
+          </DialogContent>
+        </Dialog>
+        <Dialog open={showEditPaymentDialog} onOpenChange={setShowEditPaymentDialog}>
+          <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Edit Payment</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2"><Label>Amount</Label><Input type="number" step="0.01" value={editPaymentAmount} onChange={(e) => setEditPaymentAmount(e.target.value)} /></div>
+              <div className="space-y-2">
+                <Label>Payment Method</Label>
+                <Select value={editPaymentMethod} onValueChange={setEditPaymentMethod}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="cash">Cash</SelectItem><SelectItem value="card">Card</SelectItem><SelectItem value="upi">UPI</SelectItem><SelectItem value="cheque">Cheque</SelectItem></SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter><Button variant="outline" onClick={() => setShowEditPaymentDialog(false)}>Cancel</Button><Button onClick={() => updatePayment.mutate()} disabled={updatePayment.isPending}>Save</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+        {currentOrganization?.id && <AddAdvanceBookingDialog open={showAdvanceDialog} onOpenChange={setShowAdvanceDialog} organizationId={currentOrganization.id} />}
+        {currentOrganization?.id && <CustomerBalanceAdjustmentDialog open={showBalanceAdjustmentDialog} onOpenChange={setShowBalanceAdjustmentDialog} organizationId={currentOrganization.id} />}
+      </div>
+    );
+  }
 
   return (
     <div className="w-full px-6 py-6 pb-24 lg:pb-6 space-y-6 min-h-screen bg-gradient-to-br from-background via-slate-50/30 to-background dark:via-slate-900/20">

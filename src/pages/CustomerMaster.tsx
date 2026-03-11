@@ -6,6 +6,10 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Button } from "@/components/ui/button";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
+import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -643,6 +647,147 @@ const CustomerMaster = () => {
       },
     },
   ], [customers, selectedCustomers, advanceBalances, startIndex, navigate]);
+
+  const isMobile = useIsMobile();
+
+  if (isMobile) {
+    return (
+      <div className="flex flex-col min-h-screen bg-muted/30 pb-24">
+        <MobilePageHeader
+          title="Customers"
+          subtitle={`${totalCount.toLocaleString()} records`}
+          backTo="/"
+          rightContent={
+            <button
+              onClick={() => { resetForm(); setIsDialogOpen(true); }}
+              className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shadow-sm active:scale-90 touch-manipulation"
+            >
+              <Plus className="h-5 w-5 text-primary-foreground" />
+            </button>
+          }
+        />
+
+        {/* Search */}
+        <div className="px-4 py-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search name, phone, email…"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="pl-9 h-10 bg-background border-border/60 rounded-xl text-sm"
+            />
+          </div>
+        </div>
+
+        {/* Customer list */}
+        <div className="flex-1 overflow-y-auto px-4 space-y-2">
+          {isLoading ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-20 w-full rounded-2xl" />
+            ))
+          ) : customers.length === 0 ? (
+            <div className="text-center py-16">
+              <Search className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">No customers found</p>
+              <button
+                onClick={() => { resetForm(); setIsDialogOpen(true); }}
+                className="mt-3 px-5 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-semibold"
+              >
+                Add Customer
+              </button>
+            </div>
+          ) : (
+            customers.map((c) => (
+              <div
+                key={c.id}
+                className="bg-background rounded-2xl p-3.5 border border-border/40 shadow-sm"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-sm text-foreground truncate">{c.customer_name}</p>
+                    {c.phone && (
+                      <a href={`tel:${c.phone}`} className="text-xs text-primary font-medium" onClick={(e) => e.stopPropagation()}>
+                        {c.phone}
+                      </a>
+                    )}
+                    {c.address && <p className="text-[11px] text-muted-foreground truncate mt-0.5">{c.address}</p>}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                    {(c.opening_balance || 0) !== 0 && (
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                        (c.opening_balance || 0) > 0 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      }`}>
+                        ₹{Math.abs(c.opening_balance || 0).toLocaleString("en-IN")}
+                      </span>
+                    )}
+                    {advanceBalances[c.id] > 0 && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-purple-50 text-purple-700 border-purple-200">
+                        Adv ₹{Math.round(advanceBalances[c.id]).toLocaleString("en-IN")}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => handleEdit(c)}
+                      className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center active:scale-90 touch-manipulation"
+                    >
+                      <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedCustomerForHistory({ id: c.id, name: c.customer_name });
+                        setShowCustomerHistory(true);
+                      }}
+                      className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center active:scale-90 touch-manipulation"
+                    >
+                      <Eye className="h-3.5 w-3.5 text-primary" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-background">
+            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+              className="px-4 py-2 rounded-xl bg-muted text-sm font-medium disabled:opacity-40">← Prev</button>
+            <span className="text-xs text-muted-foreground">Page {currentPage} of {totalPages}</span>
+            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+              className="px-4 py-2 rounded-xl bg-muted text-sm font-medium disabled:opacity-40">Next →</button>
+          </div>
+        )}
+
+        <MobileBottomNav />
+
+        {/* All existing dialogs */}
+        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingCustomer ? "Edit Customer" : "Add New Customer"}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div><Label htmlFor="m-phone">Mobile Number *</Label><Input id="m-phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} required autoFocus placeholder="Enter mobile number" /></div>
+              <div><Label htmlFor="m-name">Customer Name</Label><Input id="m-name" value={formData.customer_name} onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })} placeholder="Enter customer name" /></div>
+              <div><Label htmlFor="m-address">Address</Label><Textarea id="m-address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} /></div>
+              <div><Label htmlFor="m-gst">GST Number</Label><Input id="m-gst" value={formData.gst_number} onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })} /></div>
+              <div><Label htmlFor="m-bal">Opening Balance (₹)</Label><Input id="m-bal" type="number" step="0.01" value={formData.opening_balance} onChange={(e) => setFormData({ ...formData, opening_balance: e.target.value })} /></div>
+              <Button type="submit" className="w-full">{editingCustomer ? "Update" : "Create"} Customer</Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <ExcelImportDialog open={showExcelImport} onClose={() => setShowExcelImport(false)} targetFields={customerMasterFields} onImport={handleExcelImport} sampleData={customerMasterSampleData} sampleFileName="Customer_Master_Sample.xlsx" title="Import Customers" />
+        {currentOrganization?.id && <LegacyInvoiceImportDialog open={showLegacyImport} onOpenChange={setShowLegacyImport} organizationId={currentOrganization.id} />}
+        <CustomerHistoryDialog open={showCustomerHistory} onOpenChange={setShowCustomerHistory} customerId={selectedCustomerForHistory?.id || null} customerName={selectedCustomerForHistory?.name || ''} organizationId={currentOrganization?.id || ''} />
+        <RelinkLegacyInvoicesDialog open={showRelinkDialog} onOpenChange={setShowRelinkDialog} />
+        <UpdateLegacyPhonesDialog open={showUpdatePhonesDialog} onOpenChange={setShowUpdatePhonesDialog} />
+        <BrandDiscountDialog open={showBrandDiscountDialog} onOpenChange={setShowBrandDiscountDialog} customer={selectedCustomerForBrandDiscount} />
+        <CustomerBalanceImportDialog open={showBalanceImport} onOpenChange={setShowBalanceImport} />
+      </div>
+    );
+  }
 
   return (
     <div className="bg-slate-50/50 min-h-screen pb-24 lg:pb-0" onContextMenu={handlePageContextMenu}>
