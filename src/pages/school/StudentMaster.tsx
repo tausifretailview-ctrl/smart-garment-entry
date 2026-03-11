@@ -64,6 +64,7 @@ const StudentMaster = () => {
   const [historyStudent, setHistoryStudent] = useState<any>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedYearId, setSelectedYearId] = useState<string | null>(null);
+  const [filterNewAdmissions, setFilterNewAdmissions] = useState(false);
 
   // Fetch academic years
   const { data: academicYears } = useQuery({
