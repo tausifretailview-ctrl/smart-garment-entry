@@ -128,7 +128,7 @@ const SalesmanOrderView = () => {
   };
 
   const shareOrder = async () => {
-    if (!order?.customer_phone) return;
+    if (!order) return;
 
     const itemsList = items.map(i => 
       `• ${i.product_name} (${i.size}) x ${i.order_qty} = ₹${i.line_total.toLocaleString("en-IN")}`
@@ -142,7 +142,23 @@ const SalesmanOrderView = () => {
       `*Total: ₹${order.net_amount.toLocaleString("en-IN")}*\n\n` +
       `Thank you!`;
 
-    await sendWhatsApp(order.customer_phone, message);
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: order.order_number, text: message });
+      } else if (order.customer_phone) {
+        await sendWhatsApp(order.customer_phone, message);
+      } else {
+        await navigator.clipboard.writeText(message);
+        toast.success("Order details copied to clipboard");
+      }
+    } catch {
+      if (order.customer_phone) {
+        await sendWhatsApp(order.customer_phone, message);
+      } else {
+        await navigator.clipboard.writeText(message);
+        toast.success("Order details copied to clipboard");
+      }
+    }
   };
 
   const getStatusColor = (status: string) => {
