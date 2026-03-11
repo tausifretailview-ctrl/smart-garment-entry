@@ -268,7 +268,10 @@ const StudentMaster = () => {
             <div className="text-2xl font-bold text-primary">{stats?.active || 0}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-md ${filterNewAdmissions ? 'ring-2 ring-emerald-500' : ''}`}
+          onClick={() => { setFilterNewAdmissions(!filterNewAdmissions); setCurrentPage(1); }}
+        >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-emerald-600">
               New Admissions
@@ -276,7 +279,9 @@ const StudentMaster = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-emerald-600">{stats?.newAdmissions || 0}</div>
-            <p className="text-xs text-muted-foreground">This academic year</p>
+            <p className="text-xs text-muted-foreground">
+              {filterNewAdmissions ? "Showing filtered" : "This academic year"}
+            </p>
           </CardContent>
         </Card>
         <Card>
