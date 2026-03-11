@@ -242,43 +242,51 @@ const SalesmanOrderView = () => {
             </div>
           </div>
 
-          {/* Items Table - Compact */}
-          <table className="w-full text-xs border-collapse">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="border border-gray-300 px-1 py-1 text-left w-8">Sr</th>
-                <th className="border border-gray-300 px-1 py-1 text-left">Description</th>
-                <th className="border border-gray-300 px-1 py-1 text-center w-12">Size</th>
-                <th className="border border-gray-300 px-1 py-1 text-center w-10">Qty</th>
-                <th className="border border-gray-300 px-1 py-1 text-right w-14">Rate</th>
-                <th className="border border-gray-300 px-1 py-1 text-right w-16">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item, idx) => {
-                const details = [item.brand, item.style, item.color].filter(Boolean).join(' | ');
-                return (
+          {/* Items Table - Compact, scroll-safe */}
+          <div className="overflow-x-auto -mx-3">
+            <table className="w-full text-xs border-collapse min-w-[320px]">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border border-gray-300 px-1 py-1 text-left w-6">#</th>
+                  <th className="border border-gray-300 px-1 py-1 text-left">Item / Size</th>
+                  <th className="border border-gray-300 px-1 py-1 text-center w-8">Qty</th>
+                  <th className="border border-gray-300 px-1 py-1 text-right w-16">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, idx) => (
                   <tr key={item.id}>
                     <td className="border border-gray-300 px-1 py-0.5 text-center">{idx + 1}</td>
                     <td className="border border-gray-300 px-1 py-0.5">
-                      {item.product_name}
-                      {details && <span className="text-gray-500 text-[9px]"> ({details})</span>}
+                      <p className="font-medium">{item.product_name}</p>
+                      <p className="text-gray-500 text-[9px]">Size: {item.size}{item.color ? ` | ${item.color}` : ""} | ₹{item.unit_price}</p>
                     </td>
-                    <td className="border border-gray-300 px-1 py-0.5 text-center font-semibold">{item.size}</td>
-                    <td className="border border-gray-300 px-1 py-0.5 text-center">{item.order_qty}</td>
-                    <td className="border border-gray-300 px-1 py-0.5 text-right">₹{item.unit_price}</td>
-                    <td className="border border-gray-300 px-1 py-0.5 text-right">₹{item.line_total.toLocaleString("en-IN")}</td>
+                    <td className="border border-gray-300 px-1 py-0.5 text-center font-bold">{item.order_qty}</td>
+                    <td className="border border-gray-300 px-1 py-0.5 text-right font-medium">₹{item.line_total.toLocaleString("en-IN")}</td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-
-          {/* Footer Totals */}
-          <div className="flex justify-end gap-6 px-3 py-2 border-t border-gray-300 font-semibold text-xs">
-            <span>Total Qty: {totalQty}</span>
-            <span>Total: ₹{order.net_amount.toLocaleString("en-IN")}</span>
+                ))}
+              </tbody>
+            </table>
           </div>
+
+          {/* Footer Totals with GST breakdown */}
+          {(() => {
+            const totalGST = items.reduce((sum, item) => {
+              const gstPer = (item as any).gst_percent || 0;
+              const taxable = item.line_total / (1 + gstPer / 100);
+              return sum + (item.line_total - taxable);
+            }, 0);
+            return (
+              <div className="px-3 py-2 border-t border-gray-300 text-xs">
+                <div className="flex justify-between"><span>Total Qty:</span><span className="font-semibold">{totalQty} pcs</span></div>
+                <div className="flex justify-between text-gray-500"><span>Taxable Value:</span><span>₹{(order.net_amount - totalGST).toFixed(2)}</span></div>
+                <div className="flex justify-between text-gray-500"><span>GST (incl.):</span><span>₹{totalGST.toFixed(2)}</span></div>
+                <div className="flex justify-between font-bold text-sm border-t border-gray-300 mt-1 pt-1">
+                  <span>Grand Total</span><span>₹{order.net_amount.toLocaleString("en-IN")}</span>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Notes */}
           {order.notes && (
