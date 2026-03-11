@@ -119,12 +119,16 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   const colors = colorSchemes[colorScheme] || colorSchemes.blue;
   const font = fontFamilyMap[fontFamily] || fontFamilyMap.inter;
 
-  // Use "Rs." instead of ₹ for Windows 7 compatibility (₹ renders as a block/line on older systems)
-  const formatCurrency = (amount: number) => {
-    return `Rs.${amount.toLocaleString("en-IN", {
+  // Use "Rs." for summary labels, plain number for table cells
+  const formatCurrencyPlain = (amount: number) => {
+    return amount.toLocaleString("en-IN", {
       minimumFractionDigits: amountWithDecimal ? 2 : 0,
       maximumFractionDigits: 2,
-    })}`;
+    });
+  };
+
+  const formatCurrencyWithRs = (amount: number) => {
+    return `Rs.${formatCurrencyPlain(amount)}`;
   };
 
   const getItemGstPercent = (item: WholesaleItem): number => {
