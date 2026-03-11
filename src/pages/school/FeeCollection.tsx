@@ -70,6 +70,21 @@ const FeeCollection = () => {
     },
   });
 
+  // Fetch organization logo URL for WhatsApp messages
+  const { data: orgSettings } = useQuery({
+    queryKey: ["org-logo-url", currentOrganization?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("settings")
+        .select("bill_barcode_settings")
+        .eq("organization_id", currentOrganization!.id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+  });
+  const logoUrl = (orgSettings?.bill_barcode_settings as any)?.logo_url || "";
+
   // Fees Collected tab state
   const [collectedPeriod, setCollectedPeriod] = useState("today");
   const [collectedSearch, setCollectedSearch] = useState("");
