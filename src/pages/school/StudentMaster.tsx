@@ -95,9 +95,9 @@ const StudentMaster = () => {
   };
 
   const { data: studentsResult, isLoading } = useQuery({
-    queryKey: ["students", currentOrganization?.id, searchTerm, currentPage],
+    queryKey: ["students", currentOrganization?.id, searchTerm, currentPage, selectedYearId],
     queryFn: async () => {
-      if (!currentOrganization?.id) return { data: [], count: 0 };
+      if (!currentOrganization?.id || !selectedYearId) return { data: [], count: 0 };
 
       const from = (currentPage - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
@@ -115,6 +115,7 @@ const StudentMaster = () => {
           )
         `, { count: "exact" })
         .eq("organization_id", currentOrganization.id)
+        .eq("academic_year_id", selectedYearId)
         .is("deleted_at", null)
         .order("student_name")
         .range(from, to);
@@ -127,7 +128,7 @@ const StudentMaster = () => {
       if (error) throw error;
       return { data: data || [], count: count || 0 };
     },
-    enabled: !!currentOrganization?.id,
+    enabled: !!currentOrganization?.id && !!selectedYearId,
   });
 
   const students = studentsResult?.data || [];
