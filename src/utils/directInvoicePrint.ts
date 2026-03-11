@@ -83,9 +83,11 @@ export const getQZPrinters = async (): Promise<string[]> => {
   const connected = await ensureQZConnection();
   if (!connected) return [];
   try {
-    setupQZSecurity(); // re-apply before find
+    // Set security before printers.find()
+    window.qz.security.setCertificatePromise(function(resolve: Function) { resolve(); });
+    window.qz.security.setSignaturePromise(function(_: string, resolve: Function) { resolve(); });
     const result = await window.qz.printers.find();
-    return Array.isArray(result) ? result : (result ? [result] : []);
+    return Array.isArray(result) ? result : (result ? [String(result)] : []);
   } catch (err) {
     console.error('Failed to get printers:', err);
     return [];
