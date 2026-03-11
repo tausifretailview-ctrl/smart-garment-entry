@@ -249,41 +249,47 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         background: colors.light,
         flexShrink: 0,
       }}>
-        <div style={{ display: "flex" }}>
+        <div style={{ display: "flex", alignItems: "stretch" }}>
           <div
             style={{
-              width: isA5 ? "60px" : "80px",
-              padding: isA5 ? "6px" : "10px",
+              width: isA5 ? "52px" : "80px",
+              minWidth: isA5 ? "52px" : "80px",
+              padding: isA5 ? "4px" : "10px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               borderRight: "1px solid #374151",
+              flexShrink: 0,
             }}
           >
             {logoUrl ? (
-              <img src={logoUrl} alt="Logo" style={{ maxWidth: "100%" }} />
+              <img src={logoUrl} alt="Logo" style={{ maxWidth: "100%", maxHeight: isA5 ? "36px" : "56px" }} />
             ) : (
-              <div style={{ fontSize: isA5 ? "7pt" : "8pt" }}>LOGO</div>
+              <div style={{ fontSize: isA5 ? "6pt" : "8pt", color: "#999" }}>LOGO</div>
             )}
           </div>
-          <div style={{ flex: 1, padding: isA5 ? "5px 8px" : "10px", textAlign: "center" }}>
-            <h1 style={{ fontSize: isA5 ? "14pt" : "18pt", fontWeight: "800", color: colors.primary, margin: 0 }}>{businessName}</h1>
-            <p style={{ fontSize: isA5 ? "7.5pt" : "9pt", margin: "1px 0" }}>{address}</p>
-            <p style={{ fontSize: isA5 ? "7.5pt" : "9pt", fontWeight: "600", margin: 0 }}>
+          <div style={{ flex: 1, padding: isA5 ? "4px 6px" : "10px", textAlign: "center", overflow: "hidden" }}>
+            <h1 style={{ fontSize: isA5 ? "13pt" : "18pt", fontWeight: "800", color: colors.primary, margin: 0, lineHeight: "1.1" }}>{businessName}</h1>
+            <p style={{ fontSize: isA5 ? "6.5pt" : "9pt", margin: "1px 0", lineHeight: "1.3" }}>{address}</p>
+            <p style={{ fontSize: isA5 ? "6.5pt" : "9pt", fontWeight: "600", margin: 0 }}>
               {gstNumber && `GSTIN: ${gstNumber} | `}Mob: {mobile}
             </p>
           </div>
+          {/* DELIVERY CHALLAN / TAX INVOICE — wider box to prevent text cut */}
           <div
             style={{
-              width: isA5 ? "70px" : "100px",
+              width: isA5 ? "96px" : "110px",
+              minWidth: isA5 ? "96px" : "110px",
               borderLeft: "1px solid #374151",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               textAlign: "center",
+              padding: isA5 ? "4px 3px" : "6px",
+              flexShrink: 0,
             }}
           >
-            <div style={{ fontWeight: "800", fontSize: isA5 ? "8pt" : "10pt", color: colors.primary }}>
+            <div style={{ fontWeight: "800", fontSize: isA5 ? "8pt" : "10pt", color: colors.primary, lineHeight: "1.35", letterSpacing: "0.3px" }}>
               {businessName?.toLowerCase().includes("banshri") || businessName?.toLowerCase().includes("bansari") || businessName?.toLowerCase().includes("banshri") ? (
                 <>DELIVERY<br />CHALLAN</>
               ) : (
