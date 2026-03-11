@@ -1635,6 +1635,179 @@ export default function SalesInvoiceDashboard() {
 
   // Check if e-invoice is enabled
   const isEInvoiceEnabled = (settings?.sale_settings as any)?.einvoice_settings?.enabled ?? false;
+  const isMobile = useIsMobile();
+
+  if (isMobile) {
+    const fmt = (n: number) => n >= 100000 ? `₹${(n/100000).toFixed(1)}L` : `₹${Math.round(n).toLocaleString("en-IN")}`;
+    return (
+      <div className="flex flex-col min-h-screen bg-muted/30 pb-24">
+        <MobilePageHeader
+          title="Sales Invoices"
+          subtitle={`${effectiveStats.totalInvoices} invoices`}
+          rightContent={
+            <button onClick={() => navigate("/sales-invoice")}
+              className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shadow-sm active:scale-90 touch-manipulation">
+              <Plus className="h-5 w-5 text-primary-foreground" />
+            </button>
+          }
+        />
+
+        <div className="px-4 pt-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search invoices..." value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 h-10 bg-card border-border/60 rounded-xl text-sm" />
+          </div>
+        </div>
+
+        <MobilePeriodChips value={periodFilter} onChange={(v) => { setPeriodFilter(v); setCurrentPage(1); }} />
+
+        <MobileStatStrip stats={[
+          { label: "Total", value: fmt(effectiveStats.totalAmount), color: "text-blue-600", bg: "bg-blue-50" },
+          { label: "Pending", value: fmt(effectiveStats.pendingAmount), color: "text-amber-600", bg: "bg-amber-50", onClick: () => setPaymentStatusFilter("pending") },
+          { label: "Invoices", value: String(effectiveStats.totalInvoices), color: "text-purple-600", bg: "bg-purple-50" },
+          { label: "Qty", value: String(effectiveStats.totalQty), color: "text-emerald-600", bg: "bg-emerald-50" },
+        ]} />
+
+        <div className="flex gap-2 px-4 py-2 overflow-x-auto no-scrollbar">
+          {[{v:"all",l:"All"},{v:"pending",l:"Pending"},{v:"partial",l:"Partial"},{v:"completed",l:"Paid"}].map((s) => (
+            <button key={s.v} onClick={() => { setPaymentStatusFilter(s.v); setCurrentPage(1); }}
+              className={cn(
+                "flex-shrink-0 px-3 py-1 rounded-full text-[11px] font-semibold border transition-all touch-manipulation",
+                paymentStatusFilter === s.v ? "bg-foreground text-background border-transparent" : "bg-card text-muted-foreground border-border"
+              )}>
+              {s.l}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex-1 px-4 space-y-2.5 pb-4">
+          {isLoading ? (
+            Array.from({length: 5}).map((_,i) => (
+              <div key={i} className="h-20 bg-card rounded-2xl animate-pulse" />
+            ))
+          ) : paginatedInvoices.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+              <FileText className="h-12 w-12 mb-3 opacity-30" />
+              <p className="text-sm font-medium">No invoices found</p>
+            </div>
+          ) : paginatedInvoices.map((inv: any) => {
+            const pending = Math.max(0, (inv.net_amount||0)-(inv.paid_amount||0));
+            const sc: Record<string, string> = {
+              completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
+              partial: "bg-amber-50 text-amber-700 border-amber-200",
+              pending: "bg-rose-50 text-rose-700 border-rose-200",
+            };
+            return (
+              <div key={inv.id} onClick={() => navigate('/sales-invoice', { state: { editInvoiceId: inv.id } })}
+                className="bg-card rounded-2xl p-3.5 border border-border/40 shadow-sm active:scale-[0.99] transition-all touch-manipulation">
+                <div className="flex items-start justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-xs font-bold text-primary">{inv.sale_number}</span>
+                      <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border", sc[inv.payment_status] || sc.pending)}>
+                        {inv.payment_status === 'completed' ? 'Paid' : inv.payment_status}
+                      </span>
+                      {inv.is_cancelled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">Cancelled</span>}
+                    </div>
+                    <p className="text-sm font-medium text-foreground mt-1 truncate">{inv.customer_name || 'Walk-in'}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {format(new Date(inv.created_at || inv.sale_date), "d MMM · hh:mm a")}
+                      {inv.total_qty ? ` · ${inv.total_qty} pcs` : ""}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0 ml-3">
+                    <p className="text-sm font-bold tabular-nums">₹{(inv.net_amount||0).toLocaleString("en-IN")}</p>
+                    {pending > 0 && (
+                      <p className="text-[11px] text-amber-600 font-medium">Due ₹{pending.toLocaleString("en-IN")}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {totalCount > itemsPerPage && (
+          <div className="flex items-center justify-between px-4 py-3 bg-card border-t border-border">
+            <button onClick={() => setCurrentPage(p => Math.max(1, p-1))} disabled={currentPage === 1}
+              className="px-4 py-2 rounded-xl bg-muted text-sm font-medium disabled:opacity-40 touch-manipulation">← Prev</button>
+            <span className="text-xs text-muted-foreground">Page {currentPage} of {Math.ceil(totalCount/itemsPerPage)}</span>
+            <button onClick={() => setCurrentPage(p => p+1)} disabled={currentPage*itemsPerPage >= totalCount}
+              className="px-4 py-2 rounded-xl bg-muted text-sm font-medium disabled:opacity-40 touch-manipulation">Next →</button>
+          </div>
+        )}
+
+        {/* Dialogs — shared with desktop */}
+        <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+          <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Record Payment</DialogTitle>
+              <DialogDescription>
+                Record payment for Invoice {selectedInvoiceForPayment?.sale_number}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <span className="text-muted-foreground">Customer:</span>
+                <span className="font-medium">{selectedInvoiceForPayment?.customer_name?.toUpperCase()}</span>
+                <span className="text-muted-foreground">Amount:</span>
+                <span className="font-medium">₹{Math.round(selectedInvoiceForPayment?.net_amount || 0).toLocaleString('en-IN')}</span>
+                <span className="text-muted-foreground">Pending:</span>
+                <span className="font-semibold text-amber-600">
+                  ₹{Math.round((selectedInvoiceForPayment?.net_amount || 0) - (selectedInvoiceForPayment?.paid_amount || 0)).toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div>
+                <Label>Payment Amount *</Label>
+                <Input type="number" value={paidAmount} onChange={(e) => setPaidAmount(e.target.value)} placeholder="Enter amount" step="0.01" />
+              </div>
+              <div>
+                <Label>Payment Mode</Label>
+                <Select value={paymentMode} onValueChange={setPaymentMode}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-popover z-50">
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="card">Card</SelectItem>
+                    <SelectItem value="upi">UPI</SelectItem>
+                    <SelectItem value="cheque">Cheque</SelectItem>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowPaymentDialog(false)}>Cancel</Button>
+              <Button onClick={() => {/* handled by existing handler */}} disabled={isRecordingPayment}>
+                {isRecordingPayment ? "Recording..." : "Record Payment"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <PrintPreviewDialog
+          open={showPrintPreview}
+          onOpenChange={setShowPrintPreview}
+          invoiceToPrint={invoiceToPrint}
+          billFormat={billFormat}
+          invoiceTemplate={invoiceTemplate}
+          settings={settings}
+          organizationName={currentOrganization?.name}
+        />
+
+        <CustomerHistoryDialog
+          open={showCustomerHistory}
+          onOpenChange={setShowCustomerHistory}
+          customerId={selectedCustomerForHistory?.id || null}
+          customerName={selectedCustomerForHistory?.name || ''}
+          organizationId={currentOrganization?.id || ''}
+        />
+
+        <MobileBottomNav />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 px-6 py-6 pb-24 lg:pb-6">
