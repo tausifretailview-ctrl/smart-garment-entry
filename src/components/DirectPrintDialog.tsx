@@ -89,6 +89,18 @@ export const DirectPrintDialog = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  const {
+    isSupported: isUsbSupported,
+    isConnected: isUsbConnected,
+    isConnecting: isUsbConnecting,
+    isPrinting: isUsbPrinting,
+    printerName: usbPrinterName,
+    connect: connectUsb,
+    disconnect: disconnectUsb,
+    print: printUsb,
+  } = useWebUsbPrint();
+
+  const [printTransport, setPrintTransport] = useState<'qz' | 'usb'>('qz');
   const [isPrinting, setIsPrinting] = useState(false);
   const [printMode, setPrintMode] = useState<'template' | 'prn'>('template');
   const [selectedPRNTemplate, setSelectedPRNTemplate] = useState<string>('');
