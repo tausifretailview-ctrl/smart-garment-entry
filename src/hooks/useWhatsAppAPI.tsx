@@ -262,6 +262,9 @@ export const useWhatsAppAPI = () => {
           documentUrl: params.documentUrl,
           documentFilename: params.documentFilename,
           documentCaption: params.documentCaption,
+          // Image attachment (e.g., logo)
+          imageUrl: params.imageUrl,
+          imageCaption: params.imageCaption,
           // Document header template (PDF embedded in template)
           useDocumentHeaderTemplate: params.useDocumentHeaderTemplate,
           documentHeaderTemplateName: params.documentHeaderTemplateName,
