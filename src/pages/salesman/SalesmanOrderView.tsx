@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Share2, Printer, Copy } from "lucide-react";
 import { format } from "date-fns";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useReactToPrint } from "react-to-print";
 
