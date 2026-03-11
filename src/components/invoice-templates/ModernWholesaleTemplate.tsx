@@ -215,11 +215,11 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   const totalPages = pages.length;
 
   // When all items fit on a single page, minimize empty rows to prevent footer overflow to 2nd page
-  const effectiveMinItemRows = totalPages === 1 
-    ? Math.max(groupedItems.length + 1, isA5 ? 5 : format === 'a5-horizontal' ? 4 : 8)
-    : minItemRows;
-
   const isA5 = format === 'a5-vertical' || format === 'a5-horizontal';
+
+  const effectiveMinItemRows = totalPages === 1 
+    ? Math.max(groupedItems.length + 1, isA5 ? (format === 'a5-horizontal' ? 4 : 5) : 8)
+    : minItemRows;
 
   const cellStyle: React.CSSProperties = {
     border: "1px solid #374151",
