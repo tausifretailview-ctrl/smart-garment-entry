@@ -616,10 +616,6 @@ const PurchaseEntry = () => {
           setLineItems(loadedItems);
           setOriginalLineItems(loadedItems); // Store original items for comparison
           
-          toast({
-            title: "Bill Loaded",
-            description: "Purchase bill loaded for editing",
-          });
         } catch (error: any) {
           console.error("Error loading bill:", error);
           toast({
