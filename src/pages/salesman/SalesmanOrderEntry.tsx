@@ -743,28 +743,28 @@ const SalesmanOrderEntry = () => {
                   <Button
                     variant="outline"
                     size="icon"
-                    className="h-7 w-7"
+                    className="h-10 w-10 rounded-lg"
                     onClick={() => updateQuantity(item.id, -1)}
                     disabled={item.quantity <= 1}
                   >
-                    <Minus className="h-3 w-3" />
+                    <Minus className="h-4 w-4" />
                   </Button>
-                  <span className="w-8 text-center font-semibold text-sm">{item.quantity}</span>
+                  <span className="w-10 text-center font-bold text-base tabular-nums">{item.quantity}</span>
                   <Button
                     variant="outline"
                     size="icon"
-                    className="h-7 w-7"
+                    className="h-10 w-10 rounded-lg"
                     onClick={() => updateQuantity(item.id, 1)}
                     disabled={!item.isCustomSize && item.quantity >= item.variant.stock_qty}
                   >
-                    <Plus className="h-3 w-3" />
+                    <Plus className="h-4 w-4" />
                   </Button>
                 </div>
                 
                 {/* Total & Delete */}
                 <p className="font-semibold text-sm w-16 text-right">₹{item.line_total.toLocaleString("en-IN")}</p>
-                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeItem(item.id)}>
-                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 text-destructive" onClick={() => removeItem(item.id)}>
+                  <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             ))}
