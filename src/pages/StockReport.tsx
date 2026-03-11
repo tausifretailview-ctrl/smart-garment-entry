@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Package, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
