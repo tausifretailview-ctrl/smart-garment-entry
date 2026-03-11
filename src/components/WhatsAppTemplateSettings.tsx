@@ -121,23 +121,23 @@ We will update you once it's ready for delivery.
 
 Thank you for your order!`,
 
-  school_fee_reminder: `📢 Fees Reminder
+  school_fee_reminder: `Fees Reminder
 
 Respected Sir/Madam,
 
-🏫 {organization_name}
+{organization_name}
 
-👦 Admission No: {admission_number}
+Student: {student_name}
+Admission No: {admission_number}
+Class: {class_name}
 
-📚 Class: {class_name}
+Pending Fees: {amount}
 
-💰 Pending Fees: {amount}
-
-⏰ Due Date: Please pay at the earliest.
+Due Date: Please pay at the earliest.
 
 Kindly clear the pending fees to avoid inconvenience.
 
-🙏 Thank you for your cooperation.
+Thank you for your cooperation.
 
 {organization_name}`,
 
