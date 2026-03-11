@@ -903,9 +903,12 @@ PRINT 1,1`}
           </Button>
           <Button 
             onClick={handlePrint}
-            disabled={!isConnected || !selectedPrinter || isPrinting || items.length === 0}
+            disabled={
+              (printTransport === 'usb' ? !isUsbConnected : (!isConnected || !selectedPrinter)) 
+              || isPrinting || isUsbPrinting || items.length === 0
+            }
           >
-            {isPrinting ? (
+            {isPrinting || isUsbPrinting ? (
               <>
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                 Printing...
@@ -913,7 +916,7 @@ PRINT 1,1`}
             ) : (
               <>
                 <Printer className="h-4 w-4 mr-2" />
-                Print {totalLabels} Labels
+                {printTransport === 'usb' ? '⚡ USB Print' : 'Print'} {totalLabels} Labels
               </>
             )}
           </Button>
