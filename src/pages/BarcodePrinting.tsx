@@ -461,7 +461,7 @@ function DraggablePreviewField({ fieldKey, labelConfig, businessName, sampleItem
         case 'style':
           return sampleItem.style || '';
         case 'price':
-          return `MRP: ₹${sampleItem.sale_price}`;
+          return `MRP: Rs.${sampleItem.sale_price}`;
         case 'barcodeText':
           return sampleItem.barcode || '';
         case 'billNumber':
@@ -491,7 +491,7 @@ function DraggablePreviewField({ fieldKey, labelConfig, businessName, sampleItem
       case 'style':
         return 'Style: Classic';
       case 'price':
-        return 'MRP: ₹999';
+        return 'MRP: Rs.999';
       case 'barcodeText':
         return '12345678';
       case 'billNumber':
@@ -596,8 +596,8 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
         case 'category': return sampleItem.category || '';
         case 'color': return sampleItem.color ? `Color: ${sampleItem.color}` : '';
         case 'style': return sampleItem.style || '';
-        case 'price': return `₹${sampleItem.sale_price}`;
-        case 'mrp': return sampleItem.mrp ? `MRP ₹${sampleItem.mrp}` : '';
+        case 'price': return `Rs.${sampleItem.sale_price}`;
+        case 'mrp': return sampleItem.mrp ? `MRP Rs.${sampleItem.mrp}` : '';
         case 'customText': return labelConfig.customTextValue || '';
         case 'barcodeText': return sampleItem.barcode || '';
         case 'billNumber': return sampleItem.bill_number ? `Bill: ${sampleItem.bill_number}` : '';
@@ -614,8 +614,8 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
       case 'category': return 'Category';
       case 'color': return 'Color: Blue';
       case 'style': return 'Style: Classic';
-      case 'price': return '₹999';
-      case 'mrp': return 'MRP ₹1299';
+      case 'price': return 'Rs.999';
+      case 'mrp': return 'MRP Rs.1299';
       case 'customText': return labelConfig.customTextValue || 'Custom Text';
       case 'barcodeText': return '12345678';
       case 'billNumber': return 'Bill: BILL001';
@@ -2614,9 +2614,9 @@ export default function BarcodePrinting() {
         case 'style': 
           return item.style || '';
         case 'price': 
-          return `₹${item.sale_price}`;
+          return `Rs.${item.sale_price}`;
         case 'mrp':
-          return item.mrp ? `MRP ₹${item.mrp}` : '';
+          return item.mrp ? `MRP Rs.${item.mrp}` : '';
         case 'barcode':
           return barcode;
         case 'barcodeText': 

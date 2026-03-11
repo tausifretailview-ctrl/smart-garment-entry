@@ -22,8 +22,8 @@ const getFieldContent = (key: FieldKey, item: LabelItem, customTextValue?: strin
     case "color": return item.color || "";
     case "style": return item.style || "";
     case "size": return `Size: ${item.size || ""}`;
-    case "price": return `₹${item.sale_price}`;
-    case "mrp": return item.mrp ? `MRP: ₹${item.mrp}` : "";
+    case "price": return `Rs.${item.sale_price}`;
+    case "mrp": return item.mrp ? `MRP: Rs.${item.mrp}` : "";
     case "barcodeText": return item.barcode || "";
     case "billNumber": return item.bill_number || "";
     case "supplierCode": return item.supplier_code || "";
@@ -98,7 +98,7 @@ export function PrecisionLabelPreview({
         </div>
         <div style={{ position: "absolute", top: u(height * 0.2), left: u(1), right: u(1), display: "flex", justifyContent: "space-between", fontSize: fs(Math.max(8, Math.min(11, width * 0.2))), fontWeight: 800 }}>
           <span>Size: {item.size}</span>
-          <span>₹{item.sale_price}</span>
+          <span>Rs.{item.sale_price}</span>
         </div>
         {item.barcode && (
           <div style={{ position: "absolute", top: u(height * 0.35), left: u(1), right: u(1), display: "flex", justifyContent: "center" }}>
