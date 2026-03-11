@@ -396,6 +396,8 @@ const FeeCollection = () => {
           message: `Fees Reminder\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\nPending Fees: Rs.${student.totalDue.toLocaleString("en-IN")}\n\nDue Date: Please pay at the earliest.\n\nKindly clear the pending fees to avoid inconvenience.\n\nThank you for your cooperation.\n\n${currentOrganization?.name || "School"}`,
           templateType: "fee_reminder",
           templateName,
+          imageUrl: logoUrl || undefined,
+          imageCaption: currentOrganization?.name || "",
           saleData: {
             student_name: student.student_name,
             admission_number: student.admission_number,
