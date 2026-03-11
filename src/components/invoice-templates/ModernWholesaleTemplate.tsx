@@ -301,29 +301,37 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       </div>
 
       {/* Customer Row */}
-      <div style={{ display: "flex", borderBottom: "1px solid #374151", fontSize: isA5 ? "7.5pt" : "9pt", flexShrink: 0 }}>
-        <div style={{ flex: 1, padding: isA5 ? "4px 6px" : "6px 8px", borderRight: "1px solid #374151" }}>
-          <div style={{ fontWeight: "700", color: colors.primary, fontSize: isA5 ? "6pt" : "7pt" }}>BILL TO:</div>
-          <div style={{ fontWeight: "600", fontSize: isA5 ? "9pt" : "10pt" }}>{customerName}</div>
-          {customerAddress && <div>{customerAddress}</div>}
-          {customerMobile && <div>Mob: {customerMobile}</div>}
+      <div style={{ display: "flex", borderBottom: "1px solid #374151", fontSize: isA5 ? "7pt" : "9pt", flexShrink: 0, alignItems: "stretch" }}>
+        <div style={{ flex: 1, padding: isA5 ? "3px 5px" : "6px 8px", borderRight: "1px solid #374151", overflow: "hidden" }}>
+          <div style={{ fontWeight: "700", color: colors.primary, fontSize: isA5 ? "5.5pt" : "7pt" }}>BILL TO:</div>
+          <div style={{ fontWeight: "700", fontSize: isA5 ? "8pt" : "10pt", lineHeight: "1.2" }}>{customerName}</div>
+          {customerAddress && <div style={{ fontSize: isA5 ? "6.5pt" : "8pt", lineHeight: "1.3" }}>{customerAddress}</div>}
+          {customerMobile && <div style={{ fontSize: isA5 ? "6.5pt" : "8pt" }}>Mob: {customerMobile}</div>}
           {customerGSTIN && (
-            <div style={{ fontWeight: "500" }}>GSTIN: {customerGSTIN}</div>
+            <div style={{ fontSize: isA5 ? "6pt" : "7.5pt", fontWeight: "500" }}>GSTIN: {customerGSTIN}</div>
           )}
           {customerTransportDetails && (
-            <div style={{ fontWeight: "500" }}>Transport: {customerTransportDetails}</div>
+            <div style={{ fontSize: isA5 ? "6pt" : "7.5pt" }}>Transport: {customerTransportDetails}</div>
           )}
         </div>
-        <div style={{ width: isA5 ? "140px" : "180px", padding: isA5 ? "4px 6px" : "6px 8px", background: colors.light, boxSizing: "border-box" }}>
-          <table style={{ width: "100%", fontSize: isA5 ? "6.5pt" : "9pt" }}>
+        {/* Inv No + Date — wider box, larger font to prevent truncation */}
+        <div style={{ 
+          width: isA5 ? "148px" : "190px", 
+          minWidth: isA5 ? "148px" : "190px", 
+          padding: isA5 ? "3px 6px" : "6px 8px", 
+          background: colors.light, 
+          boxSizing: "border-box",
+          flexShrink: 0,
+        }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <tbody>
               <tr>
-                <td style={{ whiteSpace: "nowrap", paddingRight: "4px" }}>Inv No:</td>
-                <td style={{ fontWeight: "500", textAlign: "right", wordBreak: "break-all", fontSize: isA5 ? "5.5pt" : "9pt" }}>{invoiceNumber}</td>
+                <td style={{ fontSize: isA5 ? "6.5pt" : "8pt", whiteSpace: "nowrap", paddingRight: "4px", fontWeight: "600" }}>Inv No:</td>
+                <td style={{ fontWeight: "700", textAlign: "right", wordBreak: "break-all", fontSize: isA5 ? "6.5pt" : "9pt", color: colors.primary }}>{invoiceNumber}</td>
               </tr>
               <tr>
-                <td style={{ whiteSpace: "nowrap", paddingRight: "4px" }}>Date:</td>
-                <td style={{ fontWeight: "500", textAlign: "right", fontSize: isA5 ? "5.5pt" : "9pt" }}>{invoiceDate.toLocaleDateString("en-IN")}</td>
+                <td style={{ fontSize: isA5 ? "6.5pt" : "8pt", whiteSpace: "nowrap", paddingRight: "4px", fontWeight: "600" }}>Date:</td>
+                <td style={{ fontWeight: "600", textAlign: "right", fontSize: isA5 ? "6.5pt" : "9pt" }}>{invoiceDate.toLocaleDateString("en-IN")}</td>
               </tr>
             </tbody>
           </table>
