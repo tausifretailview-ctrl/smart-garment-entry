@@ -3508,7 +3508,7 @@ export default function BarcodePrinting() {
                 variant="outline"
                 size="sm"
                 className="mb-4"
-                onClick={() => navigate('/purchase-entry', { state: { editBillId: location.state.billId } })}
+                onClick={() => orgNavigate('/purchase-entry', { state: { editBillId: location.state.billId } })}
               >
                 <Home className="h-4 w-4 mr-2" />
                 Back to Purchase Bill
