@@ -367,95 +367,64 @@ export const DirectPrintDialog = ({
   };
 
   const handlePrint = async () => {
-    if (!selectedPrinter) {
-      toast.error('Please select a printer');
-      return;
-    }
-
     setIsPrinting(true);
-
     try {
       let commandsToSend: string;
 
       if (printMode === 'prn') {
-        // PRN Template Mode
         if (!customPRNContent.trim()) {
           toast.error('No PRN template content. Select a template or upload a file.');
           setIsPrinting(false);
           return;
         }
-
         const labelItems = items.map(item => ({
           data: {
-            productName: item.productName,
-            brand: item.brand,
-            size: item.size,
-            color: item.color,
-            mrp: item.mrp,
-            salePrice: item.salePrice,
-            barcode: item.barcode,
-            billNumber: item.billNumber,
-            purchaseCode: item.purchaseCode,
-            supplierCode: item.supplierCode,
-            style: item.style,
+            productName: item.productName, brand: item.brand, size: item.size,
+            color: item.color, mrp: item.mrp, salePrice: item.salePrice,
+            barcode: item.barcode, billNumber: item.billNumber,
+            purchaseCode: item.purchaseCode, supplierCode: item.supplierCode, style: item.style,
           } as LabelDataForPRN,
           quantity: item.quantity,
         }));
-
         commandsToSend = generatePRNBatch(customPRNContent, labelItems);
       } else {
-        // Template Mode (existing logic)
         const labelDimensions = getLabelConfig();
-        
         const labelItems = items.map(item => ({
           data: {
-            productName: item.productName,
-            brand: item.brand,
-            businessName: businessName,
-            size: item.size,
-            color: item.color,
-            mrp: item.mrp,
-            salePrice: item.salePrice,
-            barcode: item.barcode,
-            billNumber: item.billNumber,
-            purchaseCode: item.purchaseCode,
-            supplierCode: item.supplierCode,
-            style: item.style,
+            productName: item.productName, brand: item.brand, businessName,
+            size: item.size, color: item.color, mrp: item.mrp, salePrice: item.salePrice,
+            barcode: item.barcode, billNumber: item.billNumber,
+            purchaseCode: item.purchaseCode, supplierCode: item.supplierCode, style: item.style,
           } as LabelData,
           quantity: item.quantity,
         }));
-
         if (templateConfig) {
           const tsplTemplate: TSPLTemplateConfig = {
-            brand: templateConfig.brand,
-            businessName: templateConfig.businessName,
-            productName: templateConfig.productName,
-            color: templateConfig.color,
-            style: templateConfig.style,
-            size: templateConfig.size,
-            price: templateConfig.price,
-            mrp: templateConfig.mrp,
-            barcode: templateConfig.barcode,
-            barcodeText: templateConfig.barcodeText,
-            billNumber: templateConfig.billNumber,
-            supplierCode: templateConfig.supplierCode,
+            brand: templateConfig.brand, businessName: templateConfig.businessName,
+            productName: templateConfig.productName, color: templateConfig.color,
+            style: templateConfig.style, size: templateConfig.size,
+            price: templateConfig.price, mrp: templateConfig.mrp,
+            barcode: templateConfig.barcode, barcodeText: templateConfig.barcodeText,
+            billNumber: templateConfig.billNumber, supplierCode: templateConfig.supplierCode,
             purchaseCode: templateConfig.purchaseCode,
             fieldOrder: templateConfig.fieldOrder as string[],
-            barcodeHeight: templateConfig.barcodeHeight,
-            barcodeWidth: templateConfig.barcodeWidth,
+            barcodeHeight: templateConfig.barcodeHeight, barcodeWidth: templateConfig.barcodeWidth,
           };
-          
           commandsToSend = generateTSPLBatchFromTemplate(labelDimensions, tsplTemplate, labelItems);
         } else {
           commandsToSend = generateTSPLBatch(labelDimensions, labelItems);
         }
       }
-      
-      const success = await printRaw(commandsToSend);
-      
-      if (success) {
-        onOpenChange(false);
+
+      let success: boolean;
+      if (printTransport === 'usb') {
+        success = await printUsb(commandsToSend);
+      } else {
+        if (!selectedPrinter) { toast.error('Please select a printer'); return; }
+        success = await printRaw(commandsToSend);
       }
+
+      if (success) onOpenChange(false);
     } catch (err) {
       console.error('Print error:', err);
       toast.error('Failed to print labels');
