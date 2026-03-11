@@ -1142,6 +1142,45 @@ serve(async (req) => {
       }
     }
 
+    // Send image attachment if provided (e.g., school logo - sent before text/document)
+    if (imageUrl && response.ok) {
+      console.log('Sending image attachment:', imageUrl);
+      
+      const imagePayload = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: formattedPhone,
+        type: "image",
+        image: {
+          link: imageUrl,
+          caption: imageCaption || ""
+        }
+      };
+
+      try {
+        const imgResponse = await fetch(metaApiUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${settings.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(imagePayload),
+        });
+
+        const imgResponseData = await imgResponse.json();
+        console.log('Image API Response:', JSON.stringify(imgResponseData));
+
+        if (imgResponse.ok && imgResponseData.messages?.[0]?.id) {
+          console.log('Image sent successfully:', imgResponseData.messages[0].id);
+        } else {
+          console.error('Image send failed:', imgResponseData);
+        }
+      } catch (imgError) {
+        console.error('Error sending image:', imgError);
+        // Don't fail the main request if image fails
+      }
+    }
+
     // Send document attachment if provided (after template message)
     let documentMessageId: string | undefined;
     let documentError: string | undefined;
