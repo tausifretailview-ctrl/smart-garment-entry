@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
+import { useWebUsbPrint } from '@/hooks/useWebUsbPrint';
+import { Usb } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -87,6 +89,18 @@ export const DirectPrintDialog = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  const {
+    isSupported: isUsbSupported,
+    isConnected: isUsbConnected,
+    isConnecting: isUsbConnecting,
+    isPrinting: isUsbPrinting,
+    printerName: usbPrinterName,
+    connect: connectUsb,
+    disconnect: disconnectUsb,
+    print: printUsb,
+  } = useWebUsbPrint();
+
+  const [printTransport, setPrintTransport] = useState<'qz' | 'usb'>('qz');
   const [isPrinting, setIsPrinting] = useState(false);
   const [printMode, setPrintMode] = useState<'template' | 'prn'>('template');
   const [selectedPRNTemplate, setSelectedPRNTemplate] = useState<string>('');
@@ -353,95 +367,64 @@ export const DirectPrintDialog = ({
   };
 
   const handlePrint = async () => {
-    if (!selectedPrinter) {
-      toast.error('Please select a printer');
-      return;
-    }
-
     setIsPrinting(true);
-
     try {
       let commandsToSend: string;
 
       if (printMode === 'prn') {
-        // PRN Template Mode
         if (!customPRNContent.trim()) {
           toast.error('No PRN template content. Select a template or upload a file.');
           setIsPrinting(false);
           return;
         }
-
         const labelItems = items.map(item => ({
           data: {
-            productName: item.productName,
-            brand: item.brand,
-            size: item.size,
-            color: item.color,
-            mrp: item.mrp,
-            salePrice: item.salePrice,
-            barcode: item.barcode,
-            billNumber: item.billNumber,
-            purchaseCode: item.purchaseCode,
-            supplierCode: item.supplierCode,
-            style: item.style,
+            productName: item.productName, brand: item.brand, size: item.size,
+            color: item.color, mrp: item.mrp, salePrice: item.salePrice,
+            barcode: item.barcode, billNumber: item.billNumber,
+            purchaseCode: item.purchaseCode, supplierCode: item.supplierCode, style: item.style,
           } as LabelDataForPRN,
           quantity: item.quantity,
         }));
-
         commandsToSend = generatePRNBatch(customPRNContent, labelItems);
       } else {
-        // Template Mode (existing logic)
         const labelDimensions = getLabelConfig();
-        
         const labelItems = items.map(item => ({
           data: {
-            productName: item.productName,
-            brand: item.brand,
-            businessName: businessName,
-            size: item.size,
-            color: item.color,
-            mrp: item.mrp,
-            salePrice: item.salePrice,
-            barcode: item.barcode,
-            billNumber: item.billNumber,
-            purchaseCode: item.purchaseCode,
-            supplierCode: item.supplierCode,
-            style: item.style,
+            productName: item.productName, brand: item.brand, businessName,
+            size: item.size, color: item.color, mrp: item.mrp, salePrice: item.salePrice,
+            barcode: item.barcode, billNumber: item.billNumber,
+            purchaseCode: item.purchaseCode, supplierCode: item.supplierCode, style: item.style,
           } as LabelData,
           quantity: item.quantity,
         }));
-
         if (templateConfig) {
           const tsplTemplate: TSPLTemplateConfig = {
-            brand: templateConfig.brand,
-            businessName: templateConfig.businessName,
-            productName: templateConfig.productName,
-            color: templateConfig.color,
-            style: templateConfig.style,
-            size: templateConfig.size,
-            price: templateConfig.price,
-            mrp: templateConfig.mrp,
-            barcode: templateConfig.barcode,
-            barcodeText: templateConfig.barcodeText,
-            billNumber: templateConfig.billNumber,
-            supplierCode: templateConfig.supplierCode,
+            brand: templateConfig.brand, businessName: templateConfig.businessName,
+            productName: templateConfig.productName, color: templateConfig.color,
+            style: templateConfig.style, size: templateConfig.size,
+            price: templateConfig.price, mrp: templateConfig.mrp,
+            barcode: templateConfig.barcode, barcodeText: templateConfig.barcodeText,
+            billNumber: templateConfig.billNumber, supplierCode: templateConfig.supplierCode,
             purchaseCode: templateConfig.purchaseCode,
             fieldOrder: templateConfig.fieldOrder as string[],
-            barcodeHeight: templateConfig.barcodeHeight,
-            barcodeWidth: templateConfig.barcodeWidth,
+            barcodeHeight: templateConfig.barcodeHeight, barcodeWidth: templateConfig.barcodeWidth,
           };
-          
           commandsToSend = generateTSPLBatchFromTemplate(labelDimensions, tsplTemplate, labelItems);
         } else {
           commandsToSend = generateTSPLBatch(labelDimensions, labelItems);
         }
       }
-      
-      const success = await printRaw(commandsToSend);
-      
-      if (success) {
-        onOpenChange(false);
+
+      let success: boolean;
+      if (printTransport === 'usb') {
+        success = await printUsb(commandsToSend);
+      } else {
+        if (!selectedPrinter) { toast.error('Please select a printer'); return; }
+        success = await printRaw(commandsToSend);
       }
+
+      if (success) onOpenChange(false);
     } catch (err) {
       console.error('Print error:', err);
       toast.error('Failed to print labels');
@@ -465,63 +448,115 @@ export const DirectPrintDialog = ({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 py-4">
-          {/* Connection Status */}
-          <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-            <div className="flex items-center gap-2">
-              {isConnected ? (
-                <Wifi className="h-4 w-4 text-green-500" />
-              ) : (
-                <WifiOff className="h-4 w-4 text-destructive" />
-              )}
-              <span className="text-sm font-medium">
-                QZ Tray {isConnected ? 'Connected' : 'Disconnected'}
-              </span>
+          {/* Transport selector — USB Direct vs QZ Tray */}
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setPrintTransport('usb')}
+                className={`flex flex-col items-center gap-1 p-3 rounded-lg border-2 text-sm font-medium transition-colors ${
+                  printTransport === 'usb'
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border bg-muted/50 text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                <Usb className="h-5 w-5" />
+                USB Direct
+                <span className="text-xs font-normal opacity-70">No install needed</span>
+              </button>
+              <button
+                onClick={() => setPrintTransport('qz')}
+                className={`flex flex-col items-center gap-1 p-3 rounded-lg border-2 text-sm font-medium transition-colors ${
+                  printTransport === 'qz'
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border bg-muted/50 text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                <Printer className="h-5 w-5" />
+                QZ Tray
+                <span className="text-xs font-normal opacity-70">Requires install</span>
+              </button>
             </div>
-            
-            {!isQZAvailable ? (
-              <Button 
-                size="sm" 
-                variant="outline"
-                onClick={() => window.open('https://qz.io/download/', '_blank')}
-              >
-                <Download className="h-4 w-4 mr-1" />
-                Install QZ Tray
-              </Button>
-            ) : !isConnected ? (
-              <Button 
-                size="sm" 
-                variant="outline"
-                onClick={handleConnect}
-                disabled={isConnecting}
-              >
-                {isConnecting ? 'Connecting...' : 'Connect'}
-              </Button>
-            ) : null}
+
+            {/* USB Direct panel */}
+            {printTransport === 'usb' && (
+              <div className="p-3 rounded-lg border bg-card">
+                {!isUsbSupported ? (
+                  <div className="text-sm text-destructive">
+                    USB Direct requires Chrome or Edge browser. Safari and Firefox are not supported.
+                  </div>
+                ) : isUsbConnected ? (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Usb className="h-4 w-4 text-green-500" />
+                      <span className="text-sm font-medium">
+                        {usbPrinterName || 'USB Printer'} — Connected
+                      </span>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={disconnectUsb}>
+                      Disconnect
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Plug in your thermal printer via USB, then click Connect.
+                      Works with TSC, Godex, Xprinter, HPRT printers.
+                    </p>
+                    <Button size="sm" onClick={connectUsb} disabled={isUsbConnecting}>
+                      <Usb className="h-4 w-4 mr-1" />
+                      {isUsbConnecting ? 'Connecting...' : 'Connect USB Printer'}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* QZ Tray panel */}
+            {printTransport === 'qz' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <div className="flex items-center gap-2">
+                    {isConnected ? (
+                      <Wifi className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <WifiOff className="h-4 w-4 text-destructive" />
+                    )}
+                    <span className="text-sm font-medium">
+                      QZ Tray {isConnected ? 'Connected' : 'Disconnected'}
+                    </span>
+                  </div>
+                  {!isQZAvailable ? (
+                    <Button size="sm" variant="outline" onClick={() => window.open('https://qz.io/download/', '_blank')}>
+                      <Download className="h-4 w-4 mr-1" />
+                      Install QZ Tray
+                    </Button>
+                  ) : !isConnected ? (
+                    <Button size="sm" variant="outline" onClick={handleConnect} disabled={isConnecting}>
+                      {isConnecting ? 'Connecting...' : 'Connect'}
+                    </Button>
+                  ) : null}
+                </div>
+                {!isQZAvailable && (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg text-sm">
+                    <p className="font-medium text-amber-800 dark:text-amber-200 mb-2">
+                      QZ Tray requires Java and a separate install.
+                    </p>
+                    <p className="text-amber-700 dark:text-amber-300 mb-1">
+                      Consider using USB Direct above — it requires no installation.
+                    </p>
+                    <Button size="sm" variant="link" className="p-0 h-auto text-amber-800 dark:text-amber-200"
+                      onClick={() => window.open('https://qz.io/download/', '_blank')}>
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      Download QZ Tray
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* QZ Tray Not Installed Notice */}
-          {!isQZAvailable && (
-            <div className="p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg text-sm">
-              <p className="font-medium text-amber-800 dark:text-amber-200 mb-2">
-                QZ Tray Required
-              </p>
-              <p className="text-amber-700 dark:text-amber-300 mb-2">
-                QZ Tray enables direct printing to thermal printers without browser dialogs.
-              </p>
-              <Button 
-                size="sm" 
-                variant="link" 
-                className="p-0 h-auto text-amber-800 dark:text-amber-200"
-                onClick={() => window.open('https://qz.io/download/', '_blank')}
-              >
-                <ExternalLink className="h-3 w-3 mr-1" />
-                Download QZ Tray
-              </Button>
-            </div>
-          )}
-
-          {/* Printer Selection */}
-          {isConnected && (
+          {/* Printer Selection — QZ Tray only */}
+          {printTransport === 'qz' && isConnected && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Select Printer</Label>
@@ -550,7 +585,7 @@ export const DirectPrintDialog = ({
           )}
 
           {/* Printer Settings (per-printer config) */}
-          {isConnected && selectedPrinter && (
+          {printTransport === 'qz' && isConnected && selectedPrinter && (
             <div className="space-y-2">
               <button
                 onClick={() => setShowPrinterSettings(!showPrinterSettings)}
@@ -868,9 +903,12 @@ PRINT 1,1`}
           </Button>
           <Button 
             onClick={handlePrint}
-            disabled={!isConnected || !selectedPrinter || isPrinting || items.length === 0}
+            disabled={
+              (printTransport === 'usb' ? !isUsbConnected : (!isConnected || !selectedPrinter)) 
+              || isPrinting || isUsbPrinting || items.length === 0
+            }
           >
-            {isPrinting ? (
+            {isPrinting || isUsbPrinting ? (
               <>
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                 Printing...
@@ -878,7 +916,7 @@ PRINT 1,1`}
             ) : (
               <>
                 <Printer className="h-4 w-4 mr-2" />
-                Print {totalLabels} Labels
+                {printTransport === 'usb' ? '⚡ USB Print' : 'Print'} {totalLabels} Labels
               </>
             )}
           </Button>

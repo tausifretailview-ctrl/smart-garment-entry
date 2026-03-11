@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { encodePurchasePrice, getEffectivePurchasePrice } from "@/utils/purchaseCodeEncoder";
+import { generateA4LabelPdf } from '@/utils/a4LabelPdf';
 import {
   DndContext,
   closestCenter,
@@ -3188,6 +3189,50 @@ export default function BarcodePrinting() {
     }, 300);
   };
 
+  const handleExportPerfectPDF = async () => {
+    const hasLabels = labelItems.some((item) => item.qty > 0);
+    if (!hasLabels) {
+      toast.error('Please add at least one label with quantity > 0');
+      return;
+    }
+    if (isThermal1Up()) {
+      toast.error('Perfect PDF is for A4 sheet labels only');
+      return;
+    }
+    toast.info('Generating Perfect PDF...');
+    try {
+      const dimensions = sheetType === 'custom'
+        ? { cols: customCols, rows: customRows, width: customWidth, height: customHeight, gap: customGap }
+        : {
+            cols: sheetPresets[sheetType].cols,
+            rows: (sheetPresets[sheetType] as any).rows || 10,
+            width: parseInt(sheetPresets[sheetType].width),
+            height: parseInt(sheetPresets[sheetType].height),
+            gap: parseInt(sheetPresets[sheetType].gap),
+          };
+
+      const pdfBytes = await generateA4LabelPdf(labelItems, {
+        labelWidthMm: dimensions.width,
+        labelHeightMm: dimensions.height,
+        cols: dimensions.cols,
+        rows: dimensions.rows,
+        gapMm: dimensions.gap,
+        topOffsetMm: topOffset,
+        leftOffsetMm: leftOffset,
+        labelConfig,
+        businessName,
+      });
+
+      const blob = new Blob([new Uint8Array(pdfBytes) as any], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      toast.success('PDF opened — print at Actual Size (100%) for accurate labels');
+    } catch (err) {
+      console.error('PDF generation error:', err);
+      toast.error('Failed to generate PDF');
+    }
+  };
+
   const handleExportPDF = async () => {
     const hasLabels = labelItems.some((item) => item.qty > 0);
     if (!hasLabels) {
@@ -4720,6 +4765,16 @@ export default function BarcodePrinting() {
           <Download className="h-4 w-4 mr-2" />
           Export PDF
         </Button>
+        {!isThermal1Up() && (
+          <Button
+            onClick={handleExportPerfectPDF}
+            variant="outline"
+            className="bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700 dark:bg-purple-950 dark:hover:bg-purple-900 dark:border-purple-800 dark:text-purple-300"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Perfect PDF ✨
+          </Button>
+        )}
         <Button 
           onClick={handleSaveAsDefault} 
           variant={selectedLabelTemplate && isTemplateDefault(selectedLabelTemplate) ? "default" : "secondary"}
