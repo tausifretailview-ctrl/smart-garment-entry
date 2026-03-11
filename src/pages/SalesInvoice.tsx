@@ -2331,6 +2331,13 @@ Thank you for choosing us!`;
               title="Next">
               <ChevronRight className="h-4 w-4" />
             </Button>
+            <div className="w-px h-6 bg-white/20 mx-1" />
+            <Button variant="ghost" size="sm" onClick={() => navigate('/sales-invoice', { replace: true, state: {} })}
+              className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 px-2.5"
+              title="New Bill">
+              <Plus className="h-3.5 w-3.5" />
+              <span>New</span>
+            </Button>
             {(editingInvoiceId || savedInvoiceData) && (
               <>
                 <div className="w-px h-6 bg-white/20 mx-1" />
