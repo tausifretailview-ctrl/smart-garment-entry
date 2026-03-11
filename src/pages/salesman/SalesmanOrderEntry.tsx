@@ -774,7 +774,19 @@ const SalesmanOrderEntry = () => {
 
       {/* Footer with Totals and Actions */}
       {orderItems.length > 0 && (
-        <div className="p-4 bg-background border-t space-y-4 safe-area-pb">
+        <div className="p-4 bg-background border-t space-y-4" style={{ paddingBottom: "env(safe-area-inset-bottom, 16px)" }}>
+          {/* Notes Input */}
+          <div>
+            <Label className="text-xs text-muted-foreground">Order Notes (optional)</Label>
+            <Textarea
+              placeholder="Add any notes for this order..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="resize-none h-16 text-sm mt-1"
+              rows={2}
+            />
+          </div>
+
           <div className="space-y-1">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Subtotal ({orderItems.length} items)</span>
@@ -785,8 +797,8 @@ const SalesmanOrderEntry = () => {
               <span>₹{gstAmount.toLocaleString("en-IN")}</span>
             </div>
             <Separator />
-            <div className="flex justify-between font-bold text-lg">
-              <span>Total</span>
+            <div className="flex justify-between font-bold text-lg text-primary">
+              <span>Total <span className="text-xs font-normal text-muted-foreground">(incl. GST)</span></span>
               <span>₹{netAmount.toLocaleString("en-IN")}</span>
             </div>
           </div>
