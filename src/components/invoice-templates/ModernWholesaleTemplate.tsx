@@ -416,14 +416,17 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       {isLastPage && (
         <tfoot>
           <tr style={{ background: colors.light, fontWeight: "800" }}>
-            <td colSpan={4} style={{ ...cellStyle, textAlign: "right" }}>
+            <td colSpan={4} style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "6.5pt" : "8pt" }}>
               TOTAL QTY:
             </td>
-            <td style={{ ...cellStyle, textAlign: "center" }}>{totalQty}</td>
-            <td colSpan={showGSTBreakdown ? (isA5 ? 3 : 4) : (isA5 ? 1 : 2)} style={{ ...cellStyle, textAlign: "right" }}>
-              SUB TOTAL:
-            </td>
-            <td style={{ ...cellStyle, textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{formatCurrency(subtotal)}</td>
+            <td style={{ ...cellStyle, textAlign: "center", fontWeight: "900" }}>{totalQty}</td>
+            {!isA5 && <td style={cellStyle}>&nbsp;</td>}
+            <td style={cellStyle}>&nbsp;</td>
+            {showGSTBreakdown && <td style={cellStyle}>&nbsp;</td>}
+            {showGSTBreakdown && <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "5.5pt" : "7pt" }}>
+              {(cgstAmount + sgstAmount) > 0 ? `Rs.${(cgstAmount + sgstAmount).toFixed(2)}` : ''}
+            </td>}
+            <td style={{ ...cellStyle, textAlign: "right", fontWeight: "900", fontSize: isA5 ? "7pt" : "8pt", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{formatCurrency(subtotal)}</td>
           </tr>
         </tfoot>
       )}
