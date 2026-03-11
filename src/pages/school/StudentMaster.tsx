@@ -136,39 +136,41 @@ const StudentMaster = () => {
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   const { data: stats } = useQuery({
-    queryKey: ["student-stats", currentOrganization?.id],
+    queryKey: ["student-stats", currentOrganization?.id, selectedYearId],
     queryFn: async () => {
-      if (!currentOrganization?.id) return { total: 0, active: 0, newAdmissions: 0 };
+      if (!currentOrganization?.id || !selectedYearId) return { total: 0, active: 0, newAdmissions: 0 };
 
       const { count: total } = await supabase
         .from("students")
         .select("*", { count: "exact", head: true })
         .eq("organization_id", currentOrganization.id)
+        .eq("academic_year_id", selectedYearId)
         .is("deleted_at", null);
 
       const { count: active } = await supabase
         .from("students")
         .select("*", { count: "exact", head: true })
         .eq("organization_id", currentOrganization.id)
+        .eq("academic_year_id", selectedYearId)
         .eq("status", "active")
         .is("deleted_at", null);
 
-      // New admissions: students with admission_date in the current academic year (April 1 onwards)
-      const now = new Date();
-      const currentYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-      const academicStart = `${currentYear}-04-01`;
+      // New admissions: students with admission_date in the selected academic year
+      const selectedYear = (academicYears || []).find((y: any) => y.id === selectedYearId);
+      const academicStart = selectedYear?.start_date || "2025-04-01";
 
       const { count: newAdmissions } = await supabase
         .from("students")
         .select("*", { count: "exact", head: true })
         .eq("organization_id", currentOrganization.id)
+        .eq("academic_year_id", selectedYearId)
         .is("deleted_at", null)
         .not("admission_date", "is", null)
         .gte("admission_date", academicStart);
 
       return { total: total || 0, active: active || 0, newAdmissions: newAdmissions || 0 };
     },
-    enabled: !!currentOrganization?.id,
+    enabled: !!currentOrganization?.id && !!selectedYearId,
   });
 
   const handleDeleteStudent = async () => {
