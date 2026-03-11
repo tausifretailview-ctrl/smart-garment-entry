@@ -96,8 +96,12 @@ const StudentMaster = () => {
     setFilterNewAdmissions(false);
   };
 
+  // Get academic start date for new admissions filter
+  const selectedYear = (academicYears || []).find((y: any) => y.id === selectedYearId);
+  const academicStart = selectedYear?.start_date || "2026-04-01";
+
   const { data: studentsResult, isLoading } = useQuery({
-    queryKey: ["students", currentOrganization?.id, searchTerm, currentPage, selectedYearId],
+    queryKey: ["students", currentOrganization?.id, searchTerm, currentPage, selectedYearId, filterNewAdmissions],
     queryFn: async () => {
       if (!currentOrganization?.id || !selectedYearId) return { data: [], count: 0 };
 
@@ -124,6 +128,11 @@ const StudentMaster = () => {
 
       if (searchTerm) {
         query = query.or(`student_name.ilike.%${searchTerm}%,admission_number.ilike.%${searchTerm}%,parent_phone.ilike.%${searchTerm}%`);
+      }
+
+      // Filter for new admissions: created_at within the academic year
+      if (filterNewAdmissions) {
+        query = query.gte("created_at", academicStart);
       }
 
       const { data, error, count } = await query;
