@@ -30,6 +30,7 @@ import { cn, sortSearchResults } from "@/lib/utils";
 import { SalesmanSizeGridDialog } from "@/components/SalesmanSizeGridDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { DraftResumeDialog } from "@/components/DraftResumeDialog";
+import { Textarea } from "@/components/ui/textarea";
 
 interface Customer {
   id: string;
