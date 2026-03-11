@@ -42,6 +42,7 @@ import { useBarcodeLabelSettings, SizeSortOrder } from "@/hooks/useBarcodeLabelS
 import { BarTenderLabelDesigner } from "@/components/BarTenderLabelDesigner";
 import { DirectPrintDialog } from "@/components/DirectPrintDialog";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey } from "@/types/labelTypes";
 import { PrecisionThermalPrint } from "@/components/precision-barcode/PrecisionThermalPrint";
 import { PrecisionA4SheetPrint } from "@/components/precision-barcode/PrecisionA4SheetPrint";
