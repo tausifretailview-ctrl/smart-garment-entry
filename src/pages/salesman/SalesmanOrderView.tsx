@@ -298,7 +298,7 @@ const SalesmanOrderView = () => {
       </div>
 
       {/* Action Buttons */}
-      <div className="p-3 bg-background border-t flex gap-2 safe-area-pb">
+      <div className="p-3 bg-background border-t flex gap-2" style={{ paddingBottom: "env(safe-area-inset-bottom, 16px)" }}>
         <Button
           variant="outline"
           className="flex-1 h-11"
@@ -310,7 +310,6 @@ const SalesmanOrderView = () => {
         <Button
           className="flex-1 h-11"
           onClick={shareOrder}
-          disabled={!order.customer_phone}
         >
           <Share2 className="h-4 w-4 mr-2" />
           Share

@@ -267,15 +267,17 @@ const SalesmanLayout = () => {
       </main>
 
       {/* Bottom Navigation - Orange active state */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-background border-t border-border z-50 safe-area-pb">
+      <nav className="fixed bottom-0 left-0 right-0 bg-background border-t border-border z-50"
+        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         <div className="flex items-center justify-around h-16">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.path);
             return (
-              <a
+              <button
                 key={item.path}
-                href={getOrgPath(item.path)}
+                type="button"
+                onClick={() => navigate(getOrgPath(item.path))}
                 className={cn(
                   "flex flex-col items-center justify-center flex-1 h-full transition-colors",
                   active
@@ -285,7 +287,7 @@ const SalesmanLayout = () => {
               >
                 <Icon className={cn("h-6 w-6", active && "fill-orange-500/20")} />
                 <span className="text-xs mt-1 font-medium">{item.label}</span>
-              </a>
+              </button>
             );
           })}
         </div>

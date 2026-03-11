@@ -125,9 +125,14 @@ const SalesmanDashboard = () => {
   return (
     <div className="p-3 space-y-3">
       {/* Welcome */}
-      <div>
-        <h1 className="text-lg font-bold text-foreground">Welcome back!</h1>
-        <p className="text-xs text-muted-foreground">{format(new Date(), "EEEE, dd MMM yyyy")}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-bold text-foreground">Hello, {employeeName?.split(' ')[0] || 'Salesman'}! 👋</h1>
+          <p className="text-xs text-muted-foreground">{format(new Date(), "EEEE, dd MMM yyyy")}</p>
+        </div>
+        <Button variant="ghost" size="icon" onClick={fetchDashboardData} className="text-muted-foreground">
+          <RefreshCw className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Stats Grid - Orange gradient cards */}

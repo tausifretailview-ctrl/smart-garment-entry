@@ -827,7 +827,7 @@ const SalesmanOrderEntry = () => {
 
       {/* Customer Search Dialog */}
       <Dialog open={showCustomerSearch} onOpenChange={setShowCustomerSearch}>
-        <DialogContent className="max-w-md max-h-[80vh]">
+        <DialogContent className="max-w-md max-h-[60dvh] sm:max-h-[80vh]">
           <DialogHeader>
             <DialogTitle>Select Customer</DialogTitle>
           </DialogHeader>
