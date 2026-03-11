@@ -16,6 +16,7 @@ const LOADING_TIMEOUT = 8000; // 8 seconds max wait
 
 const SalesmanLayout = () => {
   const { getOrgPath } = useOrgNavigation();
+  const navigate = useNavigate();
   const location = useLocation();
   const { signOut } = useAuth();
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
