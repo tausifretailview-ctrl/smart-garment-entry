@@ -428,7 +428,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         </tfoot>
       )}
     </table>
-  );
+    );
+  };
 
   // Render summary section (only on last page)
   const renderSummary = () => (
