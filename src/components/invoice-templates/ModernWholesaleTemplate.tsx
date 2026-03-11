@@ -215,11 +215,11 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   const totalPages = pages.length;
 
   // When all items fit on a single page, minimize empty rows to prevent footer overflow to 2nd page
-  const effectiveMinItemRows = totalPages === 1 
-    ? Math.min(minItemRows, groupedItems.length + (format === 'a5-vertical' ? 1 : format === 'a5-horizontal' ? 2 : 3))
-    : minItemRows;
-
   const isA5 = format === 'a5-vertical' || format === 'a5-horizontal';
+
+  const effectiveMinItemRows = totalPages === 1 
+    ? Math.max(groupedItems.length + 1, isA5 ? (format === 'a5-horizontal' ? 4 : 5) : 8)
+    : minItemRows;
 
   const cellStyle: React.CSSProperties = {
     border: "1px solid #374151",
@@ -249,41 +249,47 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         background: colors.light,
         flexShrink: 0,
       }}>
-        <div style={{ display: "flex" }}>
+        <div style={{ display: "flex", alignItems: "stretch" }}>
           <div
             style={{
-              width: isA5 ? "60px" : "80px",
-              padding: isA5 ? "6px" : "10px",
+              width: isA5 ? "52px" : "80px",
+              minWidth: isA5 ? "52px" : "80px",
+              padding: isA5 ? "4px" : "10px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               borderRight: "1px solid #374151",
+              flexShrink: 0,
             }}
           >
             {logoUrl ? (
-              <img src={logoUrl} alt="Logo" style={{ maxWidth: "100%" }} />
+              <img src={logoUrl} alt="Logo" style={{ maxWidth: "100%", maxHeight: isA5 ? "36px" : "56px" }} />
             ) : (
-              <div style={{ fontSize: isA5 ? "7pt" : "8pt" }}>LOGO</div>
+              <div style={{ fontSize: isA5 ? "6pt" : "8pt", color: "#999" }}>LOGO</div>
             )}
           </div>
-          <div style={{ flex: 1, padding: isA5 ? "5px 8px" : "10px", textAlign: "center" }}>
-            <h1 style={{ fontSize: isA5 ? "14pt" : "18pt", fontWeight: "800", color: colors.primary, margin: 0 }}>{businessName}</h1>
-            <p style={{ fontSize: isA5 ? "7.5pt" : "9pt", margin: "1px 0" }}>{address}</p>
-            <p style={{ fontSize: isA5 ? "7.5pt" : "9pt", fontWeight: "600", margin: 0 }}>
+          <div style={{ flex: 1, padding: isA5 ? "4px 6px" : "10px", textAlign: "center", overflow: "hidden" }}>
+            <h1 style={{ fontSize: isA5 ? "13pt" : "18pt", fontWeight: "800", color: colors.primary, margin: 0, lineHeight: "1.1" }}>{businessName}</h1>
+            <p style={{ fontSize: isA5 ? "6.5pt" : "9pt", margin: "1px 0", lineHeight: "1.3" }}>{address}</p>
+            <p style={{ fontSize: isA5 ? "6.5pt" : "9pt", fontWeight: "600", margin: 0 }}>
               {gstNumber && `GSTIN: ${gstNumber} | `}Mob: {mobile}
             </p>
           </div>
+          {/* DELIVERY CHALLAN / TAX INVOICE — wider box to prevent text cut */}
           <div
             style={{
-              width: isA5 ? "70px" : "100px",
+              width: isA5 ? "96px" : "110px",
+              minWidth: isA5 ? "96px" : "110px",
               borderLeft: "1px solid #374151",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               textAlign: "center",
+              padding: isA5 ? "4px 3px" : "6px",
+              flexShrink: 0,
             }}
           >
-            <div style={{ fontWeight: "800", fontSize: isA5 ? "8pt" : "10pt", color: colors.primary }}>
+            <div style={{ fontWeight: "800", fontSize: isA5 ? "8pt" : "10pt", color: colors.primary, lineHeight: "1.35", letterSpacing: "0.3px" }}>
               {businessName?.toLowerCase().includes("banshri") || businessName?.toLowerCase().includes("bansari") || businessName?.toLowerCase().includes("banshri") ? (
                 <>DELIVERY<br />CHALLAN</>
               ) : (
@@ -295,29 +301,37 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       </div>
 
       {/* Customer Row */}
-      <div style={{ display: "flex", borderBottom: "1px solid #374151", fontSize: isA5 ? "7.5pt" : "9pt", flexShrink: 0 }}>
-        <div style={{ flex: 1, padding: isA5 ? "4px 6px" : "6px 8px", borderRight: "1px solid #374151" }}>
-          <div style={{ fontWeight: "700", color: colors.primary, fontSize: isA5 ? "6pt" : "7pt" }}>BILL TO:</div>
-          <div style={{ fontWeight: "600", fontSize: isA5 ? "9pt" : "10pt" }}>{customerName}</div>
-          {customerAddress && <div>{customerAddress}</div>}
-          {customerMobile && <div>Mob: {customerMobile}</div>}
+      <div style={{ display: "flex", borderBottom: "1px solid #374151", fontSize: isA5 ? "7pt" : "9pt", flexShrink: 0, alignItems: "stretch" }}>
+        <div style={{ flex: 1, padding: isA5 ? "3px 5px" : "6px 8px", borderRight: "1px solid #374151", overflow: "hidden" }}>
+          <div style={{ fontWeight: "700", color: colors.primary, fontSize: isA5 ? "5.5pt" : "7pt" }}>BILL TO:</div>
+          <div style={{ fontWeight: "700", fontSize: isA5 ? "8pt" : "10pt", lineHeight: "1.2" }}>{customerName}</div>
+          {customerAddress && <div style={{ fontSize: isA5 ? "6.5pt" : "8pt", lineHeight: "1.3" }}>{customerAddress}</div>}
+          {customerMobile && <div style={{ fontSize: isA5 ? "6.5pt" : "8pt" }}>Mob: {customerMobile}</div>}
           {customerGSTIN && (
-            <div style={{ fontWeight: "500" }}>GSTIN: {customerGSTIN}</div>
+            <div style={{ fontSize: isA5 ? "6pt" : "7.5pt", fontWeight: "500" }}>GSTIN: {customerGSTIN}</div>
           )}
           {customerTransportDetails && (
-            <div style={{ fontWeight: "500" }}>Transport: {customerTransportDetails}</div>
+            <div style={{ fontSize: isA5 ? "6pt" : "7.5pt" }}>Transport: {customerTransportDetails}</div>
           )}
         </div>
-        <div style={{ width: isA5 ? "140px" : "180px", padding: isA5 ? "4px 6px" : "6px 8px", background: colors.light, boxSizing: "border-box" }}>
-          <table style={{ width: "100%", fontSize: isA5 ? "6.5pt" : "9pt" }}>
+        {/* Inv No + Date — wider box, larger font to prevent truncation */}
+        <div style={{ 
+          width: isA5 ? "148px" : "190px", 
+          minWidth: isA5 ? "148px" : "190px", 
+          padding: isA5 ? "3px 6px" : "6px 8px", 
+          background: colors.light, 
+          boxSizing: "border-box",
+          flexShrink: 0,
+        }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <tbody>
               <tr>
-                <td style={{ whiteSpace: "nowrap", paddingRight: "4px" }}>Inv No:</td>
-                <td style={{ fontWeight: "500", textAlign: "right", wordBreak: "break-all", fontSize: isA5 ? "5.5pt" : "9pt" }}>{invoiceNumber}</td>
+                <td style={{ fontSize: isA5 ? "6.5pt" : "8pt", whiteSpace: "nowrap", paddingRight: "4px", fontWeight: "600" }}>Inv No:</td>
+                <td style={{ fontWeight: "700", textAlign: "right", wordBreak: "break-all", fontSize: isA5 ? "6.5pt" : "9pt", color: colors.primary }}>{invoiceNumber}</td>
               </tr>
               <tr>
-                <td style={{ whiteSpace: "nowrap", paddingRight: "4px" }}>Date:</td>
-                <td style={{ fontWeight: "500", textAlign: "right", fontSize: isA5 ? "5.5pt" : "9pt" }}>{invoiceDate.toLocaleDateString("en-IN")}</td>
+                <td style={{ fontSize: isA5 ? "6.5pt" : "8pt", whiteSpace: "nowrap", paddingRight: "4px", fontWeight: "600" }}>Date:</td>
+                <td style={{ fontWeight: "600", textAlign: "right", fontSize: isA5 ? "6.5pt" : "9pt" }}>{invoiceDate.toLocaleDateString("en-IN")}</td>
               </tr>
             </tbody>
           </table>
@@ -327,20 +341,34 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   );
 
   // Render items table for a specific page
-  const renderItemsTable = (pageItems: GroupedItem[], startIndex: number, isLastPage: boolean) => (
+  const renderItemsTable = (pageItems: GroupedItem[], startIndex: number, isLastPage: boolean) => {
+    const colCount = 6 + (isA5 ? 0 : 1) + (showGSTBreakdown ? 2 : 0);
+    return (
     <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+      <colgroup>
+        <col style={{ width: isA5 ? "20px" : "22px" }} />
+        <col />
+        <col style={{ width: isA5 ? "34px" : "45px" }} />
+        <col style={{ width: isA5 ? "82px" : "80px" }} />
+        <col style={{ width: isA5 ? "28px" : "32px" }} />
+        {!isA5 && <col style={{ width: "45px" }} />}
+        <col style={{ width: isA5 ? "46px" : "45px" }} />
+        {showGSTBreakdown && <col style={{ width: isA5 ? "26px" : "32px" }} />}
+        {showGSTBreakdown && <col style={{ width: isA5 ? "42px" : "48px" }} />}
+        <col style={{ width: isA5 ? "66px" : "65px" }} />
+      </colgroup>
       <thead>
         <tr>
-          <th style={{ ...headerCellStyle, width: isA5 ? "16px" : "22px" }}>SR</th>
-          <th style={{ ...headerCellStyle, width: isA5 ? "80px" : "100px" }}>PARTICULARS</th>
-          <th style={{ ...headerCellStyle, width: isA5 ? "30px" : "45px" }}>HSN</th>
-          <th style={{ ...headerCellStyle, width: isA5 ? "60px" : "80px" }}>SIZE / QTY</th>
-          <th style={{ ...headerCellStyle, width: isA5 ? "26px" : "32px" }}>QTY</th>
-          {!isA5 && <th style={{ ...headerCellStyle, width: "45px" }}>MRP</th>}
-          <th style={{ ...headerCellStyle, width: isA5 ? "38px" : "45px" }}>RATE</th>
-          {showGSTBreakdown && <th style={{ ...headerCellStyle, width: isA5 ? "26px" : "32px" }}>GST%</th>}
-          {showGSTBreakdown && <th style={{ ...headerCellStyle, width: isA5 ? "38px" : "48px" }}>GST AMT</th>}
-          <th style={{ ...headerCellStyle, width: isA5 ? "55px" : "65px" }}>AMOUNT</th>
+          <th style={headerCellStyle}>SR</th>
+          <th style={headerCellStyle}>PARTICULARS</th>
+          <th style={headerCellStyle}>HSN</th>
+          <th style={headerCellStyle}>SIZE / QTY</th>
+          <th style={headerCellStyle}>QTY</th>
+          {!isA5 && <th style={headerCellStyle}>MRP</th>}
+          <th style={headerCellStyle}>RATE</th>
+          {showGSTBreakdown && <th style={headerCellStyle}>GST%</th>}
+          {showGSTBreakdown && <th style={headerCellStyle}>GST AMT</th>}
+          <th style={headerCellStyle}>AMOUNT</th>
         </tr>
       </thead>
       <tbody>
@@ -370,7 +398,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         ))}
         {/* Fill empty rows only on last page to maintain layout */}
         {isLastPage && Array.from({ length: Math.max(0, effectiveMinItemRows - pageItems.length) }).map((_, i) => (
-          <tr key={`empty-${i}`} style={{ height: isA5 ? "18px" : "25px" }}>
+          <tr key={`empty-${i}`} style={{ height: isA5 ? "16px" : "25px" }}>
             <td style={cellStyle}>&nbsp;</td>
             <td style={cellStyle}>&nbsp;</td>
             <td style={cellStyle}>&nbsp;</td>
@@ -388,19 +416,23 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       {isLastPage && (
         <tfoot>
           <tr style={{ background: colors.light, fontWeight: "800" }}>
-            <td colSpan={4} style={{ ...cellStyle, textAlign: "right" }}>
+            <td colSpan={4} style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "6.5pt" : "8pt" }}>
               TOTAL QTY:
             </td>
-            <td style={{ ...cellStyle, textAlign: "center" }}>{totalQty}</td>
-            <td colSpan={showGSTBreakdown ? (isA5 ? 3 : 4) : (isA5 ? 1 : 2)} style={{ ...cellStyle, textAlign: "right" }}>
-              SUB TOTAL:
-            </td>
-            <td style={{ ...cellStyle, textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{formatCurrency(subtotal)}</td>
+            <td style={{ ...cellStyle, textAlign: "center", fontWeight: "900" }}>{totalQty}</td>
+            {!isA5 && <td style={cellStyle}>&nbsp;</td>}
+            <td style={cellStyle}>&nbsp;</td>
+            {showGSTBreakdown && <td style={cellStyle}>&nbsp;</td>}
+            {showGSTBreakdown && <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "5.5pt" : "7pt" }}>
+              {(cgstAmount + sgstAmount) > 0 ? `Rs.${(cgstAmount + sgstAmount).toFixed(2)}` : ''}
+            </td>}
+            <td style={{ ...cellStyle, textAlign: "right", fontWeight: "900", fontSize: isA5 ? "7pt" : "8pt", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{formatCurrency(subtotal)}</td>
           </tr>
         </tfoot>
       )}
     </table>
-  );
+    );
+  };
 
   // Render summary section (only on last page)
   const renderSummary = () => (
@@ -440,7 +472,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           </div>
         )}
 
-        <div style={{ width: isA5 ? "180px" : "280px", flexShrink: 0, padding: isA5 ? "3px 4px" : "8px 10px", background: colors.light, boxSizing: "border-box", overflow: "visible" }}>
+        <div style={{ width: isA5 ? "190px" : "280px", flexShrink: 0, padding: isA5 ? "3px 4px" : "8px 10px", background: colors.light, boxSizing: "border-box", overflow: "visible" }}>
           <table style={{ width: "100%", fontSize: isA5 ? "6.5pt" : "9pt", fontWeight: "500", borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}>
             <colgroup>
               <col style={{ width: "45%" }} />
