@@ -1,43 +1,47 @@
 
 
-## Completed: Heavy Query Load Optimization
+## Plan: Field Sales App — Mobile UX Fixes & Polish (14 fixes)
 
-All 5 priority pages optimized:
+This is a batch of mobile UX improvements across the Field Sales module. All changes are UI/frontend-only — no database changes needed.
 
-1. **PurchaseBillDashboard** — Server-side pagination + search + date filters via `useQuery`, removed Phase 2 bulk item pre-fetch (lazy-load on expand only), staleTime 30s
-2. **SaleReturnDashboard** — Converted from useEffect/setState to `useQuery` with server-side pagination + debounced search, lazy item loading with cache
-3. **PurchaseReturnDashboard** — Server-side pagination + debounced search + date filters via `useQuery`, staleTime 30s
-4. **Accounts** — Created `get_accounts_dashboard_stats` RPC for summary cards (replaces 3x fetchAll calls), lazy tab loading (vouchers/sales/customers/suppliers only fetched when their tab is active)
-5. **SalesAnalyticsDashboard** — Added staleTime 60s + refetchOnWindowFocus:false to all queries
+### Files to modify (6 files)
 
-## Completed: Sales Invoice Dashboard Optimization
+**1. `src/layouts/SalesmanLayout.tsx`**
+- **B1**: Replace `<a href>` with `<button onClick>` using `useNavigate` for client-side routing (prevents full-page reload)
+- **B4**: Replace `safe-area-pb` CSS class on `<nav>` with inline `style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}`
 
-1. **Server-side pagination** — Replaced fetch-all-invoices loop with paginated query (50 rows per page, `{ count: 'exact' }`)
-2. **No more `sale_items(*)` in list** — Removed nested sale_items fetch, uses `total_qty` column instead
-3. **Server-side filtering** — Search (debounced 300ms), date range, payment status, delivery status all applied server-side
-4. **Summary stats via RPC** — Uses `get_sales_invoice_dashboard_stats` RPC instead of client-side computation
-5. **Default period = This Month** — Fast first load instead of fetching all-time data
-6. **staleTime 30s + refetchOnWindowFocus: false** — Prevents redundant re-fetches
-7. **Cache invalidation after save/update** — SalesInvoice.tsx invalidates `['invoices']` and `['invoice-dashboard-stats']` after create/update
-8. **useDashboardInvalidation** — Added `['invoices']` and `['invoice-dashboard-stats']` to `invalidateSales()`
+**2. `src/pages/salesman/SalesmanOrderEntry.tsx`**
+- **B2**: Replace N+1 customer balance queries with single batch query using `.in('customer_id', customerIds)`, then group client-side
+- **B3**: Add `<Textarea>` for notes above Save/Share buttons (import Textarea)
+- **B4**: Replace `safe-area-pb` class with inline style
+- **B7**: Increase touch targets from `h-7 w-7` to `h-10 w-10` on Minus/Plus/Trash buttons; widen quantity display to `w-10`
+- **B12**: Replace `window.__salesmanSearchTimer` with `useRef` for debounce
+- **B13**: Change customer dialog `max-h-[80vh]` to `max-h-[60dvh] sm:max-h-[80vh]`
+- **B14**: Add "(incl. GST)" label to total line
+- **UI-4**: Skip — requires new state management and dialog for price editing, too complex for this batch
 
-## Completed: Entry Form Query Optimization (ELLA NOOR slow billing fix)
+**3. `src/pages/salesman/SalesmanOrders.tsx`**
+- **B8**: Reorganize order card buttons into 2-row layout (full-width View, then Accept+Share row)
+- **B9**: Add `setLoading(true); setOrders([]);` at start of `fetchOrders()`
+- **UI-1**: Add search bar with `useState` filter above Tabs; filter `displayOrders` by order_number/customer_name
+- **UI-2**: Add green left border on accepted orders via `cn()` conditional class
 
-All entry forms optimized with caching + explicit columns:
+**4. `src/pages/salesman/SalesmanOrderView.tsx`**
+- **B4**: Replace `safe-area-pb` class with inline style
+- **B10**: Wrap table in `overflow-x-auto` container, condense to 4 columns (merge Size into Description)
+- **B11**: Add GST breakdown footer (taxable value, GST, grand total)
+- **UI-5**: Update `shareOrder` to use `navigator.share()` with WhatsApp and clipboard fallbacks
 
-1. **QuotationEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*')` with explicit columns
-2. **SaleOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*, product_variants(*)')` with explicit columns
-3. **PurchaseOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to suppliers & products queries, replaced `select('*')` with explicit columns
-4. **DeliveryChallanEntry** — Added staleTime 5min + refetchOnWindowFocus:false to products query, replaced `select('*, product_variants(*), size_groups(*)')` with explicit columns
-5. **PurchaseEntry** — Replaced `select('*')` with explicit columns for suppliers (already had staleTime)
-6. **POSSales** — Already optimized (explicit columns + staleTime 5min)
-7. **SalesInvoice** — Already optimized
+**5. `src/pages/salesman/SalesmanCustomerAccount.tsx`**
+- **B4**: Replace `safe-area-pb` class with inline style
 
-## Completed: Cloud Usage Impact Analysis
+**6. `src/pages/salesman/SalesmanDashboard.tsx`**
+- **UI-3**: Replace "Welcome back!" with personalized greeting using `useFieldSalesAccess()` hook; add RefreshCw button
 
-Estimated impact of all optimizations:
-- **Dashboard reads**: ~95% reduction (server-side pagination, 50 rows vs ALL)
-- **Accounts page**: ~90% reduction (1 RPC vs 3 full-table scans)
-- **Entry form tab switches**: ~80% fewer reads (5min staleTime cache)
-- **Data transfer**: ~40-50% less per read (explicit columns vs select('*'))
-- **Sales Invoice Dashboard**: ~98% reduction (50 rows without sale_items vs ALL invoices with ALL items)
+### Technical notes
+- `useRef` for search debounce replaces global `window` property (B12)
+- `env(safe-area-inset-bottom)` CSS function handles iPhone home indicator natively (B4-B6)
+- Batch customer balance query reduces 20 network calls to 1 (B2)
+- `navigator.share()` API provides native OS share sheet on mobile (UI-5)
+- `useFieldSalesAccess` already exports `employeeName` — just needs to be imported in Dashboard (UI-3)
+
