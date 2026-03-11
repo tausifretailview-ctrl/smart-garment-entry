@@ -645,8 +645,8 @@ const SalesmanOrderEntry = () => {
               const val = e.target.value;
               setProductSearch(val);
               setShowProductSearch(true);
-              if ((window as any).__salesmanSearchTimer) clearTimeout((window as any).__salesmanSearchTimer);
-              (window as any).__salesmanSearchTimer = setTimeout(() => searchProducts(val), 300);
+              if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+              searchTimerRef.current = setTimeout(() => searchProducts(val), 300);
             }}
             onFocus={() => setShowProductSearch(true)}
             className="pl-10 h-12"
