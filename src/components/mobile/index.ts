@@ -13,3 +13,6 @@ export { MobileDashboard } from "./MobileDashboard";
 export { MobileDashboardCard } from "./MobileDashboardCard";
 export { MobileDashboardSummary } from "./MobileDashboardSummary";
 export { MobileErrorBoundary } from "./MobileErrorBoundary";
+export { MobilePageHeader } from "./MobilePageHeader";
+export { MobileStatStrip } from "./MobileStatStrip";
+export { MobilePeriodChips } from "./MobilePeriodChips";
