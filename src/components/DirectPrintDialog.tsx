@@ -555,8 +555,8 @@ export const DirectPrintDialog = ({
             )}
           </div>
 
-          {/* Printer Selection */}
-          {isConnected && (
+          {/* Printer Selection — QZ Tray only */}
+          {printTransport === 'qz' && isConnected && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Select Printer</Label>
