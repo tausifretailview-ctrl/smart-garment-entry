@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Home, Users, ShoppingCart, ListOrdered, LogOut, Download, AlertCircle, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
