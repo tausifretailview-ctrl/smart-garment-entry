@@ -63,6 +63,30 @@ const StudentMaster = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [historyStudent, setHistoryStudent] = useState<any>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [selectedYearId, setSelectedYearId] = useState<string | null>(null);
+
+  // Fetch academic years
+  const { data: academicYears } = useQuery({
+    queryKey: ["academic-years-list", currentOrganization?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("academic_years")
+        .select("*")
+        .eq("organization_id", currentOrganization!.id)
+        .order("start_date", { ascending: false });
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  // Set default to current academic year
+  useEffect(() => {
+    if (academicYears && academicYears.length > 0 && !selectedYearId) {
+      const current = academicYears.find((y: any) => y.is_current);
+      if (current) setSelectedYearId(current.id);
+      else setSelectedYearId(academicYears[0].id);
+    }
+  }, [academicYears, selectedYearId]);
 
   // Reset to page 1 when search changes
   const handleSearchChange = (value: string) => {
