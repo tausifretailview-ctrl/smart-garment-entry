@@ -3225,7 +3225,13 @@ export default function BarcodePrinting() {
 
       const blob = new Blob([new Uint8Array(pdfBytes) as any], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `labels-${new Date().toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
       toast.success('PDF opened — print at Actual Size (100%) for accurate labels');
     } catch (err) {
       console.error('PDF generation error:', err);
