@@ -128,7 +128,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   };
 
   const formatCurrencyWithRs = (amount: number) => {
-    return `Rs.${formatCurrencyPlain(amount)}`;
+    return formatCurrencyPlain(amount);
   };
 
   const getItemGstPercent = (item: WholesaleItem): number => {
@@ -430,7 +430,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             {showGSTBreakdown && <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "5.5pt" : "7pt" }}>
               {(cgstAmount + sgstAmount) > 0 ? (cgstAmount + sgstAmount).toFixed(2) : ''}
             </td>}
-            <td style={{ ...cellStyle, textAlign: "right", fontWeight: "900", fontSize: isA5 ? "7pt" : "8pt", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", paddingRight: isA5 ? "5px" : "6px" }}>Rs.{formatCurrencyPlain(subtotal)}</td>
+            <td style={{ ...cellStyle, textAlign: "right", fontWeight: "900", fontSize: isA5 ? "7pt" : "8pt", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", paddingRight: isA5 ? "5px" : "6px" }}>{formatCurrencyPlain(subtotal)}</td>
           </tr>
         </tfoot>
       )}
