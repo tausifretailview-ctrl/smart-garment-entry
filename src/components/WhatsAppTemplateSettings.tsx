@@ -121,45 +121,45 @@ We will update you once it's ready for delivery.
 
 Thank you for your order!`,
 
-  school_fee_reminder: `📢 Fees Reminder
+  school_fee_reminder: `Fees Reminder
 
 Respected Sir/Madam,
 
-🏫 {organization_name}
+{organization_name}
 
-👦 Admission No: {admission_number}
+Student: {student_name}
+Admission No: {admission_number}
+Class: {class_name}
 
-📚 Class: {class_name}
+Pending Fees: {amount}
 
-💰 Pending Fees: {amount}
-
-⏰ Due Date: Please pay at the earliest.
+Due Date: Please pay at the earliest.
 
 Kindly clear the pending fees to avoid inconvenience.
 
-🙏 Thank you for your cooperation.
+Thank you for your cooperation.
 
 {organization_name}`,
 
-  school_fee_receipt: `✅ Fee Receipt
+  school_fee_receipt: `Fee Receipt
 
 Respected Sir/Madam,
 
-🏫 {organization_name}
+{organization_name}
 
-🧾 Receipt No: {receipt_number}
-📅 Date: {receipt_date}
-👤 Student: {student_name}
-👦 Admission No: {admission_number}
-📚 Class: {class_name}
+Receipt No: {receipt_number}
+Date: {receipt_date}
+Student: {student_name}
+Admission No: {admission_number}
+Class: {class_name}
 
-💰 Amount Paid: {amount}
-💳 Payment Mode: {payment_method}
-📊 Balance: {balance_amount}
+Amount Paid: {amount}
+Payment Mode: {payment_method}
+Balance: {balance_amount}
 
 {fee_details}
 
-🙏 Thank you for your payment.
+Thank you for your payment.
 
 {organization_name}`
 };

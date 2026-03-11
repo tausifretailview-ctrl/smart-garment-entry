@@ -378,7 +378,7 @@ const FeeCollection = () => {
       try {
         await sendMessageAsync({
           phone,
-          message: `📢 Fees Reminder\n\nRespected Sir/Madam,\n\n🏫 ${currentOrganization?.name || "School"}\n\n👦 Admission No: ${student.admission_number}\n\n📚 Class: ${student.school_classes?.class_name || "-"}\n\n💰 Pending Fees: Rs.${student.totalDue.toLocaleString("en-IN")}\n\n⏰ Due Date: Please pay at the earliest.\n\nKindly clear the pending fees to avoid inconvenience.\n\n🙏 Thank you for your cooperation.\n\n${currentOrganization?.name || "School"}`,
+          message: `Fees Reminder\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\nPending Fees: Rs.${student.totalDue.toLocaleString("en-IN")}\n\nDue Date: Please pay at the earliest.\n\nKindly clear the pending fees to avoid inconvenience.\n\nThank you for your cooperation.\n\n${currentOrganization?.name || "School"}`,
           templateType: "fee_reminder",
           templateName,
           saleData: {
@@ -399,7 +399,7 @@ const FeeCollection = () => {
       }
     } else {
       const amountStr = `Rs.${student.totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
-      const msg = `📢 Fees Reminder\n\nRespected Sir/Madam,\n\n🏫 ${currentOrganization?.name || "School"}\n\n👦 Admission No: ${student.admission_number}\n\n📚 Class: ${student.school_classes?.class_name || "-"}\n\n💰 Pending Fees: ${amountStr}\n\n⏰ Due Date: Please pay at the earliest.\n\nKindly clear the pending fees to avoid inconvenience.${upiId ? `\n\n💳 *Pay Online*\nUPI ID: ${upiId}\nAmount: ${amountStr}\n\n👉 Click to pay: ${paymentLink}` : ""}\n\n🙏 Thank you for your cooperation.\n\n${currentOrganization?.name || "School"}`;
+      const msg = `Fees Reminder\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\nPending Fees: ${amountStr}\n\nDue Date: Please pay at the earliest.\n\nKindly clear the pending fees to avoid inconvenience.${upiId ? `\n\n*Pay Online*\nUPI ID: ${upiId}\nAmount: ${amountStr}\n\nClick to pay: ${paymentLink}` : ""}\n\nThank you for your cooperation.\n\n${currentOrganization?.name || "School"}`;
       sendWhatsApp(phone, msg);
     }
   };
