@@ -341,20 +341,24 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   );
 
   // Render items table for a specific page
-  const renderItemsTable = (pageItems: GroupedItem[], startIndex: number, isLastPage: boolean) => (
+  const renderItemsTable = (pageItems: GroupedItem[], startIndex: number, isLastPage: boolean) => {
+    const colCount = 6 + (isA5 ? 0 : 1) + (showGSTBreakdown ? 2 : 0);
+    return (
     <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+      <colgroup>
+        <col style={{ width: isA5 ? "20px" : "22px" }} />
+        <col />
+        <col style={{ width: isA5 ? "34px" : "45px" }} />
+        <col style={{ width: isA5 ? "82px" : "80px" }} />
+        <col style={{ width: isA5 ? "28px" : "32px" }} />
+        {!isA5 && <col style={{ width: "45px" }} />}
+        <col style={{ width: isA5 ? "46px" : "45px" }} />
+        {showGSTBreakdown && <col style={{ width: isA5 ? "26px" : "32px" }} />}
+        {showGSTBreakdown && <col style={{ width: isA5 ? "42px" : "48px" }} />}
+        <col style={{ width: isA5 ? "66px" : "65px" }} />
+      </colgroup>
       <thead>
         <tr>
-          <th style={{ ...headerCellStyle, width: isA5 ? "16px" : "22px" }}>SR</th>
-          <th style={{ ...headerCellStyle, width: isA5 ? "80px" : "100px" }}>PARTICULARS</th>
-          <th style={{ ...headerCellStyle, width: isA5 ? "30px" : "45px" }}>HSN</th>
-          <th style={{ ...headerCellStyle, width: isA5 ? "60px" : "80px" }}>SIZE / QTY</th>
-          <th style={{ ...headerCellStyle, width: isA5 ? "26px" : "32px" }}>QTY</th>
-          {!isA5 && <th style={{ ...headerCellStyle, width: "45px" }}>MRP</th>}
-          <th style={{ ...headerCellStyle, width: isA5 ? "38px" : "45px" }}>RATE</th>
-          {showGSTBreakdown && <th style={{ ...headerCellStyle, width: isA5 ? "26px" : "32px" }}>GST%</th>}
-          {showGSTBreakdown && <th style={{ ...headerCellStyle, width: isA5 ? "38px" : "48px" }}>GST AMT</th>}
-          <th style={{ ...headerCellStyle, width: isA5 ? "55px" : "65px" }}>AMOUNT</th>
         </tr>
       </thead>
       <tbody>
