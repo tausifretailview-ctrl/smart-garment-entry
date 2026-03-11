@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,7 +28,8 @@ import {
   RefreshCw,
   Plus,
   Check,
-  Loader2
+  Loader2,
+  Search
 } from "lucide-react";
 import { format } from "date-fns";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
