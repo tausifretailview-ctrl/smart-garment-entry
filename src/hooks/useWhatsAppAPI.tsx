@@ -114,6 +114,9 @@ export interface SendMessageParams {
   documentUrl?: string;
   documentFilename?: string;
   documentCaption?: string;
+  // Image attachment (e.g., logo)
+  imageUrl?: string;
+  imageCaption?: string;
   // Document header template (PDF embedded in template)
   useDocumentHeaderTemplate?: boolean;
   documentHeaderTemplateName?: string;
