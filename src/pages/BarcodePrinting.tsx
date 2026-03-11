@@ -3189,6 +3189,50 @@ export default function BarcodePrinting() {
     }, 300);
   };
 
+  const handleExportPerfectPDF = async () => {
+    const hasLabels = labelItems.some((item) => item.qty > 0);
+    if (!hasLabels) {
+      toast.error('Please add at least one label with quantity > 0');
+      return;
+    }
+    if (isThermal1Up()) {
+      toast.error('Perfect PDF is for A4 sheet labels only');
+      return;
+    }
+    toast.info('Generating Perfect PDF...');
+    try {
+      const dimensions = sheetType === 'custom'
+        ? { cols: customCols, rows: customRows, width: customWidth, height: customHeight, gap: customGap }
+        : {
+            cols: sheetPresets[sheetType].cols,
+            rows: (sheetPresets[sheetType] as any).rows || 10,
+            width: parseInt(sheetPresets[sheetType].width),
+            height: parseInt(sheetPresets[sheetType].height),
+            gap: parseInt(sheetPresets[sheetType].gap),
+          };
+
+      const pdfBytes = await generateA4LabelPdf(labelItems, {
+        labelWidthMm: dimensions.width,
+        labelHeightMm: dimensions.height,
+        cols: dimensions.cols,
+        rows: dimensions.rows,
+        gapMm: dimensions.gap,
+        topOffsetMm: topOffset,
+        leftOffsetMm: leftOffset,
+        labelConfig,
+        businessName,
+      });
+
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      toast.success('PDF opened — print at Actual Size (100%) for accurate labels');
+    } catch (err) {
+      console.error('PDF generation error:', err);
+      toast.error('Failed to generate PDF');
+    }
+  };
+
   const handleExportPDF = async () => {
     const hasLabels = labelItems.some((item) => item.qty > 0);
     if (!hasLabels) {
