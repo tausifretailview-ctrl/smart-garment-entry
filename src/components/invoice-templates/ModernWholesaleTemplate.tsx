@@ -398,7 +398,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         ))}
         {/* Fill empty rows only on last page to maintain layout */}
         {isLastPage && Array.from({ length: Math.max(0, effectiveMinItemRows - pageItems.length) }).map((_, i) => (
-          <tr key={`empty-${i}`} style={{ height: isA5 ? "18px" : "25px" }}>
+          <tr key={`empty-${i}`} style={{ height: isA5 ? "16px" : "25px" }}>
             <td style={cellStyle}>&nbsp;</td>
             <td style={cellStyle}>&nbsp;</td>
             <td style={cellStyle}>&nbsp;</td>
