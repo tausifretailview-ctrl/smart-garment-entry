@@ -3223,7 +3223,7 @@ export default function BarcodePrinting() {
         businessName,
       });
 
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const blob = new Blob([pdfBytes.buffer], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank');
       toast.success('PDF opened — print at Actual Size (100%) for accurate labels');
