@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,8 @@ import {
   Plus, 
   ListOrdered,
   Wallet,
-  ChevronRight
+  ChevronRight,
+  RefreshCw
 } from "lucide-react";
 import { format } from "date-fns";
 
