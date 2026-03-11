@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,7 +28,8 @@ import {
   RefreshCw,
   Plus,
   Check,
-  Loader2
+  Loader2,
+  Search
 } from "lucide-react";
 import { format } from "date-fns";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
@@ -60,6 +62,7 @@ const SalesmanOrders = () => {
   const [activeTab, setActiveTab] = useState("today");
   const [orderToAccept, setOrderToAccept] = useState<SaleOrder | null>(null);
   const [isAccepting, setIsAccepting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if (currentOrganization?.id && user?.id) {
@@ -68,6 +71,8 @@ const SalesmanOrders = () => {
   }, [currentOrganization?.id, user?.id, activeTab]);
 
   const fetchOrders = async () => {
+    setLoading(true);
+    setOrders([]);
     try {
       let query = supabase
         .from("sale_orders")
@@ -224,8 +229,15 @@ const SalesmanOrders = () => {
         </Card>
       </div>
 
-      {/* Tabs */}
+      {/* Search + Tabs */}
       <div className="flex-1 p-4">
+        {/* Search bar */}
+        <div className="relative mb-3">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Search by order # or customer..." value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)} className="pl-10 h-10" />
+        </div>
+
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="w-full">
             <TabsTrigger value="today" className="flex-1">Today</TabsTrigger>
@@ -234,84 +246,77 @@ const SalesmanOrders = () => {
           </TabsList>
 
           <TabsContent value={activeTab} className="mt-4 space-y-3">
-            {orders.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <ShoppingCart className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No orders found</p>
-                <Button className="mt-4" onClick={() => navigate("/salesman/order/new")}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create New Order
-                </Button>
-              </div>
-            ) : (
-              orders.map((order) => (
-                <Card key={order.id} className="border-0 shadow-sm">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <p className="font-semibold">{order.order_number}</p>
-                        <p className="text-sm text-muted-foreground">{order.customer_name}</p>
+            {(() => {
+              const displayOrders = orders.filter(o =>
+                !searchQuery ||
+                o.order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                o.customer_name.toLowerCase().includes(searchQuery.toLowerCase())
+              );
+              return displayOrders.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <ShoppingCart className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No orders found</p>
+                  <Button className="mt-4" onClick={() => navigate("/salesman/order/new")}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create New Order
+                  </Button>
+                </div>
+              ) : (
+                displayOrders.map((order) => (
+                  <Card key={order.id} className={cn(
+                    "border-0 shadow-sm overflow-hidden",
+                    order.customer_accepted && "border-l-4 border-l-green-500"
+                  )}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <p className="font-semibold">{order.order_number}</p>
+                          <p className="text-sm text-muted-foreground">{order.customer_name}</p>
+                        </div>
+                        <Badge className={getStatusColor(order.status)}>
+                          {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                        </Badge>
                       </div>
-                      <Badge className={getStatusColor(order.status)}>
-                        {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                      </Badge>
-                    </div>
 
-                    <div className="flex items-center justify-between text-sm text-muted-foreground mb-3">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {format(new Date(order.order_date), "dd MMM yyyy, hh:mm a")}
-                      </span>
-                      <span className="font-semibold text-foreground">
-                        ₹{order.net_amount.toLocaleString("en-IN")}
-                      </span>
-                    </div>
+                      <div className="flex items-center justify-between text-sm text-muted-foreground mb-3">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {format(new Date(order.order_date), "dd MMM yyyy, hh:mm a")}
+                        </span>
+                        <span className="font-semibold text-foreground">
+                          ₹{order.net_amount.toLocaleString("en-IN")}
+                        </span>
+                      </div>
 
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => navigate(`/salesman/order/${order.id}`)}
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        View
-                      </Button>
-                      {order.customer_accepted ? (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="flex-1 !bg-gray-500 hover:!bg-gray-500 !text-white !opacity-100 cursor-not-allowed"
-                          disabled
-                        >
-                          <Check className="h-4 w-4 mr-1" />
-                          Accepted
+                      <div className="space-y-2">
+                        {/* Full-width View button */}
+                        <Button variant="outline" className="w-full h-10"
+                          onClick={() => navigate(`/salesman/order/${order.id}`)}>
+                          <Eye className="h-4 w-4 mr-2" /> View Order Details
                         </Button>
-                      ) : (
-                        <Button
-                          variant="default"
-                          size="sm"
-                          className="flex-1 bg-blue-800 hover:bg-blue-900 text-white"
-                          onClick={() => setOrderToAccept(order)}
-                        >
-                          Accept
-                        </Button>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => shareOrder(order)}
-                        disabled={!order.customer_phone}
-                      >
-                        <Share2 className="h-4 w-4 mr-1" />
-                        Share
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
+                        {/* Accept + Share in one row */}
+                        <div className="flex gap-2">
+                          {order.customer_accepted ? (
+                            <Button variant="secondary" className="flex-1 h-10 bg-gray-400 text-white cursor-not-allowed" disabled>
+                              <Check className="h-4 w-4 mr-1" /> Accepted
+                            </Button>
+                          ) : (
+                            <Button className="flex-1 h-10 bg-blue-700 hover:bg-blue-800 text-white"
+                              onClick={() => setOrderToAccept(order)}>
+                              Accept Order
+                            </Button>
+                          )}
+                          <Button variant="outline" className="flex-1 h-10"
+                            onClick={() => shareOrder(order)} disabled={!order.customer_phone}>
+                            <Share2 className="h-4 w-4 mr-1" /> Share
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              );
+            })()}
           </TabsContent>
         </Tabs>
       </div>

@@ -425,7 +425,7 @@ const SalesmanCustomerAccount = () => {
       </div>
 
       {/* Actions */}
-      <div className="p-4 bg-background border-t flex gap-3 safe-area-pb">
+      <div className="p-4 bg-background border-t flex gap-3" style={{ paddingBottom: "env(safe-area-inset-bottom, 16px)" }}>
         <Button
           variant="outline"
           className="flex-1 h-12"

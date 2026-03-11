@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -30,6 +30,7 @@ import { cn, sortSearchResults } from "@/lib/utils";
 import { SalesmanSizeGridDialog } from "@/components/SalesmanSizeGridDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { DraftResumeDialog } from "@/components/DraftResumeDialog";
+import { Textarea } from "@/components/ui/textarea";
 
 interface Customer {
   id: string;
@@ -92,6 +93,7 @@ const SalesmanOrderEntry = () => {
   const [orderNumber, setOrderNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showDraftDialog, setShowDraftDialog] = useState(false);
 
   // Size Grid state
@@ -255,20 +257,28 @@ const SalesmanOrderEntry = () => {
       .limit(20);
 
     if (data) {
-      // Simple balance fetch
-      const customersWithBalance = await Promise.all(
-        data.map(async (c) => {
-          const { data: sales } = await supabase
-            .from("sales")
-            .select("net_amount, paid_amount")
-            .eq("customer_id", c.id)
-            .is("deleted_at", null);
+      // Batch balance fetch — single query instead of N+1
+      const customerIds = data.map(c => c.id);
+      const { data: allSales } = await supabase
+        .from("sales")
+        .select("customer_id, net_amount, paid_amount")
+        .eq("organization_id", currentOrganization!.id)
+        .is("deleted_at", null)
+        .in("customer_id", customerIds);
 
-          const totalSales = sales?.reduce((s, sale) => s + (sale.net_amount || 0), 0) || 0;
-          const totalPaid = sales?.reduce((s, sale) => s + (sale.paid_amount || 0), 0) || 0;
-          return { ...c, balance: (c.opening_balance || 0) + totalSales - totalPaid };
-        })
-      );
+      const salesByCustomer = new Map<string, { net: number; paid: number }>();
+      (allSales || []).forEach(s => {
+        const cur = salesByCustomer.get(s.customer_id!) || { net: 0, paid: 0 };
+        cur.net += s.net_amount || 0;
+        cur.paid += s.paid_amount || 0;
+        salesByCustomer.set(s.customer_id!, cur);
+      });
+
+      const customersWithBalance = data.map(c => ({
+        ...c,
+        balance: (c.opening_balance || 0) + (salesByCustomer.get(c.id)?.net || 0)
+                - (salesByCustomer.get(c.id)?.paid || 0),
+      }));
       setCustomers(customersWithBalance);
     }
   }, [currentOrganization?.id]);
@@ -635,8 +645,8 @@ const SalesmanOrderEntry = () => {
               const val = e.target.value;
               setProductSearch(val);
               setShowProductSearch(true);
-              if ((window as any).__salesmanSearchTimer) clearTimeout((window as any).__salesmanSearchTimer);
-              (window as any).__salesmanSearchTimer = setTimeout(() => searchProducts(val), 300);
+              if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+              searchTimerRef.current = setTimeout(() => searchProducts(val), 300);
             }}
             onFocus={() => setShowProductSearch(true)}
             className="pl-10 h-12"
@@ -733,28 +743,28 @@ const SalesmanOrderEntry = () => {
                   <Button
                     variant="outline"
                     size="icon"
-                    className="h-7 w-7"
+                    className="h-10 w-10 rounded-lg"
                     onClick={() => updateQuantity(item.id, -1)}
                     disabled={item.quantity <= 1}
                   >
-                    <Minus className="h-3 w-3" />
+                    <Minus className="h-4 w-4" />
                   </Button>
-                  <span className="w-8 text-center font-semibold text-sm">{item.quantity}</span>
+                  <span className="w-10 text-center font-bold text-base tabular-nums">{item.quantity}</span>
                   <Button
                     variant="outline"
                     size="icon"
-                    className="h-7 w-7"
+                    className="h-10 w-10 rounded-lg"
                     onClick={() => updateQuantity(item.id, 1)}
                     disabled={!item.isCustomSize && item.quantity >= item.variant.stock_qty}
                   >
-                    <Plus className="h-3 w-3" />
+                    <Plus className="h-4 w-4" />
                   </Button>
                 </div>
                 
                 {/* Total & Delete */}
                 <p className="font-semibold text-sm w-16 text-right">₹{item.line_total.toLocaleString("en-IN")}</p>
-                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeItem(item.id)}>
-                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 text-destructive" onClick={() => removeItem(item.id)}>
+                  <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             ))}
@@ -764,7 +774,19 @@ const SalesmanOrderEntry = () => {
 
       {/* Footer with Totals and Actions */}
       {orderItems.length > 0 && (
-        <div className="p-4 bg-background border-t space-y-4 safe-area-pb">
+        <div className="p-4 bg-background border-t space-y-4" style={{ paddingBottom: "env(safe-area-inset-bottom, 16px)" }}>
+          {/* Notes Input */}
+          <div>
+            <Label className="text-xs text-muted-foreground">Order Notes (optional)</Label>
+            <Textarea
+              placeholder="Add any notes for this order..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="resize-none h-16 text-sm mt-1"
+              rows={2}
+            />
+          </div>
+
           <div className="space-y-1">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Subtotal ({orderItems.length} items)</span>
@@ -775,8 +797,8 @@ const SalesmanOrderEntry = () => {
               <span>₹{gstAmount.toLocaleString("en-IN")}</span>
             </div>
             <Separator />
-            <div className="flex justify-between font-bold text-lg">
-              <span>Total</span>
+            <div className="flex justify-between font-bold text-lg text-primary">
+              <span>Total <span className="text-xs font-normal text-muted-foreground">(incl. GST)</span></span>
               <span>₹{netAmount.toLocaleString("en-IN")}</span>
             </div>
           </div>
@@ -805,7 +827,7 @@ const SalesmanOrderEntry = () => {
 
       {/* Customer Search Dialog */}
       <Dialog open={showCustomerSearch} onOpenChange={setShowCustomerSearch}>
-        <DialogContent className="max-w-md max-h-[80vh]">
+        <DialogContent className="max-w-md max-h-[60dvh] sm:max-h-[80vh]">
           <DialogHeader>
             <DialogTitle>Select Customer</DialogTitle>
           </DialogHeader>

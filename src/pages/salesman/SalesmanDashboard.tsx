@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,8 @@ import {
   Plus, 
   ListOrdered,
   Wallet,
-  ChevronRight
+  ChevronRight,
+  RefreshCw
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -38,6 +40,7 @@ const SalesmanDashboard = () => {
   const { navigate, getOrgPath } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
+  const { employeeName } = useFieldSalesAccess();
   const [stats, setStats] = useState<DashboardStats>({
     todayOrders: 0,
     pendingOrders: 0,
@@ -122,9 +125,14 @@ const SalesmanDashboard = () => {
   return (
     <div className="p-3 space-y-3">
       {/* Welcome */}
-      <div>
-        <h1 className="text-lg font-bold text-foreground">Welcome back!</h1>
-        <p className="text-xs text-muted-foreground">{format(new Date(), "EEEE, dd MMM yyyy")}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-bold text-foreground">Hello, {employeeName?.split(' ')[0] || 'Salesman'}! 👋</h1>
+          <p className="text-xs text-muted-foreground">{format(new Date(), "EEEE, dd MMM yyyy")}</p>
+        </div>
+        <Button variant="ghost" size="icon" onClick={fetchDashboardData} className="text-muted-foreground">
+          <RefreshCw className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Stats Grid - Orange gradient cards */}
