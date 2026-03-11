@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
+import { useWebUsbPrint } from '@/hooks/useWebUsbPrint';
+import { Usb } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
