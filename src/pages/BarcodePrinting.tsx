@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { encodePurchasePrice, getEffectivePurchasePrice } from "@/utils/purchaseCodeEncoder";
+import { generateA4LabelPdf } from '@/utils/a4LabelPdf';
 import {
   DndContext,
   closestCenter,
