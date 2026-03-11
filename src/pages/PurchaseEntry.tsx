@@ -375,7 +375,124 @@ const PurchaseEntry = () => {
     enabled: !!currentOrganization?.id && !isEditMode,
   });
 
-  // Restore saved purchase state from sessionStorage if available
+  // Fetch all purchase bill IDs for navigation
+  const { data: allBillIds } = useQuery({
+    queryKey: ['all-purchase-bill-ids', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const { data, error } = await supabase
+        .from('purchase_bills')
+        .select('id, software_bill_no')
+        .eq('organization_id', currentOrganization.id)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 60000,
+  });
+
+  // Load a purchase bill by ID for navigation
+  const loadBillById = useCallback(async (billId: string) => {
+    if (!currentOrganization?.id) return;
+    setIsLoadingNavBill(true);
+    try {
+      const { data: existingBill, error: billError } = await supabase
+        .from('purchase_bills')
+        .select('*')
+        .eq('id', billId)
+        .single();
+      if (billError) throw billError;
+
+      setBillData({
+        supplier_id: existingBill.supplier_id || '',
+        supplier_name: existingBill.supplier_name,
+        supplier_invoice_no: existingBill.supplier_invoice_no || '',
+      });
+      setSoftwareBillNo(existingBill.software_bill_no || '');
+      setBillDate(new Date(existingBill.bill_date));
+      setRoundOff(Number(existingBill.round_off) || 0);
+      setOtherCharges(Number(existingBill.other_charges) || 0);
+      setDiscountAmount(Number(existingBill.discount_amount) || 0);
+
+      const { data: itemsData, error: itemsError } = await supabase
+        .from('purchase_items')
+        .select('*')
+        .eq('bill_id', billId);
+      if (itemsError) throw itemsError;
+
+      const productIds = [...new Set(itemsData.map((item: any) => item.product_id).filter(Boolean))];
+      let productDetailsMap = new Map<string, any>();
+      if (productIds.length > 0) {
+        const { data: productsData } = await supabase
+          .from('products')
+          .select('id, brand, category, style, color')
+          .in('id', productIds);
+        if (productsData) {
+          productsData.forEach((p: any) => {
+            productDetailsMap.set(p.id, { brand: p.brand || '', category: p.category || '', style: p.style || '', color: p.color || '' });
+          });
+        }
+      }
+
+      const loadedItems: LineItem[] = itemsData.map((item: any) => {
+        const pd = productDetailsMap.get(item.product_id);
+        return {
+          temp_id: item.id,
+          product_id: item.product_id,
+          sku_id: item.sku_id || '',
+          product_name: item.product_name || '',
+          brand: item.brand || pd?.brand || '',
+          category: item.category || pd?.category || '',
+          color: item.color || pd?.color || '',
+          style: item.style || pd?.style || '',
+          size: item.size,
+          qty: item.qty,
+          pur_price: Number(item.pur_price),
+          sale_price: Number(item.sale_price),
+          mrp: Number(item.mrp) || 0,
+          gst_per: item.gst_per,
+          hsn_code: item.hsn_code || '',
+          barcode: item.barcode || '',
+          discount_percent: 0,
+          line_total: Number(item.line_total),
+        };
+      });
+
+      setLineItems(loadedItems);
+      setOriginalLineItems(loadedItems);
+      setIsEditMode(true);
+      setEditingBillId(billId);
+    } catch (err: any) {
+      console.error('Failed to load bill:', err);
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to load purchase bill' });
+    } finally {
+      setIsLoadingNavBill(false);
+    }
+  }, [currentOrganization?.id, toast]);
+
+  const handleLastBill = useCallback(() => {
+    if (!allBillIds || allBillIds.length === 0) return;
+    setNavBillIndex(0);
+    loadBillById(allBillIds[0].id);
+  }, [allBillIds, loadBillById]);
+
+  const handlePreviousBill = useCallback(() => {
+    if (!allBillIds || navBillIndex === null) return;
+    const newIndex = Math.min(navBillIndex + 1, allBillIds.length - 1);
+    setNavBillIndex(newIndex);
+    loadBillById(allBillIds[newIndex].id);
+  }, [allBillIds, navBillIndex, loadBillById]);
+
+  const handleNextBill = useCallback(() => {
+    if (!allBillIds || navBillIndex === null) return;
+    const newIndex = Math.max(navBillIndex - 1, 0);
+    setNavBillIndex(newIndex);
+    loadBillById(allBillIds[newIndex].id);
+  }, [allBillIds, navBillIndex, loadBillById]);
+
   useEffect(() => {
     const savedState = sessionStorage.getItem('purchaseEntryState');
     if (savedState) {
