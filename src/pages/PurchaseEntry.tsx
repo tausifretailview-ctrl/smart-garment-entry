@@ -2442,6 +2442,11 @@ const PurchaseEntry = () => {
             {softwareBillNo}
           </span>
         )}
+        {navBillIndex !== null && allBillIds && (
+          <span className="text-white/50 text-xs hidden lg:inline">
+            {navBillIndex + 1} of {allBillIds.length}
+          </span>
+        )}
 
         {/* Last bill info pill - center */}
         {!isEditMode && lastPurchaseBill && (
@@ -2463,7 +2468,27 @@ const PurchaseEntry = () => {
         )}
 
         {/* Nav + Print on the right */}
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex items-center gap-1 ml-auto">
+          {/* Navigation buttons */}
+          <Button variant="ghost" size="sm" onClick={handleLastBill}
+            disabled={isLoadingNavBill || !allBillIds?.length}
+            className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 w-8 p-0"
+            title="Last Record">
+            <SkipBack className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handlePreviousBill}
+            disabled={isLoadingNavBill || navBillIndex === null || navBillIndex >= (allBillIds?.length || 0) - 1}
+            className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 w-8 p-0"
+            title="Previous">
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleNextBill}
+            disabled={isLoadingNavBill || navBillIndex === null || navBillIndex <= 0}
+            className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 w-8 p-0"
+            title="Next">
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <div className="w-px h-6 bg-white/15 mx-1" />
           <InlineTotalQty
             totalQty={lineItems.reduce((sum, item) => sum + item.qty, 0)}
             itemCount={lineItems.filter(i => i.product_id).length}
