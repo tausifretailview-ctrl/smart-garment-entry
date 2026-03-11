@@ -21,8 +21,8 @@ const getFieldContent = (key: FieldKey, item: LabelItem, customTextValue?: strin
     case "color": return item.color || "";
     case "style": return item.style || "";
     case "size": return `Size: ${item.size || ""}`;
-    case "price": return `₹${item.sale_price}`;
-    case "mrp": return item.mrp ? `MRP: ₹${item.mrp}` : "";
+    case "price": return `Rs.${item.sale_price}`;
+    case "mrp": return item.mrp ? `MRP: Rs.${item.mrp}` : "";
     case "barcodeText": return item.barcode || "";
     case "billNumber": return item.bill_number || "";
     case "supplierCode": return item.supplier_code || "";

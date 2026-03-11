@@ -2614,9 +2614,9 @@ export default function BarcodePrinting() {
         case 'style': 
           return item.style || '';
         case 'price': 
-          return `₹${item.sale_price}`;
+          return `Rs.${item.sale_price}`;
         case 'mrp':
-          return item.mrp ? `MRP ₹${item.mrp}` : '';
+          return item.mrp ? `MRP Rs.${item.mrp}` : '';
         case 'barcode':
           return barcode;
         case 'barcodeText': 
