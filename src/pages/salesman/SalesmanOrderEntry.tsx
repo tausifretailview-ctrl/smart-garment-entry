@@ -257,20 +257,28 @@ const SalesmanOrderEntry = () => {
       .limit(20);
 
     if (data) {
-      // Simple balance fetch
-      const customersWithBalance = await Promise.all(
-        data.map(async (c) => {
-          const { data: sales } = await supabase
-            .from("sales")
-            .select("net_amount, paid_amount")
-            .eq("customer_id", c.id)
-            .is("deleted_at", null);
+      // Batch balance fetch — single query instead of N+1
+      const customerIds = data.map(c => c.id);
+      const { data: allSales } = await supabase
+        .from("sales")
+        .select("customer_id, net_amount, paid_amount")
+        .eq("organization_id", currentOrganization!.id)
+        .is("deleted_at", null)
+        .in("customer_id", customerIds);
 
-          const totalSales = sales?.reduce((s, sale) => s + (sale.net_amount || 0), 0) || 0;
-          const totalPaid = sales?.reduce((s, sale) => s + (sale.paid_amount || 0), 0) || 0;
-          return { ...c, balance: (c.opening_balance || 0) + totalSales - totalPaid };
-        })
-      );
+      const salesByCustomer = new Map<string, { net: number; paid: number }>();
+      (allSales || []).forEach(s => {
+        const cur = salesByCustomer.get(s.customer_id!) || { net: 0, paid: 0 };
+        cur.net += s.net_amount || 0;
+        cur.paid += s.paid_amount || 0;
+        salesByCustomer.set(s.customer_id!, cur);
+      });
+
+      const customersWithBalance = data.map(c => ({
+        ...c,
+        balance: (c.opening_balance || 0) + (salesByCustomer.get(c.id)?.net || 0)
+                - (salesByCustomer.get(c.id)?.paid || 0),
+      }));
       setCustomers(customersWithBalance);
     }
   }, [currentOrganization?.id]);
