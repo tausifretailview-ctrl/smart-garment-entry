@@ -461,7 +461,7 @@ function DraggablePreviewField({ fieldKey, labelConfig, businessName, sampleItem
         case 'style':
           return sampleItem.style || '';
         case 'price':
-          return `MRP: ₹${sampleItem.sale_price}`;
+          return `MRP: Rs.${sampleItem.sale_price}`;
         case 'barcodeText':
           return sampleItem.barcode || '';
         case 'billNumber':
