@@ -563,6 +563,96 @@ const DailyCashierReport = () => {
         return "DAILY CASHIER REPORT";
     }
   };
+  const isMobile = useIsMobile();
+
+  if (isMobile) {
+    return (
+      <div className="flex flex-col min-h-screen bg-muted/30 pb-24">
+        <MobilePageHeader title="Cashier Report" backTo="/" subtitle={getPeriodLabel()} />
+
+        {/* Date navigator */}
+        <div className="flex items-center gap-2 px-4 py-3">
+          <button onClick={() => setSelectedDate(d => subDays(d, 1))}
+            className="w-10 h-10 bg-card rounded-xl border border-border flex items-center justify-center active:scale-90 touch-manipulation">
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button onClick={() => setSelectedDate(new Date())}
+            className="flex-1 h-10 bg-primary/10 rounded-xl text-xs font-semibold text-primary active:scale-95 touch-manipulation">
+            Today
+          </button>
+          <button onClick={() => setSelectedDate(d => addDays(d, 1))}
+            className="w-10 h-10 bg-card rounded-xl border border-border flex items-center justify-center active:scale-90 touch-manipulation">
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="px-4 space-y-4 pb-4">
+          {/* Hero sales card */}
+          <div className="bg-primary rounded-2xl p-4 text-primary-foreground">
+            <p className="text-xs font-medium opacity-80">Total Sales</p>
+            {isLoading ? <Skeleton className="h-8 w-32 bg-primary-foreground/20 mt-1" />
+              : <p className="text-2xl font-bold tabular-nums mt-1">{formatCurrency(totals.totalSale)}</p>}
+            <p className="text-xs opacity-70 mt-1">{(salesData?.length || 0)} invoices</p>
+          </div>
+
+          {/* Payment breakdown */}
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              {label:"Cash", value: totals.cashSale, color:"text-emerald-600", bg:"bg-emerald-50"},
+              {label:"Card", value: totals.cardSale, color:"text-blue-600", bg:"bg-blue-50"},
+              {label:"UPI", value: totals.upiSale, color:"text-purple-600", bg:"bg-purple-50"},
+            ].map((p) => (
+              <div key={p.label} className={cn("rounded-xl p-3", p.bg)}>
+                <p className="text-[10px] font-medium text-muted-foreground">{p.label}</p>
+                {isLoading ? <Skeleton className="h-5 w-16 mt-1" />
+                  : <p className={cn("text-sm font-bold tabular-nums mt-0.5", p.color)}>{formatCurrency(p.value)}</p>}
+              </div>
+            ))}
+          </div>
+
+          {/* Outstanding */}
+          <div className="bg-card rounded-2xl border border-border/40 p-4">
+            <p className="text-xs font-semibold text-foreground mb-3">Outstanding</p>
+            <div className="space-y-2">
+              {[
+                {label:"Balance Pending", value: totals.totalBalance, color:"text-amber-600"},
+                {label:"Credit Sales", value: totals.creditSale, color:"text-rose-600"},
+                {label:"Receipt Collection", value: totals.rcpTotalCollection, color:"text-emerald-600"},
+              ].map((r) => (
+                <div key={r.label} className="flex justify-between items-center">
+                  <p className="text-xs text-muted-foreground">{r.label}</p>
+                  <p className={cn("text-sm font-bold tabular-nums", r.color)}>{formatCurrency(r.value)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Today's invoices */}
+          <div className="bg-card rounded-2xl border border-border/40 p-4">
+            <p className="text-xs font-semibold text-foreground mb-3">Invoices</p>
+            <div className="space-y-2">
+              {isLoading ? Array.from({length:4}).map((_,i) => (
+                <Skeleton key={i} className="h-10 rounded-lg" />
+              )) : (salesData || []).slice(0, 30).map((sale: any) => (
+                <div key={sale.id} className="flex justify-between items-center py-1.5 border-b border-border/30 last:border-0">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-foreground">{sale.sale_number}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{sale.customer_name || 'Walk-in'}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-bold tabular-nums">₹{(sale.net_amount||0).toLocaleString("en-IN")}</p>
+                    <p className="text-[10px] text-muted-foreground">{sale.payment_method}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <MobileBottomNav />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-6 print:p-2">
