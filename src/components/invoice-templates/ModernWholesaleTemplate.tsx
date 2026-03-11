@@ -119,12 +119,16 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   const colors = colorSchemes[colorScheme] || colorSchemes.blue;
   const font = fontFamilyMap[fontFamily] || fontFamilyMap.inter;
 
-  // Use "Rs." instead of ₹ for Windows 7 compatibility (₹ renders as a block/line on older systems)
-  const formatCurrency = (amount: number) => {
-    return `Rs.${amount.toLocaleString("en-IN", {
+  // Use "Rs." for summary labels, plain number for table cells
+  const formatCurrencyPlain = (amount: number) => {
+    return amount.toLocaleString("en-IN", {
       minimumFractionDigits: amountWithDecimal ? 2 : 0,
       maximumFractionDigits: 2,
-    })}`;
+    });
+  };
+
+  const formatCurrencyWithRs = (amount: number) => {
+    return `Rs.${formatCurrencyPlain(amount)}`;
   };
 
   const getItemGstPercent = (item: WholesaleItem): number => {
@@ -387,12 +391,12 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "6.5pt" : "7.5pt" }}>{item.rate.toFixed(2)}</td>
             {showGSTBreakdown && <td style={{ ...cellStyle, textAlign: "center", fontSize: isA5 ? "6.5pt" : "7.5pt" }}>{item.gstPercent}%</td>}
             {showGSTBreakdown && (
-              <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "6pt" : "7pt" }}>
-                 {item.gstAmount > 0 ? `Rs.${item.gstAmount.toFixed(2)}` : '-'}
+               <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "6pt" : "7pt" }}>
+                 {item.gstAmount > 0 ? item.gstAmount.toFixed(2) : '-'}
                </td>
             )}
-            <td style={{ ...cellStyle, textAlign: "right", fontWeight: "700", fontSize: isA5 ? "7pt" : "7.5pt", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-              {formatCurrency(item.totalAmount)}
+            <td style={{ ...cellStyle, textAlign: "right", fontWeight: "700", fontSize: isA5 ? "7pt" : "7.5pt", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", paddingRight: isA5 ? "5px" : "6px" }}>
+              {formatCurrencyPlain(item.totalAmount)}
             </td>
           </tr>
         ))}
@@ -424,9 +428,9 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <td style={cellStyle}>&nbsp;</td>
             {showGSTBreakdown && <td style={cellStyle}>&nbsp;</td>}
             {showGSTBreakdown && <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "5.5pt" : "7pt" }}>
-              {(cgstAmount + sgstAmount) > 0 ? `Rs.${(cgstAmount + sgstAmount).toFixed(2)}` : ''}
+              {(cgstAmount + sgstAmount) > 0 ? (cgstAmount + sgstAmount).toFixed(2) : ''}
             </td>}
-            <td style={{ ...cellStyle, textAlign: "right", fontWeight: "900", fontSize: isA5 ? "7pt" : "8pt", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{formatCurrency(subtotal)}</td>
+            <td style={{ ...cellStyle, textAlign: "right", fontWeight: "900", fontSize: isA5 ? "7pt" : "8pt", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", paddingRight: isA5 ? "5px" : "6px" }}>Rs.{formatCurrencyPlain(subtotal)}</td>
           </tr>
         </tfoot>
       )}
@@ -472,7 +476,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           </div>
         )}
 
-        <div style={{ width: isA5 ? "190px" : "280px", flexShrink: 0, padding: isA5 ? "3px 4px" : "8px 10px", background: colors.light, boxSizing: "border-box", overflow: "visible" }}>
+        <div style={{ width: isA5 ? "180px" : "280px", flexShrink: 0, padding: isA5 ? "3px 6px 3px 4px" : "8px 10px", background: colors.light, boxSizing: "border-box", overflow: "visible" }}>
           <table style={{ width: "100%", fontSize: isA5 ? "6.5pt" : "9pt", fontWeight: "500", borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}>
             <colgroup>
               <col style={{ width: "45%" }} />
@@ -481,36 +485,36 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <tbody>
               <tr>
                 <td style={{ padding: isA5 ? "1px 2px 1px 0" : "4px 4px 4px 0", whiteSpace: "nowrap" }}>Sub Total:</td>
-                <td style={{ textAlign: "right", padding: isA5 ? "1px 0 1px 2px" : "4px 0 4px 4px" }}>{formatCurrency(subtotal)}</td>
+                <td style={{ textAlign: "right", padding: isA5 ? "1px 4px 1px 2px" : "4px 4px 4px 4px" }}>{formatCurrencyWithRs(subtotal)}</td>
               </tr>
               {discount > 0 && (
                 <tr>
                   <td style={{ padding: isA5 ? "1px 2px 1px 0" : "4px 4px 4px 0", whiteSpace: "nowrap" }}>Total Discount:</td>
-                  <td style={{ textAlign: "right", padding: isA5 ? "1px 0 1px 2px" : "4px 0 4px 4px" }}>-{formatCurrency(discount)}</td>
+                  <td style={{ textAlign: "right", padding: isA5 ? "1px 4px 1px 2px" : "4px 4px 4px 4px" }}>-{formatCurrencyWithRs(discount)}</td>
                 </tr>
               )}
               <tr>
                 <td style={{ padding: isA5 ? "1px 2px 1px 0" : "4px 4px 4px 0", whiteSpace: "nowrap" }}>Taxable Amt:</td>
-                <td style={{ textAlign: "right", padding: isA5 ? "1px 0 1px 2px" : "4px 0 4px 4px" }}>{formatCurrency(calculatedTaxableAmount)}</td>
+                <td style={{ textAlign: "right", padding: isA5 ? "1px 4px 1px 2px" : "4px 4px 4px 4px" }}>{formatCurrencyWithRs(calculatedTaxableAmount)}</td>
               </tr>
               {cgstAmount > 0 && (
                 <tr>
                   <td style={{ padding: isA5 ? "1px 2px 1px 0" : "4px 4px 4px 0", whiteSpace: "nowrap" }}>CGST:</td>
-                  <td style={{ textAlign: "right", padding: isA5 ? "1px 0 1px 2px" : "4px 0 4px 4px" }}>{formatCurrency(cgstAmount)}</td>
+                  <td style={{ textAlign: "right", padding: isA5 ? "1px 4px 1px 2px" : "4px 4px 4px 4px" }}>{formatCurrencyWithRs(cgstAmount)}</td>
                 </tr>
               )}
               {sgstAmount > 0 && (
                 <tr>
                   <td style={{ padding: isA5 ? "1px 2px 1px 0" : "4px 4px 4px 0", whiteSpace: "nowrap" }}>SGST:</td>
-                  <td style={{ textAlign: "right", padding: isA5 ? "1px 0 1px 2px" : "4px 0 4px 4px" }}>{formatCurrency(sgstAmount)}</td>
+                  <td style={{ textAlign: "right", padding: isA5 ? "1px 4px 1px 2px" : "4px 4px 4px 4px" }}>{formatCurrencyWithRs(sgstAmount)}</td>
                 </tr>
               )}
               <tr style={{ fontSize: isA5 ? "7.5pt" : "11pt", color: colors.primary }}>
                 <td style={{ paddingTop: isA5 ? "3px" : "6px", borderTop: "1.5px solid #374151", whiteSpace: "nowrap", fontWeight: "600" }}>GRAND TOTAL:</td>
                 <td
-                  style={{ paddingTop: isA5 ? "3px" : "6px", borderTop: "1.5px solid #374151", textAlign: "right", fontWeight: "700" }}
+                  style={{ paddingTop: isA5 ? "3px" : "6px", borderTop: "1.5px solid #374151", textAlign: "right", fontWeight: "700", paddingRight: isA5 ? "4px" : "4px" }}
                 >
-                  {formatCurrency(grandTotal)}
+                  {formatCurrencyWithRs(grandTotal)}
                 </td>
               </tr>
             </tbody>
