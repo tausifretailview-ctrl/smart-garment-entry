@@ -62,15 +62,12 @@ function setupQZSecurity() {
  * Connect to QZ Tray if not already connected
  */
 export const ensureQZConnection = async (): Promise<boolean> => {
-  if (typeof window === 'undefined') return false;
-  // Wait for QZ script to load (it's async in index.html)
-  if (!window.qz) {
-    const loaded = await waitForQZ();
-    if (!loaded) return false;
-  }
+  if (typeof window === 'undefined' || !window.qz) return false;
   try {
     if (window.qz.websocket.isActive()) return true;
-    setupQZSecurity();
+    // Set security before connect
+    window.qz.security.setCertificatePromise(function(resolve: Function) { resolve(); });
+    window.qz.security.setSignaturePromise(function(_: string, resolve: Function) { resolve(); });
     await window.qz.websocket.connect();
     return true;
   } catch (err) {
