@@ -36,6 +36,11 @@ import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/componen
 import { ERPTable } from "@/components/erp-table";
 import { cn } from "@/lib/utils";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
+import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
+import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface PurchaseItem {
   id: string;

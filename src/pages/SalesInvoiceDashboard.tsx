@@ -1792,15 +1792,7 @@ export default function SalesInvoiceDashboard() {
           </DialogContent>
         </Dialog>
 
-        <PrintPreviewDialog
-          open={showPrintPreview}
-          onOpenChange={setShowPrintPreview}
-          invoiceToPrint={invoiceToPrint}
-          billFormat={billFormat}
-          invoiceTemplate={invoiceTemplate}
-          settings={settings}
-          organizationName={currentOrganization?.name}
-        />
+        {/* Print preview is desktop-only */}
 
         <CustomerHistoryDialog
           open={showCustomerHistory}
