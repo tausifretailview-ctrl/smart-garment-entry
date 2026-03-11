@@ -59,6 +59,12 @@ import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { ERPTable } from "@/components/erp-table";
 import { SalesInvoiceERPTable } from "@/components/SalesInvoiceERPTable";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
+import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
+import { MobilePeriodChips } from "@/components/mobile/MobilePeriodChips";
+import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
+import { cn } from "@/lib/utils";
 
 interface ColumnSettings {
   [key: string]: boolean;
