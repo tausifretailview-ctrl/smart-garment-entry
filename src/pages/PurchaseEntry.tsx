@@ -3262,7 +3262,7 @@ const PurchaseEntry = () => {
 
                       setShowPrintDialog(false);
                       navigate("/barcode-printing", { 
-                        state: { purchaseItems: barcodeItems, billId: savedBillId } 
+                        state: { purchaseItems: barcodeItems, billId: savedBillId || editingBillId } 
                       });
                     } catch (error) {
                       console.error("Error preparing barcode data:", error);
