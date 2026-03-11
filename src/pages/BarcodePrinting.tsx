@@ -3502,7 +3502,15 @@ export default function BarcodePrinting() {
           <BackToDashboard label="Back to Purchase Bill Dashboard" to="/purchase-bills" />
           {location.state?.billId && (
             <>
-              <BackToDashboard label="Back to Purchase Bill" to={`/purchase-entry?edit=${location.state.billId}`} />
+              <Button
+                variant="outline"
+                size="sm"
+                className="mb-4"
+                onClick={() => orgNavigate('/purchase-entry', { state: { editBillId: location.state.billId } })}
+              >
+                <Home className="h-4 w-4 mr-2" />
+                Back to Purchase Bill
+              </Button>
               <Button
                 variant="default"
                 size="sm"
