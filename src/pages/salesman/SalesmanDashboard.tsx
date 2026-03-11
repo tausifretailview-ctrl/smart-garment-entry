@@ -40,6 +40,7 @@ const SalesmanDashboard = () => {
   const { navigate, getOrgPath } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
+  const { employeeName } = useFieldSalesAccess();
   const [stats, setStats] = useState<DashboardStats>({
     todayOrders: 0,
     pendingOrders: 0,
