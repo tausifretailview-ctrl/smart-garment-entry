@@ -15,19 +15,13 @@ interface QZTrayState {
   error: string | null;
 }
 
-/**
- * Setup QZ Tray security callbacks for anonymous mode.
- * MUST be called before every connect() AND before printers.find().
- * QZ Tray 2.x requires these to be set each time — they do not persist.
- */
+// Must be called before connect() AND before printers.find() AND before print()
 function setupQZSecurity(qz: any) {
-  // Anonymous certificate — no paid cert needed
   qz.security.setCertificatePromise(function(resolve: Function, reject: Function) {
-    resolve();
+    resolve(); // anonymous mode — no certificate needed
   });
-  // Anonymous signature — no signing needed
   qz.security.setSignaturePromise(function(toSign: string, resolve: Function, reject: Function) {
-    resolve();
+    resolve(); // anonymous mode — no signature needed
   });
 }
 
@@ -40,31 +34,23 @@ export const useQZTray = () => {
     error: null,
   });
 
-  // Ref to prevent duplicate getPrinters calls
   const fetchingPrinters = useRef(false);
 
-  // Check if QZ Tray JS is loaded on the page
   const isQZAvailable = useCallback((): boolean => {
     return typeof window !== 'undefined' && window.qz !== undefined;
   }, []);
 
-  // Get live websocket status — does NOT use stale React state
-  const isQZConnected = useCallback((): boolean => {
-    return isQZAvailable() && window.qz?.websocket?.isActive?.() === true;
-  }, [isQZAvailable]);
+  const isQZLive = (): boolean => {
+    return typeof window !== 'undefined' && window.qz?.websocket?.isActive?.() === true;
+  };
 
-  // Connect to QZ Tray
   const connect = useCallback(async (): Promise<boolean> => {
     if (!isQZAvailable()) {
-      setState(prev => ({
-        ...prev,
-        error: 'QZ Tray is not installed. Please download from https://qz.io/download/'
-      }));
+      setState(prev => ({ ...prev, error: 'QZ Tray not installed. Download from https://qz.io/download/' }));
       return false;
     }
 
-    // Already connected — use live check
-    if (isQZConnected()) {
+    if (isQZLive()) {
       setState(prev => ({ ...prev, isConnected: true, isConnecting: false }));
       return true;
     }
@@ -73,70 +59,45 @@ export const useQZTray = () => {
 
     try {
       const qz = window.qz;
-
-      // ALWAYS set security BEFORE connect() — required by QZ Tray 2.x
-      setupQZSecurity(qz);
-
+      setupQZSecurity(qz); // MUST be before connect()
       await qz.websocket.connect();
-
       setState(prev => ({ ...prev, isConnected: true, isConnecting: false, error: null }));
       return true;
     } catch (err: any) {
-      const errorMessage = err?.message || 'Failed to connect to QZ Tray';
-      setState(prev => ({
-        ...prev,
-        isConnecting: false,
-        error: errorMessage
-      }));
+      setState(prev => ({ ...prev, isConnecting: false, error: err?.message || 'Failed to connect to QZ Tray' }));
       return false;
     }
-  }, [isQZAvailable, isQZConnected]);
+  }, [isQZAvailable]);
 
-  // Disconnect from QZ Tray
   const disconnect = useCallback(async (): Promise<void> => {
     if (!isQZAvailable()) return;
     try {
-      if (window.qz?.websocket?.isActive()) {
-        await window.qz.websocket.disconnect();
-      }
-      setState(prev => ({
-        ...prev,
-        isConnected: false,
-        printers: [],
-        selectedPrinter: null
-      }));
+      if (isQZLive()) await window.qz.websocket.disconnect();
+      setState(prev => ({ ...prev, isConnected: false, printers: [], selectedPrinter: null }));
     } catch (err) {
       console.error('Failed to disconnect from QZ Tray:', err);
     }
   }, [isQZAvailable]);
 
-  // Get list of available printers
-  // Uses LIVE websocket check — not stale state.isConnected
   const getPrinters = useCallback(async (): Promise<string[]> => {
     if (!isQZAvailable()) return [];
-
-    // Live check — not stale React state
-    if (!window.qz?.websocket?.isActive?.()) {
-      // Try to connect first
-      const connected = await connect();
-      if (!connected) return [];
-    }
-
-    // Prevent duplicate concurrent calls
-    if (fetchingPrinters.current) return [];
+    if (fetchingPrinters.current) return state.printers;
     fetchingPrinters.current = true;
 
     try {
+      // Connect if not already connected
+      if (!isQZLive()) {
+        const connected = await connect();
+        if (!connected) { fetchingPrinters.current = false; return []; }
+      }
+
       const qz = window.qz;
-
-      // Re-apply security before printers.find() — required after any gap
-      setupQZSecurity(qz);
-
+      setupQZSecurity(qz); // MUST be before printers.find()
       const result = await qz.printers.find();
-      const printerList: string[] = Array.isArray(result) ? result : (result ? [result] : []);
+      const list: string[] = Array.isArray(result) ? result : (result ? [String(result)] : []);
 
-      setState(prev => ({ ...prev, printers: printerList, error: null }));
-      return printerList;
+      setState(prev => ({ ...prev, printers: list, error: null, isConnected: true }));
+      return list;
     } catch (err: any) {
       console.error('Failed to get printers:', err);
       setState(prev => ({ ...prev, error: 'Failed to get printer list' }));
@@ -144,60 +105,35 @@ export const useQZTray = () => {
     } finally {
       fetchingPrinters.current = false;
     }
-  }, [isQZAvailable, connect]);
+  }, [isQZAvailable, connect, state.printers]);
 
-  // Find thermal printers by name keywords
   const findThermalPrinters = useCallback(async (): Promise<string[]> => {
-    const allPrinters = await getPrinters();
-    const thermalKeywords = ['TSC', 'TTP', 'Zebra', 'DYMO', 'Brother', 'Thermal', 'Label'];
-    return allPrinters.filter(printer =>
-      thermalKeywords.some(keyword =>
-        printer.toLowerCase().includes(keyword.toLowerCase())
-      )
-    );
+    const all = await getPrinters();
+    const keywords = ['TSC', 'TTP', 'Zebra', 'DYMO', 'Brother', 'Thermal', 'Label'];
+    return all.filter(p => keywords.some(k => p.toLowerCase().includes(k.toLowerCase())));
   }, [getPrinters]);
 
-  // Select a printer and persist to localStorage
   const selectPrinter = useCallback((printerName: string) => {
     setState(prev => ({ ...prev, selectedPrinter: printerName }));
     localStorage.setItem('qz_selected_printer', printerName);
   }, []);
 
-  // Print raw TSPL/ZPL commands
-  const printRaw = useCallback(async (
-    data: string,
-    printerName?: string
-  ): Promise<boolean> => {
+  const printRaw = useCallback(async (data: string, printerName?: string): Promise<boolean> => {
     const printer = printerName || state.selectedPrinter;
 
-    if (!isQZAvailable()) {
-      toast.error('QZ Tray is not installed');
-      return false;
-    }
+    if (!isQZAvailable()) { toast.error('QZ Tray is not installed'); return false; }
+    if (!printer) { toast.error('No printer selected'); return false; }
 
-    if (!window.qz?.websocket?.isActive?.()) {
+    if (!isQZLive()) {
       const connected = await connect();
-      if (!connected) {
-        toast.error('Failed to connect to QZ Tray');
-        return false;
-      }
-    }
-
-    if (!printer) {
-      toast.error('No printer selected');
-      return false;
+      if (!connected) { toast.error('Failed to connect to QZ Tray'); return false; }
     }
 
     try {
       const qz = window.qz;
-
-      // Re-apply security before printing
-      setupQZSecurity(qz);
-
+      setupQZSecurity(qz); // MUST be before print()
       const config = qz.configs.create(printer, { encoding: 'UTF-8' });
-      const printData = [{ type: 'raw', format: 'plain', data }];
-
-      await qz.print(config, printData);
+      await qz.print(config, [{ type: 'raw', format: 'plain', data }]);
       toast.success('Labels sent to printer');
       return true;
     } catch (err: any) {
@@ -209,43 +145,24 @@ export const useQZTray = () => {
 
   // Restore saved printer on mount
   useEffect(() => {
-    const savedPrinter = localStorage.getItem('qz_selected_printer');
-    if (savedPrinter) {
-      setState(prev => ({ ...prev, selectedPrinter: savedPrinter }));
-    }
+    const saved = localStorage.getItem('qz_selected_printer');
+    if (saved) setState(prev => ({ ...prev, selectedPrinter: saved }));
   }, []);
 
-  // Auto-connect on mount (with delay to let QZ script load)
+  // Auto-connect + fetch printers on mount
   useEffect(() => {
     if (!isQZAvailable()) return;
-    if (isQZConnected()) {
-      // Already connected — just sync state and fetch printers
-      setState(prev => ({ ...prev, isConnected: true }));
-      getPrinters();
-      return;
-    }
     const timer = setTimeout(() => {
-      connect().then(connected => {
-        if (connected) getPrinters();
-      });
+      if (isQZLive()) {
+        setState(prev => ({ ...prev, isConnected: true }));
+        getPrinters();
+      } else {
+        connect().then(ok => { if (ok) getPrinters(); });
+      }
     }, 800);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // run once on mount only
-
-  // Sync isConnected state with live websocket status
-  useEffect(() => {
-    const syncInterval = setInterval(() => {
-      const live = isQZConnected();
-      setState(prev => {
-        if (prev.isConnected !== live) {
-          return { ...prev, isConnected: live };
-        }
-        return prev;
-      });
-    }, 3000);
-    return () => clearInterval(syncInterval);
-  }, [isQZConnected]);
+  }, []); // once on mount only
 
   return {
     ...state,
