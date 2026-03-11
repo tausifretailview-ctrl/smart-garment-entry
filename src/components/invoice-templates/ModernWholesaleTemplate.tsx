@@ -476,7 +476,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           </div>
         )}
 
-        <div style={{ width: isA5 ? "190px" : "280px", flexShrink: 0, padding: isA5 ? "3px 4px" : "8px 10px", background: colors.light, boxSizing: "border-box", overflow: "visible" }}>
+        <div style={{ width: isA5 ? "180px" : "280px", flexShrink: 0, padding: isA5 ? "3px 6px 3px 4px" : "8px 10px", background: colors.light, boxSizing: "border-box", overflow: "visible" }}>
           <table style={{ width: "100%", fontSize: isA5 ? "6.5pt" : "9pt", fontWeight: "500", borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}>
             <colgroup>
               <col style={{ width: "45%" }} />
