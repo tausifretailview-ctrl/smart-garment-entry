@@ -3508,8 +3508,6 @@ export default function BarcodePrinting() {
                 size="sm"
                 className="gap-2 ml-auto"
                 onClick={() => {
-                  const nav = document.createElement('a');
-                  // Use navigate to go back to the same bill in edit mode
                   window.location.href = `/purchase-entry?edit=${location.state.billId}`;
                 }}
               >
