@@ -213,7 +213,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   const getItemsPerPage = () => {
     if (format === 'a4') return 22;
     if (format === 'a5-horizontal') return 10;
-    return 17; // a5-vertical
+    return 14; // a5-vertical — fits 14 items + footer on one page
   };
 
   const itemsPerPage = getItemsPerPage();
