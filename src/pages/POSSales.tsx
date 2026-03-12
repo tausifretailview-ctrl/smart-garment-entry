@@ -1725,26 +1725,6 @@ export default function POSSales() {
       // Now show print dialog with saved data
       setSavedInvoiceData(invoiceDataForPrint);
       
-      // USB ESC/POS auto-print (no dialog, no driver)
-      if (isUsbReceiptConnected && posBillFormat === 'thermal') {
-        const billSettings = (settingsData as any)?.bill_barcode_settings;
-        const openDrawer = billSettings?.enable_cash_drawer === true;
-        const receiptData = buildEscPosReceiptData(
-          invoiceDataForPrint,
-          method,
-          openDrawer
-        );
-        if (receiptData) {
-          const success = await printUsbReceipt(receiptData);
-          if (success) {
-            setSavedInvoiceData(null);
-            setTimeout(() => barcodeInputRef.current?.focus(), 100);
-            return;
-          }
-          // Fall through to existing QZ/browser path if USB fails
-        }
-      }
-
       // If auto-print via QZ Tray is enabled, skip dialog and print directly
       if (isDirectPrintEnabled && isAutoPrintEnabled) {
         // Set data first, then trigger print after render
