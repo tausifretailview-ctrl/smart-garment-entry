@@ -304,11 +304,11 @@ const FeeCollection = () => {
 
   // Fetch collected fees data
   const { data: collectedFees, isLoading: collectedLoading } = useQuery({
-    queryKey: ["fees-collected", currentOrganization?.id, activeYear?.id, collectedPeriod, customDateFrom, customDateTo, collectedSearch],
+    queryKey: ["fees-collected", currentOrganization?.id, activeYear?.id, collectedPeriod, customDateFrom, customDateTo],
     queryFn: async () => {
       if (!activeYear) return [];
 
-      let query = supabase
+      const query = supabase
         .from("student_fees")
         .select("*, students!inner(student_name, admission_number, parent_phone, parent_name, class_id, school_classes:class_id(class_name)), fee_heads(head_name), academic_years(year_name)")
         .eq("organization_id", currentOrganization!.id)
@@ -316,10 +316,6 @@ const FeeCollection = () => {
         .gte("paid_date", dateRange.from)
         .lte("paid_date", dateRange.to)
         .order("paid_date", { ascending: false });
-
-      if (collectedSearch) {
-        query = query.or(`students.student_name.ilike.%${collectedSearch}%,students.admission_number.ilike.%${collectedSearch}%`, { referencedTable: "students" });
-      }
 
       const { data, error } = await query;
       if (error) throw error;
@@ -341,8 +337,17 @@ const FeeCollection = () => {
   })();
 
   // Collected fees filtered by search (client-side for student name in results)
-  const paginatedCollected = (collectedFees || []).slice((collectedPage - 1) * pageSize, collectedPage * pageSize);
-  const collectedTotalPages = Math.max(1, Math.ceil((collectedFees || []).length / pageSize));
+  // Client-side search filter for collected fees (PostgREST nested filters on joins are unreliable)
+  const filteredCollected = (collectedFees || []).filter((fee: any) => {
+    if (!collectedSearch) return true;
+    const q = collectedSearch.toLowerCase();
+    const name = (fee.students?.student_name || "").toLowerCase();
+    const adm = (fee.students?.admission_number || "").toLowerCase();
+    return name.includes(q) || adm.includes(q);
+  });
+
+  const paginatedCollected = filteredCollected.slice((collectedPage - 1) * pageSize, collectedPage * pageSize);
+  const collectedTotalPages = Math.max(1, Math.ceil(filteredCollected.length / pageSize));
 
   const handleCollect = (student: any) => {
     setSelectedStudent(student);
@@ -828,10 +833,10 @@ const FeeCollection = () => {
                 <div className="flex items-center justify-center h-32">
                   <Loader2 className="h-6 w-6 animate-spin" />
                 </div>
-              ) : (collectedFees || []).length === 0 ? (
+              ) : filteredCollected.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No fee collections found for this period.</p>
+                  <p>{collectedSearch ? `No results for "${collectedSearch}".` : "No fee collections found for this period."}</p>
                 </div>
               ) : (
                 <Table>
@@ -954,7 +959,7 @@ const FeeCollection = () => {
               {collectedTotalPages > 1 && (
                 <div className="flex items-center justify-between pt-4">
                   <p className="text-sm text-muted-foreground">
-                    Showing {(collectedPage - 1) * pageSize + 1}-{Math.min(collectedPage * pageSize, (collectedFees || []).length)} of {(collectedFees || []).length}
+                    Showing {(collectedPage - 1) * pageSize + 1}-{Math.min(collectedPage * pageSize, filteredCollected.length)} of {filteredCollected.length}
                   </p>
                   <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" onClick={() => setCollectedPage((p) => Math.max(1, p - 1))} disabled={collectedPage === 1}>Previous</Button>
