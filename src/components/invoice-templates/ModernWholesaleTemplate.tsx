@@ -360,7 +360,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         <col style={{ width: isA5 ? "20px" : "22px" }} />
         <col />
         <col style={{ width: isA5 ? "34px" : "45px" }} />
-        <col style={{ width: isA5 ? "82px" : "80px" }} />
+        <col style={{ width: isA5 ? "100px" : "100px" }} />
         <col style={{ width: isA5 ? "28px" : "32px" }} />
         {!isA5 && <col style={{ width: "45px" }} />}
         <col style={{ width: isA5 ? "46px" : "45px" }} />
