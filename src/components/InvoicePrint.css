@@ -675,11 +675,13 @@
 /* A4 Full format */
   .invoice-print.invoice-format-a4-full {
     width: 210mm !important;
-    height: 297mm !important;
+    height: auto !important;
+    min-height: 0 !important;
     max-width: 210mm !important;
-    max-height: 297mm !important;
-    padding: 10mm !important;
-    page-break-after: always !important;
+    max-height: none !important;
+    padding: 6mm !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
     font-size: 10pt !important;
   }
 
