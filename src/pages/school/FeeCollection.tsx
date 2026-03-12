@@ -833,10 +833,10 @@ const FeeCollection = () => {
                 <div className="flex items-center justify-center h-32">
                   <Loader2 className="h-6 w-6 animate-spin" />
                 </div>
-              ) : (collectedFees || []).length === 0 ? (
+              ) : filteredCollected.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No fee collections found for this period.</p>
+                  <p>{collectedSearch ? `No results for "${collectedSearch}".` : "No fee collections found for this period."}</p>
                 </div>
               ) : (
                 <Table>
