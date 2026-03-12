@@ -1003,7 +1003,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // Get all sales for this customer to get reference IDs
       const { data: customerSales, error: salesError } = await supabase
         .from("sales")
-        .select("id, sale_number, net_amount, paid_amount, cash_amount, card_amount, upi_amount, sale_date, payment_method, payment_status")
+        .select("id, sale_number, net_amount, paid_amount, cash_amount, card_amount, upi_amount, sale_date, payment_method, payment_status, sale_return_adjust")
         .eq("customer_id", selectedCustomer.id)
         .is("deleted_at", null);
 
