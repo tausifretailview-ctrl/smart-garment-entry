@@ -42,6 +42,8 @@ import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
+import { useEscPosPrint } from '@/hooks/useEscPosPrint';
+import { EscPosReceiptData } from '@/utils/escPosPrint';
 
 interface SaleItem {
   id: string;
@@ -135,6 +137,17 @@ const POSDashboard = () => {
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [printData, setPrintData] = useState<any>(null);
   const invoicePrintRef = useRef<HTMLDivElement>(null);
+
+  const {
+    isSupported: isUsbReceiptSupported,
+    isConnected: isUsbReceiptConnected,
+    isConnecting: isUsbReceiptConnecting,
+    printerName: usbReceiptPrinterName,
+    connect: connectUsbReceipt,
+    disconnect: disconnectUsbReceipt,
+    printReceipt: printUsbReceipt,
+  } = useEscPosPrint();
+
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [previewSale, setPreviewSale] = useState<Sale | null>(null);
   const [posBillFormat, setPosBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal' | null>(null);
@@ -569,6 +582,48 @@ const POSDashboard = () => {
       // Additional delay for complex rendering
       await new Promise(resolve => setTimeout(resolve, 200));
       
+      // Try USB ESC/POS direct print first (thermal only, no dialog)
+      const saleSettings = settings as any;
+      const billFormat = saleSettings?.sale_settings?.pos_bill_format || 'thermal';
+      if (isUsbReceiptConnected && billFormat === 'thermal') {
+        const receiptData: EscPosReceiptData = {
+          businessName: saleSettings?.business_name || 'Store',
+          businessAddress: saleSettings?.address || '',
+          businessPhone: saleSettings?.mobile_number || '',
+          businessGSTIN: saleSettings?.gst_number || '',
+          billNo: invoiceData.billNo,
+          date: invoiceData.date,
+          documentType: 'pos',
+          customerName: invoiceData.customerName || 'Walk-in Customer',
+          customerPhone: invoiceData.customerMobile || '',
+          items: invoiceData.items.map((item: any, idx: number) => ({
+            sr: idx + 1,
+            particulars: item.particulars || '',
+            qty: item.qty || 1,
+            rate: item.rate || 0,
+            total: item.total || 0,
+            size: item.size || '',
+          })),
+          subTotal: invoiceData.subTotal,
+          discount: invoiceData.discount,
+          grandTotal: invoiceData.grandTotal,
+          paymentMethod: sale.payment_method || 'cash',
+          cashPaid: sale.cash_amount || 0,
+          upiPaid: sale.upi_amount || 0,
+          cardPaid: sale.card_amount || 0,
+          paperWidth: 48,
+          openDrawer: false,
+        };
+        const success = await printUsbReceipt(receiptData);
+        if (success) {
+          toast({
+            title: "Printed",
+            description: `Invoice ${sale.sale_number} printed via USB`,
+          });
+          return;
+        }
+      }
+
       handlePrint();
       
       toast({
@@ -1066,7 +1121,31 @@ const POSDashboard = () => {
             </h1>
             <p className="text-sm text-muted-foreground">View and manage all POS sales</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            {/* USB receipt printer connect button */}
+            {isUsbReceiptSupported && (
+              <div>
+                {isUsbReceiptConnected ? (
+                  <button
+                    onClick={disconnectUsbReceipt}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium border border-emerald-300 hover:bg-emerald-200 transition-colors"
+                    title={`Connected: ${usbReceiptPrinterName}. Click to disconnect.`}
+                  >
+                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    USB Printer
+                  </button>
+                ) : (
+                  <button
+                    onClick={connectUsbReceipt}
+                    disabled={isUsbReceiptConnecting}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-muted text-muted-foreground text-xs font-medium border border-border hover:bg-accent transition-colors disabled:opacity-50"
+                    title="Connect USB thermal printer for direct receipt printing"
+                  >
+                    {isUsbReceiptConnecting ? '...' : '🔌 Connect Printer'}
+                  </button>
+                )}
+              </div>
+            )}
             <Button variant="outline" onClick={handleExportExcel} className="gap-2">
               <FileSpreadsheet className="h-4 w-4" />
               Export Excel
