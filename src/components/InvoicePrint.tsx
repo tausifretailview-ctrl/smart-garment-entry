@@ -172,7 +172,23 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
       <div ref={ref} className={templateClass} style={{ '--invoice-primary': currentColors.primary, '--invoice-secondary': currentColors.secondary, '--invoice-accent': currentColors.accent } as React.CSSProperties}>
         {/* Dynamic @page size for A4 */}
         {invoiceFormat === 'a4-full' && (
-          <style>{`@page { size: A4 portrait; margin: 5mm; }`}</style>
+          <style>{`
+            @page { size: A4 portrait; margin: 6mm; }
+            @media print {
+              .invoice-print.invoice-format-a4-full {
+                width: 198mm !important;
+                height: auto !important;
+                max-height: none !important;
+                overflow: visible !important;
+              }
+              .invoice-print.invoice-format-a4-full .footer-section,
+              .invoice-print.invoice-format-a4-full .payment-section,
+              .invoice-print.invoice-format-a4-full .terms-section {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+              }
+            }
+          `}</style>
         )}
         {/* Header Text */}
         {headerText && (
