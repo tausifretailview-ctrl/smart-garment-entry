@@ -247,6 +247,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
     textAlign: "center",
     textTransform: "uppercase",
     fontSize: isA5 ? "6.5pt" : "8pt",
+    WebkitPrintColorAdjust: "exact",
+    printColorAdjust: "exact" as any,
   };
 
   // Render header section (repeated on each page)
@@ -358,7 +360,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         <col style={{ width: isA5 ? "20px" : "22px" }} />
         <col />
         <col style={{ width: isA5 ? "34px" : "45px" }} />
-        <col style={{ width: isA5 ? "82px" : "80px" }} />
+        <col style={{ width: isA5 ? "100px" : "100px" }} />
         <col style={{ width: isA5 ? "28px" : "32px" }} />
         {!isA5 && <col style={{ width: "45px" }} />}
         <col style={{ width: isA5 ? "46px" : "45px" }} />
@@ -436,7 +438,15 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <td style={{ ...cellStyle, textAlign: "center", fontWeight: "900" }}>{totalQty}</td>
             {!isA5 && <td style={cellStyle}>&nbsp;</td>}
             <td style={cellStyle}>&nbsp;</td>
-            {hasAnyDiscount && <td style={cellStyle}>&nbsp;</td>}
+            {hasAnyDiscount && <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "6pt" : "7pt", fontWeight: "700" }}>
+              {(() => {
+                const totalDiscount = groupedItems.reduce((sum, item) => {
+                  const discAmt = item.discountPercent > 0 ? (item.totalAmount * item.discountPercent) / (100 - item.discountPercent) : 0;
+                  return sum + discAmt;
+                }, 0);
+                return totalDiscount > 0 ? totalDiscount.toFixed(2) : '';
+              })()}
+            </td>}
             {showGSTBreakdown && <td style={cellStyle}>&nbsp;</td>}
             {showGSTBreakdown && <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "5.5pt" : "7pt" }}>
               {(cgstAmount + sgstAmount) > 0 ? (cgstAmount + sgstAmount).toFixed(2) : ''}
@@ -640,6 +650,11 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             .invoice-page:last-child {
               page-break-after: auto;
               break-after: auto;
+            }
+            .invoice-page th {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
             }
           }
         `}
