@@ -661,7 +661,8 @@ export default function SalesInvoiceDashboard() {
       setSelectedInvoices(new Set());
       setShowBulkCancelDialog(false);
       setBulkCancelReason('');
-      refetch();
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {

@@ -323,6 +323,22 @@ export function SalesInvoiceERPTable({
       header: "Actions",
       cell: ({ row }) => {
         const invoice = row.original;
+        if (invoice.is_cancelled) {
+          return (
+            <div onClick={(e) => e.stopPropagation()} className="flex justify-end gap-1">
+              {columnSettings.print && (
+                <Button variant="ghost" size="icon" onClick={() => handlePrintInvoice(invoice)} title="Print Invoice">
+                  <Printer className="h-4 w-4" />
+                </Button>
+              )}
+              {columnSettings.download && (
+                <Button variant="ghost" size="icon" onClick={() => handleDownloadPDF(invoice)} title="Download PDF">
+                  <Download className="h-4 w-4 text-blue-600" />
+                </Button>
+              )}
+            </div>
+          );
+        }
         return (
           <div onClick={(e) => e.stopPropagation()}>
             {/* Desktop */}
