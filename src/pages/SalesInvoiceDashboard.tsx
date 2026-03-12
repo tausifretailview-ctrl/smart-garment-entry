@@ -855,7 +855,7 @@ export default function SalesInvoiceDashboard() {
         break;
       default: // a4
         size = 'A4 portrait';
-        margin = '3mm';
+        margin = '6mm';
         break;
     }
     
