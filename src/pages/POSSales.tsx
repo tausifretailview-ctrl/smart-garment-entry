@@ -2760,6 +2760,7 @@ export default function POSSales() {
               rate: item.unitCost,
               total: item.netAmount,
               gstPercent: item.gstPer || 0,
+              discountPercent: item.discountPercent || 0,
             })) : items.map((item, index) => ({
               sr: index + 1,
               particulars: item.productName,
@@ -2773,6 +2774,7 @@ export default function POSSales() {
               rate: item.unitCost,
               total: item.netAmount,
               gstPercent: item.gstPer || 0,
+              discountPercent: item.discountPercent || 0,
             }))}
             subTotal={savedInvoiceData?.totals.subtotal || totals.subtotal}
             discount={savedInvoiceData ? (savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount) : (totals.discount + flatDiscountAmount)}
@@ -3801,6 +3803,7 @@ export default function POSSales() {
                   rate: item.unitCost,
                   total: item.netAmount,
                   gstPercent: item.gstPer || 0,
+                  discountPercent: item.discountPercent || 0,
                 }))}
                 subTotal={totals.subtotal}
                 discount={totals.discount + flatDiscountAmount}
@@ -3982,6 +3985,7 @@ export default function POSSales() {
                 rate: item.unitCost,
                 total: item.netAmount,
                 gstPercent: item.gstPer || 0,
+                discountPercent: item.discountPercent || 0,
               }))}
                 subTotal={savedInvoiceData.totals.subtotal}
                 discount={savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount}
@@ -4059,6 +4063,7 @@ export default function POSSales() {
                   rate: item.unitCost,
                   total: item.netAmount,
                   gstPercent: item.gstPer || 0,
+                  discountPercent: item.discountPercent || 0,
                 })) : items.map((item, index) => ({
                   sr: index + 1,
                   particulars: item.productName,
@@ -4072,6 +4077,7 @@ export default function POSSales() {
                   rate: item.unitCost,
                   total: item.netAmount,
                   gstPercent: item.gstPer || 0,
+                  discountPercent: item.discountPercent || 0,
                 }))}
                 subTotal={savedInvoiceData?.totals.subtotal || totals.subtotal}
                 discount={savedInvoiceData ? (savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount) : (totals.discount + flatDiscountAmount)}

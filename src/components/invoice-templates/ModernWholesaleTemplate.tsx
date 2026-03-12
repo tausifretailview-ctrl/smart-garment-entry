@@ -13,6 +13,7 @@ interface WholesaleItem {
   mrp?: number;
   gstPercent?: number;
   gst_percent?: number; // Alternative field name from database
+  discountPercent?: number;
   total: number;
 }
 
@@ -26,6 +27,7 @@ interface GroupedItem {
   mrp?: number;
   gstPercent: number;
   gstAmount: number;
+  discountPercent: number;
   sizeQtyList: Array<{ size: string; qty: number }>;
   totalQty: number;
   totalAmount: number;
@@ -150,6 +152,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           mrp: item.mrp,
           gstPercent: gstPct,
           gstAmount: gstAmt,
+          discountPercent: item.discountPercent || 0,
           sizeQtyList: [{ size: item.size, qty: item.qty }],
           totalQty: item.qty,
           totalAmount: item.total,
@@ -172,6 +175,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           mrp: item.mrp,
           gstPercent: gstPct,
           gstAmount: 0,
+          discountPercent: item.discountPercent || 0,
           sizeQtyList: [],
           totalQty: 0,
           totalAmount: 0,
@@ -199,6 +203,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   const groupedItems = groupItems(items);
   const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
   const calculatedTaxableAmount = taxableAmount || subtotal - discount;
+  const hasAnyDiscount = groupedItems.some(item => item.discountPercent > 0);
 
   // Calculate items per page based on format
   const getItemsPerPage = () => {
@@ -346,7 +351,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
 
   // Render items table for a specific page
   const renderItemsTable = (pageItems: GroupedItem[], startIndex: number, isLastPage: boolean) => {
-    const colCount = 6 + (isA5 ? 0 : 1) + (showGSTBreakdown ? 2 : 0);
+    const colCount = 6 + (isA5 ? 0 : 1) + (showGSTBreakdown ? 2 : 0) + (hasAnyDiscount ? 1 : 0);
     return (
     <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
       <colgroup>
@@ -357,6 +362,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         <col style={{ width: isA5 ? "28px" : "32px" }} />
         {!isA5 && <col style={{ width: "45px" }} />}
         <col style={{ width: isA5 ? "46px" : "45px" }} />
+        {hasAnyDiscount && <col style={{ width: isA5 ? "28px" : "34px" }} />}
         {showGSTBreakdown && <col style={{ width: isA5 ? "26px" : "32px" }} />}
         {showGSTBreakdown && <col style={{ width: isA5 ? "42px" : "48px" }} />}
         <col style={{ width: isA5 ? "66px" : "65px" }} />
@@ -370,6 +376,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           <th style={headerCellStyle}>QTY</th>
           {!isA5 && <th style={headerCellStyle}>MRP</th>}
           <th style={headerCellStyle}>RATE</th>
+          {hasAnyDiscount && <th style={headerCellStyle}>DISC%</th>}
           {showGSTBreakdown && <th style={headerCellStyle}>GST%</th>}
           {showGSTBreakdown && <th style={headerCellStyle}>GST AMT</th>}
           <th style={headerCellStyle}>AMOUNT</th>
@@ -390,6 +397,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <td style={{ ...cellStyle, textAlign: "center", fontWeight: "700" }}>{item.totalQty}</td>
             {!isA5 && <td style={{ ...cellStyle, textAlign: "right", fontSize: "7.5pt" }}>{item.mrp ? item.mrp.toFixed(2) : '-'}</td>}
             <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "6.5pt" : "7.5pt" }}>{item.rate.toFixed(2)}</td>
+            {hasAnyDiscount && <td style={{ ...cellStyle, textAlign: "center", fontSize: isA5 ? "6.5pt" : "7.5pt" }}>{item.discountPercent > 0 ? `${item.discountPercent}%` : '-'}</td>}
             {showGSTBreakdown && <td style={{ ...cellStyle, textAlign: "center", fontSize: isA5 ? "6.5pt" : "7.5pt" }}>{item.gstPercent}%</td>}
             {showGSTBreakdown && (
                <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "6pt" : "7pt" }}>
@@ -411,6 +419,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <td style={cellStyle}>&nbsp;</td>
             {!isA5 && <td style={cellStyle}>&nbsp;</td>}
             <td style={cellStyle}>&nbsp;</td>
+            {hasAnyDiscount && <td style={cellStyle}>&nbsp;</td>}
             {showGSTBreakdown && <td style={cellStyle}>&nbsp;</td>}
             {showGSTBreakdown && <td style={cellStyle}>&nbsp;</td>}
             <td style={cellStyle}>&nbsp;</td>
@@ -427,6 +436,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <td style={{ ...cellStyle, textAlign: "center", fontWeight: "900" }}>{totalQty}</td>
             {!isA5 && <td style={cellStyle}>&nbsp;</td>}
             <td style={cellStyle}>&nbsp;</td>
+            {hasAnyDiscount && <td style={cellStyle}>&nbsp;</td>}
             {showGSTBreakdown && <td style={cellStyle}>&nbsp;</td>}
             {showGSTBreakdown && <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "5.5pt" : "7pt" }}>
               {(cgstAmount + sgstAmount) > 0 ? (cgstAmount + sgstAmount).toFixed(2) : ''}
