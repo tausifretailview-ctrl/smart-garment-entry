@@ -300,6 +300,9 @@ export function SalesInvoiceERPTable({
         header: "Delivery",
         cell: ({ row }) => {
           const invoice = row.original;
+          if (invoice.is_cancelled) {
+            return <span className="text-xs text-muted-foreground">—</span>;
+          }
           return (
             <div onClick={(e) => e.stopPropagation()}>
               <Badge
