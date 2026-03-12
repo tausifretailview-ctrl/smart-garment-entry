@@ -119,6 +119,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   qrCodeUrl,
   upiId,
   format = 'a4',
+  termsConditions,
+  declarationText,
 }) => {
   const colors = colorSchemes[colorScheme] || colorSchemes.blue;
   const font = fontFamilyMap[fontFamily] || fontFamilyMap.inter;
