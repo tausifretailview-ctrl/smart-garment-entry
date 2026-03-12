@@ -959,7 +959,7 @@ const FeeCollection = () => {
               {collectedTotalPages > 1 && (
                 <div className="flex items-center justify-between pt-4">
                   <p className="text-sm text-muted-foreground">
-                    Showing {(collectedPage - 1) * pageSize + 1}-{Math.min(collectedPage * pageSize, (collectedFees || []).length)} of {(collectedFees || []).length}
+                    Showing {(collectedPage - 1) * pageSize + 1}-{Math.min(collectedPage * pageSize, filteredCollected.length)} of {filteredCollected.length}
                   </p>
                   <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" onClick={() => setCollectedPage((p) => Math.max(1, p - 1))} disabled={collectedPage === 1}>Previous</Button>
