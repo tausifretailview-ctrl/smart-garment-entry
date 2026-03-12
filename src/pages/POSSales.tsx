@@ -78,8 +78,6 @@ import { format } from "date-fns";
 import { useReactToPrint } from "react-to-print";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
-import { useEscPosPrint } from '@/hooks/useEscPosPrint';
-import { EscPosReceiptData } from '@/utils/escPosPrint';
 
 interface PendingPriceSelection {
   product: any;
