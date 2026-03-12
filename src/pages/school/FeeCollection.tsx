@@ -233,11 +233,12 @@ const FeeCollection = () => {
         classIds.length > 0
           ? supabase.from("fee_structures").select("*").eq("organization_id", currentOrganization.id).eq("academic_year_id", activeYear.id).in("class_id", classIds)
           : { data: [] },
-        supabase.from("student_fees").select("student_id, paid_amount, fee_head_id").eq("organization_id", currentOrganization.id).eq("academic_year_id", activeYear.id).in("student_id", studentIds),
+        // Fetch payments for the active academic year (for structure-based dues)
+        supabase.from("student_fees").select("student_id, paid_amount, fee_head_id, academic_year_id").eq("organization_id", currentOrganization.id).in("student_id", studentIds),
       ]);
 
       const structures = structuresRes.data || [];
-      const payments = paymentsRes.data || [];
+      const allPayments = paymentsRes.data || [];
 
       return data.map((student: any) => {
         const classStructures = structures.filter((s: any) => s.class_id === student.class_id);
@@ -246,13 +247,19 @@ const FeeCollection = () => {
           return sum + s.amount * mult;
         }, 0);
 
-        const totalPaid = payments
-          .filter((p: any) => p.student_id === student.id)
+        const studentPayments = allPayments.filter((p: any) => p.student_id === student.id);
+        // For structure-based dues: only count payments in the active year
+        const paidInYear = studentPayments
+          .filter((p: any) => p.academic_year_id === activeYear.id)
+          .reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
+        // For imported balance (closing_fees_balance): count ALL payments across years
+        const paidTotal = studentPayments
           .reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
 
         const importedBalance = student.closing_fees_balance || 0;
         const hasStructures = totalExpected > 0;
-        const totalDue = hasStructures ? Math.max(0, totalExpected - totalPaid) : Math.max(0, importedBalance - totalPaid);
+        const totalDue = hasStructures ? Math.max(0, totalExpected - paidInYear) : Math.max(0, importedBalance - paidTotal);
+        const totalPaid = hasStructures ? paidInYear : paidTotal;
         const effectiveExpected = hasStructures ? totalExpected : importedBalance;
         const effectiveStatus = totalDue === 0 ? "paid" : totalPaid > 0 ? "partial" : effectiveExpected === 0 ? "no-structure" : "pending";
 
