@@ -610,7 +610,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           
           {isLastPage && renderSummary()}
           
-          {renderPageIndicator(pageIndex + 1)}
+          {renderPageFooter(pageIndex + 1, isLastPage)}
         </div>
       </div>
     );
