@@ -549,11 +549,19 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         }}
       >
         <div style={{ fontSize: isA5 ? "6pt" : "8pt" }}>
-          <p style={{ margin: 0 }}>
-            <strong>Terms:</strong> 1. Goods once sold will not be taken back.
-            <br />
-            2. Subject to local jurisdiction.
-          </p>
+          {termsConditions && termsConditions.length > 0 ? (
+            <p style={{ margin: 0 }}>
+              <strong>Terms:</strong> {termsConditions.map((t, i) => (
+                <span key={i}>{i > 0 && <br />}{i + 1}. {t}</span>
+              ))}
+            </p>
+          ) : (
+            <p style={{ margin: 0 }}>
+              <strong>Terms:</strong> 1. Goods once sold will not be taken back.
+              <br />
+              2. Subject to local jurisdiction.
+            </p>
+          )}
         </div>
         <div style={{ textAlign: "center", width: isA5 ? "150px" : "200px" }}>
           <div style={{ fontSize: isA5 ? "6pt" : "8pt", marginBottom: isA5 ? "12px" : "30px" }}>
