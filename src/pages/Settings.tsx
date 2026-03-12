@@ -3612,9 +3612,9 @@ export default function Settings() {
                       <span className="flex items-center gap-2">
                         🔌 USB Direct Receipt Printing
                       </span>
-                      <Badge variant="success" className="text-[10px]">
+                      <span className="inline-flex items-center rounded-md border-transparent bg-emerald-500/10 text-emerald-600 px-2 py-0.5 text-[10px] font-semibold">
                         No Install Needed
-                      </Badge>
+                      </span>
                     </CardTitle>
                     <CardDescription>
                       Print thermal receipts directly via USB — no QZ Tray, no Java, no browser dialog.

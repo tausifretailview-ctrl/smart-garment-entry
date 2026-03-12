@@ -583,7 +583,7 @@ const POSDashboard = () => {
       await new Promise(resolve => setTimeout(resolve, 200));
       
       // Try USB ESC/POS direct print first (thermal only, no dialog)
-      const saleSettings = settingsData as any;
+      const saleSettings = settings as any;
       const billFormat = saleSettings?.sale_settings?.pos_bill_format || 'thermal';
       if (isUsbReceiptConnected && billFormat === 'thermal') {
         const receiptData: EscPosReceiptData = {
