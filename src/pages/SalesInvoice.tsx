@@ -3509,6 +3509,7 @@ Thank you for choosing us!`;
               total: item.lineTotal,
               color: item.color || "",
               gstPercent: item.gstPercent || 0,
+              discountPercent: item.discountPercent || 0,
             }))}
             subTotal={savedInvoiceData?.grossAmount ?? grossAmount}
             discount={savedInvoiceData?.totalDiscount ?? totalDiscount}
