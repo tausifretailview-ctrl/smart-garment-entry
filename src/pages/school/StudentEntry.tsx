@@ -216,7 +216,7 @@ const StudentEntry = () => {
           .eq("id", id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("students").insert(studentData);
+        const { error } = await supabase.from("students").insert({ ...studentData, is_new_admission: true });
         if (error) throw error;
       }
     },

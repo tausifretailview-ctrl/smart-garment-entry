@@ -130,9 +130,9 @@ const StudentMaster = () => {
         query = query.or(`student_name.ilike.%${searchTerm}%,admission_number.ilike.%${searchTerm}%,parent_phone.ilike.%${searchTerm}%`);
       }
 
-      // Filter for new admissions: created_at within the academic year
+      // Filter for new admissions
       if (filterNewAdmissions) {
-        query = query.gte("created_at", academicStart);
+        query = query.eq("is_new_admission", true);
       }
 
       const { data, error, count } = await query;
@@ -166,15 +166,14 @@ const StudentMaster = () => {
         .eq("status", "active")
         .is("deleted_at", null);
 
-      // New admissions: students created within the selected academic year period
-      // This excludes promoted students (whose created_at is from previous years)
+      // New admissions: students explicitly marked as new admission
       const { count: newAdmissions } = await supabase
         .from("students")
         .select("*", { count: "exact", head: true })
         .eq("organization_id", currentOrganization.id)
         .eq("academic_year_id", selectedYearId)
         .is("deleted_at", null)
-        .gte("created_at", academicStart);
+        .eq("is_new_admission", true);
 
       return { total: total || 0, active: active || 0, newAdmissions: newAdmissions || 0 };
     },
