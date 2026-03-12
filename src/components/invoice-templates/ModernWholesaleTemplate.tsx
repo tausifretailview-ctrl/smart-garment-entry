@@ -368,7 +368,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         <col style={{ width: isA5 ? "28px" : "32px" }} />
         {!isA5 && <col style={{ width: "45px" }} />}
         <col style={{ width: isA5 ? "46px" : "45px" }} />
-        {hasAnyDiscount && <col style={{ width: isA5 ? "28px" : "34px" }} />}
+        
         {showGSTBreakdown && <col style={{ width: isA5 ? "26px" : "32px" }} />}
         {showGSTBreakdown && <col style={{ width: isA5 ? "42px" : "48px" }} />}
         <col style={{ width: isA5 ? "66px" : "65px" }} />
