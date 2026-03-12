@@ -357,7 +357,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
 
   // Render items table for a specific page
   const renderItemsTable = (pageItems: GroupedItem[], startIndex: number, isLastPage: boolean) => {
-    const colCount = 6 + (isA5 ? 0 : 1) + (showGSTBreakdown ? 2 : 0) + (hasAnyDiscount ? 1 : 0);
+    const colCount = 6 + (isA5 ? 0 : 1) + (showGSTBreakdown ? 2 : 0);
     return (
     <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
       <colgroup>
