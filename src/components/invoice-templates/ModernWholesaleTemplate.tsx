@@ -13,6 +13,7 @@ interface WholesaleItem {
   mrp?: number;
   gstPercent?: number;
   gst_percent?: number; // Alternative field name from database
+  discountPercent?: number;
   total: number;
 }
 
@@ -26,6 +27,7 @@ interface GroupedItem {
   mrp?: number;
   gstPercent: number;
   gstAmount: number;
+  discountPercent: number;
   sizeQtyList: Array<{ size: string; qty: number }>;
   totalQty: number;
   totalAmount: number;
