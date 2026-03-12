@@ -68,6 +68,8 @@ interface ModernWholesaleTemplateProps {
   qrCodeUrl?: string;
   upiId?: string;
   format?: 'a5-vertical' | 'a5-horizontal' | 'a4';
+  termsConditions?: string[];
+  declarationText?: string;
 }
 
 const colorSchemes: Record<string, { primary: string; light: string; gradient: string }> = {
