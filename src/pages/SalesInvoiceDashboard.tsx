@@ -2714,7 +2714,7 @@ export default function SalesInvoiceDashboard() {
         {invoiceToPrint && (
           <div className="no-print" style={{
             position: 'fixed',
-            top: '-9999px',
+            top: 0,
             left: '-9999px',
             width: billFormat === 'a4' ? '210mm' : 
                    billFormat === 'thermal' ? '80mm' : 
