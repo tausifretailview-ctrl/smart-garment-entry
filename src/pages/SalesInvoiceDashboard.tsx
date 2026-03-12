@@ -1706,29 +1706,63 @@ export default function SalesInvoiceDashboard() {
               pending: "bg-rose-50 text-rose-700 border-rose-200",
             };
             return (
-              <div key={inv.id} onClick={() => navigate('/sales-invoice', { state: { editInvoiceId: inv.id } })}
-                className="bg-card rounded-2xl p-3.5 border border-border/40 shadow-sm active:scale-[0.99] transition-all touch-manipulation">
-                <div className="flex items-start justify-between">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-xs font-bold text-primary">{inv.sale_number}</span>
-                      <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border", sc[inv.payment_status] || sc.pending)}>
-                        {inv.payment_status === 'completed' ? 'Paid' : inv.payment_status}
-                      </span>
-                      {inv.is_cancelled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">Cancelled</span>}
+              <div key={inv.id}
+                className="bg-card rounded-2xl border border-border/40 shadow-sm overflow-hidden">
+                <div className="p-3.5 active:bg-muted/30 transition-colors touch-manipulation"
+                  onClick={() => navigate('/sales-invoice', { state: { editInvoiceId: inv.id } })}>
+                  <div className="flex items-start justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-xs font-bold text-primary">{inv.sale_number}</span>
+                        <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border", sc[inv.payment_status] || sc.pending)}>
+                          {inv.payment_status === 'completed' ? 'Paid' : inv.payment_status}
+                        </span>
+                        {inv.is_cancelled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">Cancelled</span>}
+                      </div>
+                      <p className="text-sm font-medium text-foreground mt-1 truncate">{inv.customer_name || 'Walk-in'}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {format(new Date(inv.created_at || inv.sale_date), "d MMM · hh:mm a")}
+                        {inv.total_qty ? ` · ${inv.total_qty} pcs` : ""}
+                      </p>
                     </div>
-                    <p className="text-sm font-medium text-foreground mt-1 truncate">{inv.customer_name || 'Walk-in'}</p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {format(new Date(inv.created_at || inv.sale_date), "d MMM · hh:mm a")}
-                      {inv.total_qty ? ` · ${inv.total_qty} pcs` : ""}
-                    </p>
+                    <div className="text-right shrink-0 ml-3">
+                      <p className="text-sm font-bold tabular-nums">₹{(inv.net_amount||0).toLocaleString("en-IN")}</p>
+                      {pending > 0 && (
+                        <p className="text-[11px] text-amber-600 font-medium">Due ₹{pending.toLocaleString("en-IN")}</p>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-right shrink-0 ml-3">
-                    <p className="text-sm font-bold tabular-nums">₹{(inv.net_amount||0).toLocaleString("en-IN")}</p>
-                    {pending > 0 && (
-                      <p className="text-[11px] text-amber-600 font-medium">Due ₹{pending.toLocaleString("en-IN")}</p>
-                    )}
-                  </div>
+                </div>
+                <div className="flex items-center border-t border-border/40 divide-x divide-border/40">
+                  <button
+                    onClick={() => navigate('/sales-invoice', { state: { editInvoiceId: inv.id } })}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-primary active:bg-primary/5 transition-colors touch-manipulation"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    <span>View</span>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const invoiceUrl = `${window.location.origin}/invoice/${inv.id}`;
+                      const message = `Invoice ${inv.sale_number}%0AAmount: ₹${(inv.net_amount || 0).toLocaleString("en-IN")}%0ACustomer: ${inv.customer_name || 'Walk-in'}%0A%0AView: ${invoiceUrl}`;
+                      window.open(`https://wa.me/?text=${message}`, '_blank');
+                    }}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-emerald-600 active:bg-emerald-50 transition-colors touch-manipulation"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    <span>WhatsApp</span>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate('/sales-invoice', { state: { editInvoiceId: inv.id } });
+                    }}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-violet-600 active:bg-violet-50 transition-colors touch-manipulation"
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                    <span>Print</span>
+                  </button>
                 </div>
               </div>
             );
