@@ -53,7 +53,7 @@ export async function fetchAllSalesSummary(organizationId: string) {
   while (hasMore) {
     const { data, error } = await supabase
       .from("sales")
-      .select("id, customer_id, net_amount, paid_amount, payment_status, sale_date, sale_number, customer_name")
+      .select("id, customer_id, net_amount, paid_amount, payment_status, sale_date, sale_number, customer_name, sale_return_adjust")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .order("sale_date", { ascending: false })
