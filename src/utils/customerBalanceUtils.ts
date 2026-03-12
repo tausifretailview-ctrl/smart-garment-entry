@@ -54,9 +54,10 @@ export function calculateCustomerBalance(
   sales.forEach(sale => {
     totalSales += sale.net_amount || 0;
     const salePaidAmount = sale.paid_amount || 0;
+    const cnAdjusted = sale.sale_return_adjust || 0;
     const voucherAmount = invoiceVoucherPayments.get(sale.id) || 0;
-    // Use max to avoid double-counting but also catch old unsynced data
-    totalPaidOnSales += Math.max(salePaidAmount, voucherAmount);
+    // Subtract CN adjustment from paid_amount to avoid double-counting with saleReturnTotal
+    totalPaidOnSales += Math.max(salePaidAmount - cnAdjusted, voucherAmount);
   });
 
   const totalPaid = totalPaidOnSales + openingBalancePayments;

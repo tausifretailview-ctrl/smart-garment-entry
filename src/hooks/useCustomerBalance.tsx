@@ -82,10 +82,10 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
       let totalPaidOnSales = 0;
       sales?.forEach(sale => {
         const salePaidAmount = sale.paid_amount || 0;
+        const cnAdjusted = sale.sale_return_adjust || 0;
         const voucherAmount = invoiceVoucherPayments[sale.id] || 0;
-        // Use voucher amount if it exists (authoritative), else fall back to sale.paid_amount
-        // This avoids double-counting while preferring the more accurate voucher record
-        totalPaidOnSales += voucherAmount > 0 ? voucherAmount : salePaidAmount;
+        // Subtract CN adjustment from paid_amount to avoid double-counting with saleReturnTotal
+        totalPaidOnSales += voucherAmount > 0 ? voucherAmount : (salePaidAmount - cnAdjusted);
       });
 
       const totalPaid = totalPaidOnSales + openingBalanceVoucherPayments;
