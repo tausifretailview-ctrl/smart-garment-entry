@@ -8,11 +8,10 @@ import { MobileDateFilterChips } from "@/components/mobile/MobileDateFilterChips
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { Search, Plus, ChevronRight, TrendingUp, FileText, RotateCcw, Eye, MessageCircle, Printer } from "lucide-react";
+import { Search, Plus, ChevronRight, TrendingUp, FileText, RotateCcw, Eye, MessageCircle, Download } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
-import { toast } from "sonner";
 
 export default function MobileSalesHub() {
   const { currentOrganization } = useOrganization();
@@ -43,7 +42,7 @@ export default function MobileSalesHub() {
         .select("id, sale_number, sale_date, created_at, customer_name, net_amount, paid_amount, payment_status, sale_type")
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null)
-        .eq("sale_type", "invoice")
+        .in("sale_type", ["invoice", "pos"])
         .gte("sale_date", start)
         .lte("sale_date", end)
         .order("created_at", { ascending: false })
@@ -188,13 +187,12 @@ export default function MobileSalesHub() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    orgNavigate(`/sales-invoice-dashboard`);
-                    toast.info("Open the invoice to print");
+                    orgNavigate(`/sales-invoice-dashboard?downloadPdf=${sale.id}`);
                   }}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-violet-600 active:bg-violet-50 transition-colors touch-manipulation"
                 >
-                  <Printer className="h-3.5 w-3.5" />
-                  <span>Print</span>
+                  <Download className="h-3.5 w-3.5" />
+                  <span>PDF</span>
                 </button>
               </div>
             </div>

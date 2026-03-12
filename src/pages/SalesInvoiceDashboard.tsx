@@ -24,6 +24,7 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
@@ -449,6 +450,34 @@ export default function SalesInvoiceDashboard() {
 
   const invoicesData = invoicesResult?.data || [];
   const totalCount = invoicesResult?.count || 0;
+
+  // Auto-download PDF when navigated from mobile with downloadPdf param
+  const [searchParams, setSearchParams] = useSearchParams();
+  const downloadPdfId = searchParams.get('downloadPdf');
+  const downloadTriggeredRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!downloadPdfId || isLoading || downloadTriggeredRef.current === downloadPdfId) return;
+    downloadTriggeredRef.current = downloadPdfId;
+    // Find the invoice in loaded data or fetch it directly
+    const found = invoicesData.find((inv: any) => inv.id === downloadPdfId);
+    if (found) {
+      handleDownloadPDF(found);
+    } else {
+      // Fetch the specific invoice
+      (async () => {
+        const { data } = await supabase
+          .from('sales')
+          .select('*')
+          .eq('id', downloadPdfId)
+          .single();
+        if (data) handleDownloadPDF(data);
+      })();
+    }
+    // Clean up the URL param
+    searchParams.delete('downloadPdf');
+    setSearchParams(searchParams, { replace: true });
+  }, [downloadPdfId, isLoading, invoicesData]);
 
   // Server-side summary stats via RPC
   const { data: summaryStats } = useQuery({
