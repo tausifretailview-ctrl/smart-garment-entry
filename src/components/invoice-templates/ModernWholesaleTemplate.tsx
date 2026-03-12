@@ -655,10 +655,13 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
               page-break-after: auto;
               break-after: auto;
             }
-            .invoice-page th {
+            .invoice-page th,
+            .invoice-page thead th {
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
               color-adjust: exact !important;
+              background: ${colors.gradient} !important;
+              color: #fff !important;
             }
           }
         `}
