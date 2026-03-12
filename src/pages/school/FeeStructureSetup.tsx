@@ -8,8 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Save, BookOpen, Lock } from "lucide-react";
+import { Loader2, Save, BookOpen, Lock, History, Pencil } from "lucide-react";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { format } from "date-fns";
 
 const FREQUENCIES = [
   { value: "monthly", label: "Monthly" },
@@ -27,6 +28,8 @@ interface FeeRow {
   late_fee_amount: number;
   late_fee_after_days: number;
   existing_id?: string;
+  original_amount?: number;
+  original_frequency?: string;
 }
 
 const FeeStructureSetup = () => {
@@ -37,6 +40,7 @@ const FeeStructureSetup = () => {
   const [selectedYear, setSelectedYear] = useState<string>("");
   const [selectedClass, setSelectedClass] = useState<string>("");
   const [feeRows, setFeeRows] = useState<FeeRow[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   const { data: academicYears } = useQuery({
     queryKey: ["academic-years", currentOrganization?.id],
@@ -82,7 +86,6 @@ const FeeStructureSetup = () => {
     enabled: !!currentOrganization?.id,
   });
 
-  // Fetch existing fee structures when year+class selected
   const { isLoading: loadingStructures } = useQuery({
     queryKey: ["fee-structures", currentOrganization?.id, selectedYear, selectedClass],
     queryFn: async () => {
@@ -95,7 +98,6 @@ const FeeStructureSetup = () => {
         .eq("class_id", selectedClass);
       if (error) throw error;
 
-      // Build rows from fee heads, merging existing data
       const rows: FeeRow[] = feeHeads.map((head: any) => {
         const existing = data?.find((fs: any) => fs.fee_head_id === head.id);
         return {
@@ -107,6 +109,8 @@ const FeeStructureSetup = () => {
           late_fee_amount: existing?.late_fee_amount || 0,
           late_fee_after_days: existing?.late_fee_after_days || 15,
           existing_id: existing?.id,
+          original_amount: existing?.amount || 0,
+          original_frequency: existing?.frequency || "yearly",
         };
       });
       setFeeRows(rows);
@@ -115,13 +119,32 @@ const FeeStructureSetup = () => {
     enabled: !!currentOrganization?.id && !!selectedYear && !!selectedClass && !!feeHeads,
   });
 
+  // Fetch history
+  const { data: historyData, isLoading: loadingHistory } = useQuery({
+    queryKey: ["fee-structure-history", currentOrganization?.id, selectedYear, selectedClass],
+    queryFn: async () => {
+      if (!selectedYear || !selectedClass) return [];
+      const { data, error } = await supabase
+        .from("fee_structure_history")
+        .select("*")
+        .eq("organization_id", currentOrganization!.id)
+        .eq("academic_year_id", selectedYear)
+        .eq("class_id", selectedClass)
+        .order("changed_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id && !!selectedYear && !!selectedClass && showHistory,
+  });
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!currentOrganization?.id || !selectedYear || !selectedClass) return;
 
-      const rowsWithAmount = feeRows.filter(r => r.amount > 0);
-      
-      for (const row of rowsWithAmount) {
+      // Save ALL rows that have amount > 0 OR have an existing record (to allow updating to 0)
+      const rowsToSave = feeRows.filter(r => r.amount > 0 || r.existing_id);
+
+      for (const row of rowsToSave) {
         const payload = {
           organization_id: currentOrganization.id,
           academic_year_id: selectedYear,
@@ -134,28 +157,73 @@ const FeeStructureSetup = () => {
           late_fee_after_days: row.late_fee_after_days || null,
         };
 
+        const amountChanged = row.original_amount !== row.amount;
+        const frequencyChanged = row.original_frequency !== row.frequency;
+
         if (row.existing_id) {
           const { error } = await supabase
             .from("fee_structures")
             .update(payload)
             .eq("id", row.existing_id);
           if (error) throw error;
-        } else {
-          const { error } = await supabase
+
+          // Log history if amount or frequency changed
+          if (amountChanged || frequencyChanged) {
+            await supabase.from("fee_structure_history" as any).insert({
+              organization_id: currentOrganization.id,
+              fee_structure_id: row.existing_id,
+              academic_year_id: selectedYear,
+              class_id: selectedClass,
+              fee_head_id: row.fee_head_id,
+              old_amount: row.original_amount || 0,
+              new_amount: row.amount,
+              old_frequency: row.original_frequency || "yearly",
+              new_frequency: row.frequency,
+              changed_by: (await supabase.auth.getUser()).data.user?.email || "Unknown",
+            });
+          }
+        } else if (row.amount > 0) {
+          const { data: inserted, error } = await supabase
             .from("fee_structures")
-            .insert(payload);
+            .insert(payload)
+            .select("id")
+            .single();
           if (error) throw error;
+
+          // Log history for new entry
+          await supabase.from("fee_structure_history" as any).insert({
+            organization_id: currentOrganization.id,
+            fee_structure_id: inserted.id,
+            academic_year_id: selectedYear,
+            class_id: selectedClass,
+            fee_head_id: row.fee_head_id,
+            old_amount: 0,
+            new_amount: row.amount,
+            old_frequency: null,
+            new_frequency: row.frequency,
+            changed_by: (await supabase.auth.getUser()).data.user?.email || "Unknown",
+          });
         }
       }
     },
     onSuccess: () => {
       toast.success("Fee structure saved successfully!");
       queryClient.invalidateQueries({ queryKey: ["fee-structures"] });
+      queryClient.invalidateQueries({ queryKey: ["fee-structure-history"] });
     },
     onError: (err: any) => {
       toast.error("Failed to save: " + err.message);
     },
   });
+
+  const handleEditFromHistory = (historyRow: any) => {
+    // Find the fee row and focus it
+    const idx = feeRows.findIndex(r => r.fee_head_id === historyRow.fee_head_id);
+    if (idx >= 0) {
+      setShowHistory(false);
+      toast.info(`Edit the "${feeRows[idx].head_name}" fee head above and save.`);
+    }
+  };
 
   const updateRow = (index: number, field: keyof FeeRow, value: any) => {
     setFeeRows(prev => {
@@ -169,6 +237,12 @@ const FeeStructureSetup = () => {
     const multiplier = r.frequency === "monthly" ? 12 : r.frequency === "quarterly" ? 4 : 1;
     return sum + r.amount * multiplier;
   }, 0);
+
+  const hasChanges = feeRows.some(r => r.original_amount !== r.amount || r.original_frequency !== r.frequency) || feeRows.some(r => !r.existing_id && r.amount > 0);
+
+  // Map fee_head_id to name for history display
+  const feeHeadMap: Record<string, string> = {};
+  feeHeads?.forEach((h: any) => { feeHeadMap[h.id] = h.head_name; });
 
   if (!currentOrganization) {
     return (
@@ -188,18 +262,26 @@ const FeeStructureSetup = () => {
             <p className="text-muted-foreground">Define fee amounts per class for each academic year</p>
           </div>
         </div>
-        {selectedYear && selectedClass && feeRows.some(r => r.amount > 0) && canEditFeeStructure && (
-          <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-            {saveMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-            Save Fee Structure
-          </Button>
-        )}
-        {!canEditFeeStructure && (
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <Lock className="h-4 w-4" />
-            <span>View Only – Edit rights not granted</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {selectedYear && selectedClass && (
+            <Button variant="outline" onClick={() => setShowHistory(!showHistory)}>
+              <History className="h-4 w-4 mr-2" />
+              {showHistory ? "Hide History" : "View History"}
+            </Button>
+          )}
+          {selectedYear && selectedClass && hasChanges && canEditFeeStructure && (
+            <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+              Save Fee Structure
+            </Button>
+          )}
+          {!canEditFeeStructure && (
+            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+              <Lock className="h-4 w-4" />
+              <span>View Only – Edit rights not granted</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -256,80 +338,158 @@ const FeeStructureSetup = () => {
             ) : feeRows.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">No fee heads found. Please add fee heads first.</p>
             ) : (
-              <>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Fee Head</TableHead>
-                      <TableHead className="w-32">Amount (₹)</TableHead>
-                      <TableHead className="w-36">Frequency</TableHead>
-                      <TableHead className="w-24">Due Day</TableHead>
-                      <TableHead className="w-32">Late Fee (₹)</TableHead>
-                      <TableHead className="w-32">Late After (days)</TableHead>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Fee Head</TableHead>
+                    <TableHead className="w-32">Amount (₹)</TableHead>
+                    <TableHead className="w-36">Frequency</TableHead>
+                    <TableHead className="w-24">Due Day</TableHead>
+                    <TableHead className="w-32">Late Fee (₹)</TableHead>
+                    <TableHead className="w-32">Late After (days)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {feeRows.map((row, idx) => (
+                    <TableRow key={row.fee_head_id} className={row.original_amount !== row.amount ? "bg-accent/30" : ""}>
+                      <TableCell className="font-medium">{row.head_name}</TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={row.amount || ""}
+                          onChange={e => updateRow(idx, "amount", parseFloat(e.target.value) || 0)}
+                          className="w-28"
+                          disabled={!canEditFeeStructure}
+                          placeholder="0"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Select value={row.frequency} onValueChange={v => updateRow(idx, "frequency", v)} disabled={!canEditFeeStructure}>
+                          <SelectTrigger className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {FREQUENCIES.map(f => (
+                              <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="28"
+                          value={row.due_day}
+                          onChange={e => updateRow(idx, "due_day", parseInt(e.target.value) || 1)}
+                          className="w-20"
+                          disabled={!canEditFeeStructure}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={row.late_fee_amount || ""}
+                          onChange={e => updateRow(idx, "late_fee_amount", parseFloat(e.target.value) || 0)}
+                          className="w-28"
+                          disabled={!canEditFeeStructure}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={row.late_fee_after_days}
+                          onChange={e => updateRow(idx, "late_fee_after_days", parseInt(e.target.value) || 0)}
+                          className="w-28"
+                          disabled={!canEditFeeStructure}
+                        />
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {feeRows.map((row, idx) => (
-                      <TableRow key={row.fee_head_id}>
-                        <TableCell className="font-medium">{row.head_name}</TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            min="0"
-                            value={row.amount || ""}
-                            onChange={e => updateRow(idx, "amount", parseFloat(e.target.value) || 0)}
-                            className="w-28"
-                            disabled={!canEditFeeStructure}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Select value={row.frequency} onValueChange={v => updateRow(idx, "frequency", v)} disabled={!canEditFeeStructure}>
-                            <SelectTrigger className="w-32">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {FREQUENCIES.map(f => (
-                                <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            min="1"
-                            max="28"
-                            value={row.due_day}
-                            onChange={e => updateRow(idx, "due_day", parseInt(e.target.value) || 1)}
-                            className="w-20"
-                            disabled={!canEditFeeStructure}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            min="0"
-                            value={row.late_fee_amount || ""}
-                            onChange={e => updateRow(idx, "late_fee_amount", parseFloat(e.target.value) || 0)}
-                            className="w-28"
-                            disabled={!canEditFeeStructure}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            min="0"
-                            value={row.late_fee_after_days}
-                            onChange={e => updateRow(idx, "late_fee_after_days", parseInt(e.target.value) || 0)}
-                            className="w-28"
-                            disabled={!canEditFeeStructure}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* History Section */}
+      {showHistory && selectedYear && selectedClass && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Fee Structure Change History
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingHistory ? (
+              <div className="flex items-center justify-center h-24">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : !historyData || historyData.length === 0 ? (
+              <p className="text-center text-muted-foreground py-6">No changes recorded yet.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date & Time</TableHead>
+                    <TableHead>Fee Head</TableHead>
+                    <TableHead>Old Amount</TableHead>
+                    <TableHead>New Amount</TableHead>
+                    <TableHead>Frequency</TableHead>
+                    <TableHead>Changed By</TableHead>
+                    <TableHead className="w-20">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {historyData.map((h: any) => (
+                    <TableRow key={h.id}>
+                      <TableCell className="text-sm">
+                        {format(new Date(h.changed_at), "dd MMM yyyy, hh:mm a")}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {feeHeadMap[h.fee_head_id] || "Unknown"}
+                      </TableCell>
+                      <TableCell>
+                        <span className={Number(h.old_amount) > 0 ? "text-destructive line-through" : "text-muted-foreground"}>
+                          ₹{Number(h.old_amount).toLocaleString("en-IN")}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-semibold text-primary">
+                          ₹{Number(h.new_amount).toLocaleString("en-IN")}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-sm capitalize">
+                        {h.old_frequency !== h.new_frequency ? (
+                          <span>{h.old_frequency} → {h.new_frequency}</span>
+                        ) : (
+                          h.new_frequency || "-"
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {h.changed_by || "-"}
+                      </TableCell>
+                      <TableCell>
+                        {canEditFeeStructure && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditFromHistory(h)}
+                            title="Edit this fee head"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             )}
           </CardContent>
         </Card>
