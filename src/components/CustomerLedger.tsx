@@ -1104,7 +1104,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       customerSales?.forEach((sale) => {
         const totalPaidOnSale = sale.paid_amount || 0;
         const voucherPayments = voucherPaymentsBySaleId[sale.id] || 0;
-        const paidAtSale = Math.max(0, totalPaidOnSale - voucherPayments);
+        const saleReturnAdjust = sale.sale_return_adjust || 0;
+        const paidAtSale = Math.max(0, totalPaidOnSale - voucherPayments - saleReturnAdjust);
         
         if (paidAtSale > 0) {
           // Check date filter
