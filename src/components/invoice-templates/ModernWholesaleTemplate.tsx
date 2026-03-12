@@ -203,6 +203,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   const groupedItems = groupItems(items);
   const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
   const calculatedTaxableAmount = taxableAmount || subtotal - discount;
+  const hasAnyDiscount = groupedItems.some(item => item.discountPercent > 0);
 
   // Calculate items per page based on format
   const getItemsPerPage = () => {
