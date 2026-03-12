@@ -451,6 +451,34 @@ export default function SalesInvoiceDashboard() {
   const invoicesData = invoicesResult?.data || [];
   const totalCount = invoicesResult?.count || 0;
 
+  // Auto-download PDF when navigated from mobile with downloadPdf param
+  const [searchParams, setSearchParams] = useSearchParams();
+  const downloadPdfId = searchParams.get('downloadPdf');
+  const downloadTriggeredRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!downloadPdfId || isLoading || downloadTriggeredRef.current === downloadPdfId) return;
+    downloadTriggeredRef.current = downloadPdfId;
+    // Find the invoice in loaded data or fetch it directly
+    const found = invoicesData.find((inv: any) => inv.id === downloadPdfId);
+    if (found) {
+      handleDownloadPDF(found);
+    } else {
+      // Fetch the specific invoice
+      (async () => {
+        const { data } = await supabase
+          .from('sales')
+          .select('*')
+          .eq('id', downloadPdfId)
+          .single();
+        if (data) handleDownloadPDF(data);
+      })();
+    }
+    // Clean up the URL param
+    searchParams.delete('downloadPdf');
+    setSearchParams(searchParams, { replace: true });
+  }, [downloadPdfId, isLoading, invoicesData]);
+
   // Server-side summary stats via RPC
   const { data: summaryStats } = useQuery({
     queryKey: ['invoice-dashboard-stats', currentOrganization?.id, debouncedSearch, deliveryFilter, paymentStatusFilter, queryDateRange.start, queryDateRange.end],
