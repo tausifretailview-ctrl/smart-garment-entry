@@ -1812,6 +1812,90 @@ export type Database = {
           },
         ]
       }
+      fee_structure_history: {
+        Row: {
+          academic_year_id: string
+          changed_at: string
+          changed_by: string | null
+          class_id: string
+          fee_head_id: string
+          fee_structure_id: string | null
+          id: string
+          new_amount: number | null
+          new_frequency: string | null
+          notes: string | null
+          old_amount: number | null
+          old_frequency: string | null
+          organization_id: string
+        }
+        Insert: {
+          academic_year_id: string
+          changed_at?: string
+          changed_by?: string | null
+          class_id: string
+          fee_head_id: string
+          fee_structure_id?: string | null
+          id?: string
+          new_amount?: number | null
+          new_frequency?: string | null
+          notes?: string | null
+          old_amount?: number | null
+          old_frequency?: string | null
+          organization_id: string
+        }
+        Update: {
+          academic_year_id?: string
+          changed_at?: string
+          changed_by?: string | null
+          class_id?: string
+          fee_head_id?: string
+          fee_structure_id?: string | null
+          id?: string
+          new_amount?: number | null
+          new_frequency?: string | null
+          notes?: string | null
+          old_amount?: number | null
+          old_frequency?: string | null
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fee_structure_history_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "academic_years"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fee_structure_history_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "school_classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fee_structure_history_fee_head_id_fkey"
+            columns: ["fee_head_id"]
+            isOneToOne: false
+            referencedRelation: "fee_heads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fee_structure_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fee_structure_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       fee_structures: {
         Row: {
           academic_year_id: string
