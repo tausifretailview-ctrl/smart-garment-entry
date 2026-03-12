@@ -188,13 +188,12 @@ export default function MobileSalesHub() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    orgNavigate(`/sales-invoice-dashboard`);
-                    toast.info("Open the invoice to print");
+                    orgNavigate(`/sales-invoice-dashboard?downloadPdf=${sale.id}`);
                   }}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-violet-600 active:bg-violet-50 transition-colors touch-manipulation"
                 >
-                  <Printer className="h-3.5 w-3.5" />
-                  <span>Print</span>
+                  <Download className="h-3.5 w-3.5" />
+                  <span>PDF</span>
                 </button>
               </div>
             </div>
