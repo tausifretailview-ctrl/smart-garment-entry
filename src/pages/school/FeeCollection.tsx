@@ -304,11 +304,11 @@ const FeeCollection = () => {
 
   // Fetch collected fees data
   const { data: collectedFees, isLoading: collectedLoading } = useQuery({
-    queryKey: ["fees-collected", currentOrganization?.id, activeYear?.id, collectedPeriod, customDateFrom, customDateTo, collectedSearch],
+    queryKey: ["fees-collected", currentOrganization?.id, activeYear?.id, collectedPeriod, customDateFrom, customDateTo],
     queryFn: async () => {
       if (!activeYear) return [];
 
-      let query = supabase
+      const query = supabase
         .from("student_fees")
         .select("*, students!inner(student_name, admission_number, parent_phone, parent_name, class_id, school_classes:class_id(class_name)), fee_heads(head_name), academic_years(year_name)")
         .eq("organization_id", currentOrganization!.id)
@@ -316,10 +316,6 @@ const FeeCollection = () => {
         .gte("paid_date", dateRange.from)
         .lte("paid_date", dateRange.to)
         .order("paid_date", { ascending: false });
-
-      if (collectedSearch) {
-        query = query.or(`students.student_name.ilike.%${collectedSearch}%,students.admission_number.ilike.%${collectedSearch}%`, { referencedTable: "students" });
-      }
 
       const { data, error } = await query;
       if (error) throw error;
