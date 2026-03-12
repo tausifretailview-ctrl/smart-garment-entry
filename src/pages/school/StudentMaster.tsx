@@ -130,9 +130,9 @@ const StudentMaster = () => {
         query = query.or(`student_name.ilike.%${searchTerm}%,admission_number.ilike.%${searchTerm}%,parent_phone.ilike.%${searchTerm}%`);
       }
 
-      // Filter for new admissions: created_at within the academic year
+      // Filter for new admissions
       if (filterNewAdmissions) {
-        query = query.gte("created_at", academicStart);
+        query = query.eq("is_new_admission", true);
       }
 
       const { data, error, count } = await query;
