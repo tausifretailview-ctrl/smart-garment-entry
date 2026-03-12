@@ -549,19 +549,26 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
     </>
   );
 
-  // Render page indicator (shown on all pages when multi-page)
-  const renderPageIndicator = (pageNum: number) => (
-    totalPages > 1 && (
-      <div style={{ 
-        textAlign: "right", 
-        padding: "4px 8px", 
-        fontSize: "8pt", 
-        color: "#666",
-        borderTop: "1px solid #e5e7eb"
-      }}>
+  // Render page footer (shown on all pages)
+  const renderPageFooter = (pageNum: number, isLastPage: boolean) => (
+    <div style={{ 
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: isA5 ? "3px 6px" : "4px 8px", 
+      fontSize: isA5 ? "6pt" : "8pt", 
+      color: "#666",
+      borderTop: "1px solid #374151",
+      background: colors.light,
+      flexShrink: 0,
+    }}>
+      <div style={{ fontStyle: "italic" }}>
+        {!isLastPage ? "Continued on next page..." : `Invoice: ${invoiceNumber}`}
+      </div>
+      <div style={{ fontWeight: "600" }}>
         Page {pageNum} of {totalPages}
       </div>
-    )
+    </div>
   );
 
   // Render a single page
