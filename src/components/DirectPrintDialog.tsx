@@ -109,6 +109,7 @@ export const DirectPrintDialog = ({
   const [showAddTemplate, setShowAddTemplate] = useState(false);
   const [previewContent, setPreviewContent] = useState('');
   const [showPrinterSettings, setShowPrinterSettings] = useState(false);
+  const [showZadigGuide, setShowZadigGuide] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Printer-specific settings (persisted per printer)
@@ -502,7 +503,10 @@ export const DirectPrintDialog = ({
                       Plug in your thermal printer via USB, then click Connect.
                       Works with TSC, Godex, Xprinter, HPRT printers.
                     </p>
-                    <Button size="sm" onClick={connectUsb} disabled={isUsbConnecting}>
+                    <Button size="sm" onClick={async () => {
+                      setShowZadigGuide(false);
+                      await connectUsb();
+                    }} disabled={isUsbConnecting}>
                       <Usb className="h-4 w-4 mr-1" />
                       {isUsbConnecting ? 'Connecting...' : 'Connect USB Printer'}
                     </Button>
@@ -890,9 +894,90 @@ PRINT 1,1`}
           )}
 
           {/* Error Display */}
-          {error && (
+          {error && !(
+            error.toLowerCase().includes('access denied') ||
+            error.toLowerCase().includes('failed to execute') ||
+            error.toLowerCase().includes('usbdevice')
+          ) && (
             <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-sm text-destructive">
               {error}
+            </div>
+          )}
+
+          {/* Zadig setup guide — shown when Windows driver blocks WebUSB */}
+          {(showZadigGuide || (error && (
+            error.toLowerCase().includes('access denied') ||
+            error.toLowerCase().includes('failed to execute') ||
+            error.toLowerCase().includes('usbdevice')
+          ))) && (
+            <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 rounded-lg space-y-3">
+              <div className="flex items-start gap-2">
+                <span className="text-xl">🔧</span>
+                <div>
+                  <p className="font-semibold text-amber-900 dark:text-amber-200 text-sm">
+                    One-time setup needed — Windows driver is blocking USB access
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                    Your label printer has a Windows driver installed. Replace it with WinUSB using Zadig (free, 2 minutes, one time only).
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 uppercase tracking-wide">Steps:</p>
+                <div className="space-y-1.5 text-xs text-amber-800 dark:text-amber-300">
+                  {[
+                    { step: '1', title: 'Download Zadig', desc: ' — free, no install needed', link: true },
+                    { step: '2', title: 'Plug in your label printer', desc: ' via USB, then run Zadig.exe' },
+                    { step: '3', title: 'In Zadig: Options → List All Devices', desc: '' },
+                    { step: '4', title: 'Select your label printer', desc: ' from the dropdown (TSC / Godex / Xprinter)' },
+                    { step: '5', title: 'Set the driver to WinUSB', desc: ' using the arrow buttons' },
+                    { step: '6', title: 'Click "Replace Driver"', desc: ' — wait 30 seconds for it to finish' },
+                    { step: '7', title: 'Unplug and replug the printer', desc: ', then click Connect again here' },
+                  ].map(s => (
+                    <div key={s.step} className="flex gap-2">
+                      <span className="font-bold bg-amber-200 dark:bg-amber-800 rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 text-amber-900 dark:text-amber-100">{s.step}</span>
+                      <div>
+                        <span className="font-medium">{s.title}</span>
+                        <span className="text-amber-700 dark:text-amber-400">{s.desc}</span>
+                        {s.link && (
+                          <>
+                            <br />
+                            <button
+                              onClick={() => window.open('https://zadig.akeo.ie/', '_blank')}
+                              className="text-blue-600 dark:text-blue-400 underline hover:text-blue-800 font-medium"
+                            >
+                              zadig.akeo.ie → click "Zadig 2.x (exe)"
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-2 bg-amber-100 dark:bg-amber-900/50 rounded text-xs text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-700">
+                <strong>Note:</strong> After this setup, your label printer will only work through Ezzy ERP — not through Windows directly. This is fine since you print labels only from here. To undo: Device Manager → find printer → Update driver → "Search automatically".
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => window.open('https://zadig.akeo.ie/', '_blank')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded bg-amber-600 hover:bg-amber-700 text-white transition-colors"
+                >
+                  ↗ Open Zadig Website
+                </button>
+                <button
+                  onClick={async () => {
+                    setShowZadigGuide(false);
+                    await connectUsb();
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-amber-400 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors"
+                >
+                  ↺ Try Connect Again
+                </button>
+              </div>
             </div>
           )}
         </div>
