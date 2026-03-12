@@ -442,15 +442,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <td style={{ ...cellStyle, textAlign: "center", fontWeight: "900" }}>{totalQty}</td>
             {!isA5 && <td style={cellStyle}>&nbsp;</td>}
             <td style={cellStyle}>&nbsp;</td>
-            {hasAnyDiscount && <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "6pt" : "7pt", fontWeight: "700" }}>
-              {(() => {
-                const totalDiscount = groupedItems.reduce((sum, item) => {
-                  const discAmt = item.discountPercent > 0 ? (item.totalAmount * item.discountPercent) / (100 - item.discountPercent) : 0;
-                  return sum + discAmt;
-                }, 0);
-                return totalDiscount > 0 ? totalDiscount.toFixed(2) : '';
-              })()}
-            </td>}
+            {hasAnyDiscount && <td style={cellStyle}>&nbsp;</td>}
             {showGSTBreakdown && <td style={cellStyle}>&nbsp;</td>}
             {showGSTBreakdown && <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "5.5pt" : "7pt" }}>
               {(cgstAmount + sgstAmount) > 0 ? (cgstAmount + sgstAmount).toFixed(2) : ''}
