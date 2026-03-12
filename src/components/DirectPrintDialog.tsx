@@ -109,6 +109,7 @@ export const DirectPrintDialog = ({
   const [showAddTemplate, setShowAddTemplate] = useState(false);
   const [previewContent, setPreviewContent] = useState('');
   const [showPrinterSettings, setShowPrinterSettings] = useState(false);
+  const [showZadigGuide, setShowZadigGuide] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Printer-specific settings (persisted per printer)
