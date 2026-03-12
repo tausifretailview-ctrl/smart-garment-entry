@@ -78,8 +78,6 @@ import { format } from "date-fns";
 import { useReactToPrint } from "react-to-print";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
-import { useEscPosPrint } from '@/hooks/useEscPosPrint';
-import { EscPosReceiptData } from '@/utils/escPosPrint';
 
 interface PendingPriceSelection {
   product: any;
@@ -221,18 +219,6 @@ export default function POSSales() {
   // Cash drawer hook
   const { openDrawer: openCashDrawer } = useCashDrawer();
   const { softDelete } = useSoftDelete();
-
-  const {
-    isSupported: isUsbReceiptSupported,
-    isConnected: isUsbReceiptConnected,
-    isConnecting: isUsbReceiptConnecting,
-    isPrinting: isUsbReceiptPrinting,
-    printerName: usbReceiptPrinterName,
-    connect: connectUsbReceipt,
-    disconnect: disconnectUsbReceipt,
-    printReceipt: printUsbReceipt,
-    isUsbEnabled: getUsbReceiptEnabled,
-  } = useEscPosPrint();
 
 
   // Barcode scanner detection for instant cart add
@@ -1727,26 +1713,6 @@ export default function POSSales() {
       // Now show print dialog with saved data
       setSavedInvoiceData(invoiceDataForPrint);
       
-      // USB ESC/POS auto-print (no dialog, no driver)
-      if (isUsbReceiptConnected && posBillFormat === 'thermal') {
-        const billSettings = (settingsData as any)?.bill_barcode_settings;
-        const openDrawer = billSettings?.enable_cash_drawer === true;
-        const receiptData = buildEscPosReceiptData(
-          invoiceDataForPrint,
-          method,
-          openDrawer
-        );
-        if (receiptData) {
-          const success = await printUsbReceipt(receiptData);
-          if (success) {
-            setSavedInvoiceData(null);
-            setTimeout(() => barcodeInputRef.current?.focus(), 100);
-            return;
-          }
-          // Fall through to existing QZ/browser path if USB fails
-        }
-      }
-
       // If auto-print via QZ Tray is enabled, skip dialog and print directly
       if (isDirectPrintEnabled && isAutoPrintEnabled) {
         // Set data first, then trigger print after render
@@ -2008,66 +1974,6 @@ export default function POSSales() {
     `;
   };
 
-  const buildEscPosReceiptData = useCallback((
-    invoiceData: typeof savedInvoiceData,
-    method: string,
-    openDrawer = false
-  ): EscPosReceiptData | null => {
-    if (!invoiceData || !settingsData) return null;
-
-    const saleSettings = (settingsData as any)?.sale_settings;
-    const billSettings = (settingsData as any)?.bill_barcode_settings;
-    const businessInfo = settingsData as any;
-
-    const cashAmt = method === 'cash' ? invoiceData.finalAmount
-      : (invoiceData as any).cashAmount || 0;
-    const upiAmt = method === 'upi' ? invoiceData.finalAmount
-      : (invoiceData as any).upiAmount || 0;
-    const cardAmt = method === 'card' ? invoiceData.finalAmount
-      : (invoiceData as any).cardAmount || 0;
-
-    const grandTotal = invoiceData.finalAmount || 0;
-    const subTotal = invoiceData.totals?.mrp || grandTotal;
-    const discount = (invoiceData.totals?.discount || 0) + (invoiceData.flatDiscountAmount || 0);
-
-    return {
-      businessName: businessInfo?.business_name || 'Store',
-      businessAddress: businessInfo?.address || '',
-      businessPhone: businessInfo?.mobile_number || '',
-      businessGSTIN: businessInfo?.gst_number || '',
-      billNo: invoiceData.invoiceNumber || '',
-      date: new Date(),
-      documentType: 'pos',
-      customerName: invoiceData.customerName || 'Walk-in Customer',
-      customerPhone: invoiceData.customerPhone || '',
-      items: (invoiceData.items || []).map((item: any, idx: number) => ({
-        sr: idx + 1,
-        particulars: item.product_name || item.particulars || '',
-        qty: item.quantity || item.qty || 1,
-        rate: item.unit_price || item.rate || 0,
-        total: item.line_total || item.total || 0,
-        size: item.size || '',
-      })),
-      subTotal,
-      discount,
-      saleReturnAdjust: invoiceData.saleReturnAdjust || 0,
-      grandTotal,
-      roundOff: invoiceData.roundOff || 0,
-      paymentMethod: method,
-      cashPaid: cashAmt,
-      upiPaid: upiAmt,
-      cardPaid: cardAmt,
-      refundCash: cashAmt > grandTotal ? cashAmt - grandTotal : 0,
-      termsConditions: saleSettings?.terms_conditions?.join?.('\n') || '',
-      pointsRedeemed: (invoiceData as any).pointsRedeemed || 0,
-      pointsRedemptionValue: (invoiceData as any).pointsRedemptionValue || 0,
-      pointsBalance: 0,
-      paperWidth: 48,
-      openDrawer,
-      drawerPin: (billSettings?.cash_drawer_pin as 'pin2' | 'pin5') || 'pin2',
-    };
-  }, [settingsData]);
-
   const handlePrint = useReactToPrint({
     contentRef: invoicePrintRef,
     documentTitle: savedInvoiceData?.invoiceNumber || "Invoice",
@@ -2102,26 +2008,6 @@ export default function POSSales() {
   const handlePrintFromDialog = async () => {
 
     setShowPrintConfirmDialog(false);
-
-    // USB ESC/POS direct print (no dialog, no driver)
-    if (isUsbReceiptConnected && posBillFormat === 'thermal') {
-      const billSettings = (settingsData as any)?.bill_barcode_settings;
-      const openDrawer = billSettings?.enable_cash_drawer === true;
-      const receiptData = buildEscPosReceiptData(
-        savedInvoiceData,
-        (savedInvoiceData as any)?.method || 'cash',
-        openDrawer
-      );
-      if (receiptData) {
-        const success = await printUsbReceipt(receiptData);
-        if (success) {
-          setSavedInvoiceData(null);
-          setTimeout(() => barcodeInputRef.current?.focus(), 100);
-          return;
-        }
-        sonnerToast.warning('USB print failed — falling back to browser print');
-      }
-    }
 
     // Try QZ Tray direct print first
     if (isDirectPrintEnabled) {
@@ -3038,31 +2924,6 @@ export default function POSSales() {
             <span>Last</span>
           </Button>
           
-          {/* USB Receipt Printer status chip */}
-          {isUsbReceiptSupported && posBillFormat === 'thermal' && (
-            <div className="h-14 flex items-center justify-center w-full">
-              {isUsbReceiptConnected ? (
-                <button
-                  onClick={disconnectUsbReceipt}
-                  className="flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-medium border border-emerald-300 hover:bg-emerald-200 transition-colors"
-                  title={`Connected: ${usbReceiptPrinterName}. Click to disconnect.`}
-                >
-                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  USB Printer
-                </button>
-              ) : (
-                <button
-                  onClick={connectUsbReceipt}
-                  disabled={isUsbReceiptConnecting}
-                  className="flex items-center gap-1 px-2 py-1 rounded-full bg-muted text-muted-foreground text-[10px] font-medium border border-border hover:bg-accent transition-colors disabled:opacity-50"
-                  title="Connect USB thermal printer for direct receipt printing"
-                >
-                  {isUsbReceiptConnecting ? '...' : '🔌 Connect Printer'}
-                </button>
-              )}
-            </div>
-          )}
-
           {/* 9. Print - matches Dashboard "Credit Notes" indigo-500 */}
           <Button
             onClick={handlePrint}

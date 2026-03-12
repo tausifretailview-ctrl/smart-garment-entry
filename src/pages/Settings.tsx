@@ -3605,40 +3605,62 @@ export default function Settings() {
                   </CardContent>
                 </Card>
 
-                {/* USB Direct Receipt Printing — NEW */}
+                {/* USB Receipt Printing — Windows Reality Check */}
                 <Card className="border-dashed">
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2 justify-between">
-                      <span className="flex items-center gap-2">
-                        🔌 USB Direct Receipt Printing
-                      </span>
-                      <span className="inline-flex items-center rounded-md border-transparent bg-emerald-500/10 text-emerald-600 px-2 py-0.5 text-[10px] font-semibold">
-                        No Install Needed
-                      </span>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      🖨️ Direct Bill Printing — Setup Guide
                     </CardTitle>
                     <CardDescription>
-                      Print thermal receipts directly via USB — no QZ Tray, no Java, no browser dialog.
-                      Works with Epson TM-T82, TVS RP3200, Sam4s Ellix, Rugtek and most 80mm USB thermal printers.
-                      Requires Chrome or Edge browser.
+                      Print receipts instantly without browser print dialog
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">How to set up:</p>
-                      <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1.5">
-                        <li>Plug your thermal printer into this computer via USB cable</li>
-                        <li>Go to POS page — click the 🔌 Connect Printer button in the header</li>
-                        <li>Chrome will show a USB device picker — select your thermal printer</li>
-                        <li>Done. Bills print instantly after saving — no dialog, no preview</li>
-                        <li>Chrome remembers your choice — no need to reconnect after restart</li>
-                      </ol>
+                    <div className="p-3 bg-destructive/10 rounded-lg space-y-1.5">
+                      <p className="text-sm font-medium text-destructive">⚠️ Why "Connect USB Printer" shows Access Denied</p>
+                      <p className="text-xs text-muted-foreground">
+                        Windows installs a printer driver the moment you plug in a USB thermal printer.
+                        That driver blocks direct USB access from the browser — this is a Windows
+                        security design and cannot be bypassed in code. This affects all browsers
+                        including Chrome and Edge.
+                      </p>
                     </div>
 
-                    <div className="p-3 bg-muted/50 rounded-lg text-xs text-muted-foreground">
-                      Note: USB Direct uses ESC/POS commands — the receipt will be text-based
-                      (not the same HTML template as browser print). All bill data is included: items, totals,
-                      payment breakdown, and cash drawer signal.
-                      For logo and styled receipt, continue using browser print or QZ Tray.
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">✅ Correct Solution — QZ Tray (Free, works with all printers)</p>
+                      <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1.5">
+                        <li>Download QZ Tray from qz.io/download — free, 8MB install</li>
+                        <li>Run the installer — it starts automatically with Windows</li>
+                        <li>Come back to Settings → scroll to "Direct Printing (QZ Tray)" below</li>
+                        <li>Click "Detect Printers" → select your thermal printer</li>
+                        <li>Enable "Auto Print After Save" — bills print instantly, no dialog</li>
+                      </ol>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        QZ Tray works WITH the Windows printer driver, not around it.
+                        It handles Epson TM-T82, TVS RP3200, Sam4s Ellix, Rugtek RP76 and all standard thermal printers.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Comparison:</p>
+                      <div className="grid grid-cols-4 gap-1 text-xs">
+                        <div className="font-medium p-1.5 bg-muted rounded">Method</div>
+                        <div className="font-medium p-1.5 bg-muted rounded">Works on Windows</div>
+                        <div className="font-medium p-1.5 bg-muted rounded">Setup required</div>
+                        <div className="p-1.5"></div>
+                        <div className="p-1.5">Browser print</div>
+                        <div className="p-1.5">✅ Always</div>
+                        <div className="p-1.5">None</div>
+                        <div className="p-1.5"></div>
+                        <div className="p-1.5">QZ Tray</div>
+                        <div className="p-1.5">✅ Yes</div>
+                        <div className="p-1.5">8MB install</div>
+                        <div className="p-1.5"></div>
+                        <div className="p-1.5">WebUSB</div>
+                        <div className="p-1.5">❌ Blocked by driver</div>
+                        <div className="p-1.5">Remove printer driver</div>
+                        <div className="p-1.5"></div>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
