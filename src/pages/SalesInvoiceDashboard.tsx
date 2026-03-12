@@ -1750,8 +1750,8 @@ export default function SalesInvoiceDashboard() {
             return (
               <div key={inv.id}
                 className="bg-card rounded-2xl border border-border/40 shadow-sm overflow-hidden">
-                <div className="p-3.5 active:bg-muted/30 transition-colors touch-manipulation"
-                  onClick={() => navigate('/sales-invoice', { state: { editInvoiceId: inv.id } })}>
+                <div className={cn("p-3.5 active:bg-muted/30 transition-colors touch-manipulation", inv.is_cancelled && "opacity-60")}
+                  onClick={() => !inv.is_cancelled && navigate('/sales-invoice', { state: { editInvoiceId: inv.id } })}>
                   <div className="flex items-start justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
