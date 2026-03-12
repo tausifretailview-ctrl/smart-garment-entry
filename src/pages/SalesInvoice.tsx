@@ -2496,7 +2496,38 @@ Thank you for choosing us!`;
               <ChevronRight className="h-4 w-4" />
             </Button>
             <div className="w-px h-6 bg-white/20 mx-1" />
-            <Button variant="ghost" size="sm" onClick={() => navigate('/sales-invoice', { replace: true, state: {} })}
+            <Button variant="ghost" size="sm" onClick={() => {
+                setLineItems(Array(5).fill(null).map((_, i) => ({
+                  id: `row-${i}`, productId: '', variantId: '', productName: '', size: '', barcode: '', color: '',
+                  quantity: 0, box: '', mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, hsnCode: '',
+                })));
+                setSelectedCustomerId("");
+                setSelectedCustomer(null);
+                setInvoiceDate(new Date());
+                setDueDate(new Date());
+                setPaymentTerm("");
+                setTermsConditions("");
+                setNotes("");
+                setShippingAddress("");
+                setShippingInstructions("");
+                setEditingInvoiceId(null);
+                setOriginalItemsForEdit([]);
+                setSavedInvoiceData(null);
+                setFlatDiscountPercent(0);
+                setFlatDiscountRupees(0);
+                setOtherCharges(0);
+                setRoundOff(0);
+                setSalesman("");
+                setNavInvoiceIndex(null);
+                setShowNotesSection(false);
+                setShowPrintDialog(false);
+                setPointsToRedeem(0);
+                setSearchInput("");
+                setProductSearchResults([]);
+                deleteDraft();
+                invoiceSavedRef.current = false;
+                savingLockRef.current = false;
+              }}
               className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 px-2.5"
               title="New Bill">
               <Plus className="h-3.5 w-3.5" />

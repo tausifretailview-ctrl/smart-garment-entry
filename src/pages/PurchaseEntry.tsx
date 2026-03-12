@@ -2630,7 +2630,31 @@ const PurchaseEntry = () => {
             <ChevronRight className="h-4 w-4" />
            </Button>
           <div className="w-px h-6 bg-white/15 mx-1" />
-          <Button variant="ghost" size="sm" onClick={() => navigate('/purchase-entry', { replace: true, state: {} })}
+          <Button variant="ghost" size="sm" onClick={() => {
+              setLineItems([]);
+              setBillData({ supplier_id: "", supplier_name: "", supplier_invoice_no: "" });
+              setSoftwareBillNo("");
+              setBillDate(new Date());
+              setOtherCharges(0);
+              setRoundOff(0);
+              setEditingBillId(null);
+              setIsEditMode(false);
+              setOriginalLineItems([]);
+              setNavBillIndex(null);
+              setSavedBillId(null);
+              setSavedPurchaseItems([]);
+              setNewlyAddedItems([]);
+              setSearchQuery("");
+              setSearchResults([]);
+              setShowSearch(false);
+              setSelectedProduct(null);
+              setShowPrintDialog(false);
+              setBarcodeWarnings(new Map());
+              setDetectedPriceChanges([]);
+              setSelectedForPrint(new Set());
+              deleteDraft();
+              invoiceSavedRef.current = false;
+            }}
             className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 px-2.5"
             title="New Bill">
             <Plus className="h-3.5 w-3.5" />
