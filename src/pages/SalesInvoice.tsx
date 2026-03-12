@@ -2853,7 +2853,7 @@ Thank you for choosing us!`;
             </Select>
           </div>
 
-          {/* Salesman */}
+           {/* Salesman */}
           <div>
             <label className="text-[13px] font-medium text-muted-foreground mb-1 block">Salesman</label>
             <Select value={salesman || "none"} onValueChange={(v) => setSalesman(v === "none" ? "" : v)}>
@@ -2869,6 +2869,36 @@ Thank you for choosing us!`;
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Search Invoice Number */}
+          <div>
+            <label className="text-[13px] font-medium text-muted-foreground mb-1 block">Search Invoice</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Type invoice no & Enter"
+                className="pl-9 h-10 text-sm font-mono"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const searchVal = (e.target as HTMLInputElement).value.trim();
+                    if (!searchVal || !allInvoiceIds?.length) return;
+                    const match = allInvoiceIds.find(inv => 
+                      inv.sale_number?.toLowerCase() === searchVal.toLowerCase() ||
+                      inv.sale_number?.toLowerCase().includes(searchVal.toLowerCase())
+                    );
+                    if (match) {
+                      const idx = allInvoiceIds.indexOf(match);
+                      setNavInvoiceIndex(idx);
+                      loadInvoiceById(match.id);
+                      (e.target as HTMLInputElement).value = '';
+                    } else {
+                      toast({ variant: 'destructive', title: 'Not Found', description: `Invoice "${searchVal}" not found` });
+                    }
+                  }
+                }}
+              />
+            </div>
           </div>
         </div>
       </section>
