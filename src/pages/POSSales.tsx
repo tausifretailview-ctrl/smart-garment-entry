@@ -2102,7 +2102,27 @@ export default function POSSales() {
   const handlePrintFromDialog = async () => {
 
     setShowPrintConfirmDialog(false);
-    
+
+    // USB ESC/POS direct print (no dialog, no driver)
+    if (isUsbReceiptConnected && posBillFormat === 'thermal') {
+      const billSettings = (settingsData as any)?.bill_barcode_settings;
+      const openDrawer = billSettings?.enable_cash_drawer === true;
+      const receiptData = buildEscPosReceiptData(
+        savedInvoiceData,
+        (savedInvoiceData as any)?.method || 'cash',
+        openDrawer
+      );
+      if (receiptData) {
+        const success = await printUsbReceipt(receiptData);
+        if (success) {
+          setSavedInvoiceData(null);
+          setTimeout(() => barcodeInputRef.current?.focus(), 100);
+          return;
+        }
+        sonnerToast.warning('USB print failed — falling back to browser print');
+      }
+    }
+
     // Try QZ Tray direct print first
     if (isDirectPrintEnabled) {
       // Wait a tick for the invoice to render
