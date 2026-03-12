@@ -1,43 +1,45 @@
 
 
-## Completed: Heavy Query Load Optimization
+## Plan: ESC/POS Thermal Bill Printing via WebUSB
 
-All 5 priority pages optimized:
+### Overview
+5 deliverables: ESC/POS command generator, React hook, POSSales integration, POSDashboard reprint, Settings info card.
 
-1. **PurchaseBillDashboard** — Server-side pagination + search + date filters via `useQuery`, removed Phase 2 bulk item pre-fetch (lazy-load on expand only), staleTime 30s
-2. **SaleReturnDashboard** — Converted from useEffect/setState to `useQuery` with server-side pagination + debounced search, lazy item loading with cache
-3. **PurchaseReturnDashboard** — Server-side pagination + debounced search + date filters via `useQuery`, staleTime 30s
-4. **Accounts** — Created `get_accounts_dashboard_stats` RPC for summary cards (replaces 3x fetchAll calls), lazy tab loading (vouchers/sales/customers/suppliers only fetched when their tab is active)
-5. **SalesAnalyticsDashboard** — Added staleTime 60s + refetchOnWindowFocus:false to all queries
+### 1. Create `src/utils/escPosPrint.ts`
+ESC/POS command generator for 80mm/58mm thermal receipt printers. Builds raw byte strings with:
+- Init, alignment, bold, double-height text commands
+- Structured receipt layout: business header → bill info → customer → items table → totals → payment breakdown → footer
+- Cash drawer kick commands (pin2/pin5)
+- Paper cut command
+- 48-char width (80mm) or 32-char (58mm) modes
+- Types: `EscPosReceiptData`, `EscPosReceiptItem`
 
-## Completed: Sales Invoice Dashboard Optimization
+### 2. Create `src/hooks/useEscPosPrint.ts`
+React hook wrapping `webUsbPrint.ts` + `escPosPrint.ts`:
+- Same connection management as `useWebUsbPrint` but with a `printReceipt(data)` method that generates ESC/POS commands from receipt data
+- localStorage flag `ezzy_usb_thermal_receipt_enabled` to remember preference
+- Toast notifications for connect/disconnect/print
 
-1. **Server-side pagination** — Replaced fetch-all-invoices loop with paginated query (50 rows per page, `{ count: 'exact' }`)
-2. **No more `sale_items(*)` in list** — Removed nested sale_items fetch, uses `total_qty` column instead
-3. **Server-side filtering** — Search (debounced 300ms), date range, payment status, delivery status all applied server-side
-4. **Summary stats via RPC** — Uses `get_sales_invoice_dashboard_stats` RPC instead of client-side computation
-5. **Default period = This Month** — Fast first load instead of fetching all-time data
-6. **staleTime 30s + refetchOnWindowFocus: false** — Prevents redundant re-fetches
-7. **Cache invalidation after save/update** — SalesInvoice.tsx invalidates `['invoices']` and `['invoice-dashboard-stats']` after create/update
-8. **useDashboardInvalidation** — Added `['invoices']` and `['invoice-dashboard-stats']` to `invalidateSales()`
+### 3. Modify `src/pages/POSSales.tsx`
+- **Line 80**: Add imports for `useEscPosPrint` and `EscPosReceiptData`
+- **Line 221**: Add `useEscPosPrint()` hook call after `useCashDrawer()`
+- **After line 1975** (after `getPageStyle`): Add `buildEscPosReceiptData()` helper that maps current sale state to `EscPosReceiptData`
+- **Line 1717** (auto-print block): Insert USB ESC/POS check BEFORE the existing `isDirectPrintEnabled && isAutoPrintEnabled` block — if USB connected and thermal format, print via USB and return early; fall through on failure
+- **Line 2008** (`handlePrintFromDialog`): Insert USB ESC/POS check BEFORE the existing QZ Tray block at line 2012
+- **Line 2936** (after Print button): Add USB status chip — green "USB Printer" badge when connected, "Connect Printer" button when not
 
-## Completed: Entry Form Query Optimization (ELLA NOOR slow billing fix)
+### 4. Modify `src/pages/POSDashboard.tsx`
+- **Line 44**: Add imports for `useEscPosPrint` and `EscPosReceiptData`
+- **Line 137**: Add `useEscPosPrint()` hook call after `invoicePrintRef`
+- **Line 572** (inside `handlePrintClick`, before `handlePrint()`): Insert USB check — build `EscPosReceiptData` from `invoiceData` and `sale`, call `printUsbReceipt()`, skip browser print if successful
+- Add USB status chip near the page header/toolbar area
 
-All entry forms optimized with caching + explicit columns:
+### 5. Modify `src/pages/Settings.tsx`
+- **Line 3607** (before the QZ Tray card): Insert a new informational card "USB Direct Receipt Printing" with setup instructions (5 steps), compatibility notes, and a disclaimer about text-based vs styled receipts
 
-1. **QuotationEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*')` with explicit columns
-2. **SaleOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*, product_variants(*)')` with explicit columns
-3. **PurchaseOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to suppliers & products queries, replaced `select('*')` with explicit columns
-4. **DeliveryChallanEntry** — Added staleTime 5min + refetchOnWindowFocus:false to products query, replaced `select('*, product_variants(*), size_groups(*)')` with explicit columns
-5. **PurchaseEntry** — Replaced `select('*')` with explicit columns for suppliers (already had staleTime)
-6. **POSSales** — Already optimized (explicit columns + staleTime 5min)
-7. **SalesInvoice** — Already optimized
+### Technical notes
+- All changes are purely additive — existing QZ Tray and browser print paths are untouched
+- USB path is only attempted when `isUsbReceiptConnected && posBillFormat === 'thermal'`
+- On USB failure, falls through to existing print paths seamlessly
+- No database changes needed
 
-## Completed: Cloud Usage Impact Analysis
-
-Estimated impact of all optimizations:
-- **Dashboard reads**: ~95% reduction (server-side pagination, 50 rows vs ALL)
-- **Accounts page**: ~90% reduction (1 RPC vs 3 full-table scans)
-- **Entry form tab switches**: ~80% fewer reads (5min staleTime cache)
-- **Data transfer**: ~40-50% less per read (explicit columns vs select('*'))
-- **Sales Invoice Dashboard**: ~98% reduction (50 rows without sale_items vs ALL invoices with ALL items)
