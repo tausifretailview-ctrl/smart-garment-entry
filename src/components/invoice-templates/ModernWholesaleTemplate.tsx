@@ -381,6 +381,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <td style={{ ...cellStyle, textAlign: "center" }}>{startIndex + index + 1}</td>
             <td style={cellStyle}>
               <div style={{ fontWeight: "700", fontSize: isA5 ? "6.5pt" : "8pt" }}>{item.particulars}</div>
+              {item.color && <div style={{ fontSize: isA5 ? "5.5pt" : "7pt", color: "#555", fontStyle: "italic" }}>{item.color}</div>}
             </td>
             <td style={{ ...cellStyle, textAlign: "center", fontSize: isA5 ? "6.5pt" : "7.5pt" }}>{item.hsn || '-'}</td>
             <td style={{ ...cellStyle, fontSize: isA5 ? "6.5pt" : "7.5pt", fontWeight: "500" }}>
