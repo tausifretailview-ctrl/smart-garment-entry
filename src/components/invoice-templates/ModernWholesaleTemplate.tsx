@@ -231,7 +231,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   const isA5 = format === 'a5-vertical' || format === 'a5-horizontal';
 
   const effectiveMinItemRows = totalPages === 1 
-    ? Math.max(groupedItems.length + 1, isA5 ? (format === 'a5-horizontal' ? 4 : 5) : 8)
+    ? Math.max(groupedItems.length, isA5 ? (format === 'a5-horizontal' ? 3 : 4) : 6)
     : minItemRows;
 
   const cellStyle: React.CSSProperties = {
