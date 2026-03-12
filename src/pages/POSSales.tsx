@@ -222,6 +222,18 @@ export default function POSSales() {
   const { openDrawer: openCashDrawer } = useCashDrawer();
   const { softDelete } = useSoftDelete();
 
+  const {
+    isSupported: isUsbReceiptSupported,
+    isConnected: isUsbReceiptConnected,
+    isConnecting: isUsbReceiptConnecting,
+    isPrinting: isUsbReceiptPrinting,
+    printerName: usbReceiptPrinterName,
+    connect: connectUsbReceipt,
+    disconnect: disconnectUsbReceipt,
+    printReceipt: printUsbReceipt,
+    isUsbEnabled: getUsbReceiptEnabled,
+  } = useEscPosPrint();
+
 
   // Barcode scanner detection for instant cart add
   const { recordKeystroke, reset: resetScannerDetection, detectScannerInput } = useBarcodeScanner();
