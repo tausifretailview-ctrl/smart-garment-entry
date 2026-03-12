@@ -42,7 +42,7 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
       // Fetch all sales for this customer (id, net_amount and paid_amount)
       const { data: sales, error: salesError } = await supabase
         .from('sales')
-        .select('id, net_amount, paid_amount')
+        .select('id, net_amount, paid_amount, sale_return_adjust')
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .is('deleted_at', null);
