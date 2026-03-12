@@ -1,6 +1,6 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import JsBarcode from 'jsbarcode';
-import { LabelDesignConfig, LabelItem } from '@/types/labelTypes';
+import { LabelDesignConfig, LabelItem, FieldKey } from '@/types/labelTypes';
 
 const mmToPt = (mm: number): number => mm * 2.8346;
 
@@ -18,6 +18,27 @@ const barcodeToDataURL = (barcode: string, widthPx: number, heightPx: number): s
     });
     return canvas.toDataURL('image/png');
   } catch { return null; }
+};
+
+// Map field keys to item data — matches PrecisionLabelPreview exactly
+const getFieldContent = (key: FieldKey, item: LabelItem, customTextValue?: string, businessName?: string): string => {
+  switch (key) {
+    case 'productName': return item.product_name || '';
+    case 'brand': return item.brand || '';
+    case 'category': return item.category || '';
+    case 'color': return item.color || '';
+    case 'style': return item.style || '';
+    case 'size': return `Size: ${item.size || ''}`;
+    case 'price': return `Rs.${item.sale_price}`;
+    case 'mrp': return item.mrp ? `MRP: Rs.${item.mrp}` : '';
+    case 'barcodeText': return item.barcode || '';
+    case 'billNumber': return item.bill_number || '';
+    case 'supplierCode': return item.supplier_code || '';
+    case 'purchaseCode': return item.purchase_code || '';
+    case 'customText': return customTextValue || '';
+    case 'businessName': return businessName || item.businessName || '';
+    default: return '';
+  }
 };
 
 export interface A4SheetOptions {
@@ -75,78 +96,93 @@ export const generateA4LabelPdf = async (
       const x = marginLeft + col * (labelW + gap);
       const y = PAGE_H - marginTop - (row + 1) * labelH - row * gap;
 
+      // Draw label border
       page.drawRectangle({ x, y, width: labelW, height: labelH,
         borderColor: rgb(0.85, 0.85, 0.85), borderWidth: 0.5, opacity: 1 });
 
-      let cursorY = y + labelH - mmToPt(1);
+      // Helper: convert mm position within label to PDF coordinates
+      const toX = (fieldXmm: number) => x + mmToPt(fieldXmm);
+      // PDF y is bottom-up, field y is top-down within label
+      const toY = (fieldYmm: number, fontSizePt: number) => y + labelH - mmToPt(fieldYmm) - fontSizePt;
 
-      const drawField = (text: string, fsizePx: number, bold: boolean) => {
-        if (!text) return;
-        const f = bold ? fontBold : font;
-        const fs = fsizePx * 0.75;
-        const clampedFs = Math.max(4, Math.min(fs, 12));
-        cursorY -= clampedFs + 1;
-        if (cursorY < y + mmToPt(5)) return;
+      // Render text fields using config x/y positions (precision layout)
+      const fieldKeys: FieldKey[] = (labelConfig.fieldOrder || []).filter(
+        k => k !== 'barcode' && labelConfig[k]?.show
+      );
+
+      for (const key of fieldKeys) {
+        const field = labelConfig[key];
+        if (!field || !field.show) continue;
+
+        const content = getFieldContent(key, item, labelConfig.customTextValue, businessName);
+        if (!content) continue;
+
+        const f = field.bold ? fontBold : font;
+        // Convert px fontSize to pt (1px ≈ 0.75pt)
+        const fsPt = Math.max(4, Math.min(14, field.fontSize * 0.75));
+
+        const fieldX = field.x ?? 0;
+        const fieldY = field.y ?? 0;
+
+        const pdfX = toX(fieldX);
+        const pdfY = toY(fieldY, fsPt);
+
+        // Truncate text to fit within field width or label width
+        const maxWidthMm = field.width ?? (labelWidthMm - fieldX);
+        const maxWidthPt = mmToPt(maxWidthMm);
+        
+        let displayText = content;
         try {
-          const textW = f.widthOfTextAtSize(text, clampedFs);
-          const drawX = x + (labelW - textW) / 2;
-          page.drawText(text.substring(0, 35), {
-            x: Math.max(x + 1, drawX), y: cursorY,
-            size: clampedFs, font: f, color: rgb(0, 0, 0),
+          while (displayText.length > 1 && f.widthOfTextAtSize(displayText, fsPt) > maxWidthPt) {
+            displayText = displayText.slice(0, -1);
+          }
+        } catch { /* skip invalid chars */ }
+
+        // Handle text alignment
+        const textAlign = field.textAlign || 'left';
+        let drawX = pdfX;
+        try {
+          const textW = f.widthOfTextAtSize(displayText, fsPt);
+          if (textAlign === 'center') {
+            drawX = pdfX + (maxWidthPt - textW) / 2;
+          } else if (textAlign === 'right') {
+            drawX = pdfX + maxWidthPt - textW;
+          }
+        } catch { /* use left */ }
+
+        try {
+          page.drawText(displayText, {
+            x: drawX, y: pdfY,
+            size: fsPt, font: f, color: rgb(0, 0, 0),
           });
         } catch { /* skip invalid chars */ }
-      };
-
-      for (const fieldKey of labelConfig.fieldOrder) {
-        const field = labelConfig[fieldKey as keyof LabelDesignConfig] as any;
-        if (!field?.show) continue;
-
-        if (fieldKey === 'barcode') {
-          const barcodeH = mmToPt(Math.max(5, labelHeightMm * 0.3));
-          const barcodeY = y + mmToPt(2);
-          const barcodeW = labelW - mmToPt(2);
-          const dataUrl = barcodeToDataURL(item.barcode, 200, 60);
-          if (dataUrl) {
-            try {
-              const pngData = await pdfDoc.embedPng(
-                Uint8Array.from(atob(dataUrl.split(',')[1]), c => c.charCodeAt(0))
-              );
-              page.drawImage(pngData, { x: x + mmToPt(1), y: barcodeY, width: barcodeW, height: barcodeH });
-            } catch { /* skip */ }
-          }
-          continue;
-        }
-
-        if (fieldKey === 'barcodeText') continue;
-
-        let text = '';
-        switch (fieldKey) {
-          case 'brand': text = item.brand || ''; break;
-          case 'businessName': text = businessName || ''; break;
-          case 'productName': text = item.product_name || ''; break;
-          case 'category': text = item.category || ''; break;
-          case 'color': text = item.color || ''; break;
-          case 'style': text = item.style || ''; break;
-          case 'size': text = item.size || ''; break;
-          case 'price': text = `₹${item.sale_price}`; break;
-          case 'mrp': text = item.mrp ? `MRP ₹${item.mrp}` : ''; break;
-          case 'billNumber': text = item.bill_number || ''; break;
-          case 'supplierCode': text = item.supplier_code || ''; break;
-          case 'purchaseCode': text = item.purchase_code || ''; break;
-          case 'customText': text = labelConfig.customTextValue || ''; break;
-        }
-        if (text) drawField(text, field.fontSize || 9, field.bold || false);
       }
 
-      if (item.barcode) {
-        try {
-          const fs = 6;
-          const tw = font.widthOfTextAtSize(item.barcode, fs);
-          page.drawText(item.barcode, {
-            x: x + (labelW - tw) / 2, y: y + mmToPt(0.5),
-            size: fs, font, color: rgb(0, 0, 0),
-          });
-        } catch { /* skip */ }
+      // Render barcode using config position
+      const barcodeConfig = labelConfig.barcode;
+      if (barcodeConfig?.show && item.barcode) {
+        const bcX = barcodeConfig.x ?? 1;
+        const bcY = barcodeConfig.y ?? (labelHeightMm * 0.35);
+        const bcWidthMm = barcodeConfig.width ?? (labelWidthMm - 2);
+        const barcodeHeightPx = labelConfig.barcodeHeight ?? Math.max(15, labelHeightMm * 0.3 * 3.78);
+        const bcHeightMm = barcodeHeightPx / 3.7795;
+
+        const dataUrl = barcodeToDataURL(item.barcode, 200, barcodeHeightPx);
+        if (dataUrl) {
+          try {
+            const pngData = await pdfDoc.embedPng(
+              Uint8Array.from(atob(dataUrl.split(',')[1]), c => c.charCodeAt(0))
+            );
+            const pdfBcX = toX(bcX);
+            const pdfBcY = y + labelH - mmToPt(bcY) - mmToPt(bcHeightMm);
+            page.drawImage(pngData, {
+              x: pdfBcX,
+              y: pdfBcY,
+              width: mmToPt(bcWidthMm),
+              height: mmToPt(bcHeightMm),
+            });
+          } catch { /* skip */ }
+        }
       }
     }
   }
