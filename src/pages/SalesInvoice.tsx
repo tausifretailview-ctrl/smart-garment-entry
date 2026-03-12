@@ -2243,7 +2243,14 @@ Thank you for choosing us!`;
 
   // Calculate totals
   const grossAmount = lineItems.reduce((sum, item) => sum + (item.salePrice * item.quantity), 0);
-  const lineItemDiscount = lineItems.reduce((sum, item) => sum + item.discountAmount, 0);
+  const lineItemDiscount = lineItems.reduce((sum, item) => {
+    const baseAmount = item.salePrice * item.quantity;
+    // Use discountAmount if set, otherwise calculate from discountPercent
+    const discount = item.discountAmount > 0 
+      ? item.discountAmount 
+      : (item.discountPercent > 0 ? (baseAmount * item.discountPercent) / 100 : 0);
+    return sum + discount;
+  }, 0);
   // Flat discount: Stack both percent and rupees discounts together
   const flatDiscountPercentAmount = (grossAmount * flatDiscountPercent) / 100;
   const flatDiscountAmount = flatDiscountPercentAmount + flatDiscountRupees;
