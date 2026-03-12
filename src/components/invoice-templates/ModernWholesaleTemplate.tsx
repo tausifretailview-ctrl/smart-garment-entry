@@ -425,7 +425,6 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <td style={cellStyle}>&nbsp;</td>
             {!isA5 && <td style={cellStyle}>&nbsp;</td>}
             <td style={cellStyle}>&nbsp;</td>
-            {hasAnyDiscount && <td style={cellStyle}>&nbsp;</td>}
             {showGSTBreakdown && <td style={cellStyle}>&nbsp;</td>}
             {showGSTBreakdown && <td style={cellStyle}>&nbsp;</td>}
             <td style={cellStyle}>&nbsp;</td>
