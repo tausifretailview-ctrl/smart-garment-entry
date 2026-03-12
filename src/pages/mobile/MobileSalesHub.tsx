@@ -175,7 +175,7 @@ export default function MobileSalesHub() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    const invoiceUrl = `${window.location.origin}/invoice/${sale.id}`;
+                    const invoiceUrl = `https://app.inventoryshop.in/invoice/view/${sale.id}`;
                     const message = `Invoice ${sale.sale_number}%0AAmount: ₹${(sale.net_amount || 0).toLocaleString("en-IN")}%0ACustomer: ${sale.customer_name || 'Walk-in'}%0A%0AView: ${invoiceUrl}`;
                     window.open(`https://wa.me/?text=${message}`, '_blank');
                   }}
