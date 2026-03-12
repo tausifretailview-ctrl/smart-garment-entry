@@ -137,6 +137,17 @@ const POSDashboard = () => {
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [printData, setPrintData] = useState<any>(null);
   const invoicePrintRef = useRef<HTMLDivElement>(null);
+
+  const {
+    isSupported: isUsbReceiptSupported,
+    isConnected: isUsbReceiptConnected,
+    isConnecting: isUsbReceiptConnecting,
+    printerName: usbReceiptPrinterName,
+    connect: connectUsbReceipt,
+    disconnect: disconnectUsbReceipt,
+    printReceipt: printUsbReceipt,
+  } = useEscPosPrint();
+
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [previewSale, setPreviewSale] = useState<Sale | null>(null);
   const [posBillFormat, setPosBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal' | null>(null);
