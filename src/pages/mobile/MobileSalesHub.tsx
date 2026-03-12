@@ -12,7 +12,6 @@ import { Search, Plus, ChevronRight, TrendingUp, FileText, RotateCcw, Eye, Messa
 import { format, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
-import { toast } from "sonner";
 
 export default function MobileSalesHub() {
   const { currentOrganization } = useOrganization();
