@@ -3803,6 +3803,7 @@ export default function POSSales() {
                   rate: item.unitCost,
                   total: item.netAmount,
                   gstPercent: item.gstPer || 0,
+                  discountPercent: item.discountPercent || 0,
                 }))}
                 subTotal={totals.subtotal}
                 discount={totals.discount + flatDiscountAmount}
