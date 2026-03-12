@@ -582,6 +582,48 @@ const POSDashboard = () => {
       // Additional delay for complex rendering
       await new Promise(resolve => setTimeout(resolve, 200));
       
+      // Try USB ESC/POS direct print first (thermal only, no dialog)
+      const saleSettings = settingsData as any;
+      const billFormat = saleSettings?.sale_settings?.pos_bill_format || 'thermal';
+      if (isUsbReceiptConnected && billFormat === 'thermal') {
+        const receiptData: EscPosReceiptData = {
+          businessName: saleSettings?.business_name || 'Store',
+          businessAddress: saleSettings?.address || '',
+          businessPhone: saleSettings?.mobile_number || '',
+          businessGSTIN: saleSettings?.gst_number || '',
+          billNo: invoiceData.billNo,
+          date: invoiceData.date,
+          documentType: 'pos',
+          customerName: invoiceData.customerName || 'Walk-in Customer',
+          customerPhone: invoiceData.customerMobile || '',
+          items: invoiceData.items.map((item: any, idx: number) => ({
+            sr: idx + 1,
+            particulars: item.particulars || '',
+            qty: item.qty || 1,
+            rate: item.rate || 0,
+            total: item.total || 0,
+            size: item.size || '',
+          })),
+          subTotal: invoiceData.subTotal,
+          discount: invoiceData.discount,
+          grandTotal: invoiceData.grandTotal,
+          paymentMethod: sale.payment_method || 'cash',
+          cashPaid: sale.cash_amount || 0,
+          upiPaid: sale.upi_amount || 0,
+          cardPaid: sale.card_amount || 0,
+          paperWidth: 48,
+          openDrawer: false,
+        };
+        const success = await printUsbReceipt(receiptData);
+        if (success) {
+          toast({
+            title: "Printed",
+            description: `Invoice ${sale.sale_number} printed via USB`,
+          });
+          return;
+        }
+      }
+
       handlePrint();
       
       toast({
