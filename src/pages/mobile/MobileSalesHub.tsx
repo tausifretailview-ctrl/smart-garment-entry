@@ -42,7 +42,7 @@ export default function MobileSalesHub() {
         .select("id, sale_number, sale_date, created_at, customer_name, net_amount, paid_amount, payment_status, sale_type")
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null)
-        .eq("sale_type", "invoice")
+        .in("sale_type", ["invoice", "pos"])
         .gte("sale_date", start)
         .lte("sale_date", end)
         .order("created_at", { ascending: false })
