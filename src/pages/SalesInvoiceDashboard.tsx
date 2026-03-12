@@ -1797,12 +1797,12 @@ export default function SalesInvoiceDashboard() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigate('/sales-invoice', { state: { editInvoiceId: inv.id } });
+                      handleDownloadPDF(inv);
                     }}
                     className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-violet-600 active:bg-violet-50 transition-colors touch-manipulation"
                   >
-                    <Printer className="h-3.5 w-3.5" />
-                    <span>Print</span>
+                    <Download className="h-3.5 w-3.5" />
+                    <span>PDF</span>
                   </button>
                 </div>
               </div>
