@@ -295,8 +295,12 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         let totalPaidOnSales = 0;
         customerSales.forEach((sale: any) => {
           const salePaidAmount = sale.paid_amount || 0;
+          const saleReturnAdjust = sale.sale_return_adjust || 0;
           const voucherAmount = invoiceVoucherPayments.get(sale.id) || 0;
-          totalPaidOnSales += Math.max(salePaidAmount, voucherAmount);
+          // Subtract sale_return_adjust from paid_amount to avoid double-counting
+          // since credit notes are already subtracted separately via creditNoteTotal
+          const actualPaid = Math.max(salePaidAmount - saleReturnAdjust, voucherAmount);
+          totalPaidOnSales += actualPaid;
         });
         
         const openingBalancePaymentTotal = openingBalancePayments.get(customer.id) || 0;
