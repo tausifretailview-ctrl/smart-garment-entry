@@ -211,9 +211,9 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
 
   // Calculate items per page based on format
   const getItemsPerPage = () => {
-    if (format === 'a4') return 20;
+    if (format === 'a4') return 22;
     if (format === 'a5-horizontal') return 10;
-    return 14; // a5-vertical
+    return 17; // a5-vertical
   };
 
   const itemsPerPage = getItemsPerPage();
@@ -655,10 +655,13 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
               page-break-after: auto;
               break-after: auto;
             }
-            .invoice-page th {
+            .invoice-page th,
+            .invoice-page thead th {
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
               color-adjust: exact !important;
+              background: ${colors.gradient} !important;
+              color: #fff !important;
             }
           }
         `}
