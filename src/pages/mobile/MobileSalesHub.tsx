@@ -132,38 +132,71 @@ export default function MobileSalesHub() {
           </div>
         ) : (
           salesData?.map((sale) => (
-            <button
+            <div
               key={sale.id}
-              onClick={() => orgNavigate(`/sales-invoice-dashboard`)}
-              className="w-full bg-white dark:bg-card rounded-2xl p-4 border border-border/40 shadow-sm active:scale-[0.98] transition-all duration-100 touch-manipulation text-left"
+              className="w-full bg-white dark:bg-card rounded-2xl border border-border/40 shadow-sm text-left overflow-hidden"
             >
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold text-foreground font-mono">{sale.sale_number}</span>
-                    <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-4 border", statusColor(sale.payment_status || 'unpaid'))}>
-                      {sale.payment_status}
-                    </Badge>
-                    {sale.sale_type === 'pos' && (
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">POS</Badge>
+              <div className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold text-foreground font-mono">{sale.sale_number}</span>
+                      <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-4 border", statusColor(sale.payment_status || 'unpaid'))}>
+                        {sale.payment_status}
+                      </Badge>
+                      {sale.sale_type === 'pos' && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">POS</Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 truncate">{sale.customer_name || 'Walk-in'}</p>
+                    <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                      {format(new Date(sale.created_at || sale.sale_date), "d MMM, hh:mm a")}
+                    </p>
+                  </div>
+                  <div className="text-right flex flex-col items-end gap-1 ml-2">
+                    <p className="text-sm font-bold tabular-nums text-foreground">₹{(sale.net_amount || 0).toLocaleString("en-IN")}</p>
+                    {sale.payment_status === 'partial' && (
+                      <span className="text-[10px] text-rose-500">
+                        Pending: ₹{Math.max(0, (sale.net_amount || 0) - (sale.paid_amount || 0)).toLocaleString("en-IN")}
+                      </span>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1 truncate">{sale.customer_name || 'Walk-in'}</p>
-                  <p className="text-[10px] text-muted-foreground/60 mt-0.5">
-                    {format(new Date(sale.created_at || sale.sale_date), "d MMM, hh:mm a")}
-                  </p>
-                </div>
-                <div className="text-right flex flex-col items-end gap-1 ml-2">
-                  <p className="text-sm font-bold tabular-nums text-foreground">₹{(sale.net_amount || 0).toLocaleString("en-IN")}</p>
-                  {sale.payment_status === 'partial' && (
-                    <span className="text-[10px] text-rose-500">
-                      Pending: ₹{Math.max(0, (sale.net_amount || 0) - (sale.paid_amount || 0)).toLocaleString("en-IN")}
-                    </span>
-                  )}
-                  <ChevronRight className="h-4 w-4 text-muted-foreground/40 mt-1" />
                 </div>
               </div>
-            </button>
+              {/* Action buttons row */}
+              <div className="flex items-center border-t border-border/40 divide-x divide-border/40">
+                <button
+                  onClick={() => orgNavigate(`/sales-invoice-dashboard`)}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-primary active:bg-primary/5 transition-colors touch-manipulation"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  <span>View</span>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const invoiceUrl = `${window.location.origin}/invoice/${sale.id}`;
+                    const message = `Invoice ${sale.sale_number}%0AAmount: ₹${(sale.net_amount || 0).toLocaleString("en-IN")}%0ACustomer: ${sale.customer_name || 'Walk-in'}%0A%0AView: ${invoiceUrl}`;
+                    window.open(`https://wa.me/?text=${message}`, '_blank');
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-emerald-600 active:bg-emerald-50 transition-colors touch-manipulation"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  <span>WhatsApp</span>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    orgNavigate(`/sales-invoice-dashboard`);
+                    toast.info("Open the invoice to print");
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-violet-600 active:bg-violet-50 transition-colors touch-manipulation"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  <span>Print</span>
+                </button>
+              </div>
+            </div>
           ))
         )}
       </div>
