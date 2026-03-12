@@ -337,8 +337,17 @@ const FeeCollection = () => {
   })();
 
   // Collected fees filtered by search (client-side for student name in results)
-  const paginatedCollected = (collectedFees || []).slice((collectedPage - 1) * pageSize, collectedPage * pageSize);
-  const collectedTotalPages = Math.max(1, Math.ceil((collectedFees || []).length / pageSize));
+  // Client-side search filter for collected fees (PostgREST nested filters on joins are unreliable)
+  const filteredCollected = (collectedFees || []).filter((fee: any) => {
+    if (!collectedSearch) return true;
+    const q = collectedSearch.toLowerCase();
+    const name = (fee.students?.student_name || "").toLowerCase();
+    const adm = (fee.students?.admission_number || "").toLowerCase();
+    return name.includes(q) || adm.includes(q);
+  });
+
+  const paginatedCollected = filteredCollected.slice((collectedPage - 1) * pageSize, collectedPage * pageSize);
+  const collectedTotalPages = Math.max(1, Math.ceil(filteredCollected.length / pageSize));
 
   const handleCollect = (student: any) => {
     setSelectedStudent(student);
