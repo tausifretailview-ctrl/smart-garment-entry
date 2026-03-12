@@ -651,6 +651,11 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
               page-break-after: auto;
               break-after: auto;
             }
+            .invoice-page th {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
+            }
           }
         `}
       </style>
