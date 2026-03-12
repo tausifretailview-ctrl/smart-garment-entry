@@ -247,6 +247,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
     textAlign: "center",
     textTransform: "uppercase",
     fontSize: isA5 ? "6.5pt" : "8pt",
+    WebkitPrintColorAdjust: "exact",
+    printColorAdjust: "exact" as any,
   };
 
   // Render header section (repeated on each page)
