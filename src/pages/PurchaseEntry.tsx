@@ -2653,7 +2653,7 @@ const PurchaseEntry = () => {
               setDetectedPriceChanges([]);
               setSelectedForPrint(new Set());
               deleteDraft();
-              invoiceSavedRef.current = false;
+              
             }}
             className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 px-2.5"
             title="New Bill">
