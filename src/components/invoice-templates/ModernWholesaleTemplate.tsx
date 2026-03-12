@@ -382,7 +382,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           <th style={headerCellStyle}>QTY</th>
           {!isA5 && <th style={headerCellStyle}>MRP</th>}
           <th style={headerCellStyle}>RATE</th>
-          {hasAnyDiscount && <th style={headerCellStyle}>DISC%</th>}
+          
           {showGSTBreakdown && <th style={headerCellStyle}>GST%</th>}
           {showGSTBreakdown && <th style={headerCellStyle}>GST AMT</th>}
           <th style={headerCellStyle}>AMOUNT</th>
