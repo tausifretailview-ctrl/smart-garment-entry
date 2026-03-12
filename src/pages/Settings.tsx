@@ -3605,6 +3605,44 @@ export default function Settings() {
                   </CardContent>
                 </Card>
 
+                {/* USB Direct Receipt Printing — NEW */}
+                <Card className="border-dashed">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2 justify-between">
+                      <span className="flex items-center gap-2">
+                        🔌 USB Direct Receipt Printing
+                      </span>
+                      <Badge variant="success" className="text-[10px]">
+                        No Install Needed
+                      </Badge>
+                    </CardTitle>
+                    <CardDescription>
+                      Print thermal receipts directly via USB — no QZ Tray, no Java, no browser dialog.
+                      Works with Epson TM-T82, TVS RP3200, Sam4s Ellix, Rugtek and most 80mm USB thermal printers.
+                      Requires Chrome or Edge browser.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">How to set up:</p>
+                      <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1.5">
+                        <li>Plug your thermal printer into this computer via USB cable</li>
+                        <li>Go to POS page — click the 🔌 Connect Printer button in the header</li>
+                        <li>Chrome will show a USB device picker — select your thermal printer</li>
+                        <li>Done. Bills print instantly after saving — no dialog, no preview</li>
+                        <li>Chrome remembers your choice — no need to reconnect after restart</li>
+                      </ol>
+                    </div>
+
+                    <div className="p-3 bg-muted/50 rounded-lg text-xs text-muted-foreground">
+                      Note: USB Direct uses ESC/POS commands — the receipt will be text-based
+                      (not the same HTML template as browser print). All bill data is included: items, totals,
+                      payment breakdown, and cash drawer signal.
+                      For logo and styled receipt, continue using browser print or QZ Tray.
+                    </div>
+                  </CardContent>
+                </Card>
+
                 {/* Direct Printing (QZ Tray) Settings */}
                 <Card className="border-dashed">
                   <CardHeader className="pb-3">

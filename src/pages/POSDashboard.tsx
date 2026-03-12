@@ -1121,7 +1121,31 @@ const POSDashboard = () => {
             </h1>
             <p className="text-sm text-muted-foreground">View and manage all POS sales</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            {/* USB receipt printer connect button */}
+            {isUsbReceiptSupported && (
+              <div>
+                {isUsbReceiptConnected ? (
+                  <button
+                    onClick={disconnectUsbReceipt}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium border border-emerald-300 hover:bg-emerald-200 transition-colors"
+                    title={`Connected: ${usbReceiptPrinterName}. Click to disconnect.`}
+                  >
+                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    USB Printer
+                  </button>
+                ) : (
+                  <button
+                    onClick={connectUsbReceipt}
+                    disabled={isUsbReceiptConnecting}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-muted text-muted-foreground text-xs font-medium border border-border hover:bg-accent transition-colors disabled:opacity-50"
+                    title="Connect USB thermal printer for direct receipt printing"
+                  >
+                    {isUsbReceiptConnecting ? '...' : '🔌 Connect Printer'}
+                  </button>
+                )}
+              </div>
+            )}
             <Button variant="outline" onClick={handleExportExcel} className="gap-2">
               <FileSpreadsheet className="h-4 w-4" />
               Export Excel
