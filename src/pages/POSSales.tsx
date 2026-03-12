@@ -4077,6 +4077,7 @@ export default function POSSales() {
                   rate: item.unitCost,
                   total: item.netAmount,
                   gstPercent: item.gstPer || 0,
+                  discountPercent: item.discountPercent || 0,
                 }))}
                 subTotal={savedInvoiceData?.totals.subtotal || totals.subtotal}
                 discount={savedInvoiceData ? (savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount) : (totals.discount + flatDiscountAmount)}
