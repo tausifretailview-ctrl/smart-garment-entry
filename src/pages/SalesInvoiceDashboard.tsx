@@ -1043,9 +1043,8 @@ export default function SalesInvoiceDashboard() {
             variant: "destructive",
           });
         }
-      }
-      setInvoiceToPrint(null);
-    }, 500);
+    }
+    setInvoiceToPrint(null);
   };
 
   const handleWhatsAppShare = async (invoice: any) => {
