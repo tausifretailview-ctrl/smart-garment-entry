@@ -959,13 +959,23 @@ export default function SalesInvoiceDashboard() {
       description: "Please wait while PDF is being generated...",
     });
     
-    // Wait for invoice to render
-    setTimeout(async () => {
-      // On mobile, rendering may take longer
-      if (!printRef.current) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-      if (printRef.current) {
+    // Poll until the print ref is ready (content rendered)
+    const MAX_WAIT = 8000;
+    const startTime = Date.now();
+    const waitForReady = () => new Promise<boolean>((resolve) => {
+      const poll = () => {
+        const el = printRef.current;
+        const text = (el?.textContent || '').trim();
+        const isReady = el && el.childElementCount > 0 && text.length > 32 && !/^loading\.?\.?\.?$/i.test(text);
+        if (isReady) return resolve(true);
+        if (Date.now() - startTime > MAX_WAIT) return resolve(false);
+        setTimeout(poll, 200);
+      };
+      poll();
+    });
+    
+    const ready = await waitForReady();
+    if (ready && printRef.current) {
         try {
           const canvas = await html2canvas(printRef.current, {
             scale: 2,
@@ -1033,9 +1043,8 @@ export default function SalesInvoiceDashboard() {
             variant: "destructive",
           });
         }
-      }
-      setInvoiceToPrint(null);
-    }, 500);
+    }
+    setInvoiceToPrint(null);
   };
 
   const handleWhatsAppShare = async (invoice: any) => {
@@ -2705,7 +2714,7 @@ export default function SalesInvoiceDashboard() {
         {invoiceToPrint && (
           <div className="no-print" style={{
             position: 'fixed',
-            top: '-9999px',
+            top: 0,
             left: '-9999px',
             width: billFormat === 'a4' ? '210mm' : 
                    billFormat === 'thermal' ? '80mm' : 
