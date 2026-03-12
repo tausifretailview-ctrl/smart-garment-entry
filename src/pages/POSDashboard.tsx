@@ -42,6 +42,8 @@ import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
+import { useEscPosPrint } from '@/hooks/useEscPosPrint';
+import { EscPosReceiptData } from '@/utils/escPosPrint';
 
 interface SaleItem {
   id: string;
