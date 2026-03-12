@@ -503,7 +503,10 @@ export const DirectPrintDialog = ({
                       Plug in your thermal printer via USB, then click Connect.
                       Works with TSC, Godex, Xprinter, HPRT printers.
                     </p>
-                    <Button size="sm" onClick={connectUsb} disabled={isUsbConnecting}>
+                    <Button size="sm" onClick={async () => {
+                      setShowZadigGuide(false);
+                      await connectUsb();
+                    }} disabled={isUsbConnecting}>
                       <Usb className="h-4 w-4 mr-1" />
                       {isUsbConnecting ? 'Connecting...' : 'Connect USB Printer'}
                     </Button>
