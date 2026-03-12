@@ -2936,31 +2936,6 @@ export default function POSSales() {
             <span>Last</span>
           </Button>
           
-          {/* USB Receipt Printer status chip */}
-          {isUsbReceiptSupported && posBillFormat === 'thermal' && (
-            <div className="h-14 flex items-center justify-center w-full">
-              {isUsbReceiptConnected ? (
-                <button
-                  onClick={disconnectUsbReceipt}
-                  className="flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-medium border border-emerald-300 hover:bg-emerald-200 transition-colors"
-                  title={`Connected: ${usbReceiptPrinterName}. Click to disconnect.`}
-                >
-                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  USB Printer
-                </button>
-              ) : (
-                <button
-                  onClick={connectUsbReceipt}
-                  disabled={isUsbReceiptConnecting}
-                  className="flex items-center gap-1 px-2 py-1 rounded-full bg-muted text-muted-foreground text-[10px] font-medium border border-border hover:bg-accent transition-colors disabled:opacity-50"
-                  title="Connect USB thermal printer for direct receipt printing"
-                >
-                  {isUsbReceiptConnecting ? '...' : '🔌 Connect Printer'}
-                </button>
-              )}
-            </div>
-          )}
-
           {/* 9. Print - matches Dashboard "Credit Notes" indigo-500 */}
           <Button
             onClick={handlePrint}
