@@ -4787,6 +4787,7 @@ export type Database = {
           emergency_contact: string | null
           gender: string | null
           id: string
+          is_new_admission: boolean
           notes: string | null
           organization_id: string
           parent_email: string | null
@@ -4816,6 +4817,7 @@ export type Database = {
           emergency_contact?: string | null
           gender?: string | null
           id?: string
+          is_new_admission?: boolean
           notes?: string | null
           organization_id: string
           parent_email?: string | null
@@ -4845,6 +4847,7 @@ export type Database = {
           emergency_contact?: string | null
           gender?: string | null
           id?: string
+          is_new_admission?: boolean
           notes?: string | null
           organization_id?: string
           parent_email?: string | null
