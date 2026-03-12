@@ -152,6 +152,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           mrp: item.mrp,
           gstPercent: gstPct,
           gstAmount: gstAmt,
+          discountPercent: item.discountPercent || 0,
           sizeQtyList: [{ size: item.size, qty: item.qty }],
           totalQty: item.qty,
           totalAmount: item.total,
