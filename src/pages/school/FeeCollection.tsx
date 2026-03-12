@@ -277,24 +277,26 @@ const FeeCollection = () => {
   });
 
   // === Fees Collected Tab: date range calculation ===
+  // paid_date is a DATE column — compare with plain YYYY-MM-DD strings
   const getDateRange = () => {
     const now = new Date();
+    const todayStr = format(now, "yyyy-MM-dd");
     switch (collectedPeriod) {
       case "today":
-        return { from: startOfDay(now).toISOString(), to: endOfDay(now).toISOString() };
+        return { from: todayStr, to: todayStr };
       case "monthly":
-        return { from: startOfMonth(now).toISOString(), to: endOfDay(now).toISOString() };
+        return { from: format(startOfMonth(now), "yyyy-MM-dd"), to: todayStr };
       case "quarterly":
-        return { from: startOfQuarter(now).toISOString(), to: endOfDay(now).toISOString() };
+        return { from: format(startOfQuarter(now), "yyyy-MM-dd"), to: todayStr };
       case "yearly":
-        return { from: startOfYear(now).toISOString(), to: endOfDay(now).toISOString() };
+        return { from: format(startOfYear(now), "yyyy-MM-dd"), to: todayStr };
       case "custom":
         return {
-          from: customDateFrom ? new Date(customDateFrom + "T00:00:00").toISOString() : subDays(now, 30).toISOString(),
-          to: customDateTo ? new Date(customDateTo + "T23:59:59").toISOString() : endOfDay(now).toISOString(),
+          from: customDateFrom || format(subDays(now, 30), "yyyy-MM-dd"),
+          to: customDateTo || todayStr,
         };
       default:
-        return { from: startOfDay(now).toISOString(), to: endOfDay(now).toISOString() };
+        return { from: todayStr, to: todayStr };
     }
   };
 
