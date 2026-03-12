@@ -774,8 +774,13 @@
 
 /* Default page size */
 @page {
-  size: A5 portrait;
-  margin: 0;
+  size: A4 portrait;
+  margin: 6mm;
+}
+
+@page :first {
+  size: A4 portrait;
+  margin: 6mm;
 }
 
 /* A4 page size override - applied via inline style in component */

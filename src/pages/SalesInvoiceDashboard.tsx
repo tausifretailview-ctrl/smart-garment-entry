@@ -1608,8 +1608,9 @@ export default function SalesInvoiceDashboard() {
         const scaledWidth = pdfWidth;
         const scaledHeight = (imgHeight * pdfWidth) / imgWidth;
         
-        if (scaledHeight <= pdfHeight) {
-          pdf.addImage(imgData, "PNG", 0, 0, scaledWidth, scaledHeight);
+        const singlePageThreshold2 = pdfHeight * 1.05;
+        if (scaledHeight <= singlePageThreshold2) {
+          pdf.addImage(imgData, "PNG", 0, 0, scaledWidth, Math.min(scaledHeight, pdfHeight));
         } else {
           const pixelsPerPage = (pdfHeight / scaledHeight) * imgHeight;
           const totalPages = Math.ceil(scaledHeight / pdfHeight);
