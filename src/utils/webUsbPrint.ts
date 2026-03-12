@@ -46,6 +46,13 @@ export const connectUsbPrinter = async (): Promise<{ success: boolean; name: str
     if (err?.name === 'NotFoundError') {
       return { success: false, name: '', error: 'No printer selected. Please choose your printer and try again.' };
     }
+    if (err?.message?.includes('Access denied') || err?.message?.includes('access')) {
+      return { 
+        success: false, 
+        name: '', 
+        error: 'Access denied — Windows printer driver is blocking USB access. Open Device Manager → find your printer → Uninstall the driver (check "Delete driver software") → unplug & replug the printer → try again. Or use Zadig tool to replace the driver with WinUSB.' 
+      };
+    }
     return { success: false, name: '', error: err?.message || 'Failed to connect to printer' };
   }
 };
