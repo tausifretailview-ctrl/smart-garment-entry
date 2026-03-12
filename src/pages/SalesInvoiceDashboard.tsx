@@ -1001,9 +1001,11 @@ export default function SalesInvoiceDashboard() {
           const scaledWidth = pdfWidth;
           const scaledHeight = (imgHeight * pdfWidth) / imgWidth;
           
-          if (scaledHeight <= pdfHeight) {
-            // Content fits on a single page
-            pdf.addImage(imgData, 'PNG', 0, 0, scaledWidth, scaledHeight);
+          const singlePageThreshold = pdfHeight * 1.05;
+
+          if (scaledHeight <= singlePageThreshold) {
+            // Content fits on a single page (with tolerance for minor overflow)
+            pdf.addImage(imgData, 'PNG', 0, 0, scaledWidth, Math.min(scaledHeight, pdfHeight));
           } else {
             // Multi-page: slice the canvas into page-sized chunks
             // Calculate how many source pixels correspond to one PDF page height
