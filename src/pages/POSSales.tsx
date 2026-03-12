@@ -4063,6 +4063,7 @@ export default function POSSales() {
                   rate: item.unitCost,
                   total: item.netAmount,
                   gstPercent: item.gstPer || 0,
+                  discountPercent: item.discountPercent || 0,
                 })) : items.map((item, index) => ({
                   sr: index + 1,
                   particulars: item.productName,
