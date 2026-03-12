@@ -42,7 +42,7 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
       // Fetch all sales for this customer (id, net_amount and paid_amount)
       const { data: sales, error: salesError } = await supabase
         .from('sales')
-        .select('id, net_amount, paid_amount')
+        .select('id, net_amount, paid_amount, sale_return_adjust')
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .is('deleted_at', null);
@@ -82,10 +82,10 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
       let totalPaidOnSales = 0;
       sales?.forEach(sale => {
         const salePaidAmount = sale.paid_amount || 0;
+        const cnAdjusted = sale.sale_return_adjust || 0;
         const voucherAmount = invoiceVoucherPayments[sale.id] || 0;
-        // Use voucher amount if it exists (authoritative), else fall back to sale.paid_amount
-        // This avoids double-counting while preferring the more accurate voucher record
-        totalPaidOnSales += voucherAmount > 0 ? voucherAmount : salePaidAmount;
+        // Subtract CN adjustment from paid_amount to avoid double-counting with saleReturnTotal
+        totalPaidOnSales += voucherAmount > 0 ? voucherAmount : (salePaidAmount - cnAdjusted);
       });
 
       const totalPaid = totalPaidOnSales + openingBalanceVoucherPayments;
