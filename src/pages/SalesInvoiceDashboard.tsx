@@ -24,6 +24,7 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
