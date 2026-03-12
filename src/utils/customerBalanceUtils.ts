@@ -11,11 +11,12 @@
    totalPaid: number;
  }
  
- export interface SaleData {
-   id: string;
-   net_amount: number | null;
-   paid_amount: number | null;
- }
+export interface SaleData {
+  id: string;
+  net_amount: number | null;
+  paid_amount: number | null;
+  sale_return_adjust?: number | null;
+}
  
  /**
   * Calculate customer balance from sales and voucher data.
