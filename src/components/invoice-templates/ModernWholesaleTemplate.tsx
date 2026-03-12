@@ -68,6 +68,8 @@ interface ModernWholesaleTemplateProps {
   qrCodeUrl?: string;
   upiId?: string;
   format?: 'a5-vertical' | 'a5-horizontal' | 'a4';
+  termsConditions?: string[];
+  declarationText?: string;
 }
 
 const colorSchemes: Record<string, { primary: string; light: string; gradient: string }> = {
@@ -117,6 +119,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   qrCodeUrl,
   upiId,
   format = 'a4',
+  termsConditions,
+  declarationText,
 }) => {
   const colors = colorSchemes[colorScheme] || colorSchemes.blue;
   const font = fontFamilyMap[fontFamily] || fontFamilyMap.inter;
@@ -227,7 +231,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   const isA5 = format === 'a5-vertical' || format === 'a5-horizontal';
 
   const effectiveMinItemRows = totalPages === 1 
-    ? Math.max(groupedItems.length + 1, isA5 ? (format === 'a5-horizontal' ? 4 : 5) : 8)
+    ? Math.max(groupedItems.length, isA5 ? (format === 'a5-horizontal' ? 3 : 4) : 6)
     : minItemRows;
 
   const cellStyle: React.CSSProperties = {
@@ -438,15 +442,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <td style={{ ...cellStyle, textAlign: "center", fontWeight: "900" }}>{totalQty}</td>
             {!isA5 && <td style={cellStyle}>&nbsp;</td>}
             <td style={cellStyle}>&nbsp;</td>
-            {hasAnyDiscount && <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "6pt" : "7pt", fontWeight: "700" }}>
-              {(() => {
-                const totalDiscount = groupedItems.reduce((sum, item) => {
-                  const discAmt = item.discountPercent > 0 ? (item.totalAmount * item.discountPercent) / (100 - item.discountPercent) : 0;
-                  return sum + discAmt;
-                }, 0);
-                return totalDiscount > 0 ? totalDiscount.toFixed(2) : '';
-              })()}
-            </td>}
+            {hasAnyDiscount && <td style={cellStyle}>&nbsp;</td>}
             {showGSTBreakdown && <td style={cellStyle}>&nbsp;</td>}
             {showGSTBreakdown && <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "5.5pt" : "7pt" }}>
               {(cgstAmount + sgstAmount) > 0 ? (cgstAmount + sgstAmount).toFixed(2) : ''}
@@ -553,11 +549,19 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         }}
       >
         <div style={{ fontSize: isA5 ? "6pt" : "8pt" }}>
-          <p style={{ margin: 0 }}>
-            <strong>Terms:</strong> 1. Goods once sold will not be taken back.
-            <br />
-            2. Subject to local jurisdiction.
-          </p>
+          {termsConditions && termsConditions.length > 0 ? (
+            <p style={{ margin: 0 }}>
+              <strong>Terms:</strong> {termsConditions.map((t, i) => (
+                <span key={i}>{i > 0 && <br />}{i + 1}. {t}</span>
+              ))}
+            </p>
+          ) : (
+            <p style={{ margin: 0 }}>
+              <strong>Terms:</strong> 1. Goods once sold will not be taken back.
+              <br />
+              2. Subject to local jurisdiction.
+            </p>
+          )}
         </div>
         <div style={{ textAlign: "center", width: isA5 ? "150px" : "200px" }}>
           <div style={{ fontSize: isA5 ? "6pt" : "8pt", marginBottom: isA5 ? "12px" : "30px" }}>
