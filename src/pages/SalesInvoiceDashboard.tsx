@@ -1785,7 +1785,7 @@ export default function SalesInvoiceDashboard() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      const invoiceUrl = `${window.location.origin}/invoice/${inv.id}`;
+                      const invoiceUrl = `https://app.inventoryshop.in/invoice/view/${inv.id}`;
                       const message = `Invoice ${inv.sale_number}%0AAmount: ₹${(inv.net_amount || 0).toLocaleString("en-IN")}%0ACustomer: ${inv.customer_name || 'Walk-in'}%0A%0AView: ${invoiceUrl}`;
                       window.open(`https://wa.me/?text=${message}`, '_blank');
                     }}
