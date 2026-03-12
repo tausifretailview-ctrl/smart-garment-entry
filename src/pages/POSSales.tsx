@@ -1988,6 +1988,66 @@ export default function POSSales() {
     `;
   };
 
+  const buildEscPosReceiptData = useCallback((
+    invoiceData: typeof savedInvoiceData,
+    method: string,
+    openDrawer = false
+  ): EscPosReceiptData | null => {
+    if (!invoiceData || !settingsData) return null;
+
+    const saleSettings = (settingsData as any)?.sale_settings;
+    const billSettings = (settingsData as any)?.bill_barcode_settings;
+    const businessInfo = settingsData as any;
+
+    const cashAmt = method === 'cash' ? invoiceData.finalAmount
+      : (invoiceData as any).cashAmount || 0;
+    const upiAmt = method === 'upi' ? invoiceData.finalAmount
+      : (invoiceData as any).upiAmount || 0;
+    const cardAmt = method === 'card' ? invoiceData.finalAmount
+      : (invoiceData as any).cardAmount || 0;
+
+    const grandTotal = invoiceData.finalAmount || 0;
+    const subTotal = invoiceData.totals?.mrp || grandTotal;
+    const discount = (invoiceData.totals?.discount || 0) + (invoiceData.flatDiscountAmount || 0);
+
+    return {
+      businessName: businessInfo?.business_name || 'Store',
+      businessAddress: businessInfo?.address || '',
+      businessPhone: businessInfo?.mobile_number || '',
+      businessGSTIN: businessInfo?.gst_number || '',
+      billNo: invoiceData.invoiceNumber || '',
+      date: new Date(),
+      documentType: 'pos',
+      customerName: invoiceData.customerName || 'Walk-in Customer',
+      customerPhone: invoiceData.customerPhone || '',
+      items: (invoiceData.items || []).map((item: any, idx: number) => ({
+        sr: idx + 1,
+        particulars: item.product_name || item.particulars || '',
+        qty: item.quantity || item.qty || 1,
+        rate: item.unit_price || item.rate || 0,
+        total: item.line_total || item.total || 0,
+        size: item.size || '',
+      })),
+      subTotal,
+      discount,
+      saleReturnAdjust: invoiceData.saleReturnAdjust || 0,
+      grandTotal,
+      roundOff: invoiceData.roundOff || 0,
+      paymentMethod: method,
+      cashPaid: cashAmt,
+      upiPaid: upiAmt,
+      cardPaid: cardAmt,
+      refundCash: cashAmt > grandTotal ? cashAmt - grandTotal : 0,
+      termsConditions: saleSettings?.terms_conditions?.join?.('\n') || '',
+      pointsRedeemed: (invoiceData as any).pointsRedeemed || 0,
+      pointsRedemptionValue: (invoiceData as any).pointsRedemptionValue || 0,
+      pointsBalance: 0,
+      paperWidth: 48,
+      openDrawer,
+      drawerPin: (billSettings?.cash_drawer_pin as 'pin2' | 'pin5') || 'pin2',
+    };
+  }, [settingsData]);
+
   const handlePrint = useReactToPrint({
     contentRef: invoicePrintRef,
     documentTitle: savedInvoiceData?.invoiceNumber || "Invoice",
