@@ -144,7 +144,10 @@ export function SalesInvoiceERPTable({
             <div className="flex flex-col">
               <div className="flex items-center gap-1.5 font-medium">
                 {invoice.sale_number}
-                {invoice.payment_status === 'completed' && (
+                {invoice.is_cancelled && (
+                  <Badge className="text-[9px] px-1.5 py-0 h-4 bg-red-700 hover:bg-red-800 text-white">CANCELLED</Badge>
+                )}
+                {!invoice.is_cancelled && invoice.payment_status === 'completed' && (
                   <span title="Invoice is locked (Fully Paid)">
                     <Lock className="h-3.5 w-3.5 text-green-600" />
                   </span>
@@ -297,6 +300,9 @@ export function SalesInvoiceERPTable({
         header: "Delivery",
         cell: ({ row }) => {
           const invoice = row.original;
+          if (invoice.is_cancelled) {
+            return <span className="text-xs text-muted-foreground">—</span>;
+          }
           return (
             <div onClick={(e) => e.stopPropagation()}>
               <Badge
@@ -317,6 +323,22 @@ export function SalesInvoiceERPTable({
       header: "Actions",
       cell: ({ row }) => {
         const invoice = row.original;
+        if (invoice.is_cancelled) {
+          return (
+            <div onClick={(e) => e.stopPropagation()} className="flex justify-end gap-1">
+              {columnSettings.print && (
+                <Button variant="ghost" size="icon" onClick={() => handlePrintInvoice(invoice)} title="Print Invoice">
+                  <Printer className="h-4 w-4" />
+                </Button>
+              )}
+              {columnSettings.download && (
+                <Button variant="ghost" size="icon" onClick={() => handleDownloadPDF(invoice)} title="Download PDF">
+                  <Download className="h-4 w-4 text-blue-600" />
+                </Button>
+              )}
+            </div>
+          );
+        }
         return (
           <div onClick={(e) => e.stopPropagation()}>
             {/* Desktop */}
