@@ -8,7 +8,7 @@ import { MobileDateFilterChips } from "@/components/mobile/MobileDateFilterChips
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { Search, Plus, ChevronRight, TrendingUp, FileText, RotateCcw, Eye, MessageCircle, Printer } from "lucide-react";
+import { Search, Plus, ChevronRight, TrendingUp, FileText, RotateCcw, Eye, MessageCircle, Download } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
