@@ -5,6 +5,7 @@ import {
   disconnectUsbPrinter,
   printViaWebUsb,
   getConnectedUsbPrinter,
+  autoReconnectUsbPrinter,
 } from '@/utils/webUsbPrint';
 import { toast } from 'sonner';
 
@@ -15,11 +16,20 @@ export const useWebUsbPrint = () => {
   const [printerName, setPrinterName] = useState<string | null>(null);
 
   useEffect(() => {
+    // Check if already connected in-memory
     const device = getConnectedUsbPrinter();
     if (device) {
       setIsConnected(true);
       setPrinterName(device.productName || device.manufacturerName || 'USB Printer');
+      return;
     }
+    // Try auto-reconnect to previously paired device (no picker shown)
+    autoReconnectUsbPrinter().then((result) => {
+      if (result.success) {
+        setIsConnected(true);
+        setPrinterName(result.name);
+      }
+    });
   }, []);
 
   const connect = useCallback(async () => {
