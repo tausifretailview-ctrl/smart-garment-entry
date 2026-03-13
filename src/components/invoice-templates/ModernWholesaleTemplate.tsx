@@ -482,7 +482,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             {showGSTBreakdown && <td style={cellStyle}>&nbsp;</td>}
             <td style={cellStyle}>&nbsp;</td>
           </tr>
-        ))}
+          ));
+        })()}
       </tbody>
       {/* Show totals footer only on last page */}
       {isLastPage && (
