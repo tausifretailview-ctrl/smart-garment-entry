@@ -510,7 +510,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
 
   // Render summary section (only on last page)
   const renderSummary = () => (
-    <>
+    <div style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
       {/* Bottom Summary Section */}
       <div style={{ display: "flex", borderTop: "1px solid #374151", width: "100%", boxSizing: "border-box", overflow: "visible" }}>
         <div style={{ flex: 1, padding: isA5 ? "5px 6px" : "8px", borderRight: "1px solid #374151", minWidth: 0 }}>
