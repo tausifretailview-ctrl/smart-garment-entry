@@ -112,7 +112,9 @@ export const QuickAddProductDialog = ({
         .insert({
           product_name: productName.trim(),
           organization_id: currentOrganization.id,
-          gst_percent: parsedGst,
+          gst_per: parsedGst,
+          purchase_gst_percent: parsedGst,
+          sale_gst_percent: parsedGst,
           hsn_code: "",
         })
         .select()
