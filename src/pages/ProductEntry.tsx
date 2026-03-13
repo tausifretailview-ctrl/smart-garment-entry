@@ -1120,6 +1120,8 @@ const ProductEntry = () => {
           color: productColor,
           hsn_code: formData.hsn_code || null,
           gst_per: formData.gst_per,
+          purchase_gst_percent: formData.purchase_gst_percent,
+          sale_gst_percent: formData.sale_gst_percent,
           uom: formData.uom || DEFAULT_UOM,
           default_pur_price: formData.default_pur_price,
           default_sale_price: formData.default_sale_price,
