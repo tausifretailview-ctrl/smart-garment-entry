@@ -46,6 +46,8 @@ interface Product {
   brand: string | null;
   category: string | null;
   gst_per: number;
+  purchase_gst_percent?: number;
+  sale_gst_percent?: number;
   size_group_id?: string | null;
 }
 
