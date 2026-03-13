@@ -578,6 +578,7 @@ const PurchaseReturnEntry = () => {
             brand,
             hsn_code,
             gst_per,
+            purchase_gst_percent,
             organization_id,
             deleted_at
           )
