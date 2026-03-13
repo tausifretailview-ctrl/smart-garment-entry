@@ -209,30 +209,81 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   const calculatedTaxableAmount = taxableAmount || subtotal - discount;
   
 
-  // Calculate items per page based on format
+  const isA5 = format === 'a5-vertical' || format === 'a5-horizontal';
+
+  // Items per page: full pages vs last page (reserving space for footer/summary)
   const getItemsPerPage = () => {
     if (format === 'a4') return 22;
     if (format === 'a5-horizontal') return 10;
-    return 14; // a5-vertical — fits 14 items + footer on one page
+    return 14; // a5-vertical
+  };
+
+  const getLastPageItems = () => {
+    if (format === 'a4') return 16;
+    if (format === 'a5-horizontal') return 6;
+    return 9; // a5-vertical — reserve ~5 rows for footer section
   };
 
   const itemsPerPage = getItemsPerPage();
+  const lastPageMaxItems = getLastPageItems();
 
-  // Split items into pages
+  // Smart page splitting: fill early pages fully, reserve space on last page for footer
   const pages: GroupedItem[][] = [];
-  for (let i = 0; i < groupedItems.length; i += itemsPerPage) {
-    pages.push(groupedItems.slice(i, i + itemsPerPage));
+  const pageStartIndices: number[] = [];
+  let remaining = [...groupedItems];
+  
+  if (remaining.length === 0) {
+    pages.push([]);
+    pageStartIndices.push(0);
+  } else {
+    let currentStart = 0;
+    while (remaining.length > 0) {
+      // If remaining items fit on a last page (with footer space), put them all on this page
+      if (remaining.length <= lastPageMaxItems) {
+        pages.push(remaining);
+        pageStartIndices.push(currentStart);
+        remaining = [];
+      } 
+      // If remaining items fit on one full page but NOT with footer space, split them
+      else if (remaining.length <= itemsPerPage) {
+        // Put some on this page, rest on next (last) page
+        const splitAt = remaining.length - lastPageMaxItems;
+        if (splitAt > 0) {
+          pages.push(remaining.slice(0, splitAt));
+          pageStartIndices.push(currentStart);
+          currentStart += splitAt;
+          remaining = remaining.slice(splitAt);
+        } else {
+          pages.push(remaining);
+          pageStartIndices.push(currentStart);
+          remaining = [];
+        }
+      }
+      // More than a full page worth — take a full page
+      else {
+        pages.push(remaining.slice(0, itemsPerPage));
+        pageStartIndices.push(currentStart);
+        currentStart += itemsPerPage;
+        remaining = remaining.slice(itemsPerPage);
+      }
+    }
   }
-  if (pages.length === 0) pages.push([]);
 
   const totalPages = pages.length;
 
-  // When all items fit on a single page, minimize empty rows to prevent footer overflow to 2nd page
-  const isA5 = format === 'a5-vertical' || format === 'a5-horizontal';
-
-  const effectiveMinItemRows = totalPages === 1 
-    ? Math.max(groupedItems.length, isA5 ? (format === 'a5-horizontal' ? 3 : 4) : 6)
-    : minItemRows;
+  // On last page, use minimal empty rows to avoid pushing footer off-page
+  const getEffectiveMinRows = (pageIndex: number) => {
+    const isLastPage = pageIndex === totalPages - 1;
+    const pageItemCount = pages[pageIndex]?.length || 0;
+    if (totalPages === 1) {
+      return Math.max(pageItemCount, isA5 ? (format === 'a5-horizontal' ? 3 : 4) : 6);
+    }
+    if (isLastPage) {
+      // Don't pad last page beyond its items — footer needs the space
+      return pageItemCount;
+    }
+    return Math.max(pageItemCount, itemsPerPage);
+  };
 
   const cellStyle: React.CSSProperties = {
     border: "1px solid #374151",
