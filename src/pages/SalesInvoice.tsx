@@ -1012,7 +1012,7 @@ export default function SalesInvoice() {
           salePrice: variant.sale_price || 0,
           discountPercent,
           discountAmount: 0,
-          gstPercent: product.gst_per || 0,
+          gstPercent: product.sale_gst_percent || product.gst_per || 0,
           lineTotal: 0,
           hsnCode: product.hsn_code || '',
         });
