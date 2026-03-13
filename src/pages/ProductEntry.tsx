@@ -1786,7 +1786,7 @@ const ProductEntry = () => {
                   onChange={(e) =>
                     setFormData({ ...formData, product_name: e.target.value })
                   }
-                  placeholder="Enter product name"
+                  placeholder={lastProductName ? `Last: ${lastProductName}` : "Enter product name"}
                 />
               </div>
 
