@@ -427,7 +427,7 @@ const SalesmanOrderEntry = () => {
         quantity: qty,
         unit_price: unitPrice,
         discount_percent: 0,
-        gst_percent: product.gst_per || 0,
+        gst_percent: product.sale_gst_percent || product.gst_per || 0,
         line_total: unitPrice * qty,
         isCustomSize: variant.isCustomSize || false,
       };
