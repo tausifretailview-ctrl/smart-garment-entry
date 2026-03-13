@@ -55,6 +55,9 @@ interface MobilePOSHeaderProps {
   selectedProductType: string;
   onProductTypeChange: (type: string) => void;
   hasMoreCustomers?: boolean;
+  filteredProducts?: any[];
+  onProductSelect?: (product: any, variant: any) => void;
+  openProductSearch?: boolean;
 }
 
 export const MobilePOSHeader = ({
