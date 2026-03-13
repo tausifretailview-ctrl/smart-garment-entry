@@ -1223,7 +1223,7 @@ export default function SalesInvoice() {
         salePrice: salePrice,
         discountPercent,
         discountAmount: 0,
-        gstPercent: product.gst_per || 0,
+        gstPercent: product.sale_gst_percent || product.gst_per || 0,
         lineTotal: 0,
         hsnCode: product.hsn_code || '',
       };
