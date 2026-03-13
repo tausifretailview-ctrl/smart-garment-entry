@@ -623,7 +623,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           <div style={{ borderTop: "1px solid #000", fontSize: isA5 ? "6pt" : "8pt" }}>Authorised Signatory</div>
         </div>
       </div>
-    </>
+    </div>
   );
 
   // Render page footer (shown on all pages)
