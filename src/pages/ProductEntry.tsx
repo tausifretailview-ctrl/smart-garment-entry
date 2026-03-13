@@ -68,6 +68,8 @@ interface ProductForm {
   size_group_id: string;
   hsn_code: string;
   gst_per: number;
+  purchase_gst_percent: number;
+  sale_gst_percent: number;
   uom: string; // Unit of Measurement
   default_pur_price: number | undefined;
   default_sale_price: number | undefined;
@@ -128,6 +130,8 @@ const ProductEntry = () => {
     size_group_id: "",
     hsn_code: "",
     gst_per: 18,
+    purchase_gst_percent: 18,
+    sale_gst_percent: 18,
     uom: "NOS", // Default Unit of Measurement
     default_pur_price: undefined,
     default_sale_price: undefined,
@@ -258,6 +262,8 @@ const ProductEntry = () => {
         size_group_id: product.size_group_id || "",
         hsn_code: product.hsn_code || "",
         gst_per: product.gst_per ?? 18,
+        purchase_gst_percent: product.purchase_gst_percent ?? product.gst_per ?? 18,
+        sale_gst_percent: product.sale_gst_percent ?? product.gst_per ?? 18,
         uom: product.uom || "NOS",
         default_pur_price: product.default_pur_price || 0,
         default_sale_price: product.default_sale_price || 0,
@@ -372,7 +378,7 @@ const ProductEntry = () => {
       if (typeof data.purchase_settings === 'object' && data.purchase_settings !== null) {
         const purchaseSettings = data.purchase_settings as any;
         if (purchaseSettings.default_tax_rate !== undefined && !editingProductId) {
-          setFormData(prev => ({ ...prev, gst_per: purchaseSettings.default_tax_rate }));
+          setFormData(prev => ({ ...prev, gst_per: purchaseSettings.default_tax_rate, purchase_gst_percent: purchaseSettings.default_tax_rate, sale_gst_percent: purchaseSettings.default_tax_rate }));
         }
         // Set show_mrp from purchase settings
         setShowMrp(purchaseSettings.show_mrp || false);
@@ -608,6 +614,8 @@ const ProductEntry = () => {
           size_group_id: product.size_group_id || "",
           hsn_code: product.hsn_code || "",
           gst_per: product.gst_per ?? 18,
+          purchase_gst_percent: product.purchase_gst_percent ?? product.gst_per ?? 18,
+          sale_gst_percent: product.sale_gst_percent ?? product.gst_per ?? 18,
           uom: product.uom || DEFAULT_UOM,
           default_pur_price: product.default_pur_price || 0,
           default_sale_price: product.default_sale_price || 0,
@@ -1112,6 +1120,8 @@ const ProductEntry = () => {
           color: productColor,
           hsn_code: formData.hsn_code || null,
           gst_per: formData.gst_per,
+          purchase_gst_percent: formData.purchase_gst_percent,
+          sale_gst_percent: formData.sale_gst_percent,
           uom: formData.uom || DEFAULT_UOM,
           default_pur_price: formData.default_pur_price,
           default_sale_price: formData.default_sale_price,
@@ -1243,6 +1253,8 @@ const ProductEntry = () => {
           color: productColor, // Store first color for backward compatibility
           hsn_code: formData.hsn_code || null,
           gst_per: formData.gst_per,
+          purchase_gst_percent: formData.purchase_gst_percent,
+          sale_gst_percent: formData.sale_gst_percent,
           uom: formData.uom || DEFAULT_UOM,
           default_pur_price: formData.default_pur_price,
           default_sale_price: formData.default_sale_price,
@@ -1472,6 +1484,8 @@ const ProductEntry = () => {
                 color: firstRow.color?.toString().trim() || null,
                 hsn_code: firstRow.hsn_code?.toString().trim() || null,
                 gst_per: parseLocalizedNumber(firstRow.gst_per) || 18,
+                purchase_gst_percent: parseLocalizedNumber(firstRow.purchase_gst_percent || firstRow.gst_per) || 18,
+                sale_gst_percent: parseLocalizedNumber(firstRow.sale_gst_percent || firstRow.gst_per) || 18,
                 default_pur_price: parseLocalizedNumber(firstRow.default_pur_price) || 0,
                 default_sale_price: parseLocalizedNumber(firstRow.default_sale_price) || 0,
                 status: 'active',
@@ -2040,14 +2054,45 @@ const ProductEntry = () => {
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="gst_per">GST % *</Label>
+                <Label htmlFor="purchase_gst" className="text-blue-600 dark:text-blue-400">Purchase GST %</Label>
                 <Select
-                  value={formData.gst_per.toString()}
+                  value={formData.purchase_gst_percent.toString()}
+                  onValueChange={(value) => {
+                    const val = parseInt(value);
+                    setFormData(prev => ({
+                      ...prev,
+                      purchase_gst_percent: val,
+                      gst_per: val, // keep gst_per in sync with purchase
+                    }));
+                  }}
+                >
+                  <SelectTrigger className="border-blue-200 dark:border-blue-800">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[0, 5, 12, 18, 28].map((rate) => (
+                      <SelectItem key={rate} value={rate.toString()}>
+                        {rate}%
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="sale_gst" className="text-green-600 dark:text-green-400">Sale GST %</Label>
+                {formData.purchase_gst_percent !== formData.sale_gst_percent && (
+                  <span className="ml-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                    ≠ Purchase
+                  </span>
+                )}
+                <Select
+                  value={formData.sale_gst_percent.toString()}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, gst_per: parseInt(value) })
+                    setFormData(prev => ({ ...prev, sale_gst_percent: parseInt(value) }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="border-green-200 dark:border-green-800">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

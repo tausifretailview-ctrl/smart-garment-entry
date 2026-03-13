@@ -719,6 +719,8 @@ const PurchaseEntry = () => {
             color,
             hsn_code,
             gst_per,
+            purchase_gst_percent,
+            sale_gst_percent,
             default_pur_price,
             default_sale_price,
             size_group_id
@@ -779,7 +781,7 @@ const PurchaseEntry = () => {
           category: v.products?.category || "",
           color: v.color || v.products?.color || "",
           style: v.products?.style || "",
-          gst_per: v.products?.gst_per || 0,
+          gst_per: v.products?.purchase_gst_percent || v.products?.gst_per || 0,
           hsn_code: v.products?.hsn_code || "",
           size_range: sizeRange,
         };
@@ -894,7 +896,7 @@ const PurchaseEntry = () => {
           category: product.category || '',
           color: product.color || '',
           style: product.style || '',
-          gst_per: product.gst_per,
+          gst_per: product.purchase_gst_percent || product.gst_per,
           hsn_code: product.hsn_code || '',
         });
         
@@ -1036,6 +1038,8 @@ const PurchaseEntry = () => {
             color,
             hsn_code,
             gst_per,
+            purchase_gst_percent,
+            sale_gst_percent,
             default_pur_price,
             default_sale_price,
             size_group_id
@@ -1100,7 +1104,7 @@ const PurchaseEntry = () => {
           category: v.products?.category || "",
           color: v.color || v.products?.color || "",
           style: v.products?.style || "",
-          gst_per: v.products?.gst_per || 0,
+          gst_per: v.products?.purchase_gst_percent || v.products?.gst_per || 0,
           hsn_code: v.products?.hsn_code || "",
           size_range: sizeRange,
         };
@@ -1178,6 +1182,8 @@ const PurchaseEntry = () => {
           style,
           hsn_code,
           gst_per,
+          purchase_gst_percent,
+          sale_gst_percent,
           default_pur_price,
           default_sale_price
         )
@@ -1224,7 +1230,7 @@ const PurchaseEntry = () => {
         pur_price: product.default_pur_price || 0,
         sale_price: product.default_sale_price || 0,
         mrp: v.mrp || 0,
-        gst_per: product.gst_per || 0,
+        gst_per: product.purchase_gst_percent || product.gst_per || 0,
         hsn_code: product.hsn_code || "",
         barcode: barcode,
         discount_percent: 0,
@@ -1335,7 +1341,7 @@ const PurchaseEntry = () => {
         pur_price: variant.pur_price || selectedProduct.default_pur_price || 0,
         sale_price: variant.sale_price || selectedProduct.default_sale_price || 0,
         mrp: variant.mrp || variant.sale_price || 0,
-        gst_per: selectedProduct.gst_per || 0,
+        gst_per: selectedProduct.purchase_gst_percent || selectedProduct.gst_per || 0,
         hsn_code: selectedProduct.hsn_code || "",
         barcode: barcode,
         discount_percent: 0,

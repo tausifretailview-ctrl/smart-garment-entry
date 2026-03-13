@@ -46,6 +46,8 @@ interface Product {
   brand: string | null;
   category: string | null;
   gst_per: number;
+  purchase_gst_percent?: number;
+  sale_gst_percent?: number;
   size_group_id?: string | null;
 }
 
@@ -427,7 +429,7 @@ const SalesmanOrderEntry = () => {
         quantity: qty,
         unit_price: unitPrice,
         discount_percent: 0,
-        gst_percent: product.gst_per || 0,
+        gst_percent: product.sale_gst_percent || product.gst_per || 0,
         line_total: unitPrice * qty,
         isCustomSize: variant.isCustomSize || false,
       };
