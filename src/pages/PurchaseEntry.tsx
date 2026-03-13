@@ -1230,7 +1230,7 @@ const PurchaseEntry = () => {
         pur_price: product.default_pur_price || 0,
         sale_price: product.default_sale_price || 0,
         mrp: v.mrp || 0,
-        gst_per: product.gst_per || 0,
+        gst_per: product.purchase_gst_percent || product.gst_per || 0,
         hsn_code: product.hsn_code || "",
         barcode: barcode,
         discount_percent: 0,
