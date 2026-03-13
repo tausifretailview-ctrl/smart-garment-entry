@@ -378,7 +378,7 @@ const ProductEntry = () => {
       if (typeof data.purchase_settings === 'object' && data.purchase_settings !== null) {
         const purchaseSettings = data.purchase_settings as any;
         if (purchaseSettings.default_tax_rate !== undefined && !editingProductId) {
-          setFormData(prev => ({ ...prev, gst_per: purchaseSettings.default_tax_rate }));
+          setFormData(prev => ({ ...prev, gst_per: purchaseSettings.default_tax_rate, purchase_gst_percent: purchaseSettings.default_tax_rate, sale_gst_percent: purchaseSettings.default_tax_rate }));
         }
         // Set show_mrp from purchase settings
         setShowMrp(purchaseSettings.show_mrp || false);
