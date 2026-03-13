@@ -606,7 +606,7 @@ const PurchaseReturnEntry = () => {
           barcode: v.barcode || "",
           product_name: v.products?.product_name || "",
           brand: v.products?.brand || "",
-          gst_per: v.products?.gst_per || 0,
+          gst_per: v.products?.purchase_gst_percent || v.products?.gst_per || 0,
           hsn_code: v.products?.hsn_code || "",
           stock_qty: v.stock_qty || 0,
         }));
