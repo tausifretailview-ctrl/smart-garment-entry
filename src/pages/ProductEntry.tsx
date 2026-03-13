@@ -2054,14 +2054,45 @@ const ProductEntry = () => {
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="gst_per">GST % *</Label>
+                <Label htmlFor="purchase_gst" className="text-blue-600 dark:text-blue-400">Purchase GST %</Label>
                 <Select
-                  value={formData.gst_per.toString()}
+                  value={formData.purchase_gst_percent.toString()}
+                  onValueChange={(value) => {
+                    const val = parseInt(value);
+                    setFormData(prev => ({
+                      ...prev,
+                      purchase_gst_percent: val,
+                      gst_per: val, // keep gst_per in sync with purchase
+                    }));
+                  }}
+                >
+                  <SelectTrigger className="border-blue-200 dark:border-blue-800">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[0, 5, 12, 18, 28].map((rate) => (
+                      <SelectItem key={rate} value={rate.toString()}>
+                        {rate}%
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="sale_gst" className="text-green-600 dark:text-green-400">Sale GST %</Label>
+                {formData.purchase_gst_percent !== formData.sale_gst_percent && (
+                  <span className="ml-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                    ≠ Purchase
+                  </span>
+                )}
+                <Select
+                  value={formData.sale_gst_percent.toString()}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, gst_per: parseInt(value) })
+                    setFormData(prev => ({ ...prev, sale_gst_percent: parseInt(value) }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="border-green-200 dark:border-green-800">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
