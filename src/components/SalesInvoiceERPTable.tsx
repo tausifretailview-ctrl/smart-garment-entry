@@ -661,7 +661,7 @@ export function SalesInvoiceERPTable({
   ) : undefined;
 
   const getRowClassName = useCallback((invoice: any) => {
-    return invoice.is_cancelled ? "opacity-55 bg-red-50/30 dark:bg-red-900/10" : "";
+    return invoice.is_cancelled ? "opacity-55 bg-red-50/30 dark:bg-red-900/10 [&_td]:line-through [&_td_.no-line-through]:no-underline [&_td_button]:no-underline decoration-red-500/60" : "";
   }, []);
 
   return (
