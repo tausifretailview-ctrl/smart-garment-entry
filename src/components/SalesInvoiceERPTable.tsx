@@ -143,9 +143,9 @@ export function SalesInvoiceERPTable({
           return (
             <div className="flex flex-col">
               <div className="flex items-center gap-1.5 font-medium">
-                {invoice.sale_number}
+                <span className={invoice.is_cancelled ? "line-through decoration-red-500/70" : ""}>{invoice.sale_number}</span>
                 {invoice.is_cancelled && (
-                  <Badge className="text-[9px] px-1.5 py-0 h-4 bg-red-700 hover:bg-red-800 text-white">CANCELLED</Badge>
+                  <Badge className="no-line-through text-[9px] px-1.5 py-0 h-4 bg-red-700 hover:bg-red-800 text-white no-underline" style={{ textDecoration: 'none' }}>CANCELLED</Badge>
                 )}
                 {!invoice.is_cancelled && invoice.payment_status === 'completed' && (
                   <span title="Invoice is locked (Fully Paid)">
@@ -661,7 +661,7 @@ export function SalesInvoiceERPTable({
   ) : undefined;
 
   const getRowClassName = useCallback((invoice: any) => {
-    return invoice.is_cancelled ? "opacity-55 bg-red-50/30 dark:bg-red-900/10" : "";
+    return invoice.is_cancelled ? "opacity-55 bg-red-50/30 dark:bg-red-900/10 [&_td]:line-through [&_td_.no-line-through]:no-underline [&_td_button]:no-underline decoration-red-500/60" : "";
   }, []);
 
   return (
