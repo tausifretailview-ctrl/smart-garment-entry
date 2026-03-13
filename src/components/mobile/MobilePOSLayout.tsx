@@ -163,6 +163,9 @@ export const MobilePOSLayout = ({
         selectedProductType={selectedProductType}
         onProductTypeChange={onProductTypeChange}
         hasMoreCustomers={hasMoreCustomers}
+        filteredProducts={filteredProducts}
+        onProductSelect={onProductSelect}
+        openProductSearch={openProductSearch}
       />
 
       {/* Cart Items - Scrollable area with bottom padding for payment bar */}
