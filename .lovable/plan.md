@@ -1,43 +1,60 @@
 
 
-## Completed: Heavy Query Load Optimization
+## Analysis
 
-All 5 priority pages optimized:
+The build error is **not a code issue** — it's a deployment upload failure (R2/S3 transport error). The code compiled successfully. This will resolve on the next deployment attempt.
 
-1. **PurchaseBillDashboard** — Server-side pagination + search + date filters via `useQuery`, removed Phase 2 bulk item pre-fetch (lazy-load on expand only), staleTime 30s
-2. **SaleReturnDashboard** — Converted from useEffect/setState to `useQuery` with server-side pagination + debounced search, lazy item loading with cache
-3. **PurchaseReturnDashboard** — Server-side pagination + debounced search + date filters via `useQuery`, staleTime 30s
-4. **Accounts** — Created `get_accounts_dashboard_stats` RPC for summary cards (replaces 3x fetchAll calls), lazy tab loading (vouchers/sales/customers/suppliers only fetched when their tab is active)
-5. **SalesAnalyticsDashboard** — Added staleTime 60s + refetchOnWindowFocus:false to all queries
+Regarding the Modern Wholesale template pagination: the current code already has multi-page support with header repetition and items-per-page splitting (A4: 22, A5-vertical: 14, A5-horizontal: 10). However, there are issues to fix:
 
-## Completed: Sales Invoice Dashboard Optimization
+### Problems Identified
 
-1. **Server-side pagination** — Replaced fetch-all-invoices loop with paginated query (50 rows per page, `{ count: 'exact' }`)
-2. **No more `sale_items(*)` in list** — Removed nested sale_items fetch, uses `total_qty` column instead
-3. **Server-side filtering** — Search (debounced 300ms), date range, payment status, delivery status all applied server-side
-4. **Summary stats via RPC** — Uses `get_sales_invoice_dashboard_stats` RPC instead of client-side computation
-5. **Default period = This Month** — Fast first load instead of fetching all-time data
-6. **staleTime 30s + refetchOnWindowFocus: false** — Prevents redundant re-fetches
-7. **Cache invalidation after save/update** — SalesInvoice.tsx invalidates `['invoices']` and `['invoice-dashboard-stats']` after create/update
-8. **useDashboardInvalidation** — Added `['invoices']` and `['invoice-dashboard-stats']` to `invalidateSales()`
+1. **SR numbering** — Already continuous across pages (uses `startIndex`), but need to verify it works correctly with size grouping enabled
+2. **Footer/summary overflow** — On the last page, the summary + signature section can overflow beyond the page boundary because `minItemRows` fills empty rows even when there's not enough room for the footer
+3. **Page break reliability** — CSS `page-break-after` needs reinforcement for consistent print output
 
-## Completed: Entry Form Query Optimization (ELLA NOOR slow billing fix)
+### Plan
 
-All entry forms optimized with caching + explicit columns:
+**File: `src/components/invoice-templates/ModernWholesaleTemplate.tsx`**
 
-1. **QuotationEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*')` with explicit columns
-2. **SaleOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*, product_variants(*)')` with explicit columns
-3. **PurchaseOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to suppliers & products queries, replaced `select('*')` with explicit columns
-4. **DeliveryChallanEntry** — Added staleTime 5min + refetchOnWindowFocus:false to products query, replaced `select('*, product_variants(*), size_groups(*)')` with explicit columns
-5. **PurchaseEntry** — Replaced `select('*')` with explicit columns for suppliers (already had staleTime)
-6. **POSSales** — Already optimized (explicit columns + staleTime 5min)
-7. **SalesInvoice** — Already optimized
+1. **Reduce items on last page** to reserve space for the summary/payment/signature footer:
+   - Last page gets fewer items (e.g., A4: 22→18 on last page, A5-vertical: 14→10 on last page) so the footer always fits
+   - Recalculate page splitting: fill early pages fully, leave room on the final page
 
-## Completed: Cloud Usage Impact Analysis
+2. **Remove excessive empty row padding on last page** — currently `effectiveMinItemRows` can push the footer off-page. Reduce empty rows when items + footer would overflow
 
-Estimated impact of all optimizations:
-- **Dashboard reads**: ~95% reduction (server-side pagination, 50 rows vs ALL)
-- **Accounts page**: ~90% reduction (1 RPC vs 3 full-table scans)
-- **Entry form tab switches**: ~80% fewer reads (5min staleTime cache)
-- **Data transfer**: ~40-50% less per read (explicit columns vs select('*'))
-- **Sales Invoice Dashboard**: ~98% reduction (50 rows without sale_items vs ALL invoices with ALL items)
+3. **Ensure header repeats reliably** — already implemented via `renderHeader()` call in `renderPage()`, just need to verify print CSS doesn't collapse it
+
+4. **Add `page-break-inside: avoid` to the summary section** to prevent it from splitting across pages
+
+### Technical Details
+
+```text
+Page Layout (A5-vertical example):
+┌─────────────────────┐
+│  HEADER (repeated)  │
+│  Customer Info       │
+├─────────────────────┤
+│  Items 1-12         │  ← First page: up to 12 items
+│  (empty rows)       │
+├─────────────────────┤
+│  "Continued..."     │
+│  Page 1 of 2        │
+└─────────────────────┘
+        ↓ page break
+┌─────────────────────┐
+│  HEADER (repeated)  │
+│  Customer Info       │
+├─────────────────────┤
+│  Items 13-15        │  ← Last page: fewer items
+│  (empty rows)       │
+├─────────────────────┤
+│  TOTAL QTY row      │
+│  Amount in Words    │
+│  Summary / GST      │
+│  Signature          │
+│  Page 2 of 2        │
+└─────────────────────┘
+```
+
+Key change: Split pagination so early pages hold full `itemsPerPage` count, but the **last page reserves ~4-6 rows** worth of space for the footer section (summary, bank details, terms, signature).
+
