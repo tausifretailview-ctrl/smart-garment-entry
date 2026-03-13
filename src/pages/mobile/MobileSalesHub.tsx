@@ -1,23 +1,39 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useSettings } from "@/hooks/useSettings";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { MobileDateFilterChips } from "@/components/mobile/MobileDateFilterChips";
+import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { Search, Plus, ChevronRight, TrendingUp, FileText, RotateCcw, Eye, MessageCircle, Download } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Search, Plus, ChevronRight, TrendingUp, FileText, RotateCcw, Eye, MessageCircle, Download, Loader2 } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Separator } from "@/components/ui/separator";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 export default function MobileSalesHub() {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
+  const { data: settings } = useSettings();
+  const { toast } = useToast();
   const [period, setPeriod] = useState("today");
   const [search, setSearch] = useState("");
+
+  // Customer history dialog state
+  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<{ id: string | null; name: string }>({ id: null, name: "" });
+
+  // PDF generation state
+  const [invoiceToPrint, setInvoiceToPrint] = useState<any>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState<string | null>(null);
+  const printRef = useRef<HTMLDivElement>(null);
 
   const getDateRange = () => {
     const now = new Date();
@@ -39,7 +55,7 @@ export default function MobileSalesHub() {
     queryFn: async () => {
       let q = supabase
         .from("sales")
-        .select("id, sale_number, sale_date, created_at, customer_name, net_amount, paid_amount, payment_status, sale_type")
+        .select("id, sale_number, sale_date, created_at, customer_name, customer_id, net_amount, paid_amount, payment_status, sale_type, gross_amount, discount_amount, flat_discount_amount, sale_return_adjust, payment_method, salesman, notes, customer_address, customer_phone, customers(gst_number)")
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null)
         .in("sale_type", ["invoice", "pos"])
@@ -67,6 +83,142 @@ export default function MobileSalesHub() {
     return "bg-rose-100 text-rose-700 border-rose-200";
   };
 
+  const handleCustomerClick = (sale: any) => {
+    if (sale.customer_name && sale.customer_name !== 'Walk-in') {
+      setSelectedCustomer({ id: sale.customer_id || null, name: sale.customer_name });
+      setShowCustomerHistory(true);
+    }
+  };
+
+  // Get bill format from settings
+  const getBillFormat = (): 'a4' | 'a5' | 'a5-horizontal' | 'thermal' => {
+    const saleSettings = settings?.sale_settings as any;
+    return saleSettings?.bill_format || 'a4';
+  };
+
+  const getInvoiceTemplate = () => {
+    const saleSettings = settings?.sale_settings as any;
+    return saleSettings?.invoice_template || 'professional';
+  };
+
+  const handleDownloadPDF = async (sale: any) => {
+    if (isGeneratingPdf) return;
+    setIsGeneratingPdf(sale.id);
+
+    toast({ title: "Generating PDF", description: "Please wait..." });
+
+    try {
+      // Fetch sale items
+      const { data: items, error } = await supabase
+        .from('sale_items')
+        .select('*')
+        .eq('sale_id', sale.id)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+
+      const saleItems = items || [];
+
+      // Fetch product details
+      if (saleItems.length > 0) {
+        const productIds = [...new Set(saleItems.map((i: any) => i.product_id).filter(Boolean))];
+        if (productIds.length > 0) {
+          const { data: products } = await supabase
+            .from('products')
+            .select('id, brand, color, style')
+            .in('id', productIds);
+          if (products) {
+            const productMap = Object.fromEntries(products.map(p => [p.id, p]));
+            saleItems.forEach((item: any) => {
+              item.products = productMap[item.product_id] || null;
+            });
+          }
+        }
+      }
+
+      const invoiceWithItems = { ...sale, sale_items: saleItems };
+      setInvoiceToPrint(invoiceWithItems);
+
+      // Wait for render
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Poll for printRef readiness
+      const MAX_WAIT = 10000;
+      const startTime = Date.now();
+      const waitForReady = (): Promise<boolean> => new Promise((resolve) => {
+        const poll = () => {
+          const el = printRef.current;
+          const text = (el?.textContent || '').trim();
+          const isReady = el && el.childElementCount > 0 && text.length > 32 && !/^loading\.?\.?\.?$/i.test(text);
+          if (isReady) return resolve(true);
+          if (Date.now() - startTime > MAX_WAIT) return resolve(false);
+          setTimeout(poll, 300);
+        };
+        poll();
+      });
+
+      const ready = await waitForReady();
+      if (!ready || !printRef.current) {
+        throw new Error("Invoice template failed to render");
+      }
+
+      const billFormat = getBillFormat();
+      const canvas = await html2canvas(printRef.current, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pageFormat = billFormat === 'a5' || billFormat === 'a5-horizontal' ? 'a5' : 'a4';
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: pageFormat });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const scaledWidth = pdfWidth;
+      const scaledHeight = (imgHeight * pdfWidth) / imgWidth;
+      const singlePageThreshold = pdfHeight * 1.05;
+
+      if (scaledHeight <= singlePageThreshold) {
+        pdf.addImage(imgData, 'PNG', 0, 0, scaledWidth, Math.min(scaledHeight, pdfHeight));
+      } else {
+        const pixelsPerPage = (pdfHeight / scaledHeight) * imgHeight;
+        const totalPages = Math.ceil(scaledHeight / pdfHeight);
+        for (let page = 0; page < totalPages; page++) {
+          if (page > 0) pdf.addPage();
+          const sourceY = page * pixelsPerPage;
+          const sourceH = Math.min(pixelsPerPage, imgHeight - sourceY);
+          const sliceScaledHeight = (sourceH * pdfWidth) / imgWidth;
+          const pageCanvas = document.createElement('canvas');
+          pageCanvas.width = imgWidth;
+          pageCanvas.height = Math.ceil(sourceH);
+          const ctx = pageCanvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(canvas, 0, sourceY, imgWidth, sourceH, 0, 0, imgWidth, Math.ceil(sourceH));
+            const pageImgData = pageCanvas.toDataURL('image/png');
+            pdf.addImage(pageImgData, 'PNG', 0, 0, pdfWidth, sliceScaledHeight);
+          }
+        }
+      }
+
+      pdf.save(`Invoice_${sale.sale_number}_${format(new Date(sale.sale_date), 'ddMMyyyy')}.pdf`);
+      toast({ title: "Success", description: "PDF downloaded successfully" });
+    } catch (err) {
+      console.error('PDF generation error:', err);
+      toast({ title: "Error", description: "Failed to generate PDF. Try again.", variant: "destructive" });
+    } finally {
+      setInvoiceToPrint(null);
+      setIsGeneratingPdf(null);
+    }
+  };
+
+  const billFormat = getBillFormat();
+  const invoiceTemplate = getInvoiceTemplate();
+  const saleSettings = settings?.sale_settings as any;
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-background pb-24">
       {/* Header */}
@@ -80,7 +232,6 @@ export default function MobileSalesHub() {
             <Plus className="h-5 w-5 text-primary-foreground" />
           </button>
         </div>
-        {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -90,7 +241,6 @@ export default function MobileSalesHub() {
             className="pl-9 h-10 bg-muted/50 border-0 rounded-xl text-sm"
           />
         </div>
-        {/* Date filter */}
         <div className="-mx-4 px-4">
           <MobileDateFilterChips selectedPeriod={period} onPeriodChange={setPeriod} />
         </div>
@@ -148,7 +298,18 @@ export default function MobileSalesHub() {
                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">POS</Badge>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1 truncate">{sale.customer_name || 'Walk-in'}</p>
+                    {/* Clickable customer name */}
+                    <button
+                      onClick={() => handleCustomerClick(sale)}
+                      className={cn(
+                        "text-xs mt-1 truncate max-w-full text-left",
+                        sale.customer_name && sale.customer_name !== 'Walk-in'
+                          ? "text-primary underline underline-offset-2 active:text-primary/70"
+                          : "text-muted-foreground cursor-default"
+                      )}
+                    >
+                      {sale.customer_name || 'Walk-in'}
+                    </button>
                     <p className="text-[10px] text-muted-foreground/60 mt-0.5">
                       {format(new Date(sale.created_at || sale.sale_date), "d MMM, hh:mm a")}
                     </p>
@@ -187,12 +348,17 @@ export default function MobileSalesHub() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    orgNavigate(`/sales-invoice-dashboard?downloadPdf=${sale.id}`);
+                    handleDownloadPDF(sale);
                   }}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-violet-600 active:bg-violet-50 transition-colors touch-manipulation"
+                  disabled={isGeneratingPdf === sale.id}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-violet-600 active:bg-violet-50 transition-colors touch-manipulation disabled:opacity-50"
                 >
-                  <Download className="h-3.5 w-3.5" />
-                  <span>PDF</span>
+                  {isGeneratingPdf === sale.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Download className="h-3.5 w-3.5" />
+                  )}
+                  <span>{isGeneratingPdf === sale.id ? 'Wait...' : 'PDF'}</span>
                 </button>
               </div>
             </div>
@@ -215,6 +381,71 @@ export default function MobileSalesHub() {
           <ChevronRight className="h-4 w-4 text-muted-foreground" />
         </button>
       </div>
+
+      {/* Customer History Dialog */}
+      <CustomerHistoryDialog
+        open={showCustomerHistory}
+        onOpenChange={setShowCustomerHistory}
+        customerId={selectedCustomer.id}
+        customerName={selectedCustomer.name}
+        organizationId={currentOrganization?.id || ''}
+      />
+
+      {/* Hidden Invoice for PDF Generation */}
+      {invoiceToPrint && (
+        <div className="no-print" style={{
+          position: 'fixed',
+          top: 0,
+          left: '-9999px',
+          width: billFormat === 'a4' ? '210mm' :
+                 billFormat === 'thermal' ? '80mm' :
+                 billFormat === 'a5-horizontal' ? '210mm' : '148mm',
+          minHeight: billFormat === 'a4' ? '297mm' :
+                     billFormat === 'thermal' ? 'auto' :
+                     billFormat === 'a5-horizontal' ? '148mm' : '210mm',
+          pointerEvents: 'none',
+          zIndex: -9999,
+          overflow: 'visible'
+        }}>
+          <InvoiceWrapper
+            ref={printRef}
+            format={billFormat === 'a5' ? 'a5-vertical' : billFormat}
+            billNo={invoiceToPrint.sale_number}
+            date={new Date(invoiceToPrint.sale_date)}
+            customerName={invoiceToPrint.customer_name}
+            customerAddress={invoiceToPrint.customer_address || ""}
+            customerMobile={invoiceToPrint.customer_phone || ""}
+            customerGSTIN={(invoiceToPrint.customers as any)?.gst_number || ""}
+            template={invoiceTemplate}
+            showMRP={saleSettings?.show_mrp_column ?? false}
+            showHSN={saleSettings?.show_hsn_column ?? true}
+            items={invoiceToPrint.sale_items?.map((item: any, index: number) => ({
+              sr: index + 1,
+              particulars: item.product_name,
+              size: item.size,
+              barcode: item.barcode || "",
+              hsn: item.hsn_code || "",
+              sp: item.mrp,
+              mrp: item.mrp,
+              qty: item.quantity,
+              rate: item.unit_price,
+              total: item.line_total,
+              color: item.color || item.products?.color || "",
+              brand: item.products?.brand || "",
+              style: item.products?.style || "",
+              gstPercent: item.gst_percent || 0,
+              discountPercent: item.discount_percent || 0,
+            })) || []}
+            subTotal={invoiceToPrint.gross_amount}
+            discount={(invoiceToPrint.discount_amount || 0) + (invoiceToPrint.flat_discount_amount || 0)}
+            saleReturnAdjust={invoiceToPrint.sale_return_adjust || 0}
+            grandTotal={invoiceToPrint.net_amount}
+            paymentMethod={invoiceToPrint.payment_method}
+            salesman={invoiceToPrint.salesman || ''}
+            notes={invoiceToPrint.notes || ''}
+          />
+        </div>
+      )}
 
       <MobileBottomNav />
     </div>
