@@ -130,6 +130,8 @@ const ProductEntry = () => {
     size_group_id: "",
     hsn_code: "",
     gst_per: 18,
+    purchase_gst_percent: 18,
+    sale_gst_percent: 18,
     uom: "NOS", // Default Unit of Measurement
     default_pur_price: undefined,
     default_sale_price: undefined,
