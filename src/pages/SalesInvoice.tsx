@@ -2336,11 +2336,53 @@ Thank you for choosing us!`;
                 placeholder="Scan barcode or search product…"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && searchInput.trim()) {
+                    e.preventDefault();
+                    handleBarcodeSearch(e as any);
+                  }
+                }}
                 className="pl-10 h-11 text-base rounded-xl"
                 autoComplete="off"
                 autoCapitalize="off"
               />
+              {isSearching && (
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+              )}
             </div>
+            {/* Mobile Search Results Dropdown */}
+            {productSearchResults.length > 0 && searchInput.length >= 1 && (
+              <div className="bg-popover border border-border rounded-xl shadow-lg max-h-72 overflow-auto -mx-0.5">
+                {productSearchResults.slice(0, 50).map(({ product, variant }) => (
+                  <button
+                    key={variant.id}
+                    type="button"
+                    onClick={() => addProductToInvoice(product, variant)}
+                    className="w-full text-left px-3.5 py-2.5 border-b border-border/30 last:border-0 active:bg-accent/70 transition-colors"
+                  >
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-foreground truncate">{product.product_name}</p>
+                        <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                          {product.brand && <span className="text-[11px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{product.brand}</span>}
+                          {(variant.color || product.color) && <span className="text-[11px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{variant.color || product.color}</span>}
+                          {variant.size && <span className="text-[11px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Size: {variant.size}</span>}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-bold text-primary">₹{variant.sale_price}</p>
+                        <p className={cn("text-[11px] font-medium", (variant.stock_qty || 0) > 0 ? "text-emerald-600" : "text-destructive")}>
+                          Qty: {variant.stock_qty || 0}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            {!isSearching && productSearchResults.length === 0 && searchInput.length >= 2 && (
+              <p className="text-xs text-muted-foreground text-center py-2">No products found</p>
+            )}
           </div>
 
           {/* Items list */}

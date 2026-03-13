@@ -2477,6 +2477,45 @@ const PurchaseEntry = () => {
                 autoCapitalize="off"
               />
             </div>
+            {/* Mobile Search Results Dropdown */}
+            {showSearch && searchResults.length > 0 && (
+              <div className="bg-popover border border-border rounded-xl shadow-lg max-h-72 overflow-auto -mx-0.5">
+                {searchResults.slice(0, 50).map((result, idx) => (
+                  <button
+                    key={result.id + idx}
+                    type="button"
+                    onClick={() => handleProductSelect(result)}
+                    className="w-full text-left px-3.5 py-2.5 border-b border-border/30 last:border-0 active:bg-accent/70 transition-colors"
+                  >
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {formatProductDescription({
+                            product_name: result.product_name,
+                            category: result.category,
+                            brand: result.brand,
+                            style: result.style,
+                            color: result.color,
+                            size: result.size
+                          })}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                          {result.barcode && <span className="text-[11px] text-muted-foreground font-mono">{result.barcode}</span>}
+                          {result.size_range && <span className="text-[11px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">{result.size_range}</span>}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-bold text-primary">₹{result.pur_price?.toFixed(2) || '0.00'}</p>
+                        <p className="text-[11px] text-muted-foreground">Sale: ₹{result.sale_price?.toFixed(2) || '0.00'}</p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            {!showSearch && searchResults.length === 0 && searchQuery.length >= 2 && (
+              <p className="text-xs text-muted-foreground text-center py-2">No products found</p>
+            )}
           </div>
 
           {/* Items list */}
