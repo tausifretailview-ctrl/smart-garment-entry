@@ -145,11 +145,31 @@ const ProductEntry = () => {
   const [copySelectedIndex, setCopySelectedIndex] = useState(-1);
   const copyDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Recent products history
+  const [recentProducts, setRecentProducts] = useState<Array<{ id: string; product_name: string; brand: string; category: string; created_at: string }>>([]);
+  const [lastProductName, setLastProductName] = useState("");
+
+  const fetchRecentProducts = useCallback(async () => {
+    if (!currentOrganization?.id) return;
+    const { data } = await supabase
+      .from("products")
+      .select("id, product_name, brand, category, created_at")
+      .eq("organization_id", currentOrganization.id)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(5);
+    if (data && data.length > 0) {
+      setRecentProducts(data);
+      setLastProductName(data[0].product_name || "");
+    }
+  }, [currentOrganization?.id]);
+
   useEffect(() => {
     fetchSizeGroups();
     fetchFieldSettings();
     fetchDefaultSizeGroup();
     fetchPreviousValues();
+    fetchRecentProducts();
     
     // Check if we're editing an existing product
     const searchParams = new URLSearchParams(location.search);
