@@ -1755,20 +1755,20 @@ export default function SalesInvoiceDashboard() {
                   <div className="flex items-start justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-xs font-bold text-primary">{inv.sale_number}</span>
+                        <span className={cn("font-mono text-xs font-bold text-primary", inv.is_cancelled && "line-through decoration-red-500/70")}>{inv.sale_number}</span>
                         <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border", sc[inv.payment_status] || sc.pending)}>
                           {inv.payment_status === 'completed' ? 'Paid' : inv.payment_status}
                         </span>
                         {inv.is_cancelled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">Cancelled</span>}
                       </div>
-                      <p className="text-sm font-medium text-foreground mt-1 truncate">{inv.customer_name || 'Walk-in'}</p>
+                      <p className={cn("text-sm font-medium text-foreground mt-1 truncate", inv.is_cancelled && "line-through decoration-red-500/50")}>{inv.customer_name || 'Walk-in'}</p>
                       <p className="text-[11px] text-muted-foreground">
                         {format(new Date(inv.created_at || inv.sale_date), "d MMM · hh:mm a")}
                         {inv.total_qty ? ` · ${inv.total_qty} pcs` : ""}
                       </p>
                     </div>
                     <div className="text-right shrink-0 ml-3">
-                      <p className="text-sm font-bold tabular-nums">₹{(inv.net_amount||0).toLocaleString("en-IN")}</p>
+                      <p className={cn("text-sm font-bold tabular-nums", inv.is_cancelled && "line-through decoration-red-500/70")}>₹{(inv.net_amount||0).toLocaleString("en-IN")}</p>
                       {pending > 0 && (
                         <p className="text-[11px] text-amber-600 font-medium">Due ₹{pending.toLocaleString("en-IN")}</p>
                       )}
