@@ -262,6 +262,8 @@ const ProductEntry = () => {
         size_group_id: product.size_group_id || "",
         hsn_code: product.hsn_code || "",
         gst_per: product.gst_per ?? 18,
+        purchase_gst_percent: product.purchase_gst_percent ?? product.gst_per ?? 18,
+        sale_gst_percent: product.sale_gst_percent ?? product.gst_per ?? 18,
         uom: product.uom || "NOS",
         default_pur_price: product.default_pur_price || 0,
         default_sale_price: product.default_sale_price || 0,
