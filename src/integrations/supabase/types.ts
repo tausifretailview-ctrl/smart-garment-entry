@@ -2786,6 +2786,8 @@ export type Database = {
           organization_id: string
           product_name: string
           product_type: string
+          purchase_gst_percent: number | null
+          sale_gst_percent: number | null
           size_group_id: string | null
           status: string | null
           style: string | null
@@ -2808,6 +2810,8 @@ export type Database = {
           organization_id: string
           product_name: string
           product_type?: string
+          purchase_gst_percent?: number | null
+          sale_gst_percent?: number | null
           size_group_id?: string | null
           status?: string | null
           style?: string | null
@@ -2830,6 +2834,8 @@ export type Database = {
           organization_id?: string
           product_name?: string
           product_type?: string
+          purchase_gst_percent?: number | null
+          sale_gst_percent?: number | null
           size_group_id?: string | null
           status?: string | null
           style?: string | null
