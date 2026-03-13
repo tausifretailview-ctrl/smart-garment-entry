@@ -81,6 +81,9 @@ export const MobilePOSHeader = ({
   selectedProductType,
   onProductTypeChange,
   hasMoreCustomers,
+  filteredProducts = [],
+  onProductSelect,
+  openProductSearch = false,
 }: MobilePOSHeaderProps) => {
   const getStatusIcon = () => {
     if (!isOnline) return <WifiOff className="h-4 w-4 text-amber-500" />;
