@@ -122,6 +122,9 @@ export const MobilePOSLayout = ({
   onFlatDiscountValueChange,
   onFlatDiscountModeChange,
   onSaleReturn,
+  filteredProducts,
+  onProductSelect,
+  openProductSearch,
 }: MobilePOSLayoutProps) => {
   const { isOnline, isSyncing, pendingActions } = useOfflineSync();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
