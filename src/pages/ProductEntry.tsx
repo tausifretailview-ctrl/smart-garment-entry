@@ -1484,6 +1484,8 @@ const ProductEntry = () => {
                 color: firstRow.color?.toString().trim() || null,
                 hsn_code: firstRow.hsn_code?.toString().trim() || null,
                 gst_per: parseLocalizedNumber(firstRow.gst_per) || 18,
+                purchase_gst_percent: parseLocalizedNumber(firstRow.purchase_gst_percent || firstRow.gst_per) || 18,
+                sale_gst_percent: parseLocalizedNumber(firstRow.sale_gst_percent || firstRow.gst_per) || 18,
                 default_pur_price: parseLocalizedNumber(firstRow.default_pur_price) || 0,
                 default_sale_price: parseLocalizedNumber(firstRow.default_sale_price) || 0,
                 status: 'active',
