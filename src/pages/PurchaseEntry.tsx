@@ -1038,6 +1038,8 @@ const PurchaseEntry = () => {
             color,
             hsn_code,
             gst_per,
+            purchase_gst_percent,
+            sale_gst_percent,
             default_pur_price,
             default_sale_price,
             size_group_id
