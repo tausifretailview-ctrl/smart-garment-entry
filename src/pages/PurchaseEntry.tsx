@@ -896,7 +896,7 @@ const PurchaseEntry = () => {
           category: product.category || '',
           color: product.color || '',
           style: product.style || '',
-          gst_per: product.gst_per,
+          gst_per: product.purchase_gst_percent || product.gst_per,
           hsn_code: product.hsn_code || '',
         });
         
