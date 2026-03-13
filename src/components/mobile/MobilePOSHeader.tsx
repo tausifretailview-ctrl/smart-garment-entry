@@ -55,6 +55,9 @@ interface MobilePOSHeaderProps {
   selectedProductType: string;
   onProductTypeChange: (type: string) => void;
   hasMoreCustomers?: boolean;
+  filteredProducts?: any[];
+  onProductSelect?: (product: any, variant: any) => void;
+  openProductSearch?: boolean;
 }
 
 export const MobilePOSHeader = ({
@@ -78,6 +81,9 @@ export const MobilePOSHeader = ({
   selectedProductType,
   onProductTypeChange,
   hasMoreCustomers,
+  filteredProducts = [],
+  onProductSelect,
+  openProductSearch = false,
 }: MobilePOSHeaderProps) => {
   const getStatusIcon = () => {
     if (!isOnline) return <WifiOff className="h-4 w-4 text-amber-500" />;
@@ -144,6 +150,42 @@ export const MobilePOSHeader = ({
           </SelectContent>
         </Select>
       </div>
+
+      {/* Mobile Product Search Results Dropdown */}
+      {openProductSearch && searchInput.length >= 2 && filteredProducts.length > 0 && (
+        <div className="bg-popover border border-border rounded-xl shadow-lg max-h-64 overflow-auto">
+          {filteredProducts.slice(0, 20).map((item: any, index: number) => {
+            const product = item.product;
+            const variant = item.variant;
+            const displayParts = [product.product_name];
+            if (product.brand) displayParts.push(product.brand);
+            if (variant.color && variant.color !== '-') displayParts.push(variant.color);
+            return (
+              <button
+                key={`${product.id}-${variant.id}-${index}`}
+                type="button"
+                onClick={() => onProductSelect?.(product, variant)}
+                className="w-full text-left px-3.5 py-2.5 border-b border-border/30 last:border-0 active:bg-accent/70 transition-colors"
+              >
+                <div className="flex justify-between items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground truncate">{displayParts.join(' · ')}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Size: {variant.size}{variant.barcode ? ` · ${variant.barcode}` : ''}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-bold text-primary">₹{variant.sale_price}</p>
+                    <p className={`text-[11px] font-medium ${(variant.stock_qty || 0) > 0 ? 'text-emerald-600' : 'text-destructive'}`}>
+                      Qty: {variant.stock_qty || 0}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Customer Row */}
       <div className="flex items-center gap-2">

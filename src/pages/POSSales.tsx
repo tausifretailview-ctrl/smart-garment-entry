@@ -2620,6 +2620,9 @@ export default function POSSales() {
           onFlatDiscountValueChange={setFlatDiscountValue}
           onFlatDiscountModeChange={setFlatDiscountMode}
           onSaleReturn={() => setShowFloatingSaleReturn(true)}
+          filteredProducts={filteredProducts}
+          onProductSelect={(product, variant) => addItemToCart(product, variant)}
+          openProductSearch={openProductSearch}
         />
 
         {/* Dialogs needed for mobile too */}

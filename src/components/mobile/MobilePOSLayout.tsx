@@ -80,6 +80,11 @@ interface MobilePOSLayoutProps {
 
   // Sale Return
   onSaleReturn?: () => void;
+
+  // Product search results for mobile dropdown
+  filteredProducts?: any[];
+  onProductSelect?: (product: any, variant: any) => void;
+  openProductSearch?: boolean;
 }
 
 export const MobilePOSLayout = ({
@@ -117,6 +122,9 @@ export const MobilePOSLayout = ({
   onFlatDiscountValueChange,
   onFlatDiscountModeChange,
   onSaleReturn,
+  filteredProducts,
+  onProductSelect,
+  openProductSearch,
 }: MobilePOSLayoutProps) => {
   const { isOnline, isSyncing, pendingActions } = useOfflineSync();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -155,6 +163,9 @@ export const MobilePOSLayout = ({
         selectedProductType={selectedProductType}
         onProductTypeChange={onProductTypeChange}
         hasMoreCustomers={hasMoreCustomers}
+        filteredProducts={filteredProducts}
+        onProductSelect={onProductSelect}
+        openProductSearch={openProductSearch}
       />
 
       {/* Cart Items - Scrollable area with bottom padding for payment bar */}
