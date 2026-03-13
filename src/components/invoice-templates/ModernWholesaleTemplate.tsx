@@ -651,7 +651,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   // Render a single page
   const renderPage = (pageItems: GroupedItem[], pageIndex: number) => {
     const isLastPage = pageIndex === totalPages - 1;
-    const startIndex = pageIndex * itemsPerPage;
+    const startIndex = pageStartIndices[pageIndex] || 0;
 
     return (
       <div
