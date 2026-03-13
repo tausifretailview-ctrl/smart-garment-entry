@@ -1341,7 +1341,7 @@ const PurchaseEntry = () => {
         pur_price: variant.pur_price || selectedProduct.default_pur_price || 0,
         sale_price: variant.sale_price || selectedProduct.default_sale_price || 0,
         mrp: variant.mrp || variant.sale_price || 0,
-        gst_per: selectedProduct.gst_per || 0,
+        gst_per: selectedProduct.purchase_gst_percent || selectedProduct.gst_per || 0,
         hsn_code: selectedProduct.hsn_code || "",
         barcode: barcode,
         discount_percent: 0,
