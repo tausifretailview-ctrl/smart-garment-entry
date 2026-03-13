@@ -80,6 +80,11 @@ interface MobilePOSLayoutProps {
 
   // Sale Return
   onSaleReturn?: () => void;
+
+  // Product search results for mobile dropdown
+  filteredProducts?: any[];
+  onProductSelect?: (product: any, variant: any) => void;
+  openProductSearch?: boolean;
 }
 
 export const MobilePOSLayout = ({
