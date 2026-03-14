@@ -3819,9 +3819,7 @@ export default function BarcodePrinting() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Product Name</TableHead>
-                <TableHead>Brand</TableHead>
-                <TableHead>Color/Style</TableHead>
+                <TableHead>Product Description</TableHead>
                 <TableHead>Size</TableHead>
                 <TableHead>MRP</TableHead>
                 <TableHead>Sale Rate</TableHead>
@@ -3832,13 +3830,16 @@ export default function BarcodePrinting() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {labelItems.map((item) => (
+              {labelItems.map((item) => {
+                const descParts = [item.product_name];
+                if (item.category && item.category.trim() && item.category.trim() !== '-') descParts.push(item.category);
+                if (item.style && item.style.trim() && item.style.trim() !== '-') descParts.push(item.style);
+                if (item.color && item.color.trim() && item.color.trim() !== '-') descParts.push(item.color);
+                if (item.brand && item.brand.trim() && item.brand.trim() !== '-') descParts.push(item.brand);
+                const fullDesc = descParts.join('-');
+                return (
                 <TableRow key={item.sku_id}>
-                  <TableCell className="font-medium">{item.product_name}</TableCell>
-                  <TableCell>{item.brand || "-"}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {item.color || "-"} / {item.style || "-"}
-                  </TableCell>
+                  <TableCell className="font-medium max-w-[250px] truncate" title={fullDesc}>{fullDesc}</TableCell>
                   <TableCell>{item.size}</TableCell>
                   <TableCell>₹{item.mrp || 0}</TableCell>
                   <TableCell>₹{item.sale_price}</TableCell>
