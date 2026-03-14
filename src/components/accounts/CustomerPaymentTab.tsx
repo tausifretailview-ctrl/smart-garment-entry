@@ -234,6 +234,7 @@ export function CustomerPaymentTab({
         if (chequeDate) paymentDetails += `, Date: ${format(chequeDate, 'dd/MM/yyyy')}`;
       } else if ((paymentMethod === 'other' || paymentMethod === 'bank_transfer' || paymentMethod === 'upi') && transactionId) {
         paymentDetails = ` | Transaction ID: ${transactionId}`;
+        if (paymentMethod === 'upi' && upiPaymentDate) paymentDetails += `, UPI Date: ${format(upiPaymentDate, 'dd/MM/yyyy')}`;
       }
 
       let finalDescription: string;
