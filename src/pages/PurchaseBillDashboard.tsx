@@ -787,13 +787,23 @@ const PurchaseBillDashboard = () => {
         return;
       }
 
+      // Fallback: fetch style from products master for items missing style
+      const missingStyleIds = Array.from(new Set(
+        items.filter((i: any) => !hasDisplayValue(i.style) && i.product_id).map((i: any) => i.product_id)
+      ));
+      let styleMap = new Map<string, string>();
+      if (missingStyleIds.length > 0) {
+        const { data: prods } = await supabase.from("products").select("id, style").in("id", missingStyleIds);
+        if (prods) styleMap = new Map(prods.filter(p => hasDisplayValue(p.style)).map(p => [p.id, p.style!.trim()]));
+      }
+
       const barcodeItems = items.map((item: any) => ({
         sku_id: item.sku_id,
         product_name: item.product_name || "",
         brand: item.brand || "",
         category: item.category || "",
         color: item.color || "",
-        style: item.style || "",
+        style: hasDisplayValue(item.style) ? item.style.trim() : (styleMap.get(item.product_id) || ""),
         size: item.size,
         sale_price: item.sale_price,
         mrp: item.mrp,
