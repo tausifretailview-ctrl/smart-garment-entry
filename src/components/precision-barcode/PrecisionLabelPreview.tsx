@@ -97,7 +97,7 @@ export function PrecisionLabelPreview({
           {item.product_name}
         </div>
         <div style={{ position: "absolute", top: u(height * 0.2), left: u(1), right: u(1), display: "flex", justifyContent: "space-between", fontSize: fs(Math.max(8, Math.min(11, width * 0.2))), fontWeight: 800 }}>
-          <span>Size: {item.size}</span>
+          <span>{item.size}</span>
           <span>Rs.{item.sale_price}</span>
         </div>
         {item.barcode && (
