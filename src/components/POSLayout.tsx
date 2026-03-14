@@ -29,6 +29,8 @@ import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
 import { FloatingCashTally } from "@/components/FloatingCashTally";
 import { FloatingPayments } from "@/components/FloatingPayments";
+import { DeliveryChallanPOSDialog } from "@/components/DeliveryChallanPOSDialog";
+import { Truck } from "lucide-react";
 
 interface POSLayoutProps {
   children: ReactNode;
@@ -39,11 +41,12 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const { signOut } = useAuth();
   const { currentOrganization } = useOrganization();
   const { orgNavigate, orgSlug } = useOrgNavigation();
-  const { onNewSale, onClearCart, onOpenCashierReport, onOpenStockReport, onOpenSaleReturn, onSaveChanges, onEstimatePrint, hasItems, isEditing, isSavingChanges } = usePOS();
+  const { onNewSale, onClearCart, onOpenCashierReport, onOpenStockReport, onOpenSaleReturn, onSaveChanges, onEstimatePrint, hasItems, isEditing, isSavingChanges, onOpenDeliveryChallan } = usePOS();
   const { isOpen, setIsOpen } = useKeyboardShortcuts("pos");
   const [showSizeStock, setShowSizeStock] = useState(false);
   const [showCashTally, setShowCashTally] = useState(false);
   const [showPayments, setShowPayments] = useState(false);
+  const [showDCDialog, setShowDCDialog] = useState(false);
 
   const handleSignOut = async () => {
     const slug = currentOrganization?.slug || orgSlug;
@@ -241,6 +244,22 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                 <Button 
                   variant="ghost" 
                   size="sm" 
+                  onClick={() => setShowDCDialog(true)}
+                  className="text-primary-foreground hover:bg-orange-500/80 gap-1 bg-orange-600/30"
+                >
+                  <Truck className="h-4 w-4" />
+                  <span className="hidden sm:inline">DC</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
+                <p>Delivery Challan — Fast Billing</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
                   onClick={() => setShowSizeStock(true)}
                   className="text-primary-foreground hover:bg-primary/80 gap-1"
                 >
@@ -319,6 +338,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
       <SizeStockDialog open={showSizeStock} onOpenChange={setShowSizeStock} />
       <FloatingCashTally open={showCashTally} onOpenChange={setShowCashTally} />
       <FloatingPayments open={showPayments} onOpenChange={setShowPayments} />
+      <DeliveryChallanPOSDialog open={showDCDialog} onOpenChange={setShowDCDialog} />
     </div>
   );
 };
