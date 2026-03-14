@@ -1303,6 +1303,16 @@ const POSDashboard = () => {
                   <SelectItem value="pending">Pending</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={saleTypeFilter} onValueChange={setSaleTypeFilter}>
+                <SelectTrigger className="w-36">
+                  <SelectValue placeholder="Bill Type" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  <SelectItem value="all">All Bills</SelectItem>
+                  <SelectItem value="pos">POS Bills</SelectItem>
+                  <SelectItem value="dc">DC Only</SelectItem>
+                </SelectContent>
+              </Select>
               
               
               {/* Column Settings Popover */}
