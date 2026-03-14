@@ -100,7 +100,7 @@ export const DirectPrintDialog = ({
     print: printUsb,
   } = useWebUsbPrint();
 
-  const [printTransport, setPrintTransport] = useState<'qz' | 'usb'>('qz');
+  const [printTransport, setPrintTransport] = useState<'qz' | 'usb'>('usb');
   const [isPrinting, setIsPrinting] = useState(false);
   const [printMode, setPrintMode] = useState<'template' | 'prn'>('template');
   const [selectedPRNTemplate, setSelectedPRNTemplate] = useState<string>('');
