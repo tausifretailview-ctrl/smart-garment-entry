@@ -2167,7 +2167,7 @@ const ProductEntry = () => {
                     setMarkupPercent(val);
                     const markup = parseFloat(val);
                     if (!isNaN(markup) && (formData.default_pur_price ?? 0) > 0) {
-                      const newSalePrice = Math.round(((formData.default_pur_price ?? 0) * (1 + markup / 100)) * 100) / 100;
+                      const newSalePrice = Math.round((formData.default_pur_price ?? 0) * (1 + markup / 100));
                       setFormData(prev => ({ ...prev, default_sale_price: newSalePrice }));
                     }
                   }}
