@@ -238,33 +238,19 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   } else {
     let currentStart = 0;
     while (remaining.length > 0) {
-      // If remaining items fit on a last page (with footer space), put them all on this page
+      // If remaining items fit on a single page with footer space, put them all here
       if (remaining.length <= lastPageMaxItems) {
         pages.push(remaining);
         pageStartIndices.push(currentStart);
         remaining = [];
       } 
-      // If remaining items fit on one full page but NOT with footer space, split them
-      else if (remaining.length <= itemsPerPage) {
-        // Put some on this page, rest on next (last) page
-        const splitAt = remaining.length - lastPageMaxItems;
-        if (splitAt > 0) {
-          pages.push(remaining.slice(0, splitAt));
-          pageStartIndices.push(currentStart);
-          currentStart += splitAt;
-          remaining = remaining.slice(splitAt);
-        } else {
-          pages.push(remaining);
-          pageStartIndices.push(currentStart);
-          remaining = [];
-        }
-      }
-      // More than a full page worth — take a full page
+      // Otherwise, fill this page fully and continue
       else {
-        pages.push(remaining.slice(0, itemsPerPage));
+        const takeCount = Math.min(itemsPerPage, remaining.length);
+        pages.push(remaining.slice(0, takeCount));
         pageStartIndices.push(currentStart);
-        currentStart += itemsPerPage;
-        remaining = remaining.slice(itemsPerPage);
+        currentStart += takeCount;
+        remaining = remaining.slice(takeCount);
       }
     }
   }
