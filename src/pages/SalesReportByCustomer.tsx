@@ -374,9 +374,9 @@ const SalesReportByCustomer = () => {
                   </TableRow>
                 ) : sales.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center">
-                      No sales found
-                    </TableCell>
+                   <TableCell colSpan={9} className="text-center">
+                       No sales found
+                     </TableCell>
                   </TableRow>
                 ) : (
                   paginatedSales.map((sale) => (
