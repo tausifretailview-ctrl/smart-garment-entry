@@ -1608,6 +1608,8 @@ export default function BarcodePrinting() {
     if (location.state?.purchaseItems) {
       const purchaseItems = location.state.purchaseItems;
       let hasPurchasePrices = false;
+      let hasStyle = false;
+      let hasSupplierCode = false;
       
       const items: LabelItem[] = purchaseItems.map((item: any) => {
         const purPrice = item.pur_price || 0;
@@ -1621,6 +1623,12 @@ export default function BarcodePrinting() {
         
         if (purPrice > 0) {
           hasPurchasePrices = true;
+        }
+        if (item.style && String(item.style).trim()) {
+          hasStyle = true;
+        }
+        if (item.supplier_code && String(item.supplier_code).trim()) {
+          hasSupplierCode = true;
         }
         
         return {
@@ -1653,6 +1661,22 @@ export default function BarcodePrinting() {
         setLabelConfig(prev => ({
           ...prev,
           purchaseCode: { ...prev.purchaseCode, show: true }
+        }));
+      }
+      
+      // Auto-enable style visibility when items have style data
+      if (hasStyle) {
+        setLabelConfig(prev => ({
+          ...prev,
+          style: { ...prev.style, show: true }
+        }));
+      }
+      
+      // Auto-enable supplier code visibility when items have supplier code data
+      if (hasSupplierCode) {
+        setLabelConfig(prev => ({
+          ...prev,
+          supplierCode: { ...prev.supplierCode, show: true }
         }));
       }
       
