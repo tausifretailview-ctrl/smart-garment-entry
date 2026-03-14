@@ -401,11 +401,37 @@ export function LabelCalibrationUI({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p className="text-xs">{isAlreadyDefault ? "This is the default preset for purchase barcode printing" : "Set as default preset for auto-loading from purchase"}</p>
+                  <p className="text-xs">{isAlreadyDefault ? "This is the default preset" : "Set as default preset for auto-loading"}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           ) : null;
+        })()}
+
+        {isActiveTemplate && onSetTemplateDefault && (() => {
+          const isAlreadyDefault = defaultTemplateName === effectivePresetName;
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant={isAlreadyDefault ? "default" : "outline"}
+                    size="xs"
+                    className={`h-8 ${isAlreadyDefault ? 'bg-amber-500 hover:bg-amber-600 text-white' : ''}`}
+                    onClick={() => onSetTemplateDefault(effectivePresetName!)}
+                    disabled={saving}
+                  >
+                    <Star className={`h-3 w-3 mr-1 ${isAlreadyDefault ? 'fill-white' : ''}`} />
+                    {isAlreadyDefault ? "Default" : "Set Default"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs">{isAlreadyDefault ? "This is the default template" : "Set as default template for auto-loading"}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
         })()}
 
         {(onSavePreset || onPresetsChange) && (
