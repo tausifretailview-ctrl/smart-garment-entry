@@ -387,6 +387,7 @@ const SalesReportByCustomer = () => {
                       <TableCell className="text-right">₹{sale.gross_amount?.toFixed(2)}</TableCell>
                       <TableCell className="text-right">₹{sale.discount_amount?.toFixed(2)}</TableCell>
                       <TableCell className="text-right font-medium">₹{sale.net_amount?.toFixed(2)}</TableCell>
+                      <TableCell className="text-muted-foreground">{sale.salesman || '—'}</TableCell>
                       <TableCell className="capitalize">{sale.payment_method}</TableCell>
                       <TableCell>
                         <Badge variant={sale.payment_status === "completed" ? "default" : "secondary"}>
