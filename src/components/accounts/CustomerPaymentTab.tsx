@@ -590,7 +590,7 @@ export function CustomerPaymentTab({
                   {paymentMethod === 'upi' && (
                     <div className="space-y-2">
                       <Label>UPI Payment Date</Label>
-                      <Popover>
+                      <Popover open={upiCalendarOpen} onOpenChange={setUpiCalendarOpen}>
                         <PopoverTrigger asChild>
                           <Button variant="outline" className="w-full justify-start text-left font-normal">
                             <CalendarIcon className="mr-2 h-4 w-4" />
@@ -598,7 +598,7 @@ export function CustomerPaymentTab({
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar mode="single" selected={upiPaymentDate} onSelect={setUpiPaymentDate} initialFocus className="pointer-events-auto" />
+                          <Calendar mode="single" selected={upiPaymentDate} onSelect={(date) => { setUpiPaymentDate(date); setUpiCalendarOpen(false); }} initialFocus className="pointer-events-auto" />
                         </PopoverContent>
                       </Popover>
                     </div>
