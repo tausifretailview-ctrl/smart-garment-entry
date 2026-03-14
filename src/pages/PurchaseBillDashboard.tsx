@@ -66,6 +66,12 @@ const hasDisplayValue = (value?: string | null): value is string => {
   return Boolean(value && value.trim() && value.trim() !== '-');
 };
 
+const getDisplayStyle = (item: { style?: string | null; product_style?: string | null }) => {
+  if (hasDisplayValue(item.style)) return item.style.trim();
+  if (hasDisplayValue(item.product_style)) return item.product_style.trim();
+  return '';
+};
+
 // Helper function to format product description (matches PurchaseEntry format)
 const formatProductDescription = (item: {
   product_name?: string;
