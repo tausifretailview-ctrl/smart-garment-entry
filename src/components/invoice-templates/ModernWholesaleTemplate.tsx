@@ -213,15 +213,18 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
 
   // Items per page: full pages vs last page (reserving space for footer/summary)
   const getItemsPerPage = () => {
-    if (format === 'a4') return 22;
-    if (format === 'a5-horizontal') return 10;
-    return 14; // a5-vertical
+    // A4: header (~55mm) + customer (~25mm) + items (~8mm each) + margins (~12mm)
+    // Non-last pages have no footer, so can fit 14 items safely
+    if (format === 'a4') return 14;
+    if (format === 'a5-horizontal') return 8;
+    return 10; // a5-vertical
   };
 
   const getLastPageItems = () => {
-    if (format === 'a4') return 16;
+    // Last page needs space for summary/footer (~60mm), so fewer items
+    if (format === 'a4') return 10;
     if (format === 'a5-horizontal') return 6;
-    return 9; // a5-vertical — reserve ~5 rows for footer section
+    return 7; // a5-vertical — reserve ~5 rows for footer section
   };
 
   const itemsPerPage = getItemsPerPage();
