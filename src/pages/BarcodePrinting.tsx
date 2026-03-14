@@ -1474,25 +1474,26 @@ export default function BarcodePrinting() {
           }));
           setDbPresets(mapped);
 
-          // Auto-load default preset when navigating from purchase dashboard
-          if (location.state?.purchaseItems) {
-            const defaultPreset = mapped.find((p: any) => p.isDefault);
-            if (defaultPreset) {
-              setPrecisionSettings((prev) => ({
-                ...prev,
-                xOffset: defaultPreset.xOffset,
-                yOffset: defaultPreset.yOffset,
-                vGap: defaultPreset.vGap,
-                labelWidth: defaultPreset.width,
-                labelHeight: defaultPreset.height,
-                ...(defaultPreset.a4Cols ? { a4Cols: defaultPreset.a4Cols } : {}),
-                ...(defaultPreset.a4Rows ? { a4Rows: defaultPreset.a4Rows } : {}),
-                printMode: defaultPreset.printMode || 'thermal',
-                ...(defaultPreset.labelConfig ? { labelConfig: defaultPreset.labelConfig } : {}),
-                enabled: true,
-              }));
-              setActiveBarTab("precision");
-              setActivePrecisionTemplateName(null);
+          // Auto-load default preset always (not just from purchase)
+          const defaultPreset = mapped.find((p: any) => p.isDefault);
+          if (defaultPreset) {
+            setPrecisionSettings((prev) => ({
+              ...prev,
+              xOffset: defaultPreset.xOffset,
+              yOffset: defaultPreset.yOffset,
+              vGap: defaultPreset.vGap,
+              labelWidth: defaultPreset.width,
+              labelHeight: defaultPreset.height,
+              ...(defaultPreset.a4Cols ? { a4Cols: defaultPreset.a4Cols } : {}),
+              ...(defaultPreset.a4Rows ? { a4Rows: defaultPreset.a4Rows } : {}),
+              printMode: defaultPreset.printMode || 'thermal',
+              ...(defaultPreset.labelConfig ? { labelConfig: defaultPreset.labelConfig } : {}),
+              enabled: true,
+            }));
+            setActiveBarTab("precision");
+            // Set the preset name so it shows as selected in the dropdown
+            setActivePrecisionTemplateName(defaultPreset.name);
+            if (location.state?.purchaseItems) {
               toast.success(`Auto-loaded default preset "${defaultPreset.name}"`);
             }
           }
