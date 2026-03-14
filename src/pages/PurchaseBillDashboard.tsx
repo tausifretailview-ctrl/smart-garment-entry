@@ -386,9 +386,41 @@ const PurchaseBillDashboard = () => {
 
       if (error) throw error;
 
+      const fetchedItems = (data || []) as PurchaseItem[];
+      const missingStyleProductIds = Array.from(
+        new Set(
+          fetchedItems
+            .filter((item) => !hasDisplayValue(item.style) && item.product_id)
+            .map((item) => item.product_id)
+        )
+      );
+
+      let itemsWithStyleFallback = fetchedItems;
+
+      if (missingStyleProductIds.length > 0) {
+        const { data: products, error: productsError } = await supabase
+          .from("products")
+          .select("id, style")
+          .in("id", missingStyleProductIds);
+
+        if (!productsError && products) {
+          const styleByProductId = new Map(
+            products
+              .filter((product) => hasDisplayValue(product.style))
+              .map((product) => [product.id, product.style!.trim()])
+          );
+
+          itemsWithStyleFallback = fetchedItems.map((item) => {
+            if (hasDisplayValue(item.style)) return item;
+            const fallbackStyle = styleByProductId.get(item.product_id);
+            return fallbackStyle ? { ...item, product_style: fallbackStyle, style: fallbackStyle } : item;
+          });
+        }
+      }
+
       setBillItems((prev) => ({
         ...prev,
-        [billId]: data || [],
+        [billId]: itemsWithStyleFallback,
       }));
     } catch (error: any) {
       toast({
