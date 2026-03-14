@@ -360,6 +360,7 @@ const SalesReportByCustomer = () => {
                   <TableHead className="text-right">Gross Amount</TableHead>
                   <TableHead className="text-right">Discount</TableHead>
                   <TableHead className="text-right">Net Amount</TableHead>
+                  <TableHead>Salesman</TableHead>
                   <TableHead>Payment</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
