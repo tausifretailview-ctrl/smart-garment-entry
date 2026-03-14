@@ -1037,6 +1037,7 @@ const PurchaseBillDashboard = () => {
             <TableHeader>
               <TableRow className="bg-slate-50 dark:bg-slate-900/50">
                 <TableHead>Product Description</TableHead>
+                <TableHead>Style</TableHead>
                 <TableHead>Barcode</TableHead>
                 <TableHead className="text-right">Quantity</TableHead>
                 <TableHead className="text-right">Purchase Price</TableHead>
