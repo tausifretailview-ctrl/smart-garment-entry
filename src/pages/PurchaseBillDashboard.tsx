@@ -61,7 +61,7 @@ interface PurchaseItem {
   line_total: number;
 }
 
-// Helper function to format product description
+// Helper function to format product description (matches PurchaseEntry format)
 const formatProductDescription = (item: {
   product_name?: string;
   brand?: string;
@@ -70,14 +70,14 @@ const formatProductDescription = (item: {
   color?: string;
   size: string;
 }) => {
-  const parts = [];
-  if (item.product_name) parts.push(item.product_name);
-  if (item.brand) parts.push(item.brand);
-  if (item.category) parts.push(item.category);
-  if (item.style) parts.push(item.style);
-  if (item.color) parts.push(item.color);
-  parts.push(item.size);
-  return parts.join(' | ');
+  const nameParts = [];
+  if (item.product_name) nameParts.push(item.product_name);
+  if (item.category && item.category.trim() && item.category.trim() !== '-') nameParts.push(item.category);
+  if (item.style && item.style.trim() && item.style.trim() !== '-') nameParts.push(item.style);
+  if (item.color && item.color.trim() && item.color.trim() !== '-') nameParts.push(item.color);
+  if (item.brand && item.brand.trim() && item.brand.trim() !== '-') nameParts.push(item.brand);
+  const desc = nameParts.join('-');
+  return `${desc} | ${item.size}`;
 };
 
 interface PurchaseBill {
