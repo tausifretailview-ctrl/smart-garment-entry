@@ -170,6 +170,7 @@ export default function POSSales() {
   const [showInvoicePreviewSetting, setShowInvoicePreviewSetting] = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
   const invoicePrintRef = useRef<HTMLDivElement>(null);
+  const printBtnRef = useRef<HTMLButtonElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const itemsContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
