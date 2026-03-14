@@ -64,6 +64,8 @@ interface ProductForm {
   size_group_id: string;
   hsn_code: string;
   gst_per: number;
+  purchase_gst_percent: number;
+  sale_gst_percent: number;
   uom: string; // Unit of Measurement
   default_pur_price: number | undefined;
   default_sale_price: number | undefined;
