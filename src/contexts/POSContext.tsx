@@ -35,6 +35,7 @@ export const POSProvider = ({ children }: { children: ReactNode }) => {
   const [onOpenSaleReturn, setOnOpenSaleReturn] = useState<(() => void) | null>(null);
   const [onSaveChanges, setOnSaveChanges] = useState<(() => void) | null>(null);
   const [onEstimatePrint, setOnEstimatePrint] = useState<(() => void) | null>(null);
+  const [onOpenDeliveryChallan, setOnOpenDeliveryChallan] = useState<(() => void) | null>(null);
   const [hasItems, setHasItems] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSavingChanges, setIsSavingChanges] = useState(false);
