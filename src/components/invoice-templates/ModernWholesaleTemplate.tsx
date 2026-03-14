@@ -690,11 +690,19 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       <style>
         {`
           @media print {
-            @page { size: ${format === 'a5-vertical' ? '148mm 210mm' : format === 'a5-horizontal' ? 'A5 landscape' : 'A4'}; margin: 0; }
+            @page {
+              size: ${format === 'a5-vertical' ? '148mm 210mm' : format === 'a5-horizontal' ? 'A5 landscape' : 'A4'};
+              margin: ${format === 'a5-vertical' ? '2mm' : format === 'a4' ? '6mm' : '4mm'};
+            }
             body { margin: 0; padding: 0; }
-            .invoice-page { 
-              box-shadow: none !important; 
-              border: none !important;
+            .invoice-page {
+              box-shadow: none !important;
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+            .invoice-page:not(:last-child) {
+              page-break-after: always;
+              break-after: page;
             }
             .invoice-page:last-child {
               page-break-after: auto;
