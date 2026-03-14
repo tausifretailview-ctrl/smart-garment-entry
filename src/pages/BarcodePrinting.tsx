@@ -3878,7 +3878,8 @@ export default function BarcodePrinting() {
                     </Button>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         </div>
