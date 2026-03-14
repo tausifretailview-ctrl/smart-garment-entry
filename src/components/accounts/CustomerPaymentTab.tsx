@@ -59,6 +59,7 @@ export function CustomerPaymentTab({
   const [chequeDate, setChequeDate] = useState<Date | undefined>(undefined);
   const [transactionId, setTransactionId] = useState("");
   const [upiPaymentDate, setUpiPaymentDate] = useState<Date | undefined>(undefined);
+  const [upiCalendarOpen, setUpiCalendarOpen] = useState(false);
   const [discountAmount, setDiscountAmount] = useState("");
   const [discountReason, setDiscountReason] = useState("");
 
