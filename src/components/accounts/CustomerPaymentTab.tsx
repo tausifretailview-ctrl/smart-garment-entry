@@ -58,6 +58,7 @@ export function CustomerPaymentTab({
   const [chequeNumber, setChequeNumber] = useState("");
   const [chequeDate, setChequeDate] = useState<Date | undefined>(undefined);
   const [transactionId, setTransactionId] = useState("");
+  const [upiPaymentDate, setUpiPaymentDate] = useState<Date | undefined>(undefined);
   const [discountAmount, setDiscountAmount] = useState("");
   const [discountReason, setDiscountReason] = useState("");
 
@@ -187,6 +188,7 @@ export function CustomerPaymentTab({
     setChequeNumber("");
     setChequeDate(undefined);
     setTransactionId("");
+    setUpiPaymentDate(undefined);
     setDiscountAmount("");
     setDiscountReason("");
     queryClient.invalidateQueries({ queryKey: ["next-receipt-number"] });
@@ -232,6 +234,7 @@ export function CustomerPaymentTab({
         if (chequeDate) paymentDetails += `, Date: ${format(chequeDate, 'dd/MM/yyyy')}`;
       } else if ((paymentMethod === 'other' || paymentMethod === 'bank_transfer' || paymentMethod === 'upi') && transactionId) {
         paymentDetails = ` | Transaction ID: ${transactionId}`;
+        if (paymentMethod === 'upi' && upiPaymentDate) paymentDetails += `, UPI Date: ${format(upiPaymentDate, 'dd/MM/yyyy')}`;
       }
 
       let finalDescription: string;
@@ -540,7 +543,7 @@ export function CustomerPaymentTab({
               {/* Payment Method */}
               <div className="space-y-2">
                 <Label>Payment Method</Label>
-                <Select value={paymentMethod} onValueChange={(value) => { setPaymentMethod(value); setChequeNumber(""); setChequeDate(undefined); setTransactionId(""); }}>
+                <Select value={paymentMethod} onValueChange={(value) => { setPaymentMethod(value); setChequeNumber(""); setChequeDate(undefined); setTransactionId(""); setUpiPaymentDate(undefined); }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="cash">Cash</SelectItem>
@@ -578,9 +581,27 @@ export function CustomerPaymentTab({
               )}
 
               {(paymentMethod === 'upi' || paymentMethod === 'other' || paymentMethod === 'bank_transfer') && (
-                <div className="space-y-2">
-                  <Label>Transaction ID</Label>
-                  <Input placeholder="Enter transaction ID" value={transactionId} onChange={(e) => setTransactionId(e.target.value)} />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Transaction ID</Label>
+                    <Input placeholder="Enter transaction ID" value={transactionId} onChange={(e) => setTransactionId(e.target.value)} />
+                  </div>
+                  {paymentMethod === 'upi' && (
+                    <div className="space-y-2">
+                      <Label>UPI Payment Date</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-start text-left font-normal">
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {upiPaymentDate ? format(upiPaymentDate, "dd/MM/yyyy") : "Select date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar mode="single" selected={upiPaymentDate} onSelect={setUpiPaymentDate} initialFocus className="pointer-events-auto" />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  )}
                 </div>
               )}
 
