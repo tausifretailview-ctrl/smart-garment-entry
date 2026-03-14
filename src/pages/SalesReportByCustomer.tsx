@@ -102,7 +102,7 @@ const SalesReportByCustomer = () => {
 
   // Fetch sales with lightweight query + caching
   const { data: sales = [], isLoading } = useQuery({
-    queryKey: ["sales-report", currentOrganization?.id, selectedCustomerId, startDate, endDate],
+    queryKey: ["sales-report", currentOrganization?.id, selectedCustomerId, selectedSalesman, startDate, endDate],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       
@@ -110,12 +110,20 @@ const SalesReportByCustomer = () => {
       if (startDate) filters.startDate = format(startDate, "yyyy-MM-dd");
       if (endDate) filters.endDate = format(endDate, "yyyy-MM-dd");
       if (selectedCustomerId !== "all") filters.customerId = selectedCustomerId;
+      if (selectedSalesman !== "all") filters.salesman = selectedSalesman;
       
       return await fetchSalesForReport(currentOrganization.id, filters);
     },
     enabled: !!currentOrganization?.id,
     ...REPORT_QUERY_OPTIONS,
   });
+
+  // Extract unique salesman names from sales data
+  const salesmanList = useMemo(() => {
+    const names = new Set<string>();
+    sales.forEach(s => { if (s.salesman && s.salesman.trim()) names.add(s.salesman.trim()); });
+    return Array.from(names).sort();
+  }, [sales]);
 
   // Reset page when filters change
   const resetPage = () => setCurrentPage(1);
