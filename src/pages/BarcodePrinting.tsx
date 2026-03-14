@@ -192,6 +192,7 @@ interface MarginPreset {
 }
 
 
+
 type SheetType = 
   // A4 Sheet Types
   "novajet48" | "novajet40" | "a4_40sheet" | "novajet65" | "a4_12x4" | "a4_65sheet" | "a4_32sheet" | 
@@ -1521,6 +1522,49 @@ export default function BarcodePrinting() {
     if (error) { toast.error("Failed to set default"); return; }
     toast.success(`"${presetName}" set as default preset`);
     setDbPresets(prev => prev.map(p => ({ ...p, isDefault: p.id === presetId })));
+  };
+
+  // Set a label template as default by saving it as a printer_preset with is_default
+  const handleSetTemplateDefault = async (templateName: string) => {
+    if (!currentOrganization?.id) return;
+    const template = savedLabelTemplates.find(t => t.name === templateName);
+    if (!template) { toast.error("Template not found"); return; }
+    await supabase
+      .from("printer_presets")
+      .update({ is_default: false })
+      .eq("organization_id", currentOrganization.id);
+    const { error } = await supabase
+      .from("printer_presets")
+      .upsert({
+        organization_id: currentOrganization.id,
+        name: templateName,
+        label_width: template.labelWidth || precisionSettings.labelWidth,
+        label_height: template.labelHeight || precisionSettings.labelHeight,
+        x_offset: precisionSettings.xOffset,
+        y_offset: precisionSettings.yOffset,
+        v_gap: precisionSettings.vGap,
+        a4_cols: precisionSettings.a4Cols,
+        a4_rows: precisionSettings.a4Rows,
+        print_mode: precisionSettings.printMode,
+        label_config: template.config as any,
+        is_default: true,
+      }, { onConflict: "organization_id,name" });
+    if (error) { toast.error("Failed to set default"); return; }
+    toast.success(`"${templateName}" set as default`);
+    const { data } = await supabase
+      .from("printer_presets")
+      .select("*")
+      .eq("organization_id", currentOrganization.id)
+      .order("name");
+    if (data) {
+      setDbPresets(data.map((p: any) => ({
+        id: p.id, name: p.name,
+        xOffset: Number(p.x_offset), yOffset: Number(p.y_offset),
+        vGap: Number(p.v_gap), width: Number(p.label_width), height: Number(p.label_height),
+        a4Cols: p.a4_cols, a4Rows: p.a4_rows, printMode: p.print_mode || 'thermal',
+        labelConfig: p.label_config, isDefault: p.is_default,
+      })));
+    }
   };
 
   // Recalculate purchase codes when alphabet changes (handles timing issues)
@@ -4734,6 +4778,8 @@ export default function BarcodePrinting() {
                   setDbPresets((prev) => prev.filter((p) => p.id !== presetId));
                 }}
                 onSetDefault={handleSetDefaultPreset}
+                onSetTemplateDefault={handleSetTemplateDefault}
+                defaultTemplateName={dbPresets.find(p => p.isDefault)?.name || null}
                 onLoadPreset={(preset) => {
                   if (preset.labelConfig) {
                     setPrecisionSettings((prev) => ({ ...prev, labelConfig: preset.labelConfig }));
@@ -4867,6 +4913,8 @@ export default function BarcodePrinting() {
                 setDbPresets((prev) => prev.filter((p) => p.id !== presetId));
               }}
               onSetDefault={handleSetDefaultPreset}
+              onSetTemplateDefault={handleSetTemplateDefault}
+              defaultTemplateName={dbPresets.find(p => p.isDefault)?.name || null}
               onLoadPreset={(preset) => {
                 if (preset.labelConfig) {
                   setPrecisionSettings((prev) => ({ ...prev, labelConfig: preset.labelConfig }));

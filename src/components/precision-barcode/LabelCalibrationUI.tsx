@@ -143,6 +143,8 @@ interface LabelCalibrationUIProps {
   onDeletePreset?: (presetId: string) => Promise<void> | void;
   onLoadPreset?: (preset: CalibrationPreset) => void;
   onSetDefault?: (presetId: string, presetName: string) => Promise<void> | void;
+  onSetTemplateDefault?: (templateName: string) => Promise<void> | void;
+  defaultTemplateName?: string | null;
   labelConfig?: LabelDesignConfig;
   compact?: boolean;
   sampleItem?: LabelItem;
@@ -167,6 +169,8 @@ export function LabelCalibrationUI({
   onDeletePreset,
   onLoadPreset,
   onSetDefault,
+  onSetTemplateDefault,
+  defaultTemplateName,
   onPresetsChange,
   labelConfig,
   compact = false,
@@ -208,6 +212,7 @@ export function LabelCalibrationUI({
   // Check both active name and ref for DB preset detection
   const effectivePresetName = activePresetName || loadedDbPresetRef.current;
   const isUserPreset = effectivePresetName ? presets.some((p) => p.name === effectivePresetName) : false;
+  const isActiveTemplate = !isUserPreset && effectivePresetName ? savedTemplates.some((t) => t.name === effectivePresetName) : false;
 
   // Compute the Select value: templates use "template_" prefix, presets use direct name
   const selectValue = (() => {
@@ -348,6 +353,7 @@ export function LabelCalibrationUI({
                   <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">💾 My Label Templates</div>
                   {savedTemplates.map((t) => (
                     <SelectItem key={`template_${t.name}`} value={`template_${t.name}`} className="text-xs">
+                      {defaultTemplateName === t.name && <Star className="h-3 w-3 inline mr-1 text-amber-500 fill-amber-500" />}
                       📐 {t.name}
                       {t.labelWidth && t.labelHeight && (
                         <span className="ml-1 text-muted-foreground">
@@ -396,11 +402,37 @@ export function LabelCalibrationUI({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p className="text-xs">{isAlreadyDefault ? "This is the default preset for purchase barcode printing" : "Set as default preset for auto-loading from purchase"}</p>
+                  <p className="text-xs">{isAlreadyDefault ? "This is the default preset" : "Set as default preset for auto-loading"}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           ) : null;
+        })()}
+
+        {isActiveTemplate && onSetTemplateDefault && (() => {
+          const isAlreadyDefault = defaultTemplateName === effectivePresetName;
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant={isAlreadyDefault ? "default" : "outline"}
+                    size="xs"
+                    className={`h-8 ${isAlreadyDefault ? 'bg-amber-500 hover:bg-amber-600 text-white' : ''}`}
+                    onClick={() => onSetTemplateDefault(effectivePresetName!)}
+                    disabled={saving}
+                  >
+                    <Star className={`h-3 w-3 mr-1 ${isAlreadyDefault ? 'fill-white' : ''}`} />
+                    {isAlreadyDefault ? "Default" : "Set Default"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs">{isAlreadyDefault ? "This is the default template" : "Set as default template for auto-loading"}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
         })()}
 
         {(onSavePreset || onPresetsChange) && (
