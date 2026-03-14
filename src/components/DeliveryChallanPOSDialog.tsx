@@ -66,6 +66,14 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
 
   const barcodeRef = useRef<HTMLInputElement>(null);
   const printRef = useRef<HTMLDivElement>(null);
+  const searchResultsRef = useRef<any[]>([]);
+  const showDropdownRef = useRef(false);
+  const selectedIndexRef = useRef(-1);
+
+  // Keep refs in sync with state
+  useEffect(() => { searchResultsRef.current = searchResults; }, [searchResults]);
+  useEffect(() => { showDropdownRef.current = showDropdown; }, [showDropdown]);
+  useEffect(() => { selectedIndexRef.current = selectedIndex; }, [selectedIndex]);
 
   const { data: productsData } = useQuery({
     queryKey: ['dc-products', currentOrganization?.id],
