@@ -122,6 +122,7 @@ const POSDashboard = () => {
   const [periodFilter, setPeriodFilter] = useState<string>("daily");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("all");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
+  const [saleTypeFilter, setSaleTypeFilter] = useState<string>("all");
   const [refundFilter, setRefundFilter] = useState<string>("all");
   const [creditNoteFilter, setCreditNoteFilter] = useState<string>("all");
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
