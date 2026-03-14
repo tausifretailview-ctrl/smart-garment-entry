@@ -117,6 +117,101 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
     if (open) setTimeout(() => barcodeRef.current?.focus(), 200);
   }, [open]);
 
+  // Product search dropdown logic
+  useEffect(() => {
+    if (!barcodeInput.trim() || barcodeInput.length < 2 || !productsData) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+    const term = barcodeInput.trim().toLowerCase();
+    const isBarcode = /\d/.test(term) && term.length >= 5;
+    
+    // Don't show dropdown for exact barcode matches (let Enter handle it)
+    if (isBarcode) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    const terms = term.split(/\s+/);
+    const results: any[] = [];
+    for (const product of productsData) {
+      for (const v of (product.product_variants || [])) {
+        const searchStr = `${product.product_name} ${product.brand || ''} ${v.size || ''} ${v.color || ''} ${v.barcode || ''}`.toLowerCase();
+        const allMatch = terms.every(t => searchStr.includes(t));
+        if (allMatch) {
+          results.push({
+            variant: v,
+            product,
+            label: `${product.product_name}${v.size ? ' | ' + v.size : ''}${v.color ? ' | ' + v.color : ''}`,
+            stock: v.stock_qty || 0,
+            mrp: v.mrp || 0,
+            salePrice: v.sale_price || v.mrp || 0,
+            barcode: v.barcode || '',
+            brand: product.brand || '',
+          });
+        }
+        if (results.length >= 30) break;
+      }
+      if (results.length >= 30) break;
+    }
+    setSearchResults(results);
+    setShowDropdown(results.length > 0);
+    setSelectedIndex(-1);
+    // Update dropdown position
+    if (barcodeRef.current) {
+      const rect = barcodeRef.current.getBoundingClientRect();
+      setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+    }
+  }, [barcodeInput, productsData]);
+
+  const addVariantToItems = useCallback(async (foundVariant: any, foundProduct: any) => {
+    const existingIdx = items.findIndex(i => i.variantId === foundVariant.id);
+    const newQty = existingIdx >= 0 ? items[existingIdx].quantity + 1 : 1;
+    const stockCheck = await checkStock(foundVariant.id, newQty);
+    if (!stockCheck.isAvailable) {
+      toast.error(`Only ${stockCheck.availableStock} in stock`);
+      return;
+    }
+    const unitCost = foundVariant.sale_price || foundVariant.mrp || 0;
+    if (existingIdx >= 0) {
+      setItems(prev => prev.map((item, idx) =>
+        idx === existingIdx
+          ? { ...item, quantity: newQty, netAmount: unitCost * newQty }
+          : item
+      ));
+    } else {
+      const newItem: DCItem = {
+        id: `dc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        barcode: foundVariant.barcode || '',
+        productName: foundProduct.product_name,
+        size: foundVariant.size || '',
+        color: foundVariant.color || '',
+        quantity: 1,
+        mrp: foundVariant.mrp || 0,
+        originalMrp: foundVariant.mrp || null,
+        unitCost,
+        netAmount: unitCost,
+        productId: foundProduct.id,
+        variantId: foundVariant.id,
+        gstPer: foundProduct.gst_per || 0,
+        discountPercent: 0,
+        discountAmount: 0,
+        hsnCode: foundProduct.hsn_code || '',
+        productType: foundProduct.product_type || 'goods',
+      };
+      setItems(prev => [...prev, newItem]);
+    }
+    setBarcodeInput('');
+    setShowDropdown(false);
+    setTimeout(() => barcodeRef.current?.focus(), 50);
+  }, [items, checkStock]);
+
+  const handleDropdownSelect = (result: any) => {
+    addVariantToItems(result.variant, result.product);
+  };
+
   const handleClose = () => {
     setItems([]);
     setBarcodeInput('');
@@ -125,6 +220,7 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
     setCustomerId(null);
     setPaymentMethod('cash');
     setSavedInvoiceData(null);
+    setShowDropdown(false);
     onOpenChange(false);
   };
 
