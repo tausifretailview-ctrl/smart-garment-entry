@@ -8,7 +8,7 @@ import { useOrganization } from '@/contexts/OrganizationContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSaveSale } from '@/hooks/useSaveSale';
+
 import { useStockValidation } from '@/hooks/useStockValidation';
 import { useReactToPrint } from 'react-to-print';
 import { InvoiceWrapper } from '@/components/InvoiceWrapper';
