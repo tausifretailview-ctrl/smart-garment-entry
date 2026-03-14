@@ -2732,7 +2732,7 @@ export default function POSSales() {
                 <MessageCircle className="h-4 w-4" />
                 WhatsApp
               </Button>
-              <AlertDialogAction onClick={handlePrintFromDialog}>
+              <AlertDialogAction autoFocus onClick={handlePrintFromDialog}>
                 <Printer className="h-4 w-4 mr-2" />
                 Print
               </AlertDialogAction>
