@@ -578,9 +578,27 @@ export function CustomerPaymentTab({
               )}
 
               {(paymentMethod === 'upi' || paymentMethod === 'other' || paymentMethod === 'bank_transfer') && (
-                <div className="space-y-2">
-                  <Label>Transaction ID</Label>
-                  <Input placeholder="Enter transaction ID" value={transactionId} onChange={(e) => setTransactionId(e.target.value)} />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Transaction ID</Label>
+                    <Input placeholder="Enter transaction ID" value={transactionId} onChange={(e) => setTransactionId(e.target.value)} />
+                  </div>
+                  {paymentMethod === 'upi' && (
+                    <div className="space-y-2">
+                      <Label>UPI Payment Date</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-start text-left font-normal">
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {upiPaymentDate ? format(upiPaymentDate, "dd/MM/yyyy") : "Select date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar mode="single" selected={upiPaymentDate} onSelect={setUpiPaymentDate} initialFocus className="pointer-events-auto" />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  )}
                 </div>
               )}
 
