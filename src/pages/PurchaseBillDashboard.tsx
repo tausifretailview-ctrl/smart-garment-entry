@@ -1037,6 +1037,7 @@ const PurchaseBillDashboard = () => {
             <TableHeader>
               <TableRow className="bg-slate-50 dark:bg-slate-900/50">
                 <TableHead>Product Description</TableHead>
+                <TableHead>Style</TableHead>
                 <TableHead>Barcode</TableHead>
                 <TableHead className="text-right">Quantity</TableHead>
                 <TableHead className="text-right">Purchase Price</TableHead>
@@ -1051,6 +1052,9 @@ const PurchaseBillDashboard = () => {
                 <TableRow key={item.id}>
                   <TableCell className="font-medium whitespace-nowrap">
                     {formatProductDescription(item)}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm">
+                    {item.style && item.style.trim() && item.style.trim() !== '-' ? item.style : '—'}
                   </TableCell>
                   <TableCell>
                     {item.barcode ? (
