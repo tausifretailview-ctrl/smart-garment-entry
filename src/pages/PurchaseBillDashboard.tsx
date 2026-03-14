@@ -200,9 +200,20 @@ const PurchaseBillDashboard = () => {
             // Fetch items fresh from database instead of relying on expand cache
             const { data: items, error } = await supabase
               .from("purchase_items")
-              .select("id, product_name, brand, category, color, style, size, sale_price, mrp, pur_price, barcode, qty")
+              .select("id, product_id, product_name, brand, category, color, style, size, sale_price, mrp, pur_price, barcode, qty")
               .eq("bill_id", bill.id);
             if (error) throw error;
+
+            // Fallback: fetch style from products master for items missing style
+            const fetchedItems = items || [];
+            const missingStyleIds = Array.from(new Set(
+              fetchedItems.filter(i => !hasDisplayValue(i.style) && i.product_id).map(i => i.product_id)
+            ));
+            let styleMap = new Map<string, string>();
+            if (missingStyleIds.length > 0) {
+              const { data: prods } = await supabase.from("products").select("id, style").in("id", missingStyleIds);
+              if (prods) styleMap = new Map(prods.filter(p => hasDisplayValue(p.style)).map(p => [p.id, p.style!.trim()]));
+            }
 
             let supplierCode = "";
             if (bill.supplier_id) {
@@ -214,13 +225,13 @@ const PurchaseBillDashboard = () => {
               supplierCode = supplierData?.supplier_code || "";
             }
 
-            const barcodeItems = (items || []).map(item => ({
+            const barcodeItems = fetchedItems.map(item => ({
               sku_id: item.id,
               product_name: item.product_name || "",
               brand: item.brand || "",
               category: item.category || "",
               color: item.color || "",
-              style: item.style || "",
+              style: hasDisplayValue(item.style) ? item.style.trim() : (styleMap.get(item.product_id) || ""),
               size: item.size,
               sale_price: item.sale_price,
               mrp: item.mrp,
