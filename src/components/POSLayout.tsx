@@ -46,6 +46,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const [showSizeStock, setShowSizeStock] = useState(false);
   const [showCashTally, setShowCashTally] = useState(false);
   const [showPayments, setShowPayments] = useState(false);
+  const [showDCDialog, setShowDCDialog] = useState(false);
 
   const handleSignOut = async () => {
     const slug = currentOrganization?.slug || orgSlug;
