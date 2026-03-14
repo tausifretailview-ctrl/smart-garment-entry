@@ -58,6 +58,7 @@ export function CustomerPaymentTab({
   const [chequeNumber, setChequeNumber] = useState("");
   const [chequeDate, setChequeDate] = useState<Date | undefined>(undefined);
   const [transactionId, setTransactionId] = useState("");
+  const [upiPaymentDate, setUpiPaymentDate] = useState<Date | undefined>(undefined);
   const [discountAmount, setDiscountAmount] = useState("");
   const [discountReason, setDiscountReason] = useState("");
 
