@@ -29,6 +29,8 @@ import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
 import { FloatingCashTally } from "@/components/FloatingCashTally";
 import { FloatingPayments } from "@/components/FloatingPayments";
+import { DeliveryChallanPOSDialog } from "@/components/DeliveryChallanPOSDialog";
+import { Truck } from "lucide-react";
 
 interface POSLayoutProps {
   children: ReactNode;
