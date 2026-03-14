@@ -430,11 +430,17 @@ export default function StockReport() {
           .is("products.deleted_at", null)
         .neq("products.product_type", "service");
         
-        // Apply search filter at query level - search by barcode, size, or color on variant level
+        // Apply search filter at query level for barcode-like searches only
+        // Product name/brand searches must be done client-side since PostgREST
+        // can't reliably filter on joined table columns
         if (searchTerm.trim()) {
           const search = searchTerm.trim();
-          // Search on variant-level columns only (product-level filtering done client-side)
-          query = query.or(`barcode.eq.${search},barcode.ilike.%${search}%,size.ilike.%${search}%,color.ilike.%${search}%`);
+          const looksLikeBarcode = /\d/.test(search) && search.length >= 5;
+          if (looksLikeBarcode) {
+            // Barcode search: filter at DB level for performance
+            query = query.or(`barcode.eq.${search},barcode.ilike.%${search}%`);
+          }
+          // Text searches (product name, brand, etc.) are filtered client-side after fetch
         }
         
         // Apply stock status filter at query level for efficiency
