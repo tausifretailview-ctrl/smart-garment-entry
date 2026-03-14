@@ -267,11 +267,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
     if (totalPages === 1) {
       return Math.max(pageItemCount, isA5 ? (format === 'a5-horizontal' ? 3 : 4) : 6);
     }
-    if (isLastPage) {
-      // Don't pad last page beyond its items — footer needs the space
-      return pageItemCount;
-    }
-    return Math.max(pageItemCount, itemsPerPage);
+    // Multi-page: no empty padding rows on any page to prevent overflow
+    return pageItemCount;
   };
 
   const cellStyle: React.CSSProperties = {
