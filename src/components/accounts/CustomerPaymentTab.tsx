@@ -188,6 +188,7 @@ export function CustomerPaymentTab({
     setChequeNumber("");
     setChequeDate(undefined);
     setTransactionId("");
+    setUpiPaymentDate(undefined);
     setDiscountAmount("");
     setDiscountReason("");
     queryClient.invalidateQueries({ queryKey: ["next-receipt-number"] });
