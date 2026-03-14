@@ -493,15 +493,27 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
                 onChange={e => setCustomerPhone(e.target.value)}
                 className="w-36 h-9 text-sm"
               />
-              <Input
-                ref={barcodeRef}
-                placeholder="Scan barcode / Enter code..."
-                value={barcodeInput}
-                onChange={e => setBarcodeInput(e.target.value)}
-                onKeyDown={handleBarcodeEnter}
-                className="flex-1 h-9 text-sm font-mono"
-                autoFocus
-              />
+              <div className="flex-1 relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  ref={barcodeRef}
+                  placeholder="Scan barcode or search product..."
+                  value={barcodeInput}
+                  onChange={e => setBarcodeInput(e.target.value)}
+                  onKeyDown={handleBarcodeEnter}
+                  onFocus={() => {
+                    if (searchResults.length > 0) {
+                      setShowDropdown(true);
+                      if (barcodeRef.current) {
+                        const rect = barcodeRef.current.getBoundingClientRect();
+                        setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+                      }
+                    }
+                  }}
+                  className="flex-1 h-9 text-sm pl-8"
+                  autoFocus
+                />
+              </div>
             </div>
 
             {/* Items table */}
