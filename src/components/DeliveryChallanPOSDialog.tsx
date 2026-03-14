@@ -228,10 +228,32 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
   const netAmount = items.reduce((s, i) => s + i.netAmount, 0);
 
   const handleBarcodeEnter = useCallback(async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Handle dropdown navigation
+    if (showDropdown && searchResults.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex(prev => Math.min(prev + 1, searchResults.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex(prev => Math.max(prev - 1, 0));
+        return;
+      }
+      if (e.key === 'Enter' && selectedIndex >= 0) {
+        e.preventDefault();
+        handleDropdownSelect(searchResults[selectedIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setShowDropdown(false);
+        return;
+      }
+    }
+
     if (e.key !== 'Enter' || !barcodeInput.trim()) return;
     e.preventDefault();
     const term = barcodeInput.trim();
-    setBarcodeInput('');
 
     if (!productsData) return;
 
@@ -251,48 +273,8 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
       return;
     }
 
-    const existingIdx = items.findIndex(i => i.barcode === foundVariant.barcode);
-    const newQty = existingIdx >= 0 ? items[existingIdx].quantity + 1 : 1;
-    const stockCheck = await checkStock(foundVariant.id, newQty);
-    if (!stockCheck.isAvailable) {
-      toast.error(`Only ${stockCheck.availableStock} in stock`);
-      setTimeout(() => barcodeRef.current?.focus(), 100);
-      return;
-    }
-
-    const unitCost = foundVariant.sale_price || foundVariant.mrp || 0;
-
-    if (existingIdx >= 0) {
-      setItems(prev => prev.map((item, idx) =>
-        idx === existingIdx
-          ? { ...item, quantity: newQty, netAmount: unitCost * newQty }
-          : item
-      ));
-    } else {
-      const newItem: DCItem = {
-        id: `dc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        barcode: foundVariant.barcode || '',
-        productName: foundProduct.product_name,
-        size: foundVariant.size || '',
-        color: foundVariant.color || '',
-        quantity: 1,
-        mrp: foundVariant.mrp || 0,
-        originalMrp: foundVariant.mrp || null,
-        unitCost,
-        netAmount: unitCost,
-        productId: foundProduct.id,
-        variantId: foundVariant.id,
-        gstPer: foundProduct.gst_per || 0,
-        discountPercent: 0,
-        discountAmount: 0,
-        hsnCode: foundProduct.hsn_code || '',
-        productType: foundProduct.product_type || 'goods',
-      };
-      setItems(prev => [...prev, newItem]);
-    }
-
-    setTimeout(() => barcodeRef.current?.focus(), 50);
-  }, [barcodeInput, productsData, items, checkStock]);
+    await addVariantToItems(foundVariant, foundProduct);
+  }, [barcodeInput, productsData, items, checkStock, showDropdown, searchResults, selectedIndex, addVariantToItems]);
 
   const removeItem = (id: string) => setItems(prev => prev.filter(i => i.id !== id));
 
