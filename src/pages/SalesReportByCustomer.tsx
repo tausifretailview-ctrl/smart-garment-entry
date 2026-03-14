@@ -45,7 +45,7 @@ const ITEMS_PER_PAGE = 100;
  */
 async function fetchSalesForReport(
   organizationId: string,
-  filters: { startDate?: string; endDate?: string; customerId?: string }
+  filters: { startDate?: string; endDate?: string; customerId?: string; salesman?: string }
 ) {
   const allRows: Sale[] = [];
   let offset = 0;
@@ -55,7 +55,7 @@ async function fetchSalesForReport(
   while (hasMore) {
     let query = supabase
       .from("sales")
-      .select("id, sale_date, sale_number, customer_name, gross_amount, discount_amount, net_amount, payment_method, payment_status")
+      .select("id, sale_date, sale_number, customer_name, gross_amount, discount_amount, net_amount, payment_method, payment_status, salesman")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .order("sale_date", { ascending: false })
@@ -64,6 +64,7 @@ async function fetchSalesForReport(
     if (filters.startDate) query = query.gte("sale_date", filters.startDate);
     if (filters.endDate) query = query.lte("sale_date", filters.endDate);
     if (filters.customerId) query = query.eq("customer_id", filters.customerId);
+    if (filters.salesman) query = query.eq("salesman", filters.salesman);
 
     const { data, error } = await query;
     if (error) throw error;
