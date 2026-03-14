@@ -4778,6 +4778,8 @@ export default function BarcodePrinting() {
                   setDbPresets((prev) => prev.filter((p) => p.id !== presetId));
                 }}
                 onSetDefault={handleSetDefaultPreset}
+                onSetTemplateDefault={handleSetTemplateDefault}
+                defaultTemplateName={dbPresets.find(p => p.isDefault)?.name || null}
                 onLoadPreset={(preset) => {
                   if (preset.labelConfig) {
                     setPrecisionSettings((prev) => ({ ...prev, labelConfig: preset.labelConfig }));
