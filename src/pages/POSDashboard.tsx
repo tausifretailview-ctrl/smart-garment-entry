@@ -87,6 +87,7 @@ interface Sale {
   salesman?: string | null;
   notes?: string | null;
   created_at: string;
+  sale_type?: string;
 }
 
 // Default columns - defined OUTSIDE component to prevent re-render loops
