@@ -397,6 +397,18 @@ const SalesReportByCustomer = () => {
                     </TableRow>
                   ))
                 )}
+              {/* Grand Total Row */}
+              {sales.length > 0 && (
+                <tfoot>
+                  <TableRow className="bg-muted/50 font-bold border-t-2">
+                    <TableCell colSpan={3} className="text-right">Grand Total</TableCell>
+                    <TableCell className="text-right">₹{totals.grossAmount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">₹{totals.discountAmount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">₹{totals.netAmount.toFixed(2)}</TableCell>
+                    <TableCell colSpan={3}></TableCell>
+                  </TableRow>
+                </tfoot>
+              )}
               </TableBody>
             </Table>
           </div>
