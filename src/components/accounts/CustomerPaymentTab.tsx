@@ -543,7 +543,7 @@ export function CustomerPaymentTab({
               {/* Payment Method */}
               <div className="space-y-2">
                 <Label>Payment Method</Label>
-                <Select value={paymentMethod} onValueChange={(value) => { setPaymentMethod(value); setChequeNumber(""); setChequeDate(undefined); setTransactionId(""); }}>
+                <Select value={paymentMethod} onValueChange={(value) => { setPaymentMethod(value); setChequeNumber(""); setChequeDate(undefined); setTransactionId(""); setUpiPaymentDate(undefined); }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="cash">Cash</SelectItem>
