@@ -913,13 +913,18 @@ export default function StockReport() {
         <MobilePageHeader title="Stock Report" backTo="/" subtitle={`${globalTotals.variantCount} variants`} />
 
         <div className="px-4 pt-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search by barcode, product, brand..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="pl-9 h-10 bg-card border-border/60 rounded-xl text-sm" />
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search by barcode, product, brand..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="pl-9 h-10 bg-card border-border/60 rounded-xl text-sm" />
+            </div>
+            <Button onClick={handleSearch} disabled={loading} size="sm" className="h-10 px-4 rounded-xl">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            </Button>
           </div>
         </div>
 
