@@ -87,6 +87,7 @@ interface Sale {
   salesman?: string | null;
   notes?: string | null;
   created_at: string;
+  sale_type?: string;
 }
 
 // Default columns - defined OUTSIDE component to prevent re-render loops
@@ -121,6 +122,7 @@ const POSDashboard = () => {
   const [periodFilter, setPeriodFilter] = useState<string>("daily");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("all");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
+  const [saleTypeFilter, setSaleTypeFilter] = useState<string>("all");
   const [refundFilter, setRefundFilter] = useState<string>("all");
   const [creditNoteFilter, setCreditNoteFilter] = useState<string>("all");
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
@@ -271,7 +273,7 @@ const POSDashboard = () => {
           .from("sales")
           .select("*")
           .eq("organization_id", currentOrganization.id)
-          .eq("sale_type", "pos")
+          .in("sale_type", ["pos", "delivery_challan"])
           .is("deleted_at", null)
           .order("sale_date", { ascending: false })
           .order("id")
@@ -930,6 +932,11 @@ const POSDashboard = () => {
       const matchesPaymentStatus =
         paymentStatusFilter === "all" || sale.payment_status === paymentStatusFilter;
 
+      const matchesSaleType =
+        saleTypeFilter === "all" ||
+        (saleTypeFilter === "dc" && sale.sale_type === "delivery_challan") ||
+        (saleTypeFilter === "pos" && sale.sale_type !== "delivery_challan");
+
       const matchesRefund =
         refundFilter === "all" ||
         (refundFilter === "with_refund" && (sale.refund_amount || 0) > 0) ||
@@ -940,9 +947,9 @@ const POSDashboard = () => {
         (creditNoteFilter === "with_credit_note" && sale.credit_note_id) ||
         (creditNoteFilter === "without_credit_note" && !sale.credit_note_id);
 
-      return matchesSearch && matchesDateRange && matchesPaymentMethod && matchesPaymentStatus && matchesRefund && matchesCreditNote;
+      return matchesSearch && matchesDateRange && matchesPaymentMethod && matchesPaymentStatus && matchesRefund && matchesCreditNote && matchesSaleType;
     });
-  }, [sales, saleItems, searchQuery, startDate, endDate, paymentMethodFilter, paymentStatusFilter, refundFilter, creditNoteFilter]);
+  }, [sales, saleItems, searchQuery, startDate, endDate, paymentMethodFilter, paymentStatusFilter, refundFilter, creditNoteFilter, saleTypeFilter]);
 
   // Memoize summary statistics to avoid recalculating on every render
   const summaryStats = useMemo(() => ({
@@ -1296,6 +1303,16 @@ const POSDashboard = () => {
                   <SelectItem value="pending">Pending</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={saleTypeFilter} onValueChange={setSaleTypeFilter}>
+                <SelectTrigger className="w-36">
+                  <SelectValue placeholder="Bill Type" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  <SelectItem value="all">All Bills</SelectItem>
+                  <SelectItem value="pos">POS Bills</SelectItem>
+                  <SelectItem value="dc">DC Only</SelectItem>
+                </SelectContent>
+              </Select>
               
               
               {/* Column Settings Popover */}
@@ -1468,8 +1485,15 @@ const POSDashboard = () => {
                               )}
                             </TableCell>
                             <TableCell className="px-2 py-1.5 text-sm font-medium" onClick={() => toggleExpanded(sale.id)}>
-                              <div className="flex flex-col">
-                                <span>{sale.sale_number}</span>
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center gap-1">
+                                  <span>{sale.sale_number}</span>
+                                  {sale.sale_type === 'delivery_challan' && (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-700 border border-orange-300 leading-none">
+                                      DC
+                                    </span>
+                                  )}
+                                </div>
                                 <span className="text-[11px] text-foreground/70">
                                   {sale.sale_date ? format(new Date(sale.sale_date), "hh:mm a") : ''}
                                 </span>
