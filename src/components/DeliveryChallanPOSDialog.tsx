@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +14,8 @@ import { useStockValidation } from '@/hooks/useStockValidation';
 import { useReactToPrint } from 'react-to-print';
 import { InvoiceWrapper } from '@/components/InvoiceWrapper';
 import { toast } from 'sonner';
-import { Truck, X, Trash2, Plus, Minus, Printer } from 'lucide-react';
+import { Truck, X, Trash2, Plus, Minus, Printer, Search } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
 interface DCItem {
@@ -57,6 +59,10 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
   const [isSavingDC, setIsSavingDC] = useState(false);
   const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
 
   const barcodeRef = useRef<HTMLInputElement>(null);
   const printRef = useRef<HTMLDivElement>(null);
@@ -111,55 +117,64 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
     if (open) setTimeout(() => barcodeRef.current?.focus(), 200);
   }, [open]);
 
-  const handleClose = () => {
-    setItems([]);
-    setBarcodeInput('');
-    setCustomerName('');
-    setCustomerPhone('');
-    setCustomerId(null);
-    setPaymentMethod('cash');
-    setSavedInvoiceData(null);
-    onOpenChange(false);
-  };
-
-  const grossAmount = items.reduce((s, i) => s + i.mrp * i.quantity, 0);
-  const netAmount = items.reduce((s, i) => s + i.netAmount, 0);
-
-  const handleBarcodeEnter = useCallback(async (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== 'Enter' || !barcodeInput.trim()) return;
-    e.preventDefault();
-    const term = barcodeInput.trim();
-    setBarcodeInput('');
-
-    if (!productsData) return;
-
-    let foundVariant: any = null;
-    let foundProduct: any = null;
-
-    for (const product of productsData) {
-      const v = product.product_variants?.find((v: any) =>
-        v.barcode?.toLowerCase() === term.toLowerCase()
-      );
-      if (v) { foundVariant = v; foundProduct = product; break; }
+  // Product search dropdown logic
+  useEffect(() => {
+    if (!barcodeInput.trim() || barcodeInput.length < 2 || !productsData) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
     }
-
-    if (!foundVariant || !foundProduct) {
-      toast.error(`Barcode "${term}" not found`);
-      setTimeout(() => barcodeRef.current?.focus(), 100);
+    const term = barcodeInput.trim().toLowerCase();
+    const isBarcode = /\d/.test(term) && term.length >= 5;
+    
+    // Don't show dropdown for exact barcode matches (let Enter handle it)
+    if (isBarcode) {
+      setSearchResults([]);
+      setShowDropdown(false);
       return;
     }
 
-    const existingIdx = items.findIndex(i => i.barcode === foundVariant.barcode);
+    const terms = term.split(/\s+/);
+    const results: any[] = [];
+    for (const product of productsData) {
+      for (const v of (product.product_variants || [])) {
+        const searchStr = `${product.product_name} ${product.brand || ''} ${v.size || ''} ${v.color || ''} ${v.barcode || ''}`.toLowerCase();
+        const allMatch = terms.every(t => searchStr.includes(t));
+        if (allMatch) {
+          results.push({
+            variant: v,
+            product,
+            label: `${product.product_name}${v.size ? ' | ' + v.size : ''}${v.color ? ' | ' + v.color : ''}`,
+            stock: v.stock_qty || 0,
+            mrp: v.mrp || 0,
+            salePrice: v.sale_price || v.mrp || 0,
+            barcode: v.barcode || '',
+            brand: product.brand || '',
+          });
+        }
+        if (results.length >= 30) break;
+      }
+      if (results.length >= 30) break;
+    }
+    setSearchResults(results);
+    setShowDropdown(results.length > 0);
+    setSelectedIndex(-1);
+    // Update dropdown position
+    if (barcodeRef.current) {
+      const rect = barcodeRef.current.getBoundingClientRect();
+      setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+    }
+  }, [barcodeInput, productsData]);
+
+  const addVariantToItems = useCallback(async (foundVariant: any, foundProduct: any) => {
+    const existingIdx = items.findIndex(i => i.variantId === foundVariant.id);
     const newQty = existingIdx >= 0 ? items[existingIdx].quantity + 1 : 1;
     const stockCheck = await checkStock(foundVariant.id, newQty);
     if (!stockCheck.isAvailable) {
       toast.error(`Only ${stockCheck.availableStock} in stock`);
-      setTimeout(() => barcodeRef.current?.focus(), 100);
       return;
     }
-
     const unitCost = foundVariant.sale_price || foundVariant.mrp || 0;
-
     if (existingIdx >= 0) {
       setItems(prev => prev.map((item, idx) =>
         idx === existingIdx
@@ -188,9 +203,78 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
       };
       setItems(prev => [...prev, newItem]);
     }
-
+    setBarcodeInput('');
+    setShowDropdown(false);
     setTimeout(() => barcodeRef.current?.focus(), 50);
-  }, [barcodeInput, productsData, items, checkStock]);
+  }, [items, checkStock]);
+
+  const handleDropdownSelect = (result: any) => {
+    addVariantToItems(result.variant, result.product);
+  };
+
+  const handleClose = () => {
+    setItems([]);
+    setBarcodeInput('');
+    setCustomerName('');
+    setCustomerPhone('');
+    setCustomerId(null);
+    setPaymentMethod('cash');
+    setSavedInvoiceData(null);
+    setShowDropdown(false);
+    onOpenChange(false);
+  };
+
+  const grossAmount = items.reduce((s, i) => s + i.mrp * i.quantity, 0);
+  const netAmount = items.reduce((s, i) => s + i.netAmount, 0);
+
+  const handleBarcodeEnter = useCallback(async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Handle dropdown navigation
+    if (showDropdown && searchResults.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex(prev => Math.min(prev + 1, searchResults.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex(prev => Math.max(prev - 1, 0));
+        return;
+      }
+      if (e.key === 'Enter' && selectedIndex >= 0) {
+        e.preventDefault();
+        handleDropdownSelect(searchResults[selectedIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        setShowDropdown(false);
+        return;
+      }
+    }
+
+    if (e.key !== 'Enter' || !barcodeInput.trim()) return;
+    e.preventDefault();
+    const term = barcodeInput.trim();
+
+    if (!productsData) return;
+
+    let foundVariant: any = null;
+    let foundProduct: any = null;
+
+    for (const product of productsData) {
+      const v = product.product_variants?.find((v: any) =>
+        v.barcode?.toLowerCase() === term.toLowerCase()
+      );
+      if (v) { foundVariant = v; foundProduct = product; break; }
+    }
+
+    if (!foundVariant || !foundProduct) {
+      toast.error(`Barcode "${term}" not found`);
+      setTimeout(() => barcodeRef.current?.focus(), 100);
+      return;
+    }
+
+    await addVariantToItems(foundVariant, foundProduct);
+  }, [barcodeInput, productsData, items, checkStock, showDropdown, searchResults, selectedIndex, addVariantToItems]);
 
   const removeItem = (id: string) => setItems(prev => prev.filter(i => i.id !== id));
 
@@ -409,15 +493,27 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
                 onChange={e => setCustomerPhone(e.target.value)}
                 className="w-36 h-9 text-sm"
               />
-              <Input
-                ref={barcodeRef}
-                placeholder="Scan barcode / Enter code..."
-                value={barcodeInput}
-                onChange={e => setBarcodeInput(e.target.value)}
-                onKeyDown={handleBarcodeEnter}
-                className="flex-1 h-9 text-sm font-mono"
-                autoFocus
-              />
+              <div className="flex-1 relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  ref={barcodeRef}
+                  placeholder="Scan barcode or search product..."
+                  value={barcodeInput}
+                  onChange={e => setBarcodeInput(e.target.value)}
+                  onKeyDown={handleBarcodeEnter}
+                  onFocus={() => {
+                    if (searchResults.length > 0) {
+                      setShowDropdown(true);
+                      if (barcodeRef.current) {
+                        const rect = barcodeRef.current.getBoundingClientRect();
+                        setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+                      }
+                    }
+                  }}
+                  className="flex-1 h-9 text-sm pl-8"
+                  autoFocus
+                />
+              </div>
             </div>
 
             {/* Items table */}
@@ -546,6 +642,55 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Product search dropdown portal */}
+      {showDropdown && searchResults.length > 0 && createPortal(
+        <div
+          className="fixed bg-popover border border-border rounded-md shadow-lg overflow-auto"
+          style={{ top: dropdownPos.top, left: dropdownPos.left, width: Math.max(dropdownPos.width, 400), zIndex: 99999, maxHeight: 280 }}
+        >
+          {searchResults.map((r, idx) => (
+            <div
+              key={`${r.variant.id}-${idx}`}
+              className={cn(
+                "px-3 py-2 cursor-pointer border-b border-border last:border-b-0 text-sm",
+                selectedIndex === idx ? "bg-primary text-primary-foreground" : "hover:bg-accent"
+              )}
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => handleDropdownSelect(r)}
+              onMouseEnter={() => setSelectedIndex(idx)}
+            >
+              <div className="flex justify-between items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium truncate">{r.product.product_name}</div>
+                  <div className={cn("text-xs flex flex-wrap gap-1 mt-0.5", selectedIndex === idx ? "text-primary-foreground/70" : "text-muted-foreground")}>
+                    {r.brand && <span>{r.brand}</span>}
+                    {r.variant.size && <span>• Size: {r.variant.size}</span>}
+                    {r.variant.color && <span>• {r.variant.color}</span>}
+                    {r.barcode && <span>• {r.barcode}</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={cn("text-xs font-medium", selectedIndex === idx ? "text-primary-foreground" : "text-foreground")}>
+                    ₹{r.salePrice}
+                  </span>
+                  <span className={cn(
+                    "text-[11px] font-semibold px-1.5 py-0.5 rounded",
+                    selectedIndex === idx
+                      ? "bg-primary-foreground/20 text-primary-foreground"
+                      : r.stock > 0
+                        ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
+                        : "bg-destructive/10 text-destructive"
+                  )}>
+                    Stk: {r.stock}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
     </>
   );
 }
