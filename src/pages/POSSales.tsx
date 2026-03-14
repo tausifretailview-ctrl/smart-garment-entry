@@ -170,6 +170,7 @@ export default function POSSales() {
   const [showInvoicePreviewSetting, setShowInvoicePreviewSetting] = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
   const invoicePrintRef = useRef<HTMLDivElement>(null);
+  const printBtnRef = useRef<HTMLButtonElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const itemsContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -2702,7 +2703,7 @@ export default function POSSales() {
 
         {/* Print Confirmation Dialog */}
         <AlertDialog open={showPrintConfirmDialog} onOpenChange={setShowPrintConfirmDialog}>
-          <AlertDialogContent>
+          <AlertDialogContent onOpenAutoFocus={(e) => { e.preventDefault(); setTimeout(() => printBtnRef.current?.focus(), 50); }}>
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-600" />
@@ -2732,7 +2733,7 @@ export default function POSSales() {
                 <MessageCircle className="h-4 w-4" />
                 WhatsApp
               </Button>
-              <AlertDialogAction autoFocus onClick={handlePrintFromDialog}>
+              <AlertDialogAction ref={printBtnRef} onClick={handlePrintFromDialog}>
                 <Printer className="h-4 w-4 mr-2" />
                 Print
               </AlertDialogAction>
@@ -3904,7 +3905,7 @@ export default function POSSales() {
 
         {/* Print Confirmation Dialog */}
         <AlertDialog open={showPrintConfirmDialog} onOpenChange={setShowPrintConfirmDialog}>
-          <AlertDialogContent className="sm:max-w-md">
+          <AlertDialogContent className="sm:max-w-md" onOpenAutoFocus={(e) => { e.preventDefault(); setTimeout(() => printBtnRef.current?.focus(), 50); }}>
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-500" />
@@ -3925,7 +3926,7 @@ export default function POSSales() {
             </AlertDialogHeader>
             <div className="flex flex-col gap-3 py-4">
               <Button 
-                autoFocus
+                ref={printBtnRef}
                 onClick={handlePrintFromDialog}
                 className="w-full flex items-center justify-center gap-2"
               >
