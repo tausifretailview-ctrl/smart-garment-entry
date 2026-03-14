@@ -1485,8 +1485,15 @@ const POSDashboard = () => {
                               )}
                             </TableCell>
                             <TableCell className="px-2 py-1.5 text-sm font-medium" onClick={() => toggleExpanded(sale.id)}>
-                              <div className="flex flex-col">
-                                <span>{sale.sale_number}</span>
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center gap-1">
+                                  <span>{sale.sale_number}</span>
+                                  {sale.sale_type === 'delivery_challan' && (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-700 border border-orange-300 leading-none">
+                                      DC
+                                    </span>
+                                  )}
+                                </div>
                                 <span className="text-[11px] text-foreground/70">
                                   {sale.sale_date ? format(new Date(sale.sale_date), "hh:mm a") : ''}
                                 </span>

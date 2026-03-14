@@ -216,114 +216,146 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
   });
 
   const handleSaveDC = async (method: 'cash' | 'upi' | 'card' | 'pay_later') => {
-    if (items.length === 0) {
-      toast.error('Add at least one item');
-      return;
-    }
-    if (!currentOrganization?.id) return;
+    if (items.length === 0) { toast.error('Add at least one item'); return; }
+    if (!currentOrganization?.id || !user) return;
+    if (!dcNumber) { toast.error('DC number not ready, please wait'); return; }
 
     setIsSavingDC(true);
     try {
-      const saleData = {
-        customerId: customerId || null,
-        customerName: customerName || 'Walk-in',
-        customerPhone: customerPhone || null,
-        items: items.map(item => ({
-          id: item.id,
-          barcode: item.barcode,
-          productName: item.productName,
-          size: item.size,
-          color: item.color,
-          quantity: item.quantity,
-          mrp: item.mrp,
-          originalMrp: item.originalMrp,
-          gstPer: item.gstPer,
-          discountPercent: item.discountPercent,
-          discountAmount: item.discountAmount,
-          unitCost: item.unitCost,
-          netAmount: item.netAmount,
-          productId: item.productId,
-          variantId: item.variantId,
-          hsnCode: item.hsnCode || '',
-          productType: item.productType || 'goods',
+      const now = new Date().toISOString();
+      const gross = items.reduce((s, i) => s + i.mrp * i.quantity, 0);
+      const net   = items.reduce((s, i) => s + i.netAmount, 0);
+
+      const cashAmt  = method === 'cash'  ? net : 0;
+      const upiAmt   = method === 'upi'   ? net : 0;
+      const cardAmt  = method === 'card'  ? net : 0;
+      const paidAmt  = method === 'pay_later' ? 0 : net;
+      const payStatus = method === 'pay_later' ? 'pending' : 'completed';
+
+      // Insert directly — DC number already generated, skip useSaveSale
+      const { data: savedSale, error: saleError } = await (supabase as any)
+        .from('sales')
+        .insert({
+          sale_number:           dcNumber,
+          sale_type:             'delivery_challan',
+          sale_date:             now,
+          organization_id:       currentOrganization.id,
+          customer_id:           customerId || null,
+          customer_name:         customerName || 'Walk-in',
+          customer_phone:        customerPhone || null,
+          gross_amount:          gross,
+          discount_amount:       0,
+          flat_discount_percent: 0,
+          flat_discount_amount:  0,
+          sale_return_adjust:    0,
+          round_off:             0,
+          net_amount:            net,
+          payment_method:        method,
+          payment_status:        payStatus,
+          paid_amount:           paidAmt,
+          cash_amount:           cashAmt,
+          card_amount:           cardAmt,
+          upi_amount:            upiAmt,
+          refund_amount:         0,
+          points_redeemed_amount: 0,
+          created_by:            user.id,
+        })
+        .select()
+        .single();
+
+      if (saleError) throw saleError;
+
+      // Insert sale items (required for stock deduction trigger)
+      const saleItemsData = items.map(item => ({
+        sale_id:          savedSale.id,
+        product_id:       item.productId,
+        variant_id:       item.variantId,
+        product_name:     item.productName,
+        size:             item.size,
+        barcode:          item.barcode || null,
+        color:            item.color || null,
+        quantity:         item.quantity,
+        unit_price:       item.unitCost,
+        mrp:              item.mrp,
+        gst_percent:      item.gstPer,
+        discount_percent: item.discountPercent,
+        line_total:       item.netAmount,
+        hsn_code:         item.hsnCode || null,
+        discount_share:   0,
+        round_off_share:  0,
+        net_after_discount: item.netAmount,
+        per_qty_net_amount: item.unitCost,
+      }));
+
+      const { error: itemsError } = await (supabase as any)
+        .from('sale_items')
+        .insert(saleItemsData);
+
+      if (itemsError) throw itemsError;
+
+      // Prepare print data
+      const invoiceData = {
+        billNo:          dcNumber,
+        date:            new Date(),
+        customerName:    customerName || 'Walk-in',
+        customerAddress: '',
+        customerMobile:  customerPhone || '',
+        items: items.map((item, idx) => ({
+          sr:          idx + 1,
+          particulars: item.productName,
+          size:        item.size,
+          barcode:     item.barcode,
+          hsn:         item.hsnCode || '',
+          sp:          item.unitCost,
+          mrp:         item.mrp,
+          qty:         item.quantity,
+          rate:        item.unitCost,
+          total:       item.netAmount,
         })),
-        grossAmount,
-        discountAmount: 0,
-        flatDiscountPercent: 0,
-        flatDiscountAmount: 0,
-        saleReturnAdjust: 0,
-        roundOff: 0,
-        netAmount,
-        salesman: null,
-        notes: `DC: ${dcNumber}`,
-        pointsRedeemedAmount: 0,
+        subTotal:      gross,
+        discount:      0,
+        grandTotal:    net,
+        tenderAmount:  net,
+        cashPaid:      cashAmt,
+        upiPaid:       upiAmt,
+        cardPaid:      cardAmt,
+        refundCash:    0,
+        paymentMethod: method,
+        documentType:  'pos',
       };
+      setSavedInvoiceData(invoiceData);
 
-      const savedSale = await saveSale(saleData as any, method, undefined, 'pos');
+      toast.success(`DC ${dcNumber} saved`);
 
-      if (savedSale) {
-        await supabase.from('sales').update({
-          sale_number: dcNumber,
-          sale_type: 'delivery_challan',
-        }).eq('id', (savedSale as any).id);
+      // Invalidate all relevant queries
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['pos-sales'] });
+      queryClient.invalidateQueries({ queryKey: ['cashier-report-sales'] });
+      queryClient.invalidateQueries({ queryKey: ['pos-dashboard-sales'] });
 
-        const invoiceData = {
-          billNo: dcNumber,
-          date: new Date(),
-          customerName: customerName || 'Walk-in',
-          customerAddress: '',
-          customerMobile: customerPhone || '',
-          items: items.map((item, idx) => ({
-            sr: idx + 1,
-            particulars: item.productName,
-            size: item.size,
-            barcode: item.barcode,
-            hsn: item.hsnCode || '',
-            sp: item.unitCost,
-            mrp: item.mrp,
-            qty: item.quantity,
-            rate: item.unitCost,
-            total: item.netAmount,
-          })),
-          subTotal: grossAmount,
-          discount: 0,
-          grandTotal: netAmount,
-          tenderAmount: netAmount,
-          cashPaid: method === 'cash' ? netAmount : 0,
-          upiPaid: method === 'upi' ? netAmount : 0,
-          cardPaid: method === 'card' ? netAmount : 0,
-          refundCash: 0,
-          paymentMethod: method,
-          documentType: 'dc',
-        };
-        setSavedInvoiceData(invoiceData);
+      // Auto-print after render
+      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => requestAnimationFrame(r));
+      await new Promise(r => setTimeout(r, 200));
+      handlePrint();
 
-        toast.success(`DC ${dcNumber} saved`);
+      // Reset for next DC
+      setItems([]);
+      setBarcodeInput('');
+      setCustomerName('');
+      setCustomerPhone('');
+      setCustomerId(null);
+      setSavedInvoiceData(null);
 
-        queryClient.invalidateQueries({ queryKey: ['sales'] });
-        queryClient.invalidateQueries({ queryKey: ['pos-sales'] });
-        queryClient.invalidateQueries({ queryKey: ['cashier-report-sales'] });
+      // Generate next DC number
+      const { data: nextDC } = await (supabase as any)
+        .rpc('generate_challan_number', { p_organization_id: currentOrganization.id });
+      if (nextDC) setDcNumber(nextDC);
 
-        await new Promise(r => setTimeout(r, 300));
-        await new Promise(r => requestAnimationFrame(r));
-        await new Promise(r => setTimeout(r, 200));
-        handlePrint();
+      setTimeout(() => barcodeRef.current?.focus(), 100);
 
-        setItems([]);
-        setBarcodeInput('');
-        setCustomerName('');
-        setCustomerPhone('');
-        setCustomerId(null);
-        setSavedInvoiceData(null);
-
-        const { data: nextDC } = await supabase.rpc('generate_challan_number', {
-          p_organization_id: currentOrganization.id
-        });
-        if (nextDC) setDcNumber(nextDC as string);
-
-        setTimeout(() => barcodeRef.current?.focus(), 100);
-      }
     } catch (err: any) {
+      console.error('DC save error:', err);
       toast.error(err?.message || 'Failed to save DC');
     } finally {
       setIsSavingDC(false);
