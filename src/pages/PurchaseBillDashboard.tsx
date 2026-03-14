@@ -1053,6 +1053,9 @@ const PurchaseBillDashboard = () => {
                   <TableCell className="font-medium whitespace-nowrap">
                     {formatProductDescription(item)}
                   </TableCell>
+                  <TableCell className="text-muted-foreground text-sm">
+                    {item.style && item.style.trim() && item.style.trim() !== '-' ? item.style : '—'}
+                  </TableCell>
                   <TableCell>
                     {item.barcode ? (
                       <Badge variant="outline" className="font-mono text-xs">
