@@ -639,15 +639,19 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
     const isLastPage = pageIndex === totalPages - 1;
     const startIndex = pageStartIndices[pageIndex] || 0;
 
+    const pageWidth = format === 'a4' ? "210mm" : format === 'a5-horizontal' ? "210mm" : "148mm";
+    const pageHeight = format === 'a4' ? "297mm" : format === 'a5-horizontal' ? "148mm" : "210mm";
+    const pagePadding = format === 'a5-vertical' ? "2mm" : format === 'a4' ? "6mm" : "5mm";
+
     return (
       <div
         key={pageIndex}
         className="invoice-page"
         style={{
-          width: format === 'a4' ? "210mm" : format === 'a5-horizontal' ? "210mm" : "148mm",
-          minHeight: format === 'a4' ? "297mm" : format === 'a5-horizontal' ? "148mm" : "210mm",
+          width: pageWidth,
+          minHeight: isLastPage ? pageHeight : undefined,
           margin: "0 auto",
-          padding: format === 'a5-vertical' ? "2mm" : "5mm",
+          padding: pagePadding,
           fontFamily: font,
           backgroundColor: "#fff",
           boxSizing: "border-box",
@@ -658,7 +662,9 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         {/* Main Border Wrapper */}
         <div style={{ 
           border: "1.5px solid #374151", 
-          minHeight: format === 'a4' ? "calc(297mm - 10mm)" : format === 'a5-horizontal' ? "calc(148mm - 10mm)" : "calc(210mm - 4mm)",
+          minHeight: isLastPage
+            ? (format === 'a4' ? `calc(297mm - 12mm)` : format === 'a5-horizontal' ? `calc(148mm - 10mm)` : `calc(210mm - 4mm)`)
+            : undefined,
           maxHeight: format === 'a5-vertical' ? "calc(210mm - 4mm)" : undefined,
           overflow: "visible",
           boxSizing: "border-box",
