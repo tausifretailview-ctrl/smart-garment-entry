@@ -2703,7 +2703,7 @@ export default function POSSales() {
 
         {/* Print Confirmation Dialog */}
         <AlertDialog open={showPrintConfirmDialog} onOpenChange={setShowPrintConfirmDialog}>
-          <AlertDialogContent>
+          <AlertDialogContent onOpenAutoFocus={(e) => { e.preventDefault(); setTimeout(() => printBtnRef.current?.focus(), 50); }}>
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-600" />
@@ -2733,7 +2733,7 @@ export default function POSSales() {
                 <MessageCircle className="h-4 w-4" />
                 WhatsApp
               </Button>
-              <AlertDialogAction autoFocus onClick={handlePrintFromDialog}>
+              <AlertDialogAction ref={printBtnRef} onClick={handlePrintFromDialog}>
                 <Printer className="h-4 w-4 mr-2" />
                 Print
               </AlertDialogAction>
