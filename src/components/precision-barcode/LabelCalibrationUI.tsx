@@ -169,6 +169,8 @@ export function LabelCalibrationUI({
   onDeletePreset,
   onLoadPreset,
   onSetDefault,
+  onSetTemplateDefault,
+  defaultTemplateName,
   onPresetsChange,
   labelConfig,
   compact = false,
