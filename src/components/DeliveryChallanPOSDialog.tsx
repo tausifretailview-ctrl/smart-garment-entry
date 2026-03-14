@@ -335,11 +335,10 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
 
   return (
     <>
-      {/* Hidden print area */}
       <div style={{ display: 'none' }}>
         <div ref={printRef}>
           {savedInvoiceData && (
-            <InvoiceWrapper invoiceData={savedInvoiceData} billFormat={billFormat} />
+            <InvoiceWrapper {...savedInvoiceData} />
           )}
         </div>
       </div>
