@@ -83,6 +83,7 @@ async function fetchSalesForReport(
 const SalesReportByCustomer = () => {
   const { currentOrganization } = useOrganization();
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("all");
+  const [selectedSalesman, setSelectedSalesman] = useState<string>("all");
   // Default to current month start
   const [startDate, setStartDate] = useState<Date>(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState<Date>(new Date());
