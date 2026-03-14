@@ -2138,7 +2138,7 @@ const ProductEntry = () => {
                     const purPrice = e.target.value === "" ? undefined : parseFloat(e.target.value) || 0;
                     const markup = parseFloat(markupPercent);
                     const newSalePrice = (!isNaN(markup) && (purPrice ?? 0) > 0)
-                      ? Math.round(((purPrice ?? 0) * (1 + markup / 100)) * 100) / 100
+                      ? Math.round((purPrice ?? 0) * (1 + markup / 100))
                       : formData.default_sale_price;
                     setFormData({
                       ...formData,
