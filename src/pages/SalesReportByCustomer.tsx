@@ -27,6 +27,7 @@ interface Sale {
   net_amount: number;
   payment_method: string;
   payment_status: string;
+  salesman: string | null;
 }
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', '#8884d8', '#82ca9d', '#ffc658'];
