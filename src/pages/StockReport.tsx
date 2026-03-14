@@ -430,11 +430,17 @@ export default function StockReport() {
           .is("products.deleted_at", null)
         .neq("products.product_type", "service");
         
-        // Apply search filter at query level - search by barcode, size, or color on variant level
+        // Apply search filter at query level for barcode-like searches only
+        // Product name/brand searches must be done client-side since PostgREST
+        // can't reliably filter on joined table columns
         if (searchTerm.trim()) {
           const search = searchTerm.trim();
-          // Search on variant-level columns only (product-level filtering done client-side)
-          query = query.or(`barcode.eq.${search},barcode.ilike.%${search}%,size.ilike.%${search}%,color.ilike.%${search}%`);
+          const looksLikeBarcode = /\d/.test(search) && search.length >= 5;
+          if (looksLikeBarcode) {
+            // Barcode search: filter at DB level for performance
+            query = query.or(`barcode.eq.${search},barcode.ilike.%${search}%`);
+          }
+          // Text searches (product name, brand, etc.) are filtered client-side after fetch
         }
         
         // Apply stock status filter at query level for efficiency
@@ -907,13 +913,18 @@ export default function StockReport() {
         <MobilePageHeader title="Stock Report" backTo="/" subtitle={`${globalTotals.variantCount} variants`} />
 
         <div className="px-4 pt-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search by barcode, product, brand..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="pl-9 h-10 bg-card border-border/60 rounded-xl text-sm" />
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search by barcode, product, brand..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="pl-9 h-10 bg-card border-border/60 rounded-xl text-sm" />
+            </div>
+            <Button onClick={handleSearch} disabled={loading} size="sm" className="h-10 px-4 rounded-xl">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            </Button>
           </div>
         </div>
 
@@ -924,13 +935,13 @@ export default function StockReport() {
         ]} />
 
         <div className="flex-1 px-4 py-2 space-y-2">
-          {!hasSearched && searchTerm.length === 0 ? (
+          {!hasSearched ? (
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
               <Search className="h-12 w-12 mb-3 opacity-30" />
-              <p className="text-sm font-medium">Search to view stock items</p>
+              <p className="text-sm font-medium">{searchTerm.length > 0 ? 'Tap Search to view results' : 'Search to view stock items'}</p>
               <p className="text-xs mt-1">Enter barcode, product name or brand</p>
               <Button onClick={handleSearch} className="mt-4" size="sm">
-                <Search className="h-4 w-4 mr-2" /> Search All Stock
+                <Search className="h-4 w-4 mr-2" /> {searchTerm.length > 0 ? 'Search' : 'Search All Stock'}
               </Button>
             </div>
           ) : loading ? (
