@@ -50,6 +50,7 @@ interface PurchaseItem {
   category?: string;
   color?: string;
   style?: string;
+  product_style?: string;
   size: string;
   qty: number;
   pur_price: number;
@@ -61,6 +62,10 @@ interface PurchaseItem {
   line_total: number;
 }
 
+const hasDisplayValue = (value?: string | null): value is string => {
+  return Boolean(value && value.trim() && value.trim() !== '-');
+};
+
 // Helper function to format product description (matches PurchaseEntry format)
 const formatProductDescription = (item: {
   product_name?: string;
@@ -70,12 +75,12 @@ const formatProductDescription = (item: {
   color?: string;
   size: string;
 }) => {
-  const nameParts = [];
-  if (item.product_name) nameParts.push(item.product_name);
-  if (item.category && item.category.trim() && item.category.trim() !== '-') nameParts.push(item.category);
-  if (item.style && item.style.trim() && item.style.trim() !== '-') nameParts.push(item.style);
-  if (item.color && item.color.trim() && item.color.trim() !== '-') nameParts.push(item.color);
-  if (item.brand && item.brand.trim() && item.brand.trim() !== '-') nameParts.push(item.brand);
+  const nameParts: string[] = [];
+  if (hasDisplayValue(item.product_name)) nameParts.push(item.product_name.trim());
+  if (hasDisplayValue(item.category)) nameParts.push(item.category.trim());
+  if (hasDisplayValue(item.style)) nameParts.push(item.style.trim());
+  if (hasDisplayValue(item.color)) nameParts.push(item.color.trim());
+  if (hasDisplayValue(item.brand)) nameParts.push(item.brand.trim());
   const desc = nameParts.join('-');
   return `${desc} | ${item.size}`;
 };
