@@ -335,6 +335,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         style: product.style || "",
         hsn_code: product.hsn_code || "",
         gst_per: product.gst_per ?? 18,
+        purchase_gst_percent: product.purchase_gst_percent ?? product.gst_per ?? 18,
+        sale_gst_percent: product.sale_gst_percent ?? product.gst_per ?? 18,
         size_group_id: product.size_group_id || "",
         uom: product.uom || DEFAULT_UOM,
         default_pur_price: product.default_pur_price ?? undefined,
