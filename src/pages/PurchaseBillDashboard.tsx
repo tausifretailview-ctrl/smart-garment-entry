@@ -1097,7 +1097,7 @@ const PurchaseBillDashboard = () => {
                     {formatProductDescription(item)}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">
-                    {item.style && item.style.trim() && item.style.trim() !== '-' ? item.style : '—'}
+                    {getDisplayStyle(item) || '—'}
                   </TableCell>
                   <TableCell>
                     {item.barcode ? (
