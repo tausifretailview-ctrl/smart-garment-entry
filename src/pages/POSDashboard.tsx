@@ -932,6 +932,11 @@ const POSDashboard = () => {
       const matchesPaymentStatus =
         paymentStatusFilter === "all" || sale.payment_status === paymentStatusFilter;
 
+      const matchesSaleType =
+        saleTypeFilter === "all" ||
+        (saleTypeFilter === "dc" && sale.sale_type === "delivery_challan") ||
+        (saleTypeFilter === "pos" && sale.sale_type !== "delivery_challan");
+
       const matchesRefund =
         refundFilter === "all" ||
         (refundFilter === "with_refund" && (sale.refund_amount || 0) > 0) ||
