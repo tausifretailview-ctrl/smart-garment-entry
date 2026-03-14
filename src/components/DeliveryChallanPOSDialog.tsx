@@ -45,7 +45,6 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { saveSale, isSaving } = useSaveSale();
   const { checkStock } = useStockValidation();
 
   const [items, setItems] = useState<DCItem[]>([]);
