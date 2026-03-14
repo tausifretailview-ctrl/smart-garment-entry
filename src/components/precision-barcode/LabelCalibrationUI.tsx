@@ -208,6 +208,9 @@ export function LabelCalibrationUI({
   // Check both active name and ref for DB preset detection
   const effectivePresetName = activePresetName || loadedDbPresetRef.current;
   const isUserPreset = effectivePresetName ? presets.some((p) => p.name === effectivePresetName) : false;
+  // Also check if active template has a matching DB preset (for Default button support)
+  const isTemplateWithPreset = !isUserPreset && effectivePresetName ? presets.some((p) => p.name === effectivePresetName) : false;
+  const showDefaultButton = isUserPreset || isTemplateWithPreset;
 
   // Compute the Select value: templates use "template_" prefix, presets use direct name
   const selectValue = (() => {
