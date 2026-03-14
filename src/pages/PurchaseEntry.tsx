@@ -2980,8 +2980,8 @@ const PurchaseEntry = () => {
                           />
                         </TableCell>
                         <TableCell className="w-[60px] text-center font-medium">{index + 1}</TableCell>
-                        <TableCell className="w-[180px] max-w-[180px] font-medium whitespace-nowrap overflow-hidden text-ellipsis" title={[item.product_name, (item.color && item.color.trim() && item.color.trim() !== '-') ? item.color : ''].filter(Boolean).join('-')}>
-                          {[item.product_name, (item.color && item.color.trim() && item.color.trim() !== '-') ? item.color : ''].filter(Boolean).join('-')}
+                        <TableCell className="w-[180px] max-w-[180px] font-medium whitespace-nowrap overflow-hidden text-ellipsis" title={formatProductDescription(item)}>
+                          {formatProductDescription(item)}
                         </TableCell>
                         <TableCell className="w-[50px] text-sm">{item.size || "—"}</TableCell>
                         <TableCell className="w-[120px]">
