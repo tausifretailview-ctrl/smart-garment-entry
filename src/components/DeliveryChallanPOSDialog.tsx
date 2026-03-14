@@ -642,6 +642,55 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Product search dropdown portal */}
+      {showDropdown && searchResults.length > 0 && createPortal(
+        <div
+          className="fixed bg-popover border border-border rounded-md shadow-lg overflow-auto"
+          style={{ top: dropdownPos.top, left: dropdownPos.left, width: Math.max(dropdownPos.width, 400), zIndex: 99999, maxHeight: 280 }}
+        >
+          {searchResults.map((r, idx) => (
+            <div
+              key={`${r.variant.id}-${idx}`}
+              className={cn(
+                "px-3 py-2 cursor-pointer border-b border-border last:border-b-0 text-sm",
+                selectedIndex === idx ? "bg-primary text-primary-foreground" : "hover:bg-accent"
+              )}
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => handleDropdownSelect(r)}
+              onMouseEnter={() => setSelectedIndex(idx)}
+            >
+              <div className="flex justify-between items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium truncate">{r.product.product_name}</div>
+                  <div className={cn("text-xs flex flex-wrap gap-1 mt-0.5", selectedIndex === idx ? "text-primary-foreground/70" : "text-muted-foreground")}>
+                    {r.brand && <span>{r.brand}</span>}
+                    {r.variant.size && <span>• Size: {r.variant.size}</span>}
+                    {r.variant.color && <span>• {r.variant.color}</span>}
+                    {r.barcode && <span>• {r.barcode}</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={cn("text-xs font-medium", selectedIndex === idx ? "text-primary-foreground" : "text-foreground")}>
+                    ₹{r.salePrice}
+                  </span>
+                  <span className={cn(
+                    "text-[11px] font-semibold px-1.5 py-0.5 rounded",
+                    selectedIndex === idx
+                      ? "bg-primary-foreground/20 text-primary-foreground"
+                      : r.stock > 0
+                        ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
+                        : "bg-destructive/10 text-destructive"
+                  )}>
+                    Stk: {r.stock}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
     </>
   );
 }
