@@ -272,7 +272,7 @@ const POSDashboard = () => {
           .from("sales")
           .select("*")
           .eq("organization_id", currentOrganization.id)
-          .eq("sale_type", "pos")
+          .in("sale_type", ["pos", "delivery_challan"])
           .is("deleted_at", null)
           .order("sale_date", { ascending: false })
           .order("id")
