@@ -935,13 +935,13 @@ export default function StockReport() {
         ]} />
 
         <div className="flex-1 px-4 py-2 space-y-2">
-          {!hasSearched && searchTerm.length === 0 ? (
+          {!hasSearched ? (
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
               <Search className="h-12 w-12 mb-3 opacity-30" />
-              <p className="text-sm font-medium">Search to view stock items</p>
+              <p className="text-sm font-medium">{searchTerm.length > 0 ? 'Tap Search to view results' : 'Search to view stock items'}</p>
               <p className="text-xs mt-1">Enter barcode, product name or brand</p>
               <Button onClick={handleSearch} className="mt-4" size="sm">
-                <Search className="h-4 w-4 mr-2" /> Search All Stock
+                <Search className="h-4 w-4 mr-2" /> {searchTerm.length > 0 ? 'Search' : 'Search All Stock'}
               </Button>
             </div>
           ) : loading ? (
