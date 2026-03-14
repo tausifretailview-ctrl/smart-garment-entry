@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +14,8 @@ import { useStockValidation } from '@/hooks/useStockValidation';
 import { useReactToPrint } from 'react-to-print';
 import { InvoiceWrapper } from '@/components/InvoiceWrapper';
 import { toast } from 'sonner';
-import { Truck, X, Trash2, Plus, Minus, Printer } from 'lucide-react';
+import { Truck, X, Trash2, Plus, Minus, Printer, Search } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
 interface DCItem {
