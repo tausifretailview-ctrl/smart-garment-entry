@@ -214,7 +214,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
     setFormData({
       product_type: "goods",
-      product_name: "",
+      product_name: lastProduct.product_name || "",
       category: lastProduct.category || "",
       brand: lastProduct.brand || "",
       style: lastProduct.style || "",
@@ -222,6 +222,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       size_group_id: lastProduct.size_group_id || "",
       hsn_code: lastProduct.hsn_code || "",
       gst_per: lastProduct.gst_per ?? 18,
+      purchase_gst_percent: lastProduct.purchase_gst_percent ?? lastProduct.gst_per ?? 18,
+      sale_gst_percent: lastProduct.sale_gst_percent ?? lastProduct.gst_per ?? 18,
       uom: lastProduct.uom || DEFAULT_UOM,
       default_pur_price: lastProduct.default_pur_price,
       default_sale_price: lastProduct.default_sale_price,
