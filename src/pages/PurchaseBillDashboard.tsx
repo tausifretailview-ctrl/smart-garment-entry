@@ -50,6 +50,7 @@ interface PurchaseItem {
   category?: string;
   color?: string;
   style?: string;
+  product_style?: string;
   size: string;
   qty: number;
   pur_price: number;
@@ -61,6 +62,16 @@ interface PurchaseItem {
   line_total: number;
 }
 
+const hasDisplayValue = (value?: string | null): value is string => {
+  return Boolean(value && value.trim() && value.trim() !== '-');
+};
+
+const getDisplayStyle = (item: { style?: string | null; product_style?: string | null }) => {
+  if (hasDisplayValue(item.style)) return item.style.trim();
+  if (hasDisplayValue(item.product_style)) return item.product_style.trim();
+  return '';
+};
+
 // Helper function to format product description (matches PurchaseEntry format)
 const formatProductDescription = (item: {
   product_name?: string;
@@ -70,12 +81,12 @@ const formatProductDescription = (item: {
   color?: string;
   size: string;
 }) => {
-  const nameParts = [];
-  if (item.product_name) nameParts.push(item.product_name);
-  if (item.category && item.category.trim() && item.category.trim() !== '-') nameParts.push(item.category);
-  if (item.style && item.style.trim() && item.style.trim() !== '-') nameParts.push(item.style);
-  if (item.color && item.color.trim() && item.color.trim() !== '-') nameParts.push(item.color);
-  if (item.brand && item.brand.trim() && item.brand.trim() !== '-') nameParts.push(item.brand);
+  const nameParts: string[] = [];
+  if (hasDisplayValue(item.product_name)) nameParts.push(item.product_name.trim());
+  if (hasDisplayValue(item.category)) nameParts.push(item.category.trim());
+  if (hasDisplayValue(item.style)) nameParts.push(item.style.trim());
+  if (hasDisplayValue(item.color)) nameParts.push(item.color.trim());
+  if (hasDisplayValue(item.brand)) nameParts.push(item.brand.trim());
   const desc = nameParts.join('-');
   return `${desc} | ${item.size}`;
 };
@@ -381,9 +392,41 @@ const PurchaseBillDashboard = () => {
 
       if (error) throw error;
 
+      const fetchedItems = (data || []) as PurchaseItem[];
+      const missingStyleProductIds = Array.from(
+        new Set(
+          fetchedItems
+            .filter((item) => !hasDisplayValue(item.style) && item.product_id)
+            .map((item) => item.product_id)
+        )
+      );
+
+      let itemsWithStyleFallback = fetchedItems;
+
+      if (missingStyleProductIds.length > 0) {
+        const { data: products, error: productsError } = await supabase
+          .from("products")
+          .select("id, style")
+          .in("id", missingStyleProductIds);
+
+        if (!productsError && products) {
+          const styleByProductId = new Map(
+            products
+              .filter((product) => hasDisplayValue(product.style))
+              .map((product) => [product.id, product.style!.trim()])
+          );
+
+          itemsWithStyleFallback = fetchedItems.map((item) => {
+            if (hasDisplayValue(item.style)) return item;
+            const fallbackStyle = styleByProductId.get(item.product_id);
+            return fallbackStyle ? { ...item, product_style: fallbackStyle } : item;
+          });
+        }
+      }
+
       setBillItems((prev) => ({
         ...prev,
-        [billId]: data || [],
+        [billId]: itemsWithStyleFallback,
       }));
     } catch (error: any) {
       toast({
@@ -1054,7 +1097,7 @@ const PurchaseBillDashboard = () => {
                     {formatProductDescription(item)}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">
-                    {item.style && item.style.trim() && item.style.trim() !== '-' ? item.style : '—'}
+                    {getDisplayStyle(item) || '—'}
                   </TableCell>
                   <TableCell>
                     {item.barcode ? (
