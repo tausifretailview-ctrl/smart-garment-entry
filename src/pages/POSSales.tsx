@@ -3925,6 +3925,7 @@ export default function POSSales() {
             </AlertDialogHeader>
             <div className="flex flex-col gap-3 py-4">
               <Button 
+                autoFocus
                 onClick={handlePrintFromDialog}
                 className="w-full flex items-center justify-center gap-2"
               >
