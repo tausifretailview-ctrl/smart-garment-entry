@@ -419,7 +419,7 @@ const PurchaseBillDashboard = () => {
           itemsWithStyleFallback = fetchedItems.map((item) => {
             if (hasDisplayValue(item.style)) return item;
             const fallbackStyle = styleByProductId.get(item.product_id);
-            return fallbackStyle ? { ...item, product_style: fallbackStyle, style: fallbackStyle } : item;
+            return fallbackStyle ? { ...item, product_style: fallbackStyle } : item;
           });
         }
       }
