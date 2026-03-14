@@ -66,6 +66,14 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
 
   const barcodeRef = useRef<HTMLInputElement>(null);
   const printRef = useRef<HTMLDivElement>(null);
+  const searchResultsRef = useRef<any[]>([]);
+  const showDropdownRef = useRef(false);
+  const selectedIndexRef = useRef(-1);
+
+  // Keep refs in sync with state
+  useEffect(() => { searchResultsRef.current = searchResults; }, [searchResults]);
+  useEffect(() => { showDropdownRef.current = showDropdown; }, [showDropdown]);
+  useEffect(() => { selectedIndexRef.current = selectedIndex; }, [selectedIndex]);
 
   const { data: productsData } = useQuery({
     queryKey: ['dc-products', currentOrganization?.id],
@@ -228,25 +236,40 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
   const netAmount = items.reduce((s, i) => s + i.netAmount, 0);
 
   const handleBarcodeEnter = useCallback(async (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // Handle dropdown navigation
-    if (showDropdown && searchResults.length > 0) {
+    // Handle dropdown navigation using refs for latest state
+    if (showDropdownRef.current && searchResultsRef.current.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setSelectedIndex(prev => Math.min(prev + 1, searchResults.length - 1));
+        e.stopPropagation();
+        setSelectedIndex(prev => {
+          const next = Math.min(prev + 1, searchResultsRef.current.length - 1);
+          selectedIndexRef.current = next;
+          return next;
+        });
         return;
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setSelectedIndex(prev => Math.max(prev - 1, 0));
+        e.stopPropagation();
+        setSelectedIndex(prev => {
+          const next = Math.max(prev - 1, 0);
+          selectedIndexRef.current = next;
+          return next;
+        });
         return;
       }
-      if (e.key === 'Enter' && selectedIndex >= 0) {
+      if (e.key === 'Enter' && selectedIndexRef.current >= 0) {
         e.preventDefault();
-        handleDropdownSelect(searchResults[selectedIndex]);
+        e.stopPropagation();
+        const selected = searchResultsRef.current[selectedIndexRef.current];
+        if (selected) {
+          addVariantToItems(selected.variant, selected.product);
+        }
         return;
       }
       if (e.key === 'Escape') {
         setShowDropdown(false);
+        showDropdownRef.current = false;
         return;
       }
     }
@@ -274,7 +297,7 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
     }
 
     await addVariantToItems(foundVariant, foundProduct);
-  }, [barcodeInput, productsData, items, checkStock, showDropdown, searchResults, selectedIndex, addVariantToItems]);
+  }, [barcodeInput, productsData, addVariantToItems]);
 
   const removeItem = (id: string) => setItems(prev => prev.filter(i => i.id !== id));
 
