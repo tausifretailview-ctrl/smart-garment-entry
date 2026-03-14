@@ -27,6 +27,7 @@ interface Sale {
   net_amount: number;
   payment_method: string;
   payment_status: string;
+  salesman: string | null;
 }
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', '#8884d8', '#82ca9d', '#ffc658'];
@@ -44,7 +45,7 @@ const ITEMS_PER_PAGE = 100;
  */
 async function fetchSalesForReport(
   organizationId: string,
-  filters: { startDate?: string; endDate?: string; customerId?: string }
+  filters: { startDate?: string; endDate?: string; customerId?: string; salesman?: string }
 ) {
   const allRows: Sale[] = [];
   let offset = 0;
@@ -54,7 +55,7 @@ async function fetchSalesForReport(
   while (hasMore) {
     let query = supabase
       .from("sales")
-      .select("id, sale_date, sale_number, customer_name, gross_amount, discount_amount, net_amount, payment_method, payment_status")
+      .select("id, sale_date, sale_number, customer_name, gross_amount, discount_amount, net_amount, payment_method, payment_status, salesman")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .order("sale_date", { ascending: false })
@@ -63,6 +64,7 @@ async function fetchSalesForReport(
     if (filters.startDate) query = query.gte("sale_date", filters.startDate);
     if (filters.endDate) query = query.lte("sale_date", filters.endDate);
     if (filters.customerId) query = query.eq("customer_id", filters.customerId);
+    if (filters.salesman) query = query.eq("salesman", filters.salesman);
 
     const { data, error } = await query;
     if (error) throw error;
@@ -81,6 +83,7 @@ async function fetchSalesForReport(
 const SalesReportByCustomer = () => {
   const { currentOrganization } = useOrganization();
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("all");
+  const [selectedSalesman, setSelectedSalesman] = useState<string>("all");
   // Default to current month start
   const [startDate, setStartDate] = useState<Date>(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState<Date>(new Date());
@@ -99,7 +102,7 @@ const SalesReportByCustomer = () => {
 
   // Fetch sales with lightweight query + caching
   const { data: sales = [], isLoading } = useQuery({
-    queryKey: ["sales-report", currentOrganization?.id, selectedCustomerId, startDate, endDate],
+    queryKey: ["sales-report", currentOrganization?.id, selectedCustomerId, selectedSalesman, startDate, endDate],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       
@@ -107,12 +110,20 @@ const SalesReportByCustomer = () => {
       if (startDate) filters.startDate = format(startDate, "yyyy-MM-dd");
       if (endDate) filters.endDate = format(endDate, "yyyy-MM-dd");
       if (selectedCustomerId !== "all") filters.customerId = selectedCustomerId;
+      if (selectedSalesman !== "all") filters.salesman = selectedSalesman;
       
       return await fetchSalesForReport(currentOrganization.id, filters);
     },
     enabled: !!currentOrganization?.id,
     ...REPORT_QUERY_OPTIONS,
   });
+
+  // Extract unique salesman names from sales data
+  const salesmanList = useMemo(() => {
+    const names = new Set<string>();
+    sales.forEach(s => { if (s.salesman && s.salesman.trim()) names.add(s.salesman.trim()); });
+    return Array.from(names).sort();
+  }, [sales]);
 
   // Reset page when filters change
   const resetPage = () => setCurrentPage(1);
@@ -165,7 +176,7 @@ const SalesReportByCustomer = () => {
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label>Customer</Label>
               <Select value={selectedCustomerId} onValueChange={(v) => { setSelectedCustomerId(v); resetPage(); }}>
@@ -177,6 +188,23 @@ const SalesReportByCustomer = () => {
                   {customers.map((customer) => (
                     <SelectItem key={customer.id} value={customer.id}>
                       {customer.customer_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Salesman</Label>
+              <Select value={selectedSalesman} onValueChange={(v) => { setSelectedSalesman(v); resetPage(); }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Salesmen" />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  <SelectItem value="all">All Salesmen</SelectItem>
+                  {salesmanList.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -332,6 +360,7 @@ const SalesReportByCustomer = () => {
                   <TableHead className="text-right">Gross Amount</TableHead>
                   <TableHead className="text-right">Discount</TableHead>
                   <TableHead className="text-right">Net Amount</TableHead>
+                  <TableHead>Salesman</TableHead>
                   <TableHead>Payment</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
@@ -339,15 +368,15 @@ const SalesReportByCustomer = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center">
-                      Loading...
-                    </TableCell>
+                   <TableCell colSpan={9} className="text-center">
+                       Loading...
+                     </TableCell>
                   </TableRow>
                 ) : sales.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center">
-                      No sales found
-                    </TableCell>
+                   <TableCell colSpan={9} className="text-center">
+                       No sales found
+                     </TableCell>
                   </TableRow>
                 ) : (
                   paginatedSales.map((sale) => (
@@ -358,6 +387,7 @@ const SalesReportByCustomer = () => {
                       <TableCell className="text-right">₹{sale.gross_amount?.toFixed(2)}</TableCell>
                       <TableCell className="text-right">₹{sale.discount_amount?.toFixed(2)}</TableCell>
                       <TableCell className="text-right font-medium">₹{sale.net_amount?.toFixed(2)}</TableCell>
+                      <TableCell className="text-muted-foreground">{sale.salesman || '—'}</TableCell>
                       <TableCell className="capitalize">{sale.payment_method}</TableCell>
                       <TableCell>
                         <Badge variant={sale.payment_status === "completed" ? "default" : "secondary"}>
@@ -367,6 +397,18 @@ const SalesReportByCustomer = () => {
                     </TableRow>
                   ))
                 )}
+              {/* Grand Total Row */}
+              {sales.length > 0 && (
+                <tfoot>
+                  <TableRow className="bg-muted/50 font-bold border-t-2">
+                    <TableCell colSpan={3} className="text-right">Grand Total</TableCell>
+                    <TableCell className="text-right">₹{totals.grossAmount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">₹{totals.discountAmount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">₹{totals.netAmount.toFixed(2)}</TableCell>
+                    <TableCell colSpan={3}></TableCell>
+                  </TableRow>
+                </tfoot>
+              )}
               </TableBody>
             </Table>
           </div>
