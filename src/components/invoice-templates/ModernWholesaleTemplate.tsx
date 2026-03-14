@@ -213,15 +213,18 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
 
   // Items per page: full pages vs last page (reserving space for footer/summary)
   const getItemsPerPage = () => {
-    if (format === 'a4') return 22;
-    if (format === 'a5-horizontal') return 10;
-    return 14; // a5-vertical
+    // A4: header (~55mm) + customer (~25mm) + items (~8mm each) + margins (~12mm)
+    // Non-last pages have no footer, so can fit 14 items safely
+    if (format === 'a4') return 14;
+    if (format === 'a5-horizontal') return 8;
+    return 10; // a5-vertical
   };
 
   const getLastPageItems = () => {
-    if (format === 'a4') return 16;
+    // Last page needs space for summary/footer (~60mm), so fewer items
+    if (format === 'a4') return 10;
     if (format === 'a5-horizontal') return 6;
-    return 9; // a5-vertical — reserve ~5 rows for footer section
+    return 7; // a5-vertical — reserve ~5 rows for footer section
   };
 
   const itemsPerPage = getItemsPerPage();
@@ -264,11 +267,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
     if (totalPages === 1) {
       return Math.max(pageItemCount, isA5 ? (format === 'a5-horizontal' ? 3 : 4) : 6);
     }
-    if (isLastPage) {
-      // Don't pad last page beyond its items — footer needs the space
-      return pageItemCount;
-    }
-    return Math.max(pageItemCount, itemsPerPage);
+    // Multi-page: no empty padding rows on any page to prevent overflow
+    return pageItemCount;
   };
 
   const cellStyle: React.CSSProperties = {
@@ -639,15 +639,19 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
     const isLastPage = pageIndex === totalPages - 1;
     const startIndex = pageStartIndices[pageIndex] || 0;
 
+    const pageWidth = format === 'a4' ? "210mm" : format === 'a5-horizontal' ? "210mm" : "148mm";
+    const pageHeight = format === 'a4' ? "297mm" : format === 'a5-horizontal' ? "148mm" : "210mm";
+    const pagePadding = format === 'a5-vertical' ? "2mm" : format === 'a4' ? "6mm" : "5mm";
+
     return (
       <div
         key={pageIndex}
         className="invoice-page"
         style={{
-          width: format === 'a4' ? "210mm" : format === 'a5-horizontal' ? "210mm" : "148mm",
-          minHeight: format === 'a4' ? "297mm" : format === 'a5-horizontal' ? "148mm" : "210mm",
+          width: pageWidth,
+          minHeight: isLastPage ? pageHeight : undefined,
           margin: "0 auto",
-          padding: format === 'a5-vertical' ? "2mm" : "5mm",
+          padding: pagePadding,
           fontFamily: font,
           backgroundColor: "#fff",
           boxSizing: "border-box",
@@ -658,7 +662,9 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         {/* Main Border Wrapper */}
         <div style={{ 
           border: "1.5px solid #374151", 
-          minHeight: format === 'a4' ? "calc(297mm - 10mm)" : format === 'a5-horizontal' ? "calc(148mm - 10mm)" : "calc(210mm - 4mm)",
+          minHeight: isLastPage
+            ? (format === 'a4' ? `calc(297mm - 12mm)` : format === 'a5-horizontal' ? `calc(148mm - 10mm)` : `calc(210mm - 4mm)`)
+            : undefined,
           maxHeight: format === 'a5-vertical' ? "calc(210mm - 4mm)" : undefined,
           overflow: "visible",
           boxSizing: "border-box",
@@ -684,11 +690,19 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       <style>
         {`
           @media print {
-            @page { size: ${format === 'a5-vertical' ? '148mm 210mm' : format === 'a5-horizontal' ? 'A5 landscape' : 'A4'}; margin: 0; }
+            @page {
+              size: ${format === 'a5-vertical' ? '148mm 210mm' : format === 'a5-horizontal' ? 'A5 landscape' : 'A4'};
+              margin: ${format === 'a5-vertical' ? '2mm' : format === 'a4' ? '6mm' : '4mm'};
+            }
             body { margin: 0; padding: 0; }
-            .invoice-page { 
-              box-shadow: none !important; 
-              border: none !important;
+            .invoice-page {
+              box-shadow: none !important;
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+            .invoice-page:not(:last-child) {
+              page-break-after: always;
+              break-after: page;
             }
             .invoice-page:last-child {
               page-break-after: auto;
