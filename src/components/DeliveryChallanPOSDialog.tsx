@@ -59,6 +59,10 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
   const [isSavingDC, setIsSavingDC] = useState(false);
   const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
 
   const barcodeRef = useRef<HTMLInputElement>(null);
   const printRef = useRef<HTMLDivElement>(null);
