@@ -276,12 +276,24 @@ export default function ItemWiseSalesReport() {
     ...REPORT_CACHE,
   });
 
-  const summary = useMemo(() => ({
-    totalQty: rpcSummary?.total_qty ?? 0,
-    totalAmount: rpcSummary?.total_amount ?? 0,
-    uniqueProducts: rpcSummary?.unique_products ?? 0,
-    avgPrice: rpcSummary?.avg_price ?? 0,
-  }), [rpcSummary]);
+  // When brand/category/department filters are active, compute summary from filtered data
+  const hasClientFilters = selectedBrand !== "all" || selectedCategory !== "all" || selectedDepartment !== "all" || searchQuery.trim() !== "";
+
+  const summary = useMemo(() => {
+    if (hasClientFilters) {
+      const totalQty = filteredData.reduce((sum, item) => sum + item.total_qty, 0);
+      const totalAmount = filteredData.reduce((sum, item) => sum + item.total_amount, 0);
+      const uniqueProducts = filteredData.length;
+      const avgPrice = totalQty > 0 ? totalAmount / totalQty : 0;
+      return { totalQty, totalAmount, uniqueProducts, avgPrice };
+    }
+    return {
+      totalQty: rpcSummary?.total_qty ?? 0,
+      totalAmount: rpcSummary?.total_amount ?? 0,
+      uniqueProducts: rpcSummary?.unique_products ?? 0,
+      avgPrice: rpcSummary?.avg_price ?? 0,
+    };
+  }, [rpcSummary, filteredData, hasClientFilters]);
 
   // Chart data - Top 10 products
   const topProductsData = useMemo(() => {
