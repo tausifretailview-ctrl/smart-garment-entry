@@ -3905,7 +3905,7 @@ export default function POSSales() {
 
         {/* Print Confirmation Dialog */}
         <AlertDialog open={showPrintConfirmDialog} onOpenChange={setShowPrintConfirmDialog}>
-          <AlertDialogContent className="sm:max-w-md">
+          <AlertDialogContent className="sm:max-w-md" onOpenAutoFocus={(e) => { e.preventDefault(); setTimeout(() => printBtnRef.current?.focus(), 50); }}>
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-green-500" />
@@ -3926,7 +3926,7 @@ export default function POSSales() {
             </AlertDialogHeader>
             <div className="flex flex-col gap-3 py-4">
               <Button 
-                autoFocus
+                ref={printBtnRef}
                 onClick={handlePrintFromDialog}
                 className="w-full flex items-center justify-center gap-2"
               >
