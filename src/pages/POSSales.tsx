@@ -2732,7 +2732,7 @@ export default function POSSales() {
                 <MessageCircle className="h-4 w-4" />
                 WhatsApp
               </Button>
-              <AlertDialogAction onClick={handlePrintFromDialog}>
+              <AlertDialogAction autoFocus onClick={handlePrintFromDialog}>
                 <Printer className="h-4 w-4 mr-2" />
                 Print
               </AlertDialogAction>
@@ -3925,6 +3925,7 @@ export default function POSSales() {
             </AlertDialogHeader>
             <div className="flex flex-col gap-3 py-4">
               <Button 
+                autoFocus
                 onClick={handlePrintFromDialog}
                 className="w-full flex items-center justify-center gap-2"
               >
