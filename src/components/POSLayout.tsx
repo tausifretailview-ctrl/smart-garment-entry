@@ -244,6 +244,22 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                 <Button 
                   variant="ghost" 
                   size="sm" 
+                  onClick={() => setShowDCDialog(true)}
+                  className="text-primary-foreground hover:bg-orange-500/80 gap-1 bg-orange-600/30"
+                >
+                  <Truck className="h-4 w-4" />
+                  <span className="hidden sm:inline">DC</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
+                <p>Delivery Challan — Fast Billing</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
                   onClick={() => setShowSizeStock(true)}
                   className="text-primary-foreground hover:bg-primary/80 gap-1"
                 >
