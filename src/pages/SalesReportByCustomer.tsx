@@ -176,7 +176,7 @@ const SalesReportByCustomer = () => {
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label>Customer</Label>
               <Select value={selectedCustomerId} onValueChange={(v) => { setSelectedCustomerId(v); resetPage(); }}>
@@ -188,6 +188,23 @@ const SalesReportByCustomer = () => {
                   {customers.map((customer) => (
                     <SelectItem key={customer.id} value={customer.id}>
                       {customer.customer_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Salesman</Label>
+              <Select value={selectedSalesman} onValueChange={(v) => { setSelectedSalesman(v); resetPage(); }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Salesmen" />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  <SelectItem value="all">All Salesmen</SelectItem>
+                  {salesmanList.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
                     </SelectItem>
                   ))}
                 </SelectContent>
