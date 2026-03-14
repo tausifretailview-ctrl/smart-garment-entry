@@ -338,6 +338,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
       <SizeStockDialog open={showSizeStock} onOpenChange={setShowSizeStock} />
       <FloatingCashTally open={showCashTally} onOpenChange={setShowCashTally} />
       <FloatingPayments open={showPayments} onOpenChange={setShowPayments} />
+      <DeliveryChallanPOSDialog open={showDCDialog} onOpenChange={setShowDCDialog} />
     </div>
   );
 };
