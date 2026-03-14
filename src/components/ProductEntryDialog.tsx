@@ -1175,7 +1175,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       if (purPrice && purPrice > 0 && markupPercent !== "") {
                         const mk = parseFloat(markupPercent);
                         if (!isNaN(mk)) {
-                          updates.default_sale_price = Math.round(purPrice * (1 + mk / 100) * 100) / 100;
+                          updates.default_sale_price = Math.round(purPrice * (1 + mk / 100));
                         }
                       }
                       setFormData({ ...formData, ...updates });
