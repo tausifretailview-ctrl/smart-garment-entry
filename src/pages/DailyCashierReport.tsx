@@ -464,7 +464,7 @@ const DailyCashierReport = () => {
     doc.text(`Net Sale: ${formatCurrency(totals.totalSale)}`, 20, y);
     y += 7;
     doc.setFont("helvetica", "normal");
-    doc.text(`Less: S/R Adjusted: ${formatCurrency(totals.totalSRAdjusted)}`, 20, y);
+    doc.text(`S/R Adjusted (included): ${formatCurrency(totals.totalSRAdjusted)}`, 20, y);
     y += 7;
     doc.setFont("helvetica", "bold");
     doc.text(`Net Receivable: ${formatCurrency(totals.netReceivable)}`, 20, y);
