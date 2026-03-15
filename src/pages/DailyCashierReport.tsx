@@ -328,8 +328,8 @@ const DailyCashierReport = () => {
       });
     }
 
-    // Net Receivable = Net Sale - S/R Adjusted (actual amount to collect from customers)
-    const netReceivable = totalSale - totalSRAdjusted;
+    // Net Receivable = Net Sale (net_amount already includes S/R deduction from POS save logic)
+    const netReceivable = totalSale;
 
     return {
       grossSale,
@@ -391,7 +391,7 @@ const DailyCashierReport = () => {
       ["Gross Sale", totals.grossSale],
       ["Less: Discount", totals.totalDiscount],
       ["Net Sale", totals.totalSale],
-      ["Less: S/R Adjusted", totals.totalSRAdjusted],
+      ["S/R Adjusted (included in Net Sale)", totals.totalSRAdjusted],
       ["Net Receivable", totals.netReceivable],
       [],
       ["Sales Payment Breakdown"],
@@ -464,7 +464,7 @@ const DailyCashierReport = () => {
     doc.text(`Net Sale: ${formatCurrency(totals.totalSale)}`, 20, y);
     y += 7;
     doc.setFont("helvetica", "normal");
-    doc.text(`Less: S/R Adjusted: ${formatCurrency(totals.totalSRAdjusted)}`, 20, y);
+    doc.text(`S/R Adjusted (included): ${formatCurrency(totals.totalSRAdjusted)}`, 20, y);
     y += 7;
     doc.setFont("helvetica", "bold");
     doc.text(`Net Receivable: ${formatCurrency(totals.netReceivable)}`, 20, y);
@@ -1023,10 +1023,12 @@ const DailyCashierReport = () => {
                   <span>Net Sale</span>
                   <span>{formatCurrency(totals.totalSale)}</span>
                 </div>
-                <div className="flex justify-between py-2 border-b text-teal-600">
-                  <span>Less: S/R Adjusted</span>
-                  <span className="font-semibold">- {formatCurrency(totals.totalSRAdjusted)}</span>
-                </div>
+                {totals.totalSRAdjusted > 0 && (
+                  <div className="flex justify-between py-2 border-b text-teal-600 text-xs">
+                    <span>(Includes S/R Adjusted)</span>
+                    <span className="font-semibold">{formatCurrency(totals.totalSRAdjusted)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between py-2 border-b text-lg font-bold text-primary">
                   <span>Net Receivable</span>
                   <span>{formatCurrency(totals.netReceivable)}</span>
