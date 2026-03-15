@@ -164,6 +164,9 @@ export default function SalesInvoiceDashboard() {
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
   const [advanceBalance, setAdvanceBalance] = useState<number>(0);
   const [isFetchingAdvance, setIsFetchingAdvance] = useState(false);
+  const [availableCNBalance, setAvailableCNBalance] = useState<number>(0);
+  const [isFetchingCN, setIsFetchingCN] = useState(false);
+  const [selectedCNReturnId, setSelectedCNReturnId] = useState<string | null>(null);
   // Receipt state
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
@@ -1258,6 +1261,9 @@ export default function SalesInvoiceDashboard() {
     setPaymentNarration("");
     setAdvanceBalance(0);
     setIsFetchingAdvance(false);
+    setAvailableCNBalance(0);
+    setIsFetchingCN(false);
+    setSelectedCNReturnId(null);
     setShowPaymentDialog(true);
   };
 
@@ -1275,6 +1281,52 @@ export default function SalesInvoiceDashboard() {
         setAdvanceBalance(0);
       } finally {
         setIsFetchingAdvance(false);
+      }
+    }
+
+    // Fetch credit note balance when credit_note mode is selected
+    if (mode === "credit_note" && selectedInvoiceForPayment?.customer_id) {
+      setIsFetchingCN(true);
+      try {
+        const { data: returns } = await supabase
+          .from('sale_returns')
+          .select('id, return_number, net_amount, credit_status, linked_sale_id')
+          .eq('organization_id', currentOrganization?.id)
+          .eq('customer_id', selectedInvoiceForPayment.customer_id)
+          .is('deleted_at', null)
+          .in('credit_status', ['pending', 'adjusted'])
+          .order('return_date', { ascending: true });
+
+        let totalAvailable = 0;
+        let bestReturnId: string | null = null;
+
+        for (const ret of (returns || [])) {
+          if (ret.credit_status === 'pending') {
+            totalAvailable += ret.net_amount;
+            if (!bestReturnId) bestReturnId = ret.id;
+          } else if (ret.credit_status === 'adjusted' && ret.linked_sale_id) {
+            const { data: linkedSale } = await supabase
+              .from('sales')
+              .select('sale_return_adjust')
+              .eq('id', ret.linked_sale_id)
+              .single();
+            const remaining = ret.net_amount - (linkedSale?.sale_return_adjust || 0);
+            if (remaining > 0) {
+              totalAvailable += remaining;
+              if (!bestReturnId) bestReturnId = ret.id;
+            }
+          }
+        }
+
+        setAvailableCNBalance(totalAvailable);
+        setSelectedCNReturnId(bestReturnId);
+        const pendingAmount = selectedInvoiceForPayment.net_amount - (selectedInvoiceForPayment.paid_amount || 0);
+        setPaidAmount(Math.min(totalAvailable, pendingAmount).toString());
+      } catch (error) {
+        console.error('Failed to fetch CN balance:', error);
+        setAvailableCNBalance(0);
+      } finally {
+        setIsFetchingCN(false);
       }
     }
   };
@@ -1331,6 +1383,24 @@ export default function SalesInvoiceDashboard() {
         });
       }
 
+      // If payment mode is credit_note, update sale return and sale_return_adjust
+      if (paymentMode === "credit_note" && selectedCNReturnId) {
+        await supabase
+          .from('sale_returns')
+          .update({
+            credit_status: 'adjusted',
+            linked_sale_id: selectedInvoiceForPayment.id,
+          })
+          .eq('id', selectedCNReturnId);
+
+        await supabase
+          .from('sales')
+          .update({
+            sale_return_adjust: amount,
+          })
+          .eq('id', selectedInvoiceForPayment.id);
+      }
+
       // Generate voucher number
       const { data: voucherData, error: voucherError } = await supabase.rpc(
         'generate_voucher_number',
@@ -1352,6 +1422,8 @@ export default function SalesInvoiceDashboard() {
           total_amount: amount,
           description: paymentMode === "advance" 
             ? `Adjusted from advance balance for invoice ${selectedInvoiceForPayment.sale_number}${paymentNarration ? ' - ' + paymentNarration : ''}`
+            : paymentMode === "credit_note"
+            ? `Credit note adjusted against invoice ${selectedInvoiceForPayment.sale_number}${paymentNarration ? ' - ' + paymentNarration : ''}`
             : `Payment received for invoice ${selectedInvoiceForPayment.sale_number}${paymentNarration ? ' - ' + paymentNarration : ''}`,
           created_by: user?.id,
         })
@@ -2576,6 +2648,9 @@ export default function SalesInvoiceDashboard() {
                     {selectedInvoiceForPayment?.customer_id && (
                       <SelectItem value="advance">From Advance</SelectItem>
                     )}
+                    {selectedInvoiceForPayment?.customer_id && (
+                      <SelectItem value="credit_note">From Credit Note (CN)</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
                 {paymentMode === "advance" && (
@@ -2597,6 +2672,25 @@ export default function SalesInvoiceDashboard() {
                     )}
                   </div>
                 )}
+                {paymentMode === "credit_note" && (
+                  <div className="mt-2">
+                    {isFetchingCN ? (
+                      <Badge variant="info" className="gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Fetching CN balance...
+                      </Badge>
+                    ) : availableCNBalance > 0 ? (
+                      <Badge variant="success" className="gap-1">
+                        <IndianRupee className="h-3 w-3" />
+                        Available CN Balance: ₹{Math.round(availableCNBalance).toLocaleString('en-IN')}
+                      </Badge>
+                    ) : (
+                      <Badge variant="destructive" className="gap-1">
+                        No credit note balance available for this customer
+                      </Badge>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <Label>Narration</Label>
@@ -2614,7 +2708,7 @@ export default function SalesInvoiceDashboard() {
               </Button>
               <Button 
                 onClick={handleRecordPayment} 
-                disabled={isRecordingPayment || (paymentMode === "advance" && advanceBalance <= 0)}
+                disabled={isRecordingPayment || (paymentMode === "advance" && advanceBalance <= 0) || (paymentMode === "credit_note" && availableCNBalance <= 0)}
               >
                 {isRecordingPayment && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Record Payment
