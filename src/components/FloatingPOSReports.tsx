@@ -95,6 +95,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
         upiSale: 0,
         creditSale: 0,
         totalRefund: 0,
+        totalSRAdjusted: 0,
         totalBills: 0,
       };
     }
