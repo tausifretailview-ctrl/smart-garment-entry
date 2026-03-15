@@ -1,20 +1,31 @@
 
 
-## Fix ASHIFA HUSSAIN Invoice INV/25-26/946 Payment Status
+## Fix: Stock Report search not returning product name results
 
 ### Problem
-From the Customer Ledger, ASHIFA HUSSAIN's account is fully settled (balance ₹0), but invoice **INV/25-26/946** still shows as "Partial" in the Sales Dashboard because:
-- `net_amount` = ₹2,950
-- `paid_amount` = ₹400 (direct payment via RCP/25-26/1062)
-- `sale_return_adjust` = 0 (the ₹2,550 credit from SR/25-26/33 was never formally applied to this invoice)
+When searching by product name (e.g. "Pul175") in the Stock Report, no results appear because:
+1. The search "Pul175" matches the barcode heuristic (has digits, length ≥ 5), so only `barcode` columns are searched at DB level
+2. Even for pure text searches, no DB-level product name filter is applied — it relies on client-side filtering of paginated data, which misses products not in the fetched page
 
-The credit note from SR/25-26/33 (₹6,500) was partially used against INV/25-26/823 (₹3,950), leaving ₹2,550 which covered the remaining balance on INV/25-26/946. But that adjustment was never recorded on the invoice.
+### Fix (single block change)
+In `src/pages/StockReport.tsx` lines 433–444, replace the barcode-only DB filter with a broader `.or()` that always searches barcode, size, color, **and** product name/brand on the joined `products` table.
 
-### Fix (Data Update)
-Update the `sales` record for INV/25-26/946 (id: `a5fc95cb-04de-4c72-adcd-fe2f41dd4930`):
-- Set `paid_amount` = 2950 (400 cash + 2550 CN)
-- Set `sale_return_adjust` = 2550
-- Set `payment_status` = 'completed'
+**Remove** the `looksLikeBarcode` gate entirely. **Replace** the `.or()` call to include `products.product_name.ilike` and `products.brand.ilike` using dot notation (works with `!inner` joins in PostgREST):
 
-This is a single data update operation — no code changes needed.
+```typescript
+// Apply search filter at query level - search by barcode, size, color AND product name
+if (searchTerm.trim()) {
+  const search = searchTerm.trim();
+  query = query.or(
+    `barcode.eq.${search},barcode.ilike.%${search}%,size.ilike.%${search}%,color.ilike.%${search}%,products.product_name.ilike.%${search}%,products.brand.ilike.%${search}%`
+  );
+}
+```
+
+**Note:** The user's proposed syntax with `{ referencedTable: 'products' }` would incorrectly apply ALL conditions (including barcode/size/color) to the products table. The correct approach is dot notation without `referencedTable`, which works because `products` is joined via `!inner`.
+
+### Scope
+- **One file**: `src/pages/StockReport.tsx`
+- **One block**: lines 433–444 (the search filter section)
+- No other logic, filters, UI, or client-side filtering changes
 
