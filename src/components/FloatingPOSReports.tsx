@@ -70,7 +70,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       
       const { data, error } = await supabase
         .from("sales")
-        .select("id, sale_date, gross_amount, discount_amount, flat_discount_amount, net_amount, refund_amount, payment_method, cash_amount, card_amount, upi_amount, payment_status")
+        .select("id, sale_date, gross_amount, discount_amount, flat_discount_amount, net_amount, refund_amount, payment_method, cash_amount, card_amount, upi_amount, payment_status, sale_return_adjust")
         .eq("organization_id", currentOrganization.id)
         .gte("sale_date", startDate.toISOString())
         .lte("sale_date", endDate.toISOString())
