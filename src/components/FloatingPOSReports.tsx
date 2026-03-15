@@ -136,6 +136,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       upiSale,
       creditSale,
       totalRefund,
+      totalSRAdjusted,
       totalBills: salesData.length,
     };
   };
