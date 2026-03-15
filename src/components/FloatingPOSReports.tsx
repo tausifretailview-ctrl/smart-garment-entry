@@ -70,7 +70,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       
       const { data, error } = await supabase
         .from("sales")
-        .select("id, sale_date, gross_amount, discount_amount, flat_discount_amount, net_amount, refund_amount, payment_method, cash_amount, card_amount, upi_amount, payment_status")
+        .select("id, sale_date, gross_amount, discount_amount, flat_discount_amount, net_amount, refund_amount, payment_method, cash_amount, card_amount, upi_amount, payment_status, sale_return_adjust")
         .eq("organization_id", currentOrganization.id)
         .gte("sale_date", startDate.toISOString())
         .lte("sale_date", endDate.toISOString())
@@ -95,18 +95,20 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
         upiSale: 0,
         creditSale: 0,
         totalRefund: 0,
+        totalSRAdjusted: 0,
         totalBills: 0,
       };
     }
 
     let grossSale = 0, totalDiscount = 0, totalSale = 0;
     let cashSale = 0, cardSale = 0, upiSale = 0, creditSale = 0;
-    let totalRefund = 0;
+    let totalRefund = 0, totalSRAdjusted = 0;
 
     salesData.forEach((sale) => {
       grossSale += Number(sale.gross_amount) || 0;
       totalDiscount += (Number(sale.discount_amount) || 0) + (Number(sale.flat_discount_amount) || 0);
       totalSale += Number(sale.net_amount) || 0;
+      totalSRAdjusted += Number((sale as any).sale_return_adjust) || 0;
       totalRefund += Number(sale.refund_amount) || 0;
 
       if (sale.payment_method === "multiple") {
@@ -134,6 +136,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       upiSale,
       creditSale,
       totalRefund,
+      totalSRAdjusted,
       totalBills: salesData.length,
     };
   };
@@ -289,6 +292,15 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
                         </TableCell>
                         <TableCell className="text-right font-medium text-yellow-600">{formatCurrency(totals.creditSale)}</TableCell>
                       </TableRow>
+                      {totals.totalSRAdjusted > 0 && (
+                        <TableRow>
+                          <TableCell className="flex items-center gap-2">
+                            <RotateCcw className="h-4 w-4 text-teal-600" />
+                            S/R Adjusted
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-teal-600">{formatCurrency(totals.totalSRAdjusted)}</TableCell>
+                        </TableRow>
+                      )}
                       <TableRow className="bg-green-50 dark:bg-green-950">
                         <TableCell className="font-bold">Net Cash Collection</TableCell>
                         <TableCell className="text-right font-bold text-lg">{formatCurrency(totals.cashSale - totals.totalRefund)}</TableCell>
