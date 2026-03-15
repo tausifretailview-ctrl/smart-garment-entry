@@ -4,13 +4,16 @@ import { LabelDesignConfig, LabelItem, FieldKey } from '@/types/labelTypes';
 
 const mmToPt = (mm: number): number => mm * 2.8346;
 
-const barcodeToDataURL = (barcode: string, widthPx: number, heightPx: number): string | null => {
+const barcodeToDataURL = (barcode: string, targetWidthMm: number, heightPx: number): string | null => {
   try {
     const canvas = document.createElement('canvas');
+    // Use high DPI (300) to prevent line distortion when scaling in PDF
+    const targetWidthPx = Math.round(targetWidthMm * 300 / 25.4); // mm to px at 300 DPI
+    const targetHeightPx = Math.round(heightPx * 300 / 96); // scale height proportionally
     JsBarcode(canvas, barcode, {
       format: 'CODE128',
-      width: Math.max(1, widthPx / 100),
-      height: heightPx,
+      width: Math.max(1, Math.round(targetWidthPx / barcode.length / 11)), // auto-fit line width
+      height: targetHeightPx,
       displayValue: false,
       margin: 0,
       background: '#ffffff',
@@ -167,7 +170,7 @@ export const generateA4LabelPdf = async (
         const barcodeHeightPx = labelConfig.barcodeHeight ?? Math.max(15, labelHeightMm * 0.3 * 3.78);
         const bcHeightMm = barcodeHeightPx / 3.7795;
 
-        const dataUrl = barcodeToDataURL(item.barcode, 200, barcodeHeightPx);
+        const dataUrl = barcodeToDataURL(item.barcode, bcWidthMm, barcodeHeightPx);
         if (dataUrl) {
           try {
             const pngData = await pdfDoc.embedPng(
