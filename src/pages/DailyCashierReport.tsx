@@ -328,8 +328,8 @@ const DailyCashierReport = () => {
       });
     }
 
-    // Net Receivable = Net Sale - S/R Adjusted (actual amount to collect from customers)
-    const netReceivable = totalSale - totalSRAdjusted;
+    // Net Receivable = Net Sale (net_amount already includes S/R deduction from POS save logic)
+    const netReceivable = totalSale;
 
     return {
       grossSale,
