@@ -391,7 +391,7 @@ const DailyCashierReport = () => {
       ["Gross Sale", totals.grossSale],
       ["Less: Discount", totals.totalDiscount],
       ["Net Sale", totals.totalSale],
-      ["Less: S/R Adjusted", totals.totalSRAdjusted],
+      ["S/R Adjusted (included in Net Sale)", totals.totalSRAdjusted],
       ["Net Receivable", totals.netReceivable],
       [],
       ["Sales Payment Breakdown"],
