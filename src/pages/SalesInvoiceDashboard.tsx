@@ -1422,6 +1422,8 @@ export default function SalesInvoiceDashboard() {
           total_amount: amount,
           description: paymentMode === "advance" 
             ? `Adjusted from advance balance for invoice ${selectedInvoiceForPayment.sale_number}${paymentNarration ? ' - ' + paymentNarration : ''}`
+            : paymentMode === "credit_note"
+            ? `Credit note adjusted against invoice ${selectedInvoiceForPayment.sale_number}${paymentNarration ? ' - ' + paymentNarration : ''}`
             : `Payment received for invoice ${selectedInvoiceForPayment.sale_number}${paymentNarration ? ' - ' + paymentNarration : ''}`,
           created_by: user?.id,
         })
