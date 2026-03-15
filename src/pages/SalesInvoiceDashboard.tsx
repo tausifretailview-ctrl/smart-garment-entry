@@ -1383,6 +1383,24 @@ export default function SalesInvoiceDashboard() {
         });
       }
 
+      // If payment mode is credit_note, update sale return and sale_return_adjust
+      if (paymentMode === "credit_note" && selectedCNReturnId) {
+        await supabase
+          .from('sale_returns')
+          .update({
+            credit_status: 'adjusted',
+            linked_sale_id: selectedInvoiceForPayment.id,
+          })
+          .eq('id', selectedCNReturnId);
+
+        await supabase
+          .from('sales')
+          .update({
+            sale_return_adjust: amount,
+          })
+          .eq('id', selectedInvoiceForPayment.id);
+      }
+
       // Generate voucher number
       const { data: voucherData, error: voucherError } = await supabase.rpc(
         'generate_voucher_number',
