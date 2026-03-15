@@ -1261,6 +1261,9 @@ export default function SalesInvoiceDashboard() {
     setPaymentNarration("");
     setAdvanceBalance(0);
     setIsFetchingAdvance(false);
+    setAvailableCNBalance(0);
+    setIsFetchingCN(false);
+    setSelectedCNReturnId(null);
     setShowPaymentDialog(true);
   };
 
