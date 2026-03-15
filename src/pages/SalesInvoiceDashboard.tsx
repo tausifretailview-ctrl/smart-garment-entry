@@ -164,6 +164,9 @@ export default function SalesInvoiceDashboard() {
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
   const [advanceBalance, setAdvanceBalance] = useState<number>(0);
   const [isFetchingAdvance, setIsFetchingAdvance] = useState(false);
+  const [availableCNBalance, setAvailableCNBalance] = useState<number>(0);
+  const [isFetchingCN, setIsFetchingCN] = useState(false);
+  const [selectedCNReturnId, setSelectedCNReturnId] = useState<string | null>(null);
   // Receipt state
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
