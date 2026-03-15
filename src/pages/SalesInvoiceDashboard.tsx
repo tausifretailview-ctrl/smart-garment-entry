@@ -2708,7 +2708,7 @@ export default function SalesInvoiceDashboard() {
               </Button>
               <Button 
                 onClick={handleRecordPayment} 
-                disabled={isRecordingPayment || (paymentMode === "advance" && advanceBalance <= 0)}
+                disabled={isRecordingPayment || (paymentMode === "advance" && advanceBalance <= 0) || (paymentMode === "credit_note" && availableCNBalance <= 0)}
               >
                 {isRecordingPayment && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Record Payment
