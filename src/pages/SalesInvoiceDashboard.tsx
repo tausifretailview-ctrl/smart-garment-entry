@@ -2648,6 +2648,9 @@ export default function SalesInvoiceDashboard() {
                     {selectedInvoiceForPayment?.customer_id && (
                       <SelectItem value="advance">From Advance</SelectItem>
                     )}
+                    {selectedInvoiceForPayment?.customer_id && (
+                      <SelectItem value="credit_note">From Credit Note (CN)</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
                 {paymentMode === "advance" && (
@@ -2665,6 +2668,25 @@ export default function SalesInvoiceDashboard() {
                     ) : (
                       <Badge variant="destructive" className="gap-1">
                         No advance balance available
+                      </Badge>
+                    )}
+                  </div>
+                )}
+                {paymentMode === "credit_note" && (
+                  <div className="mt-2">
+                    {isFetchingCN ? (
+                      <Badge variant="info" className="gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Fetching CN balance...
+                      </Badge>
+                    ) : availableCNBalance > 0 ? (
+                      <Badge variant="success" className="gap-1">
+                        <IndianRupee className="h-3 w-3" />
+                        Available CN Balance: ₹{Math.round(availableCNBalance).toLocaleString('en-IN')}
+                      </Badge>
+                    ) : (
+                      <Badge variant="destructive" className="gap-1">
+                        No credit note balance available for this customer
                       </Badge>
                     )}
                   </div>
