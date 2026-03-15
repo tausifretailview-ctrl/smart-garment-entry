@@ -1023,10 +1023,12 @@ const DailyCashierReport = () => {
                   <span>Net Sale</span>
                   <span>{formatCurrency(totals.totalSale)}</span>
                 </div>
-                <div className="flex justify-between py-2 border-b text-teal-600">
-                  <span>Less: S/R Adjusted</span>
-                  <span className="font-semibold">- {formatCurrency(totals.totalSRAdjusted)}</span>
-                </div>
+                {totals.totalSRAdjusted > 0 && (
+                  <div className="flex justify-between py-2 border-b text-teal-600 text-xs">
+                    <span>(Includes S/R Adjusted)</span>
+                    <span className="font-semibold">{formatCurrency(totals.totalSRAdjusted)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between py-2 border-b text-lg font-bold text-primary">
                   <span>Net Receivable</span>
                   <span>{formatCurrency(totals.netReceivable)}</span>
