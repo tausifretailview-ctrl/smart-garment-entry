@@ -33,16 +33,19 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
               style={{
                 width: `${labelWidth}mm`,
                 height: `${labelHeight + vGap}mm`,
-                overflow: "hidden",
+                overflow: "visible",
                 position: "relative",
+                paddingTop: yOffset ? `${yOffset}mm` : undefined,
+                paddingLeft: xOffset ? `${xOffset}mm` : undefined,
+                boxSizing: "border-box",
               }}
             >
               <PrecisionLabelPreview
                 item={item}
                 width={labelWidth}
                 height={labelHeight}
-                xOffset={xOffset}
-                yOffset={yOffset}
+                xOffset={0}
+                yOffset={0}
                 config={config}
               />
             </div>

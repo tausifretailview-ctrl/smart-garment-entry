@@ -127,7 +127,7 @@ export function PrecisionLabelPreview({
         width: u(width),
         height: u(height),
         position: "relative",
-        overflow: "hidden",
+        overflow: scaleFactor ? "hidden" : "visible",
         transform: `translate(${u(xOffset)}, ${u(yOffset)})`,
         border: showBorder ? "0.5px dashed #ccc" : "none",
         boxSizing: "border-box",

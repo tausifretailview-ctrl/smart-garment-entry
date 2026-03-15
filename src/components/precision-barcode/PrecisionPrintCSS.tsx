@@ -67,6 +67,12 @@ export function PrecisionPrintCSS({ labelWidth, labelHeight, mode }: PrecisionPr
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
+        .precision-label-container {
+          overflow: visible !important;
+        }
+        .precision-print-area > div {
+          overflow: visible !important;
+        }
       }
     `;
 
