@@ -108,6 +108,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       grossSale += Number(sale.gross_amount) || 0;
       totalDiscount += (Number(sale.discount_amount) || 0) + (Number(sale.flat_discount_amount) || 0);
       totalSale += Number(sale.net_amount) || 0;
+      totalSRAdjusted += Number((sale as any).sale_return_adjust) || 0;
       totalRefund += Number(sale.refund_amount) || 0;
 
       if (sale.payment_method === "multiple") {
