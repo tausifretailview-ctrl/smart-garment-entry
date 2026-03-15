@@ -1283,6 +1283,52 @@ export default function SalesInvoiceDashboard() {
         setIsFetchingAdvance(false);
       }
     }
+
+    // Fetch credit note balance when credit_note mode is selected
+    if (mode === "credit_note" && selectedInvoiceForPayment?.customer_id) {
+      setIsFetchingCN(true);
+      try {
+        const { data: returns } = await supabase
+          .from('sale_returns')
+          .select('id, return_number, net_amount, credit_status, linked_sale_id')
+          .eq('organization_id', currentOrganization?.id)
+          .eq('customer_id', selectedInvoiceForPayment.customer_id)
+          .is('deleted_at', null)
+          .in('credit_status', ['pending', 'adjusted'])
+          .order('return_date', { ascending: true });
+
+        let totalAvailable = 0;
+        let bestReturnId: string | null = null;
+
+        for (const ret of (returns || [])) {
+          if (ret.credit_status === 'pending') {
+            totalAvailable += ret.net_amount;
+            if (!bestReturnId) bestReturnId = ret.id;
+          } else if (ret.credit_status === 'adjusted' && ret.linked_sale_id) {
+            const { data: linkedSale } = await supabase
+              .from('sales')
+              .select('sale_return_adjust')
+              .eq('id', ret.linked_sale_id)
+              .single();
+            const remaining = ret.net_amount - (linkedSale?.sale_return_adjust || 0);
+            if (remaining > 0) {
+              totalAvailable += remaining;
+              if (!bestReturnId) bestReturnId = ret.id;
+            }
+          }
+        }
+
+        setAvailableCNBalance(totalAvailable);
+        setSelectedCNReturnId(bestReturnId);
+        const pendingAmount = selectedInvoiceForPayment.net_amount - (selectedInvoiceForPayment.paid_amount || 0);
+        setPaidAmount(Math.min(totalAvailable, pendingAmount).toString());
+      } catch (error) {
+        console.error('Failed to fetch CN balance:', error);
+        setAvailableCNBalance(0);
+      } finally {
+        setIsFetchingCN(false);
+      }
+    }
   };
 
   const handleRecordPayment = async () => {
