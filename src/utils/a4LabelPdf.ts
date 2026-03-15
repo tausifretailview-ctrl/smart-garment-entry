@@ -170,7 +170,7 @@ export const generateA4LabelPdf = async (
         const barcodeHeightPx = labelConfig.barcodeHeight ?? Math.max(15, labelHeightMm * 0.3 * 3.78);
         const bcHeightMm = barcodeHeightPx / 3.7795;
 
-        const dataUrl = barcodeToDataURL(item.barcode, 200, barcodeHeightPx);
+        const dataUrl = barcodeToDataURL(item.barcode, bcWidthMm, barcodeHeightPx);
         if (dataUrl) {
           try {
             const pngData = await pdfDoc.embedPng(
