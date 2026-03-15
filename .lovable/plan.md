@@ -1,43 +1,43 @@
 
 
-## Completed: Heavy Query Load Optimization
+## Problem Analysis
 
-All 5 priority pages optimized:
+Looking at the user's printed labels vs the preview, the alignment issue on 38×25mm thermal labels stems from multiple problems:
 
-1. **PurchaseBillDashboard** — Server-side pagination + search + date filters via `useQuery`, removed Phase 2 bulk item pre-fetch (lazy-load on expand only), staleTime 30s
-2. **SaleReturnDashboard** — Converted from useEffect/setState to `useQuery` with server-side pagination + debounced search, lazy item loading with cache
-3. **PurchaseReturnDashboard** — Server-side pagination + debounced search + date filters via `useQuery`, staleTime 30s
-4. **Accounts** — Created `get_accounts_dashboard_stats` RPC for summary cards (replaces 3x fetchAll calls), lazy tab loading (vouchers/sales/customers/suppliers only fetched when their tab is active)
-5. **SalesAnalyticsDashboard** — Added staleTime 60s + refetchOnWindowFocus:false to all queries
+1. **Offset implementation flaw**: `PrecisionLabelPreview` applies X/Y offsets via CSS `transform: translate()` on the label content container, but the parent wrapper in `PrecisionThermalPrint` has `overflow: hidden`. This means negative offsets (like Y-Offset = -0.5mm) cause content to be clipped at the top — explaining why "VELVET" and "ASHA" are partially cut off on printed labels.
 
-## Completed: Sales Invoice Dashboard Optimization
+2. **Double overflow clipping**: Both the parent wrapper (`PrecisionThermalPrint` line 37) and the label container itself (`PrecisionLabelPreview` line 130) have `overflow: hidden`, creating a double-clip scenario that prevents offset adjustments from working correctly.
 
-1. **Server-side pagination** — Replaced fetch-all-invoices loop with paginated query (50 rows per page, `{ count: 'exact' }`)
-2. **No more `sale_items(*)` in list** — Removed nested sale_items fetch, uses `total_qty` column instead
-3. **Server-side filtering** — Search (debounced 300ms), date range, payment status, delivery status all applied server-side
-4. **Summary stats via RPC** — Uses `get_sales_invoice_dashboard_stats` RPC instead of client-side computation
-5. **Default period = This Month** — Fast first load instead of fetching all-time data
-6. **staleTime 30s + refetchOnWindowFocus: false** — Prevents redundant re-fetches
-7. **Cache invalidation after save/update** — SalesInvoice.tsx invalidates `['invoices']` and `['invoice-dashboard-stats']` after create/update
-8. **useDashboardInvalidation** — Added `['invoices']` and `['invoice-dashboard-stats']` to `invalidateSales()`
+3. **V-Gap mismatch**: The app's V-Gap is set to 1mm but the printer's physical gap height is 2mm. The `@page` size is calculated as `labelHeight + vGap` = 26mm, but the actual label pitch should be 27mm (25mm label + 2mm gap). This causes progressive label drift where each successive label prints slightly higher.
 
-## Completed: Entry Form Query Optimization (ELLA NOOR slow billing fix)
+## Plan
 
-All entry forms optimized with caching + explicit columns:
+### 1. Fix offset application in `PrecisionThermalPrint`
+Move the X/Y offset from the label container's `transform` to the parent wrapper's `padding`, so offsets shift content within the available space rather than shifting the entire container (which gets clipped).
 
-1. **QuotationEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*')` with explicit columns
-2. **SaleOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*, product_variants(*)')` with explicit columns
-3. **PurchaseOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to suppliers & products queries, replaced `select('*')` with explicit columns
-4. **DeliveryChallanEntry** — Added staleTime 5min + refetchOnWindowFocus:false to products query, replaced `select('*, product_variants(*), size_groups(*)')` with explicit columns
-5. **PurchaseEntry** — Replaced `select('*')` with explicit columns for suppliers (already had staleTime)
-6. **POSSales** — Already optimized (explicit columns + staleTime 5min)
-7. **SalesInvoice** — Already optimized
+**File: `src/components/precision-barcode/PrecisionThermalPrint.tsx`**
+- Apply `paddingTop` and `paddingLeft` on the per-label wrapper div using `xOffset` and `yOffset` values
+- Stop passing `xOffset`/`yOffset` to `PrecisionLabelPreview` (pass 0 instead)
 
-## Completed: Cloud Usage Impact Analysis
+### 2. Fix overflow clipping in `PrecisionLabelPreview`
+Change the outer container to not clip when offsets are applied for print mode.
 
-Estimated impact of all optimizations:
-- **Dashboard reads**: ~95% reduction (server-side pagination, 50 rows vs ALL)
-- **Accounts page**: ~90% reduction (1 RPC vs 3 full-table scans)
-- **Entry form tab switches**: ~80% fewer reads (5min staleTime cache)
-- **Data transfer**: ~40-50% less per read (explicit columns vs select('*'))
-- **Sales Invoice Dashboard**: ~98% reduction (50 rows without sale_items vs ALL invoices with ALL items)
+**File: `src/components/precision-barcode/PrecisionLabelPreview.tsx`**
+- When `xOffset` and `yOffset` are both 0 (print mode after fix), the transform becomes `translate(0, 0)` — harmless
+- Remove `overflow: hidden` from the outer container for print, keep it only in preview
+
+### 3. Fix `PrecisionPrintCSS` page size
+Ensure the `@page` size accounts for the actual label pitch properly and add explicit `overflow: visible` for print content.
+
+**File: `src/components/precision-barcode/PrecisionPrintCSS.tsx`**
+- Add `overflow: visible` rule for `.precision-label-container` in print media
+- Ensure per-label wrapper allows offset padding without clipping
+
+### 4. Validate preview alignment
+Ensure the live preview in `LabelCalibrationUI` still renders correctly by keeping the preview-specific offset logic intact (using `scaleFactor` path).
+
+### Summary of changes
+- `PrecisionThermalPrint.tsx` — apply offsets as padding on wrapper, not transform on content
+- `PrecisionLabelPreview.tsx` — remove overflow:hidden from outer container (or make it configurable)
+- `PrecisionPrintCSS.tsx` — add overflow:visible for label containers in print CSS
+
