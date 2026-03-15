@@ -292,6 +292,15 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
                         </TableCell>
                         <TableCell className="text-right font-medium text-yellow-600">{formatCurrency(totals.creditSale)}</TableCell>
                       </TableRow>
+                      {totals.totalSRAdjusted > 0 && (
+                        <TableRow>
+                          <TableCell className="flex items-center gap-2">
+                            <RotateCcw className="h-4 w-4 text-teal-600" />
+                            S/R Adjusted
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-teal-600">{formatCurrency(totals.totalSRAdjusted)}</TableCell>
+                        </TableRow>
+                      )}
                       <TableRow className="bg-green-50 dark:bg-green-950">
                         <TableCell className="font-bold">Net Cash Collection</TableCell>
                         <TableCell className="text-right font-bold text-lg">{formatCurrency(totals.cashSale - totals.totalRefund)}</TableCell>
