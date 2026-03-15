@@ -102,7 +102,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
 
     let grossSale = 0, totalDiscount = 0, totalSale = 0;
     let cashSale = 0, cardSale = 0, upiSale = 0, creditSale = 0;
-    let totalRefund = 0;
+    let totalRefund = 0, totalSRAdjusted = 0;
 
     salesData.forEach((sale) => {
       grossSale += Number(sale.gross_amount) || 0;
