@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { compareSizes } from "@/utils/sizeSort";
 
 interface Variant {
   id: string;
