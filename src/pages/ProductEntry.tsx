@@ -2198,20 +2198,16 @@ const ProductEntry = () => {
               {showMrp && (
                 <div className="space-y-2">
                   <Label htmlFor="default_mrp">MRP <span className="text-destructive">*</span></Label>
-                  <Input
+                  <CalculatorInput
                     id="default_mrp"
-                    type="number"
-                    min="0"
-                    step="0.01"
                     value={formData.default_mrp ?? ""}
-                    onChange={(e) =>
+                    onChange={(val) =>
                       setFormData({
                         ...formData,
-                        default_mrp: e.target.value === "" ? undefined : parseFloat(e.target.value) || 0,
+                        default_mrp: val || 0,
                       })
                     }
                     placeholder="MRP"
-                    required
                   />
                 </div>
               )}

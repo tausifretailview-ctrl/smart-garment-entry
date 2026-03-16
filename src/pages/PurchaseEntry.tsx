@@ -2542,10 +2542,9 @@ const PurchaseEntry = () => {
                         </div>
                       </div>
                       <div className="text-right shrink-0 ml-3">
-                        <Input
-                          type="number"
+                        <CalculatorInput
                           value={item.pur_price}
-                          onChange={(e) => { const u = [...lineItems]; u[realIdx] = { ...u[realIdx], pur_price: +e.target.value }; setLineItems(u); }}
+                          onChange={(val) => { const u = [...lineItems]; u[realIdx] = { ...u[realIdx], pur_price: val }; setLineItems(u); }}
                           className="w-20 h-8 text-right text-sm rounded-lg border"
                           placeholder="Price"
                         />

@@ -215,30 +215,24 @@ export const QuickAddProductDialog = ({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="product-purchase-price">Purchase Price</Label>
-              <Input
+              <CalculatorInput
                 id="product-purchase-price"
-                type="number"
-                step="0.01"
                 value={purchasePrice}
-                onChange={(e) => setPurchasePrice(e.target.value)}
+                onChange={(val) => setPurchasePrice(String(val))}
                 onKeyDown={(e) => handleKeyDown(e, "product-sale-price")}
                 placeholder="₹ 0.00"
                 className="h-12 text-base"
-                autoComplete="off"
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="product-sale-price">Sale Price *</Label>
-              <Input
+              <CalculatorInput
                 id="product-sale-price"
-                type="number"
-                step="0.01"
                 value={salePrice}
-                onChange={(e) => setSalePrice(e.target.value)}
+                onChange={(val) => setSalePrice(String(val))}
                 onKeyDown={(e) => handleKeyDown(e, "product-stock")}
                 placeholder="₹ 0.00"
                 className="h-12 text-base"
-                autoComplete="off"
               />
             </div>
           </div>
