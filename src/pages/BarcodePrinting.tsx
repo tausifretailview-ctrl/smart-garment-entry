@@ -5142,7 +5142,7 @@ export default function BarcodePrinting() {
               {activePrecisionTemplateName && (
                 <div className="flex items-center gap-2 pt-4">
                   <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-medium text-xs">
-                    ✏️ Editing: {activePrecisionTemplateName}
+                    ✏️ Editing: {activePrecisionTemplateName.replace("preset:", "")}
                   </span>
                   <span className="text-muted-foreground text-[10px]">(changes auto-save)</span>
                   <Button 
