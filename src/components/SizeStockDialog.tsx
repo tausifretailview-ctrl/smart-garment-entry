@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
+import { sortSizes } from "@/utils/sizeSort";
 
 interface SizeStockDialogProps {
   open: boolean;
@@ -309,13 +310,8 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
           row.totalStock += variant.stock_qty;
         });
 
-        // Sort sizes naturally
-        const sortedSizes = Array.from(allSizes).sort((a, b) => {
-          const numA = parseInt(a);
-          const numB = parseInt(b);
-          if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-          return a.localeCompare(b);
-        });
+        // Sort sizes using standard garment order
+        const sortedSizes = sortSizes(Array.from(allSizes));
 
         setSizeWiseData({
           sizes: sortedSizes,
