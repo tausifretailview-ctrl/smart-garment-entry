@@ -125,17 +125,19 @@ export function SalesmanSizeGridDialog({
       });
     }
     
-    // Sort each color's variants by size order
+    // Sort each color's variants by size order from DB, falling back to standard garment order
     Object.keys(grouped).forEach(color => {
       if (sizeOrder.length > 0) {
         grouped[color] = [...grouped[color]].sort((a, b) => {
           const aIndex = sizeOrder.indexOf(a.size);
           const bIndex = sizeOrder.indexOf(b.size);
-          if (aIndex === -1 && bIndex === -1) return 0;
+          if (aIndex === -1 && bIndex === -1) return compareSizes(a.size, b.size);
           if (aIndex === -1) return 1;
           if (bIndex === -1) return -1;
           return aIndex - bIndex;
         });
+      } else {
+        grouped[color] = [...grouped[color]].sort((a, b) => compareSizes(a.size, b.size));
       }
     });
     
