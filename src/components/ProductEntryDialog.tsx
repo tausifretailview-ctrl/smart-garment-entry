@@ -1380,10 +1380,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                             )}
                             <TableCell>{variant.size}</TableCell>
                             <TableCell>
-                              <Input
-                                type="number"
+                              <CalculatorInput
                                 value={variant.pur_price || ""}
-                                onChange={(e) => handleVariantChange(index, "pur_price", e.target.value === "" ? 0 : Number(e.target.value))}
+                                onChange={(val) => handleVariantChange(index, "pur_price", val)}
                                 className={cn("w-24", variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && "border-destructive text-destructive")}
                                 placeholder="0"
                               />
