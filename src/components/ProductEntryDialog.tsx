@@ -1165,14 +1165,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
                 <div className="space-y-2">
                   <Label htmlFor="default_pur_price">Purchase Price <span className="text-destructive">*</span></Label>
-                  <Input
+                  <CalculatorInput
                     id="default_pur_price"
-                    type="number"
                     value={formData.default_pur_price ?? ""}
-                    onChange={(e) => {
-                      const purPrice = e.target.value ? Number(e.target.value) : undefined;
+                    onChange={(val) => {
+                      const purPrice = val || undefined;
                       const updates: Partial<typeof formData> = { default_pur_price: purPrice };
-                      // Recalculate sale price from markup if markup exists and pur price is valid
                       if (purPrice && purPrice > 0 && markupPercent !== "") {
                         const mk = parseFloat(markupPercent);
                         if (!isNaN(mk)) {
@@ -1182,7 +1180,6 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       setFormData({ ...formData, ...updates });
                     }}
                     placeholder="0"
-                    required
                   />
                 </div>
 
