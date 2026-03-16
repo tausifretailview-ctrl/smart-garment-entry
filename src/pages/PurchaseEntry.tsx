@@ -3022,19 +3022,11 @@ const PurchaseEntry = () => {
                           />
                         </TableCell>
                         <TableCell className="w-[120px]">
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
+                          <CalculatorInput
                             value={item.sale_price}
-                            onChange={(e) =>
-                              updateLineItem(
-                                item.temp_id,
-                                "sale_price",
-                                parseFloat(e.target.value) || 0
-                              )
+                            onChange={(val) =>
+                              updateLineItem(item.temp_id, "sale_price", val)
                             }
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             className="w-full text-right bg-blue-50 border-blue-200 text-blue-800 font-bold"
                           />
                         </TableCell>
