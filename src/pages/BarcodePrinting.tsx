@@ -5141,6 +5141,8 @@ export default function BarcodePrinting() {
               onSave={async () => {
                 if (!currentOrganization?.id) return;
                 try {
+                  const configToSave = precisionSettings.labelConfig || DEFAULT_PRECISION_CONFIG;
+                  
                   // Save to organization settings
                   const { data: existing } = await (supabase
                     .from("organization_settings" as any)
@@ -5151,7 +5153,7 @@ export default function BarcodePrinting() {
                   const currentBbs = (existing?.bill_barcode_settings as any) || {};
                   const updatedBbs = {
                     ...currentBbs,
-                    precision_label_config: precisionSettings.labelConfig || DEFAULT_PRECISION_CONFIG,
+                    precision_label_config: configToSave,
                   };
 
                   await (supabase
@@ -5163,11 +5165,26 @@ export default function BarcodePrinting() {
                   if (activePrecisionTemplateName) {
                     const updatedTemplate: LabelTemplate = {
                       name: activePrecisionTemplateName,
-                      config: { ...(precisionSettings.labelConfig || DEFAULT_PRECISION_CONFIG) },
+                      config: { ...configToSave },
                       labelWidth: precisionSettings.labelWidth,
                       labelHeight: precisionSettings.labelHeight,
                     };
                     await saveTemplateToDb(updatedTemplate);
+                    
+                    // Also update the printer_presets table so default preset stays in sync
+                    await supabase
+                      .from("printer_presets")
+                      .update({ label_config: configToSave as any })
+                      .eq("organization_id", currentOrganization.id)
+                      .eq("name", activePrecisionTemplateName);
+                    
+                    // Update local dbPresets state
+                    setDbPresets(prev => prev.map(p => 
+                      p.name === activePrecisionTemplateName 
+                        ? { ...p, labelConfig: configToSave } 
+                        : p
+                    ));
+                    
                     toast.success(`Design saved & template "${activePrecisionTemplateName}" updated`);
                   } else {
                     toast.success("Label design saved successfully");
