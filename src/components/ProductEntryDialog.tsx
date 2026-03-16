@@ -1400,10 +1400,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                             </TableCell>
                             {showMrp && (
                               <TableCell>
-                                <Input
-                                  type="number"
+                                <CalculatorInput
                                   value={variant.mrp ?? ""}
-                                  onChange={(e) => handleVariantChange(index, "mrp", e.target.value ? Number(e.target.value) : null)}
+                                  onChange={(val) => handleVariantChange(index, "mrp", val || null)}
                                   className="w-24"
                                 />
                               </TableCell>
