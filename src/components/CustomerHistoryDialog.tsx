@@ -9,11 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, IndianRupee, ShoppingCart, CreditCard, RotateCcw, FileText, Receipt, ChevronDown, ChevronRight, History, Eye, X, Wallet, Scale } from "lucide-react";
+import { Loader2, IndianRupee, ShoppingCart, CreditCard, RotateCcw, FileText, Receipt, ChevronDown, ChevronRight, History, Eye, X, Wallet, Scale, ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerAdvanceBalance } from "@/hooks/useCustomerAdvances";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 interface SaleItem {
   id: string;
@@ -527,29 +529,13 @@ export function CustomerHistoryDialog({
   // Close preview when main dialog closes
   useEffect(() => { if (!open) setPreview(null); }, [open]);
 
-  return (
-    <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-6xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0">
-          {/* Gradient accent bar */}
-          <div className="h-1 w-full bg-gradient-to-r from-primary via-blue-500 to-accent rounded-t-lg flex-shrink-0" />
-          <div className="p-3 sm:p-5 pb-0">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2.5 text-lg font-bold tracking-tight">
-                <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <ShoppingCart className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <div>{customerName}</div>
-                  <DialogDescription className="text-xs font-normal mt-0.5">
-                    Customer account history and transactions
-                  </DialogDescription>
-                </div>
-              </DialogTitle>
-            </DialogHeader>
-          </div>
+  const isMobile = useIsMobile();
 
-          <div className="px-3 sm:px-5 pb-3 sm:pb-5 flex flex-col flex-1 overflow-hidden">
+  // Shared content renderer (used by both mobile panel and desktop dialog)
+  const renderContent = () => (
+    <>
+      {/* Summary Cards */}
+      <div className="px-3 sm:px-5 pb-3 sm:pb-5 flex flex-col flex-1 overflow-hidden">
           {/* Summary Cards */}
           {(() => {
             // For school orgs with linked student fee data, show school-specific cards
@@ -1096,6 +1082,82 @@ export function CustomerHistoryDialog({
             </ScrollArea>
           </Tabs>
           </div>
+    </>
+  );
+
+  // Mobile: full-screen slide-in panel
+  if (isMobile) {
+    return (
+      <>
+        {/* Full-screen slide-in panel */}
+        <div
+          className={cn(
+            "fixed inset-0 z-50 bg-background flex flex-col transition-transform duration-300 ease-in-out",
+            open ? "translate-x-0" : "translate-x-full pointer-events-none"
+          )}
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
+          {/* Mobile header with back button */}
+          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-3 py-3 flex items-center gap-3 flex-shrink-0">
+            <button
+              onClick={() => onOpenChange(false)}
+              className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center active:scale-90 transition-all touch-manipulation"
+            >
+              <ArrowLeft className="h-5 w-5 text-foreground" />
+            </button>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base font-semibold truncate">{customerName}</h2>
+              <p className="text-[11px] text-muted-foreground">Account history & transactions</p>
+            </div>
+          </div>
+
+          {/* Scrollable content */}
+          <div className="flex-1 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
+            {renderContent()}
+          </div>
+        </div>
+
+        {/* Floating Detail Preview Dialog */}
+        <Dialog open={!!preview} onOpenChange={(v) => !v && setPreview(null)}>
+          <DialogContent className="max-w-[95vw] max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Eye className="h-5 w-5 text-primary" />
+                Transaction Details
+              </DialogTitle>
+            </DialogHeader>
+            {preview && (
+              <TransactionDetailPreview preview={preview} onClose={() => setPreview(null)} customerName={customerName} />
+            )}
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
+
+  // Desktop: standard dialog
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-6xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0">
+          {/* Gradient accent bar */}
+          <div className="h-1 w-full bg-gradient-to-r from-primary via-blue-500 to-accent rounded-t-lg flex-shrink-0" />
+          <div className="p-3 sm:p-5 pb-0">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2.5 text-lg font-bold tracking-tight">
+                <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <ShoppingCart className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <div>{customerName}</div>
+                  <DialogDescription className="text-xs font-normal mt-0.5">
+                    Customer account history and transactions
+                  </DialogDescription>
+                </div>
+              </DialogTitle>
+            </DialogHeader>
+          </div>
+          {renderContent()}
         </DialogContent>
       </Dialog>
 
