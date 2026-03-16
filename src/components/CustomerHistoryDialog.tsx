@@ -529,29 +529,13 @@ export function CustomerHistoryDialog({
   // Close preview when main dialog closes
   useEffect(() => { if (!open) setPreview(null); }, [open]);
 
-  return (
-    <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-6xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0">
-          {/* Gradient accent bar */}
-          <div className="h-1 w-full bg-gradient-to-r from-primary via-blue-500 to-accent rounded-t-lg flex-shrink-0" />
-          <div className="p-3 sm:p-5 pb-0">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2.5 text-lg font-bold tracking-tight">
-                <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <ShoppingCart className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <div>{customerName}</div>
-                  <DialogDescription className="text-xs font-normal mt-0.5">
-                    Customer account history and transactions
-                  </DialogDescription>
-                </div>
-              </DialogTitle>
-            </DialogHeader>
-          </div>
+  const isMobile = useIsMobile();
 
-          <div className="px-3 sm:px-5 pb-3 sm:pb-5 flex flex-col flex-1 overflow-hidden">
+  // Shared content renderer (used by both mobile panel and desktop dialog)
+  const renderContent = () => (
+    <>
+      {/* Summary Cards */}
+      <div className="px-3 sm:px-5 pb-3 sm:pb-5 flex flex-col flex-1 overflow-hidden">
           {/* Summary Cards */}
           {(() => {
             // For school orgs with linked student fee data, show school-specific cards
