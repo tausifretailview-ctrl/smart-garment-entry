@@ -1226,47 +1226,37 @@ export default function BarcodePrinting() {
   const hasLoadedDefaultsRef = useRef(false);
 
   // Auto-save precision label config changes to active template (debounced)
-  useEffect(() => {
-    if (!activePrecisionTemplateName || !precisionSettings.labelConfig || !currentOrganization?.id) return;
+  const autoSavePrecisionConfig = useCallback(async (templateName: string, labelConfig: LabelDesignConfig, labelWidth: number, labelHeight: number, orgId: string) => {
+    const configToSave = { ...labelConfig };
     
-    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    
-    autoSaveTimerRef.current = setTimeout(async () => {
-      const configToSave = { ...precisionSettings.labelConfig };
-      
-      // Save to barcode_label_settings (template)
-      const updatedTemplate: LabelTemplate = {
-        name: activePrecisionTemplateName,
-        config: configToSave,
-        labelWidth: precisionSettings.labelWidth,
-        labelHeight: precisionSettings.labelHeight,
-      };
-      
-      const success = await saveTemplateToDb(updatedTemplate);
-      
-      // Also update printer_presets table so default preset stays in sync
-      await supabase
-        .from("printer_presets")
-        .update({ label_config: configToSave as any })
-        .eq("organization_id", currentOrganization.id)
-        .eq("name", activePrecisionTemplateName);
-      
-      // Update local dbPresets state
-      setDbPresets(prev => prev.map(p => 
-        p.name === activePrecisionTemplateName 
-          ? { ...p, labelConfig: configToSave } 
-          : p
-      ));
-      
-      if (success) {
-        console.log(`Auto-saved template "${activePrecisionTemplateName}"`);
-      }
-    }, 1500);
-    
-    return () => {
-      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    // Save to barcode_label_settings (template)
+    const updatedTemplate: LabelTemplate = {
+      name: templateName,
+      config: configToSave,
+      labelWidth,
+      labelHeight,
     };
-  }, [precisionSettings.labelConfig, activePrecisionTemplateName, currentOrganization?.id]);
+    
+    const success = await saveTemplateToDb(updatedTemplate);
+    
+    // Also update printer_presets table so default preset stays in sync
+    await supabase
+      .from("printer_presets")
+      .update({ label_config: configToSave as any })
+      .eq("organization_id", orgId)
+      .eq("name", templateName);
+    
+    // Update local dbPresets state
+    setDbPresets(prev => prev.map(p => 
+      p.name === templateName 
+        ? { ...p, labelConfig: configToSave } 
+        : p
+    ));
+    
+    if (success) {
+      console.log(`Auto-saved template "${templateName}"`);
+    }
+  }, [saveTemplateToDb]);
 
   // Sync database settings with local state
   useEffect(() => {
