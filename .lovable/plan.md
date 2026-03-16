@@ -1,52 +1,43 @@
 
 
-## Analysis: Precision Pro Label Printing System
+## Completed: Heavy Query Load Optimization
 
-### What Already Exists
+All 5 priority pages optimized:
 
-Your project **already has** a full Precision Pro label printing system with all the features described:
+1. **PurchaseBillDashboard** — Server-side pagination + search + date filters via `useQuery`, removed Phase 2 bulk item pre-fetch (lazy-load on expand only), staleTime 30s
+2. **SaleReturnDashboard** — Converted from useEffect/setState to `useQuery` with server-side pagination + debounced search, lazy item loading with cache
+3. **PurchaseReturnDashboard** — Server-side pagination + debounced search + date filters via `useQuery`, staleTime 30s
+4. **Accounts** — Created `get_accounts_dashboard_stats` RPC for summary cards (replaces 3x fetchAll calls), lazy tab loading (vouchers/sales/customers/suppliers only fetched when their tab is active)
+5. **SalesAnalyticsDashboard** — Added staleTime 60s + refetchOnWindowFocus:false to all queries
 
-- **Product table** with qty, barcode, size, price, delete — `src/pages/BarcodePrinting.tsx` (5,497 lines)
-- **Thermal 1-Up & A4 Sheet modes** — `PrecisionThermalPrint.tsx`, `PrecisionA4SheetPrint.tsx`
-- **Live preview** with configurable scale — `PrecisionLabelPreview.tsx`
-- **Label designer** with per-field X/Y/fontSize/bold/align — `PrecisionLabelDesigner.tsx`
-- **JsBarcode Code 128** rendering — already integrated
-- **Print CSS** with `@page { size: 38mm 25mm; margin: 0 }` — `PrecisionPrintCSS.tsx`
-- **Preset system** saved to database (`printer_presets` table)
-- **Offset controls** (X, Y, V-Gap) with sliders
-- **Label dimensions** configurable
+## Completed: Sales Invoice Dashboard Optimization
 
-### What Would Change: Switch to `window.open()` Print
+1. **Server-side pagination** — Replaced fetch-all-invoices loop with paginated query (50 rows per page, `{ count: 'exact' }`)
+2. **No more `sale_items(*)` in list** — Removed nested sale_items fetch, uses `total_qty` column instead
+3. **Server-side filtering** — Search (debounced 300ms), date range, payment status, delivery status all applied server-side
+4. **Summary stats via RPC** — Uses `get_sales_invoice_dashboard_stats` RPC instead of client-side computation
+5. **Default period = This Month** — Fast first load instead of fetching all-time data
+6. **staleTime 30s + refetchOnWindowFocus: false** — Prevents redundant re-fetches
+7. **Cache invalidation after save/update** — SalesInvoice.tsx invalidates `['invoices']` and `['invoice-dashboard-stats']` after create/update
+8. **useDashboardInvalidation** — Added `['invoices']` and `['invoice-dashboard-stats']` to `invalidateSales()`
 
-The only meaningful improvement from this prompt is switching from the current `window.print()` approach (which relies on CSS hiding the main app) to a **clean `window.open()` approach** that creates a separate document with only label HTML. This eliminates any risk of main-page styles leaking into print and guarantees exact page count.
+## Completed: Entry Form Query Optimization (ELLA NOOR slow billing fix)
 
-#### File: `src/pages/BarcodePrinting.tsx`
+All entry forms optimized with caching + explicit columns:
 
-**Current approach** (line ~3186): Calls `window.print()` on the main page, uses `PrecisionPrintCSS` to hide everything except `.precision-print-area`.
+1. **QuotationEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*')` with explicit columns
+2. **SaleOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*, product_variants(*)')` with explicit columns
+3. **PurchaseOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to suppliers & products queries, replaced `select('*')` with explicit columns
+4. **DeliveryChallanEntry** — Added staleTime 5min + refetchOnWindowFocus:false to products query, replaced `select('*, product_variants(*), size_groups(*)')` with explicit columns
+5. **PurchaseEntry** — Replaced `select('*')` with explicit columns for suppliers (already had staleTime)
+6. **POSSales** — Already optimized (explicit columns + staleTime 5min)
+7. **SalesInvoice** — Already optimized
 
-**New approach**: 
-1. When "Print Labels" is clicked, serialize the label HTML from the hidden `precision-print-area` div
-2. Open `window.open('', '_blank')` 
-3. Write a clean HTML document containing only `@page` CSS + label divs
-4. Call `printWindow.print()` then close
+## Completed: Cloud Usage Impact Analysis
 
-```text
-Current flow:
-  [Main Page] → CSS hides everything → window.print() → restore
-
-New flow:
-  [Main Page] → clone label HTML → window.open() → inject HTML+CSS → print → close
-```
-
-#### Changes needed:
-- **`BarcodePrinting.tsx`**: Replace the `handlePrint` / precision print handler (~15 lines) to use `window.open()` instead of `window.print()` on main document
-- **`PrecisionPrintCSS.tsx`**: No longer needed for the thermal flow (keep for backward compat with A4 which renders in-page)
-- **`PrecisionThermalPrint.tsx`** and **`PrecisionLabelPreview.tsx`**: No changes — the label HTML generation stays identical
-
-#### No other changes
-All existing features (product table, designer, presets, offsets, preview, barcode generation) remain untouched.
-
-### Recommendation
-
-Since the recent fix to `PrecisionPrintCSS.tsx` and `PrecisionThermalPrint.tsx` already addressed the label-shifting and extra-pages issues, the `window.open()` approach is an incremental reliability improvement. Shall I proceed with just that print-flow change?
-
+Estimated impact of all optimizations:
+- **Dashboard reads**: ~95% reduction (server-side pagination, 50 rows vs ALL)
+- **Accounts page**: ~90% reduction (1 RPC vs 3 full-table scans)
+- **Entry form tab switches**: ~80% fewer reads (5min staleTime cache)
+- **Data transfer**: ~40-50% less per read (explicit columns vs select('*'))
+- **Sales Invoice Dashboard**: ~98% reduction (50 rows without sale_items vs ALL invoices with ALL items)
