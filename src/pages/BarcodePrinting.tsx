@@ -1371,6 +1371,27 @@ export default function BarcodePrinting() {
     hasLoadedDefaultsRef.current = false;
   }, [currentOrganization?.id]);
 
+  // Debounced auto-save for precision designer changes
+  useEffect(() => {
+    if (!activePrecisionTemplateName || !precisionSettings.labelConfig || !currentOrganization?.id) return;
+    
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    
+    autoSaveTimerRef.current = setTimeout(() => {
+      autoSavePrecisionConfig(
+        activePrecisionTemplateName,
+        precisionSettings.labelConfig,
+        precisionSettings.labelWidth,
+        precisionSettings.labelHeight,
+        currentOrganization.id
+      );
+    }, 1500);
+    
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [precisionSettings.labelConfig, activePrecisionTemplateName, currentOrganization?.id, autoSavePrecisionConfig]);
+
   // Fetch business name from settings (organization-scoped)
   useEffect(() => {
     const fetchBusinessName = async () => {
