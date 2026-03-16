@@ -3181,12 +3181,54 @@ export default function BarcodePrinting() {
 
   const handlePrint = () => {
     if (precisionSettings.enabled) {
-      // Precision Pro mode: just trigger print, React components handle rendering
-      const originalTitle = document.title;
-      document.title = ' ';
+      // Precision Pro mode: open a clean window with only label HTML
       setTimeout(() => {
-        window.print();
-        document.title = originalTitle;
+        const printArea = precisionPrintRef.current;
+        if (!printArea) return;
+
+        const labelHTML = printArea.innerHTML;
+        const w = precisionSettings.labelWidth;
+        const h = precisionSettings.labelHeight + (precisionSettings.vGap || 0);
+        const isA4 = precisionSettings.printMode === 'a4';
+        const pageSize = isA4 ? '210mm 297mm' : `${w}mm ${h}mm`;
+        const pageWidth = isA4 ? '210mm' : `${w}mm`;
+
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+          toast.error("Popup blocked — please allow popups for this site.");
+          return;
+        }
+
+        printWindow.document.write(`<!DOCTYPE html><html><head><style>
+          @page { size: ${pageSize}; margin: 0 !important; padding: 0 !important; }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          html, body { margin: 0; padding: 0; width: ${pageWidth}; height: auto;
+            -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .precision-print-area { margin: 0; padding: 0; width: ${pageWidth}; }
+          .precision-print-area > div {
+            margin: 0 !important; padding: 0 !important;
+            width: ${pageWidth} !important;
+            height: ${isA4 ? '297mm' : `${h}mm`} !important;
+            min-height: ${isA4 ? '297mm' : `${h}mm`} !important;
+            max-height: ${isA4 ? '297mm' : `${h}mm`} !important;
+            overflow: hidden !important; box-sizing: border-box !important;
+            position: relative !important; display: block !important;
+            page-break-after: always !important; page-break-inside: avoid !important;
+            break-after: page !important; break-inside: avoid !important;
+          }
+          .precision-print-area > div:last-child {
+            page-break-after: auto !important; break-after: auto !important;
+          }
+          .precision-label-container { position: absolute !important; top: 0 !important; left: 0 !important; }
+          .precision-barcode-svg { image-rendering: pixelated; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        </style></head><body><div class="precision-print-area">${labelHTML}</div></body></html>`);
+
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+        }, 400);
       }, 300);
       return;
     }
