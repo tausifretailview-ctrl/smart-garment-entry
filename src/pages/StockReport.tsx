@@ -23,6 +23,7 @@ import { MetricCardSkeleton, TableSkeleton } from "@/components/ui/skeletons";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
+import { sortSizes } from "@/utils/sizeSort";
 
 interface StockItem {
   id: string;

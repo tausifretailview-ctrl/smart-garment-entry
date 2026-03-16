@@ -1,4 +1,5 @@
 import React from 'react';
+import { sortSizes } from "@/utils/sizeSort";
 
 interface SaleOrderItem {
   sr: number;
