@@ -1377,9 +1377,13 @@ export default function BarcodePrinting() {
     
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     
+    const templateName = activePrecisionTemplateName.startsWith("preset:") 
+      ? activePrecisionTemplateName.replace("preset:", "") 
+      : activePrecisionTemplateName;
+    
     autoSaveTimerRef.current = setTimeout(() => {
       autoSavePrecisionConfig(
-        activePrecisionTemplateName,
+        templateName,
         precisionSettings.labelConfig,
         precisionSettings.labelWidth,
         precisionSettings.labelHeight,
@@ -1519,7 +1523,7 @@ export default function BarcodePrinting() {
             }));
             setActiveBarTab("precision");
             // Set the preset name so it shows as selected in the dropdown
-            setActivePrecisionTemplateName(defaultPreset.name);
+            setActivePrecisionTemplateName(`preset:${defaultPreset.name}`);
             if (location.state?.purchaseItems) {
               toast.success(`Auto-loaded default preset "${defaultPreset.name}"`);
             }
@@ -5138,7 +5142,7 @@ export default function BarcodePrinting() {
               {activePrecisionTemplateName && (
                 <div className="flex items-center gap-2 pt-4">
                   <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-medium text-xs">
-                    ✏️ Editing: {activePrecisionTemplateName}
+                    ✏️ Editing: {activePrecisionTemplateName.replace("preset:", "")}
                   </span>
                   <span className="text-muted-foreground text-[10px]">(changes auto-save)</span>
                   <Button 
@@ -5189,8 +5193,11 @@ export default function BarcodePrinting() {
 
                   // Also save to active template if one is loaded
                   if (activePrecisionTemplateName) {
+                    const cleanName = activePrecisionTemplateName.startsWith("preset:") 
+                      ? activePrecisionTemplateName.replace("preset:", "") 
+                      : activePrecisionTemplateName;
                     const updatedTemplate: LabelTemplate = {
-                      name: activePrecisionTemplateName,
+                      name: cleanName,
                       config: { ...configToSave },
                       labelWidth: precisionSettings.labelWidth,
                       labelHeight: precisionSettings.labelHeight,
@@ -5202,16 +5209,16 @@ export default function BarcodePrinting() {
                       .from("printer_presets")
                       .update({ label_config: configToSave as any })
                       .eq("organization_id", currentOrganization.id)
-                      .eq("name", activePrecisionTemplateName);
+                      .eq("name", cleanName);
                     
                     // Update local dbPresets state
                     setDbPresets(prev => prev.map(p => 
-                      p.name === activePrecisionTemplateName 
+                      p.name === cleanName 
                         ? { ...p, labelConfig: configToSave } 
                         : p
                     ));
                     
-                    toast.success(`Design saved & template "${activePrecisionTemplateName}" updated`);
+                    toast.success(`Design saved & template "${cleanName}" updated`);
                   } else {
                     toast.success("Label design saved successfully");
                   }
