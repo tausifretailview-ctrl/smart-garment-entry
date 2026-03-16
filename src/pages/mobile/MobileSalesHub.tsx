@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Plus, ChevronRight, TrendingUp, FileText, RotateCcw, Eye, MessageCircle, Download, Loader2 } from "lucide-react";
+import { Search, Plus, ChevronRight, TrendingUp, FileText, RotateCcw, Eye, MessageCircle, Download, Loader2, Share2 } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import jsPDF from "jspdf";
