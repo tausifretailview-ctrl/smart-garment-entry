@@ -130,9 +130,10 @@ const SalesmanOrderView = () => {
   const shareOrder = async () => {
     if (!order) return;
 
-    const itemsList = items.map(i => 
-      `• ${i.product_name} (${i.size}) x ${i.order_qty} = ₹${i.line_total.toLocaleString("en-IN")}`
-    ).join("\n");
+    const itemsList = items.map(i => {
+      const colorPart = (i as any).color ? ` - ${(i as any).color}` : '';
+      return `• ${i.product_name}${colorPart} (${i.size}) x ${i.order_qty} = ₹${i.line_total.toLocaleString("en-IN")}`;
+    }).join("\n");
 
     const message = `🛒 *Sales Order*\n\n` +
       `Order No: ${order.order_number}\n` +

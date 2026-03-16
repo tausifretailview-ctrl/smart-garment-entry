@@ -150,12 +150,13 @@ const SalesmanOrders = () => {
     // Fetch order items
     const { data: items } = await supabase
       .from("sale_order_items")
-      .select("product_name, size, order_qty, unit_price, line_total")
+      .select("product_name, size, color, order_qty, unit_price, line_total")
       .eq("order_id", order.id);
 
-    const itemsList = (items || []).map(i => 
-      `• ${i.product_name} (${i.size}) x ${i.order_qty} = ₹${i.line_total.toLocaleString("en-IN")}`
-    ).join("\n");
+    const itemsList = (items || []).map(i => {
+      const colorPart = i.color ? ` - ${i.color}` : '';
+      return `• ${i.product_name}${colorPart} (${i.size}) x ${i.order_qty} = ₹${i.line_total.toLocaleString("en-IN")}`;
+    }).join("\n");
 
     const message = `🛒 *Sales Order*\n\n` +
       `Order No: ${order.order_number}\n` +
