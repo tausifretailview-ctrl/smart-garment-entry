@@ -1377,9 +1377,13 @@ export default function BarcodePrinting() {
     
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     
+    const templateName = activePrecisionTemplateName.startsWith("preset:") 
+      ? activePrecisionTemplateName.replace("preset:", "") 
+      : activePrecisionTemplateName;
+    
     autoSaveTimerRef.current = setTimeout(() => {
       autoSavePrecisionConfig(
-        activePrecisionTemplateName,
+        templateName,
         precisionSettings.labelConfig,
         precisionSettings.labelWidth,
         precisionSettings.labelHeight,
