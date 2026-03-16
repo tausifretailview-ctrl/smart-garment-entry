@@ -1227,22 +1227,37 @@ export default function BarcodePrinting() {
 
   // Auto-save precision label config changes to active template (debounced)
   useEffect(() => {
-    if (!activePrecisionTemplateName || !precisionSettings.labelConfig) return;
+    if (!activePrecisionTemplateName || !precisionSettings.labelConfig || !currentOrganization?.id) return;
     
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     
     autoSaveTimerRef.current = setTimeout(async () => {
-      const template = savedLabelTemplates.find(t => t.name === activePrecisionTemplateName);
-      if (!template) return;
+      const configToSave = { ...precisionSettings.labelConfig };
       
+      // Save to barcode_label_settings (template)
       const updatedTemplate: LabelTemplate = {
         name: activePrecisionTemplateName,
-        config: { ...precisionSettings.labelConfig },
+        config: configToSave,
         labelWidth: precisionSettings.labelWidth,
         labelHeight: precisionSettings.labelHeight,
       };
       
       const success = await saveTemplateToDb(updatedTemplate);
+      
+      // Also update printer_presets table so default preset stays in sync
+      await supabase
+        .from("printer_presets")
+        .update({ label_config: configToSave as any })
+        .eq("organization_id", currentOrganization.id)
+        .eq("name", activePrecisionTemplateName);
+      
+      // Update local dbPresets state
+      setDbPresets(prev => prev.map(p => 
+        p.name === activePrecisionTemplateName 
+          ? { ...p, labelConfig: configToSave } 
+          : p
+      ));
+      
       if (success) {
         console.log(`Auto-saved template "${activePrecisionTemplateName}"`);
       }
@@ -1251,7 +1266,7 @@ export default function BarcodePrinting() {
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
-  }, [precisionSettings.labelConfig, activePrecisionTemplateName]);
+  }, [precisionSettings.labelConfig, activePrecisionTemplateName, currentOrganization?.id]);
 
   // Sync database settings with local state
   useEffect(() => {
