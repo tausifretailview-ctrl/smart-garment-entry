@@ -3032,19 +3032,11 @@ const PurchaseEntry = () => {
                         </TableCell>
                         {showMrp && (
                           <TableCell className="w-[120px]">
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
+                            <CalculatorInput
                               value={item.mrp || 0}
-                              onChange={(e) =>
-                                updateLineItem(
-                                  item.temp_id,
-                                  "mrp",
-                                  parseFloat(e.target.value) || 0
-                                )
+                              onChange={(val) =>
+                                updateLineItem(item.temp_id, "mrp", val)
                               }
-                              onWheel={(e) => (e.target as HTMLInputElement).blur()}
                               className="w-full text-right"
                             />
                           </TableCell>
