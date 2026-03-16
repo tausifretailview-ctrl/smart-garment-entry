@@ -1226,13 +1226,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 {showMrp && (
                   <div className="space-y-2">
                     <Label htmlFor="default_mrp">MRP <span className="text-destructive">*</span></Label>
-                    <Input
+                    <CalculatorInput
                       id="default_mrp"
-                      type="number"
                       value={formData.default_mrp ?? ""}
-                      onChange={(e) => setFormData({ ...formData, default_mrp: e.target.value ? Number(e.target.value) : undefined })}
+                      onChange={(val) => setFormData({ ...formData, default_mrp: val || undefined })}
                       placeholder="MRP"
-                      required
                     />
                   </div>
                 )}
