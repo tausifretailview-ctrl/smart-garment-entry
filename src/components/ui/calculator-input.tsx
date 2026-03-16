@@ -76,7 +76,7 @@ const CalculatorInput = React.forwardRef<HTMLInputElement, CalculatorInputProps>
       if (!isExpr) return;
       const result = calculateExpression(displayValue);
       if (result !== null) {
-        const rounded = Math.round(result * 100) / 100;
+        const rounded = Math.round(result);
         setDisplayValue(String(rounded));
         setIsExpr(false);
         lastCommitted.current = String(rounded);
