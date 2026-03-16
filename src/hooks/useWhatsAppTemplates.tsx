@@ -291,17 +291,17 @@ Thank you!`;
   };
 
   const getDefaultSaleOrderMessage = (order: SaleOrder, items?: string) => {
-    return `Hello ${order.customer_name},
+    return `🛒 *Sales Order Confirmation*
 
-Your order has been confirmed! 🎉
+Order No: ${order.order_number}
+Customer: ${order.customer_name}
 
-Order Details:
-📋 Order No: ${order.order_number}
-📅 Date: ${format(new Date(order.order_date), "dd MMM yyyy")}
-📦 ${items || ""}
-💰 Total Amount: ₹${Number(order.net_amount).toLocaleString("en-IN")}
+*Items:*
+${items || ""}
 
-We will update you once it's ready for delivery.
+*Total: ₹${Number(order.net_amount).toLocaleString("en-IN")}*
+
+Expected Delivery: ${order.expected_delivery_date ? format(new Date(order.expected_delivery_date), "dd MMM yyyy") : "To be confirmed"}
 
 Thank you for your order!`;
   };
