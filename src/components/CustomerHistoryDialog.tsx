@@ -9,11 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, IndianRupee, ShoppingCart, CreditCard, RotateCcw, FileText, Receipt, ChevronDown, ChevronRight, History, Eye, X, Wallet, Scale } from "lucide-react";
+import { Loader2, IndianRupee, ShoppingCart, CreditCard, RotateCcw, FileText, Receipt, ChevronDown, ChevronRight, History, Eye, X, Wallet, Scale, ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerAdvanceBalance } from "@/hooks/useCustomerAdvances";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 interface SaleItem {
   id: string;
