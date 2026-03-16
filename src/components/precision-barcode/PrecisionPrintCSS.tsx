@@ -33,6 +33,8 @@ export function PrecisionPrintCSS({ labelWidth, labelHeight, mode }: PrecisionPr
           padding: 0 !important;
           width: ${mode === "thermal" ? `${labelWidth}mm` : "210mm"};
           height: auto;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
         }
         body * {
           visibility: hidden;
@@ -51,27 +53,33 @@ export function PrecisionPrintCSS({ labelWidth, labelHeight, mode }: PrecisionPr
         }
         .precision-print-area > div {
           margin: 0 !important;
-          padding-bottom: 0 !important;
+          padding: 0 !important;
           width: ${mode === "thermal" ? `${labelWidth}mm` : "210mm"} !important;
           height: ${mode === "thermal" ? `${labelHeight}mm` : "297mm"} !important;
-          overflow: ${mode === "thermal" ? "hidden" : "visible"} !important;
+          min-height: ${mode === "thermal" ? `${labelHeight}mm` : "297mm"} !important;
+          max-height: ${mode === "thermal" ? `${labelHeight}mm` : "297mm"} !important;
+          overflow: hidden !important;
+          box-sizing: border-box !important;
+          position: relative !important;
+          display: block !important;
           page-break-after: always !important;
           page-break-inside: avoid !important;
-          box-sizing: border-box !important;
+          break-after: page !important;
+          break-inside: avoid !important;
         }
         .precision-print-area > div:last-child {
           page-break-after: auto !important;
+          break-after: auto !important;
+        }
+        .precision-label-container {
+          position: absolute !important;
+          top: 0 !important;
+          left: 0 !important;
         }
         .precision-barcode-svg {
           image-rendering: pixelated;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
-        }
-        .precision-label-container {
-          overflow: visible !important;
-        }
-        .precision-print-area > div {
-          overflow: visible !important;
         }
       }
     `;
