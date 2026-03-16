@@ -1053,7 +1053,13 @@ export default function SaleOrderEntry() {
               contactNumber,
             ];
 
-            const messageText = `Hello ${selectedCustomer.customer_name || 'Valued Customer'},\n\nYour sale order ${orderNumber} has been confirmed.\nAmount: ₹${formattedAmount}\nOrder Date: ${formattedDate}\nExpected Delivery: ${formattedDelivery}\n\nThank you for your order!\n${companyName}\n${contactNumber}`;
+            // Build itemized list with color
+            const itemLines = orderItems.map((item: any) => {
+              const colorPart = item.color ? ` - ${item.color}` : '';
+              return `• ${item.product_name}${colorPart} (${item.size}) x ${item.order_qty} = ₹${Number(item.line_total).toLocaleString('en-IN')}`;
+            }).join('\n');
+
+            const messageText = `🛒 *Sales Order Confirmation*\n\nOrder No: ${orderNumber}\nCustomer: ${selectedCustomer.customer_name || 'Valued Customer'}\n\n*Items:*\n${itemLines}\n\n*Total: ₹${formattedAmount}*\nOrder Date: ${formattedDate}\nExpected Delivery: ${formattedDelivery}\n\nThank you for your order!\n${companyName}\n${contactNumber}`;
 
             await supabase.functions.invoke('send-whatsapp', {
               body: {

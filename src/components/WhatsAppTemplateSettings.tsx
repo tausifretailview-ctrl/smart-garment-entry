@@ -107,17 +107,17 @@ Please let us know if you'd like to proceed with this order.
 
 Thank you!`,
 
-  sale_order: `Hello {customer_name},
+  sale_order: `🛒 *Sales Order Confirmation*
 
-Your order has been confirmed! 🎉
+Order No: {order_number}
+Customer: {customer_name}
 
-Order Details:
-📋 Order No: {order_number}
-📅 Date: {order_date}
-📦 {order_items}
-💰 Total Amount: {amount}
+*Items:*
+{order_items}
 
-We will update you once it's ready for delivery.
+*Total: {amount}*
+
+Expected Delivery: {expected_delivery}
 
 Thank you for your order!`,
 
