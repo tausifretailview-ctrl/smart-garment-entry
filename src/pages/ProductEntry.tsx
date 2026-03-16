@@ -2174,25 +2174,21 @@ const ProductEntry = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="default_sale_price">Sale Price <span className="text-destructive">*</span></Label>
-                <Input
+                <CalculatorInput
                   id="default_sale_price"
-                  type="number"
-                  min="0"
-                  step="0.01"
                   value={formData.default_sale_price ?? ""}
-                  onChange={(e) => {
-                    const salePrice = e.target.value === "" ? undefined : parseFloat(e.target.value) || 0;
+                  onChange={(val) => {
+                    const salePrice = val || 0;
                     setFormData({ ...formData, default_sale_price: salePrice });
-                    // Recalculate markup %
-                    if ((formData.default_pur_price ?? 0) > 0 && (salePrice ?? 0) > 0) {
-                      const calc = (((salePrice ?? 0) - (formData.default_pur_price ?? 0)) / (formData.default_pur_price ?? 1)) * 100;
+                    if ((formData.default_pur_price ?? 0) > 0 && salePrice > 0) {
+                      const calc = ((salePrice - (formData.default_pur_price ?? 0)) / (formData.default_pur_price ?? 1)) * 100;
                       setMarkupPercent(Math.round(calc * 100) / 100 + "");
                     } else {
                       setMarkupPercent("");
                     }
                   }}
                   className={`${(formData.default_pur_price ?? 0) > 0 && (formData.default_sale_price ?? 0) > 0 && (formData.default_pur_price ?? 0) > (formData.default_sale_price ?? 0) ? 'border-destructive' : ''}`}
-                  required
+                  placeholder="₹ 0.00"
                 />
                 {(formData.default_pur_price ?? 0) > 0 && (formData.default_sale_price ?? 0) > 0 && (formData.default_pur_price ?? 0) > (formData.default_sale_price ?? 0) && (
                   <p className="text-destructive text-xs font-semibold">⚠ Check sale price</p>
