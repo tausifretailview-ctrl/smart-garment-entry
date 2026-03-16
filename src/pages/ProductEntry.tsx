@@ -2128,26 +2128,23 @@ const ProductEntry = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="default_pur_price">Purchase Price <span className="text-destructive">*</span></Label>
-                <Input
+                <CalculatorInput
                   id="default_pur_price"
-                  type="number"
-                  min="0"
-                  step="0.01"
                   value={formData.default_pur_price ?? ""}
-                  onChange={(e) => {
-                    const purPrice = e.target.value === "" ? undefined : parseFloat(e.target.value) || 0;
+                  onChange={(val) => {
+                    const purPrice = val || 0;
                     const markup = parseFloat(markupPercent);
-                    const newSalePrice = (!isNaN(markup) && (purPrice ?? 0) > 0)
-                      ? Math.round((purPrice ?? 0) * (1 + markup / 100))
+                    const newSalePrice = (!isNaN(markup) && purPrice > 0)
+                      ? Math.round(purPrice * (1 + markup / 100))
                       : formData.default_sale_price;
                     setFormData({
                       ...formData,
                       default_pur_price: purPrice,
-                      ...((!isNaN(markup) && (purPrice ?? 0) > 0) ? { default_sale_price: newSalePrice } : {}),
+                      ...((!isNaN(markup) && purPrice > 0) ? { default_sale_price: newSalePrice } : {}),
                     });
                   }}
                   className={`${(formData.default_pur_price ?? 0) > 0 && (formData.default_sale_price ?? 0) > 0 && (formData.default_pur_price ?? 0) > (formData.default_sale_price ?? 0) ? 'border-destructive' : ''}`}
-                  required
+                  placeholder="₹ 0.00"
                 />
                 {(formData.default_pur_price ?? 0) > 0 && (formData.default_sale_price ?? 0) > 0 && (formData.default_pur_price ?? 0) > (formData.default_sale_price ?? 0) && (
                   <p className="text-destructive text-xs font-semibold">⚠ Pur &gt; Sale!</p>
