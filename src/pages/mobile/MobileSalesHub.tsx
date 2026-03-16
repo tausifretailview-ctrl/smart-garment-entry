@@ -101,110 +101,142 @@ export default function MobileSalesHub() {
     return saleSettings?.invoice_template || 'professional';
   };
 
+  const generatePdfBlob = async (sale: any): Promise<Blob> => {
+    // Fetch sale items
+    const { data: items, error } = await supabase
+      .from('sale_items')
+      .select('*')
+      .eq('sale_id', sale.id)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+
+    const saleItems = items || [];
+
+    // Fetch product details
+    if (saleItems.length > 0) {
+      const productIds = [...new Set(saleItems.map((i: any) => i.product_id).filter(Boolean))];
+      if (productIds.length > 0) {
+        const { data: products } = await supabase
+          .from('products')
+          .select('id, brand, color, style')
+          .in('id', productIds);
+        if (products) {
+          const productMap = Object.fromEntries(products.map(p => [p.id, p]));
+          saleItems.forEach((item: any) => {
+            item.products = productMap[item.product_id] || null;
+          });
+        }
+      }
+    }
+
+    const invoiceWithItems = { ...sale, sale_items: saleItems };
+    setInvoiceToPrint(invoiceWithItems);
+
+    // Wait for render
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    // Poll for printRef readiness
+    const MAX_WAIT = 10000;
+    const startTime = Date.now();
+    const waitForReady = (): Promise<boolean> => new Promise((resolve) => {
+      const poll = () => {
+        const el = printRef.current;
+        const text = (el?.textContent || '').trim();
+        const isReady = el && el.childElementCount > 0 && text.length > 32 && !/^loading\.?\.?\.?$/i.test(text);
+        if (isReady) return resolve(true);
+        if (Date.now() - startTime > MAX_WAIT) return resolve(false);
+        setTimeout(poll, 300);
+      };
+      poll();
+    });
+
+    const ready = await waitForReady();
+    if (!ready || !printRef.current) {
+      throw new Error("Invoice template failed to render");
+    }
+
+    const billFormat = getBillFormat();
+    // Use lower scale on mobile to avoid memory issues
+    const canvas = await html2canvas(printRef.current, {
+      scale: 1.5,
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+    });
+
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+    const pageFormat = billFormat === 'a5' || billFormat === 'a5-horizontal' ? 'a5' : 'a4';
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: pageFormat });
+
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = canvas.width;
+    const imgHeight = canvas.height;
+    const scaledHeight = (imgHeight * pdfWidth) / imgWidth;
+    const singlePageThreshold = pdfHeight * 1.05;
+
+    if (scaledHeight <= singlePageThreshold) {
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, Math.min(scaledHeight, pdfHeight));
+    } else {
+      const pixelsPerPage = (pdfHeight / scaledHeight) * imgHeight;
+      const totalPages = Math.ceil(scaledHeight / pdfHeight);
+      for (let page = 0; page < totalPages; page++) {
+        if (page > 0) pdf.addPage();
+        const sourceY = page * pixelsPerPage;
+        const sourceH = Math.min(pixelsPerPage, imgHeight - sourceY);
+        const sliceScaledHeight = (sourceH * pdfWidth) / imgWidth;
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = imgWidth;
+        pageCanvas.height = Math.ceil(sourceH);
+        const ctx = pageCanvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(canvas, 0, sourceY, imgWidth, sourceH, 0, 0, imgWidth, Math.ceil(sourceH));
+          const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.92);
+          pdf.addImage(pageImgData, 'JPEG', 0, 0, pdfWidth, sliceScaledHeight);
+        }
+      }
+    }
+
+    return pdf.output('blob');
+  };
+
   const handleDownloadPDF = async (sale: any) => {
     if (isGeneratingPdf) return;
     setIsGeneratingPdf(sale.id);
-
     toast({ title: "Generating PDF", description: "Please wait..." });
 
     try {
-      // Fetch sale items
-      const { data: items, error } = await supabase
-        .from('sale_items')
-        .select('*')
-        .eq('sale_id', sale.id)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: true });
-      if (error) throw error;
+      const blob = await generatePdfBlob(sale);
+      const fileName = `Invoice_${sale.sale_number}_${format(new Date(sale.sale_date), 'ddMMyyyy')}.pdf`;
 
-      const saleItems = items || [];
-
-      // Fetch product details
-      if (saleItems.length > 0) {
-        const productIds = [...new Set(saleItems.map((i: any) => i.product_id).filter(Boolean))];
-        if (productIds.length > 0) {
-          const { data: products } = await supabase
-            .from('products')
-            .select('id, brand, color, style')
-            .in('id', productIds);
-          if (products) {
-            const productMap = Object.fromEntries(products.map(p => [p.id, p]));
-            saleItems.forEach((item: any) => {
-              item.products = productMap[item.product_id] || null;
-            });
+      // Try native share on mobile (more reliable than download)
+      if (navigator.share) {
+        try {
+          const file = new File([blob], fileName, { type: 'application/pdf' });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: `Invoice ${sale.sale_number}` });
+            toast({ title: "Success", description: "PDF shared successfully" });
+            return;
           }
+        } catch (shareErr: any) {
+          if (shareErr.name === 'AbortError') return;
+          // Fall through to download
         }
       }
 
-      const invoiceWithItems = { ...sale, sale_items: saleItems };
-      setInvoiceToPrint(invoiceWithItems);
-
-      // Wait for render
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // Poll for printRef readiness
-      const MAX_WAIT = 10000;
-      const startTime = Date.now();
-      const waitForReady = (): Promise<boolean> => new Promise((resolve) => {
-        const poll = () => {
-          const el = printRef.current;
-          const text = (el?.textContent || '').trim();
-          const isReady = el && el.childElementCount > 0 && text.length > 32 && !/^loading\.?\.?\.?$/i.test(text);
-          if (isReady) return resolve(true);
-          if (Date.now() - startTime > MAX_WAIT) return resolve(false);
-          setTimeout(poll, 300);
-        };
-        poll();
-      });
-
-      const ready = await waitForReady();
-      if (!ready || !printRef.current) {
-        throw new Error("Invoice template failed to render");
-      }
-
-      const billFormat = getBillFormat();
-      const canvas = await html2canvas(printRef.current, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-      });
-
-      const imgData = canvas.toDataURL('image/png');
-      const pageFormat = billFormat === 'a5' || billFormat === 'a5-horizontal' ? 'a5' : 'a4';
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: pageFormat });
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      const scaledWidth = pdfWidth;
-      const scaledHeight = (imgHeight * pdfWidth) / imgWidth;
-      const singlePageThreshold = pdfHeight * 1.05;
-
-      if (scaledHeight <= singlePageThreshold) {
-        pdf.addImage(imgData, 'PNG', 0, 0, scaledWidth, Math.min(scaledHeight, pdfHeight));
-      } else {
-        const pixelsPerPage = (pdfHeight / scaledHeight) * imgHeight;
-        const totalPages = Math.ceil(scaledHeight / pdfHeight);
-        for (let page = 0; page < totalPages; page++) {
-          if (page > 0) pdf.addPage();
-          const sourceY = page * pixelsPerPage;
-          const sourceH = Math.min(pixelsPerPage, imgHeight - sourceY);
-          const sliceScaledHeight = (sourceH * pdfWidth) / imgWidth;
-          const pageCanvas = document.createElement('canvas');
-          pageCanvas.width = imgWidth;
-          pageCanvas.height = Math.ceil(sourceH);
-          const ctx = pageCanvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(canvas, 0, sourceY, imgWidth, sourceH, 0, 0, imgWidth, Math.ceil(sourceH));
-            const pageImgData = pageCanvas.toDataURL('image/png');
-            pdf.addImage(pageImgData, 'PNG', 0, 0, pdfWidth, sliceScaledHeight);
-          }
-        }
-      }
-
-      pdf.save(`Invoice_${sale.sale_number}_${format(new Date(sale.sale_date), 'ddMMyyyy')}.pdf`);
+      // Fallback: create an <a> download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 1000);
       toast({ title: "Success", description: "PDF downloaded successfully" });
     } catch (err) {
       console.error('PDF generation error:', err);
