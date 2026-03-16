@@ -1519,7 +1519,7 @@ export default function BarcodePrinting() {
             }));
             setActiveBarTab("precision");
             // Set the preset name so it shows as selected in the dropdown
-            setActivePrecisionTemplateName(defaultPreset.name);
+            setActivePrecisionTemplateName(`preset:${defaultPreset.name}`);
             if (location.state?.purchaseItems) {
               toast.success(`Auto-loaded default preset "${defaultPreset.name}"`);
             }
