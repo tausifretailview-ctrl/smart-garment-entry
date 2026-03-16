@@ -1206,14 +1206,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
                 <div className="space-y-2">
                   <Label htmlFor="default_sale_price">Sale Price <span className="text-destructive">*</span></Label>
-                  <Input
+                  <CalculatorInput
                     id="default_sale_price"
-                    type="number"
                     value={formData.default_sale_price ?? ""}
-                    onChange={(e) => {
-                      const salePrice = e.target.value ? Number(e.target.value) : undefined;
+                    onChange={(val) => {
+                      const salePrice = val || undefined;
                       setFormData({ ...formData, default_sale_price: salePrice });
-                      // Reverse-calculate markup
                       const purPrice = formData.default_pur_price;
                       if (salePrice && salePrice > 0 && purPrice && purPrice > 0) {
                         setMarkupPercent((((salePrice - purPrice) / purPrice) * 100).toFixed(2));
@@ -1222,7 +1220,6 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       }
                     }}
                     placeholder="0"
-                    required
                   />
                 </div>
 
