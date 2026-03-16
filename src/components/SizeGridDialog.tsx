@@ -115,15 +115,8 @@ export function SizeGridDialog({
   // Check if product has multiple colors (truly needs color selection)
   const hasMultipleColors = uniqueColors.length > 1;
 
-  // Natural size sort helper
-  const sortBySize = (a: Variant, b: Variant) => {
-    const numA = parseFloat(a.size);
-    const numB = parseFloat(b.size);
-    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-    if (!isNaN(numA)) return -1;
-    if (!isNaN(numB)) return 1;
-    return a.size.localeCompare(b.size);
-  };
+  // Standard garment size sort helper
+  const sortBySize = (a: Variant, b: Variant) => compareSizes(a.size, b.size);
 
   // Filter variants by selected color and sort by size
   const filteredVariants = useMemo(() => {
