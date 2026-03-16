@@ -1932,6 +1932,156 @@ export default function Settings() {
                       <p className="text-xs text-muted-foreground">Applies to all thermal printers (sale + POS)</p>
                     </div>
                   )}
+
+                  {/* Default Printer Selection — quick setup for direct printing */}
+                  <div className="space-y-3 pt-3 border-t border-dashed">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <p className="text-sm font-medium">Default Printer (Direct Print)</p>
+                        <p className="text-xs text-muted-foreground">
+                          Set default printer to skip browser print dialog. Requires QZ Tray installed.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={settings.bill_barcode_settings?.enable_direct_print === true}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              enable_direct_print: checked,
+                              direct_print_auto_print: checked, // auto-enable auto print
+                            },
+                          })
+                        }
+                      />
+                    </div>
+
+                    {settings.bill_barcode_settings?.enable_direct_print && (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Sale Invoice Printer</Label>
+                            <Select
+                              value={settings.bill_barcode_settings?.direct_print_sale_printer || ''}
+                              onValueChange={(value) =>
+                                setSettings({
+                                  ...settings,
+                                  bill_barcode_settings: {
+                                    ...settings.bill_barcode_settings,
+                                    direct_print_sale_printer: value,
+                                  },
+                                })
+                              }
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="Select printer..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {detectedPrinters.map(p => (
+                                  <SelectItem key={p} value={p}>{p}</SelectItem>
+                                ))}
+                                {detectedPrinters.length === 0 && (
+                                  <div className="p-2 text-xs text-muted-foreground">Click "Detect Printers" first</div>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">POS Bill Printer</Label>
+                            <Select
+                              value={settings.bill_barcode_settings?.direct_print_pos_printer || ''}
+                              onValueChange={(value) =>
+                                setSettings({
+                                  ...settings,
+                                  bill_barcode_settings: {
+                                    ...settings.bill_barcode_settings,
+                                    direct_print_pos_printer: value,
+                                  },
+                                })
+                              }
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="Select printer..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {detectedPrinters.map(p => (
+                                  <SelectItem key={p} value={p}>{p}</SelectItem>
+                                ))}
+                                {detectedPrinters.length === 0 && (
+                                  <div className="p-2 text-xs text-muted-foreground">Click "Detect Printers" first</div>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={async () => {
+                              const { getQZPrinters } = await import('@/utils/directInvoicePrint');
+                              const printers = await getQZPrinters();
+                              if (printers.length === 0) {
+                                toast({
+                                  title: "No Printers Found",
+                                  description: "QZ Tray is not running. Install from qz.io/download",
+                                  variant: "destructive",
+                                });
+                              } else {
+                                setDetectedPrinters(printers);
+                                toast({
+                                  title: `${printers.length} Printer(s) Detected`,
+                                  description: "Select your printers from the dropdowns above.",
+                                });
+                              }
+                            }}
+                          >
+                            🔍 Detect Printers
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={async () => {
+                              const { printTestReceipt } = await import('@/utils/directInvoicePrint');
+                              const printer = settings.bill_barcode_settings?.direct_print_pos_printer 
+                                || settings.bill_barcode_settings?.direct_print_sale_printer;
+                              if (!printer) {
+                                toast({ title: "Select a printer first", variant: "destructive" });
+                                return;
+                              }
+                              const paper = (settings.bill_barcode_settings?.direct_print_pos_paper || '80mm') as any;
+                              await printTestReceipt(printer, paper);
+                            }}
+                          >
+                            🖨️ Test Print
+                          </Button>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-medium">Auto Print After Save</p>
+                            <p className="text-[11px] text-muted-foreground">Print instantly without confirmation dialog</p>
+                          </div>
+                          <Switch
+                            checked={settings.bill_barcode_settings?.direct_print_auto_print === true}
+                            onCheckedChange={(checked) =>
+                              setSettings({
+                                ...settings,
+                                bill_barcode_settings: {
+                                  ...settings.bill_barcode_settings,
+                                  direct_print_auto_print: checked,
+                                },
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Item Details Display Settings */}
