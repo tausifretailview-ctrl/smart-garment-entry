@@ -6,6 +6,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CalculatorInput } from "@/components/ui/calculator-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -1164,14 +1165,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
                 <div className="space-y-2">
                   <Label htmlFor="default_pur_price">Purchase Price <span className="text-destructive">*</span></Label>
-                  <Input
+                  <CalculatorInput
                     id="default_pur_price"
-                    type="number"
                     value={formData.default_pur_price ?? ""}
-                    onChange={(e) => {
-                      const purPrice = e.target.value ? Number(e.target.value) : undefined;
+                    onChange={(val) => {
+                      const purPrice = val || undefined;
                       const updates: Partial<typeof formData> = { default_pur_price: purPrice };
-                      // Recalculate sale price from markup if markup exists and pur price is valid
                       if (purPrice && purPrice > 0 && markupPercent !== "") {
                         const mk = parseFloat(markupPercent);
                         if (!isNaN(mk)) {
@@ -1181,7 +1180,6 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       setFormData({ ...formData, ...updates });
                     }}
                     placeholder="0"
-                    required
                   />
                 </div>
 
@@ -1208,14 +1206,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
                 <div className="space-y-2">
                   <Label htmlFor="default_sale_price">Sale Price <span className="text-destructive">*</span></Label>
-                  <Input
+                  <CalculatorInput
                     id="default_sale_price"
-                    type="number"
                     value={formData.default_sale_price ?? ""}
-                    onChange={(e) => {
-                      const salePrice = e.target.value ? Number(e.target.value) : undefined;
+                    onChange={(val) => {
+                      const salePrice = val || undefined;
                       setFormData({ ...formData, default_sale_price: salePrice });
-                      // Reverse-calculate markup
                       const purPrice = formData.default_pur_price;
                       if (salePrice && salePrice > 0 && purPrice && purPrice > 0) {
                         setMarkupPercent((((salePrice - purPrice) / purPrice) * 100).toFixed(2));
@@ -1224,20 +1220,17 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       }
                     }}
                     placeholder="0"
-                    required
                   />
                 </div>
 
                 {showMrp && (
                   <div className="space-y-2">
                     <Label htmlFor="default_mrp">MRP <span className="text-destructive">*</span></Label>
-                    <Input
+                    <CalculatorInput
                       id="default_mrp"
-                      type="number"
                       value={formData.default_mrp ?? ""}
-                      onChange={(e) => setFormData({ ...formData, default_mrp: e.target.value ? Number(e.target.value) : undefined })}
+                      onChange={(val) => setFormData({ ...formData, default_mrp: val || undefined })}
                       placeholder="MRP"
-                      required
                     />
                   </div>
                 )}
@@ -1387,10 +1380,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                             )}
                             <TableCell>{variant.size}</TableCell>
                             <TableCell>
-                              <Input
-                                type="number"
+                              <CalculatorInput
                                 value={variant.pur_price || ""}
-                                onChange={(e) => handleVariantChange(index, "pur_price", e.target.value === "" ? 0 : Number(e.target.value))}
+                                onChange={(val) => handleVariantChange(index, "pur_price", val)}
                                 className={cn("w-24", variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && "border-destructive text-destructive")}
                                 placeholder="0"
                               />
@@ -1399,20 +1391,18 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                               )}
                             </TableCell>
                             <TableCell>
-                              <Input
-                                type="number"
+                              <CalculatorInput
                                 value={variant.sale_price || ""}
-                                onChange={(e) => handleVariantChange(index, "sale_price", e.target.value === "" ? 0 : Number(e.target.value))}
+                                onChange={(val) => handleVariantChange(index, "sale_price", val)}
                                 className={cn("w-24", variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && "border-destructive text-destructive")}
                                 placeholder="0"
                               />
                             </TableCell>
                             {showMrp && (
                               <TableCell>
-                                <Input
-                                  type="number"
+                                <CalculatorInput
                                   value={variant.mrp ?? ""}
-                                  onChange={(e) => handleVariantChange(index, "mrp", e.target.value ? Number(e.target.value) : null)}
+                                  onChange={(val) => handleVariantChange(index, "mrp", val || null)}
                                   className="w-24"
                                 />
                               </TableCell>
