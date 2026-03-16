@@ -8,6 +8,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CalculatorInput } from "@/components/ui/calculator-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -2542,10 +2543,9 @@ const PurchaseEntry = () => {
                         </div>
                       </div>
                       <div className="text-right shrink-0 ml-3">
-                        <Input
-                          type="number"
+                        <CalculatorInput
                           value={item.pur_price}
-                          onChange={(e) => { const u = [...lineItems]; u[realIdx] = { ...u[realIdx], pur_price: +e.target.value }; setLineItems(u); }}
+                          onChange={(val) => { const u = [...lineItems]; u[realIdx] = { ...u[realIdx], pur_price: val }; setLineItems(u); }}
                           className="w-20 h-8 text-right text-sm rounded-lg border"
                           placeholder="Price"
                         />
@@ -3013,54 +3013,30 @@ const PurchaseEntry = () => {
                           />
                         </TableCell>
                         <TableCell className="w-[120px]">
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
+                          <CalculatorInput
                             value={item.pur_price}
-                            onChange={(e) =>
-                              updateLineItem(
-                                item.temp_id,
-                                "pur_price",
-                                parseFloat(e.target.value) || 0
-                              )
+                            onChange={(val) =>
+                              updateLineItem(item.temp_id, "pur_price", val)
                             }
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             className="w-full text-right bg-green-50 border-green-200 text-green-800 font-bold"
                           />
                         </TableCell>
                         <TableCell className="w-[120px]">
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
+                          <CalculatorInput
                             value={item.sale_price}
-                            onChange={(e) =>
-                              updateLineItem(
-                                item.temp_id,
-                                "sale_price",
-                                parseFloat(e.target.value) || 0
-                              )
+                            onChange={(val) =>
+                              updateLineItem(item.temp_id, "sale_price", val)
                             }
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             className="w-full text-right bg-blue-50 border-blue-200 text-blue-800 font-bold"
                           />
                         </TableCell>
                         {showMrp && (
                           <TableCell className="w-[120px]">
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
+                            <CalculatorInput
                               value={item.mrp || 0}
-                              onChange={(e) =>
-                                updateLineItem(
-                                  item.temp_id,
-                                  "mrp",
-                                  parseFloat(e.target.value) || 0
-                                )
+                              onChange={(val) =>
+                                updateLineItem(item.temp_id, "mrp", val)
                               }
-                              onWheel={(e) => (e.target as HTMLInputElement).blur()}
                               className="w-full text-right"
                             />
                           </TableCell>
