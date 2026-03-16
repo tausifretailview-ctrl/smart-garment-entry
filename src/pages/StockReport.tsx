@@ -723,7 +723,7 @@ export default function StockReport() {
 
   // Size-wise stock report data
   const sizeWiseData = useMemo(() => {
-    const allSizes = [...new Set(filteredStockItems.map(i => i.size))].sort();
+    const allSizes = sortSizes([...new Set(filteredStockItems.map(i => i.size))]);
     const productMap = new Map<string, SizeWiseRow>();
     
     filteredStockItems.forEach(item => {

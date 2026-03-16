@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
+import { sortSizes } from "@/utils/sizeSort";
 
 interface SizeStockDialogProps {
   open: boolean;

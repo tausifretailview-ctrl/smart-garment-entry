@@ -171,7 +171,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
       if (invoiceFormat !== 'wholesale-size-grouping') return [];
       const sizes = new Set<string>();
       items.forEach(item => sizes.add(item.size));
-      return Array.from(sizes).sort();
+      return sortSizes(Array.from(sizes));
     }, [items, invoiceFormat]);
 
     const renderPage = (pageItems: SaleOrderItem[], pageIndex: number) => {
