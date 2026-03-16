@@ -5193,8 +5193,11 @@ export default function BarcodePrinting() {
 
                   // Also save to active template if one is loaded
                   if (activePrecisionTemplateName) {
+                    const cleanName = activePrecisionTemplateName.startsWith("preset:") 
+                      ? activePrecisionTemplateName.replace("preset:", "") 
+                      : activePrecisionTemplateName;
                     const updatedTemplate: LabelTemplate = {
-                      name: activePrecisionTemplateName,
+                      name: cleanName,
                       config: { ...configToSave },
                       labelWidth: precisionSettings.labelWidth,
                       labelHeight: precisionSettings.labelHeight,
@@ -5206,16 +5209,16 @@ export default function BarcodePrinting() {
                       .from("printer_presets")
                       .update({ label_config: configToSave as any })
                       .eq("organization_id", currentOrganization.id)
-                      .eq("name", activePrecisionTemplateName);
+                      .eq("name", cleanName);
                     
                     // Update local dbPresets state
                     setDbPresets(prev => prev.map(p => 
-                      p.name === activePrecisionTemplateName 
+                      p.name === cleanName 
                         ? { ...p, labelConfig: configToSave } 
                         : p
                     ));
                     
-                    toast.success(`Design saved & template "${activePrecisionTemplateName}" updated`);
+                    toast.success(`Design saved & template "${cleanName}" updated`);
                   } else {
                     toast.success("Label design saved successfully");
                   }
