@@ -605,7 +605,14 @@ export default function DailySaleAnalysis() {
           </div>
 
           {/* Mobile table */}
-          {isLoading ? <TableSkeleton /> : (
+          {isLoading ? <TableSkeleton /> : queryError ? (
+            <div className="text-center py-12 space-y-2">
+              <AlertTriangle className="h-10 w-10 text-destructive mx-auto" />
+              <p className="text-sm font-semibold text-destructive">Failed to load report</p>
+              <p className="text-xs text-muted-foreground">{(queryError as any)?.message || "Unknown error"}</p>
+              <Button variant="outline" size="sm" onClick={() => refetch()} className="mt-2">Retry</Button>
+            </div>
+          ) : (
             <div className="space-y-2">
               {filteredItems.map((item, idx) => (
                 <div key={item.variantId} className="bg-card rounded-lg border p-3 space-y-1" onClick={() => toggleExpand(item.variantId)}>
@@ -635,7 +642,13 @@ export default function DailySaleAnalysis() {
                   )}
                 </div>
               ))}
-              {filteredItems.length === 0 && <div className="text-center py-12 text-muted-foreground">No items sold in selected period</div>}
+              {filteredItems.length === 0 && (
+                <div className="text-center py-12 text-muted-foreground space-y-1">
+                  <Package className="h-10 w-10 mx-auto opacity-40" />
+                  <p>No items sold in selected period</p>
+                  <p className="text-xs">Try selecting a different date range</p>
+                </div>
+              )}
             </div>
           )}
         </div>
