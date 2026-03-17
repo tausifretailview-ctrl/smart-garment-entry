@@ -1537,8 +1537,9 @@ export default function BarcodePrinting() {
               enabled: true,
             }));
             setActiveBarTab("precision");
-            // Set the preset name so it shows as selected in the dropdown
-            setActivePrecisionTemplateName(`preset:${defaultPreset.name}`);
+            // Check if default preset name matches a saved label template
+            const isLabelTemplate = savedLabelTemplates.some(t => t.name === defaultPreset.name);
+            setActivePrecisionTemplateName(isLabelTemplate ? defaultPreset.name : `preset:${defaultPreset.name}`);
             if (location.state?.purchaseItems) {
               toast.success(`Auto-loaded default preset "${defaultPreset.name}"`);
             }
