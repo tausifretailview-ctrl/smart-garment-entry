@@ -800,7 +800,7 @@ export default function DailySaleAnalysis() {
                   </TableHeader>
                   <TableBody>
                     {filteredItems.length === 0 ? (
-                      {queryError ? (
+                      queryError ? (
                         <TableRow>
                           <TableCell colSpan={15} className="text-center py-16">
                             <div className="space-y-2">
@@ -819,7 +819,7 @@ export default function DailySaleAnalysis() {
                             <p className="text-xs mt-1">Try selecting a different date range</p>
                           </TableCell>
                         </TableRow>
-                      )}
+                      )
                     ) : filteredItems.map((item, idx) => (
                       <>
                         <TableRow key={item.variantId} className="cursor-pointer hover:bg-primary/5" onClick={() => toggleExpand(item.variantId)}>
