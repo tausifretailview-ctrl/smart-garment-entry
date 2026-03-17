@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
-import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, addDays } from "date-fns";
+import { format, addDays } from "date-fns";
 import {
   Search, Package, IndianRupee, TrendingUp, FileSpreadsheet, AlertTriangle,
   ChevronDown, ChevronUp, Phone, MessageSquare, ShoppingCart, RefreshCw, Loader2,
@@ -81,15 +81,46 @@ const REPORT_CACHE = { staleTime: 60_000, gcTime: 5 * 60_000, refetchOnWindowFoc
 
 const formatINR = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
-const getDateRange = (period: QuickPeriod): { from: Date; to: Date } => {
-  const today = new Date();
+// Convert to IST-aware dates, then return UTC ISO strings for Supabase queries
+const getISTDateRange = (period: QuickPeriod): { fromISO: string; toISO: string; fromDate: Date; toDate: Date } => {
+  // Get current time in IST
+  const now = new Date();
+  const istNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+
+  let startDate: Date;
+  let endDate: Date;
+
   switch (period) {
-    case "today": return { from: startOfDay(today), to: endOfDay(today) };
-    case "yesterday": return { from: startOfDay(subDays(today, 1)), to: endOfDay(subDays(today, 1)) };
-    case "last7": return { from: startOfDay(subDays(today, 6)), to: endOfDay(today) };
-    case "last30": return { from: startOfDay(subDays(today, 29)), to: endOfDay(today) };
-    case "thisMonth": return { from: startOfMonth(today), to: endOfMonth(today) };
+    case "today":
+      startDate = new Date(istNow); startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(istNow); endDate.setHours(23, 59, 59, 999);
+      break;
+    case "yesterday":
+      startDate = new Date(istNow); startDate.setDate(startDate.getDate() - 1); startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(startDate); endDate.setHours(23, 59, 59, 999);
+      break;
+    case "last7":
+      startDate = new Date(istNow); startDate.setDate(startDate.getDate() - 6); startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(istNow); endDate.setHours(23, 59, 59, 999);
+      break;
+    case "last30":
+      startDate = new Date(istNow); startDate.setDate(startDate.getDate() - 29); startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(istNow); endDate.setHours(23, 59, 59, 999);
+      break;
+    case "thisMonth":
+      startDate = new Date(istNow.getFullYear(), istNow.getMonth(), 1, 0, 0, 0, 0);
+      endDate = new Date(istNow.getFullYear(), istNow.getMonth() + 1, 0, 23, 59, 59, 999);
+      break;
   }
+
+  // Convert IST dates to UTC by subtracting 5:30 (330 minutes)
+  const toUTC = (istDate: Date) => {
+    const utc = new Date(istDate);
+    utc.setMinutes(utc.getMinutes() - 330);
+    return utc.toISOString();
+  };
+
+  return { fromISO: toUTC(startDate), toISO: toUTC(endDate), fromDate: startDate, toDate: endDate };
 };
 
 const getStockStatus = (currentStock: number, daysLeft: number | null): SaleItemAnalysis["stockStatus"] => {
@@ -121,19 +152,24 @@ export default function DailySaleAnalysis() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
-  const dateRange = useMemo(() => getDateRange(period), [period]);
+  const dateRange = useMemo(() => getISTDateRange(period), [period]);
   const isToday = period === "today";
 
   // ---- MAIN DATA QUERY ----
-  const { data: analysisData, isLoading, refetch } = useQuery({
-    queryKey: ["daily-sale-analysis", orgId, format(dateRange.from, "yyyy-MM-dd"), format(dateRange.to, "yyyy-MM-dd")],
+  const { data: analysisData, isLoading, error: queryError, refetch } = useQuery({
+    queryKey: ["daily-sale-analysis", orgId, dateRange.fromISO, dateRange.toISO],
     queryFn: async () => {
       if (!orgId) return [];
 
-      const fromStr = format(dateRange.from, "yyyy-MM-dd'T'HH:mm:ss");
-      const toStr = format(dateRange.to, "yyyy-MM-dd'T'HH:mm:ss");
-      const thirtyDaysAgo = format(subDays(new Date(), 30), "yyyy-MM-dd'T'HH:mm:ss");
-      const sevenDaysAgo = format(subDays(new Date(), 7), "yyyy-MM-dd'T'HH:mm:ss");
+      const fromStr = dateRange.fromISO;
+      const toStr = dateRange.toISO;
+      // For velocity calculations, also compute 30-day and 7-day ranges in IST
+      const vel30 = getISTDateRange("last30");
+      const vel7 = getISTDateRange("last7");
+      const thirtyDaysAgo = vel30.fromISO;
+      const sevenDaysAgo = vel7.fromISO;
+
+      console.log('=== SALE ANALYSIS DEBUG ===', { period, fromStr, toStr, orgId });
 
       // 1. Fetch sale items in date range
       const allSaleItems: any[] = [];
@@ -145,7 +181,7 @@ export default function DailySaleAnalysis() {
           .from("sale_items")
           .select(`
             variant_id, product_name, size, color, barcode, hsn_code, quantity, unit_price, line_total, mrp, discount_percent,
-            sales!inner(id, sale_date, customer_name, bill_number, organization_id, deleted_at, salesman)
+            sales!inner(id, sale_date, customer_name, sale_number, organization_id, deleted_at, salesman)
           `)
           .eq("sales.organization_id", orgId)
           .is("sales.deleted_at", null)
@@ -160,7 +196,8 @@ export default function DailySaleAnalysis() {
         } else hasMore = false;
       }
 
-      // Aggregate by variant_id
+      console.log('Sale items fetched:', allSaleItems.length, 'sample:', allSaleItems.slice(0, 2));
+
       const variantMap = new Map<string, {
         variantId: string; productName: string; size: string; color: string;
         barcode: string; hsnCode: string; totalQty: number; totalAmount: number;
@@ -173,7 +210,7 @@ export default function DailySaleAnalysis() {
         const existing = variantMap.get(vid);
         const saleInfo = {
           date: item.sales?.sale_date || "",
-          invoice: item.sales?.bill_number || "",
+          invoice: item.sales?.sale_number || "",
           customer: item.sales?.customer_name || "Walk-in",
           qty: item.quantity || 0,
           rate: item.unit_price || 0,
@@ -246,21 +283,21 @@ export default function DailySaleAnalysis() {
       for (let i = 0; i < variantIds.length; i += 50) {
         const batch = variantIds.slice(i, i + 50);
         const { data: purItems } = await supabase
-          .from("purchase_bill_items" as any)
-          .select("variant_id, quantity, unit_price, purchase_bills!inner(bill_date, bill_number, supplier_name, organization_id, deleted_at)")
-          .in("variant_id", batch)
+          .from("purchase_items")
+          .select("sku_id, qty, pur_price, purchase_bills!inner(bill_date, software_bill_no, supplier_name, supplier_id, organization_id, deleted_at)")
+          .in("sku_id", batch)
           .eq("purchase_bills.organization_id", orgId)
           .is("purchase_bills.deleted_at", null)
           .order("created_at", { ascending: false });
         if (purItems) {
           for (const pi of purItems as any[]) {
-            if (!purchaseMap.has(pi.variant_id)) {
+            if (!purchaseMap.has(pi.sku_id)) {
               const pb = pi.purchase_bills;
-              purchaseMap.set(pi.variant_id, {
+              purchaseMap.set(pi.sku_id, {
                 date: pb?.bill_date || "",
-                qty: pi.quantity || 0,
-                rate: pi.unit_price || 0,
-                billNo: pb?.bill_number || "",
+                qty: pi.qty || 0,
+                rate: pi.pur_price || 0,
+                billNo: pb?.software_bill_no || "",
                 supplierName: pb?.supplier_name || "",
                 supplierPhone: "",
               });
@@ -416,7 +453,7 @@ export default function DailySaleAnalysis() {
 
   // ---- WHATSAPP SHARE ----
   const handleWhatsAppShare = () => {
-    const dateStr = format(dateRange.from, "dd/MM/yyyy");
+    const dateStr = format(dateRange.fromDate, "dd/MM/yyyy");
     const topItems = filteredItems.slice(0, 5).map((i, idx) =>
       `${idx + 1}. ${i.itemDescription} ${i.size} (${i.qtySoldToday} pcs) — ${formatINR(i.saleAmount)}`
     ).join("\n");
@@ -465,7 +502,7 @@ export default function DailySaleAnalysis() {
     const ws2 = XLSX.utils.json_to_sheet(suppRows);
     XLSX.utils.book_append_sheet(wb, ws2, "Supplier Summary");
 
-    XLSX.writeFile(wb, `Daily-Sale-Analysis-${format(dateRange.from, "dd-MM-yyyy")}.xlsx`);
+    XLSX.writeFile(wb, `Daily-Sale-Analysis-${format(dateRange.fromDate, "dd-MM-yyyy")}.xlsx`);
   };
 
   // ---- PDF EXPORT ----
@@ -474,7 +511,7 @@ export default function DailySaleAnalysis() {
     doc.setFontSize(16);
     doc.text("Daily Sale Items — Stock & Reorder Analysis", 14, 15);
     doc.setFontSize(10);
-    doc.text(`Date: ${format(dateRange.from, "dd/MM/yyyy")} to ${format(dateRange.to, "dd/MM/yyyy")}`, 14, 22);
+    doc.text(`Date: ${format(dateRange.fromDate, "dd/MM/yyyy")} to ${format(dateRange.toDate, "dd/MM/yyyy")}`, 14, 22);
     doc.text(`Items: ${summary.totalItems} | Qty: ${summary.totalQty} | Revenue: ${formatINR(summary.totalRevenue)}`, 14, 28);
 
     let y = 36;
@@ -499,7 +536,7 @@ export default function DailySaleAnalysis() {
       y += 4.5;
     });
 
-    doc.save(`Daily-Sale-Analysis-${format(dateRange.from, "dd-MM-yyyy")}.pdf`);
+    doc.save(`Daily-Sale-Analysis-${format(dateRange.fromDate, "dd-MM-yyyy")}.pdf`);
   };
 
   const StockBadge = ({ status }: { status: SaleItemAnalysis["stockStatus"] }) => {
@@ -571,7 +608,14 @@ export default function DailySaleAnalysis() {
           </div>
 
           {/* Mobile table */}
-          {isLoading ? <TableSkeleton /> : (
+          {isLoading ? <TableSkeleton /> : queryError ? (
+            <div className="text-center py-12 space-y-2">
+              <AlertTriangle className="h-10 w-10 text-destructive mx-auto" />
+              <p className="text-sm font-semibold text-destructive">Failed to load report</p>
+              <p className="text-xs text-muted-foreground">{(queryError as any)?.message || "Unknown error"}</p>
+              <Button variant="outline" size="sm" onClick={() => refetch()} className="mt-2">Retry</Button>
+            </div>
+          ) : (
             <div className="space-y-2">
               {filteredItems.map((item, idx) => (
                 <div key={item.variantId} className="bg-card rounded-lg border p-3 space-y-1" onClick={() => toggleExpand(item.variantId)}>
@@ -601,7 +645,13 @@ export default function DailySaleAnalysis() {
                   )}
                 </div>
               ))}
-              {filteredItems.length === 0 && <div className="text-center py-12 text-muted-foreground">No items sold in selected period</div>}
+              {filteredItems.length === 0 && (
+                <div className="text-center py-12 text-muted-foreground space-y-1">
+                  <Package className="h-10 w-10 mx-auto opacity-40" />
+                  <p>No items sold in selected period</p>
+                  <p className="text-xs">Try selecting a different date range</p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -753,11 +803,26 @@ export default function DailySaleAnalysis() {
                   </TableHeader>
                   <TableBody>
                     {filteredItems.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={15} className="text-center py-16 text-muted-foreground">
-                          No items sold in selected period
-                        </TableCell>
-                      </TableRow>
+                      queryError ? (
+                        <TableRow>
+                          <TableCell colSpan={15} className="text-center py-16">
+                            <div className="space-y-2">
+                              <AlertTriangle className="h-10 w-10 text-destructive mx-auto" />
+                              <p className="text-sm font-semibold text-destructive">Failed to load report</p>
+                              <p className="text-xs text-muted-foreground">{(queryError as any)?.message}</p>
+                              <Button variant="outline" size="sm" onClick={() => refetch()}>Retry</Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={15} className="text-center py-16 text-muted-foreground">
+                            <Package className="h-10 w-10 mx-auto opacity-40 mb-2" />
+                            <p>No items sold in selected period</p>
+                            <p className="text-xs mt-1">Try selecting a different date range</p>
+                          </TableCell>
+                        </TableRow>
+                      )
                     ) : filteredItems.map((item, idx) => (
                       <>
                         <TableRow key={item.variantId} className="cursor-pointer hover:bg-primary/5" onClick={() => toggleExpand(item.variantId)}>
