@@ -4886,7 +4886,6 @@ export default function BarcodePrinting() {
                     }, { onConflict: "organization_id,name" });
                   if (error) { toast.error("Failed to save preset"); return; }
                   toast.success(`Preset "${preset.name}" saved`);
-                  // Refresh presets
                   const { data } = await supabase
                     .from("printer_presets")
                     .select("*")
@@ -4917,13 +4916,13 @@ export default function BarcodePrinting() {
                   }
                   if (preset.a4Cols) setPrecisionSettings((prev) => ({ ...prev, a4Cols: preset.a4Cols! }));
                   if (preset.a4Rows) setPrecisionSettings((prev) => ({ ...prev, a4Rows: preset.a4Rows! }));
-                  // Auto-detect print mode from preset
                   const mode = preset.printMode || (preset.a4Cols && preset.a4Rows ? 'a4' : 'thermal');
                   setPrecisionSettings((prev) => ({ ...prev, printMode: mode }));
                   const isLabelTemplate = savedLabelTemplates.some(t => t.name === preset.name);
                   setActivePrecisionTemplateName(isLabelTemplate ? preset.name : null);
                 }}
                 labelConfig={precisionSettings.labelConfig || undefined}
+                savedTemplates={savedLabelTemplates}
                 sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
                 activePresetValue={activePrecisionTemplateName}
               />
