@@ -207,7 +207,7 @@ export default function DailySaleAnalysis() {
         const existing = variantMap.get(vid);
         const saleInfo = {
           date: item.sales?.sale_date || "",
-          invoice: item.sales?.bill_number || "",
+          invoice: item.sales?.sale_number || "",
           customer: item.sales?.customer_name || "Walk-in",
           qty: item.quantity || 0,
           rate: item.unit_price || 0,
