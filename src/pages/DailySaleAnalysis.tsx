@@ -179,7 +179,7 @@ export default function DailySaleAnalysis() {
           .from("sale_items")
           .select(`
             variant_id, product_name, size, color, barcode, hsn_code, quantity, unit_price, line_total, mrp, discount_percent,
-            sales!inner(id, sale_date, customer_name, bill_number, organization_id, deleted_at, salesman)
+            sales!inner(id, sale_date, customer_name, sale_number, organization_id, deleted_at, salesman)
           `)
           .eq("sales.organization_id", orgId)
           .is("sales.deleted_at", null)
