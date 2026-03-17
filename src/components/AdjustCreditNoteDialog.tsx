@@ -156,7 +156,7 @@ export function AdjustCreditNoteDialog({
             reference_id: supplierId,
             description: `Refund received for Credit Note: ${creditNoteNumber}`,
             total_amount: creditAmount,
-            payment_mode: refundMode,
+            payment_method: refundMode,
           });
 
         if (receiptError) throw receiptError;

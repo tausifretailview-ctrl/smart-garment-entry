@@ -156,7 +156,7 @@ export function AdjustCustomerCreditNoteDialog({
             reference_id: customerId,
             description: `Refund paid for Sale Return: ${returnNumber}`,
             total_amount: creditAmount,
-            payment_mode: refundMode,
+            payment_method: refundMode,
           });
 
         if (paymentError) throw paymentError;
