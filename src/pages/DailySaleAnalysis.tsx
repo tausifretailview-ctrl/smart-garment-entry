@@ -196,7 +196,8 @@ export default function DailySaleAnalysis() {
         } else hasMore = false;
       }
 
-      // Aggregate by variant_id
+      console.log('Sale items fetched:', allSaleItems.length, 'sample:', allSaleItems.slice(0, 2));
+
       const variantMap = new Map<string, {
         variantId: string; productName: string; size: string; color: string;
         barcode: string; hsnCode: string; totalQty: number; totalAmount: number;
