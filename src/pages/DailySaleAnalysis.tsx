@@ -508,7 +508,7 @@ export default function DailySaleAnalysis() {
     doc.setFontSize(16);
     doc.text("Daily Sale Items — Stock & Reorder Analysis", 14, 15);
     doc.setFontSize(10);
-    doc.text(`Date: ${format(dateRange.from, "dd/MM/yyyy")} to ${format(dateRange.to, "dd/MM/yyyy")}`, 14, 22);
+    doc.text(`Date: ${format(dateRange.fromDate, "dd/MM/yyyy")} to ${format(dateRange.toDate, "dd/MM/yyyy")}`, 14, 22);
     doc.text(`Items: ${summary.totalItems} | Qty: ${summary.totalQty} | Revenue: ${formatINR(summary.totalRevenue)}`, 14, 28);
 
     let y = 36;
