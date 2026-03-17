@@ -53,7 +53,7 @@ import { TestLabelPrint } from "@/components/precision-barcode/TestLabelPrint";
 import { PrecisionPrintCSS } from "@/components/precision-barcode/PrecisionPrintCSS";
 import { PrecisionLabelDesigner, DEFAULT_PRECISION_CONFIG } from "@/components/precision-barcode/PrecisionLabelDesigner";
 
-// Utility function to sort items by size, barcode, or keep original order (Sr No)
+// Utility function to sort items by size, barcode, name, price, or keep original order (Sr No)
 const sortItemsBySize = (items: LabelItem[], order: SizeSortOrder): LabelItem[] => {
   if (order === 'none') return items;
   
@@ -64,6 +64,19 @@ const sortItemsBySize = (items: LabelItem[], order: SizeSortOrder): LabelItem[] 
       const barcodeB = b.barcode || '';
       const cmp = barcodeA.localeCompare(barcodeB, undefined, { numeric: true });
       return order === 'barcode_desc' ? -cmp : cmp;
+    });
+  }
+  
+  // Product name sorting (A-Z)
+  if (order === 'name_asc') {
+    return [...items].sort((a, b) => (a.product_name || '').localeCompare(b.product_name || ''));
+  }
+  
+  // Price sorting
+  if (order === 'price_asc' || order === 'price_desc') {
+    return [...items].sort((a, b) => {
+      const diff = (a.sale_price || 0) - (b.sale_price || 0);
+      return order === 'price_desc' ? -diff : diff;
     });
   }
   
@@ -1066,7 +1079,7 @@ export default function BarcodePrinting() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [labelItems, setLabelItems] = useState<LabelItem[]>([]);
   const [quantityMode, setQuantityMode] = useState<QuantityMode>("manual");
-  const [sizeSortOrder, setSizeSortOrder] = useState<SizeSortOrder>("none");
+  const [sizeSortOrder, setSizeSortOrder] = useState<SizeSortOrder>("barcode_asc");
   const [billNumber, setBillNumber] = useState("");
   const [recentBills, setRecentBills] = useState<RecentBill[]>([]);
   const [sheetType, setSheetType] = useState<SheetType>("novajet48");
@@ -3812,15 +3825,18 @@ export default function BarcodePrinting() {
               <SelectValue placeholder="Select sort order" />
             </SelectTrigger>
             <SelectContent className="bg-background">
+              <SelectItem value="barcode_asc">Barcode (Serial Order) ↑</SelectItem>
               <SelectItem value="none">Sr No (Original Entry)</SelectItem>
+              <SelectItem value="name_asc">Product Name (A→Z)</SelectItem>
+              <SelectItem value="price_asc">Price (Low → High)</SelectItem>
+              <SelectItem value="price_desc">Price (High → Low)</SelectItem>
               <SelectItem value="ascending">Size: Ascending (35→45)</SelectItem>
               <SelectItem value="descending">Size: Descending (45→35)</SelectItem>
-              <SelectItem value="barcode_asc">Barcode: Ascending</SelectItem>
               <SelectItem value="barcode_desc">Barcode: Descending</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Sr No = purchase entry order | Barcode = sort by barcode number
+            Default: Barcode serial order ensures unbroken sequence (18001212 → 18001213 → …)
           </p>
         </div>
 
