@@ -353,22 +353,6 @@ export function LabelCalibrationUI({
                   </span>
                 </SelectItem>
               ))}
-              {savedTemplates.length > 0 && (
-                <>
-                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">💾 My Label Templates</div>
-                  {savedTemplates.map((t) => (
-                    <SelectItem key={`template_${t.name}`} value={`template_${t.name}`} className="text-xs">
-                      {defaultTemplateName === t.name && <Star className="h-3 w-3 inline mr-1 text-amber-500 fill-amber-500" />}
-                      📐 {t.name}
-                      {t.labelWidth && t.labelHeight && (
-                        <span className="ml-1 text-muted-foreground">
-                          ({t.labelWidth}×{t.labelHeight})
-                        </span>
-                      )}
-                    </SelectItem>
-                  ))}
-                </>
-              )}
             </SelectContent>
           </Select>
         </div>
