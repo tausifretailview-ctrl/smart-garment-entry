@@ -1537,8 +1537,9 @@ export default function BarcodePrinting() {
               enabled: true,
             }));
             setActiveBarTab("precision");
-            // Set the preset name so it shows as selected in the dropdown
-            setActivePrecisionTemplateName(`preset:${defaultPreset.name}`);
+            // Check if default preset name matches a saved label template
+            const isLabelTemplate = savedLabelTemplates.some(t => t.name === defaultPreset.name);
+            setActivePrecisionTemplateName(isLabelTemplate ? defaultPreset.name : `preset:${defaultPreset.name}`);
             if (location.state?.purchaseItems) {
               toast.success(`Auto-loaded default preset "${defaultPreset.name}"`);
             }
@@ -3981,6 +3982,21 @@ export default function BarcodePrinting() {
         onValueChange={(v) => {
           setActiveBarTab(v);
           setPrecisionSettings(prev => ({ ...prev, enabled: v === "precision" }));
+          // Bridge Label Designer template to Precision Pro on tab switch
+          if (v === "precision" && selectedLabelTemplate) {
+            const template = savedLabelTemplates.find(t => t.name === selectedLabelTemplate);
+            if (template && !precisionSettings.labelConfig) {
+              const migratedConfig = ensureCompleteFieldOrder(template.config);
+              setPrecisionSettings(prev => ({
+                ...prev,
+                labelConfig: migratedConfig,
+                ...(template.labelWidth ? { labelWidth: template.labelWidth } : {}),
+                ...(template.labelHeight ? { labelHeight: template.labelHeight } : {}),
+              }));
+              setActivePrecisionTemplateName(template.name);
+              toast.info(`Loaded template "${template.name}" into Precision Pro`);
+            }
+          }
         }}
         className="w-full"
       >
@@ -4871,7 +4887,6 @@ export default function BarcodePrinting() {
                     }, { onConflict: "organization_id,name" });
                   if (error) { toast.error("Failed to save preset"); return; }
                   toast.success(`Preset "${preset.name}" saved`);
-                  // Refresh presets
                   const { data } = await supabase
                     .from("printer_presets")
                     .select("*")
@@ -4902,13 +4917,13 @@ export default function BarcodePrinting() {
                   }
                   if (preset.a4Cols) setPrecisionSettings((prev) => ({ ...prev, a4Cols: preset.a4Cols! }));
                   if (preset.a4Rows) setPrecisionSettings((prev) => ({ ...prev, a4Rows: preset.a4Rows! }));
-                  // Auto-detect print mode from preset
                   const mode = preset.printMode || (preset.a4Cols && preset.a4Rows ? 'a4' : 'thermal');
                   setPrecisionSettings((prev) => ({ ...prev, printMode: mode }));
                   const isLabelTemplate = savedLabelTemplates.some(t => t.name === preset.name);
                   setActivePrecisionTemplateName(isLabelTemplate ? preset.name : null);
                 }}
                 labelConfig={precisionSettings.labelConfig || undefined}
+                savedTemplates={savedLabelTemplates}
                 sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
                 activePresetValue={activePrecisionTemplateName}
               />

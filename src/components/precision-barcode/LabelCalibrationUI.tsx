@@ -246,7 +246,8 @@ export function LabelCalibrationUI({
           });
         }
         onLoadPreset?.({ name: templateName, xOffset: values.xOffset, yOffset: values.yOffset, vGap: values.vGap, width: template.labelWidth || values.labelWidth, height: template.labelHeight || values.labelHeight, labelConfig: template.config });
-        setActivePresetName(null);
+        // Set local active name to the template name so it persists in the dropdown
+        setActivePresetName(templateName);
       }
       return;
     }
