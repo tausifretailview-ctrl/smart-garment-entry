@@ -32,7 +32,7 @@ export interface PRNTemplate {
 }
 
 // Sorting options for label print order
-export type SizeSortOrder = 'none' | 'ascending' | 'descending' | 'barcode_asc' | 'barcode_desc';
+export type SizeSortOrder = 'none' | 'ascending' | 'descending' | 'barcode_asc' | 'barcode_desc' | 'name_asc' | 'price_asc' | 'price_desc';
 
 interface DefaultFormat {
   defaultTemplate?: string | null;

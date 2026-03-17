@@ -3825,15 +3825,18 @@ export default function BarcodePrinting() {
               <SelectValue placeholder="Select sort order" />
             </SelectTrigger>
             <SelectContent className="bg-background">
+              <SelectItem value="barcode_asc">Barcode (Serial Order) ↑</SelectItem>
               <SelectItem value="none">Sr No (Original Entry)</SelectItem>
+              <SelectItem value="name_asc">Product Name (A→Z)</SelectItem>
+              <SelectItem value="price_asc">Price (Low → High)</SelectItem>
+              <SelectItem value="price_desc">Price (High → Low)</SelectItem>
               <SelectItem value="ascending">Size: Ascending (35→45)</SelectItem>
               <SelectItem value="descending">Size: Descending (45→35)</SelectItem>
-              <SelectItem value="barcode_asc">Barcode: Ascending</SelectItem>
               <SelectItem value="barcode_desc">Barcode: Descending</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Sr No = purchase entry order | Barcode = sort by barcode number
+            Default: Barcode serial order ensures unbroken sequence (18001212 → 18001213 → …)
           </p>
         </div>
 
