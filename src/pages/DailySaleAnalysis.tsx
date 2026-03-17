@@ -499,7 +499,7 @@ export default function DailySaleAnalysis() {
     const ws2 = XLSX.utils.json_to_sheet(suppRows);
     XLSX.utils.book_append_sheet(wb, ws2, "Supplier Summary");
 
-    XLSX.writeFile(wb, `Daily-Sale-Analysis-${format(dateRange.from, "dd-MM-yyyy")}.xlsx`);
+    XLSX.writeFile(wb, `Daily-Sale-Analysis-${format(dateRange.fromDate, "dd-MM-yyyy")}.xlsx`);
   };
 
   // ---- PDF EXPORT ----
