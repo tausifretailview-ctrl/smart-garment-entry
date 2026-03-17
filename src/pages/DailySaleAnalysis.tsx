@@ -537,7 +537,7 @@ export default function DailySaleAnalysis() {
     ).join("\n");
     const totalQty = reorderItems.reduce((s, i) => s + i.reorderQty, 0);
     const totalValue = reorderItems.reduce((s, i) => s + i.reorderQty * i.lastPurchaseRate, 0);
-    const msg = `Hi ${group.name},\n\nPlease send the following items:\n\n${lines}\n\nTotal: ${totalQty} pcs | Est. Value: ${formatINR(totalValue)}\n\nShop: ${currentOrganization?.business_name || ""}\nDate: ${format(new Date(), "dd/MM/yyyy")}\n\nThank you!`;
+    const msg = `Hi ${group.name},\n\nPlease send the following items:\n\n${lines}\n\nTotal: ${totalQty} pcs | Est. Value: ${formatINR(totalValue)}\n\nShop: ${currentOrganization?.name || ""}\nDate: ${format(new Date(), "dd/MM/yyyy")}\n\nThank you!`;
     const phone = group.phone?.replace(/\D/g, "");
     window.open(`https://wa.me/${phone ? `91${phone}` : ""}?text=${encodeURIComponent(msg)}`, "_blank");
   };
