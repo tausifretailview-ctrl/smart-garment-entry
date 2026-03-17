@@ -53,7 +53,7 @@ import { TestLabelPrint } from "@/components/precision-barcode/TestLabelPrint";
 import { PrecisionPrintCSS } from "@/components/precision-barcode/PrecisionPrintCSS";
 import { PrecisionLabelDesigner, DEFAULT_PRECISION_CONFIG } from "@/components/precision-barcode/PrecisionLabelDesigner";
 
-// Utility function to sort items by size, barcode, or keep original order (Sr No)
+// Utility function to sort items by size, barcode, name, price, or keep original order (Sr No)
 const sortItemsBySize = (items: LabelItem[], order: SizeSortOrder): LabelItem[] => {
   if (order === 'none') return items;
   
@@ -64,6 +64,19 @@ const sortItemsBySize = (items: LabelItem[], order: SizeSortOrder): LabelItem[] 
       const barcodeB = b.barcode || '';
       const cmp = barcodeA.localeCompare(barcodeB, undefined, { numeric: true });
       return order === 'barcode_desc' ? -cmp : cmp;
+    });
+  }
+  
+  // Product name sorting (A-Z)
+  if (order === 'name_asc') {
+    return [...items].sort((a, b) => (a.product_name || '').localeCompare(b.product_name || ''));
+  }
+  
+  // Price sorting
+  if (order === 'price_asc' || order === 'price_desc') {
+    return [...items].sort((a, b) => {
+      const diff = (a.sale_price || 0) - (b.sale_price || 0);
+      return order === 'price_desc' ? -diff : diff;
     });
   }
   
