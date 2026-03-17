@@ -381,6 +381,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             }))}
             subTotal={props.subTotal}
             discount={props.discount}
+            saleReturnAdjust={props.saleReturnAdjust}
+            roundOff={props.roundOff}
             grandTotal={props.grandTotal}
             gstBreakdown={{
               cgst: cgstAmount,
