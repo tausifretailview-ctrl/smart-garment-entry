@@ -152,19 +152,22 @@ export default function DailySaleAnalysis() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
-  const dateRange = useMemo(() => getDateRange(period), [period]);
+  const dateRange = useMemo(() => getISTDateRange(period), [period]);
   const isToday = period === "today";
 
   // ---- MAIN DATA QUERY ----
-  const { data: analysisData, isLoading, refetch } = useQuery({
-    queryKey: ["daily-sale-analysis", orgId, format(dateRange.from, "yyyy-MM-dd"), format(dateRange.to, "yyyy-MM-dd")],
+  const { data: analysisData, isLoading, error: queryError, refetch } = useQuery({
+    queryKey: ["daily-sale-analysis", orgId, dateRange.fromISO, dateRange.toISO],
     queryFn: async () => {
       if (!orgId) return [];
 
-      const fromStr = format(dateRange.from, "yyyy-MM-dd'T'HH:mm:ss");
-      const toStr = format(dateRange.to, "yyyy-MM-dd'T'HH:mm:ss");
-      const thirtyDaysAgo = format(subDays(new Date(), 30), "yyyy-MM-dd'T'HH:mm:ss");
-      const sevenDaysAgo = format(subDays(new Date(), 7), "yyyy-MM-dd'T'HH:mm:ss");
+      const fromStr = dateRange.fromISO;
+      const toStr = dateRange.toISO;
+      // For velocity calculations, also compute 30-day and 7-day ranges in IST
+      const vel30 = getISTDateRange("last30");
+      const vel7 = getISTDateRange("last7");
+      const thirtyDaysAgo = vel30.fromISO;
+      const sevenDaysAgo = vel7.fromISO;
 
       // 1. Fetch sale items in date range
       const allSaleItems: any[] = [];
