@@ -1469,21 +1469,23 @@ export default function BarcodePrinting() {
         }
         }
 
-        // Load precision pro settings
+        // Load precision pro settings (use merge to avoid overwriting preset-loaded labelConfig)
         if (data?.bill_barcode_settings && typeof data.bill_barcode_settings === 'object') {
           const bbs = data.bill_barcode_settings as any;
-          setPrecisionSettings({
+          setPrecisionSettings(prev => ({
+            ...prev,
             enabled: bbs.precision_pro_enabled === true,
-            xOffset: bbs.precision_x_offset ?? 0,
-            yOffset: bbs.precision_y_offset ?? 0,
-            vGap: bbs.precision_v_gap ?? 2,
-            labelWidth: bbs.precision_label_width ?? 50,
-            labelHeight: bbs.precision_label_height ?? 25,
-            a4Cols: bbs.precision_a4_cols ?? 4,
-            a4Rows: bbs.precision_a4_rows ?? 12,
-            printMode: bbs.precision_print_mode ?? 'thermal',
-            labelConfig: bbs.precision_label_config || null,
-          });
+            xOffset: bbs.precision_x_offset ?? prev.xOffset,
+            yOffset: bbs.precision_y_offset ?? prev.yOffset,
+            vGap: bbs.precision_v_gap ?? prev.vGap,
+            labelWidth: bbs.precision_label_width ?? prev.labelWidth,
+            labelHeight: bbs.precision_label_height ?? prev.labelHeight,
+            a4Cols: bbs.precision_a4_cols ?? prev.a4Cols,
+            a4Rows: bbs.precision_a4_rows ?? prev.a4Rows,
+            printMode: bbs.precision_print_mode ?? prev.printMode,
+            // Only use settings labelConfig as fallback - preset labelConfig takes priority
+            labelConfig: prev.labelConfig || bbs.precision_label_config || null,
+          }));
           if (bbs.precision_pro_enabled === true) {
             setActiveBarTab("precision");
           }
