@@ -1,54 +1,48 @@
+## Completed: Heavy Query Load Optimization
 
+All 5 priority pages optimized:
 
-## Fix: Auto-Initialize Barcode Sequence for New Organizations
+1. **PurchaseBillDashboard** — Server-side pagination + search + date filters via `useQuery`, removed Phase 2 bulk item pre-fetch (lazy-load on expand only), staleTime 30s
+2. **SaleReturnDashboard** — Converted from useEffect/setState to `useQuery` with server-side pagination + debounced search, lazy item loading with cache
+3. **PurchaseReturnDashboard** — Server-side pagination + debounced search + date filters via `useQuery`, staleTime 30s
+4. **Accounts** — Created `get_accounts_dashboard_stats` RPC for summary cards (replaces 3x fetchAll calls), lazy tab loading (vouchers/sales/customers/suppliers only fetched when their tab is active)
+5. **SalesAnalyticsDashboard** — Added staleTime 60s + refetchOnWindowFocus:false to all queries
 
-### Problem
-When a new organization is created, the `generate_next_barcode` function initializes the sequence at `1` instead of using the organization's number prefix (e.g., org #21 should start at `21001001`). This has already caused issues for YOJAK (org #12, got barcode `1`) and AJMERA TRADERS (org #19, got barcode `1`).
+## Completed: Sales Invoice Dashboard Optimization
 
-**Root cause**: Line 36 of `generate_next_barcode` does `INSERT INTO barcode_sequence ... VALUES (p_organization_id, 1)` — hardcoded `1` instead of computing from `organization_number`.
+1. **Server-side pagination** — Replaced fetch-all-invoices loop with paginated query (50 rows per page, `{ count: 'exact' }`)
+2. **No more `sale_items(*)` in list** — Removed nested sale_items fetch, uses `total_qty` column instead
+3. **Server-side filtering** — Search (debounced 300ms), date range, payment status, delivery status all applied server-side
+4. **Summary stats via RPC** — Uses `get_sales_invoice_dashboard_stats` RPC instead of client-side computation
+5. **Default period = This Month** — Fast first load instead of fetching all-time data
+6. **staleTime 30s + refetchOnWindowFocus: false** — Prevents redundant re-fetches
+7. **Cache invalidation after save/update** — SalesInvoice.tsx invalidates `['invoices']` and `['invoice-dashboard-stats']` after create/update
+8. **useDashboardInvalidation** — Added `['invoices']` and `['invoice-dashboard-stats']` to `invalidateSales()`
 
-### Current Data Showing the Bug
-| Org | # | next_barcode | Expected Start |
-|-----|---|-------------|----------------|
-| YOJAK | 12 | 2 | 120001001 |
-| AJMERA TRADERS | 19 | 13 | 190001001 |
-| SAAJ (manual fix) | 20 | 20001001 | ✅ correct |
+## Completed: Entry Form Query Optimization (ELLA NOOR slow billing fix)
 
-### Plan
+All entry forms optimized with caching + explicit columns:
 
-**1. Update `generate_next_barcode` SQL function** (migration)
+1. **QuotationEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*')` with explicit columns
+2. **SaleOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*, product_variants(*)')` with explicit columns
+3. **PurchaseOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to suppliers & products queries, replaced `select('*')` with explicit columns
+4. **DeliveryChallanEntry** — Added staleTime 5min + refetchOnWindowFocus:false to products query, replaced `select('*, product_variants(*), size_groups(*)')` with explicit columns
+5. **PurchaseEntry** — Replaced `select('*')` with explicit columns for suppliers (already had staleTime)
+6. **POSSales** — Already optimized (explicit columns + staleTime 5min)
+7. **SalesInvoice** — Already optimized
 
-Change the upsert default from `1` to a computed value based on `organization_number`:
-- Look up `organization_number` from `organizations` table
-- Compute starting barcode: `org_number * 10,000,000 + 1001` (for org_number >= 10, gives 9-digit; for < 10, gives 8-digit)
-- Use this as the initial `next_barcode` value in the INSERT
+## Completed: Cloud Usage Impact Analysis
 
-```sql
--- Compute proper starting value
-SELECT COALESCE(organization_number, 1) INTO v_org_number
-FROM organizations WHERE id = p_organization_id;
+Estimated impact of all optimizations:
+- **Dashboard reads**: ~95% reduction (server-side pagination, 50 rows vs ALL)
+- **Accounts page**: ~90% reduction (1 RPC vs 3 full-table scans)
+- **Entry form tab switches**: ~80% fewer reads (5min staleTime cache)
+- **Data transfer**: ~40-50% less per read (explicit columns vs select('*'))
+- **Sales Invoice Dashboard**: ~98% reduction (50 rows without sale_items vs ALL invoices with ALL items)
 
-v_starting_barcode := (v_org_number * 10000000) + 1001;
+## Completed: Auto-Initialize Barcode Sequence for New Organizations
 
-INSERT INTO barcode_sequence (organization_id, next_barcode)
-VALUES (p_organization_id, v_starting_barcode)
-ON CONFLICT (organization_id) DO NOTHING;
-```
-
-**2. Fix existing broken sequences** (data fix via insert tool)
-
-Fix YOJAK (#12) and AJMERA TRADERS (#19) which got wrong starting values:
-```sql
-UPDATE barcode_sequence SET next_barcode = 120001001 WHERE organization_id = (SELECT id FROM organizations WHERE organization_number = 12);
-UPDATE barcode_sequence SET next_barcode = 190001001 WHERE organization_id = (SELECT id FROM organizations WHERE organization_number = 19);
-```
-
-**3. Also update `create_organization` RPC** (migration)
-
-Add barcode_sequence initialization right after the org INSERT, so the sequence row exists immediately with the correct prefix — no reliance on first barcode generation call.
-
-### Files Changed
-- New migration: Update `generate_next_barcode` function to compute starting value from `organization_number`
-- New migration: Update `create_organization` function to initialize barcode_sequence
-- Data fix: Correct YOJAK and AJMERA TRADERS sequences
-
+1. **Updated `generate_next_barcode` function** — Now computes starting barcode from `organization_number * 10,000,000 + 1001` instead of hardcoded `1`
+2. **Updated `create_organization` function** — Initializes `barcode_sequence` immediately after org creation with the correct prefix
+3. **Fixed broken sequences** — YOJAK (#12) → 120001001, AJMERA TRADERS (#19) → 190001001
+4. **Verified** — All three orgs (12, 19, 20) now have correct prefixed sequences
