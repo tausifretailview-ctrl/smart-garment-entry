@@ -169,6 +169,8 @@ export default function DailySaleAnalysis() {
       const thirtyDaysAgo = vel30.fromISO;
       const sevenDaysAgo = vel7.fromISO;
 
+      console.log('=== SALE ANALYSIS DEBUG ===', { period, fromStr, toStr, orgId });
+
       // 1. Fetch sale items in date range
       const allSaleItems: any[] = [];
       let offset = 0;
