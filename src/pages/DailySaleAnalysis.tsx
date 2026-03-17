@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
-import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, addDays } from "date-fns";
+import { format } from "date-fns";
 import {
   Search, Package, IndianRupee, TrendingUp, FileSpreadsheet, AlertTriangle,
   ChevronDown, ChevronUp, Phone, MessageSquare, ShoppingCart, RefreshCw, Loader2,
