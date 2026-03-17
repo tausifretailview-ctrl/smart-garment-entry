@@ -280,21 +280,21 @@ export default function DailySaleAnalysis() {
       for (let i = 0; i < variantIds.length; i += 50) {
         const batch = variantIds.slice(i, i + 50);
         const { data: purItems } = await supabase
-          .from("purchase_bill_items" as any)
-          .select("variant_id, quantity, unit_price, purchase_bills!inner(bill_date, bill_number, supplier_name, organization_id, deleted_at)")
-          .in("variant_id", batch)
+          .from("purchase_items")
+          .select("sku_id, qty, pur_price, purchase_bills!inner(bill_date, software_bill_no, supplier_name, supplier_id, organization_id, deleted_at)")
+          .in("sku_id", batch)
           .eq("purchase_bills.organization_id", orgId)
           .is("purchase_bills.deleted_at", null)
           .order("created_at", { ascending: false });
         if (purItems) {
           for (const pi of purItems as any[]) {
-            if (!purchaseMap.has(pi.variant_id)) {
+            if (!purchaseMap.has(pi.sku_id)) {
               const pb = pi.purchase_bills;
-              purchaseMap.set(pi.variant_id, {
+              purchaseMap.set(pi.sku_id, {
                 date: pb?.bill_date || "",
-                qty: pi.quantity || 0,
-                rate: pi.unit_price || 0,
-                billNo: pb?.bill_number || "",
+                qty: pi.qty || 0,
+                rate: pi.pur_price || 0,
+                billNo: pb?.software_bill_no || "",
                 supplierName: pb?.supplier_name || "",
                 supplierPhone: "",
               });
