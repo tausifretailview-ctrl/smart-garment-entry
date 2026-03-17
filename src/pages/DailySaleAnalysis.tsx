@@ -533,7 +533,7 @@ export default function DailySaleAnalysis() {
       y += 4.5;
     });
 
-    doc.save(`Daily-Sale-Analysis-${format(dateRange.from, "dd-MM-yyyy")}.pdf`);
+    doc.save(`Daily-Sale-Analysis-${format(dateRange.fromDate, "dd-MM-yyyy")}.pdf`);
   };
 
   const StockBadge = ({ status }: { status: SaleItemAnalysis["stockStatus"] }) => {
