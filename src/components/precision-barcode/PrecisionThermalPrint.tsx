@@ -17,7 +17,7 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
   ({ items, labelWidth, labelHeight, xOffset, yOffset, vGap = 0, config }, ref) => {
     const expandedItems: LabelItem[] = [];
     items.forEach((item) => {
-      const qty = item.qty || 1;
+      const qty = item.qty && item.qty > 0 ? item.qty : 0;
       for (let i = 0; i < qty; i++) {
         expandedItems.push(item);
       }

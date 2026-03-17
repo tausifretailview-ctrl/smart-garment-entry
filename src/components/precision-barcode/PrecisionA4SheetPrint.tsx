@@ -19,7 +19,7 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
   ({ items, labelWidth, labelHeight, cols, rows, xOffset, yOffset, vGap, config }, ref) => {
     const expandedItems: LabelItem[] = [];
     items.forEach((item) => {
-      const qty = item.qty || 1;
+      const qty = item.qty && item.qty > 0 ? item.qty : 0;
       for (let i = 0; i < qty; i++) {
         expandedItems.push(item);
       }
