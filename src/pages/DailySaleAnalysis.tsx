@@ -81,15 +81,46 @@ const REPORT_CACHE = { staleTime: 60_000, gcTime: 5 * 60_000, refetchOnWindowFoc
 
 const formatINR = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
-const getDateRange = (period: QuickPeriod): { from: Date; to: Date } => {
-  const today = new Date();
+// Convert to IST-aware dates, then return UTC ISO strings for Supabase queries
+const getISTDateRange = (period: QuickPeriod): { fromISO: string; toISO: string; fromDate: Date; toDate: Date } => {
+  // Get current time in IST
+  const now = new Date();
+  const istNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+
+  let startDate: Date;
+  let endDate: Date;
+
   switch (period) {
-    case "today": return { from: startOfDay(today), to: endOfDay(today) };
-    case "yesterday": return { from: startOfDay(subDays(today, 1)), to: endOfDay(subDays(today, 1)) };
-    case "last7": return { from: startOfDay(subDays(today, 6)), to: endOfDay(today) };
-    case "last30": return { from: startOfDay(subDays(today, 29)), to: endOfDay(today) };
-    case "thisMonth": return { from: startOfMonth(today), to: endOfMonth(today) };
+    case "today":
+      startDate = new Date(istNow); startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(istNow); endDate.setHours(23, 59, 59, 999);
+      break;
+    case "yesterday":
+      startDate = new Date(istNow); startDate.setDate(startDate.getDate() - 1); startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(startDate); endDate.setHours(23, 59, 59, 999);
+      break;
+    case "last7":
+      startDate = new Date(istNow); startDate.setDate(startDate.getDate() - 6); startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(istNow); endDate.setHours(23, 59, 59, 999);
+      break;
+    case "last30":
+      startDate = new Date(istNow); startDate.setDate(startDate.getDate() - 29); startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(istNow); endDate.setHours(23, 59, 59, 999);
+      break;
+    case "thisMonth":
+      startDate = new Date(istNow.getFullYear(), istNow.getMonth(), 1, 0, 0, 0, 0);
+      endDate = new Date(istNow.getFullYear(), istNow.getMonth() + 1, 0, 23, 59, 59, 999);
+      break;
   }
+
+  // Convert IST dates to UTC by subtracting 5:30 (330 minutes)
+  const toUTC = (istDate: Date) => {
+    const utc = new Date(istDate);
+    utc.setMinutes(utc.getMinutes() - 330);
+    return utc.toISOString();
+  };
+
+  return { fromISO: toUTC(startDate), toISO: toUTC(endDate), fromDate: startDate, toDate: endDate };
 };
 
 const getStockStatus = (currentStock: number, daysLeft: number | null): SaleItemAnalysis["stockStatus"] => {
