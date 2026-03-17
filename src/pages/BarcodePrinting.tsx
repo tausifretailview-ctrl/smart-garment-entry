@@ -3981,6 +3981,21 @@ export default function BarcodePrinting() {
         onValueChange={(v) => {
           setActiveBarTab(v);
           setPrecisionSettings(prev => ({ ...prev, enabled: v === "precision" }));
+          // Bridge Label Designer template to Precision Pro on tab switch
+          if (v === "precision" && selectedLabelTemplate) {
+            const template = savedLabelTemplates.find(t => t.name === selectedLabelTemplate);
+            if (template && !precisionSettings.labelConfig) {
+              const migratedConfig = ensureCompleteFieldOrder(template.config);
+              setPrecisionSettings(prev => ({
+                ...prev,
+                labelConfig: migratedConfig,
+                ...(template.labelWidth ? { labelWidth: template.labelWidth } : {}),
+                ...(template.labelHeight ? { labelHeight: template.labelHeight } : {}),
+              }));
+              setActivePrecisionTemplateName(template.name);
+              toast.info(`Loaded template "${template.name}" into Precision Pro`);
+            }
+          }
         }}
         className="w-full"
       >
