@@ -1,5 +1,3 @@
-
-
 ## Completed: Heavy Query Load Optimization
 
 All 5 priority pages optimized:
@@ -41,3 +39,10 @@ Estimated impact of all optimizations:
 - **Entry form tab switches**: ~80% fewer reads (5min staleTime cache)
 - **Data transfer**: ~40-50% less per read (explicit columns vs select('*'))
 - **Sales Invoice Dashboard**: ~98% reduction (50 rows without sale_items vs ALL invoices with ALL items)
+
+## Completed: Auto-Initialize Barcode Sequence for New Organizations
+
+1. **Updated `generate_next_barcode` function** — Now computes starting barcode from `organization_number * 10,000,000 + 1001` instead of hardcoded `1`
+2. **Updated `create_organization` function** — Initializes `barcode_sequence` immediately after org creation with the correct prefix
+3. **Fixed broken sequences** — YOJAK (#12) → 120001001, AJMERA TRADERS (#19) → 190001001
+4. **Verified** — All three orgs (12, 19, 20) now have correct prefixed sequences
