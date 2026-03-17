@@ -246,16 +246,16 @@ export default function DailySaleAnalysis() {
       for (let i = 0; i < variantIds.length; i += 50) {
         const batch = variantIds.slice(i, i + 50);
         const { data: purItems } = await supabase
-          .from("purchase_bill_items")
+          .from("purchase_bill_items" as any)
           .select("variant_id, quantity, unit_price, purchase_bills!inner(bill_date, bill_number, supplier_name, organization_id, deleted_at)")
           .in("variant_id", batch)
           .eq("purchase_bills.organization_id", orgId)
           .is("purchase_bills.deleted_at", null)
           .order("created_at", { ascending: false });
         if (purItems) {
-          for (const pi of purItems) {
+          for (const pi of purItems as any[]) {
             if (!purchaseMap.has(pi.variant_id)) {
-              const pb = pi.purchase_bills as any;
+              const pb = pi.purchase_bills;
               purchaseMap.set(pi.variant_id, {
                 date: pb?.bill_date || "",
                 qty: pi.quantity || 0,
