@@ -800,11 +800,26 @@ export default function DailySaleAnalysis() {
                   </TableHeader>
                   <TableBody>
                     {filteredItems.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={15} className="text-center py-16 text-muted-foreground">
-                          No items sold in selected period
-                        </TableCell>
-                      </TableRow>
+                      {queryError ? (
+                        <TableRow>
+                          <TableCell colSpan={15} className="text-center py-16">
+                            <div className="space-y-2">
+                              <AlertTriangle className="h-10 w-10 text-destructive mx-auto" />
+                              <p className="text-sm font-semibold text-destructive">Failed to load report</p>
+                              <p className="text-xs text-muted-foreground">{(queryError as any)?.message}</p>
+                              <Button variant="outline" size="sm" onClick={() => refetch()}>Retry</Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={15} className="text-center py-16 text-muted-foreground">
+                            <Package className="h-10 w-10 mx-auto opacity-40 mb-2" />
+                            <p>No items sold in selected period</p>
+                            <p className="text-xs mt-1">Try selecting a different date range</p>
+                          </TableCell>
+                        </TableRow>
+                      )}
                     ) : filteredItems.map((item, idx) => (
                       <>
                         <TableRow key={item.variantId} className="cursor-pointer hover:bg-primary/5" onClick={() => toggleExpand(item.variantId)}>
