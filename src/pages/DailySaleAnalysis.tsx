@@ -450,7 +450,7 @@ export default function DailySaleAnalysis() {
 
   // ---- WHATSAPP SHARE ----
   const handleWhatsAppShare = () => {
-    const dateStr = format(dateRange.from, "dd/MM/yyyy");
+    const dateStr = format(dateRange.fromDate, "dd/MM/yyyy");
     const topItems = filteredItems.slice(0, 5).map((i, idx) =>
       `${idx + 1}. ${i.itemDescription} ${i.size} (${i.qtySoldToday} pcs) — ${formatINR(i.saleAmount)}`
     ).join("\n");
