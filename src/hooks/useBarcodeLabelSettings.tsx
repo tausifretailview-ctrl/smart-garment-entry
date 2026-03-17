@@ -160,6 +160,29 @@ export function useBarcodeLabelSettings() {
 
       if (error) throw error;
 
+      // Sync label_config to any matching printer_preset with the same name
+      try {
+        const { data: matchingPresets } = await supabase
+          .from("printer_presets")
+          .select("id")
+          .eq("organization_id", currentOrganization.id)
+          .eq("name", template.name);
+        
+        if (matchingPresets && matchingPresets.length > 0) {
+          await supabase
+            .from("printer_presets")
+            .update({
+              label_config: template.config as any,
+              label_width: template.labelWidth || null,
+              label_height: template.labelHeight || null,
+            })
+            .eq("organization_id", currentOrganization.id)
+            .eq("name", template.name);
+        }
+      } catch (syncErr) {
+        console.warn("Failed to sync template to printer preset:", syncErr);
+      }
+
       await fetchSettings();
       return true;
     } catch (error) {
