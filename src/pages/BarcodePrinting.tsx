@@ -1079,7 +1079,7 @@ export default function BarcodePrinting() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [labelItems, setLabelItems] = useState<LabelItem[]>([]);
   const [quantityMode, setQuantityMode] = useState<QuantityMode>("manual");
-  const [sizeSortOrder, setSizeSortOrder] = useState<SizeSortOrder>("none");
+  const [sizeSortOrder, setSizeSortOrder] = useState<SizeSortOrder>("barcode_asc");
   const [billNumber, setBillNumber] = useState("");
   const [recentBills, setRecentBills] = useState<RecentBill[]>([]);
   const [sheetType, setSheetType] = useState<SheetType>("novajet48");
