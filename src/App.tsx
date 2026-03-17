@@ -943,6 +943,16 @@ const App = () => {
                   }
                 />
                 <Route
+                  path="daily-sale-analysis"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <DailySaleAnalysis />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="stock-analysis"
                   element={
                     <ProtectedRoute>
