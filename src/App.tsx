@@ -78,6 +78,7 @@ const RecycleBin = lazy(() => import("./pages/RecycleBin"));
 const StockAdjustment = lazy(() => import("./pages/StockAdjustment"));
 const StockAnalysis = lazy(() => import("./pages/StockAnalysis"));
 const StockAgeingReport = lazy(() => import("./pages/StockAgeingReport"));
+const DailySaleAnalysis = lazy(() => import("./pages/DailySaleAnalysis"));
 const CustomerLedgerPage = lazy(() => import("./pages/CustomerLedgerPage"));
 const BulkProductUpdate = lazy(() => import("./pages/BulkProductUpdate"));
 const DeliveryChallanEntry = lazy(() => import("./pages/DeliveryChallanEntry"));
@@ -937,6 +938,16 @@ const App = () => {
                     <ProtectedRoute>
                       <Layout>
                         <CustomerLedgerPage />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="daily-sale-analysis"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <DailySaleAnalysis />
                       </Layout>
                     </ProtectedRoute>
                   }
