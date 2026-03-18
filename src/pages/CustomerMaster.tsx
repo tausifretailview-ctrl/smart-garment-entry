@@ -347,6 +347,7 @@ const CustomerMaster = () => {
         opening_balance: data.opening_balance ? parseFloat(data.opening_balance) : 0,
         discount_percent: data.discount_percent ? parseFloat(data.discount_percent) : 0,
         transport_details: data.transport_details || null,
+        portal_enabled: data.portal_enabled || false,
       };
       const { error } = await supabase.from("customers").update(customerData).eq("id", id);
       if (error) throw error;
