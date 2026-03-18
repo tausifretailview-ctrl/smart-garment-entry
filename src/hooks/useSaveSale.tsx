@@ -538,6 +538,37 @@ export const useSaveSale = () => {
       // Invalidate dashboard queries for immediate UI refresh
       invalidateSales();
 
+      // Auto-generate E-Invoice for B2B sales (fire and forget)
+      if (currentOrganization?.id && saleData.customerId) {
+        (async () => {
+          try {
+            const einvoiceSettings = (saleSettings as any)?.einvoice_settings;
+            if (!einvoiceSettings?.enabled || !einvoiceSettings?.auto_generate) return;
+
+            // Check if customer has GSTIN
+            const { data: customer } = await supabase
+              .from('customers')
+              .select('gst_number')
+              .eq('id', saleData.customerId!)
+              .maybeSingle();
+
+            if (!customer?.gst_number) return;
+
+            const testMode = einvoiceSettings?.test_mode ?? true;
+            await supabase.functions.invoke('generate-einvoice', {
+              body: {
+                saleId: sale.id,
+                organizationId: currentOrganization.id,
+                testMode,
+              },
+            });
+            console.log('Auto e-Invoice generation triggered for', saleNumber);
+          } catch (err) {
+            console.error('Auto e-Invoice generation failed (non-blocking):', err);
+          }
+        })();
+      }
+
       return { ...sale, pointsAwarded };
     } catch (error: any) {
       console.error('Error saving sale:', error);
