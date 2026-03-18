@@ -79,6 +79,7 @@ const StockAdjustment = lazy(() => import("./pages/StockAdjustment"));
 const StockAnalysis = lazy(() => import("./pages/StockAnalysis"));
 const StockAgeingReport = lazy(() => import("./pages/StockAgeingReport"));
 const DailySaleAnalysis = lazy(() => import("./pages/DailySaleAnalysis"));
+const EInvoiceReport = lazy(() => import("./pages/EInvoiceReport"));
 const CustomerLedgerPage = lazy(() => import("./pages/CustomerLedgerPage"));
 const BulkProductUpdate = lazy(() => import("./pages/BulkProductUpdate"));
 const DeliveryChallanEntry = lazy(() => import("./pages/DeliveryChallanEntry"));

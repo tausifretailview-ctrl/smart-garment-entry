@@ -357,6 +357,7 @@ export default function EInvoiceReport() {
 
       {/* Table */}
       <ERPTable
+        tableId="einvoice-report"
         data={filteredInvoices}
         columns={columns as any}
         isLoading={isLoading}
