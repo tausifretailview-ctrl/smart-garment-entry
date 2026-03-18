@@ -179,6 +179,7 @@ export default function SalesInvoiceDashboard() {
   // E-Invoice state
   const [isGeneratingEInvoice, setIsGeneratingEInvoice] = useState<string | null>(null);
   const [isDownloadingEInvoice, setIsDownloadingEInvoice] = useState<string | null>(null);
+  const [isCancellingIRN, setIsCancellingIRN] = useState<string | null>(null);
   const [eInvoiceToPrint, setEInvoiceToPrint] = useState<any>(null);
   const eInvoicePrintRef = useRef<HTMLDivElement>(null);
   
