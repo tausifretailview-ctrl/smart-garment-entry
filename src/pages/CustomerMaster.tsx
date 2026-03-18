@@ -907,6 +907,13 @@ const CustomerMaster = () => {
                       <Label htmlFor="transport_details">Transport Details</Label>
                       <Input id="transport_details" value={formData.transport_details} onChange={(e) => setFormData({ ...formData, transport_details: e.target.value })} placeholder="e.g., VRL Logistics, Navi Mumbai" />
                     </div>
+                    <div className="flex items-center justify-between rounded-lg border p-3">
+                      <div>
+                        <Label className="text-sm font-medium">Buyer Portal Access</Label>
+                        <p className="text-xs text-muted-foreground">Customer can login to portal and place orders</p>
+                      </div>
+                      <Switch checked={formData.portal_enabled} onCheckedChange={(checked) => setFormData({ ...formData, portal_enabled: !!checked })} />
+                    </div>
                     <Button type="submit" className="w-full">{editingCustomer ? "Update" : "Create"} Customer</Button>
                   </form>
                 </DialogContent>
