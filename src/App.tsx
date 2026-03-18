@@ -112,6 +112,9 @@ const StudentPromotion = lazy(() => import("./pages/school/StudentPromotion"));
 const PortalLogin = lazy(() => import("./pages/portal/PortalLogin"));
 const PortalHome = lazy(() => import("./pages/portal/PortalHome"));
 const PortalCatalogue = lazy(() => import("./pages/portal/PortalCatalogue"));
+const PortalOrders = lazy(() => import("./pages/portal/PortalOrders"));
+const PortalInvoices = lazy(() => import("./pages/portal/PortalInvoices"));
+const PortalAccount = lazy(() => import("./pages/portal/PortalAccount"));
 
 const LazyFallback = () => (
   <div className="min-h-screen flex items-center justify-center">
