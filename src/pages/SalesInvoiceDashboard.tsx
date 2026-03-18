@@ -1255,8 +1255,8 @@ export default function SalesInvoiceDashboard() {
 
   const openPaymentDialog = (invoice: any) => {
     setSelectedInvoiceForPayment(invoice);
-    const pendingAmount = invoice.net_amount - (invoice.paid_amount || 0);
-    setPaidAmount(pendingAmount.toString());
+    const pendingAmount = Math.round(invoice.net_amount - (invoice.paid_amount || 0));
+    setPaidAmount(Math.max(0, pendingAmount).toString());
     setPaymentDate(new Date());
     setPaymentMode("cash");
     setPaymentNarration("");
