@@ -78,7 +78,16 @@ export default function PortalLogin() {
       }
       setCustomerName(res.data.customerName || '');
       setStep('otp');
-      toast.success('OTP sent on WhatsApp');
+      if (res.data.otpSent) {
+        toast.success('OTP sent on WhatsApp');
+      } else {
+        // WhatsApp not configured — show dev OTP for testing
+        if (res.data.devOtp) {
+          toast.info(`WhatsApp not active. Test OTP: ${res.data.devOtp}`, { duration: 15000 });
+        } else {
+          toast.warning('OTP generated but WhatsApp delivery failed. Contact your supplier.');
+        }
+      }
     } catch {
       toast.error('Something went wrong. Try again.');
     } finally {
