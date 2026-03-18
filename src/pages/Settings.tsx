@@ -3081,6 +3081,41 @@ export default function Settings() {
                         </div>
                       </div>
 
+                      {/* Test Connection Button */}
+                      <div className="flex items-center gap-3 mt-4">
+                        <Button
+                          variant="outline"
+                          onClick={async () => {
+                            setIsTestingConnection(true);
+                            setConnectionStatus(null);
+                            try {
+                              const response = await supabase.functions.invoke('test-einvoice-connection', {
+                                body: { organizationId: currentOrganization?.id },
+                              });
+                              if (response.error) throw new Error(response.error.message);
+                              const result = response.data;
+                              setConnectionStatus({
+                                success: result.success,
+                                message: result.success ? result.message : result.error,
+                              });
+                            } catch (err: any) {
+                              setConnectionStatus({ success: false, message: err.message || 'Connection test failed' });
+                            } finally {
+                              setIsTestingConnection(false);
+                            }
+                          }}
+                          disabled={isTestingConnection}
+                        >
+                          {isTestingConnection ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Eye className="h-4 w-4 mr-2" />}
+                          Test Connection
+                        </Button>
+                        {connectionStatus && (
+                          <span className={`text-sm font-medium ${connectionStatus.success ? 'text-green-600' : 'text-destructive'}`}>
+                            {connectionStatus.success ? '✅' : '❌'} {connectionStatus.message}
+                          </span>
+                        )}
+                      </div>
+
                       <div className="mt-4 p-3 bg-muted/50 rounded-lg text-sm">
                         <p className="font-medium text-muted-foreground mb-1">⚠️ Important Notes:</p>
                         <ul className="list-disc list-inside space-y-1 text-muted-foreground text-xs">
