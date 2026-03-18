@@ -256,9 +256,10 @@ export function SalesInvoiceERPTable({
                 </div>
               );
             }
+            const paidAmt = invoice.paid_amount || 0;
             const effectiveStatus = invoice.payment_status === 'hold' ? 'hold'
-              : (invoice.paid_amount || 0) >= invoice.net_amount ? 'completed'
-              : (invoice.paid_amount || 0) > 0 ? 'partial' : 'pending';
+              : (paidAmt >= invoice.net_amount || Math.abs(paidAmt - invoice.net_amount) < 1) ? 'completed'
+              : paidAmt > 0 ? 'partial' : 'pending';
             return (
               <div className="text-center space-y-1">
                 <Badge

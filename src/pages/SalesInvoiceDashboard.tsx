@@ -1359,8 +1359,8 @@ export default function SalesInvoiceDashboard() {
 
     setIsRecordingPayment(true);
     try {
-      const newPaidAmount = currentPaid + amount;
-      const newStatus = newPaidAmount >= selectedInvoiceForPayment.net_amount ? 'completed' : 
+      const newPaidAmount = Math.round((currentPaid + amount) * 100) / 100;
+      const newStatus = Math.abs(newPaidAmount - selectedInvoiceForPayment.net_amount) < 1 && newPaidAmount >= selectedInvoiceForPayment.net_amount - 1 ? 'completed' : 
                        newPaidAmount > 0 ? 'partial' : 'pending';
 
       // Update sales table FIRST (before advance deduction to avoid orphaned deductions on failure)
