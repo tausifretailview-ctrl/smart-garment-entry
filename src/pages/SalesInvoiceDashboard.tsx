@@ -1255,8 +1255,8 @@ export default function SalesInvoiceDashboard() {
 
   const openPaymentDialog = (invoice: any) => {
     setSelectedInvoiceForPayment(invoice);
-    const pendingAmount = invoice.net_amount - (invoice.paid_amount || 0);
-    setPaidAmount(pendingAmount.toString());
+    const pendingAmount = Math.round(invoice.net_amount - (invoice.paid_amount || 0));
+    setPaidAmount(Math.max(0, pendingAmount).toString());
     setPaymentDate(new Date());
     setPaymentMode("cash");
     setPaymentNarration("");
@@ -1346,7 +1346,7 @@ export default function SalesInvoiceDashboard() {
     }
 
     const currentPaid = selectedInvoiceForPayment.paid_amount || 0;
-    const pendingAmount = selectedInvoiceForPayment.net_amount - currentPaid;
+    const pendingAmount = Math.round(selectedInvoiceForPayment.net_amount - currentPaid);
 
     if (amount > pendingAmount) {
       toast({
@@ -1359,8 +1359,8 @@ export default function SalesInvoiceDashboard() {
 
     setIsRecordingPayment(true);
     try {
-      const newPaidAmount = currentPaid + amount;
-      const newStatus = newPaidAmount >= selectedInvoiceForPayment.net_amount ? 'completed' : 
+      const newPaidAmount = Math.round((currentPaid + amount) * 100) / 100;
+      const newStatus = Math.abs(newPaidAmount - selectedInvoiceForPayment.net_amount) < 1 && newPaidAmount >= selectedInvoiceForPayment.net_amount - 1 ? 'completed' : 
                        newPaidAmount > 0 ? 'partial' : 'pending';
 
       // Update sales table FIRST (before advance deduction to avoid orphaned deductions on failure)
