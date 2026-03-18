@@ -85,6 +85,8 @@ export function SalesInvoiceERPTable({
   isGeneratingEInvoice,
   handleDownloadEInvoicePDF,
   isDownloadingEInvoice,
+  handleCancelIRN,
+  isCancellingIRN,
   openPaymentDialog,
   handleCopyLink,
   handleWhatsAppShare,
