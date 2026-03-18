@@ -27,7 +27,7 @@ interface Order {
 interface OrderItem {
   product_name: string;
   size: string;
-  qty: number;
+  order_qty: number;
   unit_price: number;
   line_total: number;
 }
