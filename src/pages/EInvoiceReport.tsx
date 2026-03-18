@@ -361,7 +361,6 @@ export default function EInvoiceReport() {
         columns={columns as any}
         isLoading={isLoading}
         emptyMessage="No B2B invoices found for this period"
-        pageSize={25}
       />
     </div>
   );
