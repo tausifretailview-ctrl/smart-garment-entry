@@ -420,6 +420,7 @@ const CustomerMaster = () => {
       opening_balance: customer.opening_balance?.toString() || "",
       discount_percent: customer.discount_percent?.toString() || "",
       transport_details: (customer as any).transport_details || "",
+      portal_enabled: (customer as any).portal_enabled || false,
     });
     setIsDialogOpen(true);
   };
