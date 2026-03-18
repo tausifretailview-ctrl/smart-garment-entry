@@ -71,6 +71,7 @@ const CustomerMaster = () => {
     opening_balance: "",
     discount_percent: "",
     transport_details: "",
+    portal_enabled: false,
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
