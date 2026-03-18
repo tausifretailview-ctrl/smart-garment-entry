@@ -1602,6 +1602,20 @@ export default function SalesInvoiceDashboard() {
     }
   };
 
+  // E-Invoice validation before generation
+  const validateForEInvoice = (invoice: any): string[] => {
+    const errors: string[] = [];
+    const gstin = invoice.customers?.gst_number;
+    if (!gstin) errors.push('Customer GSTIN is required for B2B e-Invoice');
+    else if (gstin.length !== 15) errors.push('Customer GSTIN must be 15 characters');
+    if (!invoice.sale_number) errors.push('Invoice number is missing');
+    if (invoice.net_amount <= 0) errors.push('Invoice total must be greater than 0');
+    // Check seller GSTIN
+    const sellerGstin = (settings as any)?.gst_number;
+    if (!sellerGstin) errors.push('Business GSTIN not configured in Settings → Business Details');
+    return errors;
+  };
+
   // E-Invoice generation handler
   const handleGenerateEInvoice = async (invoice: any) => {
     // Check if customer has GST number
@@ -1620,6 +1634,17 @@ export default function SalesInvoiceDashboard() {
       toast({
         title: "Already Generated",
         description: `E-Invoice already exists. IRN: ${invoice.irn.substring(0, 20)}...`,
+      });
+      return;
+    }
+
+    // Run validation
+    const validationErrors = validateForEInvoice(invoice);
+    if (validationErrors.length > 0) {
+      toast({
+        title: "Validation Failed",
+        description: validationErrors.join('. '),
+        variant: "destructive",
       });
       return;
     }
@@ -1665,6 +1690,59 @@ export default function SalesInvoiceDashboard() {
       });
     } finally {
       setIsGeneratingEInvoice(null);
+    }
+  };
+
+  // Cancel IRN handler
+  const handleCancelIRN = async (invoice: any) => {
+    if (!invoice.irn) return;
+    if (invoice.einvoice_status === 'cancelled') {
+      toast({ title: "Already Cancelled", description: "This IRN has already been cancelled." });
+      return;
+    }
+
+    // Check 24-hour window client-side
+    const ackDate = invoice.ack_date ? new Date(invoice.ack_date) : new Date(invoice.created_at);
+    const hoursSince = (Date.now() - ackDate.getTime()) / (1000 * 60 * 60);
+    if (hoursSince > 24) {
+      toast({
+        title: "Cannot Cancel",
+        description: "IRN can only be cancelled within 24 hours of generation.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to cancel the IRN for invoice ${invoice.sale_number}? This action cannot be undone.`)) {
+      return;
+    }
+
+    setIsCancellingIRN(invoice.id);
+    try {
+      const testMode = (settings?.sale_settings as any)?.einvoice_settings?.test_mode ?? true;
+      const response = await supabase.functions.invoke('cancel-einvoice', {
+        body: {
+          saleId: invoice.id,
+          organizationId: currentOrganization?.id,
+          reason: 'others',
+          remarks: 'Cancelled from dashboard',
+          testMode,
+        },
+      });
+
+      if (response.error) throw new Error(response.error.message);
+      const result = response.data;
+
+      if (result.success) {
+        toast({ title: "IRN Cancelled", description: "The e-Invoice IRN has been cancelled successfully." });
+        refetch();
+      } else {
+        toast({ title: "Cancellation Failed", description: result.error, variant: "destructive" });
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to cancel IRN", variant: "destructive" });
+    } finally {
+      setIsCancellingIRN(null);
     }
   };
 
