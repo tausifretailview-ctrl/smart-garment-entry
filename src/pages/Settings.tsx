@@ -271,6 +271,8 @@ export default function Settings() {
   const [sizeGroups, setSizeGroups] = useState<any[]>([]);
   const [showApiPassword, setShowApiPassword] = useState(false);
   const [showClientSecret, setShowClientSecret] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<{ success: boolean; message: string } | null>(null);
   const [settings, setSettings] = useState<Settings>({
     business_name: "",
     address: "",
