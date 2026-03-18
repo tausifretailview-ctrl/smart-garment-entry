@@ -396,7 +396,7 @@ const CustomerMaster = () => {
   });
 
   const resetForm = () => {
-    setFormData({ customer_name: "", phone: "", email: "", address: "", gst_number: "", opening_balance: "", discount_percent: "", transport_details: "" });
+    setFormData({ customer_name: "", phone: "", email: "", address: "", gst_number: "", opening_balance: "", discount_percent: "", transport_details: "", portal_enabled: false });
     setEditingCustomer(null);
   };
 
