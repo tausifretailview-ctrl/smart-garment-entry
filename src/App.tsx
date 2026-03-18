@@ -271,6 +271,9 @@ const App = () => {
                 <Route path="portal" element={<PortalLogin />} />
                 <Route path="portal/home" element={<PortalHome />} />
                 <Route path="portal/catalogue" element={<PortalCatalogue />} />
+                <Route path="portal/orders" element={<PortalOrders />} />
+                <Route path="portal/invoices" element={<PortalInvoices />} />
+                <Route path="portal/account" element={<PortalAccount />} />
                 {/* Dashboard - index route */}
                 <Route
                   index
