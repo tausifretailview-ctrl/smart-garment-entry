@@ -163,7 +163,7 @@ export default function PortalOrders() {
                       <div key={i} className="px-4 py-2 flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium">{item.product_name}</p>
-                          <p className="text-xs text-muted-foreground">Size: {item.size} · Qty: {item.qty} · ₹{item.unit_price}/pc</p>
+                          <p className="text-xs text-muted-foreground">Size: {item.size} · Qty: {item.order_qty} · ₹{item.unit_price}/pc</p>
                         </div>
                         <span className="text-sm font-semibold">₹{Math.round(item.line_total).toLocaleString('en-IN')}</span>
                       </div>
