@@ -358,7 +358,7 @@ export default function EInvoiceReport() {
       {/* Table */}
       <ERPTable
         data={filteredInvoices}
-        columns={columns}
+        columns={columns as any}
         isLoading={isLoading}
         emptyMessage="No B2B invoices found for this period"
         pageSize={25}
