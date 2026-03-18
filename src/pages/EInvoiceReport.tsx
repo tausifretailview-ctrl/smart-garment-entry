@@ -158,7 +158,7 @@ export default function EInvoiceReport() {
     return <Badge variant="secondary" className="gap-1"><Clock className="h-3 w-3" /> Pending</Badge>;
   };
 
-  const columns: ColumnDef<any>[] = useMemo(() => [
+  const columns: ColumnDef<any, any>[] = useMemo(() => [
     {
       accessorKey: 'sale_number',
       header: 'Invoice #',
