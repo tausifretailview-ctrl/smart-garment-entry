@@ -1346,7 +1346,7 @@ export default function SalesInvoiceDashboard() {
     }
 
     const currentPaid = selectedInvoiceForPayment.paid_amount || 0;
-    const pendingAmount = selectedInvoiceForPayment.net_amount - currentPaid;
+    const pendingAmount = Math.round(selectedInvoiceForPayment.net_amount - currentPaid);
 
     if (amount > pendingAmount) {
       toast({
