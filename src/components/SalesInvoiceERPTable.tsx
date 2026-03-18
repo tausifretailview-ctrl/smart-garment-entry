@@ -486,9 +486,16 @@ export function SalesInvoiceERPTable({
                         <Zap className="h-4 w-4 mr-2" /> {invoice.irn ? "E-Invoice Generated" : "Generate E-Invoice"}
                       </DropdownMenuItem>
                       {invoice.irn && (
-                        <DropdownMenuItem onClick={() => handleDownloadEInvoicePDF(invoice)} disabled={isDownloadingEInvoice === invoice.id}>
-                          <FileDown className="h-4 w-4 mr-2 text-teal-600" /> Download E-Invoice
-                        </DropdownMenuItem>
+                        <>
+                          <DropdownMenuItem onClick={() => handleDownloadEInvoicePDF(invoice)} disabled={isDownloadingEInvoice === invoice.id}>
+                            <FileDown className="h-4 w-4 mr-2 text-teal-600" /> Download E-Invoice
+                          </DropdownMenuItem>
+                          {invoice.einvoice_status !== 'cancelled' && handleCancelIRN && (
+                            <DropdownMenuItem onClick={() => handleCancelIRN(invoice)} disabled={isCancellingIRN === invoice.id} className="text-destructive">
+                              <Ban className="h-4 w-4 mr-2" /> Cancel IRN
+                            </DropdownMenuItem>
+                          )}
+                        </>
                       )}
                     </>
                   )}
