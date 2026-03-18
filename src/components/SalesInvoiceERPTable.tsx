@@ -32,6 +32,8 @@ interface SalesInvoiceERPTableProps {
   isGeneratingEInvoice: string | null;
   handleDownloadEInvoicePDF: (invoice: any) => void;
   isDownloadingEInvoice: string | null;
+  handleCancelIRN?: (invoice: any) => void;
+  isCancellingIRN?: string | null;
   openPaymentDialog: (invoice: any) => void;
   handleCopyLink: (invoice: any) => void;
   handleWhatsAppShare: (invoice: any) => void;
