@@ -89,7 +89,7 @@ export default function PortalOrders() {
     }
     const { data } = await supabase
       .from('sale_order_items')
-      .select('product_name, size, qty, unit_price, line_total')
+      .select('product_name, size, order_qty, unit_price, line_total')
       .eq('order_id', orderId)
       .is('deleted_at', null);
     setItemsMap(prev => ({ ...prev, [orderId]: (data as OrderItem[]) || [] }));
