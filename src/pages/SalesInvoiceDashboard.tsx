@@ -2353,6 +2353,8 @@ export default function SalesInvoiceDashboard() {
                 isGeneratingEInvoice={isGeneratingEInvoice}
                 handleDownloadEInvoicePDF={handleDownloadEInvoicePDF}
                 isDownloadingEInvoice={isDownloadingEInvoice}
+                handleCancelIRN={handleCancelIRN}
+                isCancellingIRN={isCancellingIRN}
                 openPaymentDialog={openPaymentDialog}
                 handleCopyLink={handleCopyLink}
                 handleWhatsAppShare={handleWhatsAppShare}
