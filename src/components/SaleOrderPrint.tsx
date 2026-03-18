@@ -20,43 +20,30 @@ interface SaleOrderItem {
 }
 
 interface SaleOrderPrintProps {
-  // Business Details
   businessName: string;
   address: string;
   mobile: string;
   email?: string;
   gstNumber?: string;
   logoUrl?: string;
-  
-  // Order Details
   orderNumber: string;
   orderDate: Date;
   expectedDeliveryDate?: Date;
   quotationNumber?: string;
   salesman?: string;
-  
-  // Customer Details
   customerName: string;
   customerAddress?: string;
   customerMobile?: string;
   customerEmail?: string;
   customerGSTIN?: string;
-  
-  // Items
   items: SaleOrderItem[];
-  
-  // Amounts
   grossAmount: number;
   discountAmount: number;
   taxableAmount: number;
   gstAmount: number;
   roundOff: number;
   netAmount: number;
-  
-  // Status
   status: string;
-  
-  // Optional
   termsConditions?: string;
   notes?: string;
   shippingAddress?: string;
@@ -74,440 +61,458 @@ interface SaleOrderPrintProps {
 export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintProps>(
   (props, ref) => {
     const {
-      businessName,
-      address,
-      orderNumber,
-      orderDate,
-      salesman,
-      customerName,
-      customerAddress,
-      items,
-      netAmount,
-      format = 'a5-vertical',
-      showMRP = true,
-      showColor = true,
+      businessName, address, mobile, email, gstNumber, logoUrl,
+      orderNumber, orderDate, expectedDeliveryDate, quotationNumber, salesman,
+      customerName, customerAddress, customerMobile, customerEmail, customerGSTIN,
+      items, grossAmount, discountAmount, gstAmount, roundOff, netAmount,
+      termsConditions, notes,
+      showMRP = true, showColor = true,
+      format = 'a4',
       invoiceFormat = 'standard',
     } = props;
 
-    const formatDate = (date: Date) => {
-      return date.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    };
+    const PRIMARY = '#1a3a5c';
+    const LIGHT = '#e8eef5';
+    const BORDER = '#b8c8d8';
 
-    const formatCurrency = (amount: number) => {
-      return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    };
-
-    const totalOrderQty = items.reduce((sum, item) => sum + item.orderQty, 0);
-    
     const isA4 = format === 'a4';
     const isHorizontal = format === 'a5-horizontal';
 
-    // Calculate items per page based on format - maximized for more rows
-    const getItemsPerPage = () => {
-      if (isA4) return 35;
-      if (isHorizontal) return 18;
-      return 28; // A5 vertical - increased from 18
-    };
+    const fmt = (n: number) =>
+      `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-    const itemsPerPage = getItemsPerPage();
-    const totalPages = Math.ceil(items.length / itemsPerPage);
+    const fmtDate = (d: Date) =>
+      d.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-    // Split items into pages
+    const totalQty = items.reduce((s, i) => s + i.orderQty, 0);
+
+    const itemsPerPage = isA4 ? 20 : isHorizontal ? 12 : 16;
     const pages: SaleOrderItem[][] = [];
     for (let i = 0; i < items.length; i += itemsPerPage) {
       pages.push(items.slice(i, i + itemsPerPage));
     }
+    if (pages.length === 0) pages.push([]);
+    const totalPages = pages.length;
 
-    // If no items, still show one page
-    if (pages.length === 0) {
-      pages.push([]);
-    }
-
-    // Group items by product for wholesale size grouping format
     const groupedItems = React.useMemo(() => {
       if (invoiceFormat !== 'wholesale-size-grouping') return null;
-      
       const groups: Map<string, {
-        productName: string;
-        brand?: string;
-        style?: string;
-        color?: string;
-        rate: number;
-        mrp: number;
-        sizes: Map<string, { qty: number; total: number }>;
-        totalQty: number;
-        totalAmount: number;
+        productName: string; brand?: string; style?: string; color?: string;
+        rate: number; mrp: number;
+        sizes: Map<string, { qty: number }>; totalQty: number; totalAmount: number;
       }> = new Map();
-      
       items.forEach(item => {
         const key = `${item.particulars}-${item.color || ''}-${item.rate}`;
         if (!groups.has(key)) {
           groups.set(key, {
-            productName: item.particulars,
-            brand: item.brand,
-            style: item.style,
-            color: item.color,
-            rate: item.rate,
-            mrp: item.mrp,
-            sizes: new Map(),
-            totalQty: 0,
-            totalAmount: 0,
+            productName: item.particulars, brand: item.brand, style: item.style,
+            color: item.color, rate: item.rate, mrp: item.mrp,
+            sizes: new Map(), totalQty: 0, totalAmount: 0,
           });
         }
-        const group = groups.get(key)!;
-        const currentSize = group.sizes.get(item.size) || { qty: 0, total: 0 };
-        group.sizes.set(item.size, {
-          qty: currentSize.qty + item.orderQty,
-          total: currentSize.total + item.total,
-        });
-        group.totalQty += item.orderQty;
-        group.totalAmount += item.total;
+        const g = groups.get(key)!;
+        const cur = g.sizes.get(item.size) || { qty: 0 };
+        g.sizes.set(item.size, { qty: cur.qty + item.orderQty });
+        g.totalQty += item.orderQty;
+        g.totalAmount += item.total;
       });
-      
       return Array.from(groups.values());
     }, [items, invoiceFormat]);
 
-    // Get unique sizes for wholesale format
     const uniqueSizes = React.useMemo(() => {
       if (invoiceFormat !== 'wholesale-size-grouping') return [];
       const sizes = new Set<string>();
-      items.forEach(item => sizes.add(item.size));
+      items.forEach(i => sizes.add(i.size));
       return sortSizes(Array.from(sizes));
     }, [items, invoiceFormat]);
 
+    const baseFontSize = isA4 ? '9pt' : '7.5pt';
+    const smallFont = isA4 ? '7.5pt' : '6.5pt';
+    const tinyFont = isA4 ? '7pt' : '6pt';
+
+    const thStyle = (extra: React.CSSProperties = {}): React.CSSProperties => ({
+      border: `1px solid ${BORDER}`,
+      padding: isA4 ? '5px 4px' : '3px 2px',
+      background: PRIMARY,
+      color: '#fff',
+      fontWeight: 700,
+      fontSize: isA4 ? '8pt' : '7pt',
+      textTransform: 'uppercase',
+      letterSpacing: '0.03em',
+      ...extra,
+    });
+
+    const tdStyle = (extra: React.CSSProperties = {}): React.CSSProperties => ({
+      border: `1px solid ${BORDER}`,
+      padding: isA4 ? '4px 4px' : '3px 2px',
+      fontSize: baseFontSize,
+      verticalAlign: 'middle',
+      ...extra,
+    });
+
+    const pageWidth = isA4 ? '210mm' : isHorizontal ? '210mm' : '148mm';
+    const pageMinHeight = isA4 ? '297mm' : isHorizontal ? '148mm' : '210mm';
+    const pagePadding = isA4 ? '8mm' : isHorizontal ? '6mm' : '4mm';
+
+    // ── Header ──────────────────────────────────────────────────────────────
+    const renderHeader = () => (
+      <div style={{ marginBottom: isA4 ? '8px' : '5px' }}>
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+          paddingBottom: isA4 ? '8px' : '5px',
+          borderBottom: `2px solid ${PRIMARY}`,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
+            {logoUrl && (
+              <img src={logoUrl} alt="Logo" style={{
+                width: isA4 ? '50px' : '36px', height: isA4 ? '50px' : '36px',
+                objectFit: 'contain', borderRadius: '4px',
+              }} />
+            )}
+            <div>
+              <div style={{
+                fontSize: isA4 ? '16pt' : '12pt', fontWeight: 800,
+                color: PRIMARY, textTransform: 'uppercase', letterSpacing: '0.02em',
+              }}>
+                {businessName}
+              </div>
+              <div style={{ fontSize: tinyFont, color: '#555', marginTop: '1px', lineHeight: 1.3 }}>
+                {address}
+              </div>
+              <div style={{ fontSize: tinyFont, color: '#666', display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '2px' }}>
+                {mobile && <span>📞 {mobile}</span>}
+                {email && <span>✉ {email}</span>}
+                {gstNumber && <span style={{ fontWeight: 600 }}>GSTIN: {gstNumber}</span>}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'right' }}>
+            <div style={{
+              background: PRIMARY, color: '#fff', padding: isA4 ? '6px 16px' : '4px 10px',
+              borderRadius: '4px', fontWeight: 800, fontSize: isA4 ? '11pt' : '9pt',
+              letterSpacing: '0.1em', display: 'inline-block', marginBottom: '4px',
+            }}>
+              SALE ORDER
+            </div>
+            <div style={{ fontSize: smallFont, color: '#333', lineHeight: 1.5 }}>
+              <div><strong>Order No:</strong> {orderNumber}</div>
+              <div><strong>Date:</strong> {fmtDate(orderDate)}</div>
+              {expectedDeliveryDate && <div><strong>Delivery By:</strong> {fmtDate(expectedDeliveryDate)}</div>}
+              {quotationNumber && <div><strong>Ref. Quotation:</strong> {quotationNumber}</div>}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+
+    // ── Customer Info Strip ─────────────────────────────────────────────────
+    const renderCustomerStrip = (pageIndex: number) => (
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+        background: LIGHT, border: `1px solid ${BORDER}`, borderRadius: '4px',
+        padding: isA4 ? '8px 10px' : '5px 6px',
+        marginBottom: isA4 ? '8px' : '5px',
+        fontSize: smallFont,
+      }}>
+        <div style={{ flex: 1 }}>
+          <div style={{
+            fontSize: tinyFont, fontWeight: 700, color: PRIMARY,
+            textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '2px',
+          }}>
+            Bill To
+          </div>
+          <div style={{ fontWeight: 700, fontSize: baseFontSize, color: '#111' }}>{customerName}</div>
+          {customerAddress && <div style={{ color: '#444', marginTop: '1px', lineHeight: 1.2 }}>{customerAddress}</div>}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '2px', color: '#555' }}>
+            {customerMobile && <span>📞 {customerMobile}</span>}
+            {customerEmail && <span>✉ {customerEmail}</span>}
+            {customerGSTIN && <span style={{ fontWeight: 600 }}>GSTIN: {customerGSTIN}</span>}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right', fontSize: tinyFont, color: '#555' }}>
+          {salesman && <div style={{ marginBottom: '2px' }}><strong>Salesman:</strong> {salesman}</div>}
+          {totalPages > 1 && <div>Page {pageIndex + 1} / {totalPages}</div>}
+        </div>
+      </div>
+    );
+
+    // ── Items Table (standard) ──────────────────────────────────────────────
+    const renderItemsTable = (pageItems: SaleOrderItem[]) => (
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr>
+            <th style={thStyle({ width: '5%', textAlign: 'center' })}>Sr</th>
+            <th style={thStyle({ textAlign: 'left' })}>Product</th>
+            {showColor && <th style={thStyle({ width: '10%', textAlign: 'center' })}>Color</th>}
+            <th style={thStyle({ width: '8%', textAlign: 'center' })}>Size</th>
+            <th style={thStyle({ width: '7%', textAlign: 'center' })}>Qty</th>
+            {showMRP && <th style={thStyle({ width: '10%', textAlign: 'right' })}>MRP</th>}
+            <th style={thStyle({ width: '10%', textAlign: 'right' })}>Rate</th>
+            <th style={thStyle({ width: '12%', textAlign: 'right' })}>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {pageItems.map((item, idx) => {
+            const details = [item.brand, item.style].filter(Boolean).join(' · ');
+            const rowBg = idx % 2 === 0 ? '#fff' : '#f7f9fc';
+            return (
+              <tr key={item.sr} style={{ background: rowBg }}>
+                <td style={tdStyle({ textAlign: 'center', color: '#888' })}>{item.sr}</td>
+                <td style={tdStyle({ textAlign: 'left' })}>
+                  {item.particulars}
+                  {details && (
+                    <span style={{ color: '#888', marginLeft: '4px', fontSize: '85%' }}>({details})</span>
+                  )}
+                </td>
+                {showColor && (
+                  <td style={tdStyle({ textAlign: 'center', fontWeight: 600 })}>{item.color || '—'}</td>
+                )}
+                <td style={tdStyle({ textAlign: 'center', fontWeight: 700, fontSize: isA4 ? '10pt' : '8pt' })}>
+                  {item.size}
+                </td>
+                <td style={tdStyle({ textAlign: 'center', fontWeight: 600 })}>{item.orderQty}</td>
+                {showMRP && <td style={tdStyle({ textAlign: 'right' })}>{fmt(item.mrp)}</td>}
+                <td style={tdStyle({ textAlign: 'right' })}>{fmt(item.rate)}</td>
+                <td style={tdStyle({ textAlign: 'right', fontWeight: 700 })}>{fmt(item.total)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+
+    // ── Footer (last page only) ─────────────────────────────────────────────
+    const renderFooter = () => (
+      <div style={{ marginTop: isA4 ? '10px' : '6px' }}>
+        {/* Notes + Summary row */}
+        <div style={{
+          display: 'flex', gap: isA4 ? '16px' : '8px',
+          alignItems: 'flex-start', marginBottom: isA4 ? '10px' : '6px',
+        }}>
+          {/* Left: Notes + Terms */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {notes && (
+              <div style={{
+                border: `1px solid ${BORDER}`, borderRadius: '4px',
+                padding: isA4 ? '8px' : '5px', marginBottom: '6px',
+              }}>
+                <div style={{
+                  fontSize: tinyFont, fontWeight: 700, color: PRIMARY,
+                  textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '3px',
+                }}>
+                  📝 Notes
+                </div>
+                <div style={{ fontSize: smallFont, color: '#333', whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>
+                  {notes}
+                </div>
+              </div>
+            )}
+            {termsConditions && (
+              <div style={{
+                border: `1px solid ${BORDER}`, borderRadius: '4px',
+                padding: isA4 ? '8px' : '5px',
+              }}>
+                <div style={{
+                  fontSize: tinyFont, fontWeight: 700, color: PRIMARY,
+                  textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '3px',
+                }}>
+                  Terms & Conditions
+                </div>
+                <div style={{ fontSize: tinyFont, color: '#555', whiteSpace: 'pre-wrap', lineHeight: 1.3 }}>
+                  {termsConditions}
+                </div>
+              </div>
+            )}
+            {!notes && !termsConditions && (
+              <div style={{
+                border: `1px dashed ${BORDER}`, borderRadius: '4px',
+                padding: isA4 ? '8px' : '5px', minHeight: isA4 ? '40px' : '25px',
+              }}>
+                <div style={{
+                  fontSize: tinyFont, fontWeight: 700, color: '#aaa',
+                  textTransform: 'uppercase', letterSpacing: '0.05em',
+                }}>
+                  Notes
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right: Summary box */}
+          <div style={{
+            width: isA4 ? '200px' : '150px', flexShrink: 0,
+            border: `1.5px solid ${PRIMARY}`, borderRadius: '4px', overflow: 'hidden',
+          }}>
+            <div style={{
+              background: PRIMARY, color: '#fff', padding: '4px 8px',
+              fontSize: tinyFont, fontWeight: 700, textTransform: 'uppercase',
+              letterSpacing: '0.06em', textAlign: 'center',
+            }}>
+              Order Summary
+            </div>
+            <div style={{ padding: isA4 ? '6px 8px' : '4px 6px' }}>
+              {[
+                ['Total Items', items.length.toString()],
+                ['Total Qty', totalQty.toString()],
+                ...(grossAmount !== netAmount ? [['Gross Amount', fmt(grossAmount)]] : []),
+                ...(discountAmount > 0 ? [['Discount', `− ${fmt(discountAmount)}`]] : []),
+                ...(gstAmount > 0 ? [['GST', fmt(gstAmount)]] : []),
+                ...(roundOff !== 0 ? [['Round Off', (roundOff > 0 ? '+' : '') + fmt(roundOff)]] : []),
+              ].map(([label, value]) => (
+                <div key={label} style={{
+                  display: 'flex', justifyContent: 'space-between',
+                  fontSize: smallFont, padding: '2px 0', color: '#333',
+                }}>
+                  <span>{label}</span>
+                  <span style={{ fontWeight: 600 }}>{value}</span>
+                </div>
+              ))}
+              <div style={{
+                display: 'flex', justifyContent: 'space-between',
+                fontSize: isA4 ? '10pt' : '8.5pt', fontWeight: 800,
+                borderTop: `1.5px solid ${PRIMARY}`, marginTop: '4px', paddingTop: '4px',
+                color: PRIMARY,
+              }}>
+                <span>NET AMOUNT</span>
+                <span>{fmt(netAmount)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Signature row */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between',
+          borderTop: `1.5px solid ${PRIMARY}`, paddingTop: isA4 ? '30px' : '20px',
+          fontSize: smallFont, color: '#555',
+        }}>
+          <div style={{ textAlign: 'center', width: '30%' }}>
+            <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: '4px' }}>Customer's Signature</div>
+          </div>
+          <div style={{ textAlign: 'center', width: '30%' }}>
+            <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: '4px' }}>Prepared By</div>
+          </div>
+          <div style={{ textAlign: 'center', width: '30%' }}>
+            <div style={{ fontWeight: 600, color: PRIMARY, marginBottom: '2px' }}>For {businessName}</div>
+            <div style={{ borderTop: `1px solid ${BORDER}`, paddingTop: '4px' }}>Authorised Signatory</div>
+          </div>
+        </div>
+      </div>
+    );
+
+    // ── Render standard page ────────────────────────────────────────────────
     const renderPage = (pageItems: SaleOrderItem[], pageIndex: number) => {
-      const isLastPage = pageIndex === pages.length - 1;
-      
+      const isLastPage = pageIndex === totalPages - 1;
       return (
-        <div 
+        <div
           key={pageIndex}
           className="sale-order-page"
           style={{
-            width: isA4 ? '210mm' : isHorizontal ? '210mm' : '148mm',
-            minHeight: isA4 ? '297mm' : isHorizontal ? '148mm' : '210mm',
-            padding: isA4 ? '6mm' : isHorizontal ? '5mm' : '3mm',
-            fontFamily: 'Arial, sans-serif',
-            fontSize: isA4 ? '10pt' : isHorizontal ? '9pt' : '8pt',
-            backgroundColor: 'white',
-            color: 'black',
+            width: pageWidth, minHeight: pageMinHeight,
+            padding: pagePadding, fontFamily: 'Arial, sans-serif',
+            fontSize: baseFontSize, backgroundColor: 'white', color: 'black',
             boxSizing: 'border-box',
             pageBreakAfter: isLastPage ? 'auto' : 'always',
           }}
         >
-          {/* Compact Header */}
-          <div style={{
-            textAlign: 'center',
-            marginBottom: isA4 ? '5px' : '4px',
-            borderBottom: '1.5px solid #000',
-            paddingBottom: isA4 ? '4px' : '3px',
-          }}>
-            <h1 style={{
-              fontSize: isA4 ? '14pt' : isHorizontal ? '12pt' : '11pt',
-              fontWeight: 'bold',
-              margin: '0',
-              textTransform: 'uppercase',
-            }}>
-              {businessName}
-            </h1>
-            <p style={{ 
-              fontSize: isA4 ? '7pt' : '6pt', 
-              margin: '1px 0 0 0',
-              lineHeight: 1.2 
-            }}>
-              {address}
-            </p>
-          </div>
-
-          {/* Info Row - Customer & Order Details */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            marginBottom: isA4 ? '5px' : '4px',
-            fontSize: isA4 ? '8pt' : isHorizontal ? '7pt' : '6.5pt',
-            borderBottom: '1px solid #999',
-            paddingBottom: isA4 ? '4px' : '3px',
-          }}>
-            {/* Left - Customer */}
-            <div style={{ flex: 1 }}>
-              <div>
-                <strong>Customer:</strong> {customerName}
-              </div>
-              {customerAddress && (
-                <div style={{ 
-                  fontSize: isA4 ? '7pt' : '6pt',
-                  color: '#333',
-                  marginTop: '1px',
-                  maxWidth: '65%',
-                  lineHeight: 1.1
-                }}>
-                  {customerAddress}
-                </div>
-              )}
-            </div>
-            
-            {/* Right - Order Info */}
-            <div style={{ textAlign: 'right', fontSize: isA4 ? '8pt' : '6.5pt' }}>
-              <div><strong>Date:</strong> {formatDate(orderDate)}</div>
-              <div><strong>Order No:</strong> {orderNumber}</div>
-              {salesman && <div><strong>Salesman:</strong> {salesman}</div>}
-              {totalPages > 1 && (
-                <div style={{ fontSize: isA4 ? '7pt' : '6pt', color: '#666' }}>
-                  Page {pageIndex + 1}/{totalPages}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Items Table - Compact */}
-          <table style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            fontSize: isA4 ? '9pt' : isHorizontal ? '8pt' : '7.5pt',
-          }}>
-            <thead>
-              <tr style={{ backgroundColor: '#e8e8e8' }}>
-                <th style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '3px 2px', width: '5%', fontWeight: 'bold' }}>Sr</th>
-                <th style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '3px 2px', textAlign: 'left', fontWeight: 'bold' }}>Product</th>
-                {showColor && (
-                  <th style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '3px 2px', width: '10%', fontWeight: 'bold' }}>Color</th>
-                )}
-                <th style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '3px 2px', width: '10%', fontWeight: 'bold' }}>Size</th>
-                <th style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '3px 2px', width: '7%', fontWeight: 'bold' }}>Qty</th>
-                {showMRP && (
-                  <th style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '3px 2px', width: '10%', fontWeight: 'bold', textAlign: 'right' }}>MRP</th>
-                )}
-                <th style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '3px 2px', width: '12%', fontWeight: 'bold', textAlign: 'right' }}>Rate</th>
-                <th style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '3px 2px', width: '13%', fontWeight: 'bold', textAlign: 'right' }}>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pageItems.map((item) => {
-                const details = [item.brand, item.style].filter(Boolean).join(' | ');
-                return (
-                  <tr key={item.sr}>
-                    <td style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px', textAlign: 'center' }}>{item.sr}</td>
-                    <td style={{ border: '1px solid #000', padding: isA4 ? '3px 4px' : '2px 3px', textAlign: 'left' }}>
-                      {item.particulars}
-                      {details && <span style={{ color: '#555', marginLeft: '3px', fontSize: '90%' }}>({details})</span>}
-                    </td>
-                    {showColor && (
-                      <td style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px', textAlign: 'center', fontWeight: 'bold' }}>{item.color || '-'}</td>
-                    )}
-                    <td style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px', textAlign: 'center', fontWeight: 'bold', fontSize: isA4 ? '10pt' : isHorizontal ? '9pt' : '8pt' }}>{item.size}</td>
-                    <td style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px', textAlign: 'center' }}>{item.orderQty}</td>
-                    {showMRP && (
-                      <td style={{ border: '1px solid #000', padding: isA4 ? '3px 4px' : '2px 3px', textAlign: 'right' }}>{formatCurrency(item.mrp)}</td>
-                    )}
-                    <td style={{ border: '1px solid #000', padding: isA4 ? '3px 4px' : '2px 3px', textAlign: 'right' }}>{formatCurrency(item.rate)}</td>
-                    <td style={{ border: '1px solid #000', padding: isA4 ? '3px 4px' : '2px 3px', textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(item.total)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-
-          {/* Simple Footer - Only on last page */}
-          {isLastPage && (
+          {renderHeader()}
+          {renderCustomerStrip(pageIndex)}
+          {renderItemsTable(pageItems)}
+          {isLastPage && renderFooter()}
+          {!isLastPage && (
             <div style={{
-              marginTop: isA4 ? '6px' : '4px',
-              paddingTop: isA4 ? '6px' : '4px',
-              borderTop: '2px solid #000',
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: isA4 ? '40px' : '20px',
-              fontSize: isA4 ? '11pt' : isHorizontal ? '10pt' : '9pt',
-              fontWeight: 'bold',
+              textAlign: 'center', fontSize: tinyFont, color: '#999',
+              marginTop: '6px', fontStyle: 'italic',
             }}>
-              <div>
-                Total Qty: <span style={{ minWidth: '40px', display: 'inline-block', textAlign: 'right' }}>{totalOrderQty}</span>
-              </div>
-              <div>
-                Total Amount: <span style={{ minWidth: '70px', display: 'inline-block', textAlign: 'right' }}>{formatCurrency(netAmount)}</span>
-              </div>
+              Continued on next page...
             </div>
           )}
         </div>
       );
     };
 
-    // Render wholesale size grouping format
+    // ── Render wholesale page ───────────────────────────────────────────────
     const renderWholesalePage = () => {
       if (!groupedItems) return null;
-      
       return (
-        <div 
+        <div
           className="sale-order-page"
           style={{
-            width: isA4 ? '210mm' : isHorizontal ? '210mm' : '148mm',
-            minHeight: isA4 ? '297mm' : isHorizontal ? '148mm' : '210mm',
-            padding: isA4 ? '6mm' : isHorizontal ? '5mm' : '3mm',
-            fontFamily: 'Arial, sans-serif',
-            fontSize: isA4 ? '10pt' : isHorizontal ? '9pt' : '8pt',
-            backgroundColor: 'white',
-            color: 'black',
+            width: pageWidth, minHeight: pageMinHeight,
+            padding: pagePadding, fontFamily: 'Arial, sans-serif',
+            fontSize: baseFontSize, backgroundColor: 'white', color: 'black',
             boxSizing: 'border-box',
           }}
         >
-          {/* Compact Header */}
-          <div style={{
-            textAlign: 'center',
-            marginBottom: isA4 ? '5px' : '4px',
-            borderBottom: '1.5px solid #000',
-            paddingBottom: isA4 ? '4px' : '3px',
-          }}>
-            <h1 style={{
-              fontSize: isA4 ? '14pt' : isHorizontal ? '12pt' : '11pt',
-              fontWeight: 'bold',
-              margin: '0',
-              textTransform: 'uppercase',
-            }}>
-              {businessName}
-            </h1>
-            <p style={{ 
-              fontSize: isA4 ? '7pt' : '6pt', 
-              margin: '1px 0 0 0',
-              lineHeight: 1.2 
-            }}>
-              {address}
-            </p>
-          </div>
-
-          {/* Info Row - Customer & Order Details */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            marginBottom: isA4 ? '5px' : '4px',
-            fontSize: isA4 ? '8pt' : isHorizontal ? '7pt' : '6.5pt',
-            borderBottom: '1px solid #999',
-            paddingBottom: isA4 ? '4px' : '3px',
-          }}>
-            {/* Left - Customer */}
-            <div style={{ flex: 1 }}>
-              <div>
-                <strong>Customer:</strong> {customerName}
-              </div>
-              {customerAddress && (
-                <div style={{ 
-                  fontSize: isA4 ? '7pt' : '6pt',
-                  color: '#333',
-                  marginTop: '1px',
-                  maxWidth: '65%',
-                  lineHeight: 1.1
-                }}>
-                  {customerAddress}
-                </div>
-              )}
-            </div>
-            
-            {/* Right - Order Info */}
-            <div style={{ textAlign: 'right', fontSize: isA4 ? '8pt' : '6.5pt' }}>
-              <div><strong>Date:</strong> {formatDate(orderDate)}</div>
-              <div><strong>Order No:</strong> {orderNumber}</div>
-              {salesman && <div><strong>Salesman:</strong> {salesman}</div>}
-            </div>
-          </div>
-
-          {/* Wholesale Size Grouping Table */}
-          <table style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            fontSize: isA4 ? '9pt' : isHorizontal ? '8pt' : '7.5pt',
-          }}>
+          {renderHeader()}
+          {renderCustomerStrip(0)}
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ backgroundColor: '#e8e8e8' }}>
-                <th style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '3px 2px', width: '4%', fontWeight: 'bold' }}>Sr</th>
-                <th style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '3px 2px', textAlign: 'left', fontWeight: 'bold' }}>Product</th>
-                {showColor && (
-                  <th style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '3px 2px', width: '8%', fontWeight: 'bold' }}>Color</th>
-                )}
-                {uniqueSizes.map(size => (
-                  <th key={size} style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '3px 2px', width: `${Math.max(5, 50 / uniqueSizes.length)}%`, fontWeight: 'bold', textAlign: 'center', fontSize: isA4 ? '10pt' : isHorizontal ? '9pt' : '8pt' }}>
-                    {size}
+              <tr>
+                <th style={thStyle({ width: '4%', textAlign: 'center' })}>Sr</th>
+                <th style={thStyle({ textAlign: 'left' })}>Product</th>
+                {showColor && <th style={thStyle({ width: '8%', textAlign: 'center' })}>Color</th>}
+                {uniqueSizes.map(sz => (
+                  <th key={sz} style={thStyle({
+                    width: `${Math.max(5, 50 / uniqueSizes.length)}%`,
+                    textAlign: 'center',
+                    fontSize: isA4 ? '9pt' : '7.5pt',
+                  })}>
+                    {sz}
                   </th>
                 ))}
-                <th style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '3px 2px', width: '6%', fontWeight: 'bold', textAlign: 'center' }}>Total</th>
-                {showMRP && (
-                  <th style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '3px 2px', width: '8%', fontWeight: 'bold', textAlign: 'right' }}>MRP</th>
-                )}
-                <th style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '3px 2px', width: '8%', fontWeight: 'bold', textAlign: 'right' }}>Rate</th>
-                <th style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '3px 2px', width: '10%', fontWeight: 'bold', textAlign: 'right' }}>Amount</th>
+                <th style={thStyle({ width: '6%', textAlign: 'center' })}>Total</th>
+                {showMRP && <th style={thStyle({ width: '8%', textAlign: 'right' })}>MRP</th>}
+                <th style={thStyle({ width: '8%', textAlign: 'right' })}>Rate</th>
+                <th style={thStyle({ width: '10%', textAlign: 'right' })}>Amount</th>
               </tr>
             </thead>
             <tbody>
-              {groupedItems.map((group, index) => {
-                const details = [group.brand, group.style].filter(Boolean).join(' | ');
+              {groupedItems.map((g, idx) => {
+                const details = [g.brand, g.style].filter(Boolean).join(' · ');
+                const rowBg = idx % 2 === 0 ? '#fff' : '#f7f9fc';
                 return (
-                  <tr key={index}>
-                    <td style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px', textAlign: 'center' }}>{index + 1}</td>
-                    <td style={{ border: '1px solid #000', padding: isA4 ? '3px 4px' : '2px 3px', textAlign: 'left' }}>
-                      {group.productName}
-                      {details && <span style={{ color: '#555', marginLeft: '3px', fontSize: '90%' }}>({details})</span>}
+                  <tr key={idx} style={{ background: rowBg }}>
+                    <td style={tdStyle({ textAlign: 'center', color: '#888' })}>{idx + 1}</td>
+                    <td style={tdStyle({ textAlign: 'left' })}>
+                      {g.productName}
+                      {details && <span style={{ color: '#888', marginLeft: '4px', fontSize: '85%' }}>({details})</span>}
                     </td>
-                    {showColor && (
-                      <td style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px', textAlign: 'center', fontWeight: 'bold' }}>{group.color || '-'}</td>
-                    )}
-                    {uniqueSizes.map(size => {
-                      const sizeData = group.sizes.get(size);
-                      return (
-                        <td key={size} style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px', textAlign: 'center', fontWeight: 'bold', fontSize: isA4 ? '10pt' : isHorizontal ? '9pt' : '8pt' }}>
-                          {sizeData ? sizeData.qty : '-'}
-                        </td>
-                      );
-                    })}
-                    <td style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px', textAlign: 'center', fontWeight: 'bold' }}>{group.totalQty}</td>
-                    {showMRP && (
-                      <td style={{ border: '1px solid #000', padding: isA4 ? '3px 4px' : '2px 3px', textAlign: 'right' }}>{formatCurrency(group.mrp)}</td>
-                    )}
-                    <td style={{ border: '1px solid #000', padding: isA4 ? '3px 4px' : '2px 3px', textAlign: 'right' }}>{formatCurrency(group.rate)}</td>
-                    <td style={{ border: '1px solid #000', padding: isA4 ? '3px 4px' : '2px 3px', textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(group.totalAmount)}</td>
+                    {showColor && <td style={tdStyle({ textAlign: 'center', fontWeight: 600 })}>{g.color || '—'}</td>}
+                    {uniqueSizes.map(sz => (
+                      <td key={sz} style={tdStyle({
+                        textAlign: 'center', fontWeight: 700,
+                        fontSize: isA4 ? '10pt' : '8pt',
+                      })}>
+                        {g.sizes.get(sz)?.qty ?? '—'}
+                      </td>
+                    ))}
+                    <td style={tdStyle({ textAlign: 'center', fontWeight: 700 })}>{g.totalQty}</td>
+                    {showMRP && <td style={tdStyle({ textAlign: 'right' })}>{fmt(g.mrp)}</td>}
+                    <td style={tdStyle({ textAlign: 'right' })}>{fmt(g.rate)}</td>
+                    <td style={tdStyle({ textAlign: 'right', fontWeight: 700 })}>{fmt(g.totalAmount)}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-
-          {/* Simple Footer */}
-          <div style={{
-            marginTop: isA4 ? '8px' : '5px',
-            paddingTop: isA4 ? '6px' : '4px',
-            borderTop: '2px solid #000',
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: isA4 ? '40px' : '20px',
-            fontSize: isA4 ? '11pt' : isHorizontal ? '10pt' : '9pt',
-            fontWeight: 'bold',
-          }}>
-            <div>
-              Total Qty: <span style={{ minWidth: '40px', display: 'inline-block', textAlign: 'right' }}>{totalOrderQty}</span>
-            </div>
-            <div>
-              Total Amount: <span style={{ minWidth: '70px', display: 'inline-block', textAlign: 'right' }}>{formatCurrency(netAmount)}</span>
-            </div>
-          </div>
+          {renderFooter()}
         </div>
       );
     };
 
     return (
       <div ref={ref} className="sale-order-print-container">
-        <style>
-          {`
-            @media print {
-              .sale-order-print-container {
-                margin: 0;
-                padding: 0;
-              }
-              .sale-order-page {
-                page-break-after: always;
-                margin: 0;
-              }
-              .sale-order-page:last-child {
-                page-break-after: auto;
-              }
-            }
-          `}
-        </style>
-        {invoiceFormat === 'wholesale-size-grouping' 
+        <style>{`
+          @media print {
+            @page { size: ${isA4 ? 'A4' : isHorizontal ? 'A5 landscape' : 'A5 portrait'}; margin: 0; }
+            .sale-order-print-container { margin: 0; padding: 0; }
+            .sale-order-page { page-break-after: always; margin: 0; }
+            .sale-order-page:last-child { page-break-after: auto; }
+          }
+        `}</style>
+        {invoiceFormat === 'wholesale-size-grouping'
           ? renderWholesalePage()
           : pages.map((pageItems, index) => renderPage(pageItems, index))
         }
