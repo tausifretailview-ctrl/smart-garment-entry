@@ -35,3 +35,12 @@ verify_jwt = false
 
 [functions.generate-gstr1]
 verify_jwt = false
+
+[functions.portal-auth]
+verify_jwt = false
+
+[functions.portal-catalogue]
+verify_jwt = false
+
+[functions.portal-order]
+verify_jwt = false

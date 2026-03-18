@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { Switch } from "@/components/ui/switch";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -71,6 +72,7 @@ const CustomerMaster = () => {
     opening_balance: "",
     discount_percent: "",
     transport_details: "",
+    portal_enabled: false,
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -302,6 +304,7 @@ const CustomerMaster = () => {
         opening_balance: data.opening_balance ? parseFloat(data.opening_balance) : 0,
         discount_percent: data.discount_percent ? parseFloat(data.discount_percent) : 0,
         transport_details: data.transport_details || null,
+        portal_enabled: data.portal_enabled || false,
         organization_id: currentOrganization.id
       };
       const { error } = await supabase.from("customers").insert([customerData]);
@@ -345,6 +348,7 @@ const CustomerMaster = () => {
         opening_balance: data.opening_balance ? parseFloat(data.opening_balance) : 0,
         discount_percent: data.discount_percent ? parseFloat(data.discount_percent) : 0,
         transport_details: data.transport_details || null,
+        portal_enabled: data.portal_enabled || false,
       };
       const { error } = await supabase.from("customers").update(customerData).eq("id", id);
       if (error) throw error;
@@ -393,7 +397,7 @@ const CustomerMaster = () => {
   });
 
   const resetForm = () => {
-    setFormData({ customer_name: "", phone: "", email: "", address: "", gst_number: "", opening_balance: "", discount_percent: "", transport_details: "" });
+    setFormData({ customer_name: "", phone: "", email: "", address: "", gst_number: "", opening_balance: "", discount_percent: "", transport_details: "", portal_enabled: false });
     setEditingCustomer(null);
   };
 
@@ -417,6 +421,7 @@ const CustomerMaster = () => {
       opening_balance: customer.opening_balance?.toString() || "",
       discount_percent: customer.discount_percent?.toString() || "",
       transport_details: (customer as any).transport_details || "",
+      portal_enabled: (customer as any).portal_enabled || false,
     });
     setIsDialogOpen(true);
   };
@@ -773,6 +778,13 @@ const CustomerMaster = () => {
               <div><Label htmlFor="m-address">Address</Label><Textarea id="m-address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} /></div>
               <div><Label htmlFor="m-gst">GST Number</Label><Input id="m-gst" value={formData.gst_number} onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })} /></div>
               <div><Label htmlFor="m-bal">Opening Balance (₹)</Label><Input id="m-bal" type="number" step="0.01" value={formData.opening_balance} onChange={(e) => setFormData({ ...formData, opening_balance: e.target.value })} /></div>
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <Label className="text-sm font-medium">Buyer Portal Access</Label>
+                  <p className="text-xs text-muted-foreground">Customer can login and place orders</p>
+                </div>
+                <Switch checked={formData.portal_enabled} onCheckedChange={(checked) => setFormData({ ...formData, portal_enabled: !!checked })} />
+              </div>
               <Button type="submit" className="w-full">{editingCustomer ? "Update" : "Create"} Customer</Button>
             </form>
           </DialogContent>
@@ -895,6 +907,13 @@ const CustomerMaster = () => {
                     <div>
                       <Label htmlFor="transport_details">Transport Details</Label>
                       <Input id="transport_details" value={formData.transport_details} onChange={(e) => setFormData({ ...formData, transport_details: e.target.value })} placeholder="e.g., VRL Logistics, Navi Mumbai" />
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border p-3">
+                      <div>
+                        <Label className="text-sm font-medium">Buyer Portal Access</Label>
+                        <p className="text-xs text-muted-foreground">Customer can login to portal and place orders</p>
+                      </div>
+                      <Switch checked={formData.portal_enabled} onCheckedChange={(checked) => setFormData({ ...formData, portal_enabled: !!checked })} />
                     </div>
                     <Button type="submit" className="w-full">{editingCustomer ? "Update" : "Create"} Customer</Button>
                   </form>

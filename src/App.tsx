@@ -109,6 +109,9 @@ const FeeStructureSetup = lazy(() => import("./pages/school/FeeStructureSetup"))
 const TeacherMaster = lazy(() => import("./pages/school/TeacherMaster"));
 const StudentReports = lazy(() => import("./pages/school/StudentReports"));
 const StudentPromotion = lazy(() => import("./pages/school/StudentPromotion"));
+const PortalLogin = lazy(() => import("./pages/portal/PortalLogin"));
+const PortalHome = lazy(() => import("./pages/portal/PortalHome"));
+const PortalCatalogue = lazy(() => import("./pages/portal/PortalCatalogue"));
 
 const LazyFallback = () => (
   <div className="min-h-screen flex items-center justify-center">
@@ -261,6 +264,10 @@ const App = () => {
                 <Route path="field-sales" element={<FieldSalesAuth />} />
                 {/* Public invoice view - org-scoped (no auth required) */}
                 <Route path="invoice/view/:saleId" element={<PublicInvoiceView />} />
+                {/* Buyer Portal - public, no auth required */}
+                <Route path="portal" element={<PortalLogin />} />
+                <Route path="portal/home" element={<PortalHome />} />
+                <Route path="portal/catalogue" element={<PortalCatalogue />} />
                 {/* Dashboard - index route */}
                 <Route
                   index
