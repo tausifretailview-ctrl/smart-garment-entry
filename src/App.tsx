@@ -954,6 +954,16 @@ const App = () => {
                   }
                 />
                 <Route
+                  path="einvoice-report"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <EInvoiceReport />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="stock-analysis"
                   element={
                     <ProtectedRoute>
