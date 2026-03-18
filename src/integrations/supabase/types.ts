@@ -1125,6 +1125,11 @@ export type Database = {
           phone: string | null
           points_balance: number | null
           points_redeemed: number | null
+          portal_enabled: boolean | null
+          portal_last_login: string | null
+          portal_otp: string | null
+          portal_otp_expires_at: string | null
+          portal_price_type: string | null
           total_points_earned: number | null
           transport_details: string | null
           updated_at: string | null
@@ -1144,6 +1149,11 @@ export type Database = {
           phone?: string | null
           points_balance?: number | null
           points_redeemed?: number | null
+          portal_enabled?: boolean | null
+          portal_last_login?: string | null
+          portal_otp?: string | null
+          portal_otp_expires_at?: string | null
+          portal_price_type?: string | null
           total_points_earned?: number | null
           transport_details?: string | null
           updated_at?: string | null
@@ -1163,6 +1173,11 @@ export type Database = {
           phone?: string | null
           points_balance?: number | null
           points_redeemed?: number | null
+          portal_enabled?: boolean | null
+          portal_last_login?: string | null
+          portal_otp?: string | null
+          portal_otp_expires_at?: string | null
+          portal_price_type?: string | null
           total_points_earned?: number | null
           transport_details?: string | null
           updated_at?: string | null
@@ -2557,6 +2572,55 @@ export type Database = {
         }
         Relationships: []
       }
+      portal_sessions: {
+        Row: {
+          created_at: string | null
+          customer_id: string
+          expires_at: string
+          id: string
+          organization_id: string
+          session_token: string
+        }
+        Insert: {
+          created_at?: string | null
+          customer_id: string
+          expires_at: string
+          id?: string
+          organization_id: string
+          session_token: string
+        }
+        Update: {
+          created_at?: string | null
+          customer_id?: string
+          expires_at?: string
+          id?: string
+          organization_id?: string
+          session_token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_sessions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_sessions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_sessions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       printer_presets: {
         Row: {
           a4_cols: number | null
@@ -3868,6 +3932,7 @@ export type Database = {
           notes: string | null
           order_date: string
           order_number: string
+          order_source: string | null
           organization_id: string
           quotation_id: string | null
           round_off: number
@@ -3901,6 +3966,7 @@ export type Database = {
           notes?: string | null
           order_date?: string
           order_number: string
+          order_source?: string | null
           organization_id: string
           quotation_id?: string | null
           round_off?: number
@@ -3934,6 +4000,7 @@ export type Database = {
           notes?: string | null
           order_date?: string
           order_number?: string
+          order_source?: string | null
           organization_id?: string
           quotation_id?: string | null
           round_off?: number
