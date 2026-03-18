@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { Switch } from "@/components/ui/switch";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
