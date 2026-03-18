@@ -264,6 +264,10 @@ const App = () => {
                 <Route path="field-sales" element={<FieldSalesAuth />} />
                 {/* Public invoice view - org-scoped (no auth required) */}
                 <Route path="invoice/view/:saleId" element={<PublicInvoiceView />} />
+                {/* Buyer Portal - public, no auth required */}
+                <Route path="portal" element={<PortalLogin />} />
+                <Route path="portal/home" element={<PortalHome />} />
+                <Route path="portal/catalogue" element={<PortalCatalogue />} />
                 {/* Dashboard - index route */}
                 <Route
                   index
