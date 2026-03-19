@@ -3705,9 +3705,11 @@ export default function POSSales() {
               <div className="text-xl md:text-2xl font-bold">{totals.quantity}</div>
               <div className="text-xs md:text-sm mt-1">Quantity</div>
             </div>
-            <div className="text-center">
-              <div className="text-xl md:text-2xl font-bold">₹{Math.round(totals.mrp).toLocaleString('en-IN')}</div>
-              <div className="text-xs md:text-sm mt-1">MRP</div>
+            <div className="text-center bg-white/10 rounded-md py-1 px-1">
+              <div className="text-xl md:text-2xl font-bold line-through decoration-2 decoration-red-300 text-white/80">
+                ₹{Math.round(totals.mrp).toLocaleString('en-IN')}
+              </div>
+              <div className="text-xs md:text-sm mt-0.5 font-semibold tracking-wide">MRP Total</div>
             </div>
             {totals.savings > 0 && (
               <div className="text-center bg-green-600 rounded-md py-1">
