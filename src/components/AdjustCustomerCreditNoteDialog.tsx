@@ -199,7 +199,7 @@ export function AdjustCustomerCreditNoteDialog({
         });
 
         // Update voucher description if creditNoteId exists
-        if (creditNoteId) {
+        if (creditNoteId && creditNoteId !== '') {
           const { error: voucherError } = await supabase
             .from("voucher_entries")
             .update({
