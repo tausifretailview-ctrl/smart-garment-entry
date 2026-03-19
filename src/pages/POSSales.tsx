@@ -3916,6 +3916,7 @@ export default function POSSales() {
                 cashAmount={savedInvoiceData?.cashAmount || 0}
                 upiAmount={savedInvoiceData?.upiAmount || 0}
                 cardAmount={savedInvoiceData?.cardAmount || 0}
+                creditAmount={savedInvoiceData?.creditAmount || 0}
                 paidAmount={paymentMethod === 'pay_later' ? 0 : finalAmount}
                 previousBalance={customerBalance || 0}
                 roundOff={roundOff}
