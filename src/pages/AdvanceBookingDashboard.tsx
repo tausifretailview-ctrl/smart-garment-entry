@@ -651,7 +651,66 @@ export default function AdvanceBookingDashboard() {
          customerId={selectedCustomerForHistory?.id || null}
          customerName={selectedCustomerForHistory?.name || ''}
          organizationId={currentOrganization?.id || ''}
-       />
+        />
+
+       {/* Print Dialog */}
+       <Dialog open={printDialogOpen} onOpenChange={setPrintDialogOpen}>
+         <DialogContent className="sm:max-w-[400px]">
+           <DialogHeader>
+             <DialogTitle className="flex items-center gap-2">
+               <Printer className="h-5 w-5 text-primary" />
+               Print Advance Receipt
+             </DialogTitle>
+             <DialogDescription>
+               Print receipt for advance <strong>{printAdvance?.advance_number}</strong>
+             </DialogDescription>
+           </DialogHeader>
+           {printAdvance && (
+             <div className="space-y-4 py-2">
+               <div className="grid grid-cols-2 gap-2 text-sm">
+                 <div><span className="text-muted-foreground">Customer:</span> <span className="font-medium">{printAdvance.customers?.customer_name}</span></div>
+                 <div><span className="text-muted-foreground">Amount:</span> <span className="font-medium">₹{fmt(printAdvance.amount)}</span></div>
+               </div>
+               <div className="space-y-2">
+                 <Label>Paper Size</Label>
+                 <Select value={printPaperSize} onValueChange={(v) => setPrintPaperSize(v as "A4" | "A5")}>
+                   <SelectTrigger><SelectValue /></SelectTrigger>
+                   <SelectContent>
+                     <SelectItem value="A5">A5 (Half Page)</SelectItem>
+                     <SelectItem value="A4">A4 (Full Page)</SelectItem>
+                   </SelectContent>
+                 </Select>
+               </div>
+             </div>
+           )}
+           <DialogFooter>
+             <Button variant="outline" onClick={() => setPrintDialogOpen(false)}>Cancel</Button>
+             <Button onClick={() => handleDashPrint()}>
+               <Printer className="h-4 w-4 mr-1" /> Print
+             </Button>
+           </DialogFooter>
+         </DialogContent>
+       </Dialog>
+
+       {/* Hidden print receipt */}
+       {printAdvance && (
+         <AdvanceBookingReceipt
+           ref={dashPrintRef}
+           data={{
+             advanceNumber: printAdvance.advance_number,
+             advanceDate: printAdvance.advance_date,
+             customerName: printAdvance.customers?.customer_name || "",
+             customerPhone: printAdvance.customers?.phone || undefined,
+             amount: printAdvance.amount || 0,
+             paymentMethod: printAdvance.payment_method || "cash",
+             chequeNumber: printAdvance.cheque_number || undefined,
+             transactionId: printAdvance.transaction_id || undefined,
+             description: printAdvance.description || undefined,
+           }}
+           company={dashCompanyDetails}
+           paperSize={printPaperSize}
+         />
+       )}
      </div>
    );
 }
