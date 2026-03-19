@@ -51,6 +51,33 @@ export default function AdvanceBookingDashboard() {
    const [editTransactionId, setEditTransactionId] = useState("");
    const [showCustomerHistory, setShowCustomerHistory] = useState(false);
    const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
+   const [printAdvance, setPrintAdvance] = useState<any>(null);
+   const [printPaperSize, setPrintPaperSize] = useState<"A4" | "A5">("A5");
+   const [printDialogOpen, setPrintDialogOpen] = useState(false);
+   const dashPrintRef = useRef<HTMLDivElement>(null);
+   const { data: settings } = useSettings();
+
+   const handleDashPrint = useReactToPrint({
+     contentRef: dashPrintRef,
+     documentTitle: `Advance-${printAdvance?.advance_number || "Receipt"}`,
+     onAfterPrint: () => {
+       setPrintDialogOpen(false);
+       setPrintAdvance(null);
+     },
+   });
+
+   const openPrintDialog = (adv: any) => {
+     setPrintAdvance(adv);
+     setPrintDialogOpen(true);
+   };
+
+   const dashCompanyDetails = {
+     businessName: (settings as any)?.business_name || currentOrganization?.name || "Business",
+     address: (settings as any)?.address || "",
+     phone: (settings as any)?.mobile_number || "",
+     email: (settings as any)?.email_id || "",
+     gstNumber: (settings as any)?.gst_number || "",
+   };
 
   // Debounced search
   const handleSearch = useCallback((value: string) => {
