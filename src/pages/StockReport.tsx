@@ -441,12 +441,8 @@ export default function StockReport() {
             // Barcode search: exact match OR prefix match (fast B-tree index)
             query = query.or(`barcode.eq.${trimmedSearch},barcode.ilike.${trimmedSearch}%`);
           } else {
-            // Text search: search product name, brand, size, color
-            // Use separate filters for direct cols vs referenced table cols
-            query = query.or(
-              `size.ilike.%${trimmedSearch}%,color.ilike.%${trimmedSearch}%,barcode.ilike.%${trimmedSearch}%`
-            );
-            // Also filter by product name/brand on the referenced table
+            // Text search: filter on referenced table for product name/brand
+            // This uses referencedTable to correctly filter the inner join
             query = query.or(
               `product_name.ilike.%${trimmedSearch}%,brand.ilike.%${trimmedSearch}%`,
               { referencedTable: "products" }
