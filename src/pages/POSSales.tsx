@@ -242,6 +242,51 @@ export default function POSSales() {
   const { openDrawer: openCashDrawer } = useCashDrawer();
   const { softDelete } = useSoftDelete();
 
+  // Persist cart to localStorage so it survives tab switching
+  useEffect(() => {
+    try {
+      const key = `pos_cart_${currentOrganization?.id || 'default'}`;
+      if (items.length === 0) {
+        localStorage.removeItem(key);
+      } else {
+        localStorage.setItem(key, JSON.stringify({
+          items,
+          customerId,
+          customerName,
+          customerPhone,
+          saleNotes,
+          savedAt: Date.now(),
+        }));
+      }
+    } catch { /* ignore storage errors */ }
+  }, [items, customerId, customerName, customerPhone, saleNotes, currentOrganization?.id]);
+
+  // Show notification if cart was restored from previous session
+  useEffect(() => {
+    try {
+      const key = `pos_cart_${currentOrganization?.id || 'default'}`;
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.items) && parsed.items.length > 0) {
+          const totalQty = parsed.items.reduce(
+            (s: number, i: any) => s + (i.quantity || 0), 0
+          );
+          const timeDiff = Date.now() - (parsed.savedAt || 0);
+          if (timeDiff < 4 * 60 * 60 * 1000) {
+            toast({
+              title: "🛒 Cart Restored",
+              description: `${parsed.items.length} item${parsed.items.length > 1 ? 's' : ''} · ${totalQty} qty restored from previous session`,
+            });
+          } else {
+            localStorage.removeItem(key);
+            setItems([]);
+          }
+        }
+      }
+    } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Barcode scanner detection for instant cart add
   const { recordKeystroke, reset: resetScannerDetection, detectScannerInput } = useBarcodeScanner();
