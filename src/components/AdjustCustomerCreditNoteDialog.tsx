@@ -47,7 +47,7 @@ export function AdjustCustomerCreditNoteDialog({
   const { data: unpaidSales = [], isLoading: salesLoading } = useQuery({
     queryKey: ["unpaid-customer-sales", customerId, currentOrganization?.id],
     queryFn: async () => {
-      if (!customerId || !currentOrganization?.id) return [];
+      if (!customerId || customerId === '' || !currentOrganization?.id) return [];
 
       const { data: salesData, error: salesError } = await supabase
         .from("sales")
