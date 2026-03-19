@@ -20,6 +20,7 @@ interface MixPaymentDialogProps {
     cashAmount: number;
     cardAmount: number;
     upiAmount: number;
+    creditAmount: number;
     totalPaid: number;
     refundAmount: number;
     issueCreditNote?: boolean;
