@@ -50,7 +50,7 @@ export function AddAdvanceBookingDialog({
 
   const { createAdvance } = useCustomerAdvances(organizationId);
   const { currentOrganization } = useOrganization();
-  const { settings } = useSettings(organizationId);
+  const { data: settings } = useSettings();
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
