@@ -121,9 +121,17 @@ export default function POSSales() {
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
-  const [customerId, setCustomerId] = useState<string>("");
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
+  const _savedCart = (() => {
+    try {
+      const key = `pos_cart_${currentOrganization?.id || 'default'}`;
+      const s = localStorage.getItem(key);
+      return s ? JSON.parse(s) : null;
+    } catch { return null; }
+  })();
+
+  const [customerId, setCustomerId] = useState<string>(_savedCart?.customerId || "");
+  const [customerName, setCustomerName] = useState(_savedCart?.customerName || "");
+  const [customerPhone, setCustomerPhone] = useState(_savedCart?.customerPhone || "");
   const [searchInput, setSearchInput] = useState("");
   const [showMobilePaymentSheet, setShowMobilePaymentSheet] = useState(false);
   const [selectedProductType, setSelectedProductType] = useState<string>("all");
@@ -139,7 +147,20 @@ export default function POSSales() {
   const { data: customerPointsData } = useCustomerPointsBalance(customerId || null);
   const { getBrandDiscount, hasBrandDiscounts, brandDiscounts } = useCustomerBrandDiscounts(customerId || null);
   const [pointsToRedeem, setPointsToRedeem] = useState(0);
-  const [items, setItemsRaw] = useState<CartItem[]>([]);
+  const [items, setItemsRaw] = useState<CartItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(
+        `pos_cart_${currentOrganization?.id || 'default'}`
+      );
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.items) && parsed.items.length > 0) {
+          return parsed.items;
+        }
+      }
+    } catch { /* ignore parse errors */ }
+    return [];
+  });
   const itemsRef = useRef<CartItem[]>([]);
   const setItems = useCallback((updater: CartItem[] | ((prev: CartItem[]) => CartItem[])) => {
     setItemsRaw(prev => {
@@ -185,7 +206,7 @@ export default function POSSales() {
   const [openSalesmanSearch, setOpenSalesmanSearch] = useState(false);
   const [selectedSalesman, setSelectedSalesman] = useState("");
   const [salesmanSearchInput, setSalesmanSearchInput] = useState("");
-  const [saleNotes, setSaleNotes] = useState("");
+  const [saleNotes, setSaleNotes] = useState(_savedCart?.saleNotes || "");
   const [newCustomerForm, setNewCustomerForm] = useState({
     customer_name: "",
     phone: "",
@@ -221,6 +242,51 @@ export default function POSSales() {
   const { openDrawer: openCashDrawer } = useCashDrawer();
   const { softDelete } = useSoftDelete();
 
+  // Persist cart to localStorage so it survives tab switching
+  useEffect(() => {
+    try {
+      const key = `pos_cart_${currentOrganization?.id || 'default'}`;
+      if (items.length === 0) {
+        localStorage.removeItem(key);
+      } else {
+        localStorage.setItem(key, JSON.stringify({
+          items,
+          customerId,
+          customerName,
+          customerPhone,
+          saleNotes,
+          savedAt: Date.now(),
+        }));
+      }
+    } catch { /* ignore storage errors */ }
+  }, [items, customerId, customerName, customerPhone, saleNotes, currentOrganization?.id]);
+
+  // Show notification if cart was restored from previous session
+  useEffect(() => {
+    try {
+      const key = `pos_cart_${currentOrganization?.id || 'default'}`;
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.items) && parsed.items.length > 0) {
+          const totalQty = parsed.items.reduce(
+            (s: number, i: any) => s + (i.quantity || 0), 0
+          );
+          const timeDiff = Date.now() - (parsed.savedAt || 0);
+          if (timeDiff < 4 * 60 * 60 * 1000) {
+            toast({
+              title: "🛒 Cart Restored",
+              description: `${parsed.items.length} item${parsed.items.length > 1 ? 's' : ''} · ${totalQty} qty restored from previous session`,
+            });
+          } else {
+            localStorage.removeItem(key);
+            setItems([]);
+          }
+        }
+      }
+    } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Barcode scanner detection for instant cart add
   const { recordKeystroke, reset: resetScannerDetection, detectScannerInput } = useBarcodeScanner();
