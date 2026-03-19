@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -11,12 +11,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Coins, Plus, Search, RefreshCw, Undo2, IndianRupee, TrendingUp, Wallet, ChevronLeft, ChevronRight, Pencil } from "lucide-react";
+import { Coins, Plus, Search, RefreshCw, Undo2, IndianRupee, TrendingUp, Wallet, ChevronLeft, ChevronRight, Pencil, Printer } from "lucide-react";
 import { format, startOfDay, startOfWeek, startOfMonth } from "date-fns";
 import { toast } from "sonner";
 import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { AdvanceBookingReceipt } from "@/components/AdvanceBookingReceipt";
+import { useReactToPrint } from "react-to-print";
+import { useSettings } from "@/hooks/useSettings";
 
 const PAGE_SIZE = 50;
 
@@ -48,6 +51,33 @@ export default function AdvanceBookingDashboard() {
    const [editTransactionId, setEditTransactionId] = useState("");
    const [showCustomerHistory, setShowCustomerHistory] = useState(false);
    const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
+   const [printAdvance, setPrintAdvance] = useState<any>(null);
+   const [printPaperSize, setPrintPaperSize] = useState<"A4" | "A5">("A5");
+   const [printDialogOpen, setPrintDialogOpen] = useState(false);
+   const dashPrintRef = useRef<HTMLDivElement>(null);
+   const { data: settings } = useSettings();
+
+   const handleDashPrint = useReactToPrint({
+     contentRef: dashPrintRef,
+     documentTitle: `Advance-${printAdvance?.advance_number || "Receipt"}`,
+     onAfterPrint: () => {
+       setPrintDialogOpen(false);
+       setPrintAdvance(null);
+     },
+   });
+
+   const openPrintDialog = (adv: any) => {
+     setPrintAdvance(adv);
+     setPrintDialogOpen(true);
+   };
+
+   const dashCompanyDetails = {
+     businessName: (settings as any)?.business_name || currentOrganization?.name || "Business",
+     address: (settings as any)?.address || "",
+     phone: (settings as any)?.mobile_number || "",
+     email: (settings as any)?.email_id || "",
+     gstNumber: (settings as any)?.gst_number || "",
+   };
 
   // Debounced search
   const handleSearch = useCallback((value: string) => {
@@ -398,6 +428,9 @@ export default function AdvanceBookingDashboard() {
                     <TableCell>{getStatusBadge(adv.status)}</TableCell>
                      <TableCell>
                        <div className="flex items-center gap-1">
+                         <Button variant="outline" size="xs" onClick={() => openPrintDialog(adv)} title="Print Receipt">
+                           <Printer className="h-3 w-3" />
+                         </Button>
                          {canRefund && (
                            <>
                              <Button variant="outline" size="xs" onClick={() => openEdit(adv)} className="text-blue-600 hover:text-blue-700">
@@ -618,7 +651,66 @@ export default function AdvanceBookingDashboard() {
          customerId={selectedCustomerForHistory?.id || null}
          customerName={selectedCustomerForHistory?.name || ''}
          organizationId={currentOrganization?.id || ''}
-       />
+        />
+
+       {/* Print Dialog */}
+       <Dialog open={printDialogOpen} onOpenChange={setPrintDialogOpen}>
+         <DialogContent className="sm:max-w-[400px]">
+           <DialogHeader>
+             <DialogTitle className="flex items-center gap-2">
+               <Printer className="h-5 w-5 text-primary" />
+               Print Advance Receipt
+             </DialogTitle>
+             <DialogDescription>
+               Print receipt for advance <strong>{printAdvance?.advance_number}</strong>
+             </DialogDescription>
+           </DialogHeader>
+           {printAdvance && (
+             <div className="space-y-4 py-2">
+               <div className="grid grid-cols-2 gap-2 text-sm">
+                 <div><span className="text-muted-foreground">Customer:</span> <span className="font-medium">{printAdvance.customers?.customer_name}</span></div>
+                 <div><span className="text-muted-foreground">Amount:</span> <span className="font-medium">₹{fmt(printAdvance.amount)}</span></div>
+               </div>
+               <div className="space-y-2">
+                 <Label>Paper Size</Label>
+                 <Select value={printPaperSize} onValueChange={(v) => setPrintPaperSize(v as "A4" | "A5")}>
+                   <SelectTrigger><SelectValue /></SelectTrigger>
+                   <SelectContent>
+                     <SelectItem value="A5">A5 (Half Page)</SelectItem>
+                     <SelectItem value="A4">A4 (Full Page)</SelectItem>
+                   </SelectContent>
+                 </Select>
+               </div>
+             </div>
+           )}
+           <DialogFooter>
+             <Button variant="outline" onClick={() => setPrintDialogOpen(false)}>Cancel</Button>
+             <Button onClick={() => handleDashPrint()}>
+               <Printer className="h-4 w-4 mr-1" /> Print
+             </Button>
+           </DialogFooter>
+         </DialogContent>
+       </Dialog>
+
+       {/* Hidden print receipt */}
+       {printAdvance && (
+         <AdvanceBookingReceipt
+           ref={dashPrintRef}
+           data={{
+             advanceNumber: printAdvance.advance_number,
+             advanceDate: printAdvance.advance_date,
+             customerName: printAdvance.customers?.customer_name || "",
+             customerPhone: printAdvance.customers?.phone || undefined,
+             amount: printAdvance.amount || 0,
+             paymentMethod: printAdvance.payment_method || "cash",
+             chequeNumber: printAdvance.cheque_number || undefined,
+             transactionId: printAdvance.transaction_id || undefined,
+             description: printAdvance.description || undefined,
+           }}
+           company={dashCompanyDetails}
+           paperSize={printPaperSize}
+         />
+       )}
      </div>
    );
 }
