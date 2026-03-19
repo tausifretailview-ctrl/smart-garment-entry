@@ -1689,6 +1689,9 @@ export default function POSSales() {
         pointsRedeemed: pointsToRedeem,
         pointsRedemptionValue: pointsRedemptionValue,
         pointsBalance: (customerPointsData?.balance || 0) - pointsToRedeem,
+        cashAmount: result.cash_amount || 0,
+        upiAmount: result.upi_amount || 0,
+        cardAmount: result.card_amount || 0,
       };
       
       // Clear the form immediately after successful save (reset to new blank invoice)
@@ -1889,6 +1892,9 @@ export default function POSSales() {
         pointsRedeemed: pointsToRedeem,
         pointsRedemptionValue: pointsRedemptionValue,
         pointsBalance: (customerPointsData?.balance || 0) - pointsToRedeem,
+        cashAmount: result.cash_amount || 0,
+        upiAmount: result.upi_amount || 0,
+        cardAmount: result.card_amount || 0,
       } : null;
       
       // Clear the form immediately after successful save (reset to new blank invoice)
@@ -2250,6 +2256,9 @@ export default function POSSales() {
       customerPhone: sale.customer_phone,
       paidAmount: Number(sale.paid_amount) || 0,
       previousBalance: 0,
+      cashAmount: Number(sale.cash_amount) || 0,
+      upiAmount: Number(sale.upi_amount) || 0,
+      cardAmount: Number(sale.card_amount) || 0,
     });
 
     sonnerToast.success(`Invoice #${sale.sale_number} loaded successfully`);
@@ -2787,6 +2796,9 @@ export default function POSSales() {
             cashPaid={savedInvoiceData?.method === 'cash' ? savedInvoiceData.finalAmount : paymentMethod === 'cash' ? finalAmount : 0}
             upiPaid={savedInvoiceData?.method === 'upi' ? savedInvoiceData.finalAmount : paymentMethod === 'upi' ? finalAmount : 0}
             paymentMethod={savedInvoiceData?.method || paymentMethod}
+            cashAmount={savedInvoiceData?.cashAmount || 0}
+            upiAmount={savedInvoiceData?.upiAmount || 0}
+            cardAmount={savedInvoiceData?.cardAmount || 0}
             notes={savedInvoiceData?.notes || saleNotes}
             paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === 'pay_later' ? 0 : finalAmount)}
             previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
@@ -3816,6 +3828,9 @@ export default function POSSales() {
                 cashPaid={paymentMethod === 'cash' ? finalAmount : 0}
                 upiPaid={paymentMethod === 'upi' ? finalAmount : 0}
                 paymentMethod={paymentMethod}
+                cashAmount={savedInvoiceData?.cashAmount || 0}
+                upiAmount={savedInvoiceData?.upiAmount || 0}
+                cardAmount={savedInvoiceData?.cardAmount || 0}
                 paidAmount={paymentMethod === 'pay_later' ? 0 : finalAmount}
                 previousBalance={customerBalance || 0}
                 roundOff={roundOff}
@@ -3999,6 +4014,9 @@ export default function POSSales() {
                 cashPaid={savedInvoiceData.method === 'cash' ? savedInvoiceData.finalAmount : 0}
                 upiPaid={savedInvoiceData.method === 'upi' ? savedInvoiceData.finalAmount : 0}
                 paymentMethod={savedInvoiceData.method}
+                cashAmount={savedInvoiceData.cashAmount || 0}
+                upiAmount={savedInvoiceData.upiAmount || 0}
+                cardAmount={savedInvoiceData.cardAmount || 0}
                 notes={savedInvoiceData.notes}
                 paidAmount={savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount}
                 previousBalance={savedInvoiceData.previousBalance ?? 0}
@@ -4091,6 +4109,9 @@ export default function POSSales() {
                 cashPaid={savedInvoiceData?.method === 'cash' ? savedInvoiceData.finalAmount : paymentMethod === 'cash' ? finalAmount : 0}
                 upiPaid={savedInvoiceData?.method === 'upi' ? savedInvoiceData.finalAmount : paymentMethod === 'upi' ? finalAmount : 0}
                 paymentMethod={savedInvoiceData?.method || paymentMethod}
+                cashAmount={savedInvoiceData?.cashAmount || 0}
+                upiAmount={savedInvoiceData?.upiAmount || 0}
+                cardAmount={savedInvoiceData?.cardAmount || 0}
                 notes={savedInvoiceData?.isEstimate ? `** ESTIMATE - NOT A FINAL INVOICE **${savedInvoiceData?.notes ? '\n' + savedInvoiceData.notes : ''}` : (savedInvoiceData?.notes || saleNotes)}
                 paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === 'pay_later' ? 0 : finalAmount)}
                 previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
