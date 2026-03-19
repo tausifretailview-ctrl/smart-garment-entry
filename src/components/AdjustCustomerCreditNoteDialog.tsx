@@ -65,7 +65,7 @@ export function AdjustCustomerCreditNoteDialog({
         pending_amount: (sale.net_amount || 0) - (sale.paid_amount || 0),
       })).filter((sale: any) => sale.pending_amount > 0);
     },
-    enabled: open && !!customerId && !!currentOrganization?.id,
+    enabled: open && !!customerId && customerId !== '' && !!currentOrganization?.id,
   });
 
   const handleApply = async () => {
