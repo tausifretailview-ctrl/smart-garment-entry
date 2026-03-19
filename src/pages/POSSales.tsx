@@ -121,9 +121,17 @@ export default function POSSales() {
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
-  const [customerId, setCustomerId] = useState<string>("");
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
+  const _savedCart = (() => {
+    try {
+      const key = `pos_cart_${currentOrganization?.id || 'default'}`;
+      const s = localStorage.getItem(key);
+      return s ? JSON.parse(s) : null;
+    } catch { return null; }
+  })();
+
+  const [customerId, setCustomerId] = useState<string>(_savedCart?.customerId || "");
+  const [customerName, setCustomerName] = useState(_savedCart?.customerName || "");
+  const [customerPhone, setCustomerPhone] = useState(_savedCart?.customerPhone || "");
   const [searchInput, setSearchInput] = useState("");
   const [showMobilePaymentSheet, setShowMobilePaymentSheet] = useState(false);
   const [selectedProductType, setSelectedProductType] = useState<string>("all");
