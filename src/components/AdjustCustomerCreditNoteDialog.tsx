@@ -145,19 +145,22 @@ export function AdjustCustomerCreditNoteDialog({
         const newVoucherNumber = `PAY-${String(parseInt(lastNum) + 1).padStart(5, "0")}`;
 
         // Create payment voucher (refund to customer)
+        const insertData: any = {
+          organization_id: currentOrganization?.id,
+          voucher_number: newVoucherNumber,
+          voucher_type: "payment",
+          voucher_date: today,
+          reference_type: "customer",
+          description: `Refund paid for Sale Return: ${returnNumber}`,
+          total_amount: creditAmount,
+          payment_method: refundMode,
+        };
+        if (customerId && customerId !== '') {
+          insertData.reference_id = customerId;
+        }
         const { error: paymentError } = await supabase
           .from("voucher_entries")
-          .insert({
-            organization_id: currentOrganization?.id,
-            voucher_number: newVoucherNumber,
-            voucher_type: "payment",
-            voucher_date: today,
-            reference_type: "customer",
-            reference_id: customerId,
-            description: `Refund paid for Sale Return: ${returnNumber}`,
-            total_amount: creditAmount,
-            payment_method: refundMode,
-          });
+          .insert(insertData);
 
         if (paymentError) throw paymentError;
 
