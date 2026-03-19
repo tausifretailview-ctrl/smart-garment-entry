@@ -52,6 +52,7 @@ interface CompactTemplateProps {
   cashAmount?: number;
   cardAmount?: number;
   upiAmount?: number;
+  creditAmount?: number;
   paidAmount?: number;
   qrCodeUrl?: string;
   format?: 'a5-vertical' | 'a5-horizontal' | 'a4';
