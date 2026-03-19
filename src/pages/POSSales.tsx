@@ -3861,7 +3861,7 @@ export default function POSSales() {
               )}
               <Input 
                 type="number"
-                className={`w-28 h-10 text-center text-xl md:text-2xl font-bold bg-white text-cyan-700 border-white mx-auto ${finalAmount < 0 ? 'text-orange-600' : ''}`}
+                className={`w-36 md:w-44 h-10 text-center text-xl md:text-2xl font-bold bg-white text-cyan-700 border-white mx-auto ${finalAmount < 0 ? 'text-orange-600' : ''}`}
                 value={Math.round(finalAmount)}
                 onChange={(e) => handleFinalAmountChange(parseFloat(e.target.value) || 0)}
                 step="1"
