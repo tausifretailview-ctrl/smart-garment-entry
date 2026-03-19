@@ -392,10 +392,14 @@ export default function StockReport() {
     setHasSearched(true);
     
     try {
-      // Search old barcodes if searching
-      if (searchTerm && searchTerm.length >= 4) {
-        await searchOldBarcodes(searchTerm);
-      }
+      // Search old barcodes in parallel (don't await before main search)
+      const oldBarcodePromise = (searchTerm && searchTerm.length >= 4)
+        ? searchOldBarcodes(searchTerm)
+        : Promise.resolve();
+
+      // Detect if search looks like a barcode (has digits and 5+ chars)
+      const trimmedSearch = searchTerm.trim();
+      const looksLikeBarcode = trimmedSearch && /\d/.test(trimmedSearch) && trimmedSearch.length >= 5;
 
       // Fetch product variants with search/filter
       const allVariants: any[] = [];
@@ -429,24 +433,29 @@ export default function StockReport() {
           .eq("active", true)
           .is("deleted_at", null)
           .is("products.deleted_at", null)
-        .neq("products.product_type", "service");
+          .neq("products.product_type", "service");
         
-        // Apply search filter at query level - search by barcode, size, color AND product name
-        if (searchTerm.trim()) {
-          const search = searchTerm.trim();
-          query = query.or(
-            `barcode.eq.${search},barcode.ilike.%${search}%,size.ilike.%${search}%,color.ilike.%${search}%,products.product_name.ilike.%${search}%,products.brand.ilike.%${search}%`
-          );
+        // Apply search filter — use barcode heuristic to pick the right strategy
+        if (trimmedSearch) {
+          if (looksLikeBarcode) {
+            // Barcode search: exact match OR prefix match (fast B-tree index)
+            query = query.or(`barcode.eq.${trimmedSearch},barcode.ilike.${trimmedSearch}%`);
+          } else {
+            // Text search: filter on referenced table for product name/brand
+            // This uses referencedTable to correctly filter the inner join
+            query = query.or(
+              `product_name.ilike.%${trimmedSearch}%,brand.ilike.%${trimmedSearch}%`,
+              { referencedTable: "products" }
+            );
+          }
         }
         
         // Apply stock status filter at query level for efficiency
-        // Note: We always include 0 stock items to show products even with zero stock
         if (stockStatusFilter === "out") {
           query = query.eq("stock_qty", 0);
         } else if (stockStatusFilter === "in") {
           query = query.gt("stock_qty", 0);
         }
-        // For 'all' and 'low', we include all stock levels (0 and above)
         
         const { data, error } = await query
           .order("stock_qty", { ascending: true })
@@ -462,6 +471,9 @@ export default function StockReport() {
           hasMore = false;
         }
       }
+
+      // Wait for old barcode search to complete
+      await oldBarcodePromise;
       
       const data = allVariants;
 
