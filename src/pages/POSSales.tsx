@@ -4103,6 +4103,7 @@ export default function POSSales() {
                 cashAmount={savedInvoiceData.cashAmount || 0}
                 upiAmount={savedInvoiceData.upiAmount || 0}
                 cardAmount={savedInvoiceData.cardAmount || 0}
+                creditAmount={savedInvoiceData.creditAmount || 0}
                 notes={savedInvoiceData.notes}
                 paidAmount={savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount}
                 previousBalance={savedInvoiceData.previousBalance ?? 0}
