@@ -4109,6 +4109,9 @@ export default function POSSales() {
                 cashPaid={savedInvoiceData?.method === 'cash' ? savedInvoiceData.finalAmount : paymentMethod === 'cash' ? finalAmount : 0}
                 upiPaid={savedInvoiceData?.method === 'upi' ? savedInvoiceData.finalAmount : paymentMethod === 'upi' ? finalAmount : 0}
                 paymentMethod={savedInvoiceData?.method || paymentMethod}
+                cashAmount={savedInvoiceData?.cashAmount || 0}
+                upiAmount={savedInvoiceData?.upiAmount || 0}
+                cardAmount={savedInvoiceData?.cardAmount || 0}
                 notes={savedInvoiceData?.isEstimate ? `** ESTIMATE - NOT A FINAL INVOICE **${savedInvoiceData?.notes ? '\n' + savedInvoiceData.notes : ''}` : (savedInvoiceData?.notes || saleNotes)}
                 paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === 'pay_later' ? 0 : finalAmount)}
                 previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
