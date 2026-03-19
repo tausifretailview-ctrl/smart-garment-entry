@@ -3705,14 +3705,25 @@ export default function POSSales() {
               <div className="text-xl md:text-2xl font-bold">{totals.quantity}</div>
               <div className="text-xs md:text-sm mt-1">Quantity</div>
             </div>
-            <div className="text-center">
-              <div className="text-xl md:text-2xl font-bold">₹{Math.round(totals.mrp).toLocaleString('en-IN')}</div>
-              <div className="text-xs md:text-sm mt-1">MRP</div>
+            <div className="text-center bg-white/10 rounded-md py-1 px-1">
+              <div className="text-xl md:text-2xl font-bold line-through decoration-2 decoration-red-300 text-white/80">
+                ₹{Math.round(totals.mrp).toLocaleString('en-IN')}
+              </div>
+              <div className="text-xs md:text-sm mt-0.5 font-semibold tracking-wide">MRP Total</div>
             </div>
-            {totals.savings > 0 && (
-              <div className="text-center bg-green-600 rounded-md py-1">
-                <div className="text-xl md:text-2xl font-bold">₹{Math.round(totals.savings).toLocaleString('en-IN')}</div>
-                <div className="text-xs md:text-sm mt-1">You Save!</div>
+            {(totals.mrp > totals.subtotal || totals.savings > 0) && (
+              <div className="text-center bg-green-600 rounded-md py-1 px-1">
+                <div className="text-xl md:text-2xl font-bold">
+                  ₹{Math.round(totals.mrp - totals.subtotal > 0 ? totals.mrp - totals.subtotal : totals.savings).toLocaleString('en-IN')}
+                </div>
+                <div className="text-xs md:text-sm mt-0.5 font-semibold">
+                  🎉 Customer Saves
+                </div>
+                {totals.mrp > 0 && (
+                  <div className="text-[10px] text-green-200 leading-tight">
+                    {(((totals.mrp - totals.subtotal) / totals.mrp) * 100).toFixed(0)}% off MRP
+                  </div>
+                )}
               </div>
             )}
             <div className="text-center">
@@ -3838,6 +3849,11 @@ export default function POSSales() {
               </div>
             </div>
             <div className="text-center">
+              {totals.mrp > 0 && totals.mrp !== finalAmount && (
+                <div className="text-[10px] text-cyan-200 line-through mb-0.5">
+                  MRP ₹{Math.round(totals.mrp).toLocaleString('en-IN')}
+                </div>
+              )}
               <Input 
                 type="number"
                 className={`w-28 h-10 text-center text-xl md:text-2xl font-bold bg-white text-cyan-700 border-white mx-auto ${finalAmount < 0 ? 'text-orange-600' : ''}`}
@@ -3846,10 +3862,10 @@ export default function POSSales() {
                 step="1"
               />
               <div className="text-xs md:text-sm mt-1">
-                {finalAmount < 0 ? "Refund" : "Amount"}
+                {finalAmount < 0 ? "Refund" : "Net Amount"}
                 {effectiveDiscountPercent > 0 && (
-                  <span className="block text-yellow-200 font-semibold">
-                    ({effectiveDiscountPercent.toFixed(1)}% off)
+                  <span className="block text-yellow-300 font-bold text-xs">
+                    ↓ {effectiveDiscountPercent.toFixed(1)}% off MRP
                   </span>
                 )}
               </div>
