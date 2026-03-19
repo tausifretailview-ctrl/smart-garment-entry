@@ -222,7 +222,7 @@ export default function POSSales() {
   const [openSalesmanSearch, setOpenSalesmanSearch] = useState(false);
   const [selectedSalesman, setSelectedSalesman] = useState("");
   const [salesmanSearchInput, setSalesmanSearchInput] = useState("");
-  const [saleNotes, setSaleNotes] = useState("");
+  const [saleNotes, setSaleNotes] = useState(_savedCart?.saleNotes || "");
   const [newCustomerForm, setNewCustomerForm] = useState({
     customer_name: "",
     phone: "",
