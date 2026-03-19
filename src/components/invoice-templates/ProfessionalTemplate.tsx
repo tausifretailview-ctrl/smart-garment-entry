@@ -79,6 +79,7 @@ interface ProfessionalTemplateProps {
   cashAmount?: number;
   cardAmount?: number;
   upiAmount?: number;
+  creditAmount?: number;
   paidAmount?: number;
   declarationText?: string;
   termsConditions?: string[];
