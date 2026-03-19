@@ -461,6 +461,12 @@ export const A5HorizontalBillFormat = ({ data }: { data: BillData }) => {
                       <span style={{ fontWeight: 600 }}>₹{data.upiAmount.toFixed(2)}</span>
                     </div>
                   )}
+                  {data.creditAmount && data.creditAmount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '4px' }}>
+                      <span>Credit:</span>
+                      <span style={{ fontWeight: 600 }}>₹{data.creditAmount.toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
