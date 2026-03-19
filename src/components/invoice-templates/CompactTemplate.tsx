@@ -92,6 +92,7 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
   cashAmount,
   cardAmount,
   upiAmount,
+  creditAmount,
   paidAmount,
   qrCodeUrl,
   format = 'a5-vertical',
