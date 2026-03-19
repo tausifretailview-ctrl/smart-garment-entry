@@ -3766,7 +3766,7 @@ export default function BarcodePrinting() {
                   {searchResults.map((result) => (
                     <CommandItem
                       key={result.id}
-                      value={`${result.product_name}-${result.brand}-${result.size}-${result.id}`}
+                      value={`${result.product_name}-${result.brand}-${result.size}-${result.barcode}-${result.id}`}
                       onSelect={() => handleSelectProduct(result)}
                       className="flex items-center gap-2 cursor-pointer py-3"
                     >
