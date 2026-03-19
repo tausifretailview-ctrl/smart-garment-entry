@@ -428,6 +428,9 @@ export default function AdvanceBookingDashboard() {
                     <TableCell>{getStatusBadge(adv.status)}</TableCell>
                      <TableCell>
                        <div className="flex items-center gap-1">
+                         <Button variant="outline" size="xs" onClick={() => openPrintDialog(adv)} title="Print Receipt">
+                           <Printer className="h-3 w-3" />
+                         </Button>
                          {canRefund && (
                            <>
                              <Button variant="outline" size="xs" onClick={() => openEdit(adv)} className="text-blue-600 hover:text-blue-700">
@@ -437,7 +440,7 @@ export default function AdvanceBookingDashboard() {
                                <Undo2 className="h-3 w-3 mr-1" /> Refund
                              </Button>
                            </>
-                         )}
+                         )]
                        </div>
                      </TableCell>
                   </TableRow>
