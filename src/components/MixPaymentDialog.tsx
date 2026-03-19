@@ -214,6 +214,19 @@ export function MixPaymentDialog({
                 />
               </div>
 
+              {/* Credit (Balance) */}
+              {creditBalance > 0 && (
+                <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/30 rounded-lg border border-amber-200 dark:border-amber-700">
+                  <span className="text-sm font-medium flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-amber-600" />
+                    Credit (Pay Later)
+                  </span>
+                  <span className="text-lg font-bold text-amber-700 dark:text-amber-400">
+                    {formatCurrency(creditBalance)}
+                  </span>
+                </div>
+              )}
+
               {/* Totals */}
               <div className="space-y-2 pt-2 border-t">
                 <div className="flex items-center justify-between">
@@ -222,6 +235,14 @@ export function MixPaymentDialog({
                     {formatCurrency(totalPaid)}
                   </span>
                 </div>
+                {creditBalance > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Credit:</span>
+                    <span className="text-lg font-bold text-amber-600">
+                      {formatCurrency(creditBalance)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Balance:</span>
                   <span className={`text-lg font-bold ${balanceAmount > 0 ? 'text-red-600' : balanceAmount < 0 ? 'text-orange-600' : 'text-green-600'}`}>
