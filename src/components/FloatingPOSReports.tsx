@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -338,6 +338,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
           stock_qty,
           sale_price,
           mrp,
+          pur_price,
           product:products!inner(
             id,
             product_name,
@@ -377,6 +378,34 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
       }).slice(0, 100)
     : [];
 
+  // Fetch supplier names for filtered variants
+  const [supplierMap, setSupplierMap] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!stockData || stockData.length === 0 || !currentOrganization?.id) {
+      setSupplierMap({});
+      return;
+    }
+    const variantIds = stockData.map((item: any) => item.id);
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("purchase_items")
+          .select("sku_id, purchase_bills:purchase_bills!inner(supplier_name)")
+          .in("sku_id", variantIds)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false });
+        
+        const map: Record<string, string> = {};
+        (data || []).forEach((row: any) => {
+          if (row.sku_id && !map[row.sku_id]) {
+            map[row.sku_id] = row.purchase_bills?.supplier_name || '';
+          }
+        });
+        setSupplierMap(map);
+      } catch { /* ignore */ }
+    })();
+  }, [stockData, currentOrganization?.id]);
+
   // Total stock value
   const totalStockValue = stockData?.reduce((sum, item) => {
     return sum + (Number(item.stock_qty) || 0) * (Number(item.sale_price) || 0);
@@ -386,7 +415,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Package className="h-5 w-5 text-primary" />
@@ -449,6 +478,8 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
                     <TableHead>Barcode</TableHead>
                     <TableHead>Size</TableHead>
                     <TableHead className="text-right">Stock</TableHead>
+                    <TableHead>Supplier</TableHead>
+                    <TableHead className="text-right">Pur. Price</TableHead>
                     <TableHead className="text-right">MRP</TableHead>
                     <TableHead className="text-right">Sale Price</TableHead>
                   </TableRow>
@@ -471,6 +502,8 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
                           {item.stock_qty}
                         </span>
                       </TableCell>
+                      <TableCell className="text-xs">{supplierMap[item.id] || '-'}</TableCell>
+                      <TableCell className="text-right text-xs">₹{item.pur_price?.toLocaleString('en-IN') || '-'}</TableCell>
                       <TableCell className="text-right">₹{item.mrp?.toLocaleString('en-IN')}</TableCell>
                       <TableCell className="text-right font-medium">₹{item.sale_price?.toLocaleString('en-IN')}</TableCell>
                     </TableRow>
