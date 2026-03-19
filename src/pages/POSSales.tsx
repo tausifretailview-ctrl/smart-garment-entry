@@ -2160,6 +2160,7 @@ export default function POSSales() {
     const cashAmt = savedInvoiceData?.cashAmount || 0;
     const cardAmt = savedInvoiceData?.cardAmount || 0;
     const upiAmt = savedInvoiceData?.upiAmount || 0;
+    const creditAmt = savedInvoiceData?.creditAmount || 0;
     
     if (!phone) {
       toast({
