@@ -147,15 +147,44 @@ export default function POSSales() {
   const { data: customerPointsData } = useCustomerPointsBalance(customerId || null);
   const { getBrandDiscount, hasBrandDiscounts, brandDiscounts } = useCustomerBrandDiscounts(customerId || null);
   const [pointsToRedeem, setPointsToRedeem] = useState(0);
-  const [items, setItemsRaw] = useState<CartItem[]>([]);
+  const [items, setItemsRaw] = useState<CartItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(
+        `pos_cart_${currentOrganization?.id || 'default'}`
+      );
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.items) && parsed.items.length > 0) {
+          return parsed.items;
+        }
+      }
+    } catch { /* ignore parse errors */ }
+    return [];
+  });
   const itemsRef = useRef<CartItem[]>([]);
   const setItems = useCallback((updater: CartItem[] | ((prev: CartItem[]) => CartItem[])) => {
     setItemsRaw(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
       itemsRef.current = next;
+      // Persist cart to localStorage so it survives tab switching
+      try {
+        const key = `pos_cart_${currentOrganization?.id || 'default'}`;
+        if (next.length === 0) {
+          localStorage.removeItem(key);
+        } else {
+          localStorage.setItem(key, JSON.stringify({
+            items: next,
+            customerId,
+            customerName,
+            customerPhone,
+            saleNotes,
+            savedAt: Date.now(),
+          }));
+        }
+      } catch { /* ignore storage errors */ }
       return next;
     });
-  }, []);
+  }, [currentOrganization?.id, customerId, customerName, customerPhone, saleNotes]);
   const [flatDiscountValue, setFlatDiscountValue] = useState(0);
   const [flatDiscountMode, setFlatDiscountMode] = useState<'percent' | 'amount'>('percent');
   const [saleReturnAdjust, setSaleReturnAdjust] = useState(0);
