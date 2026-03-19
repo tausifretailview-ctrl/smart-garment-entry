@@ -1689,6 +1689,9 @@ export default function POSSales() {
         pointsRedeemed: pointsToRedeem,
         pointsRedemptionValue: pointsRedemptionValue,
         pointsBalance: (customerPointsData?.balance || 0) - pointsToRedeem,
+        cashAmount: result.cash_amount || 0,
+        upiAmount: result.upi_amount || 0,
+        cardAmount: result.card_amount || 0,
       };
       
       // Clear the form immediately after successful save (reset to new blank invoice)
