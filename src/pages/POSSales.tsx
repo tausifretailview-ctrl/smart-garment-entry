@@ -3711,10 +3711,19 @@ export default function POSSales() {
               </div>
               <div className="text-xs md:text-sm mt-0.5 font-semibold tracking-wide">MRP Total</div>
             </div>
-            {totals.savings > 0 && (
-              <div className="text-center bg-green-600 rounded-md py-1">
-                <div className="text-xl md:text-2xl font-bold">₹{Math.round(totals.savings).toLocaleString('en-IN')}</div>
-                <div className="text-xs md:text-sm mt-1">You Save!</div>
+            {(totals.mrp > totals.subtotal || totals.savings > 0) && (
+              <div className="text-center bg-green-600 rounded-md py-1 px-1">
+                <div className="text-xl md:text-2xl font-bold">
+                  ₹{Math.round(totals.mrp - totals.subtotal > 0 ? totals.mrp - totals.subtotal : totals.savings).toLocaleString('en-IN')}
+                </div>
+                <div className="text-xs md:text-sm mt-0.5 font-semibold">
+                  🎉 Customer Saves
+                </div>
+                {totals.mrp > 0 && (
+                  <div className="text-[10px] text-green-200 leading-tight">
+                    {(((totals.mrp - totals.subtotal) / totals.mrp) * 100).toFixed(0)}% off MRP
+                  </div>
+                )}
               </div>
             )}
             <div className="text-center">
