@@ -599,7 +599,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {(isAdminPermissions || hasMenuAccess("stock_report")) && (
+                        {(isAdminPermissions || hasMenuAccess("stock_analysis")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/stock-analysis")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
                               <NavLink to="/stock-analysis" className="flex items-center gap-3 group">
@@ -609,7 +609,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {(isAdminPermissions || hasMenuAccess("stock_report")) && (
+                        {(isAdminPermissions || hasMenuAccess("stock_ageing")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/stock-ageing")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
                               <NavLink to="/stock-ageing" className="flex items-center gap-3 group">
@@ -659,7 +659,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {(isAdminPermissions || hasMenuAccess("daily_cashier_report")) && (
+                        {(isAdminPermissions || hasMenuAccess("daily_tally")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/daily-tally")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
                               <NavLink to="/daily-tally" className="flex items-center gap-3 group">
@@ -669,7 +669,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {(isAdminPermissions || hasMenuAccess("daily_cashier_report")) && (
+                        {(isAdminPermissions || hasMenuAccess("sale_analysis")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/daily-sale-analysis")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
                               <NavLink to="/daily-sale-analysis" className="flex items-center gap-3 group">
@@ -679,7 +679,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {(isAdminPermissions || hasMenuAccess("daily_cashier_report")) && (
+                        {(isAdminPermissions || hasMenuAccess("einvoice_report")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/einvoice-report")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
                               <NavLink to="/einvoice-report" className="flex items-center gap-3 group">
