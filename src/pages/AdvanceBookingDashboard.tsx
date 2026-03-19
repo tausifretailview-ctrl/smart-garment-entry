@@ -440,7 +440,7 @@ export default function AdvanceBookingDashboard() {
                                <Undo2 className="h-3 w-3 mr-1" /> Refund
                              </Button>
                            </>
-                         )]
+                         )}
                        </div>
                      </TableCell>
                   </TableRow>
