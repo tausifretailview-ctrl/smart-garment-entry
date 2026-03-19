@@ -39,6 +39,7 @@ interface ClassicTemplateProps {
   cashAmount?: number;
   cardAmount?: number;
   upiAmount?: number;
+  creditAmount?: number;
   paidAmount?: number;
   termsConditions?: string[];
   productDetailsSettings?: {
