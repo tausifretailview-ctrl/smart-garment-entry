@@ -2256,6 +2256,9 @@ export default function POSSales() {
       customerPhone: sale.customer_phone,
       paidAmount: Number(sale.paid_amount) || 0,
       previousBalance: 0,
+      cashAmount: Number(sale.cash_amount) || 0,
+      upiAmount: Number(sale.upi_amount) || 0,
+      cardAmount: Number(sale.card_amount) || 0,
     });
 
     sonnerToast.success(`Invoice #${sale.sale_number} loaded successfully`);
