@@ -2974,6 +2974,9 @@ export default function SalesInvoiceDashboard() {
               saleReturnAdjust={invoiceToPrint.sale_return_adjust || 0}
               grandTotal={invoiceToPrint.net_amount}
               paymentMethod={invoiceToPrint.payment_method}
+              cashAmount={invoiceToPrint.cash_amount || 0}
+              upiAmount={invoiceToPrint.upi_amount || 0}
+              cardAmount={invoiceToPrint.card_amount || 0}
               salesman={invoiceToPrint.salesman || ''}
               notes={invoiceToPrint.notes || ''}
             />
