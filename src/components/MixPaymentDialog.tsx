@@ -42,6 +42,7 @@ export function MixPaymentDialog({
   const isRefundMode = billAmount < 0;
   const refundRequired = Math.abs(billAmount);
   const totalPaid = cashAmount + cardAmount + upiAmount;
+  const creditBalance = isRefundMode ? 0 : Math.max(0, billAmount - totalPaid);
   const balanceAmount = isRefundMode ? 0 : billAmount - totalPaid;
 
   // Reset amounts when dialog closes or opens in refund mode
