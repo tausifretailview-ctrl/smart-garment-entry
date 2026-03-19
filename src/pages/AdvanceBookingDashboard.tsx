@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -11,12 +11,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Coins, Plus, Search, RefreshCw, Undo2, IndianRupee, TrendingUp, Wallet, ChevronLeft, ChevronRight, Pencil } from "lucide-react";
+import { Coins, Plus, Search, RefreshCw, Undo2, IndianRupee, TrendingUp, Wallet, ChevronLeft, ChevronRight, Pencil, Printer } from "lucide-react";
 import { format, startOfDay, startOfWeek, startOfMonth } from "date-fns";
 import { toast } from "sonner";
 import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { AdvanceBookingReceipt } from "@/components/AdvanceBookingReceipt";
+import { useReactToPrint } from "react-to-print";
+import { useSettings } from "@/hooks/useSettings";
 
 const PAGE_SIZE = 50;
 
