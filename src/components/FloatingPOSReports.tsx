@@ -378,6 +378,34 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
       }).slice(0, 100)
     : [];
 
+  // Fetch supplier names for filtered variants
+  const [supplierMap, setSupplierMap] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!stockData || stockData.length === 0 || !currentOrganization?.id) {
+      setSupplierMap({});
+      return;
+    }
+    const variantIds = stockData.map((item: any) => item.id);
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("purchase_items")
+          .select("sku_id, purchase_bills:purchase_bills!inner(supplier_name)")
+          .in("sku_id", variantIds)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false });
+        
+        const map: Record<string, string> = {};
+        (data || []).forEach((row: any) => {
+          if (row.sku_id && !map[row.sku_id]) {
+            map[row.sku_id] = row.purchase_bills?.supplier_name || '';
+          }
+        });
+        setSupplierMap(map);
+      } catch { /* ignore */ }
+    })();
+  }, [stockData, currentOrganization?.id]);
+
   // Total stock value
   const totalStockValue = stockData?.reduce((sum, item) => {
     return sum + (Number(item.stock_qty) || 0) * (Number(item.sale_price) || 0);
