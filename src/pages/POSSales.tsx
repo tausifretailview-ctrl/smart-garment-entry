@@ -1837,6 +1837,7 @@ export default function POSSales() {
     cashAmount: number;
     cardAmount: number;
     upiAmount: number;
+    creditAmount: number;
     totalPaid: number;
     refundAmount: number;
     issueCreditNote?: boolean;
@@ -1961,6 +1962,7 @@ export default function POSSales() {
         cashAmount: result.cash_amount || 0,
         upiAmount: result.upi_amount || 0,
         cardAmount: result.card_amount || 0,
+        creditAmount: paymentData.creditAmount || 0,
       } : null;
       
       // Clear the form immediately after successful save (reset to new blank invoice)
@@ -2158,6 +2160,7 @@ export default function POSSales() {
     const cashAmt = savedInvoiceData?.cashAmount || 0;
     const cardAmt = savedInvoiceData?.cardAmount || 0;
     const upiAmt = savedInvoiceData?.upiAmount || 0;
+    const creditAmt = savedInvoiceData?.creditAmount || 0;
     
     if (!phone) {
       toast({
@@ -2182,6 +2185,7 @@ export default function POSSales() {
     if (cashAmt > 0) paymentParts.push(`Cash: ₹${Number(cashAmt).toLocaleString("en-IN")}`);
     if (cardAmt > 0) paymentParts.push(`Card: ₹${Number(cardAmt).toLocaleString("en-IN")}`);
     if (upiAmt > 0) paymentParts.push(`UPI: ₹${Number(upiAmt).toLocaleString("en-IN")}`);
+    if (creditAmt > 0) paymentParts.push(`Credit: ₹${Number(creditAmt).toLocaleString("en-IN")}`);
     const paymentBreakdown = paymentParts.length > 0 ? paymentParts.join(" | ") : (method || 'cash').toUpperCase();
     
     // Fetch customer outstanding and points if customer exists
@@ -2865,6 +2869,7 @@ export default function POSSales() {
             cashAmount={savedInvoiceData?.cashAmount || 0}
             upiAmount={savedInvoiceData?.upiAmount || 0}
             cardAmount={savedInvoiceData?.cardAmount || 0}
+            creditAmount={savedInvoiceData?.creditAmount || 0}
             notes={savedInvoiceData?.notes || saleNotes}
             paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === 'pay_later' ? 0 : finalAmount)}
             previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
@@ -3913,6 +3918,7 @@ export default function POSSales() {
                 cashAmount={savedInvoiceData?.cashAmount || 0}
                 upiAmount={savedInvoiceData?.upiAmount || 0}
                 cardAmount={savedInvoiceData?.cardAmount || 0}
+                creditAmount={savedInvoiceData?.creditAmount || 0}
                 paidAmount={paymentMethod === 'pay_later' ? 0 : finalAmount}
                 previousBalance={customerBalance || 0}
                 roundOff={roundOff}
@@ -4099,6 +4105,7 @@ export default function POSSales() {
                 cashAmount={savedInvoiceData.cashAmount || 0}
                 upiAmount={savedInvoiceData.upiAmount || 0}
                 cardAmount={savedInvoiceData.cardAmount || 0}
+                creditAmount={savedInvoiceData.creditAmount || 0}
                 notes={savedInvoiceData.notes}
                 paidAmount={savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount}
                 previousBalance={savedInvoiceData.previousBalance ?? 0}
@@ -4194,6 +4201,7 @@ export default function POSSales() {
                 cashAmount={savedInvoiceData?.cashAmount || 0}
                 upiAmount={savedInvoiceData?.upiAmount || 0}
                 cardAmount={savedInvoiceData?.cardAmount || 0}
+                creditAmount={savedInvoiceData?.creditAmount || 0}
                 notes={savedInvoiceData?.isEstimate ? `** ESTIMATE - NOT A FINAL INVOICE **${savedInvoiceData?.notes ? '\n' + savedInvoiceData.notes : ''}` : (savedInvoiceData?.notes || saleNotes)}
                 paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === 'pay_later' ? 0 : finalAmount)}
                 previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}

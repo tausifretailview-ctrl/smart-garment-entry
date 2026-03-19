@@ -24,6 +24,7 @@ interface BillData {
   cashAmount?: number;
   cardAmount?: number;
   upiAmount?: number;
+  creditAmount?: number;
   paidAmount?: number;
   organization: {
     name: string;
@@ -458,6 +459,12 @@ export const A5HorizontalBillFormat = ({ data }: { data: BillData }) => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '4px' }}>
                       <span>UPI:</span>
                       <span style={{ fontWeight: 600 }}>₹{data.upiAmount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {data.creditAmount && data.creditAmount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '4px' }}>
+                      <span>Credit:</span>
+                      <span style={{ fontWeight: 600 }}>₹{data.creditAmount.toFixed(2)}</span>
                     </div>
                   )}
                 </div>

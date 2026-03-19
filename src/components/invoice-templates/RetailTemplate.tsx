@@ -53,6 +53,7 @@ interface RetailTemplateProps {
   cashAmount?: number;
   cardAmount?: number;
   upiAmount?: number;
+  creditAmount?: number;
   paidAmount?: number;
   previousBalance?: number;
 

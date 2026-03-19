@@ -65,6 +65,7 @@ interface InvoiceWrapperProps {
   cashAmount?: number;
   cardAmount?: number;
   upiAmount?: number;
+  creditAmount?: number;
   paidAmount?: number;
   previousBalance?: number;
   
@@ -289,6 +290,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       cashAmount: props.cashAmount,
       cardAmount: props.cardAmount,
       upiAmount: props.upiAmount,
+      creditAmount: props.creditAmount,
       paidAmount: props.paidAmount,
       previousBalance: props.previousBalance || 0,
       
@@ -393,6 +395,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             cashPaid={props.cashPaid || props.cashAmount}
             upiPaid={props.upiPaid || props.upiAmount}
             cardPaid={props.cardAmount}
+            creditPaid={props.creditAmount}
             refundCash={props.refundCash}
             documentType="invoice"
             termsConditions={termsConditions?.join('\n')}

@@ -52,6 +52,7 @@ interface CompactTemplateProps {
   cashAmount?: number;
   cardAmount?: number;
   upiAmount?: number;
+  creditAmount?: number;
   paidAmount?: number;
   qrCodeUrl?: string;
   format?: 'a5-vertical' | 'a5-horizontal' | 'a4';
@@ -91,6 +92,7 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
   cashAmount,
   cardAmount,
   upiAmount,
+  creditAmount,
   paidAmount,
   qrCodeUrl,
   format = 'a5-vertical',
@@ -357,6 +359,12 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
                   <span>UPI:</span>
                   <span style={{ fontWeight: 'bold' }}>₹{Math.round(upiAmount).toLocaleString('en-IN')}</span>
+                </div>
+              )}
+              {creditAmount && creditAmount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                  <span>Credit:</span>
+                  <span style={{ fontWeight: 'bold' }}>₹{Math.round(creditAmount).toLocaleString('en-IN')}</span>
                 </div>
               )}
               {paidAmount && paidAmount > 0 && (
