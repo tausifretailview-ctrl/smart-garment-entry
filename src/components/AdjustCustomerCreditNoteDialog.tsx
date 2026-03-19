@@ -47,7 +47,7 @@ export function AdjustCustomerCreditNoteDialog({
   const { data: unpaidSales = [], isLoading: salesLoading } = useQuery({
     queryKey: ["unpaid-customer-sales", customerId, currentOrganization?.id],
     queryFn: async () => {
-      if (!customerId || !currentOrganization?.id) return [];
+      if (!customerId || customerId === '' || !currentOrganization?.id) return [];
 
       const { data: salesData, error: salesError } = await supabase
         .from("sales")
@@ -65,7 +65,7 @@ export function AdjustCustomerCreditNoteDialog({
         pending_amount: (sale.net_amount || 0) - (sale.paid_amount || 0),
       })).filter((sale: any) => sale.pending_amount > 0);
     },
-    enabled: open && !!customerId && !!currentOrganization?.id,
+    enabled: open && !!customerId && customerId !== '' && !!currentOrganization?.id,
   });
 
   const handleApply = async () => {
@@ -113,7 +113,7 @@ export function AdjustCustomerCreditNoteDialog({
         if (returnError) throw returnError;
 
         // Update the voucher entry description if creditNoteId exists
-        if (creditNoteId) {
+        if (creditNoteId && creditNoteId !== '') {
           const { error: voucherError } = await supabase
             .from("voucher_entries")
             .update({
@@ -145,19 +145,22 @@ export function AdjustCustomerCreditNoteDialog({
         const newVoucherNumber = `PAY-${String(parseInt(lastNum) + 1).padStart(5, "0")}`;
 
         // Create payment voucher (refund to customer)
+        const insertData: any = {
+          organization_id: currentOrganization?.id,
+          voucher_number: newVoucherNumber,
+          voucher_type: "payment",
+          voucher_date: today,
+          reference_type: "customer",
+          description: `Refund paid for Sale Return: ${returnNumber}`,
+          total_amount: creditAmount,
+          payment_method: refundMode,
+        };
+        if (customerId && customerId !== '') {
+          insertData.reference_id = customerId;
+        }
         const { error: paymentError } = await supabase
           .from("voucher_entries")
-          .insert({
-            organization_id: currentOrganization?.id,
-            voucher_number: newVoucherNumber,
-            voucher_type: "payment",
-            voucher_date: today,
-            reference_type: "customer",
-            reference_id: customerId,
-            description: `Refund paid for Sale Return: ${returnNumber}`,
-            total_amount: creditAmount,
-            payment_method: refundMode,
-          });
+          .insert(insertData);
 
         if (paymentError) throw paymentError;
 
@@ -196,7 +199,7 @@ export function AdjustCustomerCreditNoteDialog({
         });
 
         // Update voucher description if creditNoteId exists
-        if (creditNoteId) {
+        if (creditNoteId && creditNoteId !== '') {
           const { error: voucherError } = await supabase
             .from("voucher_entries")
             .update({
