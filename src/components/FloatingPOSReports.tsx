@@ -478,6 +478,8 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
                     <TableHead>Barcode</TableHead>
                     <TableHead>Size</TableHead>
                     <TableHead className="text-right">Stock</TableHead>
+                    <TableHead>Supplier</TableHead>
+                    <TableHead className="text-right">Pur. Price</TableHead>
                     <TableHead className="text-right">MRP</TableHead>
                     <TableHead className="text-right">Sale Price</TableHead>
                   </TableRow>
@@ -500,6 +502,8 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
                           {item.stock_qty}
                         </span>
                       </TableCell>
+                      <TableCell className="text-xs">{supplierMap[item.id] || '-'}</TableCell>
+                      <TableCell className="text-right text-xs">₹{item.pur_price?.toLocaleString('en-IN') || '-'}</TableCell>
                       <TableCell className="text-right">₹{item.mrp?.toLocaleString('en-IN')}</TableCell>
                       <TableCell className="text-right font-medium">₹{item.sale_price?.toLocaleString('en-IN')}</TableCell>
                     </TableRow>
