@@ -101,6 +101,7 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
   cashAmount = 0,
   cardAmount = 0,
   upiAmount = 0,
+  creditAmount = 0,
   paidAmount = 0,
   termsConditions,
   productDetailsSettings,
