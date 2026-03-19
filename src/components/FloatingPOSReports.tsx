@@ -338,6 +338,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
           stock_qty,
           sale_price,
           mrp,
+          pur_price,
           product:products!inner(
             id,
             product_name,
