@@ -121,6 +121,19 @@ export default function AdvanceBookingDashboard() {
   const { data: advancesData, isLoading } = useQuery({
     queryKey: ["advance-dashboard", orgId, debouncedSearch, dateFilter, statusFilter, currentPage],
     queryFn: async () => {
+      // If searching by customer name/phone, first find matching customer IDs
+      let customerIds: string[] | null = null;
+      if (debouncedSearch) {
+        const term = `%${debouncedSearch}%`;
+        const { data: matchedCustomers } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("organization_id", orgId!)
+          .or(`customer_name.ilike.${term},phone.ilike.${term}`)
+          .limit(200);
+        customerIds = matchedCustomers?.map(c => c.id) || [];
+      }
+
       let query = supabase
         .from("customer_advances")
         .select("*, customers(customer_name, phone)", { count: "exact" })
@@ -129,7 +142,13 @@ export default function AdvanceBookingDashboard() {
 
       if (debouncedSearch) {
         const term = `%${debouncedSearch}%`;
-        query = query.or(`advance_number.ilike.${term},customers.customer_name.ilike.${term},customers.phone.ilike.${term}`);
+        if (customerIds && customerIds.length > 0) {
+          // Search by advance number OR matching customer IDs
+          query = query.or(`advance_number.ilike.${term},customer_id.in.(${customerIds.join(",")})`);
+        } else {
+          // No matching customers, just search by advance number
+          query = query.ilike("advance_number", term);
+        }
       }
 
       const dateFrom = getDateRange();
