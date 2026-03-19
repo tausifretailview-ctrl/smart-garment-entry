@@ -409,6 +409,7 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
                 {cashAmount > 0 && <div>Cash: ₹{Math.round(cashAmount).toLocaleString('en-IN')}</div>}
                 {cardAmount > 0 && <div>Card: ₹{Math.round(cardAmount).toLocaleString('en-IN')}</div>}
                 {upiAmount > 0 && <div>UPI: ₹{Math.round(upiAmount).toLocaleString('en-IN')}</div>}
+                {creditAmount > 0 && <div>Credit: ₹{Math.round(creditAmount).toLocaleString('en-IN')}</div>}
                 <div style={{ marginTop: '5px', fontWeight: 'bold' }}>
                   Total Paid: ₹{Math.round(paidAmount).toLocaleString('en-IN')}
                 </div>

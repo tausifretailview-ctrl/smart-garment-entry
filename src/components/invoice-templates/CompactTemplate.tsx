@@ -361,6 +361,12 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
                   <span style={{ fontWeight: 'bold' }}>₹{Math.round(upiAmount).toLocaleString('en-IN')}</span>
                 </div>
               )}
+              {creditAmount && creditAmount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                  <span>Credit:</span>
+                  <span style={{ fontWeight: 'bold' }}>₹{Math.round(creditAmount).toLocaleString('en-IN')}</span>
+                </div>
+              )}
               {paidAmount && paidAmount > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', paddingTop: '4px', borderTop: '1px solid #ccc', fontWeight: 'bold' }}>
                   <span>Total Paid:</span>
