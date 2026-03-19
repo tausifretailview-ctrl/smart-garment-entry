@@ -112,20 +112,8 @@ const menuStructure = [
     icon: Wallet,
     submenus: [
       { id: "accounts_dashboard", name: "Accounts Dashboard" },
-      { id: "customer_ledger", name: "Customer Ledger" },
       { id: "payments_dashboard", name: "Payments Dashboard" },
       { id: "payment_recording", name: "Record Payments" },
-    ],
-  },
-  {
-    id: "accounting_reports",
-    name: "Accounting Reports",
-    icon: Calculator,
-    submenus: [
-      { id: "accounting_reports_view", name: "Accounting Reports" },
-      { id: "net_profit_analysis", name: "Net Profit Analysis" },
-      { id: "gst_reports", name: "GST Reports" },
-      { id: "hourly_sales_analysis", name: "Hourly Sales Analysis" },
     ],
   },
   {
