@@ -290,6 +290,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       cashAmount: props.cashAmount,
       cardAmount: props.cardAmount,
       upiAmount: props.upiAmount,
+      creditAmount: props.creditAmount,
       paidAmount: props.paidAmount,
       previousBalance: props.previousBalance || 0,
       
