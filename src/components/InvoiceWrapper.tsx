@@ -395,6 +395,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             cashPaid={props.cashPaid || props.cashAmount}
             upiPaid={props.upiPaid || props.upiAmount}
             cardPaid={props.cardAmount}
+            creditPaid={props.creditAmount}
             refundCash={props.refundCash}
             documentType="invoice"
             termsConditions={termsConditions?.join('\n')}
