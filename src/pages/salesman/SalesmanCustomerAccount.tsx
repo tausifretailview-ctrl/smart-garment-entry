@@ -63,6 +63,15 @@ const SalesmanCustomerAccount = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pendingInvoices, setPendingInvoices] = useState<Array<{
+    id: string;
+    sale_number: string;
+    sale_date: string;
+    net_amount: number;
+    paid_amount: number;
+    balance: number;
+    days_overdue: number;
+  }>>([]);
 
   useEffect(() => {
     if (currentOrganization?.id && customerId) {
