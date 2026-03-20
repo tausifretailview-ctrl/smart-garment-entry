@@ -1647,22 +1647,27 @@ const ProductEntry = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-6rem)] bg-background p-4 overflow-auto">
+    <div className="h-[calc(100vh-6rem)] bg-background p-4 overflow-auto font-outfit">
       <div className="w-full">
         <BackToDashboard label="Back to Products" to="/products" />
         <div className="mb-3 flex items-center gap-2">
-          <Package className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold text-foreground">Smart Inventory</h1>
+          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Package className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">Smart Inventory</h1>
+            <p className="text-xs text-muted-foreground">Manage your product catalogue</p>
+          </div>
         </div>
 
-        <Card className="shadow-sm border-border">
-          <CardHeader className="p-5 pb-3">
+        <Card className="shadow-sm border-border overflow-hidden">
+          <CardHeader className="p-5 pb-3 border-b border-border bg-card">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-lg font-semibold">
-                  {editingProductId ? "Edit Product" : "Product Entry"}
+                <CardTitle className="text-lg font-semibold font-outfit">
+                  {editingProductId ? "✏️ Edit Product" : "📦 Product Entry"}
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="font-outfit">
                   {editingProductId ? "Update product information" : "Add new product to your inventory"}
                 </CardDescription>
               </div>
@@ -1671,7 +1676,7 @@ const ProductEntry = () => {
                   onClick={() => setShowExcelImport(true)}
                   variant="outline"
                   size="sm"
-                  className="gap-1"
+                  className="gap-1.5 font-outfit font-semibold"
                 >
                   <FileSpreadsheet className="h-4 w-4" />
                   Import Excel
@@ -1679,7 +1684,7 @@ const ProductEntry = () => {
               )}
             </div>
           </CardHeader>
-          <CardContent className="p-5 space-y-4">
+          <CardContent className="p-5 space-y-5 font-outfit">
             {/* Copy from Existing Product - only shown for new products */}
             {!editingProductId && (
               <div className="space-y-2" ref={copyDropdownRef}>
