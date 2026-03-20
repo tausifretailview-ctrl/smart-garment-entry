@@ -551,6 +551,35 @@ export function CustomerPaymentTab({
                     )}
                   </div>
                 )}
+                {/* Advance Balance Banner */}
+                {referenceId && advanceBalance > 0 && customerBalance !== undefined && customerBalance > 0 && (
+                  <div className="mt-2 p-3 border rounded-md bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950 border-emerald-300 dark:border-emerald-700">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
+                          Advance Balance Available: <span className="text-lg font-bold">₹{Math.round(advanceBalance).toLocaleString('en-IN')}</span>
+                        </p>
+                      </div>
+                      {selectedInvoiceIds.length > 0 && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="default"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                          disabled={applyAdvanceMutation.isPending}
+                          onClick={() => applyAdvanceMutation.mutate()}
+                        >
+                          <Wallet className="h-3.5 w-3.5 mr-1.5" />
+                          {applyAdvanceMutation.isPending ? "Applying..." : `Apply ₹${Math.round(Math.min(advanceBalance, customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => sum + Math.max(0, (inv.net_amount || 0) - (inv.paid_amount || 0)), 0) || 0)).toLocaleString('en-IN')} to Invoice`}
+                        </Button>
+                      )}
+                    </div>
+                    {selectedInvoiceIds.length === 0 && (
+                      <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">Select invoice(s) below to apply advance balance</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Invoice Selection */}
