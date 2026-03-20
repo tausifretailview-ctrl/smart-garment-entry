@@ -198,6 +198,61 @@ export function CustomerPaymentTab({
     queryClient.invalidateQueries({ queryKey: ["next-receipt-number"] });
   };
 
+  // Apply advance to selected invoices
+  const applyAdvanceMutation = useMutation({
+    mutationFn: async () => {
+      if (!referenceId || selectedInvoiceIds.length === 0) throw new Error("Select customer and invoices");
+      const invoicesToProcess = customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)) || [];
+      if (invoicesToProcess.length === 0) throw new Error("No invoices selected");
+      const totalOutstanding = invoicesToProcess.reduce((sum, inv) => sum + Math.max(0, (inv.net_amount || 0) - (inv.paid_amount || 0)), 0);
+      const amountToApply = Math.min(advanceBalance, totalOutstanding);
+      if (amountToApply <= 0) throw new Error("No advance balance to apply");
+      
+      // FIFO advance consumption
+      const { data: availableAdvances } = await supabase.from("customer_advances").select("*").eq("customer_id", referenceId).eq("organization_id", organizationId).in("status", ["active", "partially_used"]).order("advance_date", { ascending: true });
+      let advRemaining = amountToApply;
+      for (const adv of availableAdvances || []) {
+        if (advRemaining <= 0) break;
+        const available = adv.amount - adv.used_amount;
+        const toUse = Math.min(available, advRemaining);
+        const newUsed = adv.used_amount + toUse;
+        await supabase.from("customer_advances").update({ used_amount: newUsed, status: newUsed >= adv.amount ? "fully_used" : "partially_used" }).eq("id", adv.id);
+        advRemaining -= toUse;
+      }
+      
+      // Apply to invoices + create voucher entries
+      let remaining = amountToApply;
+      const { data: voucherNumber } = await supabase.rpc("generate_voucher_number", { p_type: "receipt", p_date: format(new Date(), "yyyy-MM-dd") });
+      let idx = 0;
+      for (const invoice of invoicesToProcess) {
+        if (remaining <= 0) break;
+        const outstanding = Math.max(0, (invoice.net_amount || 0) - (invoice.paid_amount || 0));
+        const applyAmt = Math.min(remaining, outstanding);
+        if (applyAmt <= 0) continue;
+        const newPaid = (invoice.paid_amount || 0) + applyAmt;
+        const newStatus = newPaid >= invoice.net_amount ? 'completed' : newPaid > 0 ? 'partial' : 'pending';
+        await supabase.from('sales').update({ paid_amount: newPaid, payment_status: newStatus }).eq('id', invoice.id);
+        const vNum = invoicesToProcess.length > 1 ? `${voucherNumber}-${idx + 1}` : voucherNumber;
+        await supabase.from("voucher_entries").insert({ organization_id: organizationId, voucher_number: vNum, voucher_type: "receipt", voucher_date: format(new Date(), "yyyy-MM-dd"), reference_type: 'sale', reference_id: invoice.id, description: `Adjusted from advance balance for ${invoice.sale_number}`, total_amount: applyAmt, payment_method: 'advance_adjustment' });
+        remaining -= applyAmt;
+        idx++;
+      }
+      return { applied: amountToApply - remaining };
+    },
+    onSuccess: (data) => {
+      toast.success(`₹${Math.round(data.applied).toLocaleString('en-IN')} advance applied to selected invoice(s)`);
+      queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-advance-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
+      setSelectedInvoiceIds([]);
+    },
+    onError: (error: Error) => toast.error(`Failed to apply advance: ${error.message}`),
+  });
+
   // Create voucher mutation
   const createVoucher = useMutation({
     mutationFn: async () => {
