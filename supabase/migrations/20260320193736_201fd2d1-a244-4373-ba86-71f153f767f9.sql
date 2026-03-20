@@ -1,0 +1,6 @@
+
+ALTER TABLE public.products
+  ADD COLUMN IF NOT EXISTS purchase_discount_type TEXT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS purchase_discount_value NUMERIC(15,2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS sale_discount_type TEXT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS sale_discount_value NUMERIC(15,2) DEFAULT 0;
