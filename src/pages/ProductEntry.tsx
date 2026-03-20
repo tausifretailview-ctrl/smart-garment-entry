@@ -1749,17 +1749,17 @@ const ProductEntry = () => {
 
             {/* Recent Products History */}
             {!editingProductId && recentProducts.length > 0 && (
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Recent Products</Label>
+              <div className="space-y-1.5 bg-muted/30 rounded-lg px-4 py-2.5 border border-border">
+                <Label className="text-[11px] text-muted-foreground uppercase font-semibold tracking-wider">Recent</Label>
                 <div className="flex flex-wrap gap-1.5">
                   {recentProducts.map((p) => (
                     <span
                       key={p.id}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-muted text-xs text-muted-foreground border border-border"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-card text-xs text-muted-foreground border border-border hover:border-primary/30 hover:bg-primary/5 cursor-pointer transition-colors font-medium"
                     >
-                      <Package className="h-3 w-3" />
+                      <Package className="h-3 w-3 text-primary/50" />
                       {p.product_name}
-                      {p.brand && <span className="text-muted-foreground/60">• {p.brand}</span>}
+                      {p.brand && <span className="text-muted-foreground/50">• {p.brand}</span>}
                     </span>
                   ))}
                 </div>
