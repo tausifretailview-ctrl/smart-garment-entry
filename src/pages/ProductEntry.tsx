@@ -2279,22 +2279,26 @@ const ProductEntry = () => {
               {/* Purchase Discount Section */}
               {showDiscountFields && (
                 <div className="col-span-full">
-                  <div className="rounded-lg border border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-800 p-4 space-y-3 relative">
-                    <div className="flex items-center justify-between">
-                      <Label className="font-semibold text-sm">Purchase Discount</Label>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500 text-white">NEW</span>
+                  <div className="rounded-xl border-[1.5px] border-warning/40 bg-gradient-to-br from-warning/5 to-warning/10 p-4 space-y-3 relative overflow-hidden">
+                    <div className="absolute top-0 right-4">
+                      <span className="inline-block text-[10px] font-bold px-2.5 py-1 rounded-b-lg bg-gradient-to-r from-warning to-destructive text-white tracking-wider uppercase">
+                        Supplier Discount
+                      </span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="inline-flex rounded-md border overflow-hidden">
+                    <div className="flex items-center gap-2 pt-1">
+                      <Label className="font-bold text-sm text-warning">Purchase Discount</Label>
+                    </div>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className="inline-flex rounded-lg border-[1.5px] border-border overflow-hidden h-[38px]">
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, purchase_discount_type: 'percent' }))}
-                          className={`px-3 py-1.5 text-xs font-semibold transition-colors ${(formData.purchase_discount_type || 'percent') === 'percent' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'}`}
+                          className={`w-[42px] text-xs font-bold transition-all duration-200 ${(formData.purchase_discount_type || 'percent') === 'percent' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:bg-muted'}`}
                         >%</button>
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, purchase_discount_type: 'flat' }))}
-                          className={`px-3 py-1.5 text-xs font-semibold transition-colors ${formData.purchase_discount_type === 'flat' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'}`}
+                          className={`w-[42px] text-xs font-bold transition-all duration-200 ${formData.purchase_discount_type === 'flat' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:bg-muted'}`}
                         >₹</button>
                       </div>
                       <Input
@@ -2305,11 +2309,11 @@ const ProductEntry = () => {
                         value={formData.purchase_discount_value || ""}
                         onChange={(e) => setFormData(prev => ({ ...prev, purchase_discount_value: parseFloat(e.target.value) || 0 }))}
                         placeholder="0"
-                        className="w-24 h-9"
+                        className="w-24 h-9 font-outfit"
                       />
-                      <div className="flex-1 text-right">
-                        <p className="text-xs text-muted-foreground">Net Purchase</p>
-                        <p className="font-bold text-sm">
+                      <div className="flex-1 text-right min-w-[100px]">
+                        <p className="text-[11px] text-muted-foreground">Net Purchase</p>
+                        <p className="font-extrabold text-sm text-success">
                           ₹{(() => {
                             const pp = formData.default_pur_price ?? 0;
                             const dv = formData.purchase_discount_value || 0;
@@ -2322,7 +2326,9 @@ const ProductEntry = () => {
                         </p>
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">💡 This discount will appear in the Discount column on Purchase Bills automatically</p>
+                    <div className="bg-card/60 border border-warning/20 rounded-md px-3 py-1.5">
+                      <p className="text-[11px] text-muted-foreground">💡 This discount will appear in the Discount column on Purchase Bills automatically</p>
+                    </div>
                   </div>
                 </div>
               )}
@@ -2330,22 +2336,26 @@ const ProductEntry = () => {
               {/* Sale Discount Section */}
               {showDiscountFields && (
                 <div className="col-span-full">
-                  <div className="rounded-lg border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-800 p-4 space-y-3 relative">
-                    <div className="flex items-center justify-between">
-                      <Label className="font-semibold text-sm">Sale Discount</Label>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500 text-white">NEW</span>
+                  <div className="rounded-xl border-[1.5px] border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10 p-4 space-y-3 relative overflow-hidden">
+                    <div className="absolute top-0 right-4">
+                      <span className="inline-block text-[10px] font-bold px-2.5 py-1 rounded-b-lg bg-gradient-to-r from-primary to-accent text-white tracking-wider uppercase">
+                        Sale Discount
+                      </span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="inline-flex rounded-md border overflow-hidden">
+                    <div className="flex items-center gap-2 pt-1">
+                      <Label className="font-bold text-sm text-primary">Sale Discount</Label>
+                    </div>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className="inline-flex rounded-lg border-[1.5px] border-border overflow-hidden h-[38px]">
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, sale_discount_type: 'percent' }))}
-                          className={`px-3 py-1.5 text-xs font-semibold transition-colors ${(formData.sale_discount_type || 'percent') === 'percent' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'}`}
+                          className={`w-[42px] text-xs font-bold transition-all duration-200 ${(formData.sale_discount_type || 'percent') === 'percent' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:bg-muted'}`}
                         >%</button>
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, sale_discount_type: 'flat' }))}
-                          className={`px-3 py-1.5 text-xs font-semibold transition-colors ${formData.sale_discount_type === 'flat' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'}`}
+                          className={`w-[42px] text-xs font-bold transition-all duration-200 ${formData.sale_discount_type === 'flat' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:bg-muted'}`}
                         >₹</button>
                       </div>
                       <Input
@@ -2356,11 +2366,11 @@ const ProductEntry = () => {
                         value={formData.sale_discount_value || ""}
                         onChange={(e) => setFormData(prev => ({ ...prev, sale_discount_value: parseFloat(e.target.value) || 0 }))}
                         placeholder="0"
-                        className="w-24 h-9"
+                        className="w-24 h-9 font-outfit"
                       />
-                      <div className="flex-1 text-right">
-                        <p className="text-xs text-muted-foreground">Net Sale Price</p>
-                        <p className="font-bold text-sm">
+                      <div className="flex-1 text-right min-w-[100px]">
+                        <p className="text-[11px] text-muted-foreground">Net Sale Price</p>
+                        <p className="font-extrabold text-sm text-success">
                           ₹{(() => {
                             const sp = formData.default_sale_price ?? 0;
                             const dv = formData.sale_discount_value || 0;
@@ -2373,14 +2383,16 @@ const ProductEntry = () => {
                         </p>
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">🛒 This discount auto-applies on Sale & POS window when product is scanned</p>
+                    <div className="bg-card/60 border border-primary/20 rounded-md px-3 py-1.5">
+                      <p className="text-[11px] text-muted-foreground">🛒 This discount auto-applies on Sale & POS window when product is scanned</p>
+                    </div>
                   </div>
                 </div>
               )}
 
               {!showDiscountFields && (
                 <div className="col-span-full">
-                  <p className="text-xs text-muted-foreground">💡 Enable Purchase & Sale Discounts from ⚙️ Settings → Purchase Settings</p>
+                  <p className="text-xs text-muted-foreground italic">💡 Enable Purchase & Sale Discounts from ⚙️ Settings → Purchase Settings</p>
                 </div>
               )}
               <div className="space-y-2">
