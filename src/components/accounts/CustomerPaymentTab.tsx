@@ -169,6 +169,9 @@ export function CustomerPaymentTab({
     enabled: !!referenceId,
   });
 
+  // Customer advance balance
+  const { data: advanceBalance = 0 } = useCustomerAdvanceBalance(referenceId || null, organizationId);
+
   // Auto-fill amount
   useEffect(() => {
     if (selectedInvoiceIds.length > 0 && customerInvoices) {
