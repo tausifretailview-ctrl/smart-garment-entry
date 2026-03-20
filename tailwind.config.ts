@@ -17,6 +17,8 @@ export default {
         sans: ["Inter", "system-ui", "sans-serif"],
         display: ["Sora", "Outfit", "Inter", "sans-serif"],
         heading: ["Outfit", "Inter", "sans-serif"],
+        outfit: ["Outfit", "system-ui", "-apple-system", "sans-serif"],
+        heading: ["Outfit", "Inter", "sans-serif"],
         mono: ["Roboto Mono", "monospace"],
         inter: ["Inter", "sans-serif"],
         roboto: ["Roboto", "sans-serif"],
