@@ -1234,7 +1234,12 @@ const PurchaseEntry = () => {
         gst_per: product.purchase_gst_percent || product.gst_per || 0,
         hsn_code: product.hsn_code || "",
         barcode: barcode,
-        discount_percent: 0,
+        discount_percent: (() => {
+          const pdt = (product as any).purchase_discount_type;
+          const pdv = (product as any).purchase_discount_value || 0;
+          if (pdv > 0 && (!pdt || pdt === 'percent')) return pdv;
+          return 0;
+        })(),
         brand: product.brand || "",
         category: product.category || "",
         color: v.color || product.color || "",
