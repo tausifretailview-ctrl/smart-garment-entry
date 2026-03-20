@@ -1508,6 +1508,29 @@ export default function Settings() {
                   When enabled, MRP field will be shown in Product Entry, Sales, POS, Reports and Print invoices. 
                   Discount will be calculated as MRP - Sale Price.
                 </p>
+                
+                <div className="flex items-center space-x-2 pt-4">
+                  <Switch
+                    id="product_entry_discount_enabled"
+                    checked={settings.purchase_settings?.product_entry_discount_enabled || false}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          product_entry_discount_enabled: checked,
+                        },
+                      })
+                    }
+                  />
+                  <Label htmlFor="product_entry_discount_enabled" className="font-normal cursor-pointer">
+                    Product Entry Discounts
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground ml-6">
+                  When enabled, Purchase Discount and Sale Discount fields appear on the Product Entry form. 
+                  Discounts auto-apply when adding products to Purchase Bills, Sales, and POS.
+                </p>
               </CardContent>
             </Card>
           </TabsContent>

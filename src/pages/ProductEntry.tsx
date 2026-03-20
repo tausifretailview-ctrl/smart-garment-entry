@@ -125,6 +125,7 @@ const ProductEntry = () => {
   const [hsnCodes, setHsnCodes] = useState<string[]>([]);
   const [styles, setStyles] = useState<string[]>([]);
   
+  const [showDiscountFields, setShowDiscountFields] = useState(false);
   const [formData, setFormData] = useState<ProductForm>({
     product_type: "goods",
     product_name: "",
@@ -142,6 +143,10 @@ const ProductEntry = () => {
     default_sale_price: undefined,
     default_mrp: undefined,
     status: "active",
+    purchase_discount_type: null,
+    purchase_discount_value: 0,
+    sale_discount_type: null,
+    sale_discount_value: 0,
   });
   const [colorInput, setColorInput] = useState("");
   const [markupPercent, setMarkupPercent] = useState<string>("");
