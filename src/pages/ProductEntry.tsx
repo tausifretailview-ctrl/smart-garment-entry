@@ -1871,7 +1871,7 @@ const ProductEntry = () => {
               <div className="flex-1 h-px bg-border" />
             </div>
             <div className="space-y-2">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {([
                   { value: 'goods' as ProductType, icon: '📦', label: 'Goods', desc: 'Physical items' },
                   { value: 'service' as ProductType, icon: '🔧', label: 'Service', desc: 'Service based' },
