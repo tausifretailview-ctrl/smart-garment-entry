@@ -2279,28 +2279,39 @@ const ProductEntry = () => {
               {/* Purchase Discount Section */}
               {showDiscountFields && (
                 <div className="col-span-full">
-                  <div className="rounded-xl border-[1.5px] border-warning/40 bg-gradient-to-br from-warning/5 to-warning/10 p-4 space-y-3 relative overflow-hidden">
-                    <div className="absolute top-0 right-4">
-                      <span className="inline-block text-[10px] font-bold px-2.5 py-1 rounded-b-lg bg-gradient-to-r from-warning to-destructive text-white tracking-wider uppercase">
-                        Supplier Discount
+                  <div className="rounded-xl border-[1.5px] border-amber-300 bg-gradient-to-br from-amber-50 via-yellow-50/80 to-orange-50/40 p-5 space-y-4 relative overflow-hidden shadow-sm">
+                    {/* Hanging badge */}
+                    <div className="absolute -top-[1px] right-5">
+                      <span className="inline-flex items-center gap-1 text-[9px] font-extrabold px-3 py-1.5 rounded-b-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white tracking-[0.06em] uppercase shadow-md">
+                        🏷️ Supplier Discount
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 pt-1">
-                      <Label className="font-bold text-sm text-warning">Purchase Discount</Label>
+
+                    {/* Section header */}
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-400 to-orange-400 flex items-center justify-center shadow-sm">
+                        <span className="text-white text-xs font-bold">%</span>
+                      </div>
+                      <Label className="font-bold text-sm text-amber-700 font-outfit">Purchase Discount</Label>
                     </div>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <div className="inline-flex rounded-lg border-[1.5px] border-border overflow-hidden h-[38px]">
+
+                    {/* Controls row */}
+                    <div className="flex items-center gap-4 flex-wrap">
+                      {/* Toggle % / ₹ */}
+                      <div className="inline-flex rounded-lg border-[1.5px] border-amber-200 overflow-hidden h-[38px] shadow-sm bg-white">
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, purchase_discount_type: 'percent' }))}
-                          className={`w-[42px] text-xs font-bold transition-all duration-200 ${(formData.purchase_discount_type || 'percent') === 'percent' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:bg-muted'}`}
+                          className={`w-[44px] text-[13px] font-bold transition-all duration-200 ${(formData.purchase_discount_type || 'percent') === 'percent' ? 'bg-amber-500 text-white shadow-inner' : 'bg-white text-amber-400 hover:bg-amber-50'}`}
                         >%</button>
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, purchase_discount_type: 'flat' }))}
-                          className={`w-[42px] text-xs font-bold transition-all duration-200 ${formData.purchase_discount_type === 'flat' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:bg-muted'}`}
+                          className={`w-[44px] text-[13px] font-bold transition-all duration-200 ${formData.purchase_discount_type === 'flat' ? 'bg-amber-500 text-white shadow-inner' : 'bg-white text-amber-400 hover:bg-amber-50'}`}
                         >₹</button>
                       </div>
+
+                      {/* Discount value input */}
                       <Input
                         type="number"
                         min="0"
@@ -2308,12 +2319,14 @@ const ProductEntry = () => {
                         step="0.01"
                         value={formData.purchase_discount_value || ""}
                         onChange={(e) => setFormData(prev => ({ ...prev, purchase_discount_value: parseFloat(e.target.value) || 0 }))}
-                        placeholder="0"
-                        className="w-24 h-9 font-outfit"
+                        placeholder="Enter discount"
+                        className="w-28 h-[38px] font-outfit font-semibold text-amber-800 border-amber-200 bg-white focus:border-amber-400 focus:ring-amber-200/50"
                       />
-                      <div className="flex-1 text-right min-w-[100px]">
-                        <p className="text-[11px] text-muted-foreground">Net Purchase</p>
-                        <p className="font-extrabold text-sm text-success">
+
+                      {/* Computed net price */}
+                      <div className="flex-1 text-right min-w-[120px] bg-white/70 rounded-lg border border-amber-200/60 px-4 py-2">
+                        <p className="text-[10px] text-amber-600/70 font-medium uppercase tracking-wide">Net Purchase Price</p>
+                        <p className="font-extrabold text-base text-emerald-600 font-outfit tabular-nums">
                           ₹{(() => {
                             const pp = formData.default_pur_price ?? 0;
                             const dv = formData.purchase_discount_value || 0;
@@ -2326,8 +2339,10 @@ const ProductEntry = () => {
                         </p>
                       </div>
                     </div>
-                    <div className="bg-card/60 border border-warning/20 rounded-md px-3 py-1.5">
-                      <p className="text-[11px] text-muted-foreground">💡 This discount will appear in the Discount column on Purchase Bills automatically</p>
+
+                    {/* Helper note */}
+                    <div className="bg-white/60 border border-amber-200/50 rounded-lg px-3.5 py-2">
+                      <p className="text-[11px] text-amber-700/70 font-medium font-outfit">💡 This discount will auto-populate the Discount column on Purchase Bills when this product is added</p>
                     </div>
                   </div>
                 </div>
@@ -2336,28 +2351,39 @@ const ProductEntry = () => {
               {/* Sale Discount Section */}
               {showDiscountFields && (
                 <div className="col-span-full">
-                  <div className="rounded-xl border-[1.5px] border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10 p-4 space-y-3 relative overflow-hidden">
-                    <div className="absolute top-0 right-4">
-                      <span className="inline-block text-[10px] font-bold px-2.5 py-1 rounded-b-lg bg-gradient-to-r from-primary to-accent text-white tracking-wider uppercase">
-                        Sale Discount
+                  <div className="rounded-xl border-[1.5px] border-blue-200 bg-gradient-to-br from-blue-50 via-sky-50/80 to-indigo-50/40 p-5 space-y-4 relative overflow-hidden shadow-sm">
+                    {/* Hanging badge */}
+                    <div className="absolute -top-[1px] right-5">
+                      <span className="inline-flex items-center gap-1 text-[9px] font-extrabold px-3 py-1.5 rounded-b-lg bg-gradient-to-r from-blue-500 to-violet-500 text-white tracking-[0.06em] uppercase shadow-md">
+                        🛒 Sale Discount
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 pt-1">
-                      <Label className="font-bold text-sm text-primary">Sale Discount</Label>
+
+                    {/* Section header */}
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center shadow-sm">
+                        <span className="text-white text-xs font-bold">₹</span>
+                      </div>
+                      <Label className="font-bold text-sm text-blue-700 font-outfit">Sale Discount</Label>
                     </div>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <div className="inline-flex rounded-lg border-[1.5px] border-border overflow-hidden h-[38px]">
+
+                    {/* Controls row */}
+                    <div className="flex items-center gap-4 flex-wrap">
+                      {/* Toggle % / ₹ */}
+                      <div className="inline-flex rounded-lg border-[1.5px] border-blue-200 overflow-hidden h-[38px] shadow-sm bg-white">
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, sale_discount_type: 'percent' }))}
-                          className={`w-[42px] text-xs font-bold transition-all duration-200 ${(formData.sale_discount_type || 'percent') === 'percent' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:bg-muted'}`}
+                          className={`w-[44px] text-[13px] font-bold transition-all duration-200 ${(formData.sale_discount_type || 'percent') === 'percent' ? 'bg-blue-500 text-white shadow-inner' : 'bg-white text-blue-400 hover:bg-blue-50'}`}
                         >%</button>
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, sale_discount_type: 'flat' }))}
-                          className={`w-[42px] text-xs font-bold transition-all duration-200 ${formData.sale_discount_type === 'flat' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:bg-muted'}`}
+                          className={`w-[44px] text-[13px] font-bold transition-all duration-200 ${formData.sale_discount_type === 'flat' ? 'bg-blue-500 text-white shadow-inner' : 'bg-white text-blue-400 hover:bg-blue-50'}`}
                         >₹</button>
                       </div>
+
+                      {/* Discount value input */}
                       <Input
                         type="number"
                         min="0"
@@ -2365,12 +2391,14 @@ const ProductEntry = () => {
                         step="0.01"
                         value={formData.sale_discount_value || ""}
                         onChange={(e) => setFormData(prev => ({ ...prev, sale_discount_value: parseFloat(e.target.value) || 0 }))}
-                        placeholder="0"
-                        className="w-24 h-9 font-outfit"
+                        placeholder="Enter discount"
+                        className="w-28 h-[38px] font-outfit font-semibold text-blue-800 border-blue-200 bg-white focus:border-blue-400 focus:ring-blue-200/50"
                       />
-                      <div className="flex-1 text-right min-w-[100px]">
-                        <p className="text-[11px] text-muted-foreground">Net Sale Price</p>
-                        <p className="font-extrabold text-sm text-success">
+
+                      {/* Computed net price */}
+                      <div className="flex-1 text-right min-w-[120px] bg-white/70 rounded-lg border border-blue-200/60 px-4 py-2">
+                        <p className="text-[10px] text-blue-600/70 font-medium uppercase tracking-wide">Net Sale Price</p>
+                        <p className="font-extrabold text-base text-emerald-600 font-outfit tabular-nums">
                           ₹{(() => {
                             const sp = formData.default_sale_price ?? 0;
                             const dv = formData.sale_discount_value || 0;
@@ -2383,8 +2411,10 @@ const ProductEntry = () => {
                         </p>
                       </div>
                     </div>
-                    <div className="bg-card/60 border border-primary/20 rounded-md px-3 py-1.5">
-                      <p className="text-[11px] text-muted-foreground">🛒 This discount auto-applies on Sale & POS window when product is scanned</p>
+
+                    {/* Helper note */}
+                    <div className="bg-white/60 border border-blue-200/50 rounded-lg px-3.5 py-2">
+                      <p className="text-[11px] text-blue-700/70 font-medium font-outfit">🛒 This discount auto-applies on Sale & POS window when product is scanned or added</p>
                     </div>
                   </div>
                 </div>
@@ -2392,7 +2422,10 @@ const ProductEntry = () => {
 
               {!showDiscountFields && (
                 <div className="col-span-full">
-                  <p className="text-xs text-muted-foreground italic">💡 Enable Purchase & Sale Discounts from ⚙️ Settings → Purchase Settings</p>
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-muted/40 border border-border/60">
+                    <span className="text-sm">💡</span>
+                    <p className="text-xs text-muted-foreground font-outfit">Enable Purchase & Sale Discounts from <span className="font-semibold text-primary cursor-pointer hover:underline">⚙️ Settings → Purchase Settings</span></p>
+                  </div>
                 </div>
               )}
               <div className="space-y-2">
