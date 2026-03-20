@@ -992,95 +992,119 @@ export default function SalesInvoiceDashboard() {
       title: "Generating PDF",
       description: "Please wait while PDF is being generated...",
     });
-    
-    // Poll until the print ref is ready (content rendered)
-    const MAX_WAIT = 8000;
-    const startTime = Date.now();
-    const waitForReady = () => new Promise<boolean>((resolve) => {
-      const poll = () => {
-        const el = printRef.current;
-        const text = (el?.textContent || '').trim();
-        const isReady = el && el.childElementCount > 0 && text.length > 32 && !/^loading\.?\.?\.?$/i.test(text);
-        if (isReady) return resolve(true);
-        if (Date.now() - startTime > MAX_WAIT) return resolve(false);
-        setTimeout(poll, 200);
-      };
-      poll();
-    });
-    
-    const ready = await waitForReady();
-    if (ready && printRef.current) {
-        try {
-          const canvas = await html2canvas(printRef.current, {
-            scale: 2,
-            useCORS: true,
-            allowTaint: true,
-            logging: false,
-          });
-          
-          const imgData = canvas.toDataURL('image/png');
-          const pageFormat = billFormat === 'a5' || billFormat === 'a5-horizontal' ? 'a5' : 'a4';
-          const pdf = new jsPDF({
-            orientation: 'portrait',
-            unit: 'mm',
-            format: pageFormat,
-          });
-          
-          const pdfWidth = pdf.internal.pageSize.getWidth();
-          const pdfHeight = pdf.internal.pageSize.getHeight();
-          const imgWidth = canvas.width;
-          const imgHeight = canvas.height;
-          
-          // Scale image width to fit PDF page width
-          const scaledWidth = pdfWidth;
-          const scaledHeight = (imgHeight * pdfWidth) / imgWidth;
-          
-          const singlePageThreshold = pdfHeight * 1.05;
 
-          if (scaledHeight <= singlePageThreshold) {
-            // Content fits on a single page (with tolerance for minor overflow)
-            pdf.addImage(imgData, 'PNG', 0, 0, scaledWidth, Math.min(scaledHeight, pdfHeight));
-          } else {
-            // Multi-page: slice the canvas into page-sized chunks
-            // Calculate how many source pixels correspond to one PDF page height
-            const pixelsPerPage = (pdfHeight / scaledHeight) * imgHeight;
-            const totalPages = Math.ceil(scaledHeight / pdfHeight);
-            
-            for (let page = 0; page < totalPages; page++) {
-              if (page > 0) pdf.addPage();
-              
-              const sourceY = page * pixelsPerPage;
-              const sourceH = Math.min(pixelsPerPage, imgHeight - sourceY);
-              const sliceScaledHeight = (sourceH * pdfWidth) / imgWidth;
-              
-              const pageCanvas = document.createElement('canvas');
-              pageCanvas.width = imgWidth;
-              pageCanvas.height = Math.ceil(sourceH);
-              const ctx = pageCanvas.getContext('2d');
-              if (ctx) {
-                ctx.drawImage(canvas, 0, sourceY, imgWidth, sourceH, 0, 0, imgWidth, Math.ceil(sourceH));
-                const pageImgData = pageCanvas.toDataURL('image/png');
-                pdf.addImage(pageImgData, 'PNG', 0, 0, pdfWidth, sliceScaledHeight);
-              }
-            }
+    try {
+      await new Promise((resolve) => setTimeout(resolve, isMobile ? 600 : 200));
+
+      const MAX_WAIT = 10000;
+      const startTime = Date.now();
+      const waitForReady = () => new Promise<boolean>((resolve) => {
+        const poll = () => {
+          const el = printRef.current;
+          const text = (el?.textContent || '').trim();
+          const isReady = !!el && el.childElementCount > 0 && text.length > 32 && !/^loading\.?\.?\.?$/i.test(text);
+          if (isReady) return resolve(true);
+          if (Date.now() - startTime > MAX_WAIT) return resolve(false);
+          setTimeout(poll, 250);
+        };
+        poll();
+      });
+
+      const ready = await waitForReady();
+      if (!ready || !printRef.current) {
+        throw new Error('Invoice template failed to render');
+      }
+
+      const canvas = await html2canvas(printRef.current, {
+        scale: isMobile ? 1.5 : 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL(isMobile ? 'image/jpeg' : 'image/png', 0.92);
+      const pageFormat = billFormat === 'a5' || billFormat === 'a5-horizontal' ? 'a5' : 'a4';
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: pageFormat,
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const scaledHeight = (imgHeight * pdfWidth) / imgWidth;
+      const singlePageThreshold = pdfHeight * 1.05;
+      const imageType = isMobile ? 'JPEG' : 'PNG';
+
+      if (scaledHeight <= singlePageThreshold) {
+        pdf.addImage(imgData, imageType, 0, 0, pdfWidth, Math.min(scaledHeight, pdfHeight));
+      } else {
+        const pixelsPerPage = (pdfHeight / scaledHeight) * imgHeight;
+        const totalPages = Math.ceil(scaledHeight / pdfHeight);
+
+        for (let page = 0; page < totalPages; page++) {
+          if (page > 0) pdf.addPage();
+
+          const sourceY = page * pixelsPerPage;
+          const sourceH = Math.min(pixelsPerPage, imgHeight - sourceY);
+          const sliceScaledHeight = (sourceH * pdfWidth) / imgWidth;
+
+          const pageCanvas = document.createElement('canvas');
+          pageCanvas.width = imgWidth;
+          pageCanvas.height = Math.ceil(sourceH);
+          const ctx = pageCanvas.getContext('2d');
+
+          if (ctx) {
+            ctx.drawImage(canvas, 0, sourceY, imgWidth, sourceH, 0, 0, imgWidth, Math.ceil(sourceH));
+            const pageImgData = pageCanvas.toDataURL(isMobile ? 'image/jpeg' : 'image/png', 0.92);
+            pdf.addImage(pageImgData, imageType, 0, 0, pdfWidth, sliceScaledHeight);
           }
-          
-          pdf.save(`Invoice_${invoice.sale_number}_${format(new Date(invoice.sale_date), 'ddMMyyyy')}.pdf`);
-          
-          toast({
-            title: "Success",
-            description: "PDF downloaded successfully",
-          });
-        } catch (error) {
-          console.error('Error generating PDF:', error);
-          toast({
-            title: "Error",
-            description: "Failed to generate PDF",
-            variant: "destructive",
-          });
         }
+      }
+
+      const blob = pdf.output('blob');
+      const fileName = `Invoice_${invoice.sale_number}_${format(new Date(invoice.sale_date), 'ddMMyyyy')}.pdf`;
+      const url = URL.createObjectURL(blob);
+
+      if (isMobile) {
+        const opened = window.open(url, '_blank', 'noopener,noreferrer');
+        if (opened) {
+          toast({
+            title: 'Success',
+            description: 'Invoice PDF opened successfully',
+          });
+          setTimeout(() => URL.revokeObjectURL(url), 60000);
+          return;
+        }
+      }
+
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 1000);
+
+      toast({
+        title: 'Success',
+        description: 'PDF downloaded successfully',
+      });
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to generate PDF',
+        variant: 'destructive',
+      });
+    } finally {
+      setInvoiceToPrint(null);
     }
-    setInvoiceToPrint(null);
   };
 
   const handleWhatsAppShare = async (invoice: any) => {
@@ -2044,7 +2068,6 @@ export default function SalesInvoiceDashboard() {
             position: 'fixed',
             left: '-9999px',
             top: 0,
-            opacity: 0,
             width: billFormat === 'a4' ? '210mm' : 
                    billFormat === 'thermal' ? '80mm' : 
                    billFormat === 'a5-horizontal' ? '210mm' : '148mm',
