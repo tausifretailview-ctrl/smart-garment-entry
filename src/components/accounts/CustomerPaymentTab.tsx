@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, TrendingDown, Printer, Check, ChevronsUpDown, Pencil, Trash2, ChevronLeft, ChevronRight, Coins, Send, Link2 } from "lucide-react";
+import { CalendarIcon, Plus, TrendingDown, Printer, Check, ChevronsUpDown, Pencil, Trash2, ChevronLeft, ChevronRight, Coins, Send, Link2, Zap, Wallet } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -23,7 +23,7 @@ import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
 import { calculateCustomerInvoiceBalances } from "@/utils/customerBalanceUtils";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { ReassignPaymentDialog } from "./ReassignPaymentDialog";
-
+import { useCustomerAdvanceBalance } from "@/hooks/useCustomerAdvances";
 interface CustomerPaymentTabProps {
   organizationId: string;
   vouchers: any[] | undefined;
@@ -169,6 +169,9 @@ export function CustomerPaymentTab({
     enabled: !!referenceId,
   });
 
+  // Customer advance balance
+  const { data: advanceBalance = 0 } = useCustomerAdvanceBalance(referenceId || null, organizationId);
+
   // Auto-fill amount
   useEffect(() => {
     if (selectedInvoiceIds.length > 0 && customerInvoices) {
@@ -194,6 +197,61 @@ export function CustomerPaymentTab({
     setDiscountReason("");
     queryClient.invalidateQueries({ queryKey: ["next-receipt-number"] });
   };
+
+  // Apply advance to selected invoices
+  const applyAdvanceMutation = useMutation({
+    mutationFn: async () => {
+      if (!referenceId || selectedInvoiceIds.length === 0) throw new Error("Select customer and invoices");
+      const invoicesToProcess = customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)) || [];
+      if (invoicesToProcess.length === 0) throw new Error("No invoices selected");
+      const totalOutstanding = invoicesToProcess.reduce((sum, inv) => sum + Math.max(0, (inv.net_amount || 0) - (inv.paid_amount || 0)), 0);
+      const amountToApply = Math.min(advanceBalance, totalOutstanding);
+      if (amountToApply <= 0) throw new Error("No advance balance to apply");
+      
+      // FIFO advance consumption
+      const { data: availableAdvances } = await supabase.from("customer_advances").select("*").eq("customer_id", referenceId).eq("organization_id", organizationId).in("status", ["active", "partially_used"]).order("advance_date", { ascending: true });
+      let advRemaining = amountToApply;
+      for (const adv of availableAdvances || []) {
+        if (advRemaining <= 0) break;
+        const available = adv.amount - adv.used_amount;
+        const toUse = Math.min(available, advRemaining);
+        const newUsed = adv.used_amount + toUse;
+        await supabase.from("customer_advances").update({ used_amount: newUsed, status: newUsed >= adv.amount ? "fully_used" : "partially_used" }).eq("id", adv.id);
+        advRemaining -= toUse;
+      }
+      
+      // Apply to invoices + create voucher entries
+      let remaining = amountToApply;
+      const { data: voucherNumber } = await supabase.rpc("generate_voucher_number", { p_type: "receipt", p_date: format(new Date(), "yyyy-MM-dd") });
+      let idx = 0;
+      for (const invoice of invoicesToProcess) {
+        if (remaining <= 0) break;
+        const outstanding = Math.max(0, (invoice.net_amount || 0) - (invoice.paid_amount || 0));
+        const applyAmt = Math.min(remaining, outstanding);
+        if (applyAmt <= 0) continue;
+        const newPaid = (invoice.paid_amount || 0) + applyAmt;
+        const newStatus = newPaid >= invoice.net_amount ? 'completed' : newPaid > 0 ? 'partial' : 'pending';
+        await supabase.from('sales').update({ paid_amount: newPaid, payment_status: newStatus }).eq('id', invoice.id);
+        const vNum = invoicesToProcess.length > 1 ? `${voucherNumber}-${idx + 1}` : voucherNumber;
+        await supabase.from("voucher_entries").insert({ organization_id: organizationId, voucher_number: vNum, voucher_type: "receipt", voucher_date: format(new Date(), "yyyy-MM-dd"), reference_type: 'sale', reference_id: invoice.id, description: `Adjusted from advance balance for ${invoice.sale_number}`, total_amount: applyAmt, payment_method: 'advance_adjustment' });
+        remaining -= applyAmt;
+        idx++;
+      }
+      return { applied: amountToApply - remaining };
+    },
+    onSuccess: (data) => {
+      toast.success(`₹${Math.round(data.applied).toLocaleString('en-IN')} advance applied to selected invoice(s)`);
+      queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-advance-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
+      setSelectedInvoiceIds([]);
+    },
+    onError: (error: Error) => toast.error(`Failed to apply advance: ${error.message}`),
+  });
 
   // Create voucher mutation
   const createVoucher = useMutation({
@@ -490,6 +548,35 @@ export function CustomerPaymentTab({
                       <p className="text-sm font-medium text-red-900 dark:text-red-100">⚠️ No outstanding balance - Payment receipt not allowed</p>
                     ) : (
                       <p className="text-sm font-medium text-amber-900 dark:text-amber-100">Outstanding Balance: <span className="text-lg font-bold">₹{Math.round(customerBalance).toLocaleString('en-IN')}</span></p>
+                    )}
+                  </div>
+                )}
+                {/* Advance Balance Banner */}
+                {referenceId && advanceBalance > 0 && customerBalance !== undefined && customerBalance > 0 && (
+                  <div className="mt-2 p-3 border rounded-md bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950 border-emerald-300 dark:border-emerald-700">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
+                          Advance Balance Available: <span className="text-lg font-bold">₹{Math.round(advanceBalance).toLocaleString('en-IN')}</span>
+                        </p>
+                      </div>
+                      {selectedInvoiceIds.length > 0 && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="default"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                          disabled={applyAdvanceMutation.isPending}
+                          onClick={() => applyAdvanceMutation.mutate()}
+                        >
+                          <Wallet className="h-3.5 w-3.5 mr-1.5" />
+                          {applyAdvanceMutation.isPending ? "Applying..." : `Apply ₹${Math.round(Math.min(advanceBalance, customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => sum + Math.max(0, (inv.net_amount || 0) - (inv.paid_amount || 0)), 0) || 0)).toLocaleString('en-IN')} to Invoice`}
+                        </Button>
+                      )}
+                    </div>
+                    {selectedInvoiceIds.length === 0 && (
+                      <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">Select invoice(s) below to apply advance balance</p>
                     )}
                   </div>
                 )}
