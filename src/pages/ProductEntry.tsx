@@ -2624,24 +2624,46 @@ const ProductEntry = () => {
               </div>
             )}
 
-            {/* Save Button */}
-            <div className="flex justify-end pt-2">
-              <Button
-                ref={saveBtnRef}
-                onClick={handleSave}
-                disabled={loading}
-                size="sm"
-                className="gap-1 min-w-[120px]"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    {editingProductId ? "Updating..." : "Saving..."}
-                  </>
+            {/* Save Button Footer */}
+            <div className="flex items-center justify-between pt-3 border-t border-border">
+              <div>
+                {showDiscountFields ? (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-success bg-success/10 border border-success/20 px-2.5 py-1 rounded-md">
+                    ✅ Discounts Enabled
+                  </span>
                 ) : (
-                  editingProductId ? "Update Product" : "Save Product"
+                  <span className="text-xs text-muted-foreground italic">💡 Enable discounts from ⚙️ Settings</span>
                 )}
-              </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => orgNavigate('/products')}
+                  className="font-outfit font-semibold"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  ref={saveBtnRef}
+                  onClick={handleSave}
+                  disabled={loading}
+                  size="default"
+                  className="gap-1.5 min-w-[140px] font-outfit font-semibold shadow-md hover:shadow-lg transition-all"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      {editingProductId ? "Updating..." : "Saving..."}
+                    </>
+                  ) : (
+                    <>
+                      💾 {editingProductId ? "Update Product" : "Save Product"}
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
