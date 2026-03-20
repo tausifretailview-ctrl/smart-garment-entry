@@ -392,6 +392,8 @@ const ProductEntry = () => {
         }
         // Set show_mrp from purchase settings
         setShowMrp(purchaseSettings.show_mrp || false);
+        // Set discount fields visibility
+        setShowDiscountFields(purchaseSettings.product_entry_discount_enabled || false);
       }
     }
   };
