@@ -2011,6 +2011,140 @@ Please clear your dues at the earliest. Thank you!`;
                   </Table>
                 </div>
               </TabsContent>
+
+              <TabsContent value="unapplied">
+                {(() => {
+                  // Find payments not linked to any specific invoice (reference_type='customer' or unlinked)
+                  const unappliedPayments = (paymentHistory || []).filter(p => 
+                    p.source === 'opening_balance' || p.invoiceNumber === 'Opening Balance'
+                  );
+                  
+                  // Also find voucher entries with reference_type='customer' (opening balance payments)
+                  const unappliedVouchers = transactions?.filter(t => 
+                    t.type === 'payment' && t.credit > 0 && 
+                    (t.description?.includes('Opening balance') || t.description?.includes('Opening Balance'))
+                  ) || [];
+
+                  // Find invoices with advance available but showing as pending
+                  const pendingInvoicesWithAdvance = transactions?.filter(t => 
+                    t.type === 'invoice' && t.debit > 0 && t.id !== 'opening-balance' && 
+                    t.paymentStatus !== 'completed'
+                  ) || [];
+
+                  const hasAdvanceBalance = selectedCustomer.balance < 0;
+                  const advanceAmount = hasAdvanceBalance ? Math.abs(selectedCustomer.balance) : 0;
+
+                  return (
+                    <div className="space-y-4">
+                      {/* Advance balance warning */}
+                      {hasAdvanceBalance && pendingInvoicesWithAdvance.length > 0 && (
+                        <div className="p-4 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30">
+                          <div className="flex items-start gap-3">
+                            <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-semibold text-amber-900 dark:text-amber-100">
+                                Advance Balance: ₹{Math.round(advanceAmount).toLocaleString('en-IN')} — {pendingInvoicesWithAdvance.length} invoice(s) pending
+                              </p>
+                              <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                                This customer has advance balance that can be allocated to pending invoices. Go to Accounts → Customer Payment to apply.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Unapplied opening balance payments */}
+                      {unappliedPayments.length > 0 ? (
+                        <div className="rounded-md border">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="bg-muted/40">
+                                <TableHead className="text-xs font-bold uppercase">Date</TableHead>
+                                <TableHead className="text-xs font-bold uppercase">Reference</TableHead>
+                                <TableHead className="text-xs font-bold uppercase">Description</TableHead>
+                                <TableHead className="text-right text-xs font-bold uppercase">Amount</TableHead>
+                                <TableHead className="text-xs font-bold uppercase">Status</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {unappliedPayments.map(payment => (
+                                <TableRow key={payment.id}>
+                                  <TableCell className="text-sm">{format(new Date(payment.date), 'dd MMM yyyy')}</TableCell>
+                                  <TableCell>
+                                    <Badge variant="outline" className="font-mono text-xs">{payment.voucherNumber}</Badge>
+                                  </TableCell>
+                                  <TableCell className="text-sm text-muted-foreground">{payment.description}</TableCell>
+                                  <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400">
+                                    ₹{payment.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge className="bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">
+                                      Not Linked to Invoice
+                                    </Badge>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      ) : !hasAdvanceBalance ? (
+                        <div className="text-center py-12 text-muted-foreground">
+                          <IndianRupee className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                          <p className="font-medium">No unapplied payments</p>
+                          <p className="text-xs mt-1">All payments are linked to specific invoices ✅</p>
+                        </div>
+                      ) : null}
+
+                      {/* Pending invoices that could use advance */}
+                      {pendingInvoicesWithAdvance.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                            <FileText className="h-4 w-4" />
+                            Pending Invoices — Advance Available
+                          </h4>
+                          <div className="rounded-md border">
+                            <Table>
+                              <TableHeader>
+                                <TableRow className="bg-muted/40">
+                                  <TableHead className="text-xs font-bold uppercase">Date</TableHead>
+                                  <TableHead className="text-xs font-bold uppercase">Invoice</TableHead>
+                                  <TableHead className="text-right text-xs font-bold uppercase">Amount</TableHead>
+                                  <TableHead className="text-xs font-bold uppercase">Status</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {pendingInvoicesWithAdvance.map(inv => (
+                                  <TableRow key={inv.id}>
+                                    <TableCell className="text-sm">{format(new Date(inv.date), 'dd MMM yyyy')}</TableCell>
+                                    <TableCell>
+                                      <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded">{inv.reference}</span>
+                                    </TableCell>
+                                    <TableCell className="text-right font-medium text-red-600 dark:text-red-400">
+                                      ₹{Math.round(inv.debit).toLocaleString('en-IN')}
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="flex items-center gap-1.5">
+                                        <Badge variant={inv.paymentStatus === 'partial' ? 'secondary' : 'destructive'} className="text-xs">
+                                          {inv.paymentStatus === 'partial' ? 'Partial' : 'Pending'}
+                                        </Badge>
+                                        {hasAdvanceBalance && (
+                                          <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 text-[10px]">
+                                            Advance available
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
