@@ -1688,14 +1688,18 @@ Please clear your dues at the earliest. Thank you!`;
             <div className="my-4" />
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-4 h-10 bg-muted/60 rounded-xl p-1">
+              <TabsList className="grid w-full grid-cols-3 mb-4 h-10 bg-muted/60 rounded-xl p-1">
                 <TabsTrigger value="transactions" className="flex items-center gap-2 rounded-lg text-sm font-medium">
                   <FileText className="h-4 w-4" />
-                  Transaction History
+                  Transactions
                 </TabsTrigger>
                 <TabsTrigger value="payments" className="flex items-center gap-2 rounded-lg text-sm font-medium">
                   <IndianRupee className="h-4 w-4" />
                   Payment History
+                </TabsTrigger>
+                <TabsTrigger value="unapplied" className="flex items-center gap-2 rounded-lg text-sm font-medium">
+                  <AlertCircle className="h-4 w-4" />
+                  Unapplied
                 </TabsTrigger>
               </TabsList>
 
