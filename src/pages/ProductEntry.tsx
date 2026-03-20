@@ -1787,17 +1787,18 @@ const ProductEntry = () => {
 
             {/* Recent Products History */}
             {!editingProductId && recentProducts.length > 0 && (
-              <div className="space-y-1.5 bg-muted/30 rounded-lg px-4 py-2.5 border border-border">
-                <Label className="text-[11px] text-muted-foreground uppercase font-semibold tracking-wider">Recent</Label>
-                <div className="flex flex-wrap gap-1.5">
+              <div className="flex items-center gap-3 bg-card rounded-xl px-4 py-2.5 border border-border shadow-sm">
+                <span className="text-[10.5px] text-muted-foreground uppercase font-bold tracking-[0.06em] font-outfit whitespace-nowrap select-none">Recent</span>
+                <div className="w-px h-5 bg-border" />
+                <div className="flex flex-wrap gap-1.5 overflow-hidden">
                   {recentProducts.map((p) => (
                     <span
                       key={p.id}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-card text-xs text-muted-foreground border border-border hover:border-primary/30 hover:bg-primary/5 cursor-pointer transition-colors font-medium"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted/40 text-[11.5px] text-muted-foreground border border-border/80 hover:border-primary/40 hover:bg-primary/5 hover:text-foreground cursor-pointer transition-all duration-200 font-medium font-outfit"
                     >
-                      <Package className="h-3 w-3 text-primary/50" />
+                      <span className="text-primary/60">⊕</span>
                       {p.product_name}
-                      {p.brand && <span className="text-muted-foreground/50">• {p.brand}</span>}
+                      {p.brand && <span className="text-muted-foreground/40">• {p.brand}</span>}
                     </span>
                   ))}
                 </div>
