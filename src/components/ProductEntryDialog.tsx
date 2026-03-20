@@ -865,15 +865,22 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-5xl max-h-[90vh] p-0">
-          <DialogHeader className="px-6 pt-6 pb-2">
-            <DialogTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" />
-              Add New Product
-            </DialogTitle>
-            <DialogDescription>
-              Create a new product with size variants
-            </DialogDescription>
+        <DialogContent className="max-w-5xl max-h-[90vh] p-0 font-outfit">
+          {/* Purchase Context Header */}
+          <div className="mx-6 mt-6 mb-2 rounded-xl border-[1.5px] border-success/30 bg-gradient-to-br from-success/5 to-success/10 p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-success/20 to-success/30 flex items-center justify-center flex-shrink-0">
+                <span className="text-lg">🧾</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-bold text-success">Purchase Bill — Add New Product</h3>
+                <p className="text-[11px] text-muted-foreground">Fill product details to add directly to purchase bill</p>
+              </div>
+            </div>
+          </div>
+          <DialogHeader className="px-6 pb-2 sr-only">
+            <DialogTitle>Add New Product</DialogTitle>
+            <DialogDescription>Create a new product with size variants</DialogDescription>
           </DialogHeader>
           
           <ScrollArea className="max-h-[calc(90vh-140px)] px-6">
