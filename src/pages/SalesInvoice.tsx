@@ -1192,7 +1192,14 @@ export default function SalesInvoice() {
     
     const customerHasMasterDiscount = selectedCustomer?.discount_percent && selectedCustomer.discount_percent > 0;
     const brandDiscount = customerHasMasterDiscount ? 0 : getBrandDiscount(product.brand);
-    const discountPercent = brandDiscount > 0 ? brandDiscount : 0;
+    // Auto-apply product-level sale discount if no brand/customer discount
+    const productSaleDiscount = (() => {
+      const sdt = (product as any).sale_discount_type;
+      const sdv = (product as any).sale_discount_value || 0;
+      if (sdv > 0 && (!sdt || sdt === 'percent')) return sdv;
+      return 0;
+    })();
+    const discountPercent = brandDiscount > 0 ? brandDiscount : (productSaleDiscount > 0 ? productSaleDiscount : 0);
 
     // Use functional update with duplicate check INSIDE to prevent stale state during rapid barcode scans
     setLineItems(prev => {
