@@ -126,6 +126,8 @@ const ProductEntry = () => {
   const [styles, setStyles] = useState<string[]>([]);
   
   const [showDiscountFields, setShowDiscountFields] = useState(false);
+  const [showQuickSettings, setShowQuickSettings] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
   const [formData, setFormData] = useState<ProductForm>({
     product_type: "goods",
     product_name: "",
@@ -395,6 +397,42 @@ const ProductEntry = () => {
         // Set discount fields visibility
         setShowDiscountFields(purchaseSettings.product_entry_discount_enabled || false);
       }
+    }
+  };
+
+  const handleToggleDiscountSetting = async (enabled: boolean) => {
+    if (!currentOrganization) return;
+    setSavingSettings(true);
+    try {
+      const { data: existing } = await supabase
+        .from("settings")
+        .select("purchase_settings")
+        .eq("organization_id", currentOrganization.id)
+        .single();
+      
+      const currentPurchaseSettings = (typeof existing?.purchase_settings === 'object' && existing.purchase_settings !== null)
+        ? existing.purchase_settings as any
+        : {};
+      
+      const updatedPurchaseSettings = {
+        ...currentPurchaseSettings,
+        product_entry_discount_enabled: enabled,
+      };
+
+      await supabase
+        .from("settings")
+        .upsert({
+          organization_id: currentOrganization.id,
+          purchase_settings: updatedPurchaseSettings,
+        }, { onConflict: "organization_id" });
+
+      setShowDiscountFields(enabled);
+      toast({ title: enabled ? "Discounts Enabled" : "Discounts Disabled", description: enabled ? "Purchase & Sale discount fields are now visible" : "Discount fields have been hidden" });
+    } catch (err) {
+      console.error("Failed to update settings:", err);
+      toast({ title: "Error", description: "Failed to save settings", variant: "destructive" });
+    } finally {
+      setSavingSettings(false);
     }
   };
 
@@ -2658,17 +2696,28 @@ const ProductEntry = () => {
             )}
 
             {/* Save Button Footer */}
-            <div className="flex items-center justify-between pt-3 border-t border-border">
-              <div>
+            <div className="flex items-center justify-between pt-4 border-t border-border bg-muted/20 -mx-6 px-6 -mb-6 pb-5 rounded-b-xl">
+              <div className="flex items-center gap-3">
                 {showDiscountFields ? (
-                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-success bg-success/10 border border-success/20 px-2.5 py-1 rounded-md">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg font-outfit">
                     ✅ Discounts Enabled
                   </span>
                 ) : (
-                  <span className="text-xs text-muted-foreground italic">💡 Enable discounts from ⚙️ Settings</span>
+                  <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground font-outfit">
+                    💡 Discounts disabled
+                  </span>
                 )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowQuickSettings(true)}
+                  className="font-outfit font-semibold text-muted-foreground hover:text-foreground gap-1.5"
+                >
+                  ⚙️ Settings
+                </Button>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <Button
                   type="button"
                   variant="ghost"
@@ -2677,6 +2726,15 @@ const ProductEntry = () => {
                   className="font-outfit font-semibold"
                 >
                   Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.location.reload()}
+                  className="font-outfit font-semibold gap-1"
+                >
+                  🔄 Reset
                 </Button>
                 <Button
                   ref={saveBtnRef}
@@ -2842,6 +2900,85 @@ const ProductEntry = () => {
           sampleData={productEntrySampleData}
           sampleFileName="Product_Entry_Sample.xlsx"
         />
+
+        {/* Quick Settings Modal */}
+        <Dialog open={showQuickSettings} onOpenChange={setShowQuickSettings}>
+          <DialogContent className="sm:max-w-[420px] p-0 rounded-2xl overflow-hidden border-0 shadow-[0_25px_70px_rgba(0,0,0,0.2)]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/30">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+                  <span className="text-lg">⚙️</span>
+                </div>
+                <div>
+                  <DialogTitle className="text-[15px] font-bold font-outfit">Product Entry Settings</DialogTitle>
+                  <DialogDescription className="text-[11px] text-muted-foreground font-outfit">Configure discount fields visibility</DialogDescription>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="px-6 py-5 space-y-5">
+              {/* Discount Toggle */}
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-foreground font-outfit">Product Entry Discounts</p>
+                  <p className="text-[11px] text-muted-foreground font-outfit leading-relaxed">
+                    Show Purchase & Sale discount fields on the product form
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleToggleDiscountSetting(!showDiscountFields)}
+                  disabled={savingSettings}
+                  className={`relative w-[50px] h-[28px] rounded-full transition-colors duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] flex-shrink-0 ${
+                    showDiscountFields ? 'bg-emerald-500' : 'bg-gray-300'
+                  } ${savingSettings ? 'opacity-50' : ''}`}
+                >
+                  <span
+                    className={`absolute top-[3px] w-[22px] h-[22px] rounded-full bg-white shadow-md transition-[left] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+                      showDiscountFields ? 'left-[25px]' : 'left-[3px]'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Info panel when enabled */}
+              {showDiscountFields && (
+                <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2.5 animate-fade-in">
+                  <p className="text-xs font-semibold text-primary font-outfit">How discounts work:</p>
+                  <ul className="space-y-1.5">
+                    <li className="flex items-start gap-2 text-[11px] text-muted-foreground font-outfit">
+                      <span className="text-amber-500 mt-0.5">🏷️</span>
+                      <span><strong className="text-foreground">Purchase Discount</strong> — auto-populates discount column on purchase bills</span>
+                    </li>
+                    <li className="flex items-start gap-2 text-[11px] text-muted-foreground font-outfit">
+                      <span className="text-blue-500 mt-0.5">🛒</span>
+                      <span><strong className="text-foreground">Sale Discount</strong> — auto-applies when product is scanned in POS or added to sale invoice</span>
+                    </li>
+                    <li className="flex items-start gap-2 text-[11px] text-muted-foreground font-outfit">
+                      <span className="text-emerald-500 mt-0.5">✏️</span>
+                      <span>Users can always manually override discounts on individual bills</span>
+                    </li>
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2.5 px-6 py-4 border-t border-border bg-muted/20">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowQuickSettings(false)}
+                className="font-outfit font-semibold"
+              >
+                Close
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
