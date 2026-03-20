@@ -436,7 +436,7 @@ const ProductEntry = () => {
     }
   };
 
-
+  const fetchSizeGroups = async () => {
     if (!currentOrganization) return;
     
     const { data, error } = await supabase
