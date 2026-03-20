@@ -865,15 +865,22 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-5xl max-h-[90vh] p-0">
-          <DialogHeader className="px-6 pt-6 pb-2">
-            <DialogTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" />
-              Add New Product
-            </DialogTitle>
-            <DialogDescription>
-              Create a new product with size variants
-            </DialogDescription>
+        <DialogContent className="max-w-5xl max-h-[90vh] p-0 font-outfit">
+          {/* Purchase Context Header */}
+          <div className="mx-6 mt-6 mb-2 rounded-xl border-[1.5px] border-success/30 bg-gradient-to-br from-success/5 to-success/10 p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-success/20 to-success/30 flex items-center justify-center flex-shrink-0">
+                <span className="text-lg">🧾</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-bold text-success">Purchase Bill — Add New Product</h3>
+                <p className="text-[11px] text-muted-foreground">Fill product details to add directly to purchase bill</p>
+              </div>
+            </div>
+          </div>
+          <DialogHeader className="px-6 pb-2 sr-only">
+            <DialogTitle>Add New Product</DialogTitle>
+            <DialogDescription>Create a new product with size variants</DialogDescription>
           </DialogHeader>
           
           <ScrollArea className="max-h-[calc(90vh-140px)] px-6">
@@ -942,24 +949,27 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 )}
               </div>
 
-              {/* Product Type */}
-              <div className="flex items-center justify-between">
-                <div className="space-y-2">
-                  <Label>Product Type</Label>
-                  <RadioGroup
-                    value={formData.product_type}
-                    onValueChange={(value: ProductType) => setFormData({ ...formData, product_type: value })}
-                    className="flex gap-4"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="goods" id="goods" />
-                      <Label htmlFor="goods">Goods</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="service" id="service" />
-                      <Label htmlFor="service">Service</Label>
-                    </div>
-                  </RadioGroup>
+              {/* Product Type — Card Selector */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex gap-2 flex-1">
+                  {([
+                    { value: 'goods' as ProductType, icon: '📦', label: 'Goods' },
+                    { value: 'service' as ProductType, icon: '🔧', label: 'Service' },
+                  ]).map(pt => (
+                    <button
+                      key={pt.value}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, product_type: pt.value })}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border-[1.5px] cursor-pointer transition-all duration-200 text-left ${
+                        formData.product_type === pt.value
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border bg-card hover:border-primary/30'
+                      }`}
+                    >
+                      <span className="text-sm">{pt.icon}</span>
+                      <span className={`text-xs font-bold ${formData.product_type === pt.value ? 'text-primary' : 'text-foreground'}`}>{pt.label}</span>
+                    </button>
+                  ))}
                 </div>
 
                 {/* Image Import */}
@@ -976,12 +986,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       <img
                         src={productImage}
                         alt="Product"
-                        className="h-12 w-12 object-cover rounded border"
+                        className="h-12 w-12 object-cover rounded-lg border shadow-sm"
                       />
                       <button
                         type="button"
                         onClick={handleRemoveImage}
-                        className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 hover:bg-destructive/90"
+                        className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full p-0.5 hover:bg-destructive/90 shadow-sm"
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -992,7 +1002,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       variant="outline"
                       size="sm"
                       onClick={() => imageInputRef.current?.click()}
-                      className="gap-1"
+                      className="gap-1.5 font-semibold"
                     >
                       <ImagePlus className="h-4 w-4" />
                       Image
@@ -1453,20 +1463,19 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             </div>
           </ScrollArea>
 
-          <DialogFooter className="px-6 py-4 border-t">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+          <DialogFooter className="px-6 py-4 border-t bg-muted/30">
+            <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading} className="font-semibold">
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={loading}>
+            <Button onClick={handleSave} disabled={loading} className="gap-1.5 min-w-[140px] font-semibold shadow-md hover:shadow-lg transition-all bg-success hover:bg-success/90 text-success-foreground">
               {loading ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  Adding...
                 </>
               ) : (
                 <>
-                  <Package className="h-4 w-4 mr-2" />
-                  Save Product
+                  ➕ Add to Bill
                 </>
               )}
             </Button>

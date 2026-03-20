@@ -1647,22 +1647,27 @@ const ProductEntry = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-6rem)] bg-background p-4 overflow-auto">
+    <div className="h-[calc(100vh-6rem)] bg-background p-4 overflow-auto font-outfit">
       <div className="w-full">
         <BackToDashboard label="Back to Products" to="/products" />
         <div className="mb-3 flex items-center gap-2">
-          <Package className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold text-foreground">Smart Inventory</h1>
+          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Package className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">Smart Inventory</h1>
+            <p className="text-xs text-muted-foreground">Manage your product catalogue</p>
+          </div>
         </div>
 
-        <Card className="shadow-sm border-border">
-          <CardHeader className="p-5 pb-3">
+        <Card className="shadow-sm border-border overflow-hidden">
+          <CardHeader className="p-5 pb-3 border-b border-border bg-card">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-lg font-semibold">
-                  {editingProductId ? "Edit Product" : "Product Entry"}
+                <CardTitle className="text-lg font-semibold font-outfit">
+                  {editingProductId ? "✏️ Edit Product" : "📦 Product Entry"}
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="font-outfit">
                   {editingProductId ? "Update product information" : "Add new product to your inventory"}
                 </CardDescription>
               </div>
@@ -1671,7 +1676,7 @@ const ProductEntry = () => {
                   onClick={() => setShowExcelImport(true)}
                   variant="outline"
                   size="sm"
-                  className="gap-1"
+                  className="gap-1.5 font-outfit font-semibold"
                 >
                   <FileSpreadsheet className="h-4 w-4" />
                   Import Excel
@@ -1679,7 +1684,7 @@ const ProductEntry = () => {
               )}
             </div>
           </CardHeader>
-          <CardContent className="p-5 space-y-4">
+          <CardContent className="p-5 space-y-5 font-outfit">
             {/* Copy from Existing Product - only shown for new products */}
             {!editingProductId && (
               <div className="space-y-2" ref={copyDropdownRef}>
@@ -1744,95 +1749,123 @@ const ProductEntry = () => {
 
             {/* Recent Products History */}
             {!editingProductId && recentProducts.length > 0 && (
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Recent Products</Label>
+              <div className="space-y-1.5 bg-muted/30 rounded-lg px-4 py-2.5 border border-border">
+                <Label className="text-[11px] text-muted-foreground uppercase font-semibold tracking-wider">Recent</Label>
                 <div className="flex flex-wrap gap-1.5">
                   {recentProducts.map((p) => (
                     <span
                       key={p.id}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-muted text-xs text-muted-foreground border border-border"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-card text-xs text-muted-foreground border border-border hover:border-primary/30 hover:bg-primary/5 cursor-pointer transition-colors font-medium"
                     >
-                      <Package className="h-3 w-3" />
+                      <Package className="h-3 w-3 text-primary/50" />
                       {p.product_name}
-                      {p.brand && <span className="text-muted-foreground/60">• {p.brand}</span>}
+                      {p.brand && <span className="text-muted-foreground/50">• {p.brand}</span>}
                     </span>
                   ))}
                 </div>
               </div>
             )}
 
+            {/* ── 📸 Product Image ────────────────────────── */}
+            <div className="flex items-center gap-2 pt-2">
+              <span className="text-sm">📸</span>
+              <span className="text-[13.5px] font-bold text-foreground font-outfit">Product Image</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
             <div className="space-y-2">
-              <Label htmlFor="product_image">Product Image</Label>
               <div className="flex items-start gap-3">
                 {imagePreview ? (
                   <div className="relative">
                     <img
                       src={imagePreview}
                       alt="Product preview"
-                      className="w-16 h-16 object-cover rounded border border-border"
+                      className="w-16 h-16 object-cover rounded-lg border border-border shadow-sm"
                     />
                     <Button
                       type="button"
                       variant="destructive"
                       size="icon"
-                      className="absolute -top-1 -right-1 h-4 w-4 rounded-full"
+                      className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full shadow-md"
                       onClick={handleRemoveImage}
                     >
-                      <X className="h-2 w-2" />
+                      <X className="h-2.5 w-2.5" />
                     </Button>
                   </div>
                 ) : (
-                  <div className="w-16 h-16 border-2 border-dashed border-border rounded flex items-center justify-center bg-muted/50">
+                  <label
+                    htmlFor="product_image"
+                    className="w-16 h-16 border-2 border-dashed border-border rounded-lg flex items-center justify-center bg-muted/30 hover:border-primary/40 hover:bg-primary/5 cursor-pointer transition-all"
+                  >
                     <Upload className="h-5 w-5 text-muted-foreground" />
-                  </div>
+                  </label>
                 )}
-                <div className="flex-1">
+                <div className="flex-1 space-y-1">
+                  <label
+                    htmlFor="product_image"
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-dashed border-border bg-muted/20 hover:border-primary/40 hover:bg-primary/5 cursor-pointer transition-all"
+                  >
+                    <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center flex-shrink-0">
+                      <Upload className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-foreground">Click to upload or drag & drop</p>
+                      <p className="text-[10px] text-muted-foreground">Max 5MB — JPG, PNG, WEBP</p>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" className="text-xs font-semibold pointer-events-none">
+                      Browse
+                    </Button>
+                  </label>
                   <Input
                     id="product_image"
                     type="file"
                     accept="image/*"
                     onChange={handleImageChange}
-                    className="cursor-pointer"
+                    className="hidden"
                   />
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Max 5MB. JPG, PNG, WEBP
-                  </p>
                 </div>
               </div>
             </div>
 
-            {/* Product Type Selection */}
+            {/* ── 📦 Product Type ──────────────────────────── */}
+            <div className="flex items-center gap-2 pt-1">
+              <span className="text-sm">📦</span>
+              <span className="text-[13.5px] font-bold text-foreground font-outfit">Product Type</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
             <div className="space-y-2">
-              <Label>Product Type *</Label>
-              <RadioGroup
-                value={formData.product_type}
-                onValueChange={(value: ProductType) =>
-                  setFormData({ ...formData, product_type: value, size_group_id: value === 'service' ? '' : formData.size_group_id })
-                }
-                className="flex gap-4"
-              >
-                <div className="flex items-center space-x-1.5">
-                  <RadioGroupItem value="goods" id="type-goods" className="h-4 w-4" />
-                  <Label htmlFor="type-goods" className="font-normal cursor-pointer">Goods</Label>
-                </div>
-                <div className="flex items-center space-x-1.5">
-                  <RadioGroupItem value="service" id="type-service" className="h-4 w-4" />
-                  <Label htmlFor="type-service" className="font-normal cursor-pointer">Service</Label>
-                </div>
-                <div className="flex items-center space-x-1.5">
-                  <RadioGroupItem value="combo" id="type-combo" className="h-4 w-4" />
-                  <Label htmlFor="type-combo" className="font-normal cursor-pointer">Combo</Label>
-                </div>
-              </RadioGroup>
-              <p className="text-xs text-muted-foreground">
-                {formData.product_type === 'goods' && "Goods - Physical items with stock tracking"}
-                {formData.product_type === 'service' && "Service - No stock tracking"}
-                {formData.product_type === 'combo' && "Combo - Bundle of products"}
-              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { value: 'goods' as ProductType, icon: '📦', label: 'Goods', desc: 'Physical items' },
+                  { value: 'service' as ProductType, icon: '🔧', label: 'Service', desc: 'Service based' },
+                  { value: 'combo' as ProductType, icon: '🎁', label: 'Combo', desc: 'Bundle pack' },
+                ]).map(pt => (
+                  <button
+                    key={pt.value}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, product_type: pt.value, size_group_id: pt.value === 'service' ? '' : formData.size_group_id })}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-lg border-[1.5px] cursor-pointer transition-all duration-200 text-left ${
+                      formData.product_type === pt.value
+                        ? 'border-primary bg-primary/5 shadow-sm'
+                        : 'border-border bg-card hover:border-primary/30 hover:bg-muted/30'
+                    }`}
+                  >
+                    <span className="text-base">{pt.icon}</span>
+                    <div className="min-w-0">
+                      <p className={`text-[13px] font-bold leading-tight ${formData.product_type === pt.value ? 'text-primary' : 'text-foreground'}`}>{pt.label}</p>
+                      <p className="text-[10.5px] text-muted-foreground leading-tight">{pt.desc}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Product Details Form */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {/* ── 📋 Product Details ────────────────────────── */}
+            <div className="flex items-center gap-2 pt-1">
+              <span className="text-sm">📋</span>
+              <span className="text-[13.5px] font-bold text-foreground font-outfit">Product Details</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
               <div className="space-y-2">
                 <Label htmlFor="product_name">Product Name *</Label>
                 <Input
@@ -2150,6 +2183,13 @@ const ProductEntry = () => {
                 </Select>
               </div>
 
+              {/* ── 💰 Pricing & Tax ─────────────────────────── */}
+              <div className="col-span-full flex items-center gap-2 pt-1">
+                <span className="text-sm">💰</span>
+                <span className="text-[13.5px] font-bold text-foreground font-outfit">Pricing & Tax</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="default_pur_price">Purchase Price <span className="text-destructive">*</span></Label>
                 <CalculatorInput
@@ -2239,22 +2279,26 @@ const ProductEntry = () => {
               {/* Purchase Discount Section */}
               {showDiscountFields && (
                 <div className="col-span-full">
-                  <div className="rounded-lg border border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-800 p-4 space-y-3 relative">
-                    <div className="flex items-center justify-between">
-                      <Label className="font-semibold text-sm">Purchase Discount</Label>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500 text-white">NEW</span>
+                  <div className="rounded-xl border-[1.5px] border-warning/40 bg-gradient-to-br from-warning/5 to-warning/10 p-4 space-y-3 relative overflow-hidden">
+                    <div className="absolute top-0 right-4">
+                      <span className="inline-block text-[10px] font-bold px-2.5 py-1 rounded-b-lg bg-gradient-to-r from-warning to-destructive text-white tracking-wider uppercase">
+                        Supplier Discount
+                      </span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="inline-flex rounded-md border overflow-hidden">
+                    <div className="flex items-center gap-2 pt-1">
+                      <Label className="font-bold text-sm text-warning">Purchase Discount</Label>
+                    </div>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className="inline-flex rounded-lg border-[1.5px] border-border overflow-hidden h-[38px]">
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, purchase_discount_type: 'percent' }))}
-                          className={`px-3 py-1.5 text-xs font-semibold transition-colors ${(formData.purchase_discount_type || 'percent') === 'percent' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'}`}
+                          className={`w-[42px] text-xs font-bold transition-all duration-200 ${(formData.purchase_discount_type || 'percent') === 'percent' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:bg-muted'}`}
                         >%</button>
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, purchase_discount_type: 'flat' }))}
-                          className={`px-3 py-1.5 text-xs font-semibold transition-colors ${formData.purchase_discount_type === 'flat' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'}`}
+                          className={`w-[42px] text-xs font-bold transition-all duration-200 ${formData.purchase_discount_type === 'flat' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:bg-muted'}`}
                         >₹</button>
                       </div>
                       <Input
@@ -2265,11 +2309,11 @@ const ProductEntry = () => {
                         value={formData.purchase_discount_value || ""}
                         onChange={(e) => setFormData(prev => ({ ...prev, purchase_discount_value: parseFloat(e.target.value) || 0 }))}
                         placeholder="0"
-                        className="w-24 h-9"
+                        className="w-24 h-9 font-outfit"
                       />
-                      <div className="flex-1 text-right">
-                        <p className="text-xs text-muted-foreground">Net Purchase</p>
-                        <p className="font-bold text-sm">
+                      <div className="flex-1 text-right min-w-[100px]">
+                        <p className="text-[11px] text-muted-foreground">Net Purchase</p>
+                        <p className="font-extrabold text-sm text-success">
                           ₹{(() => {
                             const pp = formData.default_pur_price ?? 0;
                             const dv = formData.purchase_discount_value || 0;
@@ -2282,7 +2326,9 @@ const ProductEntry = () => {
                         </p>
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">💡 This discount will appear in the Discount column on Purchase Bills automatically</p>
+                    <div className="bg-card/60 border border-warning/20 rounded-md px-3 py-1.5">
+                      <p className="text-[11px] text-muted-foreground">💡 This discount will appear in the Discount column on Purchase Bills automatically</p>
+                    </div>
                   </div>
                 </div>
               )}
@@ -2290,22 +2336,26 @@ const ProductEntry = () => {
               {/* Sale Discount Section */}
               {showDiscountFields && (
                 <div className="col-span-full">
-                  <div className="rounded-lg border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-800 p-4 space-y-3 relative">
-                    <div className="flex items-center justify-between">
-                      <Label className="font-semibold text-sm">Sale Discount</Label>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500 text-white">NEW</span>
+                  <div className="rounded-xl border-[1.5px] border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10 p-4 space-y-3 relative overflow-hidden">
+                    <div className="absolute top-0 right-4">
+                      <span className="inline-block text-[10px] font-bold px-2.5 py-1 rounded-b-lg bg-gradient-to-r from-primary to-accent text-white tracking-wider uppercase">
+                        Sale Discount
+                      </span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="inline-flex rounded-md border overflow-hidden">
+                    <div className="flex items-center gap-2 pt-1">
+                      <Label className="font-bold text-sm text-primary">Sale Discount</Label>
+                    </div>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className="inline-flex rounded-lg border-[1.5px] border-border overflow-hidden h-[38px]">
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, sale_discount_type: 'percent' }))}
-                          className={`px-3 py-1.5 text-xs font-semibold transition-colors ${(formData.sale_discount_type || 'percent') === 'percent' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'}`}
+                          className={`w-[42px] text-xs font-bold transition-all duration-200 ${(formData.sale_discount_type || 'percent') === 'percent' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:bg-muted'}`}
                         >%</button>
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, sale_discount_type: 'flat' }))}
-                          className={`px-3 py-1.5 text-xs font-semibold transition-colors ${formData.sale_discount_type === 'flat' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'}`}
+                          className={`w-[42px] text-xs font-bold transition-all duration-200 ${formData.sale_discount_type === 'flat' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:bg-muted'}`}
                         >₹</button>
                       </div>
                       <Input
@@ -2316,11 +2366,11 @@ const ProductEntry = () => {
                         value={formData.sale_discount_value || ""}
                         onChange={(e) => setFormData(prev => ({ ...prev, sale_discount_value: parseFloat(e.target.value) || 0 }))}
                         placeholder="0"
-                        className="w-24 h-9"
+                        className="w-24 h-9 font-outfit"
                       />
-                      <div className="flex-1 text-right">
-                        <p className="text-xs text-muted-foreground">Net Sale Price</p>
-                        <p className="font-bold text-sm">
+                      <div className="flex-1 text-right min-w-[100px]">
+                        <p className="text-[11px] text-muted-foreground">Net Sale Price</p>
+                        <p className="font-extrabold text-sm text-success">
                           ₹{(() => {
                             const sp = formData.default_sale_price ?? 0;
                             const dv = formData.sale_discount_value || 0;
@@ -2333,14 +2383,16 @@ const ProductEntry = () => {
                         </p>
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">🛒 This discount auto-applies on Sale & POS window when product is scanned</p>
+                    <div className="bg-card/60 border border-primary/20 rounded-md px-3 py-1.5">
+                      <p className="text-[11px] text-muted-foreground">🛒 This discount auto-applies on Sale & POS window when product is scanned</p>
+                    </div>
                   </div>
                 </div>
               )}
 
               {!showDiscountFields && (
                 <div className="col-span-full">
-                  <p className="text-xs text-muted-foreground">💡 Enable Purchase & Sale Discounts from ⚙️ Settings → Purchase Settings</p>
+                  <p className="text-xs text-muted-foreground italic">💡 Enable Purchase & Sale Discounts from ⚙️ Settings → Purchase Settings</p>
                 </div>
               )}
               <div className="space-y-2">
@@ -2362,16 +2414,19 @@ const ProductEntry = () => {
               </div>
             </div>
 
-            {/* Generate Variants Button */}
-            <div className="flex justify-start">
-                <Button
-                  onClick={handleGenerateSizeVariants}
-                  disabled={formData.product_type !== 'service' && !formData.size_group_id}
-                  variant="default"
-                  size="sm"
-                  className="gap-1 bg-primary hover:bg-primary/90 !text-white font-semibold shadow-md"
-                >
-                  <Plus className="h-4 w-4" />
+            {/* ── 👟 Size Variants ────────────────────────── */}
+            <div className="flex items-center gap-2 pt-1">
+              <span className="text-sm">👟</span>
+              <span className="text-[13.5px] font-bold text-foreground font-outfit">Size Variants</span>
+              <div className="flex-1 h-px bg-border" />
+              <Button
+                onClick={handleGenerateSizeVariants}
+                disabled={formData.product_type !== 'service' && !formData.size_group_id}
+                variant="outline"
+                size="sm"
+                className="gap-1.5 font-outfit font-semibold text-primary border-primary/30 hover:bg-primary/5"
+              >
+                <Plus className="h-3.5 w-3.5" />
                 {formData.product_type === 'service' ? 'Generate Service Variant' : 'Generate Size Variants'}
               </Button>
             </div>
@@ -2380,7 +2435,7 @@ const ProductEntry = () => {
             {showVariants && variants.length > 0 && (
               <div ref={variantsSectionRef} className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold">
+                  <h3 className="text-sm font-semibold font-outfit">
                     {formData.product_type === 'service' ? 'Service Details' : `Variants (${variants.length})`}
                   </h3>
                   <Button
@@ -2569,24 +2624,46 @@ const ProductEntry = () => {
               </div>
             )}
 
-            {/* Save Button */}
-            <div className="flex justify-end pt-2">
-              <Button
-                ref={saveBtnRef}
-                onClick={handleSave}
-                disabled={loading}
-                size="sm"
-                className="gap-1 min-w-[120px]"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    {editingProductId ? "Updating..." : "Saving..."}
-                  </>
+            {/* Save Button Footer */}
+            <div className="flex items-center justify-between pt-3 border-t border-border">
+              <div>
+                {showDiscountFields ? (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-success bg-success/10 border border-success/20 px-2.5 py-1 rounded-md">
+                    ✅ Discounts Enabled
+                  </span>
                 ) : (
-                  editingProductId ? "Update Product" : "Save Product"
+                  <span className="text-xs text-muted-foreground italic">💡 Enable discounts from ⚙️ Settings</span>
                 )}
-              </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => orgNavigate('/products')}
+                  className="font-outfit font-semibold"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  ref={saveBtnRef}
+                  onClick={handleSave}
+                  disabled={loading}
+                  size="default"
+                  className="gap-1.5 min-w-[140px] font-outfit font-semibold shadow-md hover:shadow-lg transition-all"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      {editingProductId ? "Updating..." : "Saving..."}
+                    </>
+                  ) : (
+                    <>
+                      💾 {editingProductId ? "Update Product" : "Save Product"}
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
