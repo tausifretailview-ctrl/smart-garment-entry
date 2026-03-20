@@ -601,12 +601,12 @@ const SalesmanCustomerAccount = () => {
       <div className="p-4 bg-background border-t flex gap-3" style={{ paddingBottom: "env(safe-area-inset-bottom, 16px)" }}>
         <Button
           variant="outline"
-          className="flex-1 h-12"
-          onClick={shareStatement}
-          disabled={!customer.phone}
+          className="flex-1 h-12 text-green-700 border-green-300 hover:bg-green-50"
+          onClick={sendAllOutstandingReminder}
+          disabled={!customer.phone || pendingInvoices.length === 0}
         >
-          <Share2 className="h-5 w-5 mr-2" />
-          Share Statement
+          <MessageCircle className="h-5 w-5 mr-2" />
+          Send Outstanding
         </Button>
         <Button
           className="flex-1 h-12"
