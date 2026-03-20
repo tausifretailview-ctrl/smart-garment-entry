@@ -1045,7 +1045,9 @@ const PurchaseEntry = () => {
             sale_gst_percent,
             default_pur_price,
             default_sale_price,
-            size_group_id
+            size_group_id,
+            purchase_discount_type,
+            purchase_discount_value
           )
         `)
         .eq("active", true)
