@@ -1,48 +1,53 @@
-## Completed: Heavy Query Load Optimization
 
-All 5 priority pages optimized:
 
-1. **PurchaseBillDashboard** — Server-side pagination + search + date filters via `useQuery`, removed Phase 2 bulk item pre-fetch (lazy-load on expand only), staleTime 30s
-2. **SaleReturnDashboard** — Converted from useEffect/setState to `useQuery` with server-side pagination + debounced search, lazy item loading with cache
-3. **PurchaseReturnDashboard** — Server-side pagination + debounced search + date filters via `useQuery`, staleTime 30s
-4. **Accounts** — Created `get_accounts_dashboard_stats` RPC for summary cards (replaces 3x fetchAll calls), lazy tab loading (vouchers/sales/customers/suppliers only fetched when their tab is active)
-5. **SalesAnalyticsDashboard** — Added staleTime 60s + refetchOnWindowFocus:false to all queries
+## Plan: Show Only Pending Balance Invoices in WhatsApp Account Statement
 
-## Completed: Sales Invoice Dashboard Optimization
+### Problem
+The WhatsApp account statement currently shows the last 5-10 transactions including fully paid invoices and payment receipts. The user wants it to show **only invoices that still have a remaining balance** (unpaid/partially paid).
 
-1. **Server-side pagination** — Replaced fetch-all-invoices loop with paginated query (50 rows per page, `{ count: 'exact' }`)
-2. **No more `sale_items(*)` in list** — Removed nested sale_items fetch, uses `total_qty` column instead
-3. **Server-side filtering** — Search (debounced 300ms), date range, payment status, delivery status all applied server-side
-4. **Summary stats via RPC** — Uses `get_sales_invoice_dashboard_stats` RPC instead of client-side computation
-5. **Default period = This Month** — Fast first load instead of fetching all-time data
-6. **staleTime 30s + refetchOnWindowFocus: false** — Prevents redundant re-fetches
-7. **Cache invalidation after save/update** — SalesInvoice.tsx invalidates `['invoices']` and `['invoice-dashboard-stats']` after create/update
-8. **useDashboardInvalidation** — Added `['invoices']` and `['invoice-dashboard-stats']` to `invalidateSales()`
+### Changes
 
-## Completed: Entry Form Query Optimization (ELLA NOOR slow billing fix)
+#### 1. Update `src/components/CustomerLedger.tsx` (lines 1229-1243)
+Replace the "last 5 transactions" logic with filtered pending-balance invoices:
+- Filter transactions to only include `type === 'invoice'` entries
+- For each invoice, calculate its remaining balance by tracking payments against it
+- Only include invoices where remaining balance > 0
+- Show each pending invoice with: date, reference number, invoice amount, and remaining balance
+- Change section header from "Recent Transactions" to "Pending Invoices"
 
-All entry forms optimized with caching + explicit columns:
+#### 2. Update `src/pages/salesman/SalesmanCustomerAccount.tsx` (lines 244-262)
+Apply the same logic:
+- Filter transactions to only `type === 'sale'` (invoice) entries that have remaining balance
+- Show pending invoice details with balance remaining
+- Update header text accordingly
 
-1. **QuotationEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*')` with explicit columns
-2. **SaleOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to customers & products queries, replaced `select('*, product_variants(*)')` with explicit columns
-3. **PurchaseOrderEntry** — Added staleTime 5min + refetchOnWindowFocus:false to suppliers & products queries, replaced `select('*')` with explicit columns
-4. **DeliveryChallanEntry** — Added staleTime 5min + refetchOnWindowFocus:false to products query, replaced `select('*, product_variants(*), size_groups(*)')` with explicit columns
-5. **PurchaseEntry** — Replaced `select('*')` with explicit columns for suppliers (already had staleTime)
-6. **POSSales** — Already optimized (explicit columns + staleTime 5min)
-7. **SalesInvoice** — Already optimized
+### New Message Format
+```
+📊 *Account Statement*
 
-## Completed: Cloud Usage Impact Analysis
+*POOJA TRADING-KANDIVALI W*
+As on: 19 Mar 2026
 
-Estimated impact of all optimizations:
-- **Dashboard reads**: ~95% reduction (server-side pagination, 50 rows vs ALL)
-- **Accounts page**: ~90% reduction (1 RPC vs 3 full-table scans)
-- **Entry form tab switches**: ~80% fewer reads (5min staleTime cache)
-- **Data transfer**: ~40-50% less per read (explicit columns vs select('*'))
-- **Sales Invoice Dashboard**: ~98% reduction (50 rows without sale_items vs ALL invoices with ALL items)
+Opening Balance: ₹0
+Total Sales: ₹47,937
+Total Paid: ₹6,641
+────────────────
+*Outstanding: ₹41,297*
 
-## Completed: Auto-Initialize Barcode Sequence for New Organizations
+📋 *Pending Invoices:*
+23/01/26 | INV/25-26/213 | ₹9,099 | Bal: ₹9,099
+05/02/26 | INV/25-26/381 | ₹9,370 | Bal: ₹9,370
+11/02/26 | INV/25-26/435 | ₹5,506 | Bal: ₹5,506
+25/02/26 | INV/25-26/569 | ₹4,248 | Bal: ₹4,248
+11/03/26 | INV/25-26/686 | ₹13,074 | Bal: ₹13,074
 
-1. **Updated `generate_next_barcode` function** — Now computes starting barcode from `organization_number * 10,000,000 + 1001` instead of hardcoded `1`
-2. **Updated `create_organization` function** — Initializes `barcode_sequence` immediately after org creation with the correct prefix
-3. **Fixed broken sequences** — YOJAK (#12) → 120001001, AJMERA TRADERS (#19) → 190001001
-4. **Verified** — All three orgs (12, 19, 20) now have correct prefixed sequences
+Please clear your dues at the earliest. Thank you! 🙏
+```
+
+### Approach
+- From the `transactions` array, collect all invoice (debit) entries and all payment (credit) entries
+- Build a map of payments per invoice reference to calculate remaining balance
+- Use running balance from the transaction list to determine per-invoice remaining amount
+- Only display invoices where the computed remaining balance > 0
+- Fully paid invoices and receipt entries are excluded entirely
+
