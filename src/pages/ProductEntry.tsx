@@ -2900,6 +2900,85 @@ const ProductEntry = () => {
           sampleData={productEntrySampleData}
           sampleFileName="Product_Entry_Sample.xlsx"
         />
+
+        {/* Quick Settings Modal */}
+        <Dialog open={showQuickSettings} onOpenChange={setShowQuickSettings}>
+          <DialogContent className="sm:max-w-[420px] p-0 rounded-2xl overflow-hidden border-0 shadow-[0_25px_70px_rgba(0,0,0,0.2)]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/30">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+                  <span className="text-lg">⚙️</span>
+                </div>
+                <div>
+                  <DialogTitle className="text-[15px] font-bold font-outfit">Product Entry Settings</DialogTitle>
+                  <DialogDescription className="text-[11px] text-muted-foreground font-outfit">Configure discount fields visibility</DialogDescription>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="px-6 py-5 space-y-5">
+              {/* Discount Toggle */}
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-foreground font-outfit">Product Entry Discounts</p>
+                  <p className="text-[11px] text-muted-foreground font-outfit leading-relaxed">
+                    Show Purchase & Sale discount fields on the product form
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleToggleDiscountSetting(!showDiscountFields)}
+                  disabled={savingSettings}
+                  className={`relative w-[50px] h-[28px] rounded-full transition-colors duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] flex-shrink-0 ${
+                    showDiscountFields ? 'bg-emerald-500' : 'bg-gray-300'
+                  } ${savingSettings ? 'opacity-50' : ''}`}
+                >
+                  <span
+                    className={`absolute top-[3px] w-[22px] h-[22px] rounded-full bg-white shadow-md transition-[left] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+                      showDiscountFields ? 'left-[25px]' : 'left-[3px]'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Info panel when enabled */}
+              {showDiscountFields && (
+                <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2.5 animate-fade-in">
+                  <p className="text-xs font-semibold text-primary font-outfit">How discounts work:</p>
+                  <ul className="space-y-1.5">
+                    <li className="flex items-start gap-2 text-[11px] text-muted-foreground font-outfit">
+                      <span className="text-amber-500 mt-0.5">🏷️</span>
+                      <span><strong className="text-foreground">Purchase Discount</strong> — auto-populates discount column on purchase bills</span>
+                    </li>
+                    <li className="flex items-start gap-2 text-[11px] text-muted-foreground font-outfit">
+                      <span className="text-blue-500 mt-0.5">🛒</span>
+                      <span><strong className="text-foreground">Sale Discount</strong> — auto-applies when product is scanned in POS or added to sale invoice</span>
+                    </li>
+                    <li className="flex items-start gap-2 text-[11px] text-muted-foreground font-outfit">
+                      <span className="text-emerald-500 mt-0.5">✏️</span>
+                      <span>Users can always manually override discounts on individual bills</span>
+                    </li>
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2.5 px-6 py-4 border-t border-border bg-muted/20">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowQuickSettings(false)}
+                className="font-outfit font-semibold"
+              >
+                Close
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
