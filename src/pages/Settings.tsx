@@ -1656,6 +1656,30 @@ export default function Settings() {
                         } as any,
                       })
                     }
+                />
+                </div>
+
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="auto_apply_advance" className="text-sm font-medium">
+                      Auto-Apply Advance Balance
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Automatically apply advance balance to oldest pending invoice when new payment is received (like Tally bill-by-bill settlement)
+                    </p>
+                  </div>
+                  <Switch
+                    id="auto_apply_advance"
+                    checked={(settings.sale_settings as any)?.auto_apply_advance ?? false}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          auto_apply_advance: checked,
+                        } as any,
+                      })
+                    }
                   />
                 </div>
 
