@@ -2696,17 +2696,28 @@ const ProductEntry = () => {
             )}
 
             {/* Save Button Footer */}
-            <div className="flex items-center justify-between pt-3 border-t border-border">
-              <div>
+            <div className="flex items-center justify-between pt-4 border-t border-border bg-muted/20 -mx-6 px-6 -mb-6 pb-5 rounded-b-xl">
+              <div className="flex items-center gap-3">
                 {showDiscountFields ? (
-                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-success bg-success/10 border border-success/20 px-2.5 py-1 rounded-md">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg font-outfit">
                     ✅ Discounts Enabled
                   </span>
                 ) : (
-                  <span className="text-xs text-muted-foreground italic">💡 Enable discounts from ⚙️ Settings</span>
+                  <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground font-outfit">
+                    💡 Discounts disabled
+                  </span>
                 )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowQuickSettings(true)}
+                  className="font-outfit font-semibold text-muted-foreground hover:text-foreground gap-1.5"
+                >
+                  ⚙️ Settings
+                </Button>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <Button
                   type="button"
                   variant="ghost"
@@ -2715,6 +2726,15 @@ const ProductEntry = () => {
                   className="font-outfit font-semibold"
                 >
                   Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={resetForm}
+                  className="font-outfit font-semibold gap-1"
+                >
+                  🔄 Reset
                 </Button>
                 <Button
                   ref={saveBtnRef}
