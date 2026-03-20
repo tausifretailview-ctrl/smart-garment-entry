@@ -234,12 +234,36 @@ const SalesmanCustomerAccount = () => {
       
       const pendingInvoices = (salesData || []).filter(s => s.payment_status !== "completed").length;
 
+      // Build pending invoices list with per-invoice balance
+      const pendingList = (salesData || [])
+        .filter(sale => sale.payment_status !== 'completed' && sale.payment_status !== 'cancelled')
+        .map(sale => {
+          const voucherPaid = voucherPaymentsBySaleId[sale.id] || 0;
+          const effectivePaid = Math.max(sale.paid_amount || 0, voucherPaid);
+          const balance = Math.max(0, sale.net_amount - effectivePaid);
+          const saleDate = new Date(sale.sale_date);
+          const daysOverdue = Math.floor((Date.now() - saleDate.getTime()) / (1000 * 60 * 60 * 24));
+          return {
+            id: sale.id,
+            sale_number: sale.sale_number,
+            sale_date: sale.sale_date,
+            net_amount: sale.net_amount,
+            paid_amount: effectivePaid,
+            balance,
+            days_overdue: daysOverdue,
+          };
+        })
+        .filter(inv => inv.balance > 0)
+        .sort((a, b) => a.days_overdue - b.days_overdue);
+
+      setPendingInvoices(pendingList);
+
       setSummary({
         openingBalance: customerData.opening_balance || 0,
         totalSales,
         totalPaid,
         currentBalance: (customerData.opening_balance || 0) + totalSales - totalPaid,
-        pendingInvoices,
+        pendingInvoices: pendingList.length,
       });
 
     } catch (error) {
