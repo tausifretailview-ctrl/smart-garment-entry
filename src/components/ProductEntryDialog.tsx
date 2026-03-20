@@ -1456,20 +1456,19 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             </div>
           </ScrollArea>
 
-          <DialogFooter className="px-6 py-4 border-t">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+          <DialogFooter className="px-6 py-4 border-t bg-muted/30">
+            <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading} className="font-semibold">
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={loading}>
+            <Button onClick={handleSave} disabled={loading} className="gap-1.5 min-w-[140px] font-semibold shadow-md hover:shadow-lg transition-all bg-success hover:bg-success/90 text-success-foreground">
               {loading ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  Adding...
                 </>
               ) : (
                 <>
-                  <Package className="h-4 w-4 mr-2" />
-                  Save Product
+                  ➕ Add to Bill
                 </>
               )}
             </Button>
