@@ -404,6 +404,21 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
     // ── Render standard page ────────────────────────────────────────────────
     const renderPage = (pageItems: SaleOrderItem[], pageIndex: number) => {
       const isLastPage = pageIndex === totalPages - 1;
+
+      // Page-level subtotals
+      const pageQty = pageItems.reduce((s, i) => s + i.orderQty, 0);
+      const pageAmount = pageItems.reduce((s, i) => s + i.total, 0);
+
+      // Cumulative qty and amount up to and including this page
+      const cumulativeQty = pages
+        .slice(0, pageIndex + 1)
+        .flat()
+        .reduce((s, i) => s + i.orderQty, 0);
+      const cumulativeAmount = pages
+        .slice(0, pageIndex + 1)
+        .flat()
+        .reduce((s, i) => s + i.total, 0);
+
       return (
         <div
           key={pageIndex}
@@ -418,12 +433,155 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
         >
           {renderHeader()}
           {renderCustomerStrip(pageIndex)}
-          {renderItemsTable(pageItems)}
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={thStyle({ width: '5%', textAlign: 'center' })}>Sr</th>
+                <th style={thStyle({ textAlign: 'left' })}>Product</th>
+                {showColor && <th style={thStyle({ width: '10%', textAlign: 'center' })}>Color</th>}
+                <th style={thStyle({ width: '8%', textAlign: 'center' })}>Size</th>
+                <th style={thStyle({ width: '7%', textAlign: 'center' })}>Qty</th>
+                {showMRP && <th style={thStyle({ width: '10%', textAlign: 'right' })}>MRP</th>}
+                <th style={thStyle({ width: '10%', textAlign: 'right' })}>Rate</th>
+                <th style={thStyle({ width: '12%', textAlign: 'right' })}>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pageItems.map((item, idx) => {
+                const details = [item.brand, item.style].filter(Boolean).join(' · ');
+                const rowBg = idx % 2 === 0 ? '#fff' : '#f7f9fc';
+                return (
+                  <tr key={item.sr} style={{ background: rowBg }}>
+                    <td style={tdStyle({ textAlign: 'center', color: '#888' })}>{item.sr}</td>
+                    <td style={tdStyle({ textAlign: 'left' })}>
+                      {item.particulars}
+                      {details && (
+                        <span style={{ color: '#888', marginLeft: '4px', fontSize: '85%' }}>({details})</span>
+                      )}
+                    </td>
+                    {showColor && (
+                      <td style={tdStyle({ textAlign: 'center', fontWeight: 600 })}>{item.color || '—'}</td>
+                    )}
+                    <td style={tdStyle({ textAlign: 'center', fontWeight: 700, fontSize: isA4 ? '10pt' : '8pt' })}>
+                      {item.size}
+                    </td>
+                    <td style={tdStyle({ textAlign: 'center', fontWeight: 600 })}>{item.orderQty}</td>
+                    {showMRP && <td style={tdStyle({ textAlign: 'right' })}>{fmt(item.mrp)}</td>}
+                    <td style={tdStyle({ textAlign: 'right' })}>{fmt(item.rate)}</td>
+                    <td style={tdStyle({ textAlign: 'right', fontWeight: 700 })}>{fmt(item.total)}</td>
+                  </tr>
+                );
+              })}
+
+              {/* Page subtotal row */}
+              <tr style={{ backgroundColor: PRIMARY }}>
+                <td
+                  colSpan={showColor ? (showMRP ? 4 : 3) : (showMRP ? 3 : 2)}
+                  style={{
+                    border: `1px solid ${PRIMARY}`,
+                    padding: isA4 ? '4px 4px' : '3px 3px',
+                    fontWeight: 700,
+                    fontSize: isA4 ? '8.5pt' : '7pt',
+                    color: '#fff',
+                    textAlign: 'right',
+                  }}
+                >
+                  {isLastPage ? 'Grand Total' : `Page ${pageIndex + 1} Total`}
+                </td>
+                <td style={{
+                  border: `1px solid ${PRIMARY}`,
+                  padding: isA4 ? '4px 3px' : '3px 2px',
+                  textAlign: 'center',
+                  fontWeight: 800,
+                  fontSize: isA4 ? '9.5pt' : '8pt',
+                  color: '#fff',
+                  backgroundColor: PRIMARY,
+                }}>
+                  {isLastPage ? totalQty : pageQty}
+                </td>
+                {showMRP && (
+                  <td style={{
+                    border: `1px solid ${PRIMARY}`,
+                    padding: isA4 ? '4px 4px' : '3px 3px',
+                    backgroundColor: PRIMARY,
+                  }} />
+                )}
+                <td style={{
+                  border: `1px solid ${PRIMARY}`,
+                  padding: isA4 ? '4px 4px' : '3px 3px',
+                  backgroundColor: PRIMARY,
+                }} />
+                <td style={{
+                  border: `1px solid ${PRIMARY}`,
+                  padding: isA4 ? '4px 4px' : '3px 3px',
+                  textAlign: 'right',
+                  fontWeight: 800,
+                  fontSize: isA4 ? '9.5pt' : '8pt',
+                  color: '#fff',
+                  backgroundColor: PRIMARY,
+                }}>
+                  {isLastPage ? fmt(netAmount) : fmt(pageAmount)}
+                </td>
+              </tr>
+
+              {/* Cumulative running total row — only on non-last pages */}
+              {!isLastPage && (
+                <tr style={{ backgroundColor: LIGHT }}>
+                  <td
+                    colSpan={showColor ? (showMRP ? 4 : 3) : (showMRP ? 3 : 2)}
+                    style={{
+                      border: `1px solid ${BORDER}`,
+                      padding: isA4 ? '3px 4px' : '2px 3px',
+                      fontWeight: 600,
+                      fontSize: isA4 ? '7.5pt' : '6.5pt',
+                      color: PRIMARY,
+                      textAlign: 'right',
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    Running Total (SR 1–{pageIndex * itemsPerPage + pageItems.length})
+                  </td>
+                  <td style={{
+                    border: `1px solid ${BORDER}`,
+                    padding: isA4 ? '3px 3px' : '2px 2px',
+                    textAlign: 'center',
+                    fontWeight: 700,
+                    fontSize: isA4 ? '8pt' : '7pt',
+                    color: PRIMARY,
+                    backgroundColor: LIGHT,
+                  }}>
+                    {cumulativeQty}
+                  </td>
+                  {showMRP && (
+                    <td style={{
+                      border: `1px solid ${BORDER}`,
+                      backgroundColor: LIGHT,
+                    }} />
+                  )}
+                  <td style={{
+                    border: `1px solid ${BORDER}`,
+                    backgroundColor: LIGHT,
+                  }} />
+                  <td style={{
+                    border: `1px solid ${BORDER}`,
+                    padding: isA4 ? '3px 4px' : '2px 3px',
+                    textAlign: 'right',
+                    fontWeight: 700,
+                    fontSize: isA4 ? '8pt' : '7pt',
+                    color: PRIMARY,
+                    backgroundColor: LIGHT,
+                  }}>
+                    {fmt(cumulativeAmount)}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
           {isLastPage && renderFooter()}
           {!isLastPage && (
             <div style={{
               textAlign: 'center', fontSize: tinyFont, color: '#999',
-              marginTop: '6px', fontStyle: 'italic',
+              marginTop: '5px', fontStyle: 'italic',
             }}>
               Continued on next page...
             </div>
