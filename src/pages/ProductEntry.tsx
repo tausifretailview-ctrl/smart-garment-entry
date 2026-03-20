@@ -2183,6 +2183,13 @@ const ProductEntry = () => {
                 </Select>
               </div>
 
+              {/* ── 💰 Pricing & Tax ─────────────────────────── */}
+              <div className="col-span-full flex items-center gap-2 pt-1">
+                <span className="text-sm">💰</span>
+                <span className="text-[13.5px] font-bold text-foreground font-outfit">Pricing & Tax</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="default_pur_price">Purchase Price <span className="text-destructive">*</span></Label>
                 <CalculatorInput
