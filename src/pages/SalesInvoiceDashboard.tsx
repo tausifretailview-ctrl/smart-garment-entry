@@ -2038,6 +2038,69 @@ export default function SalesInvoiceDashboard() {
           organizationId={currentOrganization?.id || ''}
         />
 
+        {/* Hidden Invoice Wrapper for PDF generation on mobile */}
+        {invoiceToPrint && (
+          <div style={{
+            position: 'fixed',
+            left: '-9999px',
+            top: 0,
+            opacity: 0,
+            width: billFormat === 'a4' ? '210mm' : 
+                   billFormat === 'thermal' ? '80mm' : 
+                   billFormat === 'a5-horizontal' ? '210mm' : '148mm',
+            minHeight: billFormat === 'a4' ? '297mm' : 
+                       billFormat === 'thermal' ? 'auto' : 
+                       billFormat === 'a5-horizontal' ? '148mm' : '210mm',
+            maxHeight: billFormat === 'thermal' ? 'none' : 
+                       billFormat === 'a4' ? '297mm' : 
+                       billFormat === 'a5-horizontal' ? '148mm' : '210mm',
+            pointerEvents: 'none',
+            zIndex: -9999,
+            overflow: 'visible'
+          }}>
+            <InvoiceWrapper
+              ref={printRef}
+              format={billFormat === 'a5' ? 'a5-vertical' : billFormat}
+              billNo={invoiceToPrint.sale_number}
+              date={new Date(invoiceToPrint.sale_date)}
+              customerName={invoiceToPrint.customer_name}
+              customerAddress={invoiceToPrint.customer_address || ""}
+              customerMobile={invoiceToPrint.customer_phone || ""}
+              customerGSTIN={invoiceToPrint.customers?.gst_number || ""}
+              template={invoiceTemplate}
+              showMRP={(settings?.sale_settings as any)?.show_mrp_column ?? false}
+              showHSN={(settings?.sale_settings as any)?.show_hsn_column ?? true}
+              items={invoiceToPrint.sale_items?.map((item: any, index: number) => ({
+                sr: index + 1,
+                particulars: item.product_name,
+                size: item.size,
+                barcode: item.barcode || "",
+                hsn: item.hsn_code || "",
+                sp: item.mrp,
+                mrp: item.mrp,
+                qty: item.quantity,
+                rate: item.unit_price,
+                total: item.line_total,
+                color: item.color || item.products?.color || "",
+                brand: item.products?.brand || "",
+                style: item.products?.style || "",
+                gstPercent: item.gst_percent || 0,
+                discountPercent: item.discount_percent || 0,
+              })) || []}
+              subTotal={invoiceToPrint.gross_amount}
+              discount={(invoiceToPrint.discount_amount || 0) + (invoiceToPrint.flat_discount_amount || 0)}
+              saleReturnAdjust={invoiceToPrint.sale_return_adjust || 0}
+              grandTotal={invoiceToPrint.net_amount}
+              paymentMethod={invoiceToPrint.payment_method}
+              cashAmount={invoiceToPrint.cash_amount || 0}
+              upiAmount={invoiceToPrint.upi_amount || 0}
+              cardAmount={invoiceToPrint.card_amount || 0}
+              salesman={invoiceToPrint.salesman || ''}
+              notes={invoiceToPrint.notes || ''}
+            />
+          </div>
+        )}
+
         <MobileBottomNav />
       </div>
     );
