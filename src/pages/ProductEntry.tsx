@@ -1903,7 +1903,7 @@ const ProductEntry = () => {
               <span className="text-[13.5px] font-bold text-foreground font-outfit">Product Details</span>
               <div className="flex-1 h-px bg-border" />
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
               <div className="space-y-2">
                 <Label htmlFor="product_name">Product Name *</Label>
                 <Input
