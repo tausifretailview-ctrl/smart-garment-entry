@@ -1011,8 +1011,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </div>
               </div>
 
-              {/* Basic Info Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {/* ── 📋 Product Details ────────────────────────── */}
+              <div className="flex items-center gap-2 pt-1">
+                <span className="text-sm">📋</span>
+                <span className="text-[13px] font-bold text-foreground font-outfit">Product Details</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-2 col-span-2">
                   <Label htmlFor="product_name">{getFieldLabel("product_name", "Product Name")} *</Label>
                   <Input
