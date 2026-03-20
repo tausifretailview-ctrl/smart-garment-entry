@@ -1871,7 +1871,7 @@ const ProductEntry = () => {
               <div className="flex-1 h-px bg-border" />
             </div>
             <div className="space-y-2">
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {([
                   { value: 'goods' as ProductType, icon: '📦', label: 'Goods', desc: 'Physical items' },
                   { value: 'service' as ProductType, icon: '🔧', label: 'Service', desc: 'Service based' },
@@ -1903,7 +1903,7 @@ const ProductEntry = () => {
               <span className="text-[13.5px] font-bold text-foreground font-outfit">Product Details</span>
               <div className="flex-1 h-px bg-border" />
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
               <div className="space-y-2">
                 <Label htmlFor="product_name">Product Name *</Label>
                 <Input
@@ -2708,8 +2708,8 @@ const ProductEntry = () => {
               )}
             </div>
             {/* Save Button Footer */}
-            <div className="flex items-center justify-between pt-4 border-t border-border bg-muted/20 -mx-6 px-6 -mb-6 pb-5 rounded-b-xl">
-              <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-4 border-t border-border bg-muted/20 -mx-6 px-6 -mb-6 pb-5 rounded-b-xl">
+              <div className="flex items-center gap-3 flex-wrap">
                 {showDiscountFields ? (
                   <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg font-outfit">
                     ✅ Discounts Enabled
@@ -2729,13 +2729,13 @@ const ProductEntry = () => {
                   ⚙️ Settings
                 </Button>
               </div>
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2.5 w-full sm:w-auto">
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => orgNavigate('/products')}
-                  className="font-outfit font-semibold"
+                  className="font-outfit font-semibold hidden sm:inline-flex"
                 >
                   Cancel
                 </Button>
@@ -2744,7 +2744,7 @@ const ProductEntry = () => {
                   variant="outline"
                   size="sm"
                   onClick={() => window.location.reload()}
-                  className="font-outfit font-semibold gap-1"
+                  className="font-outfit font-semibold gap-1 hidden sm:inline-flex"
                 >
                   🔄 Reset
                 </Button>
@@ -2753,7 +2753,7 @@ const ProductEntry = () => {
                   onClick={handleSave}
                   disabled={loading}
                   size="default"
-                  className="gap-1.5 min-w-[140px] font-outfit font-semibold shadow-md hover:shadow-lg transition-all"
+                  className="gap-1.5 min-w-[140px] w-full sm:w-auto font-outfit font-semibold shadow-md hover:shadow-lg transition-all"
                 >
                   {loading ? (
                     <>
