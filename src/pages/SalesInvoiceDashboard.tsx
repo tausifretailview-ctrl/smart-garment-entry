@@ -1912,7 +1912,16 @@ export default function SalesInvoiceDashboard() {
                         </span>
                         {inv.is_cancelled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">Cancelled</span>}
                       </div>
-                      <p className={cn("text-sm font-medium text-foreground mt-1 truncate", inv.is_cancelled && "line-through decoration-red-500/50")}>{inv.customer_name || 'Walk-in'}</p>
+                      <p
+                        className={cn("text-sm font-medium text-foreground mt-1 truncate", inv.is_cancelled && "line-through decoration-red-500/50", inv.customer_name && inv.customer_name !== 'Walk-in' && "text-primary underline underline-offset-2 decoration-primary/30")}
+                        onClick={(e) => {
+                          if (inv.customer_name && inv.customer_name !== 'Walk-in') {
+                            e.stopPropagation();
+                            setSelectedCustomerForHistory({ id: inv.customer_id || null, name: inv.customer_name });
+                            setShowCustomerHistory(true);
+                          }
+                        }}
+                      >{inv.customer_name || 'Walk-in'}</p>
                       <p className="text-[11px] text-muted-foreground">
                         {format(new Date(inv.created_at || inv.sale_date), "d MMM · hh:mm a")}
                         {inv.total_qty ? ` · ${inv.total_qty} pcs` : ""}
