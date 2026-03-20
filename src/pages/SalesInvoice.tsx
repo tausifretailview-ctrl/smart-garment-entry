@@ -850,7 +850,7 @@ export default function SalesInvoice() {
           .select(`
             id, size, pur_price, sale_price, mrp, barcode, active, color, stock_qty, product_id,
             last_purchase_sale_price, last_purchase_mrp, last_purchase_date,
-            products (id, product_name, brand, category, style, color, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, size_group_id)
+            products (id, product_name, brand, category, style, color, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, size_group_id, sale_discount_type, sale_discount_value)
           `)
           .eq("organization_id", currentOrganization.id)
           .eq("active", true)

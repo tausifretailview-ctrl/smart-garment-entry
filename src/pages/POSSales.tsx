@@ -1078,7 +1078,7 @@ export default function POSSales() {
       if (currentOrganization?.id) {
         const { data: zeroStockVariant } = await supabase
           .from('product_variants')
-          .select('id, barcode, size, color, stock_qty, sale_price, mrp, product_id, products!inner(id, product_name, brand, category, style, color, product_type, organization_id)')
+          .select('id, barcode, size, color, stock_qty, sale_price, mrp, product_id, products!inner(id, product_name, brand, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value)')
           .eq('products.organization_id', currentOrganization.id)
           .eq('barcode', searchTerm)
           .is('deleted_at', null)
