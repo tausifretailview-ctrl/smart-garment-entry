@@ -1481,7 +1481,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     </div>
                   </div>
                 )}
-              </div>
+            </div>
+          </ScrollArea>
+
           <DialogFooter className="px-6 py-4 border-t bg-muted/20">
             <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading} className="font-outfit font-semibold">
               Cancel
