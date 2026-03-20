@@ -1188,7 +1188,9 @@ const PurchaseEntry = () => {
           purchase_gst_percent,
           sale_gst_percent,
           default_pur_price,
-          default_sale_price
+          default_sale_price,
+          purchase_discount_type,
+          purchase_discount_value
         )
       `)
       .eq("product_id", productId)
