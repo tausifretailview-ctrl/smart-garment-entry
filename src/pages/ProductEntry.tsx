@@ -126,6 +126,8 @@ const ProductEntry = () => {
   const [styles, setStyles] = useState<string[]>([]);
   
   const [showDiscountFields, setShowDiscountFields] = useState(false);
+  const [showQuickSettings, setShowQuickSettings] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
   const [formData, setFormData] = useState<ProductForm>({
     product_type: "goods",
     product_name: "",
