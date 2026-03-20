@@ -2486,215 +2486,227 @@ const ProductEntry = () => {
             </div>
 
             {/* ── 👟 Size Variants ────────────────────────── */}
-            <div className="flex items-center gap-2 pt-1">
-              <span className="text-sm">👟</span>
-              <span className="text-[13.5px] font-bold text-foreground font-outfit">Size Variants</span>
-              <div className="flex-1 h-px bg-border" />
-              <Button
-                onClick={handleGenerateSizeVariants}
-                disabled={formData.product_type !== 'service' && !formData.size_group_id}
-                variant="outline"
-                size="sm"
-                className="gap-1.5 font-outfit font-semibold text-primary border-primary/30 hover:bg-primary/5"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                {formData.product_type === 'service' ? 'Generate Service Variant' : 'Generate Size Variants'}
-              </Button>
-            </div>
-
-            {/* Size Variants Table */}
-            {showVariants && variants.length > 0 && (
-              <div ref={variantsSectionRef} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold font-outfit">
-                    {formData.product_type === 'service' ? 'Service Details' : `Variants (${variants.length})`}
-                  </h3>
-                  <Button
-                    ref={autoGenerateBtnRef}
-                    onClick={handleAutoGenerateBarcodes}
-                    size="sm"
-                    className="gap-1 h-6 text-xs"
-                  >
-                    <Barcode className="h-3 w-3" />
-                    Auto-Generate Barcodes
-                  </Button>
+            <div className="rounded-xl border-[1.5px] border-violet-200 bg-gradient-to-br from-violet-50/60 via-purple-50/30 to-fuchsia-50/20 p-4 space-y-3">
+              {/* Section header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center shadow-sm">
+                    <span className="text-white text-sm">👟</span>
+                  </div>
+                  <div>
+                    <span className="text-[13.5px] font-bold text-violet-800 font-outfit">Size Variants</span>
+                    <p className="text-[10px] text-violet-500/80 font-outfit">Generate size-wise entries automatically</p>
+                  </div>
                 </div>
+                <Button
+                  onClick={handleGenerateSizeVariants}
+                  disabled={formData.product_type !== 'service' && !formData.size_group_id}
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 font-outfit font-semibold text-violet-700 border-violet-300 hover:bg-violet-100/60 hover:border-violet-400 transition-all"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {formData.product_type === 'service' ? 'Generate Service Variant' : 'Generate Variants'}
+                </Button>
+              </div>
 
-                <div className="border rounded overflow-hidden overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        {formData.product_type !== 'service' && <TableHead className="text-xs py-1">Color</TableHead>}
-                        <TableHead className="text-xs py-1">{formData.product_type === 'service' ? 'Item' : 'Size'}</TableHead>
-                        <TableHead className="text-xs py-1">Pur Price<span className="text-destructive">*</span></TableHead>
-                        <TableHead className="text-xs py-1">Sale Price<span className="text-destructive">*</span></TableHead>
-                        {showMrp && <TableHead className="text-xs py-1">MRP<span className="text-destructive">*</span></TableHead>}
-                        {showMrp && <TableHead className="text-xs py-1">Disc</TableHead>}
-                        <TableHead className="text-xs py-1">Barcode<span className="text-destructive">*</span></TableHead>
-                        <TableHead className="text-xs py-1 text-center">Active</TableHead>
-                        <TableHead className="text-xs py-1"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {variants.map((variant, index) => {
-                        const discount = variant.mrp && variant.mrp > variant.sale_price 
-                          ? variant.mrp - variant.sale_price 
-                          : 0;
-                        const discountPercent = variant.mrp && variant.mrp > 0 
-                          ? ((discount / variant.mrp) * 100).toFixed(0) 
-                          : 0;
-                        
-                        return (
-                          <TableRow key={index} className="text-xs">
-                            {formData.product_type !== 'service' && (
-                              <TableCell className="py-1 px-1">
-                                <Input
-                                  list="color-suggestions"
-                                  value={variant.color || ''}
-                                  placeholder="-"
-                                  className="h-7 w-20 text-xs font-medium text-primary px-2 py-0 uppercase"
-                                  onChange={(e) => {
-                                    const val = e.target.value.toUpperCase();
-                                    handleVariantChange(index, "color", val);
-                                  }}
-                                  onBlur={(e) => {
-                                    const val = e.target.value.trim().toUpperCase();
-                                    handleVariantChange(index, "color", val);
-                                    if (val && !formData.colors.includes(val)) {
-                                      setFormData(prev => ({ ...prev, colors: [...prev.colors, val] }));
-                                    }
-                                  }}
-                                />
+              {/* Size Variants Table */}
+              {showVariants && variants.length > 0 && (
+                <div ref={variantsSectionRef} className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-semibold font-outfit text-violet-700">
+                      {formData.product_type === 'service' ? 'Service Details' : `${variants.length} Variant${variants.length !== 1 ? 's' : ''}`}
+                    </h3>
+                    <Button
+                      ref={autoGenerateBtnRef}
+                      onClick={handleAutoGenerateBarcodes}
+                      size="sm"
+                      className="gap-1 h-6 text-[11px] bg-violet-600 hover:bg-violet-700 text-white font-outfit shadow-sm"
+                    >
+                      <Barcode className="h-3 w-3" />
+                      Auto-Generate Barcodes
+                    </Button>
+                  </div>
+
+                  <div className="border border-violet-200/60 rounded-lg overflow-hidden overflow-x-auto bg-white shadow-sm">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gradient-to-r from-violet-100/80 to-purple-100/60 border-b border-violet-200/60">
+                          {formData.product_type !== 'service' && (
+                            <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit">Color</TableHead>
+                          )}
+                          <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit">
+                            {formData.product_type === 'service' ? 'Item' : 'Size'}
+                          </TableHead>
+                          <TableHead className="text-[11px] py-2 font-bold text-amber-700 font-outfit bg-amber-50/50">
+                            Pur Price<span className="text-destructive ml-0.5">*</span>
+                          </TableHead>
+                          <TableHead className="text-[11px] py-2 font-bold text-emerald-700 font-outfit bg-emerald-50/50">
+                            Sale Price<span className="text-destructive ml-0.5">*</span>
+                          </TableHead>
+                          {showMrp && (
+                            <TableHead className="text-[11px] py-2 font-bold text-blue-700 font-outfit bg-blue-50/50">
+                              MRP<span className="text-destructive ml-0.5">*</span>
+                            </TableHead>
+                          )}
+                          {showMrp && (
+                            <TableHead className="text-[11px] py-2 font-bold text-emerald-700 font-outfit">Disc</TableHead>
+                          )}
+                          <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit">
+                            Barcode<span className="text-destructive ml-0.5">*</span>
+                          </TableHead>
+                          <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit text-center">Active</TableHead>
+                          <TableHead className="text-[11px] py-2 w-8"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {variants.map((variant, index) => {
+                          const discount = variant.mrp && variant.mrp > variant.sale_price 
+                            ? variant.mrp - variant.sale_price 
+                            : 0;
+                          const discountPercent = variant.mrp && variant.mrp > 0 
+                            ? ((discount / variant.mrp) * 100).toFixed(0) 
+                            : 0;
+                          
+                          return (
+                            <TableRow key={index} className="text-xs hover:bg-violet-50/30 transition-colors">
+                              {formData.product_type !== 'service' && (
+                                <TableCell className="py-1.5 px-1.5">
+                                  <Input
+                                    list="color-suggestions"
+                                    value={variant.color || ''}
+                                    placeholder="-"
+                                    className="h-7 w-20 text-xs font-medium text-primary px-2 py-0 uppercase border-violet-200 focus:border-violet-400"
+                                    onChange={(e) => {
+                                      const val = e.target.value.toUpperCase();
+                                      handleVariantChange(index, "color", val);
+                                    }}
+                                    onBlur={(e) => {
+                                      const val = e.target.value.trim().toUpperCase();
+                                      handleVariantChange(index, "color", val);
+                                      if (val && !formData.colors.includes(val)) {
+                                        setFormData(prev => ({ ...prev, colors: [...prev.colors, val] }));
+                                      }
+                                    }}
+                                  />
+                                </TableCell>
+                              )}
+                              <TableCell className="py-1.5">
+                                <span className="inline-flex items-center justify-center min-w-[32px] px-2 py-0.5 rounded-md bg-violet-100 text-violet-800 text-xs font-bold font-outfit">
+                                  {variant.size}
+                                </span>
                               </TableCell>
-                            )}
-                            <TableCell className="font-medium py-1 text-xs">{variant.size}</TableCell>
-                            <TableCell className="py-1">
-                              <Input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={variant.pur_price}
-                                onChange={(e) =>
-                                  handleVariantChange(
-                                    index,
-                                    "pur_price",
-                                    parseFloat(e.target.value) || 0
-                                  )
-                                }
-                                className={`w-20 h-6 text-xs ${variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price ? 'border-destructive' : ''}`}
-                              />
-                              {variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && (
-                                <p className="text-destructive text-[9px] font-semibold mt-0.5">Pur &gt; Sale!</p>
-                              )}
-                            </TableCell>
-                            <TableCell className="py-1">
-                              <Input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={variant.sale_price}
-                                onChange={(e) =>
-                                  handleVariantChange(
-                                    index,
-                                    "sale_price",
-                                    parseFloat(e.target.value) || 0
-                                  )
-                                }
-                                className={`w-20 h-6 text-xs ${variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price ? 'border-destructive' : ''}`}
-                              />
-                              {variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && (
-                                <p className="text-destructive text-[9px] font-semibold mt-0.5">Check sale price</p>
-                              )}
-                            </TableCell>
-                            {showMrp && (
-                              <TableCell className="py-1">
+                              <TableCell className="py-1.5 bg-amber-50/20">
                                 <Input
                                   type="number"
                                   min="0"
                                   step="0.01"
-                                  value={variant.mrp || ""}
+                                  value={variant.pur_price}
                                   onChange={(e) =>
-                                    handleVariantChange(
-                                      index,
-                                      "mrp",
-                                      e.target.value ? parseFloat(e.target.value) : null
-                                    )
+                                    handleVariantChange(index, "pur_price", parseFloat(e.target.value) || 0)
                                   }
-                                  className="w-18 h-6 text-xs"
-                                  placeholder="MRP"
+                                  className={`w-20 h-7 text-xs font-semibold border-amber-200 focus:border-amber-400 ${variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price ? 'border-destructive bg-destructive/5' : ''}`}
                                 />
-                              </TableCell>
-                            )}
-                            {showMrp && (
-                              <TableCell className="py-1">
-                                {discount > 0 ? (
-                                  <span className="text-green-600 font-medium text-xs">
-                                    ₹{discount.toFixed(0)} ({discountPercent}%)
-                                  </span>
-                                ) : (
-                                  <span className="text-muted-foreground text-xs">-</span>
+                                {variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && (
+                                  <p className="text-destructive text-[9px] font-semibold mt-0.5">Pur &gt; Sale!</p>
                                 )}
                               </TableCell>
-                            )}
-                            <TableCell className="py-1">
-                              {variant.id && protectedVariants.has(variant.id) ? (
-                                <div className="flex items-center gap-1 w-28">
-                                  <Lock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                                  <span className="text-xs text-muted-foreground truncate" title={variant.barcode}>
-                                    {variant.barcode || '-'}
-                                  </span>
-                                </div>
-                              ) : (
+                              <TableCell className="py-1.5 bg-emerald-50/20">
                                 <Input
-                                  value={variant.barcode}
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={variant.sale_price}
                                   onChange={(e) =>
-                                    handleVariantChange(
-                                      index,
-                                      "barcode",
-                                      e.target.value
-                                    )
+                                    handleVariantChange(index, "sale_price", parseFloat(e.target.value) || 0)
                                   }
-                                  className="w-36 h-6 text-xs font-mono"
-                                  placeholder="Barcode"
+                                  className={`w-20 h-7 text-xs font-semibold border-emerald-200 focus:border-emerald-400 ${variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price ? 'border-destructive bg-destructive/5' : ''}`}
                                 />
+                                {variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && (
+                                  <p className="text-destructive text-[9px] font-semibold mt-0.5">Check price</p>
+                                )}
+                              </TableCell>
+                              {showMrp && (
+                                <TableCell className="py-1.5 bg-blue-50/20">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={variant.mrp || ""}
+                                    onChange={(e) =>
+                                      handleVariantChange(index, "mrp", e.target.value ? parseFloat(e.target.value) : null)
+                                    }
+                                    className="w-18 h-7 text-xs font-semibold border-blue-200 focus:border-blue-400"
+                                    placeholder="MRP"
+                                  />
+                                </TableCell>
                               )}
-                            </TableCell>
-                            <TableCell className="text-center py-1">
-                              <Switch
-                                checked={variant.active}
-                                onCheckedChange={(checked) =>
-                                  handleVariantChange(index, "active", checked)
-                                }
-                                className="h-4 w-7"
-                              />
-                            </TableCell>
-                            <TableCell className="py-1">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-5 w-5 text-muted-foreground hover:text-destructive"
-                                onClick={() => {
-                                  setVariants(variants.filter((_, i) => i !== index));
-                                }}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                  <datalist id="color-suggestions">
-                    {formData.colors.map(c => (
-                      <option key={c} value={c} />
-                    ))}
-                  </datalist>
+                              {showMrp && (
+                                <TableCell className="py-1.5">
+                                  {discount > 0 ? (
+                                    <span className="inline-flex items-center gap-0.5 text-emerald-600 font-bold text-[11px] bg-emerald-50 px-1.5 py-0.5 rounded font-outfit">
+                                      ₹{discount.toFixed(0)} <span className="text-emerald-500 font-medium">({discountPercent}%)</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground text-xs">-</span>
+                                  )}
+                                </TableCell>
+                              )}
+                              <TableCell className="py-1.5">
+                                {variant.id && protectedVariants.has(variant.id) ? (
+                                  <div className="flex items-center gap-1 w-28">
+                                    <Lock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                    <span className="text-xs text-muted-foreground truncate font-mono" title={variant.barcode}>
+                                      {variant.barcode || '-'}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <Input
+                                    value={variant.barcode}
+                                    onChange={(e) =>
+                                      handleVariantChange(index, "barcode", e.target.value)
+                                    }
+                                    className="w-36 h-7 text-xs font-mono border-violet-200 focus:border-violet-400"
+                                    placeholder="Barcode"
+                                  />
+                                )}
+                              </TableCell>
+                              <TableCell className="text-center py-1.5">
+                                <Switch
+                                  checked={variant.active}
+                                  onCheckedChange={(checked) =>
+                                    handleVariantChange(index, "active", checked)
+                                  }
+                                  className="h-4 w-7"
+                                />
+                              </TableCell>
+                              <TableCell className="py-1.5">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+                                  onClick={() => {
+                                    setVariants(variants.filter((_, i) => i !== index));
+                                  }}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                    <datalist id="color-suggestions">
+                      {formData.colors.map(c => (
+                        <option key={c} value={c} />
+                      ))}
+                    </datalist>
+                  </div>
                 </div>
-              </div>
-            )}
-
+              )}
+            </div>
             {/* Save Button Footer */}
             <div className="flex items-center justify-between pt-4 border-t border-border bg-muted/20 -mx-6 px-6 -mb-6 pb-5 rounded-b-xl">
               <div className="flex items-center gap-3">
