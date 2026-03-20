@@ -77,6 +77,10 @@ interface ProductForm {
   default_mrp: number | undefined;
   status: string;
   image_url?: string;
+  purchase_discount_type: 'percent' | 'flat' | null;
+  purchase_discount_value: number;
+  sale_discount_type: 'percent' | 'flat' | null;
+  sale_discount_value: number;
 }
 
 const ProductEntry = () => {
