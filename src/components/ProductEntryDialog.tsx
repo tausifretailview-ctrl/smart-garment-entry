@@ -1351,123 +1351,137 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </div>
               )}
 
-              {/* Generate Variants Button */}
-              <Button
-                type="button"
-                variant="default"
-                onClick={handleGenerateSizeVariants}
-                disabled={formData.product_type !== 'service' && !formData.size_group_id}
-                className="bg-primary hover:bg-primary/90 !text-white font-semibold border-2 border-primary shadow-md hover:shadow-lg transition-all"
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                Generate Size Variants
-              </Button>
-
-              {/* Variants Table */}
-              {showVariants && variants.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>Variants ({variants.length})</Label>
-                    <Button type="button" variant="outline" size="sm" onClick={handleAutoGenerateBarcodes}>
-                      <Barcode className="h-4 w-4 mr-1" /> Auto Generate Barcodes
-                    </Button>
+              {/* ── 👟 Size Variants ────────────────────────── */}
+              <div className="rounded-xl border-[1.5px] border-violet-200 bg-gradient-to-br from-violet-50/60 via-purple-50/30 to-fuchsia-50/20 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center shadow-sm">
+                      <span className="text-white text-sm">👟</span>
+                    </div>
+                    <div>
+                      <span className="text-[13px] font-bold text-violet-800 font-outfit">Size Variants</span>
+                      <p className="text-[10px] text-violet-500/80 font-outfit">Generate size-wise entries</p>
+                    </div>
                   </div>
-                  <div className="border rounded-lg overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          {formData.colors.length > 0 && <TableHead>Color</TableHead>}
-                          <TableHead>Size</TableHead>
-                          <TableHead>Purchase Price<span className="text-destructive">*</span></TableHead>
-                          <TableHead>Sale Price<span className="text-destructive">*</span></TableHead>
-                          {showMrp && <TableHead>MRP<span className="text-destructive">*</span></TableHead>}
-                          <TableHead>Barcode<span className="text-destructive">*</span></TableHead>
-                          {!hideOpeningQty && <TableHead>Opening Qty</TableHead>}
-                          <TableHead>Active</TableHead>
-                          <TableHead></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {variants.map((variant, index) => (
-                          <TableRow key={index}>
-                            {formData.colors.length > 0 && (
-                              <TableCell className="font-medium">{variant.color || "-"}</TableCell>
-                            )}
-                            <TableCell>{variant.size}</TableCell>
-                            <TableCell>
-                              <CalculatorInput
-                                value={variant.pur_price || ""}
-                                onChange={(val) => handleVariantChange(index, "pur_price", val)}
-                                className={cn("w-24", variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && "border-destructive text-destructive")}
-                                placeholder="0"
-                              />
-                              {variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && (
-                                <span className="text-[10px] text-destructive mt-0.5 block">Pur &gt; Sale!</span>
+                  <Button
+                    type="button"
+                    onClick={handleGenerateSizeVariants}
+                    disabled={formData.product_type !== 'service' && !formData.size_group_id}
+                    className="gap-1.5 font-outfit font-semibold bg-violet-600 hover:bg-violet-700 text-white shadow-sm"
+                    size="sm"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Generate Variants
+                  </Button>
+                </div>
+
+                {showVariants && variants.length > 0 && (
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold text-violet-700 font-outfit">{variants.length} Variant{variants.length !== 1 ? 's' : ''}</Label>
+                      <Button type="button" variant="outline" size="sm" onClick={handleAutoGenerateBarcodes} className="gap-1 h-6 text-[11px] border-violet-300 text-violet-700 hover:bg-violet-100/60 font-outfit">
+                        <Barcode className="h-3 w-3" /> Auto Barcodes
+                      </Button>
+                    </div>
+                    <div className="border border-violet-200/60 rounded-lg overflow-hidden overflow-x-auto bg-white shadow-sm">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-gradient-to-r from-violet-100/80 to-purple-100/60 border-b border-violet-200/60">
+                            {formData.colors.length > 0 && <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit">Color</TableHead>}
+                            <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit">Size</TableHead>
+                            <TableHead className="text-[11px] py-2 font-bold text-amber-700 font-outfit bg-amber-50/50">Pur Price<span className="text-destructive ml-0.5">*</span></TableHead>
+                            <TableHead className="text-[11px] py-2 font-bold text-emerald-700 font-outfit bg-emerald-50/50">Sale Price<span className="text-destructive ml-0.5">*</span></TableHead>
+                            {showMrp && <TableHead className="text-[11px] py-2 font-bold text-blue-700 font-outfit bg-blue-50/50">MRP<span className="text-destructive ml-0.5">*</span></TableHead>}
+                            <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit">Barcode<span className="text-destructive ml-0.5">*</span></TableHead>
+                            {!hideOpeningQty && <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit">Qty</TableHead>}
+                            <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit text-center">Active</TableHead>
+                            <TableHead className="text-[11px] py-2 w-8"></TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {variants.map((variant, index) => (
+                            <TableRow key={index} className="hover:bg-violet-50/30 transition-colors">
+                              {formData.colors.length > 0 && (
+                                <TableCell className="font-medium text-xs py-1.5">{variant.color || "-"}</TableCell>
                               )}
-                            </TableCell>
-                            <TableCell>
-                              <CalculatorInput
-                                value={variant.sale_price || ""}
-                                onChange={(val) => handleVariantChange(index, "sale_price", val)}
-                                className={cn("w-24", variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && "border-destructive text-destructive")}
-                                placeholder="0"
-                              />
-                            </TableCell>
-                            {showMrp && (
-                              <TableCell>
-                                <CalculatorInput
-                                  value={variant.mrp ?? ""}
-                                  onChange={(val) => handleVariantChange(index, "mrp", val || null)}
-                                  className="w-24"
-                                />
+                              <TableCell className="py-1.5">
+                                <span className="inline-flex items-center justify-center min-w-[32px] px-2 py-0.5 rounded-md bg-violet-100 text-violet-800 text-xs font-bold font-outfit">
+                                  {variant.size}
+                                </span>
                               </TableCell>
-                            )}
-                            <TableCell>
-                              <Input
-                                value={variant.barcode}
-                                onChange={(e) => handleVariantChange(index, "barcode", e.target.value)}
-                                className="w-32"
-                                placeholder="Barcode"
-                              />
-                            </TableCell>
-                            {!hideOpeningQty && (
-                              <TableCell>
-                                <Input
-                                  type="number"
-                                  value={variant.opening_qty || ""}
-                                  onChange={(e) => handleVariantChange(index, "opening_qty", e.target.value === "" ? 0 : Number(e.target.value))}
-                                  className="w-20"
+                              <TableCell className="py-1.5 bg-amber-50/20">
+                                <CalculatorInput
+                                  value={variant.pur_price || ""}
+                                  onChange={(val) => handleVariantChange(index, "pur_price", val)}
+                                  className={cn("w-24 h-7 text-xs border-amber-200", variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && "border-destructive bg-destructive/5")}
+                                  placeholder="0"
+                                />
+                                {variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && (
+                                  <span className="text-[9px] text-destructive font-semibold mt-0.5 block">Pur &gt; Sale!</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="py-1.5 bg-emerald-50/20">
+                                <CalculatorInput
+                                  value={variant.sale_price || ""}
+                                  onChange={(val) => handleVariantChange(index, "sale_price", val)}
+                                  className={cn("w-24 h-7 text-xs border-emerald-200", variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && "border-destructive bg-destructive/5")}
                                   placeholder="0"
                                 />
                               </TableCell>
-                            )}
-                            <TableCell>
-                              <Switch
-                                checked={variant.active}
-                                onCheckedChange={(checked) => handleVariantChange(index, "active", checked)}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                                onClick={() => setVariants(variants.filter((_, i) => i !== index))}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                              {showMrp && (
+                                <TableCell className="py-1.5 bg-blue-50/20">
+                                  <CalculatorInput
+                                    value={variant.mrp ?? ""}
+                                    onChange={(val) => handleVariantChange(index, "mrp", val || null)}
+                                    className="w-24 h-7 text-xs border-blue-200"
+                                  />
+                                </TableCell>
+                              )}
+                              <TableCell className="py-1.5">
+                                <Input
+                                  value={variant.barcode}
+                                  onChange={(e) => handleVariantChange(index, "barcode", e.target.value)}
+                                  className="w-32 h-7 text-xs font-mono border-violet-200"
+                                  placeholder="Barcode"
+                                />
+                              </TableCell>
+                              {!hideOpeningQty && (
+                                <TableCell className="py-1.5">
+                                  <Input
+                                    type="number"
+                                    value={variant.opening_qty || ""}
+                                    onChange={(e) => handleVariantChange(index, "opening_qty", e.target.value === "" ? 0 : Number(e.target.value))}
+                                    className="w-20 h-7 text-xs"
+                                    placeholder="0"
+                                  />
+                                </TableCell>
+                              )}
+                              <TableCell className="text-center py-1.5">
+                                <Switch
+                                  checked={variant.active}
+                                  onCheckedChange={(checked) => handleVariantChange(index, "active", checked)}
+                                  className="h-4 w-7"
+                                />
+                              </TableCell>
+                              <TableCell className="py-1.5">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md"
+                                  onClick={() => setVariants(variants.filter((_, i) => i !== index))}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          </ScrollArea>
-
+                )}
+              </div>
           <DialogFooter className="px-6 py-4 border-t bg-muted/30">
             <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading} className="font-semibold">
               Cancel
