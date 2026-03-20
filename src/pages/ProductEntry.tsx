@@ -400,7 +400,43 @@ const ProductEntry = () => {
     }
   };
 
-  const fetchSizeGroups = async () => {
+  const handleToggleDiscountSetting = async (enabled: boolean) => {
+    if (!currentOrganization) return;
+    setSavingSettings(true);
+    try {
+      const { data: existing } = await supabase
+        .from("settings")
+        .select("purchase_settings")
+        .eq("organization_id", currentOrganization.id)
+        .single();
+      
+      const currentPurchaseSettings = (typeof existing?.purchase_settings === 'object' && existing.purchase_settings !== null)
+        ? existing.purchase_settings as any
+        : {};
+      
+      const updatedPurchaseSettings = {
+        ...currentPurchaseSettings,
+        product_entry_discount_enabled: enabled,
+      };
+
+      await supabase
+        .from("settings")
+        .upsert({
+          organization_id: currentOrganization.id,
+          purchase_settings: updatedPurchaseSettings,
+        }, { onConflict: "organization_id" });
+
+      setShowDiscountFields(enabled);
+      toast({ title: enabled ? "Discounts Enabled" : "Discounts Disabled", description: enabled ? "Purchase & Sale discount fields are now visible" : "Discount fields have been hidden" });
+    } catch (err) {
+      console.error("Failed to update settings:", err);
+      toast({ title: "Error", description: "Failed to save settings", variant: "destructive" });
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+
     if (!currentOrganization) return;
     
     const { data, error } = await supabase
