@@ -466,7 +466,9 @@ const SalesmanCustomerAccount = () => {
         <Tabs defaultValue="transactions">
           <TabsList className="w-full">
             <TabsTrigger value="transactions" className="flex-1">Transactions</TabsTrigger>
-            <TabsTrigger value="pending" className="flex-1">Pending ({summary.pendingInvoices})</TabsTrigger>
+            <TabsTrigger value="pending" className="flex-1">
+              Outstanding ({pendingInvoices.length})
+            </TabsTrigger>
           </TabsList>
           
           <TabsContent value="transactions" className="mt-4 space-y-2">
