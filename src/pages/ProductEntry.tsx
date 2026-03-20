@@ -2731,7 +2731,7 @@ const ProductEntry = () => {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={resetForm}
+                  onClick={() => window.location.reload()}
                   className="font-outfit font-semibold gap-1"
                 >
                   🔄 Reset
