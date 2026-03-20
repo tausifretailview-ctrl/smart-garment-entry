@@ -1859,8 +1859,13 @@ const ProductEntry = () => {
               </div>
             </div>
 
-            {/* Product Details Form */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {/* ── 📋 Product Details ────────────────────────── */}
+            <div className="flex items-center gap-2 pt-1">
+              <span className="text-sm">📋</span>
+              <span className="text-[13.5px] font-bold text-foreground font-outfit">Product Details</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
               <div className="space-y-2">
                 <Label htmlFor="product_name">Product Name *</Label>
                 <Input
