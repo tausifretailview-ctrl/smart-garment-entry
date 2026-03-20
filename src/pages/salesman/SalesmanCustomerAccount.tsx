@@ -17,7 +17,9 @@ import {
   IndianRupee,
   TrendingUp,
   TrendingDown,
-  Clock
+  Clock,
+  FileText,
+  MessageCircle
 } from "lucide-react";
 import { format } from "date-fns";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
@@ -61,6 +63,15 @@ const SalesmanCustomerAccount = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pendingInvoices, setPendingInvoices] = useState<Array<{
+    id: string;
+    sale_number: string;
+    sale_date: string;
+    net_amount: number;
+    paid_amount: number;
+    balance: number;
+    days_overdue: number;
+  }>>([]);
 
   useEffect(() => {
     if (currentOrganization?.id && customerId) {
@@ -223,12 +234,36 @@ const SalesmanCustomerAccount = () => {
       
       const pendingInvoices = (salesData || []).filter(s => s.payment_status !== "completed").length;
 
+      // Build pending invoices list with per-invoice balance
+      const pendingList = (salesData || [])
+        .filter(sale => sale.payment_status !== 'completed' && sale.payment_status !== 'cancelled')
+        .map(sale => {
+          const voucherPaid = voucherPaymentsBySaleId[sale.id] || 0;
+          const effectivePaid = Math.max(sale.paid_amount || 0, voucherPaid);
+          const balance = Math.max(0, sale.net_amount - effectivePaid);
+          const saleDate = new Date(sale.sale_date);
+          const daysOverdue = Math.floor((Date.now() - saleDate.getTime()) / (1000 * 60 * 60 * 24));
+          return {
+            id: sale.id,
+            sale_number: sale.sale_number,
+            sale_date: sale.sale_date,
+            net_amount: sale.net_amount,
+            paid_amount: effectivePaid,
+            balance,
+            days_overdue: daysOverdue,
+          };
+        })
+        .filter(inv => inv.balance > 0)
+        .sort((a, b) => a.days_overdue - b.days_overdue);
+
+      setPendingInvoices(pendingList);
+
       setSummary({
         openingBalance: customerData.opening_balance || 0,
         totalSales,
         totalPaid,
         currentBalance: (customerData.opening_balance || 0) + totalSales - totalPaid,
-        pendingInvoices,
+        pendingInvoices: pendingList.length,
       });
 
     } catch (error) {
@@ -278,6 +313,53 @@ const SalesmanCustomerAccount = () => {
       `*Outstanding: ₹${Math.abs(summary.currentBalance).toLocaleString("en-IN")}${summary.currentBalance < 0 ? " CR" : ""}*` +
       txnList +
       `\n\nPlease clear your dues at the earliest. Thank you! 🙏`;
+
+    await sendWhatsApp(customer.phone, message);
+  };
+
+  const sendInvoiceReminder = async (invoice: typeof pendingInvoices[0]) => {
+    if (!customer?.phone) return;
+
+    const orgSlug = currentOrganization?.slug || '';
+    const invoiceLink = `https://app.inventoryshop.in/${orgSlug}/invoice/view/${invoice.id}`;
+
+    const message =
+      `🔔 *Payment Reminder*\n\n` +
+      `Dear *${customer.customer_name}*,\n\n` +
+      `Invoice *${invoice.sale_number}* dated ${format(new Date(invoice.sale_date), 'dd MMM yyyy')} ` +
+      `is pending.\n\n` +
+      `Invoice Amount: ₹${invoice.net_amount.toLocaleString('en-IN')}\n` +
+      (invoice.paid_amount > 0
+        ? `Paid: ₹${invoice.paid_amount.toLocaleString('en-IN')}\n`
+        : '') +
+      `*Outstanding: ₹${invoice.balance.toLocaleString('en-IN')}*\n\n` +
+      `📄 View Invoice:\n${invoiceLink}\n\n` +
+      `Please clear your dues at the earliest. Thank you! 🙏`;
+
+    await sendWhatsApp(customer.phone, message);
+  };
+
+  const sendAllOutstandingReminder = async () => {
+    if (!customer?.phone || pendingInvoices.length === 0) return;
+
+    const totalOutstanding = pendingInvoices.reduce((s, i) => s + i.balance, 0);
+    const invoiceLines = pendingInvoices
+      .map(inv =>
+        `• ${inv.sale_number} (${format(new Date(inv.sale_date), 'dd MMM')})` +
+        ` — ₹${inv.balance.toLocaleString('en-IN')}` +
+        (inv.days_overdue > 0 ? ` — ${inv.days_overdue}d` : '')
+      )
+      .join('\n');
+
+    const message =
+      `🔔 *Outstanding Invoice Reminder*\n\n` +
+      `Dear *${customer.customer_name}*,\n\n` +
+      `You have *${pendingInvoices.length} pending invoice${pendingInvoices.length > 1 ? 's' : ''}*:\n\n` +
+      `${invoiceLines}\n\n` +
+      `────────────────\n` +
+      `*Total Outstanding: ₹${totalOutstanding.toLocaleString('en-IN')}*\n\n` +
+      `Please clear your dues at the earliest.\n` +
+      `Thank you for your business! 🙏`;
 
     await sendWhatsApp(customer.phone, message);
   };
@@ -384,7 +466,9 @@ const SalesmanCustomerAccount = () => {
         <Tabs defaultValue="transactions">
           <TabsList className="w-full">
             <TabsTrigger value="transactions" className="flex-1">Transactions</TabsTrigger>
-            <TabsTrigger value="pending" className="flex-1">Pending ({summary.pendingInvoices})</TabsTrigger>
+            <TabsTrigger value="pending" className="flex-1">
+              Outstanding ({pendingInvoices.length})
+            </TabsTrigger>
           </TabsList>
           
           <TabsContent value="transactions" className="mt-4 space-y-2">
@@ -422,10 +506,93 @@ const SalesmanCustomerAccount = () => {
             ))}
           </TabsContent>
 
-          <TabsContent value="pending" className="mt-4">
-            <p className="text-center text-muted-foreground py-8">
-              {summary.pendingInvoices} pending invoice{summary.pendingInvoices !== 1 ? "s" : ""}
-            </p>
+          <TabsContent value="pending" className="mt-4 space-y-3">
+            {pendingInvoices.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <IndianRupee className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                <p className="font-medium">No outstanding invoices</p>
+                <p className="text-xs mt-1">All invoices are cleared ✅</p>
+              </div>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  className="w-full h-11 text-green-700 border-green-300 hover:bg-green-50"
+                  onClick={sendAllOutstandingReminder}
+                  disabled={!customer.phone}
+                >
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                  Send All {pendingInvoices.length} Outstanding on WhatsApp
+                </Button>
+
+                {pendingInvoices.map(invoice => (
+                  <Card key={invoice.id} className="border-0 shadow-sm overflow-hidden">
+                    <CardContent className="p-0">
+                      <div className="flex items-start justify-between p-3 pb-2">
+                        <div>
+                          <p className="font-bold text-sm">{invoice.sale_number}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(invoice.sale_date), 'dd MMM yyyy')}
+                            {invoice.days_overdue > 0 && (
+                              <span className={cn(
+                                "ml-2 font-medium",
+                                invoice.days_overdue > 30 ? "text-red-500" : "text-amber-500"
+                              )}>
+                                {invoice.days_overdue}d overdue
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-red-600">
+                            ₹{invoice.balance.toLocaleString('en-IN')}
+                          </p>
+                          {invoice.paid_amount > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              of ₹{invoice.net_amount.toLocaleString('en-IN')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {invoice.paid_amount > 0 && invoice.net_amount > 0 && (
+                        <div className="px-3 pb-2">
+                          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-green-500 rounded-full"
+                              style={{ width: `${Math.min(100, (invoice.paid_amount / invoice.net_amount) * 100)}%` }}
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            ₹{invoice.paid_amount.toLocaleString('en-IN')} paid
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="flex border-t">
+                        <a
+                          href={`https://app.inventoryshop.in/${currentOrganization?.slug || ''}/invoice/view/${invoice.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-blue-600 hover:bg-blue-50 border-r"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          View Invoice
+                        </a>
+                        <button
+                          onClick={() => sendInvoiceReminder(invoice)}
+                          disabled={!customer.phone}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-green-700 hover:bg-green-50 disabled:opacity-40"
+                        >
+                          <MessageCircle className="h-3.5 w-3.5" />
+                          Send Reminder
+                        </button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </>
+            )}
           </TabsContent>
         </Tabs>
       </div>
@@ -434,12 +601,12 @@ const SalesmanCustomerAccount = () => {
       <div className="p-4 bg-background border-t flex gap-3" style={{ paddingBottom: "env(safe-area-inset-bottom, 16px)" }}>
         <Button
           variant="outline"
-          className="flex-1 h-12"
-          onClick={shareStatement}
-          disabled={!customer.phone}
+          className="flex-1 h-12 text-green-700 border-green-300 hover:bg-green-50"
+          onClick={sendAllOutstandingReminder}
+          disabled={!customer.phone || pendingInvoices.length === 0}
         >
-          <Share2 className="h-5 w-5 mr-2" />
-          Share Statement
+          <MessageCircle className="h-5 w-5 mr-2" />
+          Send Outstanding
         </Button>
         <Button
           className="flex-1 h-12"
