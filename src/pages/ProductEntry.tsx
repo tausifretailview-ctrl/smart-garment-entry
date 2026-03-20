@@ -1812,56 +1812,57 @@ const ProductEntry = () => {
               <div className="flex-1 h-px bg-border" />
             </div>
             <div className="space-y-2">
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-4">
                 {imagePreview ? (
-                  <div className="relative">
+                  <div className="relative group">
                     <img
                       src={imagePreview}
                       alt="Product preview"
-                      className="w-16 h-16 object-cover rounded-lg border border-border shadow-sm"
+                      className="w-20 h-20 object-cover rounded-xl border-2 border-primary/20 shadow-sm"
                     />
                     <Button
                       type="button"
                       variant="destructive"
                       size="icon"
-                      className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full shadow-md"
+                      className="absolute -top-2 -right-2 h-6 w-6 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                       onClick={handleRemoveImage}
                     >
-                      <X className="h-2.5 w-2.5" />
+                      <X className="h-3 w-3" />
                     </Button>
                   </div>
                 ) : (
                   <label
                     htmlFor="product_image"
-                    className="w-16 h-16 border-2 border-dashed border-border rounded-lg flex items-center justify-center bg-muted/30 hover:border-primary/40 hover:bg-primary/5 cursor-pointer transition-all"
+                    className="w-20 h-20 border-2 border-dashed border-border rounded-xl flex items-center justify-center bg-gradient-to-br from-primary/5 to-accent/5 hover:border-primary/40 hover:from-primary/10 hover:to-accent/10 cursor-pointer transition-all duration-200"
                   >
-                    <Upload className="h-5 w-5 text-muted-foreground" />
+                    <div className="flex flex-col items-center gap-1">
+                      <Upload className="h-5 w-5 text-muted-foreground" />
+                      <span className="text-[8px] text-muted-foreground font-outfit font-medium">Upload</span>
+                    </div>
                   </label>
                 )}
-                <div className="flex-1 space-y-1">
-                  <label
-                    htmlFor="product_image"
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-dashed border-border bg-muted/20 hover:border-primary/40 hover:bg-primary/5 cursor-pointer transition-all"
-                  >
-                    <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center flex-shrink-0">
-                      <Upload className="h-4 w-4 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-foreground">Click to upload or drag & drop</p>
-                      <p className="text-[10px] text-muted-foreground">Max 5MB — JPG, PNG, WEBP</p>
-                    </div>
-                    <Button type="button" variant="outline" size="sm" className="text-xs font-semibold pointer-events-none">
-                      Browse
-                    </Button>
-                  </label>
-                  <Input
-                    id="product_image"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="hidden"
-                  />
-                </div>
+                <label
+                  htmlFor="product_image"
+                  className="flex-1 flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-dashed border-border bg-muted/20 hover:border-primary/30 hover:bg-primary/5 cursor-pointer transition-all duration-200"
+                >
+                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/10 via-accent/10 to-primary/5 flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <Upload className="h-4.5 w-4.5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-foreground font-outfit">Click to upload or drag & drop</p>
+                    <p className="text-[10px] text-muted-foreground font-outfit mt-0.5">Max 5MB — JPG, PNG, WEBP</p>
+                  </div>
+                  <span className="px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-semibold text-muted-foreground font-outfit pointer-events-none shadow-sm">
+                    Browse
+                  </span>
+                </label>
+                <Input
+                  id="product_image"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden"
+                />
               </div>
             </div>
 
