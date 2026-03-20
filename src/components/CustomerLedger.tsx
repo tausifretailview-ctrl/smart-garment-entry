@@ -1226,23 +1226,38 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       ? `\n📅 Period: ${startDate ? format(startDate, "dd MMM yyyy") : "Beginning"} - ${endDate ? format(endDate, "dd MMM yyyy") : "Today"}`
       : "";
 
-    // Build pending invoices summary (only invoices with remaining balance)
+    // Build pending invoices from transaction data — use running balance approach
+    // For each invoice, sum all credits (payments) that reference it to get remaining balance
     const allTxns = transactions || [];
-    const invoiceTxns = allTxns.filter(t => t.type === 'invoice' && t.debit > 0);
-    // Track payments per invoice reference to calculate remaining balance
-    const paymentsByRef = new Map<string, number>();
+    const invoiceTxns = allTxns.filter(t => t.type === 'invoice' && t.debit > 0 && t.id !== 'opening-balance');
+    
+    // Sum all credits per invoice ID from payment transactions
+    const totalPaidPerInvoice = new Map<string, number>();
     allTxns.forEach(t => {
-      if (t.credit > 0 && t.reference) {
-        // Match payments that reference an invoice (e.g. "INV/25-26/111 Payment")
-        const baseRef = t.reference.replace(/ Payment$/, '');
-        paymentsByRef.set(baseRef, (paymentsByRef.get(baseRef) || 0) + t.credit);
+      if (t.credit > 0 && t.type === 'payment' && t.reference) {
+        // Payment transactions share the same reference (sale_number) as the invoice
+        // Find the invoice with matching reference to get its ID
+        const matchingInvoice = invoiceTxns.find(inv => inv.reference === t.reference);
+        if (matchingInvoice) {
+          totalPaidPerInvoice.set(matchingInvoice.id, (totalPaidPerInvoice.get(matchingInvoice.id) || 0) + t.credit);
+        }
+      }
+    });
+    
+    // Also account for sale return adjustments (cn_adjustment type)
+    allTxns.forEach(t => {
+      if (t.credit > 0 && (t.type as string) === 'cn_adjustment' && t.reference) {
+        const matchingInvoice = invoiceTxns.find(inv => inv.reference === t.reference);
+        if (matchingInvoice) {
+          totalPaidPerInvoice.set(matchingInvoice.id, (totalPaidPerInvoice.get(matchingInvoice.id) || 0) + t.credit);
+        }
       }
     });
     
     const pendingInvoices = invoiceTxns
       .map(t => {
-        const paid = paymentsByRef.get(t.reference) || 0;
-        const remaining = Math.round(t.debit - paid);
+        const totalPaid = totalPaidPerInvoice.get(t.id) || 0;
+        const remaining = Math.round(t.debit - totalPaid);
         return { ...t, remaining };
       })
       .filter(t => t.remaining > 0);
