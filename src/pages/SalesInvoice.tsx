@@ -443,7 +443,7 @@ export default function SalesInvoice() {
         const { data, error } = await supabase
           .from('products')
           .select(`
-            id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, product_type, status, category, style, color,
+            id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, product_type, status, category, style, color, sale_discount_type, sale_discount_value,
             product_variants (
               id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, deleted_at,
               last_purchase_sale_price, last_purchase_mrp, last_purchase_date
@@ -850,7 +850,7 @@ export default function SalesInvoice() {
           .select(`
             id, size, pur_price, sale_price, mrp, barcode, active, color, stock_qty, product_id,
             last_purchase_sale_price, last_purchase_mrp, last_purchase_date,
-            products (id, product_name, brand, category, style, color, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, size_group_id)
+            products (id, product_name, brand, category, style, color, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, size_group_id, sale_discount_type, sale_discount_value)
           `)
           .eq("organization_id", currentOrganization.id)
           .eq("active", true)
@@ -1192,7 +1192,14 @@ export default function SalesInvoice() {
     
     const customerHasMasterDiscount = selectedCustomer?.discount_percent && selectedCustomer.discount_percent > 0;
     const brandDiscount = customerHasMasterDiscount ? 0 : getBrandDiscount(product.brand);
-    const discountPercent = brandDiscount > 0 ? brandDiscount : 0;
+    // Auto-apply product-level sale discount if no brand/customer discount
+    const productSaleDiscount = (() => {
+      const sdt = (product as any).sale_discount_type;
+      const sdv = (product as any).sale_discount_value || 0;
+      if (sdv > 0 && (!sdt || sdt === 'percent')) return sdv;
+      return 0;
+    })();
+    const discountPercent = brandDiscount > 0 ? brandDiscount : (productSaleDiscount > 0 ? productSaleDiscount : 0);
 
     // Use functional update with duplicate check INSIDE to prevent stale state during rapid barcode scans
     setLineItems(prev => {

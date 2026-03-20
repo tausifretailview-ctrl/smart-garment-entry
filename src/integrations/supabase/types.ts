@@ -2850,7 +2850,11 @@ export type Database = {
           organization_id: string
           product_name: string
           product_type: string
+          purchase_discount_type: string | null
+          purchase_discount_value: number | null
           purchase_gst_percent: number | null
+          sale_discount_type: string | null
+          sale_discount_value: number | null
           sale_gst_percent: number | null
           size_group_id: string | null
           status: string | null
@@ -2874,7 +2878,11 @@ export type Database = {
           organization_id: string
           product_name: string
           product_type?: string
+          purchase_discount_type?: string | null
+          purchase_discount_value?: number | null
           purchase_gst_percent?: number | null
+          sale_discount_type?: string | null
+          sale_discount_value?: number | null
           sale_gst_percent?: number | null
           size_group_id?: string | null
           status?: string | null
@@ -2898,7 +2906,11 @@ export type Database = {
           organization_id?: string
           product_name?: string
           product_type?: string
+          purchase_discount_type?: string | null
+          purchase_discount_value?: number | null
           purchase_gst_percent?: number | null
+          sale_discount_type?: string | null
+          sale_discount_value?: number | null
           sale_gst_percent?: number | null
           size_group_id?: string | null
           status?: string | null

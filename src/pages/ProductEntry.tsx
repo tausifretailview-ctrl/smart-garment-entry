@@ -77,6 +77,10 @@ interface ProductForm {
   default_mrp: number | undefined;
   status: string;
   image_url?: string;
+  purchase_discount_type: 'percent' | 'flat' | null;
+  purchase_discount_value: number;
+  sale_discount_type: 'percent' | 'flat' | null;
+  sale_discount_value: number;
 }
 
 const ProductEntry = () => {
@@ -121,6 +125,7 @@ const ProductEntry = () => {
   const [hsnCodes, setHsnCodes] = useState<string[]>([]);
   const [styles, setStyles] = useState<string[]>([]);
   
+  const [showDiscountFields, setShowDiscountFields] = useState(false);
   const [formData, setFormData] = useState<ProductForm>({
     product_type: "goods",
     product_name: "",
@@ -138,6 +143,10 @@ const ProductEntry = () => {
     default_sale_price: undefined,
     default_mrp: undefined,
     status: "active",
+    purchase_discount_type: null,
+    purchase_discount_value: 0,
+    sale_discount_type: null,
+    sale_discount_value: 0,
   });
   const [colorInput, setColorInput] = useState("");
   const [markupPercent, setMarkupPercent] = useState<string>("");
@@ -383,6 +392,8 @@ const ProductEntry = () => {
         }
         // Set show_mrp from purchase settings
         setShowMrp(purchaseSettings.show_mrp || false);
+        // Set discount fields visibility
+        setShowDiscountFields(purchaseSettings.product_entry_discount_enabled || false);
       }
     }
   };
@@ -623,6 +634,10 @@ const ProductEntry = () => {
           default_mrp: undefined,
           status: product.status || "active",
           image_url: product.image_url,
+          purchase_discount_type: (product as any).purchase_discount_type || null,
+          purchase_discount_value: (product as any).purchase_discount_value || 0,
+          sale_discount_type: (product as any).sale_discount_type || null,
+          sale_discount_value: (product as any).sale_discount_value || 0,
         });
 
         // Set image preview if exists
@@ -1129,6 +1144,10 @@ const ProductEntry = () => {
           status: formData.status,
           image_url: imageUrl,
           size_group_id: formData.size_group_id || null,
+          purchase_discount_type: formData.purchase_discount_value > 0 ? (formData.purchase_discount_type || 'percent') : null,
+          purchase_discount_value: formData.purchase_discount_value || 0,
+          sale_discount_type: formData.sale_discount_value > 0 ? (formData.sale_discount_type || 'percent') : null,
+          sale_discount_value: formData.sale_discount_value || 0,
         };
         
         const { data, error: productError } = await supabase
@@ -1263,6 +1282,10 @@ const ProductEntry = () => {
           image_url: imageUrl,
           organization_id: currentOrganization.id,
           size_group_id: formData.size_group_id || null,
+          purchase_discount_type: formData.purchase_discount_value > 0 ? (formData.purchase_discount_type || 'percent') : null,
+          purchase_discount_value: formData.purchase_discount_value || 0,
+          sale_discount_type: formData.sale_discount_value > 0 ? (formData.sale_discount_type || 'percent') : null,
+          sale_discount_value: formData.sale_discount_value || 0,
         };
         const { data, error: productError } = await supabase
           .from("products")
@@ -2213,6 +2236,113 @@ const ProductEntry = () => {
                 </div>
               )}
 
+              {/* Purchase Discount Section */}
+              {showDiscountFields && (
+                <div className="col-span-full">
+                  <div className="rounded-lg border border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-800 p-4 space-y-3 relative">
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-sm">Purchase Discount</Label>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500 text-white">NEW</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="inline-flex rounded-md border overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, purchase_discount_type: 'percent' }))}
+                          className={`px-3 py-1.5 text-xs font-semibold transition-colors ${(formData.purchase_discount_type || 'percent') === 'percent' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'}`}
+                        >%</button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, purchase_discount_type: 'flat' }))}
+                          className={`px-3 py-1.5 text-xs font-semibold transition-colors ${formData.purchase_discount_type === 'flat' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'}`}
+                        >₹</button>
+                      </div>
+                      <Input
+                        type="number"
+                        min="0"
+                        max={formData.purchase_discount_type === 'flat' ? (formData.default_pur_price ?? 999999) : 100}
+                        step="0.01"
+                        value={formData.purchase_discount_value || ""}
+                        onChange={(e) => setFormData(prev => ({ ...prev, purchase_discount_value: parseFloat(e.target.value) || 0 }))}
+                        placeholder="0"
+                        className="w-24 h-9"
+                      />
+                      <div className="flex-1 text-right">
+                        <p className="text-xs text-muted-foreground">Net Purchase</p>
+                        <p className="font-bold text-sm">
+                          ₹{(() => {
+                            const pp = formData.default_pur_price ?? 0;
+                            const dv = formData.purchase_discount_value || 0;
+                            if (dv <= 0 || pp <= 0) return pp.toLocaleString('en-IN');
+                            const net = (formData.purchase_discount_type || 'percent') === 'percent'
+                              ? pp - (pp * dv / 100)
+                              : pp - dv;
+                            return Math.max(0, net).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+                          })()}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">💡 This discount will appear in the Discount column on Purchase Bills automatically</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Sale Discount Section */}
+              {showDiscountFields && (
+                <div className="col-span-full">
+                  <div className="rounded-lg border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-800 p-4 space-y-3 relative">
+                    <div className="flex items-center justify-between">
+                      <Label className="font-semibold text-sm">Sale Discount</Label>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500 text-white">NEW</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="inline-flex rounded-md border overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, sale_discount_type: 'percent' }))}
+                          className={`px-3 py-1.5 text-xs font-semibold transition-colors ${(formData.sale_discount_type || 'percent') === 'percent' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'}`}
+                        >%</button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, sale_discount_type: 'flat' }))}
+                          className={`px-3 py-1.5 text-xs font-semibold transition-colors ${formData.sale_discount_type === 'flat' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'}`}
+                        >₹</button>
+                      </div>
+                      <Input
+                        type="number"
+                        min="0"
+                        max={formData.sale_discount_type === 'flat' ? (formData.default_sale_price ?? 999999) : 100}
+                        step="0.01"
+                        value={formData.sale_discount_value || ""}
+                        onChange={(e) => setFormData(prev => ({ ...prev, sale_discount_value: parseFloat(e.target.value) || 0 }))}
+                        placeholder="0"
+                        className="w-24 h-9"
+                      />
+                      <div className="flex-1 text-right">
+                        <p className="text-xs text-muted-foreground">Net Sale Price</p>
+                        <p className="font-bold text-sm">
+                          ₹{(() => {
+                            const sp = formData.default_sale_price ?? 0;
+                            const dv = formData.sale_discount_value || 0;
+                            if (dv <= 0 || sp <= 0) return sp.toLocaleString('en-IN');
+                            const net = (formData.sale_discount_type || 'percent') === 'percent'
+                              ? sp - (sp * dv / 100)
+                              : sp - dv;
+                            return Math.max(0, net).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+                          })()}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">🛒 This discount auto-applies on Sale & POS window when product is scanned</p>
+                  </div>
+                </div>
+              )}
+
+              {!showDiscountFields && (
+                <div className="col-span-full">
+                  <p className="text-xs text-muted-foreground">💡 Enable Purchase & Sale Discounts from ⚙️ Settings → Purchase Settings</p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="status">Status</Label>
                 <Select

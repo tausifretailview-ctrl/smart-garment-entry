@@ -724,7 +724,9 @@ const PurchaseEntry = () => {
             sale_gst_percent,
             default_pur_price,
             default_sale_price,
-            size_group_id
+            size_group_id,
+            purchase_discount_type,
+            purchase_discount_value
           )
         `)
         .eq("organization_id", currentOrganization?.id)
@@ -1043,7 +1045,9 @@ const PurchaseEntry = () => {
             sale_gst_percent,
             default_pur_price,
             default_sale_price,
-            size_group_id
+            size_group_id,
+            purchase_discount_type,
+            purchase_discount_value
           )
         `)
         .eq("active", true)
@@ -1186,7 +1190,9 @@ const PurchaseEntry = () => {
           purchase_gst_percent,
           sale_gst_percent,
           default_pur_price,
-          default_sale_price
+          default_sale_price,
+          purchase_discount_type,
+          purchase_discount_value
         )
       `)
       .eq("product_id", productId)
@@ -1234,7 +1240,12 @@ const PurchaseEntry = () => {
         gst_per: product.purchase_gst_percent || product.gst_per || 0,
         hsn_code: product.hsn_code || "",
         barcode: barcode,
-        discount_percent: 0,
+        discount_percent: (() => {
+          const pdt = (product as any).purchase_discount_type;
+          const pdv = (product as any).purchase_discount_value || 0;
+          if (pdv > 0 && (!pdt || pdt === 'percent')) return pdv;
+          return 0;
+        })(),
         brand: product.brand || "",
         category: product.category || "",
         color: v.color || product.color || "",
@@ -1345,7 +1356,12 @@ const PurchaseEntry = () => {
         gst_per: selectedProduct.purchase_gst_percent || selectedProduct.gst_per || 0,
         hsn_code: selectedProduct.hsn_code || "",
         barcode: barcode,
-        discount_percent: 0,
+        discount_percent: (() => {
+          const pdt = (selectedProduct as any).purchase_discount_type;
+          const pdv = (selectedProduct as any).purchase_discount_value || 0;
+          if (pdv > 0 && (!pdt || pdt === 'percent')) return pdv;
+          return 0;
+        })(),
         brand: selectedProduct.brand || "",
         category: selectedProduct.category || "",
         color: newColor || variant.color || selectedProduct.color || "",
