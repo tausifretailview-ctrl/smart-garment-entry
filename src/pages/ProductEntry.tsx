@@ -1766,42 +1766,62 @@ const ProductEntry = () => {
               </div>
             )}
 
+            {/* ── 📸 Product Image ────────────────────────── */}
+            <div className="flex items-center gap-2 pt-2">
+              <span className="text-sm">📸</span>
+              <span className="text-[13.5px] font-bold text-foreground font-outfit">Product Image</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
             <div className="space-y-2">
-              <Label htmlFor="product_image">Product Image</Label>
               <div className="flex items-start gap-3">
                 {imagePreview ? (
                   <div className="relative">
                     <img
                       src={imagePreview}
                       alt="Product preview"
-                      className="w-16 h-16 object-cover rounded border border-border"
+                      className="w-16 h-16 object-cover rounded-lg border border-border shadow-sm"
                     />
                     <Button
                       type="button"
                       variant="destructive"
                       size="icon"
-                      className="absolute -top-1 -right-1 h-4 w-4 rounded-full"
+                      className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full shadow-md"
                       onClick={handleRemoveImage}
                     >
-                      <X className="h-2 w-2" />
+                      <X className="h-2.5 w-2.5" />
                     </Button>
                   </div>
                 ) : (
-                  <div className="w-16 h-16 border-2 border-dashed border-border rounded flex items-center justify-center bg-muted/50">
+                  <label
+                    htmlFor="product_image"
+                    className="w-16 h-16 border-2 border-dashed border-border rounded-lg flex items-center justify-center bg-muted/30 hover:border-primary/40 hover:bg-primary/5 cursor-pointer transition-all"
+                  >
                     <Upload className="h-5 w-5 text-muted-foreground" />
-                  </div>
+                  </label>
                 )}
-                <div className="flex-1">
+                <div className="flex-1 space-y-1">
+                  <label
+                    htmlFor="product_image"
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-dashed border-border bg-muted/20 hover:border-primary/40 hover:bg-primary/5 cursor-pointer transition-all"
+                  >
+                    <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center flex-shrink-0">
+                      <Upload className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-foreground">Click to upload or drag & drop</p>
+                      <p className="text-[10px] text-muted-foreground">Max 5MB — JPG, PNG, WEBP</p>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" className="text-xs font-semibold pointer-events-none">
+                      Browse
+                    </Button>
+                  </label>
                   <Input
                     id="product_image"
                     type="file"
                     accept="image/*"
                     onChange={handleImageChange}
-                    className="cursor-pointer"
+                    className="hidden"
                   />
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Max 5MB. JPG, PNG, WEBP
-                  </p>
                 </div>
               </div>
             </div>
