@@ -1826,34 +1826,37 @@ const ProductEntry = () => {
               </div>
             </div>
 
-            {/* Product Type Selection */}
+            {/* ── 📦 Product Type ──────────────────────────── */}
+            <div className="flex items-center gap-2 pt-1">
+              <span className="text-sm">📦</span>
+              <span className="text-[13.5px] font-bold text-foreground font-outfit">Product Type</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
             <div className="space-y-2">
-              <Label>Product Type *</Label>
-              <RadioGroup
-                value={formData.product_type}
-                onValueChange={(value: ProductType) =>
-                  setFormData({ ...formData, product_type: value, size_group_id: value === 'service' ? '' : formData.size_group_id })
-                }
-                className="flex gap-4"
-              >
-                <div className="flex items-center space-x-1.5">
-                  <RadioGroupItem value="goods" id="type-goods" className="h-4 w-4" />
-                  <Label htmlFor="type-goods" className="font-normal cursor-pointer">Goods</Label>
-                </div>
-                <div className="flex items-center space-x-1.5">
-                  <RadioGroupItem value="service" id="type-service" className="h-4 w-4" />
-                  <Label htmlFor="type-service" className="font-normal cursor-pointer">Service</Label>
-                </div>
-                <div className="flex items-center space-x-1.5">
-                  <RadioGroupItem value="combo" id="type-combo" className="h-4 w-4" />
-                  <Label htmlFor="type-combo" className="font-normal cursor-pointer">Combo</Label>
-                </div>
-              </RadioGroup>
-              <p className="text-xs text-muted-foreground">
-                {formData.product_type === 'goods' && "Goods - Physical items with stock tracking"}
-                {formData.product_type === 'service' && "Service - No stock tracking"}
-                {formData.product_type === 'combo' && "Combo - Bundle of products"}
-              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { value: 'goods' as ProductType, icon: '📦', label: 'Goods', desc: 'Physical items' },
+                  { value: 'service' as ProductType, icon: '🔧', label: 'Service', desc: 'Service based' },
+                  { value: 'combo' as ProductType, icon: '🎁', label: 'Combo', desc: 'Bundle pack' },
+                ]).map(pt => (
+                  <button
+                    key={pt.value}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, product_type: pt.value, size_group_id: pt.value === 'service' ? '' : formData.size_group_id })}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-lg border-[1.5px] cursor-pointer transition-all duration-200 text-left ${
+                      formData.product_type === pt.value
+                        ? 'border-primary bg-primary/5 shadow-sm'
+                        : 'border-border bg-card hover:border-primary/30 hover:bg-muted/30'
+                    }`}
+                  >
+                    <span className="text-base">{pt.icon}</span>
+                    <div className="min-w-0">
+                      <p className={`text-[13px] font-bold leading-tight ${formData.product_type === pt.value ? 'text-primary' : 'text-foreground'}`}>{pt.label}</p>
+                      <p className="text-[10.5px] text-muted-foreground leading-tight">{pt.desc}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Product Details Form */}
