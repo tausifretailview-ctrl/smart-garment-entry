@@ -317,6 +317,53 @@ const SalesmanCustomerAccount = () => {
     await sendWhatsApp(customer.phone, message);
   };
 
+  const sendInvoiceReminder = async (invoice: typeof pendingInvoices[0]) => {
+    if (!customer?.phone) return;
+
+    const orgSlug = currentOrganization?.slug || '';
+    const invoiceLink = `https://app.inventoryshop.in/${orgSlug}/invoice/view/${invoice.id}`;
+
+    const message =
+      `🔔 *Payment Reminder*\n\n` +
+      `Dear *${customer.customer_name}*,\n\n` +
+      `Invoice *${invoice.sale_number}* dated ${format(new Date(invoice.sale_date), 'dd MMM yyyy')} ` +
+      `is pending.\n\n` +
+      `Invoice Amount: ₹${invoice.net_amount.toLocaleString('en-IN')}\n` +
+      (invoice.paid_amount > 0
+        ? `Paid: ₹${invoice.paid_amount.toLocaleString('en-IN')}\n`
+        : '') +
+      `*Outstanding: ₹${invoice.balance.toLocaleString('en-IN')}*\n\n` +
+      `📄 View Invoice:\n${invoiceLink}\n\n` +
+      `Please clear your dues at the earliest. Thank you! 🙏`;
+
+    await sendWhatsApp(customer.phone, message);
+  };
+
+  const sendAllOutstandingReminder = async () => {
+    if (!customer?.phone || pendingInvoices.length === 0) return;
+
+    const totalOutstanding = pendingInvoices.reduce((s, i) => s + i.balance, 0);
+    const invoiceLines = pendingInvoices
+      .map(inv =>
+        `• ${inv.sale_number} (${format(new Date(inv.sale_date), 'dd MMM')})` +
+        ` — ₹${inv.balance.toLocaleString('en-IN')}` +
+        (inv.days_overdue > 0 ? ` — ${inv.days_overdue}d` : '')
+      )
+      .join('\n');
+
+    const message =
+      `🔔 *Outstanding Invoice Reminder*\n\n` +
+      `Dear *${customer.customer_name}*,\n\n` +
+      `You have *${pendingInvoices.length} pending invoice${pendingInvoices.length > 1 ? 's' : ''}*:\n\n` +
+      `${invoiceLines}\n\n` +
+      `────────────────\n` +
+      `*Total Outstanding: ₹${totalOutstanding.toLocaleString('en-IN')}*\n\n` +
+      `Please clear your dues at the earliest.\n` +
+      `Thank you for your business! 🙏`;
+
+    await sendWhatsApp(customer.phone, message);
+  };
+
   if (loading) {
     return (
       <div className="p-4 space-y-4">
