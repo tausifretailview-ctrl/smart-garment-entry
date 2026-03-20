@@ -942,24 +942,27 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 )}
               </div>
 
-              {/* Product Type */}
-              <div className="flex items-center justify-between">
-                <div className="space-y-2">
-                  <Label>Product Type</Label>
-                  <RadioGroup
-                    value={formData.product_type}
-                    onValueChange={(value: ProductType) => setFormData({ ...formData, product_type: value })}
-                    className="flex gap-4"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="goods" id="goods" />
-                      <Label htmlFor="goods">Goods</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="service" id="service" />
-                      <Label htmlFor="service">Service</Label>
-                    </div>
-                  </RadioGroup>
+              {/* Product Type — Card Selector */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex gap-2 flex-1">
+                  {([
+                    { value: 'goods' as ProductType, icon: '📦', label: 'Goods' },
+                    { value: 'service' as ProductType, icon: '🔧', label: 'Service' },
+                  ]).map(pt => (
+                    <button
+                      key={pt.value}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, product_type: pt.value })}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border-[1.5px] cursor-pointer transition-all duration-200 text-left ${
+                        formData.product_type === pt.value
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border bg-card hover:border-primary/30'
+                      }`}
+                    >
+                      <span className="text-sm">{pt.icon}</span>
+                      <span className={`text-xs font-bold ${formData.product_type === pt.value ? 'text-primary' : 'text-foreground'}`}>{pt.label}</span>
+                    </button>
+                  ))}
                 </div>
 
                 {/* Image Import */}
@@ -976,12 +979,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       <img
                         src={productImage}
                         alt="Product"
-                        className="h-12 w-12 object-cover rounded border"
+                        className="h-12 w-12 object-cover rounded-lg border shadow-sm"
                       />
                       <button
                         type="button"
                         onClick={handleRemoveImage}
-                        className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 hover:bg-destructive/90"
+                        className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full p-0.5 hover:bg-destructive/90 shadow-sm"
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -992,7 +995,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       variant="outline"
                       size="sm"
                       onClick={() => imageInputRef.current?.click()}
-                      className="gap-1"
+                      className="gap-1.5 font-semibold"
                     >
                       <ImagePlus className="h-4 w-4" />
                       Image
