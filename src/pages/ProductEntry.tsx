@@ -2414,16 +2414,19 @@ const ProductEntry = () => {
               </div>
             </div>
 
-            {/* Generate Variants Button */}
-            <div className="flex justify-start">
-                <Button
-                  onClick={handleGenerateSizeVariants}
-                  disabled={formData.product_type !== 'service' && !formData.size_group_id}
-                  variant="default"
-                  size="sm"
-                  className="gap-1 bg-primary hover:bg-primary/90 !text-white font-semibold shadow-md"
-                >
-                  <Plus className="h-4 w-4" />
+            {/* ── 👟 Size Variants ────────────────────────── */}
+            <div className="flex items-center gap-2 pt-1">
+              <span className="text-sm">👟</span>
+              <span className="text-[13.5px] font-bold text-foreground font-outfit">Size Variants</span>
+              <div className="flex-1 h-px bg-border" />
+              <Button
+                onClick={handleGenerateSizeVariants}
+                disabled={formData.product_type !== 'service' && !formData.size_group_id}
+                variant="outline"
+                size="sm"
+                className="gap-1.5 font-outfit font-semibold text-primary border-primary/30 hover:bg-primary/5"
+              >
+                <Plus className="h-3.5 w-3.5" />
                 {formData.product_type === 'service' ? 'Generate Service Variant' : 'Generate Size Variants'}
               </Button>
             </div>
@@ -2432,7 +2435,7 @@ const ProductEntry = () => {
             {showVariants && variants.length > 0 && (
               <div ref={variantsSectionRef} className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold">
+                  <h3 className="text-sm font-semibold font-outfit">
                     {formData.product_type === 'service' ? 'Service Details' : `Variants (${variants.length})`}
                   </h3>
                   <Button
