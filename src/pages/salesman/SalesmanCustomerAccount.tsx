@@ -506,10 +506,93 @@ const SalesmanCustomerAccount = () => {
             ))}
           </TabsContent>
 
-          <TabsContent value="pending" className="mt-4">
-            <p className="text-center text-muted-foreground py-8">
-              {summary.pendingInvoices} pending invoice{summary.pendingInvoices !== 1 ? "s" : ""}
-            </p>
+          <TabsContent value="pending" className="mt-4 space-y-3">
+            {pendingInvoices.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <IndianRupee className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                <p className="font-medium">No outstanding invoices</p>
+                <p className="text-xs mt-1">All invoices are cleared ✅</p>
+              </div>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  className="w-full h-11 text-green-700 border-green-300 hover:bg-green-50"
+                  onClick={sendAllOutstandingReminder}
+                  disabled={!customer.phone}
+                >
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                  Send All {pendingInvoices.length} Outstanding on WhatsApp
+                </Button>
+
+                {pendingInvoices.map(invoice => (
+                  <Card key={invoice.id} className="border-0 shadow-sm overflow-hidden">
+                    <CardContent className="p-0">
+                      <div className="flex items-start justify-between p-3 pb-2">
+                        <div>
+                          <p className="font-bold text-sm">{invoice.sale_number}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(invoice.sale_date), 'dd MMM yyyy')}
+                            {invoice.days_overdue > 0 && (
+                              <span className={cn(
+                                "ml-2 font-medium",
+                                invoice.days_overdue > 30 ? "text-red-500" : "text-amber-500"
+                              )}>
+                                {invoice.days_overdue}d overdue
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-red-600">
+                            ₹{invoice.balance.toLocaleString('en-IN')}
+                          </p>
+                          {invoice.paid_amount > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              of ₹{invoice.net_amount.toLocaleString('en-IN')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {invoice.paid_amount > 0 && invoice.net_amount > 0 && (
+                        <div className="px-3 pb-2">
+                          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-green-500 rounded-full"
+                              style={{ width: `${Math.min(100, (invoice.paid_amount / invoice.net_amount) * 100)}%` }}
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            ₹{invoice.paid_amount.toLocaleString('en-IN')} paid
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="flex border-t">
+                        <a
+                          href={`https://app.inventoryshop.in/${currentOrganization?.slug || ''}/invoice/view/${invoice.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-blue-600 hover:bg-blue-50 border-r"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          View Invoice
+                        </a>
+                        <button
+                          onClick={() => sendInvoiceReminder(invoice)}
+                          disabled={!customer.phone}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-green-700 hover:bg-green-50 disabled:opacity-40"
+                        >
+                          <MessageCircle className="h-3.5 w-3.5" />
+                          Send Reminder
+                        </button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </>
+            )}
           </TabsContent>
         </Tabs>
       </div>
