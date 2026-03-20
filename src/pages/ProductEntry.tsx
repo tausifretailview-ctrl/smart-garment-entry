@@ -1144,6 +1144,10 @@ const ProductEntry = () => {
           status: formData.status,
           image_url: imageUrl,
           size_group_id: formData.size_group_id || null,
+          purchase_discount_type: formData.purchase_discount_value > 0 ? (formData.purchase_discount_type || 'percent') : null,
+          purchase_discount_value: formData.purchase_discount_value || 0,
+          sale_discount_type: formData.sale_discount_value > 0 ? (formData.sale_discount_type || 'percent') : null,
+          sale_discount_value: formData.sale_discount_value || 0,
         };
         
         const { data, error: productError } = await supabase
