@@ -17,7 +17,9 @@ import {
   IndianRupee,
   TrendingUp,
   TrendingDown,
-  Clock
+  Clock,
+  FileText,
+  MessageCircle
 } from "lucide-react";
 import { format } from "date-fns";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
