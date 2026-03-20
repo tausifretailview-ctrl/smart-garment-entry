@@ -632,6 +632,10 @@ const ProductEntry = () => {
           default_mrp: undefined,
           status: product.status || "active",
           image_url: product.image_url,
+          purchase_discount_type: (product as any).purchase_discount_type || null,
+          purchase_discount_value: (product as any).purchase_discount_value || 0,
+          sale_discount_type: (product as any).sale_discount_type || null,
+          sale_discount_value: (product as any).sale_discount_value || 0,
         });
 
         // Set image preview if exists
