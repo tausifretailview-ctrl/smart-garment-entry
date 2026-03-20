@@ -241,23 +241,30 @@ const SalesmanCustomerAccount = () => {
   const shareStatement = async () => {
     if (!customer?.phone || !summary) return;
 
-    // Get recent transactions (excluding opening balance entry)
-    const recentTxns = transactions
-      .filter(t => t.id !== "opening")
-      .slice(-10); // Last 10 transactions
+    // Build pending invoices list (only invoices with remaining balance)
+    const invoiceTxns = transactions.filter(t => t.type === "sale" && t.debit > 0 && t.id !== "opening");
+    const paymentsByRef = new Map<string, number>();
+    transactions.forEach(t => {
+      if (t.credit > 0 && t.reference) {
+        const baseRef = t.reference.replace(/ Payment$/, '');
+        paymentsByRef.set(baseRef, (paymentsByRef.get(baseRef) || 0) + t.credit);
+      }
+    });
+    
+    const pendingInvoices = invoiceTxns
+      .map(t => {
+        const paid = paymentsByRef.get(t.reference) || 0;
+        const remaining = Math.round(t.debit - paid);
+        return { ...t, remaining };
+      })
+      .filter(t => t.remaining > 0);
 
     let txnList = "";
-    if (recentTxns.length > 0) {
-      txnList = "\n📋 *Recent Transactions:*\n";
-      recentTxns.forEach(txn => {
-        const dateStr = txn.date === "Opening Balance" 
-          ? "Opening" 
-          : format(new Date(txn.date), "dd/MM/yy");
-        const timeStr = txn.timestamp ? ` ${format(new Date(txn.timestamp), "hh:mm a")}` : '';
-        const amount = txn.debit > 0 
-          ? `+₹${txn.debit.toLocaleString("en-IN")}` 
-          : `-₹${txn.credit.toLocaleString("en-IN")}`;
-        txnList += `${dateStr}${timeStr} | ${txn.reference} | ${amount}\n`;
+    if (pendingInvoices.length > 0) {
+      txnList = "\n📋 *Pending Invoices:*\n";
+      pendingInvoices.forEach(txn => {
+        const dateStr = format(new Date(txn.date), "dd/MM/yy");
+        txnList += `${dateStr} | ${txn.reference} | ₹${Math.round(txn.debit).toLocaleString("en-IN")} | Bal: ₹${txn.remaining.toLocaleString("en-IN")}\n`;
       });
     }
 
@@ -268,8 +275,7 @@ const SalesmanCustomerAccount = () => {
       `Total Sales: ₹${summary.totalSales.toLocaleString("en-IN")}\n` +
       `Total Paid: ₹${summary.totalPaid.toLocaleString("en-IN")}\n` +
       `────────────────\n` +
-      `*Outstanding: ₹${Math.abs(summary.currentBalance).toLocaleString("en-IN")}${summary.currentBalance < 0 ? " CR" : ""}*\n` +
-      `Pending Invoices: ${summary.pendingInvoices}` +
+      `*Outstanding: ₹${Math.abs(summary.currentBalance).toLocaleString("en-IN")}${summary.currentBalance < 0 ? " CR" : ""}*` +
       txnList +
       `\n\nPlease clear your dues at the earliest. Thank you! 🙏`;
 

@@ -1226,19 +1226,33 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       ? `\n📅 Period: ${startDate ? format(startDate, "dd MMM yyyy") : "Beginning"} - ${endDate ? format(endDate, "dd MMM yyyy") : "Today"}`
       : "";
 
-    // Build last 5 transactions summary
-    const recentTxns = transactions?.slice(-5) || [];
+    // Build pending invoices summary (only invoices with remaining balance)
+    const allTxns = transactions || [];
+    const invoiceTxns = allTxns.filter(t => t.type === 'invoice' && t.debit > 0);
+    // Track payments per invoice reference to calculate remaining balance
+    const paymentsByRef = new Map<string, number>();
+    allTxns.forEach(t => {
+      if (t.credit > 0 && t.reference) {
+        // Match payments that reference an invoice (e.g. "INV/25-26/111 Payment")
+        const baseRef = t.reference.replace(/ Payment$/, '');
+        paymentsByRef.set(baseRef, (paymentsByRef.get(baseRef) || 0) + t.credit);
+      }
+    });
+    
+    const pendingInvoices = invoiceTxns
+      .map(t => {
+        const paid = paymentsByRef.get(t.reference) || 0;
+        const remaining = Math.round(t.debit - paid);
+        return { ...t, remaining };
+      })
+      .filter(t => t.remaining > 0);
+
     let txnSummary = "";
-    if (recentTxns.length > 0) {
-      txnSummary = "\n\n📋 *Recent Transactions:*";
-      recentTxns.forEach((t) => {
-      const dateStr = t.id === 'opening-balance' ? 'Opening' : format(new Date(t.date), "dd/MM/yy");
-        const timeStr = t.timestamp ? ` ${format(new Date(t.timestamp), "hh:mm a")}` : '';
-        if (t.debit > 0) {
-          txnSummary += `\n${dateStr}${timeStr} - ${t.reference}: +₹${Math.round(t.debit).toLocaleString("en-IN")}`;
-        } else if (t.credit > 0) {
-          txnSummary += `\n${dateStr}${timeStr} - ${t.reference}: -₹${Math.round(t.credit).toLocaleString("en-IN")}`;
-        }
+    if (pendingInvoices.length > 0) {
+      txnSummary = "\n\n📋 *Pending Invoices:*";
+      pendingInvoices.forEach((t) => {
+        const dateStr = format(new Date(t.date), "dd/MM/yy");
+        txnSummary += `\n${dateStr} | ${t.reference} | ₹${Math.round(t.debit).toLocaleString("en-IN")} | Bal: ₹${t.remaining.toLocaleString("en-IN")}`;
       });
     }
 
