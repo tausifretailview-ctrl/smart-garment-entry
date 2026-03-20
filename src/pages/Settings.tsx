@@ -83,6 +83,7 @@ interface PurchaseSettings {
   show_purchase_code?: boolean;
   purchase_code_include_gst?: boolean;
   show_mrp?: boolean;
+  product_entry_discount_enabled?: boolean;
 }
 
 interface EInvoiceSettings {
