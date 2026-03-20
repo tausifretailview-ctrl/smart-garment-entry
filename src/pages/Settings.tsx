@@ -158,6 +158,7 @@ interface SaleSettings {
   // E-Invoice Settings
   einvoice_settings?: EInvoiceSettings;
   thermal_receipt_style?: 'classic' | 'compact';
+  auto_apply_advance?: boolean;
 }
 
 interface BillBarcodeSettings {

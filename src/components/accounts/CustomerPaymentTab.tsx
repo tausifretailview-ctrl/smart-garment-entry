@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, TrendingDown, Printer, Check, ChevronsUpDown, Pencil, Trash2, ChevronLeft, ChevronRight, Coins, Send, Link2 } from "lucide-react";
+import { CalendarIcon, Plus, TrendingDown, Printer, Check, ChevronsUpDown, Pencil, Trash2, ChevronLeft, ChevronRight, Coins, Send, Link2, Zap, Wallet } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -23,7 +23,7 @@ import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
 import { calculateCustomerInvoiceBalances } from "@/utils/customerBalanceUtils";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { ReassignPaymentDialog } from "./ReassignPaymentDialog";
-
+import { useCustomerAdvanceBalance } from "@/hooks/useCustomerAdvances";
 interface CustomerPaymentTabProps {
   organizationId: string;
   vouchers: any[] | undefined;
