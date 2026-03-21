@@ -71,6 +71,8 @@ interface ProductForm {
   default_pur_price: number | undefined;
   default_sale_price: number | undefined;
   default_mrp: number | undefined;
+  default_pur_discount: number | undefined;
+  default_sale_discount: number | undefined;
   status: string;
 }
 
@@ -100,6 +102,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const [fieldSettings, setFieldSettings] = useState<any>(null);
   const [showMrp, setShowMrp] = useState(false);
   const productNameInputRef = useRef<HTMLInputElement>(null);
+  const variantsSectionRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [showCreateSizeGroup, setShowCreateSizeGroup] = useState(false);
   const [newSizeGroup, setNewSizeGroup] = useState({ group_name: "", sizes: "" });
   const [productImage, setProductImage] = useState<string | null>(null);
@@ -139,6 +143,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     default_pur_price: undefined,
     default_sale_price: undefined,
     default_mrp: undefined,
+    default_pur_discount: undefined,
+    default_sale_discount: undefined,
     status: "active",
   });
   const [colorInput, setColorInput] = useState("");
@@ -229,6 +235,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       default_pur_price: lastProduct.default_pur_price,
       default_sale_price: lastProduct.default_sale_price,
       default_mrp: lastProduct.default_mrp,
+      default_pur_discount: undefined,
+      default_sale_discount: undefined,
       status: "active",
     });
     setColorInput("");
@@ -573,6 +581,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
     setVariants([...variants, ...newVariants]);
     setShowVariants(true);
+    setTimeout(() => {
+      variantsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
   };
 
   const handleAutoGenerateBarcodes = async () => {
@@ -602,6 +613,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         }
       }
       setVariants(updatedVariants);
+      setTimeout(() => {
+        variantsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
     } catch (error) {
       toast({
         title: "Error",
@@ -746,6 +760,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         uom: formData.uom || DEFAULT_UOM,
         default_pur_price: formData.default_pur_price,
         default_sale_price: formData.default_sale_price,
+        purchase_discount_type: formData.default_pur_discount ? 'percent' : null,
+        purchase_discount_value: formData.default_pur_discount || null,
+        sale_discount_type: formData.default_sale_discount ? 'percent' : null,
+        sale_discount_value: formData.default_sale_discount || null,
         status: formData.status,
         organization_id: currentOrganization.id,
         size_group_id: formData.size_group_id || null,
@@ -1262,6 +1280,34 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     />
                   </div>
                 )}
+
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Pur Disc %</Label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={formData.default_pur_discount ?? ""}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      default_pur_discount: e.target.value ? Number(e.target.value) : undefined
+                    })}
+                    className="h-9 text-sm"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Sale Disc %</Label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={formData.default_sale_discount ?? ""}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      default_sale_discount: e.target.value ? Number(e.target.value) : undefined
+                    })}
+                    className="h-9 text-sm"
+                  />
+                </div>
               </div>
 
               {/* Colors Section */}
@@ -1389,7 +1435,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </div>
 
                 {showVariants && variants.length > 0 && (
-                  <div className="space-y-2 pt-1">
+                  <div ref={variantsSectionRef} className="space-y-2 pt-1">
                     <div className="flex items-center justify-between">
                       <Label className="text-xs font-semibold text-violet-700 font-outfit">{variants.length} Variant{variants.length !== 1 ? 's' : ''}</Label>
                       <Button type="button" variant="outline" size="sm" onClick={handleAutoGenerateBarcodes} className="gap-1 h-6 text-[11px] border-violet-300 text-violet-700 hover:bg-violet-100/60 font-outfit">
