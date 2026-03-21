@@ -1685,6 +1685,32 @@ Please clear your dues at the earliest. Thank you!`;
               </Card>
             </div>
 
+            {/* Refund Advance shortcut - shows when customer has advance/overpaid balance */}
+            {selectedCustomer.balance < 0 && (
+              <div className="mt-3 mb-1 p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                    ₹{Math.abs(selectedCustomer.balance).toLocaleString("en-IN")} advance available for refund
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                    Go to Advance Booking to process a refund to the customer
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 border-amber-400 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+                  onClick={() => {
+                    const orgSlug = window.location.pathname.split('/')[1];
+                    window.location.href = `/${orgSlug}/advance-booking-dashboard?search=${encodeURIComponent(selectedCustomer.customer_name || '')}`;
+                  }}
+                >
+                  <Undo2 className="h-4 w-4 mr-1" />
+                  Refund Advance
+                </Button>
+              </div>
+            )}
+
             <div className="my-4" />
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
