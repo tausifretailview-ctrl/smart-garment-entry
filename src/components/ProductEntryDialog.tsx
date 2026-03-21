@@ -141,6 +141,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     default_pur_price: undefined,
     default_sale_price: undefined,
     default_mrp: undefined,
+    default_pur_discount: undefined,
+    default_sale_discount: undefined,
     status: "active",
   });
   const [colorInput, setColorInput] = useState("");
