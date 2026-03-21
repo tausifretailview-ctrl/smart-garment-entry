@@ -1385,7 +1385,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     </div>
                     <div className="border border-violet-200/60 rounded-lg overflow-hidden overflow-x-auto bg-white shadow-sm max-h-[280px] overflow-y-auto">
                       <Table>
-                        <TableHeader className="sticky top-0 z-10">
+                        <TableHeader className="sticky top-0 z-10 bg-background">
                           <TableRow className="bg-gradient-to-r from-violet-100/80 to-purple-100/60 border-b border-violet-200/60">
                             {formData.colors.length > 0 && <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit">Color</TableHead>}
                             <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit">Size</TableHead>
