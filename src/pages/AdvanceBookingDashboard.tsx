@@ -88,6 +88,16 @@ export default function AdvanceBookingDashboard() {
     return () => clearTimeout(timeout);
   }, []);
 
+  // Pre-fill search from URL query param (e.g., from Customer Ledger refund shortcut)
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const urlSearch = searchParams.get('search');
+    if (urlSearch) {
+      setSearch(urlSearch);
+      setDebouncedSearch(urlSearch);
+    }
+  }, []);
+
   // Date range helper
   const getDateRange = () => {
     const now = new Date();
