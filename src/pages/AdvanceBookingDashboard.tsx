@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -20,6 +20,7 @@ import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { AdvanceBookingReceipt } from "@/components/AdvanceBookingReceipt";
 import { useReactToPrint } from "react-to-print";
 import { useSettings } from "@/hooks/useSettings";
+import { useSearchParams } from "react-router-dom";
 
 const PAGE_SIZE = 50;
 
@@ -85,6 +86,16 @@ export default function AdvanceBookingDashboard() {
     setCurrentPage(1);
     const timeout = setTimeout(() => setDebouncedSearch(value), 300);
     return () => clearTimeout(timeout);
+  }, []);
+
+  // Pre-fill search from URL query param (e.g., from Customer Ledger refund shortcut)
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const urlSearch = searchParams.get('search');
+    if (urlSearch) {
+      setSearch(urlSearch);
+      setDebouncedSearch(urlSearch);
+    }
   }, []);
 
   // Date range helper
@@ -455,8 +466,8 @@ export default function AdvanceBookingDashboard() {
                              <Button variant="outline" size="xs" onClick={() => openEdit(adv)} className="text-blue-600 hover:text-blue-700">
                                <Pencil className="h-3 w-3 mr-1" /> Edit
                              </Button>
-                             <Button variant="outline" size="xs" onClick={() => openRefund(adv)} className="text-red-600 hover:text-red-700">
-                               <Undo2 className="h-3 w-3 mr-1" /> Refund
+                             <Button variant="destructive" size="xs" onClick={() => openRefund(adv)}>
+                               <Undo2 className="h-3 w-3 mr-1" /> Refund ₹{((adv.amount || 0) - (adv.used_amount || 0)).toLocaleString('en-IN')}
                              </Button>
                            </>
                          )}
