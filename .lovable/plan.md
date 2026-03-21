@@ -1,22 +1,29 @@
 
 
-## Fix: Payment History Query Includes Deleted Sales
+## Add "Refund Advance" Shortcut in Customer Ledger + Improve Advance Booking Refund Button
 
-**Problem**: Line 384-388 in `CustomerHistoryDialog.tsx` fetches sale IDs without filtering out deleted or delivery challan records. This causes payments from other customers (linked to reused/cancelled invoice IDs) to appear under the wrong customer.
+### Problem
+The refund feature exists in Advance Booking Dashboard but is hard to discover. Customers with unused advance balance show on the Ledger page with no action path to process a refund.
 
-**Change**: Single edit in `src/components/CustomerHistoryDialog.tsx`, lines 384-388.
+### Changes
 
-Add `.is('deleted_at', null)` and `.not('sale_type', 'eq', 'delivery_challan')` to the sales query inside the payment history `queryFn`:
+**File 1: `src/components/CustomerLedger.tsx`**
 
-```typescript
-const { data: sales } = await supabase
-  .from('sales')
-  .select('id')
-  .eq('customer_id', customerId)
-  .eq('organization_id', organizationId)
-  .is('deleted_at', null)
-  .not('sale_type', 'eq', 'delivery_challan');
-```
+1. Add `Undo2` to the existing lucide imports (line 11)
+2. After the balance badge section (around line 1634), add a "Refund Advance" button that appears when `selectedCustomer.balance < 0`:
+   - Shows a compact alert-style card: "₹X advance available for refund"
+   - Button navigates to `/advance-booking-dashboard?search=CustomerName`
+   - Uses `window.location.pathname.split('/')[1]` for org slug
 
-This aligns the payment query's sale filtering with the existing sales tab query (line 371) which already filters `deleted_at`.
+**File 2: `src/pages/AdvanceBookingDashboard.tsx`**
+
+1. Add `useSearchParams` import from react-router-dom
+2. Add `useEffect` import (already has useState/useMemo/useCallback/useRef)
+3. On mount, read `search` query param and pre-fill both `search` and `debouncedSearch` state
+4. Make Refund button more prominent: show refund amount in button text: `Refund ₹X` instead of just "Refund"
+
+### Result
+- Customer Ledger shows a clear "Refund Advance" shortcut when advance balance exists
+- Clicking it navigates to Advance Booking Dashboard with customer name pre-searched
+- Refund button shows the refundable amount, making it unmissable
 
