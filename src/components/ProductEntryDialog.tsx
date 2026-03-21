@@ -613,6 +613,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         }
       }
       setVariants(updatedVariants);
+      setTimeout(() => {
+        variantsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
     } catch (error) {
       toast({
         title: "Error",
