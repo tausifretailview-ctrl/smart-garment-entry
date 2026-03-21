@@ -957,11 +957,19 @@ export default function SalesInvoice() {
 
     const mergedVariants = Array.from(uniqueMap.values());
 
+    // Subtract quantities already in the cart so the grid shows "effective available" stock
+    const cartQtyByVariant = new Map<string, number>();
+    for (const item of lineItems) {
+      if (item.variantId) {
+        cartQtyByVariant.set(item.variantId, (cartQtyByVariant.get(item.variantId) || 0) + item.quantity);
+      }
+    }
+
     setSizeGridProduct(product);
     setSizeGridVariants(mergedVariants.map((v: any) => ({
       id: v.id,
       size: v.size,
-      stock_qty: v.stock_qty || 0,
+      stock_qty: Math.max(0, (v.stock_qty || 0) - (cartQtyByVariant.get(v.id) || 0)),
       sale_price: v.sale_price || 0,
       mrp: v.mrp || 0,
       color: v.color || product.color || "",
