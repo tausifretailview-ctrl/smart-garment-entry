@@ -385,7 +385,9 @@ export function CustomerHistoryDialog({
         .from('sales')
         .select('id')
         .eq('customer_id', customerId)
-        .eq('organization_id', organizationId);
+        .eq('organization_id', organizationId)
+        .is('deleted_at', null)
+        .not('sale_type', 'eq', 'delivery_challan');
       
       const saleIds = (sales || []).map(s => s.id);
 
