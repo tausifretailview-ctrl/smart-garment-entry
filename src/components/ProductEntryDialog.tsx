@@ -883,8 +883,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             <DialogDescription>Create a new product with size variants</DialogDescription>
           </DialogHeader>
           
-          <div className="flex-1 min-h-0 relative">
-          <ScrollArea className="h-full px-6" ref={(node) => {
+          <ScrollArea className="flex-1 min-h-0 px-6" ref={(node) => {
             const viewport = node?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null;
             if (viewport && !viewport.dataset.scrollListenerAttached) {
               viewport.dataset.scrollListenerAttached = 'true';
@@ -894,6 +893,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                   btn.style.display = viewport.scrollTop > 200 ? 'flex' : 'none';
                 }
               });
+              // Store ref for scrolling back
               (window as any).__productDialogViewport = viewport;
             }
           }}>
@@ -1496,21 +1496,20 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 )}
             </div>
             </div>
+            <button
+              id="product-dialog-back-to-top"
+              type="button"
+              style={{ display: 'none' }}
+              className="sticky bottom-2 left-full ml-auto flex items-center gap-1 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium shadow-lg hover:bg-primary/90 transition-all z-20"
+              onClick={() => {
+                const vp = (window as any).__productDialogViewport as HTMLElement | null;
+                vp?.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            >
+              <ChevronUp className="h-3 w-3" />
+              Product Details
+            </button>
           </ScrollArea>
-          <button
-            id="product-dialog-back-to-top"
-            type="button"
-            style={{ display: 'none' }}
-            className="absolute bottom-3 right-6 flex items-center gap-1 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium shadow-lg hover:bg-primary/90 transition-all z-20 animate-in fade-in slide-in-from-bottom-2"
-            onClick={() => {
-              const vp = (window as any).__productDialogViewport as HTMLElement | null;
-              vp?.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-          >
-            <ChevronUp className="h-3 w-3" />
-            ↑ Product Details
-          </button>
-          </div>
 
           <DialogFooter className="px-6 py-4 mt-4 border-t bg-muted/20">
             <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading} className="font-outfit font-semibold">
