@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, Package, Barcode, Plus, Edit, Trash2, ImagePlus, X, Search, Copy } from "lucide-react";
+import { Loader2, Package, Barcode, Plus, Edit, Trash2, ImagePlus, X, Search, Copy, ChevronUp } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -883,7 +883,20 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             <DialogDescription>Create a new product with size variants</DialogDescription>
           </DialogHeader>
           
-          <ScrollArea className="flex-1 min-h-0 px-6">
+          <ScrollArea className="flex-1 min-h-0 px-6" ref={(node) => {
+            const viewport = node?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null;
+            if (viewport && !viewport.dataset.scrollListenerAttached) {
+              viewport.dataset.scrollListenerAttached = 'true';
+              viewport.addEventListener('scroll', () => {
+                const btn = document.getElementById('product-dialog-back-to-top');
+                if (btn) {
+                  btn.style.display = viewport.scrollTop > 200 ? 'flex' : 'none';
+                }
+              });
+              // Store ref for scrolling back
+              (window as any).__productDialogViewport = viewport;
+            }
+          }}>
             <div className="space-y-6 py-4">
               {/* Copy from Existing Product */}
               <div className="space-y-2">
@@ -1483,6 +1496,19 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 )}
             </div>
             </div>
+            <button
+              id="product-dialog-back-to-top"
+              type="button"
+              style={{ display: 'none' }}
+              className="sticky bottom-2 left-full ml-auto flex items-center gap-1 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium shadow-lg hover:bg-primary/90 transition-all z-20"
+              onClick={() => {
+                const vp = (window as any).__productDialogViewport as HTMLElement | null;
+                vp?.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            >
+              <ChevronUp className="h-3 w-3" />
+              Product Details
+            </button>
           </ScrollArea>
 
           <DialogFooter className="px-6 py-4 mt-4 border-t bg-muted/20">
