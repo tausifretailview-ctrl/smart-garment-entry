@@ -1431,7 +1431,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </div>
 
                 {showVariants && variants.length > 0 && (
-                  <div className="space-y-2 pt-1">
+                  <div ref={variantsSectionRef} className="space-y-2 pt-1">
                     <div className="flex items-center justify-between">
                       <Label className="text-xs font-semibold text-violet-700 font-outfit">{variants.length} Variant{variants.length !== 1 ? 's' : ''}</Label>
                       <Button type="button" variant="outline" size="sm" onClick={handleAutoGenerateBarcodes} className="gap-1 h-6 text-[11px] border-violet-300 text-violet-700 hover:bg-violet-100/60 font-outfit">
