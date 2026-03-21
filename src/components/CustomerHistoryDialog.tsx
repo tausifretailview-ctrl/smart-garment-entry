@@ -401,7 +401,7 @@ export function CustomerHistoryDialog({
         .or(
           saleIds.length > 0
             ? `reference_id.in.(${saleIds.join(',')}),and(reference_type.eq.customer,reference_id.eq.${customerId})`
-            : `reference_type.eq.customer,reference_id.eq.${customerId}`
+            : `and(reference_type.eq.customer,reference_id.eq.${customerId})`
         )
         .order('voucher_date', { ascending: false });
       if (error) throw error;
