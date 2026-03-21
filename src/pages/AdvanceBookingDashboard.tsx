@@ -466,8 +466,8 @@ export default function AdvanceBookingDashboard() {
                              <Button variant="outline" size="xs" onClick={() => openEdit(adv)} className="text-blue-600 hover:text-blue-700">
                                <Pencil className="h-3 w-3 mr-1" /> Edit
                              </Button>
-                             <Button variant="outline" size="xs" onClick={() => openRefund(adv)} className="text-red-600 hover:text-red-700">
-                               <Undo2 className="h-3 w-3 mr-1" /> Refund
+                             <Button variant="destructive" size="xs" onClick={() => openRefund(adv)}>
+                               <Undo2 className="h-3 w-3 mr-1" /> Refund ₹{((adv.amount || 0) - (adv.used_amount || 0)).toLocaleString('en-IN')}
                              </Button>
                            </>
                          )}
