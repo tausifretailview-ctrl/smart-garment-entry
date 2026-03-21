@@ -865,7 +865,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-5xl max-h-[90vh] p-0 font-outfit">
+        <DialogContent className="max-w-5xl max-h-[90vh] p-0 font-outfit flex flex-col">
           {/* Purchase Context Header */}
           <div className="mx-6 mt-6 mb-2 rounded-xl border-[1.5px] border-success/30 bg-gradient-to-br from-success/5 to-success/10 p-4">
             <div className="flex items-center gap-3">
