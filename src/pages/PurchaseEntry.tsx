@@ -3305,8 +3305,18 @@ const PurchaseEntry = () => {
             <>
               <span className='text-slate-300 text-xl font-light'>-</span>
               <div className='flex flex-col items-center'>
-                <span className='text-[10px] font-bold uppercase tracking-widest text-red-400 mb-0.5'>Item Disc</span>
+                <span className='text-[10px] font-bold uppercase tracking-widest text-red-400 mb-0.5'>Line Disc (Σ)</span>
                 <span className='text-[16px] font-black text-red-500 font-mono'>Rs.{totals.itemDiscount.toFixed(0)}</span>
+              </div>
+            </>
+          )}
+
+          {(totals.itemDiscount > 0 || discountAmount > 0) && (
+            <>
+              <span className='text-slate-300 text-xl font-light'>=</span>
+              <div className='flex flex-col items-center bg-red-50 dark:bg-red-950/20 rounded px-2 py-1'>
+                <span className='text-[10px] font-bold uppercase tracking-widest text-destructive mb-0.5'>Total Disc</span>
+                <span className='text-[16px] font-black text-destructive font-mono'>Rs.{(totals.itemDiscount + discountAmount).toFixed(0)}</span>
               </div>
             </>
           )}
