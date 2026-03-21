@@ -1496,6 +1496,19 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 )}
             </div>
             </div>
+            <button
+              id="product-dialog-back-to-top"
+              type="button"
+              style={{ display: 'none' }}
+              className="sticky bottom-2 left-full ml-auto flex items-center gap-1 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium shadow-lg hover:bg-primary/90 transition-all z-20"
+              onClick={() => {
+                const vp = (window as any).__productDialogViewport as HTMLElement | null;
+                vp?.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            >
+              <ChevronUp className="h-3 w-3" />
+              Product Details
+            </button>
           </ScrollArea>
 
           <DialogFooter className="px-6 py-4 mt-4 border-t bg-muted/20">
