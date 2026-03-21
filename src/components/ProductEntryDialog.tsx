@@ -71,6 +71,8 @@ interface ProductForm {
   default_pur_price: number | undefined;
   default_sale_price: number | undefined;
   default_mrp: number | undefined;
+  default_pur_discount: number | undefined;
+  default_sale_discount: number | undefined;
   status: string;
 }
 
