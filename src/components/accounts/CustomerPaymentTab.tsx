@@ -155,20 +155,12 @@ export function CustomerPaymentTab({
     enabled: !!referenceId,
   });
 
-  // Customer balance
-  const { data: customerBalance } = useQuery({
-    queryKey: ["customer-balance", referenceId],
-    queryFn: async () => {
-      const { data: customerData } = await supabase.from("customers").select("opening_balance").eq("id", referenceId).maybeSingle();
-      const openingBalance = customerData?.opening_balance || 0;
-      const { data } = await supabase.from("sales").select("net_amount, paid_amount").eq("customer_id", referenceId).in("payment_status", ["pending", "partial"]).is("deleted_at", null);
-      const invoiceOutstanding = data?.reduce((sum, s) => sum + Math.max(0, (s.net_amount || 0) - (s.paid_amount || 0)), 0) || 0;
-      const { data: obPayments } = await supabase.from("voucher_entries").select("total_amount, reference_id").eq("organization_id", organizationId).eq("voucher_type", "receipt").eq("reference_type", "customer").is("deleted_at", null);
-      const obPaid = obPayments?.filter(p => p.reference_id === referenceId).reduce((sum, p) => sum + (p.total_amount || 0), 0) || 0;
-      return openingBalance + invoiceOutstanding - obPaid;
-    },
-    enabled: !!referenceId,
-  });
+  // Customer balance — uses correct formula including balance adjustments
+  const { balance: customerBalance } = useCustomerBalance(
+    referenceId || null,
+    organizationId
+  );
+
 
   // Customer advance balance
   const { data: advanceBalance = 0 } = useCustomerAdvanceBalance(referenceId || null, organizationId);
