@@ -233,6 +233,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       default_pur_price: lastProduct.default_pur_price,
       default_sale_price: lastProduct.default_sale_price,
       default_mrp: lastProduct.default_mrp,
+      default_pur_discount: undefined,
+      default_sale_discount: undefined,
       status: "active",
     });
     setColorInput("");
