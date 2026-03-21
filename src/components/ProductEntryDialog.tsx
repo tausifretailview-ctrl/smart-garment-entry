@@ -1383,7 +1383,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         <Barcode className="h-3 w-3" /> Auto Barcodes
                       </Button>
                     </div>
-                    <div className="border border-violet-200/60 rounded-lg overflow-hidden overflow-x-auto bg-white shadow-sm max-h-[280px] overflow-y-auto">
+                    <div className="border border-violet-200/60 rounded-lg overflow-x-auto bg-white shadow-sm max-h-[260px] overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
                       <Table>
                         <TableHeader className="sticky top-0 z-10 bg-background">
                           <TableRow className="bg-gradient-to-r from-violet-100/80 to-purple-100/60 border-b border-violet-200/60">
