@@ -883,7 +883,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             <DialogDescription>Create a new product with size variants</DialogDescription>
           </DialogHeader>
           
-          <ScrollArea className="max-h-[calc(90vh-140px)] px-6">
+          <ScrollArea className="flex-1 min-h-0 px-6">
             <div className="space-y-6 py-4">
               {/* Copy from Existing Product */}
               <div className="space-y-2">
