@@ -20,6 +20,7 @@ import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { AdvanceBookingReceipt } from "@/components/AdvanceBookingReceipt";
 import { useReactToPrint } from "react-to-print";
 import { useSettings } from "@/hooks/useSettings";
+import { useSearchParams } from "react-router-dom";
 
 const PAGE_SIZE = 50;
 
