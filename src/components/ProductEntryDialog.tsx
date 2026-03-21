@@ -581,6 +581,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
     setVariants([...variants, ...newVariants]);
     setShowVariants(true);
+    setTimeout(() => {
+      variantsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
   };
 
   const handleAutoGenerateBarcodes = async () => {
