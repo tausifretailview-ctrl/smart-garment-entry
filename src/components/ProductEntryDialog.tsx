@@ -883,7 +883,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             <DialogDescription>Create a new product with size variants</DialogDescription>
           </DialogHeader>
           
-          <ScrollArea className="flex-1 min-h-0 px-6" ref={(node) => {
+          <div className="flex-1 min-h-0 relative">
+          <ScrollArea className="h-full px-6" ref={(node) => {
             const viewport = node?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null;
             if (viewport && !viewport.dataset.scrollListenerAttached) {
               viewport.dataset.scrollListenerAttached = 'true';
@@ -893,7 +894,6 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                   btn.style.display = viewport.scrollTop > 200 ? 'flex' : 'none';
                 }
               });
-              // Store ref for scrolling back
               (window as any).__productDialogViewport = viewport;
             }
           }}>
