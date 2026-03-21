@@ -922,10 +922,16 @@ export default function SalesInvoice() {
   const openSizeGridForProduct = async (product: any) => {
     if (!currentOrganization) return;
 
+    // Find all product IDs with the same name (handles duplicate products)
+    const matchingProductIds = productsData
+      ?.filter((p: any) => p.product_name?.toLowerCase() === product.product_name?.toLowerCase() && p.brand?.toLowerCase() === product.brand?.toLowerCase())
+      .map((p: any) => p.id) || [product.id];
+
+    // Fetch variants from ALL matching products
     const { data, error } = await supabase
       .from("product_variants")
-      .select("id, size, color, barcode, sale_price, mrp, stock_qty, pur_price, active")
-      .eq("product_id", product.id)
+      .select("id, size, color, barcode, sale_price, mrp, stock_qty, pur_price, active, product_id")
+      .in("product_id", matchingProductIds)
       .eq("organization_id", currentOrganization.id)
       .eq("active", true)
       .is("deleted_at", null);
@@ -939,8 +945,20 @@ export default function SalesInvoice() {
       return;
     }
 
+    // Deduplicate by size+color (prefer higher stock)
+    const uniqueMap = new Map<string, any>();
+    for (const v of data) {
+      const key = `${(v.size || '').toLowerCase()}_${(v.color || '').toLowerCase()}`;
+      const existing = uniqueMap.get(key);
+      if (!existing || (v.stock_qty || 0) > (existing.stock_qty || 0)) {
+        uniqueMap.set(key, v);
+      }
+    }
+
+    const mergedVariants = Array.from(uniqueMap.values());
+
     setSizeGridProduct(product);
-    setSizeGridVariants(data.map((v: any) => ({
+    setSizeGridVariants(mergedVariants.map((v: any) => ({
       id: v.id,
       size: v.size,
       stock_qty: v.stock_qty || 0,
