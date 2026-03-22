@@ -3493,11 +3493,12 @@ const PurchaseEntry = () => {
                     try {
                       // Fetch supplier code from suppliers table
                       let supplierCode = "";
-                      if (billData.supplier_id) {
+                      const suppId = savedSupplierId || billData.supplier_id;
+                      if (suppId) {
                         const { data: supplierData } = await supabase
                           .from("suppliers")
                           .select("supplier_code")
-                          .eq("id", billData.supplier_id)
+                          .eq("id", suppId)
                           .single();
                         supplierCode = supplierData?.supplier_code || "";
                       }
