@@ -3456,6 +3456,17 @@ const PurchaseEntry = () => {
                 <Button
                   onClick={async () => {
                     try {
+                      // Fetch supplier code from suppliers table
+                      let supplierCode = "";
+                      if (billData.supplier_id) {
+                        const { data: supplierData } = await supabase
+                          .from("suppliers")
+                          .select("supplier_code")
+                          .eq("id", billData.supplier_id)
+                          .single();
+                        supplierCode = supplierData?.supplier_code || "";
+                      }
+
                       const barcodeItems = savedPurchaseItems.map(item => ({
                         sku_id: item.sku_id,
                         product_name: item.product_name || "",
@@ -3471,7 +3482,7 @@ const PurchaseEntry = () => {
                         qty: item.qty,
                         bill_number: softwareBillNo || "",
                         bill_date: format(billDate, "yyyy-MM-dd"),
-                        supplier_code: billData.supplier_invoice_no || "",
+                        supplier_code: supplierCode,
                       }));
 
                       // Mark all items as printed
@@ -3507,6 +3518,17 @@ const PurchaseEntry = () => {
                     variant="secondary"
                     onClick={async () => {
                       try {
+                        // Fetch supplier code from suppliers table
+                        let supplierCode = "";
+                        if (billData.supplier_id) {
+                          const { data: supplierData } = await supabase
+                            .from("suppliers")
+                            .select("supplier_code")
+                            .eq("id", billData.supplier_id)
+                            .single();
+                          supplierCode = supplierData?.supplier_code || "";
+                        }
+
                         const barcodeItems = newlyAddedItems.map(item => ({
                           sku_id: item.sku_id,
                           product_name: item.product_name || "",
@@ -3522,7 +3544,7 @@ const PurchaseEntry = () => {
                           qty: item.qty,
                           bill_number: softwareBillNo || "",
                           bill_date: format(billDate, "yyyy-MM-dd"),
-                          supplier_code: billData.supplier_invoice_no || "",
+                          supplier_code: supplierCode,
                         }));
 
                         // Mark only new items as printed
