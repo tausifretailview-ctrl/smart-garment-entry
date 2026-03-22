@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
@@ -119,6 +119,7 @@ const PurchaseEntry = () => {
   const location = useLocation();
   const { currentOrganization } = useOrganization();
   const { invalidatePurchases } = useDashboardInvalidation();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ProductVariant[]>([]);
@@ -379,6 +380,29 @@ const PurchaseEntry = () => {
     enabled: !!currentOrganization?.id && !isEditMode,
   });
 
+  // Fetch next serial supplier invoice number
+  const { data: nextSupplierInvNo } = useQuery({
+    queryKey: ["next-supplier-inv-no", currentOrganization?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("purchase_bills")
+        .select("supplier_invoice_no")
+        .eq("organization_id", currentOrganization?.id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      // Find the highest numeric supplier_invoice_no
+      let maxNum = 0;
+      (data || []).forEach((row: any) => {
+        const num = parseInt(row.supplier_invoice_no, 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
+      });
+      return String(maxNum + 1);
+    },
+    enabled: !!currentOrganization?.id && !isEditMode,
+  });
+
   // Fetch all purchase bill IDs for navigation
   const { data: allBillIds } = useQuery({
     queryKey: ['all-purchase-bill-ids', currentOrganization?.id],
@@ -521,6 +545,13 @@ const PurchaseEntry = () => {
       }
     }
   }, []);
+
+  // Auto-populate supplier invoice number for new bills
+  useEffect(() => {
+    if (nextSupplierInvNo && !isEditMode && !billData.supplier_invoice_no) {
+      setBillData(prev => ({ ...prev, supplier_invoice_no: nextSupplierInvNo }));
+    }
+  }, [nextSupplierInvNo, isEditMode]);
 
   // Load existing bill data if in edit mode or generate new bill number
   useEffect(() => {
@@ -1941,6 +1972,7 @@ const PurchaseEntry = () => {
 
         // Invalidate dashboard queries for immediate UI refresh
         invalidatePurchases();
+        queryClient.invalidateQueries({ queryKey: ["next-supplier-inv-no"] });
         const itemsWithDetails = await Promise.all(
           lineItems.map(async (item) => {
             const { data: product } = await supabase
