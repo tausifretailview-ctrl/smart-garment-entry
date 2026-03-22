@@ -611,8 +611,8 @@ export default function PlatformAdmin() {
       toast.error("Organization name is required");
       return;
     }
-    if (organizations.length >= 20) {
-      toast.error("Maximum 20 organizations allowed");
+    if (organizations.length >= 100) {
+      toast.error("Maximum 100 organizations allowed");
       return;
     }
     if (isSlugAvailable === false) {
