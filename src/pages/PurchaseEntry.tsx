@@ -1995,6 +1995,7 @@ const PurchaseEntry = () => {
         // Store items for barcode printing and show dialog (only if barcode prompt is enabled)
         setSavedPurchaseItems(itemsWithDetails);
         setSavedBillId(billDataResult.id);
+        setSavedSupplierId(billData.supplier_id || null);
         setNewlyAddedItems([]); // All items are new for a new bill
         if (enableBarcodePrompt) {
           setShowPrintDialog(true);
