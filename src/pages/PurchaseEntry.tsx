@@ -545,6 +545,13 @@ const PurchaseEntry = () => {
     }
   }, []);
 
+  // Auto-populate supplier invoice number for new bills
+  useEffect(() => {
+    if (nextSupplierInvNo && !isEditMode && !billData.supplier_invoice_no) {
+      setBillData(prev => ({ ...prev, supplier_invoice_no: nextSupplierInvNo }));
+    }
+  }, [nextSupplierInvNo, isEditMode]);
+
   // Load existing bill data if in edit mode or generate new bill number
   useEffect(() => {
     const loadOrGenerateBill = async () => {
