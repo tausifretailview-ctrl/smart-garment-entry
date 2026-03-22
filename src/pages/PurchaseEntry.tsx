@@ -379,6 +379,29 @@ const PurchaseEntry = () => {
     enabled: !!currentOrganization?.id && !isEditMode,
   });
 
+  // Fetch next serial supplier invoice number
+  const { data: nextSupplierInvNo } = useQuery({
+    queryKey: ["next-supplier-inv-no", currentOrganization?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("purchase_bills")
+        .select("supplier_invoice_no")
+        .eq("organization_id", currentOrganization?.id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      // Find the highest numeric supplier_invoice_no
+      let maxNum = 0;
+      (data || []).forEach((row: any) => {
+        const num = parseInt(row.supplier_invoice_no, 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
+      });
+      return String(maxNum + 1);
+    },
+    enabled: !!currentOrganization?.id && !isEditMode,
+  });
+
   // Fetch all purchase bill IDs for navigation
   const { data: allBillIds } = useQuery({
     queryKey: ['all-purchase-bill-ids', currentOrganization?.id],
