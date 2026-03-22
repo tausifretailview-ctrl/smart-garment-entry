@@ -3471,7 +3471,7 @@ const PurchaseEntry = () => {
                         qty: item.qty,
                         bill_number: softwareBillNo || "",
                         bill_date: format(billDate, "yyyy-MM-dd"),
-                        supplier_code: "",
+                        supplier_code: supplierInvoiceNo || "",
                       }));
 
                       // Mark all items as printed
