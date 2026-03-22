@@ -1972,6 +1972,7 @@ const PurchaseEntry = () => {
 
         // Invalidate dashboard queries for immediate UI refresh
         invalidatePurchases();
+        queryClient.invalidateQueries({ queryKey: ["next-supplier-inv-no"] });
         const itemsWithDetails = await Promise.all(
           lineItems.map(async (item) => {
             const { data: product } = await supabase
