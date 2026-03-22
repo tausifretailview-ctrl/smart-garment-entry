@@ -119,6 +119,7 @@ const PurchaseEntry = () => {
   const location = useLocation();
   const { currentOrganization } = useOrganization();
   const { invalidatePurchases } = useDashboardInvalidation();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ProductVariant[]>([]);
