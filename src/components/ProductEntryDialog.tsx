@@ -434,6 +434,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           setFormData(prev => ({ ...prev, gst_per: purchaseSettings.default_tax_rate, purchase_gst_percent: purchaseSettings.default_tax_rate, sale_gst_percent: purchaseSettings.default_tax_rate }));
         }
         setShowMrp(purchaseSettings.show_mrp || false);
+        setShowDiscountFields(purchaseSettings.product_entry_discount_enabled || false);
       }
     }
   };
