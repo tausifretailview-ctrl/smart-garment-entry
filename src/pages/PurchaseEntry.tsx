@@ -172,6 +172,7 @@ const PurchaseEntry = () => {
   // State for tracking newly added items for smart barcode printing
   const [newlyAddedItems, setNewlyAddedItems] = useState<LineItem[]>([]);
   const [savedBillId, setSavedBillId] = useState<string | null>(null);
+  const [savedSupplierId, setSavedSupplierId] = useState<string | null>(null);
   
   // Bill navigation state (like Sales Invoice)
   const [navBillIndex, setNavBillIndex] = useState<number | null>(null);
