@@ -751,7 +751,7 @@ export default function PlatformAdmin() {
               <h2 className="text-xl font-semibold">Organizations</h2>
               <Dialog open={createOrgOpen} onOpenChange={setCreateOrgOpen}>
                 <DialogTrigger asChild>
-                  <Button disabled={orgCount >= 20}>
+                  <Button disabled={orgCount >= 100}>
                     <Plus className="h-4 w-4 mr-2" />
                     Create Organization
                   </Button>
