@@ -1129,3 +1129,17 @@ th:hover .erp-col-resize-handle,
     display: none !important;
   }
 }
+
+/* ─── Auto Uppercase ─────────────────────────────────── */
+input[type="text"],
+input:not([type]) {
+  text-transform: uppercase;
+}
+
+textarea {
+  text-transform: uppercase;
+}
+
+textarea.no-uppercase {
+  text-transform: none;
+}
