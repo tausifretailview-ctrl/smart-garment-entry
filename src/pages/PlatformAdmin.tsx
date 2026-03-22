@@ -611,8 +611,8 @@ export default function PlatformAdmin() {
       toast.error("Organization name is required");
       return;
     }
-    if (organizations.length >= 20) {
-      toast.error("Maximum 20 organizations allowed");
+    if (organizations.length >= 100) {
+      toast.error("Maximum 100 organizations allowed");
       return;
     }
     if (isSlugAvailable === false) {
@@ -695,9 +695,9 @@ export default function PlatformAdmin() {
               <Building2 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{orgCount} / 20</div>
+              <div className="text-2xl font-bold">{orgCount} / 100</div>
               <p className="text-xs text-muted-foreground">
-                {20 - orgCount} slots remaining
+                {100 - orgCount} slots remaining
               </p>
             </CardContent>
           </Card>
@@ -751,7 +751,7 @@ export default function PlatformAdmin() {
               <h2 className="text-xl font-semibold">Organizations</h2>
               <Dialog open={createOrgOpen} onOpenChange={setCreateOrgOpen}>
                 <DialogTrigger asChild>
-                  <Button disabled={orgCount >= 20}>
+                  <Button disabled={orgCount >= 100}>
                     <Plus className="h-4 w-4 mr-2" />
                     Create Organization
                   </Button>
