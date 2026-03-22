@@ -101,6 +101,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const [showVariants, setShowVariants] = useState(false);
   const [fieldSettings, setFieldSettings] = useState<any>(null);
   const [showMrp, setShowMrp] = useState(false);
+  const [showDiscountFields, setShowDiscountFields] = useState(false);
   const productNameInputRef = useRef<HTMLInputElement>(null);
   const variantsSectionRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
