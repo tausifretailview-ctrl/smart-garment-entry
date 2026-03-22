@@ -1854,6 +1854,7 @@ const PurchaseEntry = () => {
         // Store all items and newly added items for print dialog
         setSavedPurchaseItems(itemsWithDetails);
         setSavedBillId(editingBillId);
+        setSavedSupplierId(billData.supplier_id || null);
         
         // Only set newly added items if there are any
         if (insertedNewItems.length > 0) {
