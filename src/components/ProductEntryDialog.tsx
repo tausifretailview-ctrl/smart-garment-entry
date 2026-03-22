@@ -1283,33 +1283,37 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                   </div>
                 )}
 
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Pur Disc %</Label>
-                  <Input
-                    type="number"
-                    placeholder="0"
-                    value={formData.default_pur_discount ?? ""}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      default_pur_discount: e.target.value ? Number(e.target.value) : undefined
-                    })}
-                    className="h-9 text-sm"
-                  />
-                </div>
+                {showDiscountFields && (
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Pur Disc %</Label>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      value={formData.default_pur_discount ?? ""}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        default_pur_discount: e.target.value ? Number(e.target.value) : undefined
+                      })}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                )}
 
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Sale Disc %</Label>
-                  <Input
-                    type="number"
-                    placeholder="0"
-                    value={formData.default_sale_discount ?? ""}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      default_sale_discount: e.target.value ? Number(e.target.value) : undefined
-                    })}
-                    className="h-9 text-sm"
-                  />
-                </div>
+                {showDiscountFields && (
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Sale Disc %</Label>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      value={formData.default_sale_discount ?? ""}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        default_sale_discount: e.target.value ? Number(e.target.value) : undefined
+                      })}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Colors Section */}
