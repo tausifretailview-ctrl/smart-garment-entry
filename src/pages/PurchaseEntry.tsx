@@ -172,6 +172,7 @@ const PurchaseEntry = () => {
   // State for tracking newly added items for smart barcode printing
   const [newlyAddedItems, setNewlyAddedItems] = useState<LineItem[]>([]);
   const [savedBillId, setSavedBillId] = useState<string | null>(null);
+  const [savedSupplierId, setSavedSupplierId] = useState<string | null>(null);
   
   // Bill navigation state (like Sales Invoice)
   const [navBillIndex, setNavBillIndex] = useState<number | null>(null);
@@ -1853,6 +1854,7 @@ const PurchaseEntry = () => {
         // Store all items and newly added items for print dialog
         setSavedPurchaseItems(itemsWithDetails);
         setSavedBillId(editingBillId);
+        setSavedSupplierId(billData.supplier_id || null);
         
         // Only set newly added items if there are any
         if (insertedNewItems.length > 0) {
@@ -1993,6 +1995,7 @@ const PurchaseEntry = () => {
         // Store items for barcode printing and show dialog (only if barcode prompt is enabled)
         setSavedPurchaseItems(itemsWithDetails);
         setSavedBillId(billDataResult.id);
+        setSavedSupplierId(billData.supplier_id || null);
         setNewlyAddedItems([]); // All items are new for a new bill
         if (enableBarcodePrompt) {
           setShowPrintDialog(true);
@@ -2074,13 +2077,13 @@ const PurchaseEntry = () => {
     try {
       // Fetch supplier code
       let supplierCode = "";
-      if (billData.supplier_id) {
+      const suppId = savedSupplierId || billData.supplier_id;
+      if (suppId) {
         const { data: supplierData } = await supabase
           .from("suppliers")
           .select("supplier_code")
-          .eq("id", billData.supplier_id)
+          .eq("id", suppId)
           .single();
-        
         supplierCode = supplierData?.supplier_code || "";
       }
 
@@ -3490,11 +3493,12 @@ const PurchaseEntry = () => {
                     try {
                       // Fetch supplier code from suppliers table
                       let supplierCode = "";
-                      if (billData.supplier_id) {
+                      const suppId = savedSupplierId || billData.supplier_id;
+                      if (suppId) {
                         const { data: supplierData } = await supabase
                           .from("suppliers")
                           .select("supplier_code")
-                          .eq("id", billData.supplier_id)
+                          .eq("id", suppId)
                           .single();
                         supplierCode = supplierData?.supplier_code || "";
                       }
@@ -3552,11 +3556,12 @@ const PurchaseEntry = () => {
                       try {
                         // Fetch supplier code from suppliers table
                         let supplierCode = "";
-                        if (billData.supplier_id) {
+                        const suppId = savedSupplierId || billData.supplier_id;
+                        if (suppId) {
                           const { data: supplierData } = await supabase
                             .from("suppliers")
                             .select("supplier_code")
-                            .eq("id", billData.supplier_id)
+                            .eq("id", suppId)
                             .single();
                           supplierCode = supplierData?.supplier_code || "";
                         }
