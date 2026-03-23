@@ -1704,16 +1704,17 @@ const PurchaseEntry = () => {
           .update({
             supplier_id: billData.supplier_id || null,
             supplier_name: billData.supplier_name,
-            supplier_invoice_no: billData.supplier_invoice_no,
-            bill_date: format(billDate, "yyyy-MM-dd"),
-            gross_amount: calculatedGrossBeforeDiscount,
-            discount_amount: calculatedTotalDiscount,
-            gst_amount: calculatedGst,
-            other_charges: otherCharges,
-            net_amount: calculatedNet,
-            round_off: roundOff,
-          })
-          .eq("id", editingBillId);
+              supplier_invoice_no: billData.supplier_invoice_no,
+              bill_date: format(billDate, "yyyy-MM-dd"),
+              gross_amount: calculatedGrossBeforeDiscount,
+              discount_amount: calculatedTotalDiscount,
+              gst_amount: isDcPurchase ? 0 : calculatedGst,
+              other_charges: otherCharges,
+              net_amount: isDcPurchase ? (calculatedGrossAfterDiscount + otherCharges + roundOff) : calculatedNet,
+              round_off: roundOff,
+              is_dc_purchase: isDcPurchase,
+            })
+            .eq("id", editingBillId);
 
         if (billError) throw billError;
 
