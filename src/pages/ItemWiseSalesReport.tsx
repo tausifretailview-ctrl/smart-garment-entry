@@ -666,141 +666,219 @@ export default function ItemWiseSalesReport() {
         </Card>
       </div>
 
-      {/* Charts */}
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Top 10 Products by Quantity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={topProductsData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis type="number" className="text-xs" />
-                  <YAxis dataKey="name" type="category" width={120} className="text-xs" />
-                  <Tooltip
-                    contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
-                    formatter={(value: number) => [value.toLocaleString(), "Qty"]}
-                  />
-                  <Bar dataKey="qty" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Tabs for Item-wise and Brand-wise */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "itemwise" | "brandwise")}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="itemwise">📦 Item-wise Details</TabsTrigger>
+          <TabsTrigger value="brandwise">🏷️ Brand-wise Sale</TabsTrigger>
+        </TabsList>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Sales by Category</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={categoryData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                  >
-                    {categoryData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
-                    formatter={(value: number) => [`₹${value.toLocaleString()}`, "Amount"]}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+        <TabsContent value="itemwise" className="space-y-6">
+          {/* Charts */}
+          <div className="grid md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Top 10 Products by Quantity</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={topProductsData} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis type="number" className="text-xs" />
+                      <YAxis dataKey="name" type="category" width={120} className="text-xs" />
+                      <Tooltip
+                        contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
+                        formatter={(value: number) => [value.toLocaleString(), "Qty"]}
+                      />
+                      <Bar dataKey="qty" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
 
-      {/* Data Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Item-wise Details ({filteredData.length} items)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="border rounded-lg overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead className="w-[100px]">Barcode</TableHead>
-                  <TableHead>Product Name</TableHead>
-                  <TableHead>Brand</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Color</TableHead>
-                  <TableHead>Size</TableHead>
-                  <TableHead className="text-right">Qty Sold</TableHead>
-                  <TableHead className="text-right">Avg Price</TableHead>
-                  <TableHead className="text-right">Total Amount</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                      Loading...
-                    </TableCell>
-                  </TableRow>
-                ) : filteredData.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                      No sales data found for the selected period
-                    </TableCell>
-                  </TableRow>
-                ) : (() => {
-                  const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-                  const paginatedData = filteredData.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
-                  return (
-                    <>
-                      {paginatedData.map((item, idx) => (
-                        <TableRow key={idx} className="hover:bg-muted/30">
-                          <TableCell className="font-mono text-sm">{item.barcode || "-"}</TableCell>
-                          <TableCell className="font-medium">{item.product_name}</TableCell>
-                          <TableCell>{item.brand || "-"}</TableCell>
-                          <TableCell>{item.category || "-"}</TableCell>
-                          <TableCell>{item.color || "-"}</TableCell>
-                          <TableCell>{item.size}</TableCell>
-                          <TableCell className="text-right font-medium">{item.total_qty}</TableCell>
-                          <TableCell className="text-right">₹{item.avg_price.toFixed(2)}</TableCell>
-                          <TableCell className="text-right font-semibold text-primary">
-                            ₹{item.total_amount.toLocaleString()}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {totalPages > 1 && (
-                        <TableRow>
-                          <TableCell colSpan={9}>
-                            <div className="flex items-center justify-between py-2">
-                              <p className="text-sm text-muted-foreground">
-                                Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} of {filteredData.length}
-                              </p>
-                              <div className="flex items-center gap-2">
-                                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
-                                <span className="text-sm text-muted-foreground">Page {currentPage} of {totalPages}</span>
-                                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Next</Button>
-                              </div>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </>
-                  );
-                })()}
-              </TableBody>
-            </Table>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Sales by Category</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={categoryData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        outerRadius={100}
+                        fill="#8884d8"
+                        dataKey="value"
+                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                      >
+                        {categoryData.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
+                        formatter={(value: number) => [`₹${value.toLocaleString()}`, "Amount"]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+
+          {/* Item-wise Data Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Item-wise Details ({filteredData.length} items)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="w-[100px]">Barcode</TableHead>
+                      <TableHead>Product Name</TableHead>
+                      <TableHead>Brand</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Color</TableHead>
+                      <TableHead>Size</TableHead>
+                      <TableHead className="text-right">Qty Sold</TableHead>
+                      <TableHead className="text-right">Avg Price</TableHead>
+                      <TableHead className="text-right">Total Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                          Loading...
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredData.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                          No sales data found for the selected period
+                        </TableCell>
+                      </TableRow>
+                    ) : (() => {
+                      const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+                      const paginatedData = filteredData.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+                      return (
+                        <>
+                          {paginatedData.map((item, idx) => (
+                            <TableRow key={idx} className="hover:bg-muted/30">
+                              <TableCell className="font-mono text-sm">{item.barcode || "-"}</TableCell>
+                              <TableCell className="font-medium">{item.product_name}</TableCell>
+                              <TableCell>{item.brand || "-"}</TableCell>
+                              <TableCell>{item.category || "-"}</TableCell>
+                              <TableCell>{item.color || "-"}</TableCell>
+                              <TableCell>{item.size}</TableCell>
+                              <TableCell className="text-right font-medium">{item.total_qty}</TableCell>
+                              <TableCell className="text-right">₹{item.avg_price.toFixed(2)}</TableCell>
+                              <TableCell className="text-right font-semibold text-primary">
+                                ₹{item.total_amount.toLocaleString()}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          {totalPages > 1 && (
+                            <TableRow>
+                              <TableCell colSpan={9}>
+                                <div className="flex items-center justify-between py-2">
+                                  <p className="text-sm text-muted-foreground">
+                                    Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} of {filteredData.length}
+                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
+                                    <span className="text-sm text-muted-foreground">Page {currentPage} of {totalPages}</span>
+                                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Next</Button>
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="brandwise">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Brand-wise Sale by Customer ({brandWiseData.length} rows)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead>Customer Name</TableHead>
+                      <TableHead>Brand</TableHead>
+                      <TableHead className="text-right">Total Qty</TableHead>
+                      <TableHead className="text-right">Total Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                          Loading...
+                        </TableCell>
+                      </TableRow>
+                    ) : brandWiseData.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                          No sales data found for the selected period
+                        </TableCell>
+                      </TableRow>
+                    ) : (() => {
+                      let lastCustomer = "";
+                      return brandWiseData.map((item, idx) => {
+                        const showCustomer = item.customer_name !== lastCustomer;
+                        lastCustomer = item.customer_name;
+                        return (
+                          <TableRow key={idx} className={cn("hover:bg-muted/30", showCustomer && idx > 0 && "border-t-2 border-border")}>
+                            <TableCell className="font-medium">
+                              {showCustomer ? item.customer_name : ""}
+                            </TableCell>
+                            <TableCell>{item.brand}</TableCell>
+                            <TableCell className="text-right font-medium">{item.total_qty}</TableCell>
+                            <TableCell className="text-right font-semibold text-primary">
+                              ₹{item.total_amount.toLocaleString()}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      });
+                    })()}
+                  </TableBody>
+                  {brandWiseData.length > 0 && (
+                    <TableFooter>
+                      <TableRow>
+                        <TableCell colSpan={2} className="font-bold">Grand Total</TableCell>
+                        <TableCell className="text-right font-bold">
+                          {brandWiseData.reduce((s, r) => s + r.total_qty, 0).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-primary">
+                          ₹{brandWiseData.reduce((s, r) => s + r.total_amount, 0).toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    </TableFooter>
+                  )}
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
