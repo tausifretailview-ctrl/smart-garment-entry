@@ -260,6 +260,43 @@ export default function ItemWiseSalesReport() {
     return data;
   }, [aggregatedData, searchQuery, selectedBrand, selectedCategory, selectedDepartment]);
 
+  // Brand-wise data: aggregate saleItems by customer_name + brand
+  const brandWiseData = useMemo(() => {
+    const groups = new Map<string, { customer_name: string; brand: string; total_qty: number; total_amount: number }>();
+
+    saleItems.forEach((item: any) => {
+      const customerName = item.customer_name || "Walk-in";
+      const brand = item.products?.brand || "Unbranded";
+
+      // Apply same client-side filters
+      if (selectedBrand !== "all" && brand !== selectedBrand) return;
+      if (selectedCategory !== "all" && item.products?.category !== selectedCategory) return;
+      if (selectedDepartment !== "all" && item.products?.color !== selectedDepartment) return;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchesSearch =
+          item.product_name?.toLowerCase().includes(q) ||
+          item.barcode?.toLowerCase().includes(q) ||
+          brand.toLowerCase().includes(q) ||
+          item.products?.category?.toLowerCase().includes(q);
+        if (!matchesSearch) return;
+      }
+
+      const key = `${customerName}|||${brand}`;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.total_qty += item.quantity;
+        existing.total_amount += Number(item.line_total);
+      } else {
+        groups.set(key, { customer_name: customerName, brand, total_qty: item.quantity, total_amount: Number(item.line_total) });
+      }
+    });
+
+    return Array.from(groups.values()).sort((a, b) =>
+      a.customer_name.localeCompare(b.customer_name) || a.brand.localeCompare(b.brand)
+    );
+  }, [saleItems, selectedBrand, selectedCategory, selectedDepartment, searchQuery]);
+
   // Summary via RPC (single JSON instead of client-side aggregation)
   const { data: rpcSummary } = useQuery({
     queryKey: ["item-sales-summary-rpc", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer],
