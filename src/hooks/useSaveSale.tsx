@@ -343,6 +343,7 @@ export const useSaveSale = () => {
           round_off_share: Math.round(roundOffShare * 100) / 100,
           net_after_discount: Math.round(netAfterDiscount * 100) / 100,
           per_qty_net_amount: Math.round(perQtyNetAmount * 100) / 100,
+          is_dc_item: (item as any).isDcProduct === true,
         };
       });
 
