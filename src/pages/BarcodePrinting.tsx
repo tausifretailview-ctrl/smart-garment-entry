@@ -3316,6 +3316,7 @@ export default function BarcodePrinting() {
           v_gap: precisionSettings.vGap,
           a4_cols: precisionSettings.a4Cols,
           a4_rows: precisionSettings.a4Rows,
+          thermal_cols: precisionSettings.thermalCols || 1,
         }, { onConflict: "organization_id,name" });
       if (error) {
         toast.error("Failed to save calibration");
