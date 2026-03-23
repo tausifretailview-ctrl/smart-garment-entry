@@ -490,11 +490,11 @@ export default function SalesInvoiceDashboard() {
       if (!currentOrganization?.id) return null;
       const { data, error } = await supabase.rpc('get_sales_invoice_dashboard_stats', {
         p_org_id: currentOrganization.id,
-        p_search: debouncedSearch || undefined,
-        p_delivery_status: deliveryFilter !== 'all' ? deliveryFilter : undefined,
-        p_payment_status: paymentStatusFilter !== 'all' ? paymentStatusFilter : undefined,
-        p_date_start: queryDateRange.start || undefined,
-        p_date_end: queryDateRange.end || undefined,
+        p_search: debouncedSearch || '',
+        p_delivery_status: deliveryFilter || 'all',
+        p_payment_status: paymentStatusFilter || 'all',
+        p_date_start: queryDateRange.start || '',
+        p_date_end: queryDateRange.end || '',
       });
       if (error) {
         console.error('Error fetching dashboard stats:', error);
