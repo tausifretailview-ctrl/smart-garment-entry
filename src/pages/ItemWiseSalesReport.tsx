@@ -19,7 +19,7 @@ import { CalendarIcon, Search, Package, IndianRupee, TrendingUp, Printer, FileSp
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
-type PeriodType = "daily" | "monthly" | "quarterly" | "yearly" | "custom";
+type PeriodType = "daily" | "monthly" | "quarterly" | "yearly" | "all" | "custom";
 
 interface SaleItemData {
   barcode: string | null;
