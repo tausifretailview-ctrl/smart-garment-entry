@@ -17,6 +17,7 @@ export interface CalibrationValues {
   vGap: number;
   labelWidth: number;
   labelHeight: number;
+  thermalCols?: number;
 }
 
 export interface CalibrationPreset {
