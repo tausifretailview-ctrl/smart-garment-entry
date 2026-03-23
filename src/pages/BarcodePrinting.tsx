@@ -1518,6 +1518,7 @@ export default function BarcodePrinting() {
             printMode: p.print_mode || 'thermal',
             labelConfig: p.label_config,
             isDefault: p.is_default,
+            thermalCols: p.thermal_cols || undefined,
           }));
           setDbPresets(mapped);
 
