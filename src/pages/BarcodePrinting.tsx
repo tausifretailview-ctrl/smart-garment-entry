@@ -4995,6 +4995,7 @@ export default function BarcodePrinting() {
                 vGap: precisionSettings.vGap,
                 labelWidth: precisionSettings.labelWidth,
                 labelHeight: precisionSettings.labelHeight,
+                thermalCols: precisionSettings.thermalCols,
               }}
               onChange={(vals) =>
                 setPrecisionSettings((prev) => ({
@@ -5004,6 +5005,7 @@ export default function BarcodePrinting() {
                   vGap: vals.vGap,
                   labelWidth: vals.labelWidth,
                   labelHeight: vals.labelHeight,
+                  thermalCols: vals.thermalCols || 1,
                 }))
               }
               presets={dbPresets}
