@@ -822,6 +822,10 @@ export default function POSSales() {
     return () => window.removeEventListener('keydown', handleNavigationKeyPress);
   }, [todaysSales, currentInvoiceIndex]);
 
+  // DC Sale Transfer dialog state
+  const [showDcTransferDialog, setShowDcTransferDialog] = useState(false);
+  const [dcTransferItems, setDcTransferItems] = useState<any[]>([]);
+  const [dcTransferSaleId, setDcTransferSaleId] = useState("");
 
   const { data: productsData } = useQuery({
     queryKey: ['pos-products', currentOrganization?.id],
