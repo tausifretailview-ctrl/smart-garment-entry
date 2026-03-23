@@ -715,28 +715,75 @@ export function LabelCalibrationUI({
         {!compact && (
           <div className="space-y-2">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Live Preview ({previewScale}× • {values.labelWidth}×{values.labelHeight}mm)
+              Live Preview ({previewScale}× •{' '}
+              {printMode === 'thermal2up' ? `${values.labelWidth}×${values.labelHeight}mm × 2` : `${values.labelWidth}×${values.labelHeight}mm`})
             </p>
             <Card className="overflow-hidden">
               <CardContent className="p-3 flex items-center justify-center bg-muted/30 overflow-auto" style={{ minHeight: 120 }}>
-                <div
-                  style={{
-                    width: values.labelWidth * 3.7795 * previewScale,
-                    height: values.labelHeight * 3.7795 * previewScale,
-                    flexShrink: 0,
-                  }}
-                >
-                  <PrecisionLabelPreview
-                    item={sampleItem || SAMPLE_ITEM}
-                    width={values.labelWidth}
-                    height={values.labelHeight}
-                    xOffset={values.xOffset}
-                    yOffset={values.yOffset}
-                    showBorder
-                    config={labelConfig}
-                    scaleFactor={previewScale}
-                  />
-                </div>
+                {printMode === 'thermal2up' ? (
+                  <div className="flex items-center gap-1">
+                    <div
+                      style={{
+                        width: values.labelWidth * 3.7795 * previewScale,
+                        height: values.labelHeight * 3.7795 * previewScale,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <PrecisionLabelPreview
+                        item={sampleItem || SAMPLE_ITEM}
+                        width={values.labelWidth}
+                        height={values.labelHeight}
+                        xOffset={values.xOffset}
+                        yOffset={values.yOffset}
+                        showBorder
+                        config={labelConfig}
+                        scaleFactor={previewScale}
+                      />
+                    </div>
+                    <div className="flex flex-col items-center gap-0.5 px-1">
+                      <div className="w-px h-3 bg-primary/30" />
+                      <span className="text-[9px] text-primary/50 font-mono">{values.vGap}mm</span>
+                      <div className="w-px h-3 bg-primary/30" />
+                    </div>
+                    <div
+                      style={{
+                        width: values.labelWidth * 3.7795 * previewScale,
+                        height: values.labelHeight * 3.7795 * previewScale,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <PrecisionLabelPreview
+                        item={sampleItem || SAMPLE_ITEM}
+                        width={values.labelWidth}
+                        height={values.labelHeight}
+                        xOffset={values.xOffset}
+                        yOffset={values.yOffset}
+                        showBorder
+                        config={labelConfig}
+                        scaleFactor={previewScale}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      width: values.labelWidth * 3.7795 * previewScale,
+                      height: values.labelHeight * 3.7795 * previewScale,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <PrecisionLabelPreview
+                      item={sampleItem || SAMPLE_ITEM}
+                      width={values.labelWidth}
+                      height={values.labelHeight}
+                      xOffset={values.xOffset}
+                      yOffset={values.yOffset}
+                      showBorder
+                      config={labelConfig}
+                      scaleFactor={previewScale}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
