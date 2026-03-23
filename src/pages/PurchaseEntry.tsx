@@ -2039,6 +2039,7 @@ const PurchaseEntry = () => {
         setDiscountAmount(0);
         setRoundOff(0);
         setSoftwareBillNo(""); // Reset for next entry
+        setIsDcPurchase(false);
       }
     } catch (error: any) {
       toast({
