@@ -1291,6 +1291,7 @@ export default function POSSales() {
         variantId: variant.id,
         hsnCode: product.hsn_code || '',
         productType: product.product_type,
+        isDcProduct: variant.is_dc_product === true,
       };
       setItems(prev => [...prev, newItem]);
       

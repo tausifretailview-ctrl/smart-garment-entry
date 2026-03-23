@@ -2765,6 +2765,7 @@ const PurchaseEntry = () => {
               setBarcodeWarnings(new Map());
               setDetectedPriceChanges([]);
               setSelectedForPrint(new Set());
+              setIsDcPurchase(false);
               deleteDraft();
               
             }}
