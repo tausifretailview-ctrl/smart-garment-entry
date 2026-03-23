@@ -53,6 +53,7 @@ interface ThermalReceiptCompactProps {
   pointsBalance?: number;
   cashier?: string;
   salesman?: string;
+  isDcInvoice?: boolean;
   counter?: string;
 }
 
