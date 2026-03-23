@@ -175,6 +175,7 @@ interface BillBarcodeSettings {
   show_style?: boolean;
   show_hsn_code?: boolean;
   upi_id?: string;
+  dc_upi_id?: string;
   invoice_format?: string;
   show_product_details?: boolean;
   barcode_format?: string;

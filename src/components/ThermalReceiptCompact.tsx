@@ -70,7 +70,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
       cashPaid = 0, upiPaid = 0, cardPaid = 0, creditPaid = 0, refundCash = 0,
       documentType = 'invoice', termsConditions,
       pointsRedeemed = 0, pointsRedemptionValue = 0, pointsBalance = 0,
-      cashier, salesman, counter,
+      cashier, salesman, counter, isDcInvoice,
     } = props;
 
     const { currentOrganization } = useOrganization();

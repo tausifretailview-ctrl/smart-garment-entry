@@ -70,7 +70,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
       cashPaid = 0, upiPaid = 0, cardPaid = 0, creditPaid = 0, refundCash = 0,
       documentType = 'invoice', termsConditions,
       pointsRedeemed = 0, pointsRedemptionValue = 0, pointsBalance = 0,
-      cashier, salesman, counter,
+      cashier, salesman, counter, isDcInvoice,
     } = props;
 
     const { currentOrganization } = useOrganization();
