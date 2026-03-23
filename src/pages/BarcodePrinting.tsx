@@ -4966,7 +4966,7 @@ export default function BarcodePrinting() {
           <Download className="h-4 w-4 mr-2" />
           Export PDF
         </Button>
-        {!isThermal1Up() && (
+        {!(isThermal1Up() || isThermal2Up()) && (
           <Button
             onClick={handleExportPerfectPDF}
             variant="outline"
