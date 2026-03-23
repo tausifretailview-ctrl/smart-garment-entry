@@ -73,9 +73,7 @@ export function PrecisionPrintCSS({ labelWidth, labelHeight, mode }: PrecisionPr
           break-after: auto !important;
         }
         .precision-label-container {
-          position: absolute !important;
-          top: 0 !important;
-          left: 0 !important;
+          position: relative !important;
         }
         .precision-barcode-svg {
           image-rendering: pixelated;
