@@ -78,6 +78,7 @@ import { format } from "date-fns";
 import { useReactToPrint } from "react-to-print";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
+import { DcSaleTransferDialog } from "@/components/DcSaleTransferDialog";
 
 interface PendingPriceSelection {
   product: any;
