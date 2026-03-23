@@ -175,6 +175,7 @@ interface BillBarcodeSettings {
   show_style?: boolean;
   show_hsn_code?: boolean;
   upi_id?: string;
+  dc_upi_id?: string;
   invoice_format?: string;
   show_product_details?: boolean;
   barcode_format?: string;
@@ -3610,6 +3611,44 @@ export default function Settings() {
                   <p className="text-xs text-muted-foreground">
                     UPI ID for payment QR code on invoice
                   </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-2">
+                    DC Invoice UPI ID
+                    <span className="text-xs font-normal text-muted-foreground">
+                      Personal account for DC/cash invoices
+                    </span>
+                  </Label>
+                  <Input
+                    value={settings.bill_barcode_settings?.dc_upi_id || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        bill_barcode_settings: {
+                          ...settings.bill_barcode_settings,
+                          dc_upi_id: e.target.value,
+                        },
+                      })
+                    }
+                    placeholder="personal@upi  (leave blank to use Company UPI ID)"
+                    className="font-mono"
+                  />
+                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                    ⚠️ This UPI ID will appear on DC purchase invoices only.
+                    Keep your personal account separate from business account.
+                  </p>
+                  {settings.bill_barcode_settings?.dc_upi_id ? (
+                    <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1 flex items-center gap-1">
+                      ✅ DC invoices will use: <span className="font-mono font-bold">
+                        {settings.bill_barcode_settings.dc_upi_id}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground bg-muted rounded px-2 py-1">
+                      DC invoices will use company UPI: {settings.bill_barcode_settings?.upi_id || 'not set'}
+                    </div>
+                  )}
                 </div>
                 
                 {/* Social Media Links for WhatsApp */}

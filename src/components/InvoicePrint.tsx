@@ -48,6 +48,7 @@ interface InvoicePrintProps {
   };
   declarationText?: string;
   termsConditions?: string[];
+  isDcInvoice?: boolean;
 }
 
 export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
@@ -89,7 +90,7 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
   }, [currentOrganization?.id]);
 
   useEffect(() => {
-    if (settings?.bill_barcode_settings?.upi_id) {
+    if (settings?.bill_barcode_settings?.upi_id || settings?.bill_barcode_settings?.dc_upi_id) {
       generateUpiQrCode();
     }
   }, [settings, grandTotal]);
@@ -115,7 +116,10 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
 
   const generateUpiQrCode = async () => {
     try {
-      const upiId = settings?.bill_barcode_settings?.upi_id;
+      const upiId = (props.isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id)
+        ? settings.bill_barcode_settings.dc_upi_id
+        : settings?.bill_barcode_settings?.upi_id;
+      if (!upiId) return;
       const businessName = settings?.business_name || 'Store';
       
       // UPI payment string format
@@ -338,11 +342,11 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
             )}
           </div>
           <div className="terms-right">
-            {qrCodeUrl && settings?.bill_barcode_settings?.upi_id ? (
+            {qrCodeUrl && (settings?.bill_barcode_settings?.upi_id || settings?.bill_barcode_settings?.dc_upi_id) ? (
               <div className="upi-qr-section">
                 <img src={qrCodeUrl} alt="UPI QR Code" className="upi-qr-code" />
                 <p className="upi-text">Scan to Pay</p>
-                <p className="upi-id">{settings.bill_barcode_settings.upi_id}</p>
+                <p className="upi-id">{(props.isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id) ? settings.bill_barcode_settings.dc_upi_id : settings.bill_barcode_settings.upi_id}</p>
               </div>
             ) : (
               <div className="barcode-image">

@@ -54,6 +54,7 @@ interface ThermalPrint80mmProps {
   cashier?: string;
   salesman?: string;
   counter?: string;
+  isDcInvoice?: boolean;
 }
 
 const fmtAmt = (n: number): string => Math.round(n).toLocaleString('en-IN');
@@ -69,7 +70,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
       cashPaid = 0, upiPaid = 0, cardPaid = 0, creditPaid = 0, refundCash = 0,
       documentType = 'invoice', termsConditions,
       pointsRedeemed = 0, pointsRedemptionValue = 0, pointsBalance = 0,
-      cashier, salesman, counter,
+      cashier, salesman, counter, isDcInvoice,
     } = props;
 
     const { currentOrganization } = useOrganization();
@@ -89,10 +90,12 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
     }, [currentOrganization?.id]);
 
     useEffect(() => {
-      if (!settings?.bill_barcode_settings?.upi_id || grandTotal <= 0) return;
+      const upiId = (isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id)
+        ? settings.bill_barcode_settings.dc_upi_id
+        : settings?.bill_barcode_settings?.upi_id;
+      if (!upiId || grandTotal <= 0) return;
       (async () => {
         try {
-          const upiId = settings.bill_barcode_settings.upi_id;
           const name = settings.business_name || 'Store';
           const url = await QRCode.toDataURL(
             `upi://pay?pa=${upiId}&pn=${encodeURIComponent(name)}&am=${grandTotal.toFixed(2)}&cu=INR`,
@@ -344,11 +347,11 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         )}
 
         {/* ═══ UPI QR ═══ */}
-        {qrCodeUrl && settings?.bill_barcode_settings?.upi_id && (
+        {qrCodeUrl && (settings?.bill_barcode_settings?.upi_id || settings?.bill_barcode_settings?.dc_upi_id) && (
           <div style={{ ...center, margin: '4px 0' }}>
             <div style={{ fontSize: '10px', fontWeight: 900, marginBottom: '2px' }}>SCAN TO PAY</div>
             <img src={qrCodeUrl} alt="UPI QR" style={{ width: '80px', height: '80px', margin: '0 auto', display: 'block' }} />
-            <div style={{ fontSize: '9px', marginTop: '1px' }}>{settings.bill_barcode_settings.upi_id}</div>
+            <div style={{ fontSize: '9px', marginTop: '1px' }}>{(isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id) ? settings.bill_barcode_settings.dc_upi_id : settings.bill_barcode_settings.upi_id}</div>
           </div>
         )}
 

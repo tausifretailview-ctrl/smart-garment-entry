@@ -114,6 +114,7 @@ interface InvoiceWrapperProps {
   termsConditions?: string[];
   salesman?: string;
   notes?: string;
+  isDcInvoice?: boolean;
 }
 
 export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperProps>(
@@ -127,7 +128,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     }, [currentOrganization?.id]);
 
     useEffect(() => {
-      if (settings?.bill_barcode_settings?.upi_id) {
+      if (settings?.bill_barcode_settings?.upi_id || settings?.bill_barcode_settings?.dc_upi_id) {
         generateUpiQrCode();
       }
     }, [settings, props.grandTotal]);
@@ -153,7 +154,10 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
 
     const generateUpiQrCode = async () => {
       try {
-        const upiId = settings?.bill_barcode_settings?.upi_id;
+        const upiId = (props.isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id)
+          ? settings.bill_barcode_settings.dc_upi_id
+          : settings?.bill_barcode_settings?.upi_id;
+        if (!upiId) return;
         const businessName = settings?.business_name || 'Store';
         
         const upiString = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${props.grandTotal.toFixed(2)}&cu=INR`;
@@ -295,7 +299,9 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       previousBalance: props.previousBalance || 0,
       
       qrCodeUrl,
-      upiId: settings?.bill_barcode_settings?.upi_id,
+      upiId: (props.isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id)
+        ? settings.bill_barcode_settings.dc_upi_id
+        : settings?.bill_barcode_settings?.upi_id,
       bankDetails: settings?.sale_settings?.bank_details,
       declarationText,
       termsConditions,
