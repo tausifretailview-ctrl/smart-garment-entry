@@ -3274,7 +3274,7 @@ export default function BarcodePrinting() {
           .precision-print-area > div:last-child {
             page-break-after: auto !important; break-after: auto !important;
           }
-          .precision-label-container { position: absolute !important; top: 0 !important; left: 0 !important; }
+          .precision-label-container { position: relative !important; }
           .precision-barcode-svg { image-rendering: pixelated; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         </style></head><body><div class="precision-print-area">${labelHTML}</div></body></html>`);
 
