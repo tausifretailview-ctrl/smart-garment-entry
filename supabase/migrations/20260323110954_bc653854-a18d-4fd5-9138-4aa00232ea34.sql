@@ -1,0 +1,1 @@
+ALTER TABLE public.printer_presets ADD COLUMN IF NOT EXISTS thermal_cols integer DEFAULT 1;
