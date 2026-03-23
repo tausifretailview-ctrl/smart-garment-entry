@@ -218,7 +218,7 @@ const GSTReports = () => {
         .order("sale_date", { ascending: true });
 
       const saleIds = salesData?.map(s => s.id) || [];
-      const saleItems = saleIds.length > 0 ? await fetchAllSaleItems(saleIds) : [];
+      const saleItems = saleIds.length > 0 ? (await fetchAllSaleItems(saleIds)).filter((i: any) => !i.is_dc_item) : [];
 
       // Group items by sale
       const saleItemsMap = new Map<string, typeof saleItems>();
