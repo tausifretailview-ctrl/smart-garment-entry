@@ -263,6 +263,7 @@ export function LabelCalibrationUI({
         vGap: preset.vGap,
         labelWidth: preset.width,
         labelHeight: preset.height,
+        thermalCols: preset.thermalCols,
       });
       setActivePresetName(name);
       onLoadPreset?.(preset);
