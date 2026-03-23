@@ -19,7 +19,7 @@ import { CalendarIcon, Search, Package, IndianRupee, TrendingUp, Printer, FileSp
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
-type PeriodType = "daily" | "monthly" | "quarterly" | "yearly" | "custom";
+type PeriodType = "daily" | "monthly" | "quarterly" | "yearly" | "all" | "custom";
 
 interface SaleItemData {
   barcode: string | null;
@@ -124,6 +124,8 @@ export default function ItemWiseSalesReport() {
         const fyStart = month >= 3 ? new Date(year, 3, 1) : new Date(year - 1, 3, 1);
         const fyEnd = month >= 3 ? new Date(year + 1, 2, 31) : new Date(year, 2, 31);
         return { from: fyStart, to: fyEnd };
+      case "all":
+        return { from: new Date(2000, 0, 1), to: endOfDay(new Date()) };
       case "custom":
         return { from: startOfDay(customDateRange.from), to: endOfDay(customDateRange.to) };
       default:
@@ -426,17 +428,18 @@ export default function ItemWiseSalesReport() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="daily">Today</SelectItem>
                     <SelectItem value="monthly">Monthly</SelectItem>
                     <SelectItem value="quarterly">Quarterly</SelectItem>
                     <SelectItem value="yearly">Yearly (FY)</SelectItem>
+                    <SelectItem value="all">All Time</SelectItem>
                     <SelectItem value="custom">Custom Range</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               {/* Date Picker */}
-              {periodType !== "custom" && (
+              {periodType !== "custom" && periodType !== "all" && (
                 <div className="w-full md:w-48">
                   <label className="text-sm font-medium text-muted-foreground mb-1 block">Date</label>
                   <Popover>
