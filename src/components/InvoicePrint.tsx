@@ -48,6 +48,7 @@ interface InvoicePrintProps {
   };
   declarationText?: string;
   termsConditions?: string[];
+  isDcInvoice?: boolean;
 }
 
 export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
