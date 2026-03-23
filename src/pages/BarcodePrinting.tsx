@@ -3361,7 +3361,7 @@ export default function BarcodePrinting() {
       toast.error('Please add at least one label with quantity > 0');
       return;
     }
-    if (isThermal1Up()) {
+    if (isThermal1Up() || isThermal2Up()) {
       toast.error('Perfect PDF is for A4 sheet labels only');
       return;
     }
