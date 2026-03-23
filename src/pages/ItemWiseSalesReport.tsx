@@ -124,6 +124,8 @@ export default function ItemWiseSalesReport() {
         const fyStart = month >= 3 ? new Date(year, 3, 1) : new Date(year - 1, 3, 1);
         const fyEnd = month >= 3 ? new Date(year + 1, 2, 31) : new Date(year, 2, 31);
         return { from: fyStart, to: fyEnd };
+      case "all":
+        return { from: new Date(2000, 0, 1), to: endOfDay(new Date()) };
       case "custom":
         return { from: startOfDay(customDateRange.from), to: endOfDay(customDateRange.to) };
       default:
