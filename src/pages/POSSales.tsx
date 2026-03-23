@@ -840,7 +840,7 @@ export default function POSSales() {
             id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, product_type, status, category, style, color, sale_discount_type, sale_discount_value,
             product_variants (
               id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, deleted_at,
-              last_purchase_sale_price, last_purchase_mrp, last_purchase_date
+              last_purchase_sale_price, last_purchase_mrp, last_purchase_date, is_dc_product
             )
           `)
           .eq('organization_id', currentOrganization.id)
