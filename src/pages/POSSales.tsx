@@ -104,6 +104,7 @@ interface CartItem {
   variantId: string;
   hsnCode?: string;
   productType?: string; // Track product type to handle service items differently
+  isDcProduct?: boolean; // DC (Direct Cash) product flag
 }
 
 export default function POSSales() {
