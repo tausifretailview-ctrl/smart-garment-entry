@@ -3235,6 +3235,7 @@ export default function BarcodePrinting() {
         const printArea = precisionPrintRef.current;
         if (!printArea) return;
 
+        const labelHTML = printArea.innerHTML;
         const cols = precisionSettings.thermalCols || 1;
         const w = precisionSettings.labelWidth * cols;
         const h = precisionSettings.labelHeight + (precisionSettings.vGap || 0);
