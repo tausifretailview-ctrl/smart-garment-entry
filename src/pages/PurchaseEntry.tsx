@@ -1899,6 +1899,7 @@ const PurchaseEntry = () => {
         setDiscountAmount(0);
         setRoundOff(0);
         setSoftwareBillNo("");
+        setIsDcPurchase(false);
       } else {
         // Insert new purchase bill
         if (!currentOrganization?.id) throw new Error("No organization selected");
