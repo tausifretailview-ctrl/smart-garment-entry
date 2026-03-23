@@ -640,6 +640,7 @@ export default function OrgAuth() {
                         onChange={(e) => setPassword(e.target.value)}
                         disabled={loading}
                         required
+                        className="no-uppercase"
                         className="h-10 rounded-md pr-10"
                       />
                       <button
