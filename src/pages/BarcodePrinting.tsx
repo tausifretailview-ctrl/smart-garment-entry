@@ -3583,8 +3583,10 @@ export default function BarcodePrinting() {
       
       // Calculate how many rows fit on one page - use BASE dimensions (unscaled) for accurate page calculation
       // For thermal/1-up: each label is its own page; for A4: calculate rows per page
-      const labelsPerPage = (isThermal1Up() || isThermal2Up())
-        ? baseDimensions.cols
+      const labelsPerPage = isThermal1Up()
+        ? 1
+        : isThermal2Up()
+        ? 2
         : (() => {
             const availableHeight = 297 - topOffset - bottomOffset - 10;
             const rowsPerPage = Math.floor(availableHeight / (baseDimensions.height + baseDimensions.gap));
