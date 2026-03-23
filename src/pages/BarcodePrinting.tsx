@@ -3437,7 +3437,7 @@ export default function BarcodePrinting() {
     }
 
     // Precision Pro Thermal: use html2canvas on PrecisionLabelPreview per label
-    if (precisionSettings.enabled && precisionSettings.printMode === 'thermal') {
+    if (precisionSettings.enabled && (precisionSettings.printMode === 'thermal' || precisionSettings.printMode === 'thermal2up')) {
       toast.info("Generating PDF...");
       try {
         const { labelWidth, labelHeight, xOffset, yOffset, vGap, labelConfig } = precisionSettings;
