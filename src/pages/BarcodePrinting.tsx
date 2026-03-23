@@ -3267,7 +3267,7 @@ export default function BarcodePrinting() {
             min-height: ${isA4 ? '297mm' : `${h}mm`} !important;
             max-height: ${isA4 ? '297mm' : `${h}mm`} !important;
             overflow: hidden !important; box-sizing: border-box !important;
-            position: relative !important; display: block !important;
+            position: relative !important; display: flex !important; flex-wrap: nowrap !important;
             page-break-after: always !important; page-break-inside: avoid !important;
             break-after: page !important; break-inside: avoid !important;
           }
