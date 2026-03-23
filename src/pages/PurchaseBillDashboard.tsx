@@ -348,13 +348,13 @@ const PurchaseBillDashboard = () => {
       // Server-side search — also search product details in purchase_items
       if (debouncedSearch) {
         // First, find bill IDs that have matching products
-        const { data: matchingItems } = await (supabase
+        let itemQuery: any = supabase
           .from("purchase_items")
           .select("bill_id")
           .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null) as any)
-          .or(`product_name.ilike.%${debouncedSearch}%,brand.ilike.%${debouncedSearch}%,barcode.ilike.%${debouncedSearch}%,style.ilike.%${debouncedSearch}%,category.ilike.%${debouncedSearch}%,color.ilike.%${debouncedSearch}%`)
-          .limit(200);
+          .is("deleted_at", null);
+        itemQuery = itemQuery.or(`product_name.ilike.%${debouncedSearch}%,brand.ilike.%${debouncedSearch}%,barcode.ilike.%${debouncedSearch}%,style.ilike.%${debouncedSearch}%,category.ilike.%${debouncedSearch}%,color.ilike.%${debouncedSearch}%`);
+        const { data: matchingItems } = await itemQuery.limit(200);
 
         const matchingBillIds = [...new Set((matchingItems || []).map((i: any) => i.bill_id).filter(Boolean))];
 
