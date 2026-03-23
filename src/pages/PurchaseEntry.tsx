@@ -1947,7 +1947,7 @@ const PurchaseEntry = () => {
           pur_price: item.pur_price,
           sale_price: item.sale_price,
           mrp: item.mrp || 0,
-          gst_per: item.gst_per,
+          gst_per: isDcPurchase ? 0 : item.gst_per,
           hsn_code: item.hsn_code,
           barcode: item.barcode,
           line_total: item.line_total,
@@ -1956,6 +1956,7 @@ const PurchaseEntry = () => {
           category: item.category || null,
           color: item.color || null,
           style: item.style || null,
+          is_dc_item: isDcPurchase,
         }));
 
         const { error: itemsError } = await supabase
