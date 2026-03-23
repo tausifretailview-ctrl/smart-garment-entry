@@ -342,11 +342,11 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
             )}
           </div>
           <div className="terms-right">
-            {qrCodeUrl && settings?.bill_barcode_settings?.upi_id ? (
+            {qrCodeUrl && (settings?.bill_barcode_settings?.upi_id || settings?.bill_barcode_settings?.dc_upi_id) ? (
               <div className="upi-qr-section">
                 <img src={qrCodeUrl} alt="UPI QR Code" className="upi-qr-code" />
                 <p className="upi-text">Scan to Pay</p>
-                <p className="upi-id">{settings.bill_barcode_settings.upi_id}</p>
+                <p className="upi-id">{(props.isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id) ? settings.bill_barcode_settings.dc_upi_id : settings.bill_barcode_settings.upi_id}</p>
               </div>
             ) : (
               <div className="barcode-image">
