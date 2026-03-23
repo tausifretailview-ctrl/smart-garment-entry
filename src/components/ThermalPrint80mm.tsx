@@ -90,10 +90,12 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
     }, [currentOrganization?.id]);
 
     useEffect(() => {
-      if (!settings?.bill_barcode_settings?.upi_id || grandTotal <= 0) return;
+      const upiId = (isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id)
+        ? settings.bill_barcode_settings.dc_upi_id
+        : settings?.bill_barcode_settings?.upi_id;
+      if (!upiId || grandTotal <= 0) return;
       (async () => {
         try {
-          const upiId = settings.bill_barcode_settings.upi_id;
           const name = settings.business_name || 'Store';
           const url = await QRCode.toDataURL(
             `upi://pay?pa=${upiId}&pn=${encodeURIComponent(name)}&am=${grandTotal.toFixed(2)}&cu=INR`,
