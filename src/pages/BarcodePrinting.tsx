@@ -3235,8 +3235,8 @@ export default function BarcodePrinting() {
         const printArea = precisionPrintRef.current;
         if (!printArea) return;
 
-        const labelHTML = printArea.innerHTML;
-        const w = precisionSettings.labelWidth;
+        const cols = precisionSettings.thermalCols || 1;
+        const w = precisionSettings.labelWidth * cols;
         const h = precisionSettings.labelHeight + (precisionSettings.vGap || 0);
         const isA4 = precisionSettings.printMode === 'a4';
         const pageSize = isA4 ? '210mm 297mm' : `${w}mm ${h}mm`;
