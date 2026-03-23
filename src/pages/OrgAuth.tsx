@@ -94,6 +94,36 @@ export default function OrgAuth() {
         return;
       }
 
+      // Cache key for localStorage persistence
+      const cacheKey = `org_pub_${normalizedSlug}`;
+      let usedCache = false;
+
+      // Try loading from cache first (instant, no network needed)
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed?.id && parsed?.name && parsed?.slug) {
+            setOrganization({
+              id: parsed.id,
+              name: parsed.name,
+              slug: parsed.slug,
+              settings: parsed.settings,
+            });
+            if (parsed.business_name || parsed.bill_barcode_settings) {
+              setOrgSettings({
+                business_name: parsed.business_name,
+                bill_barcode_settings: parsed.bill_barcode_settings,
+              });
+            }
+            setOrgLoading(false);
+            usedCache = true;
+          }
+        }
+      } catch {
+        // Corrupt cache — ignore
+      }
+
       let resolvedOrgData: any = null;
       let failureType: "none" | "not_found" | "network" | "invalid_slug" = "none";
       let failureMessage = "";
@@ -145,6 +175,7 @@ export default function OrgAuth() {
       if (currentToken !== fetchTokenRef.current) return;
 
       if (resolvedOrgData) {
+        // Update state with fresh data
         setOrganization({
           id: resolvedOrgData.id,
           name: resolvedOrgData.name,
@@ -158,7 +189,15 @@ export default function OrgAuth() {
             bill_barcode_settings: resolvedOrgData.bill_barcode_settings,
           });
         }
-      } else {
+
+        // Persist to cache for future visits on blocked networks
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(resolvedOrgData));
+        } catch {
+          // Storage full — ignore
+        }
+      } else if (!usedCache) {
+        // Only show error if we don't have cached data
         if (failureType === "none") {
           failureType = "network";
           failureMessage = "Unable to connect. You can still sign in below.";
@@ -168,6 +207,7 @@ export default function OrgAuth() {
         setOrgFetchErrorType(failureType);
         setError(failureMessage);
       }
+      // If usedCache is true and RPC failed, silently keep cached data (no warning)
 
       setOrgLoading(false);
     };
