@@ -347,11 +347,11 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         )}
 
         {/* ═══ UPI QR ═══ */}
-        {qrCodeUrl && settings?.bill_barcode_settings?.upi_id && (
+        {qrCodeUrl && (settings?.bill_barcode_settings?.upi_id || settings?.bill_barcode_settings?.dc_upi_id) && (
           <div style={{ ...center, margin: '4px 0' }}>
             <div style={{ fontSize: '10px', fontWeight: 900, marginBottom: '2px' }}>SCAN TO PAY</div>
             <img src={qrCodeUrl} alt="UPI QR" style={{ width: '80px', height: '80px', margin: '0 auto', display: 'block' }} />
-            <div style={{ fontSize: '9px', marginTop: '1px' }}>{settings.bill_barcode_settings.upi_id}</div>
+            <div style={{ fontSize: '9px', marginTop: '1px' }}>{(isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id) ? settings.bill_barcode_settings.dc_upi_id : settings.bill_barcode_settings.upi_id}</div>
           </div>
         )}
 

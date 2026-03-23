@@ -128,7 +128,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     }, [currentOrganization?.id]);
 
     useEffect(() => {
-      if (settings?.bill_barcode_settings?.upi_id) {
+      if (settings?.bill_barcode_settings?.upi_id || settings?.bill_barcode_settings?.dc_upi_id) {
         generateUpiQrCode();
       }
     }, [settings, props.grandTotal]);
