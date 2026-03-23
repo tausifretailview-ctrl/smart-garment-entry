@@ -5409,7 +5409,7 @@ export default function BarcodePrinting() {
       {/* Print Area (hidden, used for printing) */}
       {!testPrintActive && precisionSettings.enabled ? (
         <div className="hidden print:block">
-          {precisionSettings.printMode === 'thermal' ? (
+          {(precisionSettings.printMode === 'thermal' || precisionSettings.printMode === 'thermal2up') ? (
             <PrecisionThermalPrint
               ref={precisionPrintRef}
               items={labelItems.filter(i => (i.qty || 0) > 0).map(i => ({ ...i, businessName }))}
