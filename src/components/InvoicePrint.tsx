@@ -90,7 +90,7 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
   }, [currentOrganization?.id]);
 
   useEffect(() => {
-    if (settings?.bill_barcode_settings?.upi_id) {
+    if (settings?.bill_barcode_settings?.upi_id || settings?.bill_barcode_settings?.dc_upi_id) {
       generateUpiQrCode();
     }
   }, [settings, grandTotal]);
