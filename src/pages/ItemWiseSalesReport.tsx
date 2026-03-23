@@ -428,10 +428,11 @@ export default function ItemWiseSalesReport() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="daily">Today</SelectItem>
                     <SelectItem value="monthly">Monthly</SelectItem>
                     <SelectItem value="quarterly">Quarterly</SelectItem>
                     <SelectItem value="yearly">Yearly (FY)</SelectItem>
+                    <SelectItem value="all">All Time</SelectItem>
                     <SelectItem value="custom">Custom Range</SelectItem>
                   </SelectContent>
                 </Select>
