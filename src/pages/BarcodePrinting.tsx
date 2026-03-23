@@ -5398,6 +5398,7 @@ export default function BarcodePrinting() {
               yOffset={precisionSettings.yOffset}
               vGap={precisionSettings.vGap}
               config={precisionSettings.labelConfig || undefined}
+              thermalCols={precisionSettings.thermalCols}
             />
           ) : (
             <PrecisionA4SheetPrint
