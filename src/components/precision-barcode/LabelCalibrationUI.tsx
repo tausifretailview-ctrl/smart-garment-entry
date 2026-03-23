@@ -152,10 +152,10 @@ interface LabelCalibrationUIProps {
   compact?: boolean;
   sampleItem?: LabelItem;
   savedTemplates?: LabelTemplate[];
-  printMode?: 'thermal' | 'a4';
+  printMode?: 'thermal' | 'thermal2up' | 'a4';
   a4Cols?: number;
   a4Rows?: number;
-  onPrintModeChange?: (mode: 'thermal' | 'a4') => void;
+  onPrintModeChange?: (mode: 'thermal' | 'thermal2up' | 'a4') => void;
   onA4ColsChange?: (cols: number) => void;
   onA4RowsChange?: (rows: number) => void;
   /** Controlled active preset/template name - persists across tab switches */
