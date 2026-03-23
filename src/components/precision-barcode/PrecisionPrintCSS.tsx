@@ -61,7 +61,8 @@ export function PrecisionPrintCSS({ labelWidth, labelHeight, mode }: PrecisionPr
           overflow: hidden !important;
           box-sizing: border-box !important;
           position: relative !important;
-          display: block !important;
+          display: flex !important;
+          flex-wrap: nowrap !important;
           page-break-after: always !important;
           page-break-inside: avoid !important;
           break-after: page !important;
