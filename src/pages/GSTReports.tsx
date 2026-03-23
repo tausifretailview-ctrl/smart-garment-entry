@@ -530,7 +530,7 @@ const GSTReports = () => {
         .lte("sale_date", toDateObj.toISOString());
 
       const saleIds = salesData?.map(s => s.id) || [];
-      const saleItems = saleIds.length > 0 ? await fetchAllSaleItems(saleIds) : [];
+      const saleItems = saleIds.length > 0 ? (await fetchAllSaleItems(saleIds)).filter((i: any) => !i.is_dc_item) : [];
 
       const hsnMap = new Map<string, HSNSummary>();
 
