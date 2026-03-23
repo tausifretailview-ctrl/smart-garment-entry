@@ -182,6 +182,9 @@ const PurchaseEntry = () => {
   const [barcodeWarnings, setBarcodeWarnings] = useState<Map<string, string>>(new Map());
   const barcodeCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // DC Purchase (Direct Cash / No GST) state
+  const [isDcPurchase, setIsDcPurchase] = useState(false);
+
   const [billData, setBillData] = useState({
     supplier_id: "",
     supplier_name: "",
@@ -1701,16 +1704,17 @@ const PurchaseEntry = () => {
           .update({
             supplier_id: billData.supplier_id || null,
             supplier_name: billData.supplier_name,
-            supplier_invoice_no: billData.supplier_invoice_no,
-            bill_date: format(billDate, "yyyy-MM-dd"),
-            gross_amount: calculatedGrossBeforeDiscount,
-            discount_amount: calculatedTotalDiscount,
-            gst_amount: calculatedGst,
-            other_charges: otherCharges,
-            net_amount: calculatedNet,
-            round_off: roundOff,
-          })
-          .eq("id", editingBillId);
+              supplier_invoice_no: billData.supplier_invoice_no,
+              bill_date: format(billDate, "yyyy-MM-dd"),
+              gross_amount: calculatedGrossBeforeDiscount,
+              discount_amount: calculatedTotalDiscount,
+              gst_amount: isDcPurchase ? 0 : calculatedGst,
+              other_charges: otherCharges,
+              net_amount: isDcPurchase ? (calculatedGrossAfterDiscount + otherCharges + roundOff) : calculatedNet,
+              round_off: roundOff,
+              is_dc_purchase: isDcPurchase,
+            })
+            .eq("id", editingBillId);
 
         if (billError) throw billError;
 
@@ -1895,6 +1899,7 @@ const PurchaseEntry = () => {
         setDiscountAmount(0);
         setRoundOff(0);
         setSoftwareBillNo("");
+        setIsDcPurchase(false);
       } else {
         // Insert new purchase bill
         if (!currentOrganization?.id) throw new Error("No organization selected");
@@ -1919,11 +1924,12 @@ const PurchaseEntry = () => {
               bill_date: format(billDate, "yyyy-MM-dd"),
               gross_amount: calculatedGrossBeforeDiscount,
               discount_amount: calculatedTotalDiscount,
-              gst_amount: calculatedGst,
+              gst_amount: isDcPurchase ? 0 : calculatedGst,
               other_charges: otherCharges,
-              net_amount: calculatedNet,
+              net_amount: isDcPurchase ? (calculatedGrossAfterDiscount + otherCharges + roundOff) : calculatedNet,
               round_off: roundOff,
               organization_id: currentOrganization.id,
+              is_dc_purchase: isDcPurchase,
             },
           ])
           .select()
@@ -1942,7 +1948,7 @@ const PurchaseEntry = () => {
           pur_price: item.pur_price,
           sale_price: item.sale_price,
           mrp: item.mrp || 0,
-          gst_per: item.gst_per,
+          gst_per: isDcPurchase ? 0 : item.gst_per,
           hsn_code: item.hsn_code,
           barcode: item.barcode,
           line_total: item.line_total,
@@ -1951,6 +1957,7 @@ const PurchaseEntry = () => {
           category: item.category || null,
           color: item.color || null,
           style: item.style || null,
+          is_dc_item: isDcPurchase,
         }));
 
         const { error: itemsError } = await supabase
@@ -1958,6 +1965,15 @@ const PurchaseEntry = () => {
           .insert(itemsToInsert);
 
         if (itemsError) throw itemsError;
+
+        // Flag product variants as DC products (or reset if non-DC purchase)
+        const variantIds = [...new Set(lineItems.map(i => i.sku_id))];
+        if (variantIds.length > 0) {
+          await supabase
+            .from("product_variants")
+            .update({ is_dc_product: isDcPurchase })
+            .in("id", variantIds);
+        }
 
         // Check for price changes and show dialog if any
         const priceChanges = await detectPriceChanges(lineItems);
@@ -2024,6 +2040,7 @@ const PurchaseEntry = () => {
         setDiscountAmount(0);
         setRoundOff(0);
         setSoftwareBillNo(""); // Reset for next entry
+        setIsDcPurchase(false);
       }
     } catch (error: any) {
       toast({
@@ -2748,6 +2765,7 @@ const PurchaseEntry = () => {
               setBarcodeWarnings(new Map());
               setDetectedPriceChanges([]);
               setSelectedForPrint(new Set());
+              setIsDcPurchase(false);
               deleteDraft();
               
             }}
@@ -2862,7 +2880,30 @@ const PurchaseEntry = () => {
                 </Popover>
               </div>
 
+              {/* DC Purchase Checkbox */}
+              <div className="space-y-2 flex items-end">
+                <label className="flex items-center gap-2 cursor-pointer h-10 px-3 border border-orange-300 bg-orange-50 dark:bg-orange-950/20 rounded-md">
+                  <Checkbox
+                    checked={isDcPurchase}
+                    onCheckedChange={(checked) => setIsDcPurchase(checked === true)}
+                  />
+                  <span className="text-xs font-medium text-orange-700 dark:text-orange-400 whitespace-nowrap">
+                    DC Purchase (No GST)
+                  </span>
+                </label>
+              </div>
+
             </div>
+
+            {/* DC Warning */}
+            {isDcPurchase && (
+              <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md">
+                <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                <span className="text-xs text-amber-700 dark:text-amber-400">
+                  DC Purchase — GST set to 0% for all items. This bill will NOT appear in GST Purchase Register.
+                </span>
+              </div>
+            )}
           </section>
 
         {/* Products Table Card */}

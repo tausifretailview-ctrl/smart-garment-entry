@@ -78,6 +78,7 @@ import { format } from "date-fns";
 import { useReactToPrint } from "react-to-print";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
+import { DcSaleTransferDialog } from "@/components/DcSaleTransferDialog";
 
 interface PendingPriceSelection {
   product: any;
@@ -104,6 +105,7 @@ interface CartItem {
   variantId: string;
   hsnCode?: string;
   productType?: string; // Track product type to handle service items differently
+  isDcProduct?: boolean; // DC (Direct Cash) product flag
 }
 
 export default function POSSales() {
@@ -821,6 +823,10 @@ export default function POSSales() {
     return () => window.removeEventListener('keydown', handleNavigationKeyPress);
   }, [todaysSales, currentInvoiceIndex]);
 
+  // DC Sale Transfer dialog state
+  const [showDcTransferDialog, setShowDcTransferDialog] = useState(false);
+  const [dcTransferItems, setDcTransferItems] = useState<any[]>([]);
+  const [dcTransferSaleId, setDcTransferSaleId] = useState("");
 
   const { data: productsData } = useQuery({
     queryKey: ['pos-products', currentOrganization?.id],
@@ -840,7 +846,7 @@ export default function POSSales() {
             id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, product_type, status, category, style, color, sale_discount_type, sale_discount_value,
             product_variants (
               id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, deleted_at,
-              last_purchase_sale_price, last_purchase_mrp, last_purchase_date
+              last_purchase_sale_price, last_purchase_mrp, last_purchase_date, is_dc_product
             )
           `)
           .eq('organization_id', currentOrganization.id)
@@ -1290,6 +1296,7 @@ export default function POSSales() {
         variantId: variant.id,
         hsnCode: product.hsn_code || '',
         productType: product.product_type,
+        isDcProduct: variant.is_dc_product === true,
       };
       setItems(prev => [...prev, newItem]);
       
@@ -1637,6 +1644,33 @@ export default function POSSales() {
       // Apply credit if any
       if (creditApplied > 0 && customerId) {
         await applyCredit(customerId, creditApplied);
+      }
+      
+      // Check for DC items — offer transfer to delivery challan for cash sales
+      const effectivePayment = forcePaymentMethod || paymentMethod;
+      const dcCartItems = items.filter(i => i.isDcProduct);
+      if (dcCartItems.length > 0 && effectivePayment === 'cash' && !currentSaleId) {
+        // Fetch the saved sale_items to get their IDs
+        const { data: savedSaleItems } = await supabase
+          .from('sale_items')
+          .select('id, variant_id, product_name, size, quantity, line_total, product_id, barcode')
+          .eq('sale_id', result.id)
+          .eq('is_dc_item', true);
+        
+        if (savedSaleItems && savedSaleItems.length > 0) {
+          setDcTransferSaleId(result.id);
+          setDcTransferItems(savedSaleItems.map(si => ({
+            saleItemId: si.id,
+            productName: si.product_name,
+            size: si.size,
+            quantity: si.quantity,
+            netAmount: si.line_total,
+            variantId: si.variant_id,
+            productId: si.product_id,
+            barcode: si.barcode,
+          })));
+          setShowDcTransferDialog(true);
+        }
       }
       
       // Clear cart on success
@@ -3539,7 +3573,12 @@ export default function POSSales() {
                     <div key={index} className="min-w-[1200px] grid gap-3 p-4 border-b hover:bg-muted/50 text-base" style={{ gridTemplateColumns: '60px 140px 1fr 80px 70px 100px 60px 70px 80px 100px 130px' }}>
                       <div className="flex items-center font-semibold">{index + 1}</div>
                       <div className="flex items-center text-sm">{item.barcode}</div>
-                      <div className="flex items-center font-medium truncate">{item.productName}</div>
+                      <div className="flex items-center font-medium truncate gap-1">
+                        {item.productName}
+                        {item.isDcProduct && (
+                          <span className="px-1 py-0.5 text-[9px] font-bold bg-orange-100 text-orange-700 border border-orange-300 rounded flex-shrink-0">DC</span>
+                        )}
+                      </div>
                       <div className="flex items-center text-sm font-medium">{item.size}</div>
                       <div>
                         <Input
@@ -4424,6 +4463,16 @@ export default function POSSales() {
         </div>
 
       </div>
+
+      {/* DC Sale Transfer Dialog */}
+      <DcSaleTransferDialog
+        open={showDcTransferDialog}
+        onOpenChange={setShowDcTransferDialog}
+        saleId={dcTransferSaleId}
+        customerId={customerId || null}
+        customerName={customerName || "Walk-in"}
+        dcItems={dcTransferItems}
+      />
     </div>
   );
 }

@@ -1265,6 +1265,79 @@ export type Database = {
           },
         ]
       }
+      dc_sale_transfers: {
+        Row: {
+          challan_id: string | null
+          created_by: string | null
+          id: string
+          organization_id: string
+          sale_id: string | null
+          sale_item_id: string | null
+          transferred_at: string | null
+        }
+        Insert: {
+          challan_id?: string | null
+          created_by?: string | null
+          id?: string
+          organization_id: string
+          sale_id?: string | null
+          sale_item_id?: string | null
+          transferred_at?: string | null
+        }
+        Update: {
+          challan_id?: string | null
+          created_by?: string | null
+          id?: string
+          organization_id?: string
+          sale_id?: string | null
+          sale_item_id?: string | null
+          transferred_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dc_sale_transfers_challan_id_fkey"
+            columns: ["challan_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_challans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dc_sale_transfers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dc_sale_transfers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "dc_sale_transfers_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dc_sale_transfers_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales_with_customer"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dc_sale_transfers_sale_item_id_fkey"
+            columns: ["sale_item_id"]
+            isOneToOne: false
+            referencedRelation: "sale_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       delivery_challan_items: {
         Row: {
           barcode: string | null
@@ -2752,6 +2825,7 @@ export type Database = {
           deleted_at: string | null
           deleted_by: string | null
           id: string
+          is_dc_product: boolean | null
           last_purchase_date: string | null
           last_purchase_mrp: number | null
           last_purchase_pur_price: number | null
@@ -2775,6 +2849,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           id?: string
+          is_dc_product?: boolean | null
           last_purchase_date?: string | null
           last_purchase_mrp?: number | null
           last_purchase_pur_price?: number | null
@@ -2798,6 +2873,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           id?: string
+          is_dc_product?: boolean | null
           last_purchase_date?: string | null
           last_purchase_mrp?: number | null
           last_purchase_pur_price?: number | null
@@ -3029,6 +3105,7 @@ export type Database = {
           gross_amount: number
           gst_amount: number
           id: string
+          is_dc_purchase: boolean | null
           net_amount: number
           notes: string | null
           organization_id: string
@@ -3052,6 +3129,7 @@ export type Database = {
           gross_amount?: number
           gst_amount?: number
           id?: string
+          is_dc_purchase?: boolean | null
           net_amount?: number
           notes?: string | null
           organization_id: string
@@ -3075,6 +3153,7 @@ export type Database = {
           gross_amount?: number
           gst_amount?: number
           id?: string
+          is_dc_purchase?: boolean | null
           net_amount?: number
           notes?: string | null
           organization_id?: string
@@ -3128,6 +3207,7 @@ export type Database = {
           gst_per: number
           hsn_code: string | null
           id: string
+          is_dc_item: boolean | null
           line_total: number
           mrp: number | null
           product_id: string
@@ -3154,6 +3234,7 @@ export type Database = {
           gst_per?: number
           hsn_code?: string | null
           id?: string
+          is_dc_item?: boolean | null
           line_total?: number
           mrp?: number | null
           product_id: string
@@ -3180,6 +3261,7 @@ export type Database = {
           gst_per?: number
           hsn_code?: string | null
           id?: string
+          is_dc_item?: boolean | null
           line_total?: number
           mrp?: number | null
           product_id?: string
@@ -3765,6 +3847,7 @@ export type Database = {
           gst_percent: number
           hsn_code: string | null
           id: string
+          is_dc_item: boolean | null
           line_total: number
           mrp: number
           net_after_discount: number
@@ -3789,6 +3872,7 @@ export type Database = {
           gst_percent?: number
           hsn_code?: string | null
           id?: string
+          is_dc_item?: boolean | null
           line_total: number
           mrp: number
           net_after_discount?: number
@@ -3813,6 +3897,7 @@ export type Database = {
           gst_percent?: number
           hsn_code?: string | null
           id?: string
+          is_dc_item?: boolean | null
           line_total?: number
           mrp?: number
           net_after_discount?: number

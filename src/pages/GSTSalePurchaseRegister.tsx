@@ -185,7 +185,7 @@ const GSTSalePurchaseRegister = () => {
 
       // FIX G9: Process sales register with IGST columns
       const salesRegister: SalesRegisterRow[] = (salesData || []).map((sale, index) => {
-        const items = saleItemsMap.get(sale.id) || [];
+        const items = (saleItemsMap.get(sale.id) || []).filter((i: any) => !i.is_dc_item);
         const customerGSTIN = (sale.customers as any)?.gst_number || "";
         const isInterStateTx = isInterState(businessGSTIN, customerGSTIN);
         const breakup = calculateGSTBreakup(items, "inclusive", isInterStateTx);
@@ -219,7 +219,7 @@ const GSTSalePurchaseRegister = () => {
 
       // Process POS sales register with IGST columns
       const posSalesRegister: SalesRegisterRow[] = (posSalesData || []).map((sale, index) => {
-        const items = posSaleItemsMap.get(sale.id) || [];
+        const items = (posSaleItemsMap.get(sale.id) || []).filter((i: any) => !i.is_dc_item);
         const customerGSTIN = (sale.customers as any)?.gst_number || "";
         const isInterStateTx = isInterState(businessGSTIN, customerGSTIN);
         const breakup = calculateGSTBreakup(items, "inclusive", isInterStateTx);
@@ -302,7 +302,7 @@ const GSTSalePurchaseRegister = () => {
         };
       });
 
-      // ===== Fetch Purchase Bills =====
+      // ===== Fetch Purchase Bills (exclude DC purchases) =====
       const { data: purchaseData } = await supabase
         .from("purchase_bills")
         .select(`
@@ -311,6 +311,7 @@ const GSTSalePurchaseRegister = () => {
         `)
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
+        .or('is_dc_purchase.is.null,is_dc_purchase.eq.false')
         .gte("bill_date", fromDate)
         .lte("bill_date", toDate)
         .order("bill_date", { ascending: true });
