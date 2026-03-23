@@ -114,6 +114,7 @@ interface InvoiceWrapperProps {
   termsConditions?: string[];
   salesman?: string;
   notes?: string;
+  isDcInvoice?: boolean;
 }
 
 export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperProps>(
