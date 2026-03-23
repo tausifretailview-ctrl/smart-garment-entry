@@ -1923,11 +1923,12 @@ const PurchaseEntry = () => {
               bill_date: format(billDate, "yyyy-MM-dd"),
               gross_amount: calculatedGrossBeforeDiscount,
               discount_amount: calculatedTotalDiscount,
-              gst_amount: calculatedGst,
+              gst_amount: isDcPurchase ? 0 : calculatedGst,
               other_charges: otherCharges,
-              net_amount: calculatedNet,
+              net_amount: isDcPurchase ? (calculatedGrossAfterDiscount + otherCharges + roundOff) : calculatedNet,
               round_off: roundOff,
               organization_id: currentOrganization.id,
+              is_dc_purchase: isDcPurchase,
             },
           ])
           .select()
