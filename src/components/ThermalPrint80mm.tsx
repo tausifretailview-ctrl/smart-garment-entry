@@ -54,6 +54,7 @@ interface ThermalPrint80mmProps {
   cashier?: string;
   salesman?: string;
   counter?: string;
+  isDcInvoice?: boolean;
 }
 
 const fmtAmt = (n: number): string => Math.round(n).toLocaleString('en-IN');
