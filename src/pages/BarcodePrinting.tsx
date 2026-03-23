@@ -1199,7 +1199,7 @@ export default function BarcodePrinting() {
     labelHeight: 25,
     a4Cols: 4,
     a4Rows: 12,
-    printMode: 'thermal' as 'thermal' | 'a4',
+    printMode: 'thermal' as 'thermal' | 'thermal2up' | 'a4',
     labelConfig: null as any,
     thermalCols: 1,
   });
