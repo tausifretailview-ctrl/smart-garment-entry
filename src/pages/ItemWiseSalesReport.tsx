@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -8,7 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
@@ -64,6 +66,7 @@ export default function ItemWiseSalesReport() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [selectedCustomer, setSelectedCustomer] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState<"itemwise" | "brandwise">("itemwise");
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     brands: [],
     categories: [],
@@ -257,6 +260,43 @@ export default function ItemWiseSalesReport() {
     return data;
   }, [aggregatedData, searchQuery, selectedBrand, selectedCategory, selectedDepartment]);
 
+  // Brand-wise data: aggregate saleItems by customer_name + brand
+  const brandWiseData = useMemo(() => {
+    const groups = new Map<string, { customer_name: string; brand: string; total_qty: number; total_amount: number }>();
+
+    saleItems.forEach((item: any) => {
+      const customerName = item.customer_name || "Walk-in";
+      const brand = item.products?.brand || "Unbranded";
+
+      // Apply same client-side filters
+      if (selectedBrand !== "all" && brand !== selectedBrand) return;
+      if (selectedCategory !== "all" && item.products?.category !== selectedCategory) return;
+      if (selectedDepartment !== "all" && item.products?.color !== selectedDepartment) return;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchesSearch =
+          item.product_name?.toLowerCase().includes(q) ||
+          item.barcode?.toLowerCase().includes(q) ||
+          brand.toLowerCase().includes(q) ||
+          item.products?.category?.toLowerCase().includes(q);
+        if (!matchesSearch) return;
+      }
+
+      const key = `${customerName}|||${brand}`;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.total_qty += item.quantity;
+        existing.total_amount += Number(item.line_total);
+      } else {
+        groups.set(key, { customer_name: customerName, brand, total_qty: item.quantity, total_amount: Number(item.line_total) });
+      }
+    });
+
+    return Array.from(groups.values()).sort((a, b) =>
+      a.customer_name.localeCompare(b.customer_name) || a.brand.localeCompare(b.brand)
+    );
+  }, [saleItems, selectedBrand, selectedCategory, selectedDepartment, searchQuery]);
+
   // Summary via RPC (single JSON instead of client-side aggregation)
   const { data: rpcSummary } = useQuery({
     queryKey: ["item-sales-summary-rpc", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer],
@@ -319,22 +359,34 @@ export default function ItemWiseSalesReport() {
 
   // Export to Excel
   const exportToExcel = () => {
-    const exportData = filteredData.map((item) => ({
-      Barcode: item.barcode || "-",
-      "Product Name": item.product_name,
-      Brand: item.brand || "-",
-      Category: item.category || "-",
-      Color: item.color || "-",
-      Size: item.size,
-      "Qty Sold": item.total_qty,
-      "Avg Price": item.avg_price.toFixed(2),
-      "Total Amount": item.total_amount.toFixed(2),
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Item-wise Sales");
-    XLSX.writeFile(wb, `item-wise-sales-${format(dateRange.from, "yyyy-MM-dd")}.xlsx`);
+    if (activeTab === "brandwise") {
+      const exportData = brandWiseData.map((item) => ({
+        "Customer Name": item.customer_name,
+        Brand: item.brand,
+        "Total Qty": item.total_qty,
+        "Total Amount": item.total_amount.toFixed(2),
+      }));
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Brand-wise Sales");
+      XLSX.writeFile(wb, `brand-wise-sales-${format(dateRange.from, "yyyy-MM-dd")}.xlsx`);
+    } else {
+      const exportData = filteredData.map((item) => ({
+        Barcode: item.barcode || "-",
+        "Product Name": item.product_name,
+        Brand: item.brand || "-",
+        Category: item.category || "-",
+        Color: item.color || "-",
+        Size: item.size,
+        "Qty Sold": item.total_qty,
+        "Avg Price": item.avg_price.toFixed(2),
+        "Total Amount": item.total_amount.toFixed(2),
+      }));
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Item-wise Sales");
+      XLSX.writeFile(wb, `item-wise-sales-${format(dateRange.from, "yyyy-MM-dd")}.xlsx`);
+    }
   };
 
   // Print report
@@ -614,141 +666,219 @@ export default function ItemWiseSalesReport() {
         </Card>
       </div>
 
-      {/* Charts */}
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Top 10 Products by Quantity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={topProductsData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis type="number" className="text-xs" />
-                  <YAxis dataKey="name" type="category" width={120} className="text-xs" />
-                  <Tooltip
-                    contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
-                    formatter={(value: number) => [value.toLocaleString(), "Qty"]}
-                  />
-                  <Bar dataKey="qty" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Tabs for Item-wise and Brand-wise */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "itemwise" | "brandwise")}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="itemwise">📦 Item-wise Details</TabsTrigger>
+          <TabsTrigger value="brandwise">🏷️ Brand-wise Sale</TabsTrigger>
+        </TabsList>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Sales by Category</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={categoryData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={100}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                  >
-                    {categoryData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
-                    formatter={(value: number) => [`₹${value.toLocaleString()}`, "Amount"]}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+        <TabsContent value="itemwise" className="space-y-6">
+          {/* Charts */}
+          <div className="grid md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Top 10 Products by Quantity</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={topProductsData} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis type="number" className="text-xs" />
+                      <YAxis dataKey="name" type="category" width={120} className="text-xs" />
+                      <Tooltip
+                        contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
+                        formatter={(value: number) => [value.toLocaleString(), "Qty"]}
+                      />
+                      <Bar dataKey="qty" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
 
-      {/* Data Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Item-wise Details ({filteredData.length} items)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="border rounded-lg overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead className="w-[100px]">Barcode</TableHead>
-                  <TableHead>Product Name</TableHead>
-                  <TableHead>Brand</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Color</TableHead>
-                  <TableHead>Size</TableHead>
-                  <TableHead className="text-right">Qty Sold</TableHead>
-                  <TableHead className="text-right">Avg Price</TableHead>
-                  <TableHead className="text-right">Total Amount</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                      Loading...
-                    </TableCell>
-                  </TableRow>
-                ) : filteredData.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                      No sales data found for the selected period
-                    </TableCell>
-                  </TableRow>
-                ) : (() => {
-                  const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-                  const paginatedData = filteredData.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
-                  return (
-                    <>
-                      {paginatedData.map((item, idx) => (
-                        <TableRow key={idx} className="hover:bg-muted/30">
-                          <TableCell className="font-mono text-sm">{item.barcode || "-"}</TableCell>
-                          <TableCell className="font-medium">{item.product_name}</TableCell>
-                          <TableCell>{item.brand || "-"}</TableCell>
-                          <TableCell>{item.category || "-"}</TableCell>
-                          <TableCell>{item.color || "-"}</TableCell>
-                          <TableCell>{item.size}</TableCell>
-                          <TableCell className="text-right font-medium">{item.total_qty}</TableCell>
-                          <TableCell className="text-right">₹{item.avg_price.toFixed(2)}</TableCell>
-                          <TableCell className="text-right font-semibold text-primary">
-                            ₹{item.total_amount.toLocaleString()}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {totalPages > 1 && (
-                        <TableRow>
-                          <TableCell colSpan={9}>
-                            <div className="flex items-center justify-between py-2">
-                              <p className="text-sm text-muted-foreground">
-                                Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} of {filteredData.length}
-                              </p>
-                              <div className="flex items-center gap-2">
-                                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
-                                <span className="text-sm text-muted-foreground">Page {currentPage} of {totalPages}</span>
-                                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Next</Button>
-                              </div>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </>
-                  );
-                })()}
-              </TableBody>
-            </Table>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Sales by Category</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={categoryData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        outerRadius={100}
+                        fill="#8884d8"
+                        dataKey="value"
+                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                      >
+                        {categoryData.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
+                        formatter={(value: number) => [`₹${value.toLocaleString()}`, "Amount"]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+
+          {/* Item-wise Data Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Item-wise Details ({filteredData.length} items)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="w-[100px]">Barcode</TableHead>
+                      <TableHead>Product Name</TableHead>
+                      <TableHead>Brand</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Color</TableHead>
+                      <TableHead>Size</TableHead>
+                      <TableHead className="text-right">Qty Sold</TableHead>
+                      <TableHead className="text-right">Avg Price</TableHead>
+                      <TableHead className="text-right">Total Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                          Loading...
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredData.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                          No sales data found for the selected period
+                        </TableCell>
+                      </TableRow>
+                    ) : (() => {
+                      const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+                      const paginatedData = filteredData.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+                      return (
+                        <>
+                          {paginatedData.map((item, idx) => (
+                            <TableRow key={idx} className="hover:bg-muted/30">
+                              <TableCell className="font-mono text-sm">{item.barcode || "-"}</TableCell>
+                              <TableCell className="font-medium">{item.product_name}</TableCell>
+                              <TableCell>{item.brand || "-"}</TableCell>
+                              <TableCell>{item.category || "-"}</TableCell>
+                              <TableCell>{item.color || "-"}</TableCell>
+                              <TableCell>{item.size}</TableCell>
+                              <TableCell className="text-right font-medium">{item.total_qty}</TableCell>
+                              <TableCell className="text-right">₹{item.avg_price.toFixed(2)}</TableCell>
+                              <TableCell className="text-right font-semibold text-primary">
+                                ₹{item.total_amount.toLocaleString()}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          {totalPages > 1 && (
+                            <TableRow>
+                              <TableCell colSpan={9}>
+                                <div className="flex items-center justify-between py-2">
+                                  <p className="text-sm text-muted-foreground">
+                                    Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} of {filteredData.length}
+                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
+                                    <span className="text-sm text-muted-foreground">Page {currentPage} of {totalPages}</span>
+                                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Next</Button>
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="brandwise">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Brand-wise Sale by Customer ({brandWiseData.length} rows)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead>Customer Name</TableHead>
+                      <TableHead>Brand</TableHead>
+                      <TableHead className="text-right">Total Qty</TableHead>
+                      <TableHead className="text-right">Total Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                          Loading...
+                        </TableCell>
+                      </TableRow>
+                    ) : brandWiseData.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                          No sales data found for the selected period
+                        </TableCell>
+                      </TableRow>
+                    ) : (() => {
+                      let lastCustomer = "";
+                      return brandWiseData.map((item, idx) => {
+                        const showCustomer = item.customer_name !== lastCustomer;
+                        lastCustomer = item.customer_name;
+                        return (
+                          <TableRow key={idx} className={cn("hover:bg-muted/30", showCustomer && idx > 0 && "border-t-2 border-border")}>
+                            <TableCell className="font-medium">
+                              {showCustomer ? item.customer_name : ""}
+                            </TableCell>
+                            <TableCell>{item.brand}</TableCell>
+                            <TableCell className="text-right font-medium">{item.total_qty}</TableCell>
+                            <TableCell className="text-right font-semibold text-primary">
+                              ₹{item.total_amount.toLocaleString()}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      });
+                    })()}
+                  </TableBody>
+                  {brandWiseData.length > 0 && (
+                    <TableFooter>
+                      <TableRow>
+                        <TableCell colSpan={2} className="font-bold">Grand Total</TableCell>
+                        <TableCell className="text-right font-bold">
+                          {brandWiseData.reduce((s, r) => s + r.total_qty, 0).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-primary">
+                          ₹{brandWiseData.reduce((s, r) => s + r.total_amount, 0).toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    </TableFooter>
+                  )}
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
