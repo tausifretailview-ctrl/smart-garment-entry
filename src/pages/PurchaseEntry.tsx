@@ -1965,6 +1965,15 @@ const PurchaseEntry = () => {
 
         if (itemsError) throw itemsError;
 
+        // Flag product variants as DC products (or reset if non-DC purchase)
+        const variantIds = [...new Set(lineItems.map(i => i.sku_id))];
+        if (variantIds.length > 0) {
+          await supabase
+            .from("product_variants")
+            .update({ is_dc_product: isDcPurchase })
+            .in("id", variantIds);
+        }
+
         // Check for price changes and show dialog if any
         const priceChanges = await detectPriceChanges(lineItems);
         if (priceChanges.length > 0) {
