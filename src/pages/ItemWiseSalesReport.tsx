@@ -359,22 +359,34 @@ export default function ItemWiseSalesReport() {
 
   // Export to Excel
   const exportToExcel = () => {
-    const exportData = filteredData.map((item) => ({
-      Barcode: item.barcode || "-",
-      "Product Name": item.product_name,
-      Brand: item.brand || "-",
-      Category: item.category || "-",
-      Color: item.color || "-",
-      Size: item.size,
-      "Qty Sold": item.total_qty,
-      "Avg Price": item.avg_price.toFixed(2),
-      "Total Amount": item.total_amount.toFixed(2),
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Item-wise Sales");
-    XLSX.writeFile(wb, `item-wise-sales-${format(dateRange.from, "yyyy-MM-dd")}.xlsx`);
+    if (activeTab === "brandwise") {
+      const exportData = brandWiseData.map((item) => ({
+        "Customer Name": item.customer_name,
+        Brand: item.brand,
+        "Total Qty": item.total_qty,
+        "Total Amount": item.total_amount.toFixed(2),
+      }));
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Brand-wise Sales");
+      XLSX.writeFile(wb, `brand-wise-sales-${format(dateRange.from, "yyyy-MM-dd")}.xlsx`);
+    } else {
+      const exportData = filteredData.map((item) => ({
+        Barcode: item.barcode || "-",
+        "Product Name": item.product_name,
+        Brand: item.brand || "-",
+        Category: item.category || "-",
+        Color: item.color || "-",
+        Size: item.size,
+        "Qty Sold": item.total_qty,
+        "Avg Price": item.avg_price.toFixed(2),
+        "Total Amount": item.total_amount.toFixed(2),
+      }));
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Item-wise Sales");
+      XLSX.writeFile(wb, `item-wise-sales-${format(dateRange.from, "yyyy-MM-dd")}.xlsx`);
+    }
   };
 
   // Print report
