@@ -11,10 +11,11 @@ interface PrecisionThermalPrintProps {
   yOffset: number;
   vGap?: number;
   config?: LabelDesignConfig;
+  thermalCols?: number;
 }
 
 export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermalPrintProps>(
-  ({ items, labelWidth, labelHeight, xOffset, yOffset, vGap = 0, config }, ref) => {
+  ({ items, labelWidth, labelHeight, xOffset, yOffset, vGap = 0, config, thermalCols = 1 }, ref) => {
     const expandedItems: LabelItem[] = [];
     items.forEach((item) => {
       const qty = item.qty && item.qty > 0 ? item.qty : 0;
@@ -23,6 +24,58 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
       }
     });
 
+    const cols = Math.max(1, thermalCols);
+    const pageWidth = labelWidth * cols;
+
+    // For multi-column, group items into rows
+    if (cols > 1) {
+      const rows: LabelItem[][] = [];
+      for (let i = 0; i < expandedItems.length; i += cols) {
+        rows.push(expandedItems.slice(i, i + cols));
+      }
+
+      return (
+        <>
+          <PrecisionPrintCSS labelWidth={pageWidth} labelHeight={labelHeight + vGap} mode="thermal" />
+          <div ref={ref} className="precision-print-area">
+            {rows.map((row, rowIdx) => (
+              <div
+                key={rowIdx}
+                style={{
+                  width: `${pageWidth}mm`,
+                  height: `${labelHeight + vGap}mm`,
+                  padding: 0,
+                  margin: 0,
+                  boxSizing: "border-box",
+                  overflow: "hidden",
+                  display: "flex",
+                  position: "relative",
+                  pageBreakAfter: "always",
+                  breakAfter: "page",
+                  pageBreakInside: "avoid",
+                  breakInside: "avoid",
+                }}
+              >
+                {row.map((item, colIdx) => (
+                  <div key={colIdx} style={{ width: `${labelWidth}mm`, height: `${labelHeight}mm`, flexShrink: 0 }}>
+                    <PrecisionLabelPreview
+                      item={item}
+                      width={labelWidth}
+                      height={labelHeight}
+                      xOffset={xOffset}
+                      yOffset={yOffset}
+                      config={config}
+                    />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </>
+      );
+    }
+
+    // Single column (original behavior)
     return (
       <>
         <PrecisionPrintCSS labelWidth={labelWidth} labelHeight={labelHeight + vGap} mode="thermal" />

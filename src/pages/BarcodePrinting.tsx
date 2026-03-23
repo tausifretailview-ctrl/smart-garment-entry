@@ -1201,6 +1201,7 @@ export default function BarcodePrinting() {
     a4Rows: 12,
     printMode: 'thermal' as 'thermal' | 'a4',
     labelConfig: null as any,
+    thermalCols: 1,
   });
   const [dbPresets, setDbPresets] = useState<import("@/components/precision-barcode/LabelCalibrationUI").CalibrationPreset[]>([]);
   const precisionPrintRef = useRef<HTMLDivElement>(null);
@@ -1517,6 +1518,7 @@ export default function BarcodePrinting() {
             printMode: p.print_mode || 'thermal',
             labelConfig: p.label_config,
             isDefault: p.is_default,
+            thermalCols: p.thermal_cols || undefined,
           }));
           setDbPresets(mapped);
 
@@ -1534,6 +1536,7 @@ export default function BarcodePrinting() {
               ...(defaultPreset.a4Rows ? { a4Rows: defaultPreset.a4Rows } : {}),
               printMode: defaultPreset.printMode || 'thermal',
               ...(defaultPreset.labelConfig ? { labelConfig: defaultPreset.labelConfig } : {}),
+              thermalCols: defaultPreset.thermalCols || 1,
               enabled: true,
             }));
             setActiveBarTab("precision");
@@ -3233,7 +3236,8 @@ export default function BarcodePrinting() {
         if (!printArea) return;
 
         const labelHTML = printArea.innerHTML;
-        const w = precisionSettings.labelWidth;
+        const cols = precisionSettings.thermalCols || 1;
+        const w = precisionSettings.labelWidth * cols;
         const h = precisionSettings.labelHeight + (precisionSettings.vGap || 0);
         const isA4 = precisionSettings.printMode === 'a4';
         const pageSize = isA4 ? '210mm 297mm' : `${w}mm ${h}mm`;
@@ -3312,6 +3316,7 @@ export default function BarcodePrinting() {
           v_gap: precisionSettings.vGap,
           a4_cols: precisionSettings.a4Cols,
           a4_rows: precisionSettings.a4Rows,
+          thermal_cols: precisionSettings.thermalCols || 1,
         }, { onConflict: "organization_id,name" });
       if (error) {
         toast.error("Failed to save calibration");
@@ -4855,6 +4860,7 @@ export default function BarcodePrinting() {
                   vGap: precisionSettings.vGap,
                   labelWidth: precisionSettings.labelWidth,
                   labelHeight: precisionSettings.labelHeight,
+                  thermalCols: precisionSettings.thermalCols,
                 }}
                 onChange={(vals) =>
                   setPrecisionSettings((prev) => ({
@@ -4864,6 +4870,7 @@ export default function BarcodePrinting() {
                     vGap: vals.vGap,
                     labelWidth: vals.labelWidth,
                     labelHeight: vals.labelHeight,
+                    thermalCols: vals.thermalCols || 1,
                   }))
                 }
                 presets={dbPresets}
@@ -4990,6 +4997,7 @@ export default function BarcodePrinting() {
                 vGap: precisionSettings.vGap,
                 labelWidth: precisionSettings.labelWidth,
                 labelHeight: precisionSettings.labelHeight,
+                thermalCols: precisionSettings.thermalCols,
               }}
               onChange={(vals) =>
                 setPrecisionSettings((prev) => ({
@@ -4999,6 +5007,7 @@ export default function BarcodePrinting() {
                   vGap: vals.vGap,
                   labelWidth: vals.labelWidth,
                   labelHeight: vals.labelHeight,
+                  thermalCols: vals.thermalCols || 1,
                 }))
               }
               presets={dbPresets}
@@ -5019,6 +5028,7 @@ export default function BarcodePrinting() {
                     a4_rows: preset.a4Rows ?? precisionSettings.a4Rows,
                     print_mode: precisionSettings.printMode,
                     label_config: preset.labelConfig as any,
+                    thermal_cols: preset.thermalCols || precisionSettings.thermalCols || 1,
                   }, { onConflict: "organization_id,name" });
                 if (error) { toast.error("Failed to save preset"); return; }
                 toast.success(`Preset "${preset.name}" saved`);
@@ -5034,6 +5044,7 @@ export default function BarcodePrinting() {
                     vGap: Number(p.v_gap), width: Number(p.label_width), height: Number(p.label_height),
                     a4Cols: p.a4_cols, a4Rows: p.a4_rows, printMode: p.print_mode || 'thermal',
                     labelConfig: p.label_config, isDefault: p.is_default,
+                    thermalCols: p.thermal_cols || undefined,
                   })));
                 }
               }}
@@ -5052,6 +5063,7 @@ export default function BarcodePrinting() {
                 }
                 if (preset.a4Cols) setPrecisionSettings((prev) => ({ ...prev, a4Cols: preset.a4Cols! }));
                 if (preset.a4Rows) setPrecisionSettings((prev) => ({ ...prev, a4Rows: preset.a4Rows! }));
+                setPrecisionSettings((prev) => ({ ...prev, thermalCols: preset.thermalCols || 1 }));
                 // Auto-detect print mode from preset
                 const mode = preset.printMode || (preset.a4Cols && preset.a4Rows ? 'a4' : 'thermal');
                 setPrecisionSettings((prev) => ({ ...prev, printMode: mode }));
@@ -5397,6 +5409,7 @@ export default function BarcodePrinting() {
               yOffset={precisionSettings.yOffset}
               vGap={precisionSettings.vGap}
               config={precisionSettings.labelConfig || undefined}
+              thermalCols={precisionSettings.thermalCols}
             />
           ) : (
             <PrecisionA4SheetPrint

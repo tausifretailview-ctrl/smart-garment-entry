@@ -17,6 +17,7 @@ export interface CalibrationValues {
   vGap: number;
   labelWidth: number;
   labelHeight: number;
+  thermalCols?: number;
 }
 
 export interface CalibrationPreset {
@@ -32,12 +33,13 @@ export interface CalibrationPreset {
   printMode?: 'thermal' | 'a4';
   labelConfig?: LabelDesignConfig | null;
   isDefault?: boolean;
+  thermalCols?: number;
 }
 
 const BUILT_IN_PRESETS: CalibrationPreset[] = [
   { name: "50×25mm Thermal", xOffset: 0, yOffset: 0, vGap: 2, width: 50, height: 25 },
   { name: "38×25mm Jewellery", xOffset: 1, yOffset: 0.5, vGap: 1, width: 38, height: 25 },
-  { name: "38×25mm 2-Up", xOffset: 0, yOffset: 0, vGap: 2, width: 38, height: 25 },
+  { name: "38×25mm 2-Up", xOffset: 0, yOffset: 0, vGap: 2, width: 38, height: 25, thermalCols: 2 },
   { name: "100×50mm Shipping", xOffset: 0, yOffset: 0, vGap: 3, width: 100, height: 50 },
   { name: "40×30mm Compact", xOffset: 0, yOffset: 0, vGap: 2, width: 40, height: 30 },
   { name: "60×40mm Standard", xOffset: 0, yOffset: 0, vGap: 2, width: 60, height: 40 },
@@ -261,6 +263,7 @@ export function LabelCalibrationUI({
         vGap: preset.vGap,
         labelWidth: preset.width,
         labelHeight: preset.height,
+        thermalCols: preset.thermalCols,
       });
       setActivePresetName(name);
       onLoadPreset?.(preset);
