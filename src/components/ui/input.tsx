@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
   ({ className, type, onChange, ...props }, ref) => {
-    const shouldUppercase = !type || type === "text";
+    const shouldUppercase = (!type || type === "text") && !className?.includes("no-uppercase");
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (shouldUppercase && e.target.value !== e.target.value.toUpperCase()) {
