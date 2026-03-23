@@ -5043,6 +5043,7 @@ export default function BarcodePrinting() {
                     vGap: Number(p.v_gap), width: Number(p.label_width), height: Number(p.label_height),
                     a4Cols: p.a4_cols, a4Rows: p.a4_rows, printMode: p.print_mode || 'thermal',
                     labelConfig: p.label_config, isDefault: p.is_default,
+                    thermalCols: p.thermal_cols || undefined,
                   })));
                 }
               }}
