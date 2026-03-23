@@ -3126,7 +3126,9 @@ export default function BarcodePrinting() {
       // Print mode: Create separate grids per page for proper page breaks
       // For thermal/1-up: each label is its own page; for A4: calculate rows per page
       const labelsPerPage = isThermal1Up()
-        ? dimensions.cols  // 1 row per page for thermal (cols=1 for 1-up, cols=2 for 2-up)
+        ? 1
+        : isThermal2Up()
+        ? 2
         : (() => {
             const availableHeight = 297 - topOffset - bottomOffset - 5; // A4 height with margins
             const rowsPerPage = Math.floor(availableHeight / (dimensions.height + dimensions.gap));
