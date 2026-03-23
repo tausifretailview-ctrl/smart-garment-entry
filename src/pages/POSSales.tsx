@@ -3541,7 +3541,12 @@ export default function POSSales() {
                     <div key={index} className="min-w-[1200px] grid gap-3 p-4 border-b hover:bg-muted/50 text-base" style={{ gridTemplateColumns: '60px 140px 1fr 80px 70px 100px 60px 70px 80px 100px 130px' }}>
                       <div className="flex items-center font-semibold">{index + 1}</div>
                       <div className="flex items-center text-sm">{item.barcode}</div>
-                      <div className="flex items-center font-medium truncate">{item.productName}</div>
+                      <div className="flex items-center font-medium truncate gap-1">
+                        {item.productName}
+                        {item.isDcProduct && (
+                          <span className="px-1 py-0.5 text-[9px] font-bold bg-orange-100 text-orange-700 border border-orange-300 rounded flex-shrink-0">DC</span>
+                        )}
+                      </div>
                       <div className="flex items-center text-sm font-medium">{item.size}</div>
                       <div>
                         <Input
