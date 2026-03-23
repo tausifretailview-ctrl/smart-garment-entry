@@ -1,49 +1,27 @@
 
 
-## Fix: Login fails on Wi-Fi but works on mobile hotspot
+## Fix: 38×25mm 2-Up Labels Printing Incorrectly (Content Clipped/Overlapping)
 
 ### Root Cause
-Indian ISPs (especially Jio broadband/fiber) block `*.supabase.co` domains. The `get_org_public_info` RPC call fails on these networks, showing the "Connection issue detected" warning and potentially blocking login. Mobile hotspot uses cellular routing which bypasses this block.
+Two CSS rules in `PrecisionPrintCSS.tsx` break multi-column layouts:
 
-The project already has `api.inventoryshop.in` as a custom API proxy (per existing architecture), but the Supabase client in `client.ts` still uses the default `VITE_SUPABASE_URL` (which points to `lkbbrqcsbhqjvsxiorvp.supabase.co`). Since `client.ts` is auto-generated and cannot be edited, the fix must be at the application level.
+1. **Line 64**: `.precision-print-area > div { display: block !important }` — overrides `display: flex` on the row container, so labels stack instead of sitting side-by-side
+2. **Lines 74-78**: `.precision-label-container { position: absolute; top: 0; left: 0 }` — forces BOTH labels to the same corner, so they overlap completely
 
-### Solution: Cache org metadata in localStorage
+### Changes
 
-**File: `src/pages/OrgAuth.tsx`**
+**File 1: `src/components/precision-barcode/PrecisionPrintCSS.tsx`**
 
-1. **On successful RPC response** (line ~147): Cache the org data in `localStorage` with key `org_public_info_{slug}`
+1. Change line 64 from `display: block !important` to `display: flex !important` — this works for both single-column (single flex child = same as block) and multi-column
+2. Remove or scope the `.precision-label-container` absolute positioning rule (lines 74-78). The label container already has `position: relative` set by its parent wrapper div in `PrecisionThermalPrint.tsx`. Instead, keep it `position: relative` so it flows naturally within the flex row.
 
-2. **On component mount** (before RPC call, line ~81): Check localStorage first. If cached data exists, use it immediately to populate `organization` and `orgSettings`, and set `orgLoading = false`. This prevents the warning banner from appearing.
+**File 2: `src/components/precision-barcode/PrecisionThermalPrint.tsx`**
 
-3. **Background refresh**: Still run the RPC call silently. If it succeeds, update the cache. If it fails but cache exists, suppress the network error entirely (no yellow banner, no "Connection issue detected").
-
-4. **Only show warning if**: Cache is empty AND RPC fails after all retries (first-ever visit on a blocked network).
-
-### Changes detail
-
-```text
-Line ~81-173 (fetchOrganization function):
-
-1. Before the retry loop, check:
-   const cacheKey = `org_pub_${normalizedSlug}`;
-   const cached = localStorage.getItem(cacheKey);
-   if (cached) {
-     const parsed = JSON.parse(cached);
-     setOrganization({ id, name, slug, settings });
-     setOrgSettings({ business_name, bill_barcode_settings });
-     setOrgLoading(false);
-     // Continue fetching in background but don't show errors
-   }
-
-2. After successful RPC (line ~147):
-   localStorage.setItem(cacheKey, JSON.stringify(resolvedOrgData));
-
-3. In the error path (line ~161):
-   If cached data was already loaded, skip setting error/warning states.
-```
+3. Add `overflow: hidden` to each column cell div (line 60) so label content doesn't bleed into the adjacent label
+4. Ensure each column wrapper has `position: relative` so the absolute-positioned label fields inside are scoped to their column
 
 ### Result
-- First visit on blocked Wi-Fi: Warning shows (unavoidable, no cache yet). Login via hotspot once creates the cache.
-- All subsequent visits on any network: Cached data loads instantly, no warning, login form appears immediately. Background refresh keeps cache fresh silently.
-- Works identically on all ISPs for returning users.
+- 2-Up labels render side-by-side: left label shows full content, right label shows full content
+- Single-column thermal labels continue to work (flex with one child = identical to block)
+- Each 38mm label clips its own content within its boundary
 
