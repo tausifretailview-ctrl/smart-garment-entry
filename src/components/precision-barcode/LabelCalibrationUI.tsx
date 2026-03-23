@@ -30,7 +30,7 @@ export interface CalibrationPreset {
   height: number;
   a4Cols?: number;
   a4Rows?: number;
-  printMode?: 'thermal' | 'a4';
+  printMode?: 'thermal' | 'thermal2up' | 'a4';
   labelConfig?: LabelDesignConfig | null;
   isDefault?: boolean;
   thermalCols?: number;
@@ -152,10 +152,10 @@ interface LabelCalibrationUIProps {
   compact?: boolean;
   sampleItem?: LabelItem;
   savedTemplates?: LabelTemplate[];
-  printMode?: 'thermal' | 'a4';
+  printMode?: 'thermal' | 'thermal2up' | 'a4';
   a4Cols?: number;
   a4Rows?: number;
-  onPrintModeChange?: (mode: 'thermal' | 'a4') => void;
+  onPrintModeChange?: (mode: 'thermal' | 'thermal2up' | 'a4') => void;
   onA4ColsChange?: (cols: number) => void;
   onA4RowsChange?: (rows: number) => void;
   /** Controlled active preset/template name - persists across tab switches */
@@ -495,6 +495,20 @@ export function LabelCalibrationUI({
                 onClick={() => onPrintModeChange('thermal')}
               >
                 🖨️ Thermal (1-Up)
+              </button>
+              <button
+                type="button"
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                  printMode === 'thermal2up'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted/30 text-muted-foreground hover:bg-muted/50'
+                }`}
+                onClick={() => {
+                  onPrintModeChange('thermal2up');
+                  onChange({ ...values, labelWidth: 38, labelHeight: 25 });
+                }}
+              >
+                🖨️ Thermal (2-Up)
               </button>
               <button
                 type="button"

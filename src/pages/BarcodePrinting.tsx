@@ -1199,7 +1199,7 @@ export default function BarcodePrinting() {
     labelHeight: 25,
     a4Cols: 4,
     a4Rows: 12,
-    printMode: 'thermal' as 'thermal' | 'a4',
+    printMode: 'thermal' as 'thermal' | 'thermal2up' | 'a4',
     labelConfig: null as any,
     thermalCols: 1,
   });
@@ -2921,6 +2921,10 @@ export default function BarcodePrinting() {
     return preset?.thermal === true || sheetType.includes("thermal");
   };
 
+  const isThermal2Up = (): boolean => {
+    return precisionSettings.printMode === 'thermal2up';
+  };
+
   // Auto-fit scale: shrink content to fit within A4 default-margin printable area
   // For thermal/1-up labels, no scaling is needed — return 1.0
   const getAutoFitScale = () => {
@@ -3240,6 +3244,7 @@ export default function BarcodePrinting() {
         const w = precisionSettings.labelWidth * cols;
         const h = precisionSettings.labelHeight + (precisionSettings.vGap || 0);
         const isA4 = precisionSettings.printMode === 'a4';
+        const is2Up = precisionSettings.printMode === 'thermal2up';
         const pageSize = isA4 ? '210mm 297mm' : `${w}mm ${h}mm`;
         const pageWidth = isA4 ? '210mm' : `${w}mm`;
 
@@ -3262,14 +3267,14 @@ export default function BarcodePrinting() {
             min-height: ${isA4 ? '297mm' : `${h}mm`} !important;
             max-height: ${isA4 ? '297mm' : `${h}mm`} !important;
             overflow: hidden !important; box-sizing: border-box !important;
-            position: relative !important; display: block !important;
+            position: relative !important; display: flex !important; flex-wrap: nowrap !important;
             page-break-after: always !important; page-break-inside: avoid !important;
             break-after: page !important; break-inside: avoid !important;
           }
           .precision-print-area > div:last-child {
             page-break-after: auto !important; break-after: auto !important;
           }
-          .precision-label-container { position: absolute !important; top: 0 !important; left: 0 !important; }
+          .precision-label-container { position: relative !important; }
           .precision-barcode-svg { image-rendering: pixelated; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         </style></head><body><div class="precision-print-area">${labelHTML}</div></body></html>`);
 
@@ -3357,7 +3362,7 @@ export default function BarcodePrinting() {
       toast.error('Please add at least one label with quantity > 0');
       return;
     }
-    if (isThermal1Up()) {
+    if (isThermal1Up() || isThermal2Up()) {
       toast.error('Perfect PDF is for A4 sheet labels only');
       return;
     }
@@ -3433,7 +3438,7 @@ export default function BarcodePrinting() {
     }
 
     // Precision Pro Thermal: use html2canvas on PrecisionLabelPreview per label
-    if (precisionSettings.enabled && precisionSettings.printMode === 'thermal') {
+    if (precisionSettings.enabled && (precisionSettings.printMode === 'thermal' || precisionSettings.printMode === 'thermal2up')) {
       toast.info("Generating PDF...");
       try {
         const { labelWidth, labelHeight, xOffset, yOffset, vGap, labelConfig } = precisionSettings;
@@ -3443,7 +3448,7 @@ export default function BarcodePrinting() {
         const pdf = new jsPDF({
           orientation: "portrait",
           unit: "mm",
-          format: [labelWidth, labelHeight],
+          format: precisionSettings.printMode === 'thermal2up' ? [labelWidth * 2, labelHeight] : [labelWidth, labelHeight],
         });
 
         // Expand items by qty
@@ -3534,7 +3539,7 @@ export default function BarcodePrinting() {
       
       // Calculate how many rows fit on one page - use BASE dimensions (unscaled) for accurate page calculation
       // For thermal/1-up: each label is its own page; for A4: calculate rows per page
-      const labelsPerPage = isThermal1Up()
+      const labelsPerPage = (isThermal1Up() || isThermal2Up())
         ? baseDimensions.cols
         : (() => {
             const availableHeight = 297 - topOffset - bottomOffset - 10;
@@ -3554,6 +3559,8 @@ export default function BarcodePrinting() {
       // Create PDF - use label dimensions for thermal, A4 for sheets
       const pdfFormat = isThermal1Up()
         ? [baseDimensions.width, baseDimensions.height] as [number, number]
+        : isThermal2Up()
+        ? [baseDimensions.width * 2 + baseDimensions.gap, baseDimensions.height] as [number, number]
         : "a4" as const;
       const pdf = new jsPDF({
         orientation: "portrait",
@@ -3567,7 +3574,11 @@ export default function BarcodePrinting() {
       tempContainer.style.position = "absolute";
       tempContainer.style.left = "-9999px";
       tempContainer.style.top = "0";
-      tempContainer.style.width = isThermal1Up() ? `${baseDimensions.width}mm` : "210mm";
+      tempContainer.style.width = isThermal1Up()
+        ? `${baseDimensions.width}mm`
+        : isThermal2Up()
+        ? `${baseDimensions.width * 2 + baseDimensions.gap}mm`
+        : "210mm";
       document.body.appendChild(tempContainer);
 
       // Generate all labels as an array
@@ -4956,7 +4967,7 @@ export default function BarcodePrinting() {
           <Download className="h-4 w-4 mr-2" />
           Export PDF
         </Button>
-        {!isThermal1Up() && (
+        {!(isThermal1Up() || isThermal2Up()) && (
           <Button
             onClick={handleExportPerfectPDF}
             variant="outline"
@@ -5076,7 +5087,13 @@ export default function BarcodePrinting() {
               printMode={precisionSettings.printMode}
               a4Cols={precisionSettings.a4Cols}
               a4Rows={precisionSettings.a4Rows}
-              onPrintModeChange={(mode) => setPrecisionSettings((prev) => ({ ...prev, printMode: mode }))}
+              onPrintModeChange={(mode) => {
+                setPrecisionSettings((prev) => ({
+                  ...prev,
+                  printMode: mode,
+                  ...(mode === 'thermal2up' ? { thermalCols: 2 } : mode === 'thermal' ? { thermalCols: 1 } : {}),
+                }));
+              }}
               onA4ColsChange={(cols) => setPrecisionSettings((prev) => ({ ...prev, a4Cols: cols }))}
               onA4RowsChange={(rows) => setPrecisionSettings((prev) => ({ ...prev, a4Rows: rows }))}
               sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
@@ -5290,7 +5307,7 @@ export default function BarcodePrinting() {
               <div className="mb-3 p-3 rounded-lg text-center font-bold text-sm" style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--primary))" }}>
                 Total: {labelItems.reduce((s, i) => s + (i.qty || 0), 0)} labels
               </div>
-              {precisionSettings.printMode === 'thermal' ? (
+              {(precisionSettings.printMode === 'thermal' || precisionSettings.printMode === 'thermal2up') ? (
                 <div className="flex flex-col items-center gap-4">
                   {labelItems.filter(i => (i.qty || 0) > 0).flatMap((item, idx) =>
                     Array.from({ length: item.qty || 1 }, (_, qi) => (
@@ -5399,7 +5416,7 @@ export default function BarcodePrinting() {
       {/* Print Area (hidden, used for printing) */}
       {!testPrintActive && precisionSettings.enabled ? (
         <div className="hidden print:block">
-          {precisionSettings.printMode === 'thermal' ? (
+          {(precisionSettings.printMode === 'thermal' || precisionSettings.printMode === 'thermal2up') ? (
             <PrecisionThermalPrint
               ref={precisionPrintRef}
               items={labelItems.filter(i => (i.qty || 0) > 0).map(i => ({ ...i, businessName }))}
