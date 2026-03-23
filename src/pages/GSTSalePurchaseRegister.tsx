@@ -219,7 +219,7 @@ const GSTSalePurchaseRegister = () => {
 
       // Process POS sales register with IGST columns
       const posSalesRegister: SalesRegisterRow[] = (posSalesData || []).map((sale, index) => {
-        const items = posSaleItemsMap.get(sale.id) || [];
+        const items = (posSaleItemsMap.get(sale.id) || []).filter((i: any) => !i.is_dc_item);
         const customerGSTIN = (sale.customers as any)?.gst_number || "";
         const isInterStateTx = isInterState(businessGSTIN, customerGSTIN);
         const breakup = calculateGSTBreakup(items, "inclusive", isInterStateTx);
