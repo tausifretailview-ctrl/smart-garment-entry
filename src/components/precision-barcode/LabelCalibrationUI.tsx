@@ -33,6 +33,7 @@ export interface CalibrationPreset {
   printMode?: 'thermal' | 'a4';
   labelConfig?: LabelDesignConfig | null;
   isDefault?: boolean;
+  thermalCols?: number;
 }
 
 const BUILT_IN_PRESETS: CalibrationPreset[] = [
