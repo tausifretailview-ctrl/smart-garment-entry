@@ -5059,6 +5059,7 @@ export default function BarcodePrinting() {
                 }
                 if (preset.a4Cols) setPrecisionSettings((prev) => ({ ...prev, a4Cols: preset.a4Cols! }));
                 if (preset.a4Rows) setPrecisionSettings((prev) => ({ ...prev, a4Rows: preset.a4Rows! }));
+                setPrecisionSettings((prev) => ({ ...prev, thermalCols: preset.thermalCols || 1 }));
                 // Auto-detect print mode from preset
                 const mode = preset.printMode || (preset.a4Cols && preset.a4Rows ? 'a4' : 'thermal');
                 setPrecisionSettings((prev) => ({ ...prev, printMode: mode }));
