@@ -116,7 +116,10 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
 
   const generateUpiQrCode = async () => {
     try {
-      const upiId = settings?.bill_barcode_settings?.upi_id;
+      const upiId = (props.isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id)
+        ? settings.bill_barcode_settings.dc_upi_id
+        : settings?.bill_barcode_settings?.upi_id;
+      if (!upiId) return;
       const businessName = settings?.business_name || 'Store';
       
       // UPI payment string format
