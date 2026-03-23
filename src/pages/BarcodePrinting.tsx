@@ -3126,7 +3126,9 @@ export default function BarcodePrinting() {
       // Print mode: Create separate grids per page for proper page breaks
       // For thermal/1-up: each label is its own page; for A4: calculate rows per page
       const labelsPerPage = isThermal1Up()
-        ? dimensions.cols  // 1 row per page for thermal (cols=1 for 1-up, cols=2 for 2-up)
+        ? 1
+        : isThermal2Up()
+        ? 2
         : (() => {
             const availableHeight = 297 - topOffset - bottomOffset - 5; // A4 height with margins
             const rowsPerPage = Math.floor(availableHeight / (dimensions.height + dimensions.gap));
@@ -3158,6 +3160,23 @@ export default function BarcodePrinting() {
               padding-bottom: ${bottomOffset}mm;
               padding-right: ${rightOffset}mm;
               box-sizing: border-box;
+              page-break-inside: avoid;
+              break-inside: avoid-page;
+              page-break-after: always;
+              break-after: page;
+            `
+          : isThermal2Up()
+          ? `
+              display: flex;
+              flex-wrap: nowrap;
+              width: ${dimensions.width * 2}mm;
+              height: ${dimensions.height}mm;
+              min-height: ${dimensions.height}mm;
+              max-height: ${dimensions.height}mm;
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+              overflow: hidden;
               page-break-inside: avoid;
               break-inside: avoid-page;
               page-break-after: always;
@@ -3442,13 +3461,15 @@ export default function BarcodePrinting() {
       toast.info("Generating PDF...");
       try {
         const { labelWidth, labelHeight, xOffset, yOffset, vGap, labelConfig } = precisionSettings;
+        const is2Up = precisionSettings.printMode === 'thermal2up';
         const totalLabels = labelItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
         if (totalLabels === 0) { toast.error("No labels to print"); return; }
 
+        const pageW = is2Up ? labelWidth * 2 : labelWidth;
         const pdf = new jsPDF({
           orientation: "portrait",
           unit: "mm",
-          format: precisionSettings.printMode === 'thermal2up' ? [labelWidth * 2, labelHeight] : [labelWidth, labelHeight],
+          format: [pageW, labelHeight],
         });
 
         // Expand items by qty
@@ -3467,9 +3488,8 @@ export default function BarcodePrinting() {
         const { createElement } = await import("react");
         const { PrecisionLabelPreview } = await import("@/components/precision-barcode/PrecisionLabelPreview");
 
-        for (let i = 0; i < allItems.length; i++) {
-          if (i > 0) pdf.addPage();
-
+        // Helper: render one label to canvas
+        const renderLabelToCanvas = async (item: LabelItem): Promise<HTMLCanvasElement> => {
           container.innerHTML = "";
           const wrapper = document.createElement("div");
           wrapper.style.cssText = `width:${labelWidth}mm;height:${labelHeight}mm;overflow:hidden;background:#fff;`;
@@ -3477,7 +3497,7 @@ export default function BarcodePrinting() {
 
           const root = createRoot(wrapper);
           root.render(createElement(PrecisionLabelPreview, {
-            item: allItems[i],
+            item,
             width: labelWidth,
             height: labelHeight,
             xOffset,
@@ -3497,7 +3517,31 @@ export default function BarcodePrinting() {
           });
 
           root.unmount();
-          pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, labelWidth, labelHeight);
+          return canvas;
+        };
+
+        if (is2Up) {
+          // 2-Up: render 2 labels per page side by side
+          for (let i = 0; i < allItems.length; i += 2) {
+            if (i > 0) pdf.addPage();
+
+            // Left label
+            const canvasLeft = await renderLabelToCanvas(allItems[i]);
+            pdf.addImage(canvasLeft.toDataURL("image/png"), "PNG", 0, 0, labelWidth, labelHeight);
+
+            // Right label (if exists)
+            if (i + 1 < allItems.length) {
+              const canvasRight = await renderLabelToCanvas(allItems[i + 1]);
+              pdf.addImage(canvasRight.toDataURL("image/png"), "PNG", labelWidth, 0, labelWidth, labelHeight);
+            }
+          }
+        } else {
+          // 1-Up: one label per page
+          for (let i = 0; i < allItems.length; i++) {
+            if (i > 0) pdf.addPage();
+            const canvas = await renderLabelToCanvas(allItems[i]);
+            pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, labelWidth, labelHeight);
+          }
         }
 
         document.body.removeChild(container);
@@ -3539,8 +3583,10 @@ export default function BarcodePrinting() {
       
       // Calculate how many rows fit on one page - use BASE dimensions (unscaled) for accurate page calculation
       // For thermal/1-up: each label is its own page; for A4: calculate rows per page
-      const labelsPerPage = (isThermal1Up() || isThermal2Up())
-        ? baseDimensions.cols
+      const labelsPerPage = isThermal1Up()
+        ? 1
+        : isThermal2Up()
+        ? 2
         : (() => {
             const availableHeight = 297 - topOffset - bottomOffset - 10;
             const rowsPerPage = Math.floor(availableHeight / (baseDimensions.height + baseDimensions.gap));
