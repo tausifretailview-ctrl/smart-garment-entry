@@ -439,7 +439,7 @@ export default function ItemWiseSalesReport() {
               </div>
 
               {/* Date Picker */}
-              {periodType !== "custom" && (
+              {periodType !== "custom" && periodType !== "all" && (
                 <div className="w-full md:w-48">
                   <label className="text-sm font-medium text-muted-foreground mb-1 block">Date</label>
                   <Popover>
