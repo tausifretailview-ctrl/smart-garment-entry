@@ -3447,7 +3447,7 @@ export default function BarcodePrinting() {
         const pdf = new jsPDF({
           orientation: "portrait",
           unit: "mm",
-          format: [labelWidth, labelHeight],
+          format: precisionSettings.printMode === 'thermal2up' ? [labelWidth * 2, labelHeight] : [labelWidth, labelHeight],
         });
 
         // Expand items by qty
