@@ -5300,7 +5300,7 @@ export default function BarcodePrinting() {
               <div className="mb-3 p-3 rounded-lg text-center font-bold text-sm" style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--primary))" }}>
                 Total: {labelItems.reduce((s, i) => s + (i.qty || 0), 0)} labels
               </div>
-              {precisionSettings.printMode === 'thermal' ? (
+              {(precisionSettings.printMode === 'thermal' || precisionSettings.printMode === 'thermal2up') ? (
                 <div className="flex flex-col items-center gap-4">
                   {labelItems.filter(i => (i.qty || 0) > 0).flatMap((item, idx) =>
                     Array.from({ length: item.qty || 1 }, (_, qi) => (
