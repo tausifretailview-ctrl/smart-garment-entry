@@ -3165,6 +3165,23 @@ export default function BarcodePrinting() {
               page-break-after: always;
               break-after: page;
             `
+          : isThermal2Up()
+          ? `
+              display: flex;
+              flex-wrap: nowrap;
+              width: ${dimensions.width * 2}mm;
+              height: ${dimensions.height}mm;
+              min-height: ${dimensions.height}mm;
+              max-height: ${dimensions.height}mm;
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+              overflow: hidden;
+              page-break-inside: avoid;
+              break-inside: avoid-page;
+              page-break-after: always;
+              break-after: page;
+            `
           : `
               display: grid;
               grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
