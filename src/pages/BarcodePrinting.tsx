@@ -3573,7 +3573,11 @@ export default function BarcodePrinting() {
       tempContainer.style.position = "absolute";
       tempContainer.style.left = "-9999px";
       tempContainer.style.top = "0";
-      tempContainer.style.width = isThermal1Up() ? `${baseDimensions.width}mm` : "210mm";
+      tempContainer.style.width = isThermal1Up()
+        ? `${baseDimensions.width}mm`
+        : isThermal2Up()
+        ? `${baseDimensions.width * 2 + baseDimensions.gap}mm`
+        : "210mm";
       document.body.appendChild(tempContainer);
 
       // Generate all labels as an array
