@@ -1535,6 +1535,7 @@ export default function BarcodePrinting() {
               ...(defaultPreset.a4Rows ? { a4Rows: defaultPreset.a4Rows } : {}),
               printMode: defaultPreset.printMode || 'thermal',
               ...(defaultPreset.labelConfig ? { labelConfig: defaultPreset.labelConfig } : {}),
+              thermalCols: defaultPreset.thermalCols || 1,
               enabled: true,
             }));
             setActiveBarTab("precision");
