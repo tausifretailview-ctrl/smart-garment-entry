@@ -1645,6 +1645,33 @@ export default function POSSales() {
         await applyCredit(customerId, creditApplied);
       }
       
+      // Check for DC items — offer transfer to delivery challan for cash sales
+      const effectivePayment = forcePaymentMethod || paymentMethod;
+      const dcCartItems = items.filter(i => i.isDcProduct);
+      if (dcCartItems.length > 0 && effectivePayment === 'cash' && !currentSaleId) {
+        // Fetch the saved sale_items to get their IDs
+        const { data: savedSaleItems } = await supabase
+          .from('sale_items')
+          .select('id, variant_id, product_name, size, quantity, line_total, product_id, barcode')
+          .eq('sale_id', result.id)
+          .eq('is_dc_item', true);
+        
+        if (savedSaleItems && savedSaleItems.length > 0) {
+          setDcTransferSaleId(result.id);
+          setDcTransferItems(savedSaleItems.map(si => ({
+            saleItemId: si.id,
+            productName: si.product_name,
+            size: si.size,
+            quantity: si.quantity,
+            netAmount: si.line_total,
+            variantId: si.variant_id,
+            productId: si.product_id,
+            barcode: si.barcode,
+          })));
+          setShowDcTransferDialog(true);
+        }
+      }
+      
       // Clear cart on success
       setItems([]);
       setCustomerId("");
