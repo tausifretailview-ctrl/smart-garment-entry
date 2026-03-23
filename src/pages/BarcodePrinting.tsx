@@ -1201,6 +1201,7 @@ export default function BarcodePrinting() {
     a4Rows: 12,
     printMode: 'thermal' as 'thermal' | 'a4',
     labelConfig: null as any,
+    thermalCols: 1,
   });
   const [dbPresets, setDbPresets] = useState<import("@/components/precision-barcode/LabelCalibrationUI").CalibrationPreset[]>([]);
   const precisionPrintRef = useRef<HTMLDivElement>(null);
