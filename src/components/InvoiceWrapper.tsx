@@ -299,7 +299,9 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       previousBalance: props.previousBalance || 0,
       
       qrCodeUrl,
-      upiId: settings?.bill_barcode_settings?.upi_id,
+      upiId: (props.isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id)
+        ? settings.bill_barcode_settings.dc_upi_id
+        : settings?.bill_barcode_settings?.upi_id,
       bankDetails: settings?.sale_settings?.bank_details,
       declarationText,
       termsConditions,
