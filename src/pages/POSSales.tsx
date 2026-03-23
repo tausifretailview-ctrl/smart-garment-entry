@@ -3712,17 +3712,19 @@ export default function POSSales() {
 
         {/* Totals Section - Fixed at Bottom, above keyboard shortcut bar */}
         <div className="fixed bottom-0 md:bottom-7 left-20 right-0 bg-cyan-500 text-white p-2 md:p-4 shadow-lg z-20">
-          <div className={`grid ${totals.savings > 0 || creditApplied > 0 || availableCreditBalance > 0 ? 'grid-cols-5 md:grid-cols-10' : 'grid-cols-4 md:grid-cols-8'} gap-1 md:gap-3`}>
+          <div className={`grid ${totals.savings > 0 || totals.mrp > totals.subtotal || creditApplied > 0 || availableCreditBalance > 0 ? 'grid-cols-5 md:grid-cols-10' : 'grid-cols-4 md:grid-cols-8'} gap-1 md:gap-3`}>
             <div className="text-center">
               <div className="text-xl md:text-2xl font-bold">{totals.quantity}</div>
               <div className="text-xs md:text-sm mt-1">Quantity</div>
             </div>
+            {(totals.mrp > totals.subtotal && totals.savings > 0) && (
             <div className="text-center bg-white/10 rounded-md py-1 px-1">
               <div className="text-xl md:text-2xl font-bold line-through decoration-2 decoration-red-300 text-white/80">
                 ₹{Math.round(totals.mrp).toLocaleString('en-IN')}
               </div>
               <div className="text-xs md:text-sm mt-0.5 font-semibold tracking-wide">MRP Total</div>
             </div>
+            )}
             {(totals.mrp > totals.subtotal || totals.savings > 0) && (
               <div className="text-center bg-green-600 rounded-md py-1 px-1">
                 <div className="text-xl md:text-2xl font-bold">
