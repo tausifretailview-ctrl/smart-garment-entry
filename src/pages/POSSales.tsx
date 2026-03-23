@@ -4463,6 +4463,16 @@ export default function POSSales() {
         </div>
 
       </div>
+
+      {/* DC Sale Transfer Dialog */}
+      <DcSaleTransferDialog
+        open={showDcTransferDialog}
+        onOpenChange={setShowDcTransferDialog}
+        saleId={dcTransferSaleId}
+        customerId={customerId || null}
+        customerName={customerName || "Walk-in"}
+        dcItems={dcTransferItems}
+      />
     </div>
   );
 }

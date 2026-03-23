@@ -302,7 +302,7 @@ const GSTSalePurchaseRegister = () => {
         };
       });
 
-      // ===== Fetch Purchase Bills =====
+      // ===== Fetch Purchase Bills (exclude DC purchases) =====
       const { data: purchaseData } = await supabase
         .from("purchase_bills")
         .select(`
@@ -311,6 +311,7 @@ const GSTSalePurchaseRegister = () => {
         `)
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
+        .or('is_dc_purchase.is.null,is_dc_purchase.eq.false')
         .gte("bill_date", fromDate)
         .lte("bill_date", toDate)
         .order("bill_date", { ascending: true });
