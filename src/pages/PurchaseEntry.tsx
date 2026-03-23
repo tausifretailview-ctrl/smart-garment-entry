@@ -2879,7 +2879,30 @@ const PurchaseEntry = () => {
                 </Popover>
               </div>
 
+              {/* DC Purchase Checkbox */}
+              <div className="space-y-2 flex items-end">
+                <label className="flex items-center gap-2 cursor-pointer h-10 px-3 border border-orange-300 bg-orange-50 dark:bg-orange-950/20 rounded-md">
+                  <Checkbox
+                    checked={isDcPurchase}
+                    onCheckedChange={(checked) => setIsDcPurchase(checked === true)}
+                  />
+                  <span className="text-xs font-medium text-orange-700 dark:text-orange-400 whitespace-nowrap">
+                    DC Purchase (No GST)
+                  </span>
+                </label>
+              </div>
+
             </div>
+
+            {/* DC Warning */}
+            {isDcPurchase && (
+              <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md">
+                <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                <span className="text-xs text-amber-700 dark:text-amber-400">
+                  DC Purchase — GST set to 0% for all items. This bill will NOT appear in GST Purchase Register.
+                </span>
+              </div>
+            )}
           </section>
 
         {/* Products Table Card */}
