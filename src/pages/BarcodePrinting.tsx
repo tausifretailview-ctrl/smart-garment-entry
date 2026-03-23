@@ -3558,6 +3558,8 @@ export default function BarcodePrinting() {
       // Create PDF - use label dimensions for thermal, A4 for sheets
       const pdfFormat = isThermal1Up()
         ? [baseDimensions.width, baseDimensions.height] as [number, number]
+        : isThermal2Up()
+        ? [baseDimensions.width * 2 + baseDimensions.gap, baseDimensions.height] as [number, number]
         : "a4" as const;
       const pdf = new jsPDF({
         orientation: "portrait",
