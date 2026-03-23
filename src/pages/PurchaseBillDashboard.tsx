@@ -350,13 +350,13 @@ const PurchaseBillDashboard = () => {
         // First, find bill IDs that have matching products
         const { data: matchingItems } = await supabase
           .from("purchase_items")
-          .select("purchase_bill_id")
+          .select("bill_id")
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
           .or(`product_name.ilike.%${debouncedSearch}%,brand.ilike.%${debouncedSearch}%,barcode.ilike.%${debouncedSearch}%,style.ilike.%${debouncedSearch}%,category.ilike.%${debouncedSearch}%,color.ilike.%${debouncedSearch}%`)
           .limit(200);
 
-        const matchingBillIds = [...new Set((matchingItems || []).map(i => i.purchase_bill_id).filter(Boolean))];
+        const matchingBillIds = [...new Set((matchingItems || []).map((i: any) => i.bill_id).filter(Boolean))];
 
         if (matchingBillIds.length > 0) {
           // Search bill-level fields OR bills containing matching products
