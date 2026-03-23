@@ -2921,6 +2921,10 @@ export default function BarcodePrinting() {
     return preset?.thermal === true || sheetType.includes("thermal");
   };
 
+  const isThermal2Up = (): boolean => {
+    return precisionSettings.printMode === 'thermal2up';
+  };
+
   // Auto-fit scale: shrink content to fit within A4 default-margin printable area
   // For thermal/1-up labels, no scaling is needed — return 1.0
   const getAutoFitScale = () => {
