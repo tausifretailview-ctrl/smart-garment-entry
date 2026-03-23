@@ -5027,6 +5027,7 @@ export default function BarcodePrinting() {
                     a4_rows: preset.a4Rows ?? precisionSettings.a4Rows,
                     print_mode: precisionSettings.printMode,
                     label_config: preset.labelConfig as any,
+                    thermal_cols: preset.thermalCols || precisionSettings.thermalCols || 1,
                   }, { onConflict: "organization_id,name" });
                 if (error) { toast.error("Failed to save preset"); return; }
                 toast.success(`Preset "${preset.name}" saved`);
