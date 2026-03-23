@@ -182,6 +182,9 @@ const PurchaseEntry = () => {
   const [barcodeWarnings, setBarcodeWarnings] = useState<Map<string, string>>(new Map());
   const barcodeCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // DC Purchase (Direct Cash / No GST) state
+  const [isDcPurchase, setIsDcPurchase] = useState(false);
+
   const [billData, setBillData] = useState({
     supplier_id: "",
     supplier_name: "",
