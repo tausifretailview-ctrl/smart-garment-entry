@@ -66,6 +66,7 @@ export default function ItemWiseSalesReport() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [selectedCustomer, setSelectedCustomer] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState<"itemwise" | "brandwise">("itemwise");
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     brands: [],
     categories: [],
