@@ -5086,7 +5086,13 @@ export default function BarcodePrinting() {
               printMode={precisionSettings.printMode}
               a4Cols={precisionSettings.a4Cols}
               a4Rows={precisionSettings.a4Rows}
-              onPrintModeChange={(mode) => setPrecisionSettings((prev) => ({ ...prev, printMode: mode }))}
+              onPrintModeChange={(mode) => {
+                setPrecisionSettings((prev) => ({
+                  ...prev,
+                  printMode: mode,
+                  ...(mode === 'thermal2up' ? { thermalCols: 2 } : mode === 'thermal' ? { thermalCols: 1 } : {}),
+                }));
+              }}
               onA4ColsChange={(cols) => setPrecisionSettings((prev) => ({ ...prev, a4Cols: cols }))}
               onA4RowsChange={(rows) => setPrecisionSettings((prev) => ({ ...prev, a4Rows: rows }))}
               sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}

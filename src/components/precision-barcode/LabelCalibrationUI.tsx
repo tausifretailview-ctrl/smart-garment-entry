@@ -499,6 +499,20 @@ export function LabelCalibrationUI({
               <button
                 type="button"
                 className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                  printMode === 'thermal2up'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted/30 text-muted-foreground hover:bg-muted/50'
+                }`}
+                onClick={() => {
+                  onPrintModeChange('thermal2up');
+                  onChange({ ...values, labelWidth: 38, labelHeight: 25 });
+                }}
+              >
+                🖨️ Thermal (2-Up)
+              </button>
+              <button
+                type="button"
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                   printMode === 'a4'
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted/30 text-muted-foreground hover:bg-muted/50'
