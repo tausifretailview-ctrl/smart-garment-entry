@@ -345,9 +345,25 @@ const PurchaseBillDashboard = () => {
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
 
-      // Server-side search
+      // Server-side search — also search product details in purchase_items
       if (debouncedSearch) {
-        query = query.or(`supplier_name.ilike.%${debouncedSearch}%,supplier_invoice_no.ilike.%${debouncedSearch}%,software_bill_no.ilike.%${debouncedSearch}%`);
+        // First, find bill IDs that have matching products
+        const { data: matchingItems } = await supabase
+          .from("purchase_items")
+          .select("purchase_bill_id")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .or(`product_name.ilike.%${debouncedSearch}%,brand.ilike.%${debouncedSearch}%,barcode.ilike.%${debouncedSearch}%,style.ilike.%${debouncedSearch}%,category.ilike.%${debouncedSearch}%,color.ilike.%${debouncedSearch}%`)
+          .limit(200);
+
+        const matchingBillIds = [...new Set((matchingItems || []).map(i => i.purchase_bill_id).filter(Boolean))];
+
+        if (matchingBillIds.length > 0) {
+          // Search bill-level fields OR bills containing matching products
+          query = query.or(`supplier_name.ilike.%${debouncedSearch}%,supplier_invoice_no.ilike.%${debouncedSearch}%,software_bill_no.ilike.%${debouncedSearch}%,id.in.(${matchingBillIds.join(",")})`);
+        } else {
+          query = query.or(`supplier_name.ilike.%${debouncedSearch}%,supplier_invoice_no.ilike.%${debouncedSearch}%,software_bill_no.ilike.%${debouncedSearch}%`);
+        }
       }
 
       // Server-side date filtering
