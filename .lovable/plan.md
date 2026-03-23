@@ -1,27 +1,34 @@
 
 
-## Fix: 38×25mm 2-Up Labels Printing Incorrectly (Content Clipped/Overlapping)
+## Add "Brand-wise Sale" Tab to Item-wise Sales Report
 
-### Root Cause
-Two CSS rules in `PrecisionPrintCSS.tsx` break multi-column layouts:
+### What it does
+Adds a second tab to the Item-wise Sales Report page. The new "Brand-wise Sale" tab shows a table grouped by customer, with each customer's brand-level sales summary (brand name, total qty sold, total sale amount) for the selected date range.
 
-1. **Line 64**: `.precision-print-area > div { display: block !important }` — overrides `display: flex` on the row container, so labels stack instead of sitting side-by-side
-2. **Lines 74-78**: `.precision-label-container { position: absolute; top: 0; left: 0 }` — forces BOTH labels to the same corner, so they overlap completely
+### Layout
+- Two tabs at the top of the content area: **Item-wise Details** (existing) | **Brand-wise Sale** (new)
+- Filters, summary cards, and charts remain shared across both tabs
+- The Brand-wise Sale table columns: **Customer Name** | **Brand** | **Total Qty** | **Total Amount**
+- Customer name shown only on the first row of each customer group (rowspan-style), subsequent brand rows show "-" for customer
+- Grand total row at the bottom
+- Excel export adapts to export whichever tab is active
 
-### Changes
+### Technical Changes
 
-**File 1: `src/components/precision-barcode/PrecisionPrintCSS.tsx`**
+**File: `src/pages/ItemWiseSalesReport.tsx`**
 
-1. Change line 64 from `display: block !important` to `display: flex !important` — this works for both single-column (single flex child = same as block) and multi-column
-2. Remove or scope the `.precision-label-container` absolute positioning rule (lines 74-78). The label container already has `position: relative` set by its parent wrapper div in `PrecisionThermalPrint.tsx`. Instead, keep it `position: relative` so it flows naturally within the flex row.
+1. **Add tab state**: `const [activeTab, setActiveTab] = useState<"itemwise" | "brandwise">("itemwise");`
 
-**File 2: `src/components/precision-barcode/PrecisionThermalPrint.tsx`**
+2. **Add `brandWiseData` memo**: Aggregate `saleItems` by `customer_name + brand`, producing `{ customer_name, brand, total_qty, total_amount }[]` sorted by customer name then brand. Apply the same client-side filters (selectedBrand, selectedCategory, search).
 
-3. Add `overflow: hidden` to each column cell div (line 60) so label content doesn't bleed into the adjacent label
-4. Ensure each column wrapper has `position: relative` so the absolute-positioned label fields inside are scoped to their column
+3. **Wrap charts + table section in Tabs**: Use shadcn `Tabs` component. The "Item-wise Details" tab contains existing charts + table. The "Brand-wise Sale" tab contains the new customer-brand table.
 
-### Result
-- 2-Up labels render side-by-side: left label shows full content, right label shows full content
-- Single-column thermal labels continue to work (flex with one child = identical to block)
-- Each 38mm label clips its own content within its boundary
+4. **Brand-wise table**: Simple Table with 4 columns. Customer name displayed on the first row of each group, blank for subsequent brands. Footer row with grand totals.
+
+5. **Update `exportToExcel`**: When `activeTab === "brandwise"`, export the brand-wise data instead of item-wise data.
+
+6. **Import `Tabs, TabsContent, TabsList, TabsTrigger`** from shadcn.
+
+### No database changes needed
+All data is already fetched — `saleItems` contains `customer_name` and `brand`. The new tab just aggregates differently.
 
