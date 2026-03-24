@@ -3730,27 +3730,31 @@ export default function BarcodePrinting() {
           const cell = document.createElement("div");
           cell.className = "label-cell";
           
+          // For thermal 2-Up: no borders, no padding — labels must fill cells exactly
+          const isThermalMode = is1Up || is2Up;
+          
           if (useAbsoluteLayout) {
             // Absolute positioning layout - matches BarTenderLabelDesigner
             cell.style.cssText = `
-              width: ${dimensions.width}mm;
-              height: ${dimensions.height}mm;
-              min-height: ${dimensions.height}mm;
-              max-height: ${dimensions.height}mm;
+              width: ${isThermalMode ? baseDimensions.width : dimensions.width}mm;
+              height: ${isThermalMode ? baseDimensions.height : dimensions.height}mm;
+              min-height: ${isThermalMode ? baseDimensions.height : dimensions.height}mm;
+              max-height: ${isThermalMode ? baseDimensions.height : dimensions.height}mm;
               font-family: Arial, sans-serif;
               position: relative;
               overflow: hidden;
               box-sizing: border-box;
-              border: 1px solid #e5e5e5;
+              ${isThermalMode ? '' : 'border: 1px solid #e5e5e5;'}
               background: #fff;
+              flex-shrink: 0;
             `;
           } else {
             // Legacy flow-based layout
             cell.style.cssText = `
-              width: ${dimensions.width}mm;
-              height: ${dimensions.height}mm;
-              min-height: ${dimensions.height}mm;
-              max-height: ${dimensions.height}mm;
+              width: ${isThermalMode ? baseDimensions.width : dimensions.width}mm;
+              height: ${isThermalMode ? baseDimensions.height : dimensions.height}mm;
+              min-height: ${isThermalMode ? baseDimensions.height : dimensions.height}mm;
+              max-height: ${isThermalMode ? baseDimensions.height : dimensions.height}mm;
               font-family: Arial, sans-serif;
               text-align: center;
               display: flex;
@@ -3758,11 +3762,12 @@ export default function BarcodePrinting() {
               align-items: center;
               justify-content: center;
               overflow: hidden;
-              padding: 2px;
+              padding: ${isThermalMode ? '0' : '2px'};
               box-sizing: border-box;
-              border: 1px solid #e5e5e5;
+              ${isThermalMode ? '' : 'border: 1px solid #e5e5e5;'}
               background: #fff;
               line-height: 1.1;
+              flex-shrink: 0;
             `;
           }
           
@@ -3788,7 +3793,7 @@ export default function BarcodePrinting() {
         const captureWidthMm = (is1Up || is2Up) ? pageWidthMm : 210;
         const captureHeightMm = (is1Up || is2Up) ? pageHeightMm : Math.min(actualContentHeight, 297);
         const canvas = await html2canvas(tempContainer, {
-          scale: 3, // Higher scale for better quality
+          scale: (is1Up || is2Up) ? 8 : 3, // Higher scale for thermal labels — crisp barcodes
           backgroundColor: "#ffffff",
           logging: false,
           useCORS: true,
