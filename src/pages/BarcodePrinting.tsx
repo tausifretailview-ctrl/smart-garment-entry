@@ -3758,19 +3758,20 @@ export default function BarcodePrinting() {
         await new Promise(resolve => setTimeout(resolve, 100));
 
         // Capture this page with high quality - only capture actual content height
-        const captureHeight = Math.min(actualContentHeight, 297);
+        const captureWidthMm = (is1Up || is2Up) ? pageWidthMm : 210;
+        const captureHeightMm = (is1Up || is2Up) ? pageHeightMm : Math.min(actualContentHeight, 297);
         const canvas = await html2canvas(tempContainer, {
           scale: 3, // Higher scale for better quality
           backgroundColor: "#ffffff",
           logging: false,
           useCORS: true,
           allowTaint: true,
-          width: 210 * 3.78, // Convert mm to pixels (1mm = ~3.78px)
-          height: captureHeight * 3.78,
+          width: captureWidthMm * 3.78, // Convert mm to pixels (1mm = ~3.78px)
+          height: captureHeightMm * 3.78,
         });
 
         const imgData = canvas.toDataURL("image/png");
-        pdf.addImage(imgData, "PNG", 0, 0, 210, captureHeight);
+        pdf.addImage(imgData, "PNG", 0, 0, captureWidthMm, captureHeightMm);
       }
 
       // Clean up
