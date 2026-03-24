@@ -1494,7 +1494,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     <div className="flex items-center justify-between">
                       <Label className="text-xs font-semibold text-violet-700 font-outfit">{variants.length} Variant{variants.length !== 1 ? 's' : ''}</Label>
                       <Button type="button" variant="outline" size="sm" onClick={handleAutoGenerateBarcodes} className="gap-1 h-6 text-[11px] border-violet-300 text-violet-700 hover:bg-violet-100/60 font-outfit">
-                        <Barcode className="h-3 w-3" /> Auto Barcodes
+                        <Barcode className="h-3 w-3" /> 🔄 Regenerate Barcodes
                       </Button>
                     </div>
                     <div className="border border-violet-200/60 rounded-lg overflow-x-auto bg-white shadow-sm max-h-[260px] overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
