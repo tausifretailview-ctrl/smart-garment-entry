@@ -178,10 +178,10 @@ export function PrecisionLabelPreview({
           style={{
             position: "absolute",
             top: u(barcodeConfig.y ?? height * 0.35),
-            left: u(barcodeConfig.x ?? 1),
+            left: u(barcodeConfig.x ?? 0),
             width: barcodeConfig.width ? u(barcodeConfig.width) : "auto",
             display: "flex",
-            justifyContent: "center",
+            alignItems: "flex-start",
             overflow: "hidden",
           }}
         >
@@ -190,7 +190,7 @@ export function PrecisionLabelPreview({
             className="precision-barcode-svg"
             style={{
               maxWidth: barcodeConfig.width ? u(barcodeConfig.width) : u(width - 2),
-              height: scaleFactor ? `${barcodeHeight * scaleFactor * 0.35}px` : `${barcodeHeight / 3.7795}mm`,
+              height: scaleFactor ? `${barcodeHeight * scaleFactor * 0.35}px` : `${(barcodeHeight * 0.35) / 3.7795}mm`,
               imageRendering: "pixelated",
             }}
           />
