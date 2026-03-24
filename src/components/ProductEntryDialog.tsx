@@ -53,6 +53,7 @@ interface ProductVariant {
   barcode: string;
   active: boolean;
   opening_qty: number;
+  purchase_qty?: number;
 }
 
 interface ProductForm {
