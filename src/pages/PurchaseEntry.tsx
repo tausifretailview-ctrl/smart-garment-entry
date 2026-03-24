@@ -3746,6 +3746,7 @@ const PurchaseEntry = () => {
           onOpenChange={setShowProductDialog}
           onProductCreated={handleProductCreated}
           hideOpeningQty
+          isDcPurchase={isDcPurchase}
         />
 
         {/* Price Update Confirmation Dialog */}
