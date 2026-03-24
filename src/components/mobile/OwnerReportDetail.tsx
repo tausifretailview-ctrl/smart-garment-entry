@@ -264,11 +264,11 @@ const ProfitLossReport = ({ orgId, start, end }: RProps) => {
       const [salesRes, purchaseRes] = await Promise.all([
         supabase.from("sales").select("net_amount").eq("organization_id", orgId!).is("deleted_at", null).eq("is_cancelled", false)
           .gte("sale_date", start!).lte("sale_date", end + "T23:59:59"),
-        supabase.from("purchase_bills").select("grand_total").eq("organization_id", orgId!).is("deleted_at", null)
+        supabase.from("purchase_bills").select("net_amount").eq("organization_id", orgId!).is("deleted_at", null)
           .gte("bill_date", start!).lte("bill_date", end + "T23:59:59"),
       ]);
       const totalSale = (salesRes.data || []).reduce((s, r) => s + (r.net_amount || 0), 0);
-      const totalPurchase = (purchaseRes.data || []).reduce((s, r) => s + (r.grand_total || 0), 0);
+      const totalPurchase = (purchaseRes.data || []).reduce((s, r) => s + (r.net_amount || 0), 0);
       return { totalSale, totalPurchase, profit: totalSale - totalPurchase };
     },
   });
