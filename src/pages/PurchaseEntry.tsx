@@ -1557,12 +1557,11 @@ const PurchaseEntry = () => {
         e.preventDefault();
         handleCopyLastRow();
       }
-      // Press "1" key to open Add New Product dialog — only when no input/textarea/select is focused
+      // Press "1" key to open Add New Product dialog — block only in supplier invoice field
       if (e.key === "1" && !showProductDialog) {
-        const target = e.target as HTMLElement;
-        const tag = target?.tagName?.toLowerCase();
-        const isInputField = tag === "input" || tag === "textarea" || tag === "select" || (target as HTMLElement)?.isContentEditable;
-        if (!isInputField) {
+        const active = document.activeElement as HTMLElement;
+        const isSupplierInvField = active?.getAttribute('data-field') === 'supplier-invoice-no';
+        if (!isSupplierInvField) {
           e.preventDefault();
           setShowProductDialog(true);
         }
