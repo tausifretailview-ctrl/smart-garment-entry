@@ -1697,12 +1697,22 @@ const PurchaseEntry = () => {
     } finally {
       setShowPriceUpdateDialog(false);
       setDetectedPriceChanges([]);
+      // Show print dialog if it was deferred
+      if (pendingPrintAfterPriceUpdate) {
+        setPendingPrintAfterPriceUpdate(false);
+        setShowPrintDialog(true);
+      }
     }
   };
 
   const handlePriceUpdateSkip = () => {
     setShowPriceUpdateDialog(false);
     setDetectedPriceChanges([]);
+    // Show print dialog if it was deferred
+    if (pendingPrintAfterPriceUpdate) {
+      setPendingPrintAfterPriceUpdate(false);
+      setShowPrintDialog(true);
+    }
   };
 
   const handleSave = async () => {
