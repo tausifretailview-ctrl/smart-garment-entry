@@ -53,6 +53,7 @@ interface ProductVariant {
   barcode: string;
   active: boolean;
   opening_qty: number;
+  purchase_qty?: number;
 }
 
 interface ProductForm {
@@ -85,8 +86,13 @@ interface ProductEntryDialogProps {
     brand: string | null;
     category: string | null;
     gst_per: number;
+    purchase_gst_percent?: number;
+    sale_gst_percent?: number;
     hsn_code: string | null;
     color: string | null;
+    style?: string | null;
+    purchase_discount_type?: string | null;
+    purchase_discount_value?: number | null;
     variants: any[];
   }) => void;
   hideOpeningQty?: boolean;
@@ -189,11 +195,38 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     }
   }, [open]);
 
-  // Sync selectedSizes when size_group_id or sizeGroups change (e.g. from defaults/copy)
+  // Sync selectedSizes and auto-generate variants when size_group_id changes
   useEffect(() => {
-    if (formData.size_group_id && sizeGroups.length > 0 && selectedSizes.length === 0) {
+    if (formData.size_group_id && sizeGroups.length > 0) {
       const group = sizeGroups.find(g => g.id === formData.size_group_id);
-      if (group) setSelectedSizes([...group.sizes]);
+      if (group) {
+        if (selectedSizes.length === 0) {
+          setSelectedSizes([...group.sizes]);
+        }
+        // In purchase context: auto-generate variants for qty entry
+        if (hideOpeningQty && variants.length === 0) {
+          const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
+          const newVariants: ProductVariant[] = [];
+          for (const color of colorsToUse) {
+            for (const size of group.sizes) {
+              newVariants.push({
+                color,
+                size,
+                pur_price: formData.default_pur_price ?? 0,
+                sale_price: formData.default_sale_price ?? 0,
+                mrp: formData.default_mrp ?? null,
+                barcode: "",
+                active: true,
+                opening_qty: 0,
+                purchase_qty: 0,
+              });
+            }
+          }
+          autoBarcodePending.current = true;
+          setVariants(newVariants);
+          setShowVariants(true);
+        }
+      }
     }
   }, [formData.size_group_id, sizeGroups]);
 
@@ -854,16 +887,29 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       // Save last product details for quick entry next time
       saveLastProductDetails();
 
-      // Call the callback with product data
+      // Call the callback with product data — include purchase_qty from variants
+      const variantsWithQty = insertedVariants.map((iv: any) => {
+        const matchingVariant = variants.find(v => v.size === iv.size && (v.color || "") === (iv.color || ""));
+        return {
+          ...iv,
+          purchase_qty: matchingVariant?.purchase_qty || 0,
+        };
+      });
+
       onProductCreated({
         id: productData.id,
         product_name: productData.product_name,
         brand: productData.brand,
         category: productData.category,
         gst_per: productData.gst_per || 0,
+        purchase_gst_percent: productData.purchase_gst_percent ?? productData.gst_per ?? 0,
+        sale_gst_percent: productData.sale_gst_percent ?? productData.gst_per ?? 0,
         hsn_code: productData.hsn_code,
         color: productData.color,
-        variants: insertedVariants,
+        style: productData.style,
+        purchase_discount_type: productData.purchase_discount_type,
+        purchase_discount_value: productData.purchase_discount_value,
+        variants: variantsWithQty,
       });
 
       onOpenChange(false);
@@ -1407,6 +1453,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         setFormData({ ...formData, size_group_id: value });
                         const group = sizeGroups.find(g => g.id === value);
                         setSelectedSizes(group ? [...group.sizes] : []);
+                        // Clear variants so useEffect regenerates them for new group
+                        if (hideOpeningQty) {
+                          setVariants([]);
+                          setShowVariants(false);
+                        }
                       }}
                     >
                       <SelectTrigger className="flex-1">
@@ -1425,11 +1476,99 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     </Button>
                   </div>
 
-                  {/* Size Selection Checkboxes */}
+                  {/* Size Selection Checkboxes / Qty Grid */}
                   {formData.size_group_id && (() => {
                     const group = sizeGroups.find(g => g.id === formData.size_group_id);
                     if (!group || group.sizes.length === 0) return null;
                     const allSelected = selectedSizes.length === group.sizes.length;
+
+                    // Purchase context: show qty inputs per size
+                    if (hideOpeningQty) {
+                      const totalQty = variants.reduce((sum, v) => sum + (v.purchase_qty || 0), 0);
+                      const activeSizeCount = variants.filter(v => (v.purchase_qty || 0) > 0).length;
+                      return (
+                        <div className="space-y-2 mt-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-foreground">
+                              Size-wise Quantity
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              Total: {totalQty} pcs · {activeSizeCount} sizes
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5 p-3 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20">
+                            {group.sizes.map((size, sIdx) => {
+                              const variant = variants.find(v => v.size === size && v.color === (formData.colors[0] || ""));
+                              const qty = variant?.purchase_qty || 0;
+                              return (
+                                <div
+                                  key={size}
+                                  className={cn(
+                                    "flex flex-col items-center gap-1 p-1.5 rounded-md border transition-colors",
+                                    qty > 0
+                                      ? "bg-emerald-50 border-emerald-300 dark:bg-emerald-950/30 dark:border-emerald-700"
+                                      : "bg-card border-border"
+                                  )}
+                                >
+                                  <span className={cn(
+                                    "text-xs font-bold",
+                                    qty > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"
+                                  )}>
+                                    {size}
+                                  </span>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={qty === 0 ? '' : qty}
+                                    placeholder="0"
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value) || 0;
+                                      setVariants(prev => prev.map(v =>
+                                        v.size === size && v.color === (formData.colors[0] || "")
+                                          ? { ...v, purchase_qty: val }
+                                          : v
+                                      ));
+                                    }}
+                                    onFocus={(e) => e.target.select()}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
+                                        e.preventDefault();
+                                        const nextSize = group.sizes[sIdx + 1];
+                                        if (nextSize) {
+                                          document.getElementById(`size-qty-${nextSize}`)?.focus();
+                                        } else {
+                                          document.getElementById('btn-add-all-sizes')?.focus();
+                                        }
+                                      }
+                                    }}
+                                    id={`size-qty-${size}`}
+                                    className={cn(
+                                      "h-7 w-14 text-center text-sm font-semibold p-0.5 no-uppercase",
+                                      qty > 0 && "border-emerald-400 text-emerald-800"
+                                    )}
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {/* Active sizes preview */}
+                          {activeSizeCount > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-1">
+                              {variants.filter(v => (v.purchase_qty || 0) > 0).map(v => (
+                                <span
+                                  key={`${v.color}-${v.size}`}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded-full"
+                                >
+                                  {v.size} × {v.purchase_qty}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    // Non-purchase context: show checkboxes as before
                     return (
                       <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                         <button
@@ -1613,10 +1752,26 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           </ScrollArea>
 
           <DialogFooter className="px-6 py-4 mt-4 border-t bg-muted/20">
+            {hideOpeningQty && (
+              <span className="text-sm text-muted-foreground mr-auto">
+                {(() => {
+                  const totalQty = variants.reduce((s, v) => s + (v.purchase_qty || 0), 0);
+                  const activeCount = variants.filter(v => (v.purchase_qty || 0) > 0).length;
+                  return totalQty > 0
+                    ? `${activeCount} sizes · ${totalQty} pcs`
+                    : 'Enter qty per size above';
+                })()}
+              </span>
+            )}
             <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading} className="font-outfit font-semibold">
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={loading} className="gap-1.5 min-w-[140px] font-outfit font-semibold shadow-md hover:shadow-lg transition-all bg-emerald-600 hover:bg-emerald-700 text-white">
+            <Button
+              id="btn-add-all-sizes"
+              onClick={handleSave}
+              disabled={loading}
+              className="gap-1.5 min-w-[140px] font-outfit font-semibold shadow-md hover:shadow-lg transition-all bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-1 animate-spin" />
@@ -1624,7 +1779,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </>
               ) : (
                 <>
-                  ➕ Add to Bill
+                  ➕ {hideOpeningQty
+                    ? `Add ${variants.filter(v => (v.purchase_qty || 0) > 0).length || ''} Sizes to Bill`
+                    : 'Add to Bill'
+                  }
                 </>
               )}
             </Button>
