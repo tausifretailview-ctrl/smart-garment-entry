@@ -1148,14 +1148,15 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 <div className="space-y-2">
                   <Label htmlFor="hsn_code">HSN Code</Label>
                   <div className="relative">
-                    <Input
-                      id="hsn_code"
-                      value={formData.hsn_code}
-                      onChange={(e) => setFormData({ ...formData, hsn_code: e.target.value })}
-                      placeholder="HSN Code"
-                      list="hsn-list"
-                      autoComplete="off"
-                    />
+                      <Input
+                        id="hsn_code"
+                        value={formData.hsn_code}
+                        onChange={(e) => setFormData({ ...formData, hsn_code: e.target.value })}
+                        onKeyDown={handleEnterAsTab}
+                        placeholder="HSN Code"
+                        list="hsn-list"
+                        autoComplete="off"
+                      />
                     <datalist id="hsn-list">
                       {hsnCodes.map((hsn) => (
                         <option key={hsn} value={hsn} />
