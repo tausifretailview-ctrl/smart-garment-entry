@@ -942,16 +942,28 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     });
   };
 
-  // Enter key moves to next field (like Tab)
+  // Enter key moves to next field (like Tab), with smart skip from style → purchase price
   const handleEnterAsTab = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      const form = (e.target as HTMLElement).closest('[data-product-form]');
+      const currentEl = e.target as HTMLElement;
+      const currentId = currentEl.id || currentEl.getAttribute("name") || "";
+
+      // After style field, jump directly to purchase price (skip hsn, gst, uom)
+      if (currentId === "style") {
+        const purPriceEl = document.getElementById("default_pur_price");
+        if (purPriceEl) {
+          purPriceEl.focus();
+          return;
+        }
+      }
+
+      const form = currentEl.closest('[data-product-form]');
       if (!form) return;
       const focusable = Array.from(form.querySelectorAll<HTMLElement>(
         'input:not([type="hidden"]):not([type="file"]):not(:disabled), select:not(:disabled), textarea:not(:disabled), [role="combobox"]:not(:disabled)'
       )).filter(el => el.offsetParent !== null && !el.closest('.hidden'));
-      const idx = focusable.indexOf(e.target as HTMLElement);
+      const idx = focusable.indexOf(currentEl);
       if (idx >= 0 && idx < focusable.length - 1) {
         focusable[idx + 1].focus();
       }
