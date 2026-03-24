@@ -201,7 +201,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     }
   }, [open]);
 
-  // Sync selectedSizes and auto-generate variants when size_group_id changes
+  // Sync selectedSizes and auto-generate variants when size_group_id or colors change
   useEffect(() => {
     if (formData.size_group_id && sizeGroups.length > 0) {
       const group = sizeGroups.find(g => g.id === formData.size_group_id);
@@ -210,11 +210,19 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           setSelectedSizes([...group.sizes]);
         }
         // In purchase context: auto-generate variants for qty entry
-        if (hideOpeningQty && variants.length === 0) {
+        if (hideOpeningQty) {
           const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
+          // Build a map of existing qty values to preserve them
+          const existingQtyMap = new Map<string, number>();
+          variants.forEach(v => {
+            if ((v.purchase_qty || 0) > 0) {
+              existingQtyMap.set(`${v.color}||${v.size}`, v.purchase_qty || 0);
+            }
+          });
           const newVariants: ProductVariant[] = [];
           for (const color of colorsToUse) {
             for (const size of group.sizes) {
+              const key = `${color}||${size}`;
               newVariants.push({
                 color,
                 size,
@@ -224,7 +232,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 barcode: "",
                 active: true,
                 opening_qty: 0,
-                purchase_qty: 0,
+                purchase_qty: existingQtyMap.get(key) || 0,
               });
             }
           }
@@ -234,7 +242,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         }
       }
     }
-  }, [formData.size_group_id, sizeGroups]);
+  }, [formData.size_group_id, sizeGroups, formData.colors]);
 
   // Sync default prices to existing variants when user edits price fields
   useEffect(() => {
