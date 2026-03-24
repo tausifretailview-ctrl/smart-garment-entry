@@ -134,6 +134,46 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
         }
       });
 
+      // When barcode matched, also fetch ALL sibling products with same name+brand
+      if (barcodeProducts.size > 0) {
+        const uniqueNames = [...new Set([...barcodeProducts.values()].map(p => p.product_name))];
+        for (const pName of uniqueNames) {
+          const { data: siblingData } = await supabase
+            .from("products")
+            .select(`
+              id, product_name, brand, color, category, style,
+              size_groups(group_name),
+              product_variants(mrp, pur_price, sale_price, barcode)
+            `)
+            .eq("organization_id", currentOrganization.id)
+            .eq("product_name", pName)
+            .is("deleted_at", null)
+            .is("product_variants.deleted_at", null)
+            .limit(100);
+
+          (siblingData || []).forEach((p: any) => {
+            if (!barcodeProducts.has(p.id)) {
+              const firstVariant = p.product_variants?.[0];
+              barcodeProducts.set(p.id, {
+                id: p.id,
+                product_name: p.product_name,
+                brand: p.brand,
+                color: p.color,
+                category: p.category,
+                style: p.style,
+                size_group_name: p.size_groups?.group_name || null,
+                mrp: firstVariant?.mrp || 0,
+                barcode: firstVariant?.barcode || '',
+                pur_price: firstVariant?.pur_price || 0,
+                sale_price: firstVariant?.sale_price || 0,
+                productIds: [p.id],
+                allColors: p.color ? [p.color] : [],
+              });
+            }
+          });
+        }
+      }
+
       // Also search by product name, brand, style
       // Use individual words from query for broader matching
       const queryWords = query.trim().split(/\s+/).filter(Boolean);
