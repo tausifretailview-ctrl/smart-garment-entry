@@ -1,30 +1,26 @@
 
 
-## Fix: Precision Pro 38×25 2-Up — Left Label Clipping & Business Name-Barcode Gap
+## Issue: "Barcode Required" Error — Already Fixed, Users Need Cache Refresh
 
-### Root Cause Analysis
+### Analysis
 
-**Left label clipping**: In `PrecisionThermalPrint.tsx`, each label cell (line 62) has `overflow: 'hidden'` and `width: labelWidth mm`. Inside, `PrecisionLabelPreview` places content using absolute positioning with `left: 0mm` (from config `x: 0`). At the exact pixel boundary, the first 1-2 characters get clipped because there's zero internal padding. The right label appears fine because flex layout gives it slightly more breathing room.
+I reviewed the current code thoroughly. The fix is **already correctly implemented**:
 
-**Business name-barcode gap**: In `PrecisionLabelPreview.tsx`, the barcode container (line 176-198) is positioned at `top: u(barcodeConfig.y)` with no built-in margin from preceding text fields. Both are absolutely positioned, so there's no natural spacing.
+1. **`ProductEntryDialog.tsx` line 846**: The barcode validation is guarded with `!hideOpeningQty` — so it **never fires** in the Purchase Entry context
+2. **`ProductEntryDialog.tsx` line 798-800**: Only variants with `purchase_qty > 0` are validated in purchase context
+3. **`ProductEntryDialog.tsx` line 914-916**: Only variants with `purchase_qty > 0` are created and get barcodes at save time
 
-### Changes
+The code is correct. The users are seeing the old behavior because their **browsers have cached the previous JavaScript bundle**.
 
-**1. `src/components/precision-barcode/PrecisionThermalPrint.tsx`** — Add internal padding to label cells
+### Recommended Action
 
-In the 2-Up row rendering (line 62), add `paddingLeft: '1mm'` and `paddingRight: '0.5mm'` to each label cell. Reduce content area slightly so labels don't overflow the 76.4mm printable zone. Change `overflow: 'hidden'` to `overflow: 'clip'` (same visual effect but more predictable with padding).
+No code changes are needed. To resolve for users:
 
-**2. `src/components/precision-barcode/PrecisionLabelPreview.tsx`** — Add barcode top margin
+1. **Hard refresh**: Users should press `Ctrl + Shift + R` (Windows) or `Cmd + Shift + R` (Mac) to force-reload
+2. **Clear cache**: If hard refresh doesn't work, clear browser cache or open in an incognito/private window
+3. **PWA cache**: If the app is installed as a PWA, users may need to uninstall and reinstall the app, or clear the service worker cache
 
-In the barcode SVG container (line 176-198), add `marginTop: '1mm'` (or `u(1)` in the unit system) as default spacing above the barcode. This creates breathing room between any text field above (like business name) and the barcode image.
+### Optional: Force Cache Bust
 
-**3. `src/components/precision-barcode/PrecisionPrintCSS.tsx`** — Ensure print CSS doesn't strip padding
-
-The print CSS (line 55-56) forces `padding: 0 !important` on `.precision-print-area > div`. This targets row containers, not individual label cells. But to be safe, add a rule that preserves padding on label cell children: `.precision-print-area > div > div { padding: inherit !important; }`.
-
-### What stays unchanged
-- All label field positions, fonts, data content
-- 1-Up mode, A4 sheet mode
-- Label design config structure
-- PDF export logic
+If you want, I can add a cache-busting mechanism (like incrementing a version in the service worker or manifest) to force all users to get the latest code automatically. Want me to plan that instead?
 
