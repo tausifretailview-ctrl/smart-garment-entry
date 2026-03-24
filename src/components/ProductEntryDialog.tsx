@@ -898,9 +898,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
       // Insert variants — in purchase context, only create variants with purchase_qty > 0
       let insertedVariants: any[] = [];
-      const variantsToCreate = hideOpeningQty
-        ? variants.filter((v) => (v.purchase_qty || 0) > 0)
-        : variants;
+      let variantsToCreate = hideOpeningQty
+        ? variants.filter((v) => (v.purchase_qty || 0) > 0).map(v => ({ ...v }))
+        : [...variants];
       if (variantsToCreate.length > 0) {
         // In purchase context, generate barcodes at save time only for selected sizes
         if (hideOpeningQty && isAutoBarcode) {
