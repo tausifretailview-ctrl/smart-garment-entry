@@ -872,6 +872,22 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     });
   };
 
+  // Enter key moves to next field (like Tab)
+  const handleEnterAsTab = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const form = (e.target as HTMLElement).closest('[data-product-form]');
+      if (!form) return;
+      const focusable = Array.from(form.querySelectorAll<HTMLElement>(
+        'input:not([type="hidden"]):not([type="file"]):not(:disabled), select:not(:disabled), textarea:not(:disabled), [role="combobox"]:not(:disabled)'
+      )).filter(el => el.offsetParent !== null && !el.closest('.hidden'));
+      const idx = focusable.indexOf(e.target as HTMLElement);
+      if (idx >= 0 && idx < focusable.length - 1) {
+        focusable[idx + 1].focus();
+      }
+    }
+  }, []);
+
   const isFieldEnabled = (fieldName: string) => {
     if (!fieldSettings) return true;
     return fieldSettings[fieldName]?.enabled !== false;
