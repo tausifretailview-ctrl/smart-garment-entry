@@ -119,18 +119,20 @@ export const OwnerDashboard = () => {
     refetchInterval: getRefreshInterval("medium"),
   });
 
-  /* ── Query: Payments received today ── */
+  /* ── Query: Payments received today (from voucher receipts) ── */
   const { data: paymentsToday, isLoading: paymentsLoading } = useQuery({
     queryKey: ["owner-payments-today", currentOrganization?.id, today],
     queryFn: async () => {
       if (!currentOrganization) return 0;
       const { data } = await supabase
-        .from("customer_payments")
-        .select("amount")
+        .from("voucher_entries")
+        .select("total_amount")
         .eq("organization_id", currentOrganization.id)
-        .gte("payment_date", today)
-        .lte("payment_date", today + "T23:59:59");
-      return data?.reduce((s, r) => s + (Number(r.amount) || 0), 0) || 0;
+        .eq("voucher_type", "receipt")
+        .is("deleted_at", null)
+        .gte("voucher_date", today)
+        .lte("voucher_date", today + "T23:59:59");
+      return data?.reduce((s, r) => s + (Number(r.total_amount) || 0), 0) || 0;
     },
     enabled: !!currentOrganization && isOnline,
     staleTime: 60000,
