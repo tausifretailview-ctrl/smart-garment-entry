@@ -24,7 +24,7 @@ export const OwnerPurchaseBillDetail = ({ billId, onBack }: Props) => {
         .eq("id", billId)
         .single();
       if (error) throw error;
-      return data;
+      return data as any;
     },
     enabled: !!billId,
   });
