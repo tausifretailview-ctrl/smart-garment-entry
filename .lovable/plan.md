@@ -1,36 +1,34 @@
 
 
-## Two Issues to Fix in Purchase "Add New Product" Dialog
+## Fix Label Gap & Left Margin Issues for 38x25 2-Up Labels
 
-### Issue 1: Price changes via backspace not updating in bill
-**Root Cause**: When user changes `default_pur_price` or `default_sale_price` in the Add New Product dialog AFTER variants have already been generated, the variant prices are NOT updated. Variants are created with prices at generation time (lines 641-642 of ProductEntryDialog.tsx), but subsequent edits to the default prices don't propagate to existing variants. So when the product is added to the bill, the old variant prices are used.
+### Problem 1: Gap between business name and barcode
+The barcode SVG container in `PrecisionLabelPreview.tsx` has a height mismatch. The container height is calculated as `barcodeHeight / 3.7795`mm but the actual barcode SVG may not fill it fully, creating visible vertical whitespace. Additionally, the container's `overflow: hidden` combined with `justify-content: center` can push the barcode down, creating a gap between the business name text above and the barcode lines.
 
-**Fix**: Add a `useEffect` in `ProductEntryDialog.tsx` that watches `formData.default_pur_price` and `formData.default_sale_price`. When these change AND variants exist, update all variant prices to match the new defaults. This mirrors real-world behavior where the default price is the "master" price for all sizes unless individually overridden.
+**Fix**: Reduce the barcode container height to match the actual rendered barcode more tightly. Change the container to use `align-items: flex-start` instead of centering, and set a tighter height that eliminates dead space. Also adjust the barcode height scaling factor from `0.35` (used in preview) to match the print path proportionally.
 
-### Issue 2: Show existing stored products history
-**What it does**: Display a list/dropdown of recently created products from the database when the Add New Product dialog opens. This helps users reference previous products' details (prices, categories, etc.).
+### Problem 2: Left-side blank space on 1st label
+In the `PrecisionLabelPreview` component, the label container uses `transform: translate(xOffset, yOffset)`. For the first label in 2-up mode, if any xOffset is being passed, it shifts the content right. Additionally, the barcode field's `left` position (`barcodeConfig.x ?? 1`) defaults to 1mm, creating a left margin on the barcode.
 
-**Fix**: Already partially implemented via the "Copy from Existing" search field (line 340-375). This searches products by name/brand/category. The feature exists but may need better visibility. Will add a "Recent Products" section that shows the last 5-10 products created by this organization, displayed as clickable chips/cards at the top of the dialog for quick reference.
+**Fix**: Ensure xOffset is 0 for both PDF and browser print paths in 2-up mode. Also verify the label config's barcode x-position is set to 0 instead of defaulting to 1mm.
 
 ---
 
 ### Technical Changes
 
-**File: `src/components/ProductEntryDialog.tsx`**
+**File: `src/components/precision-barcode/PrecisionLabelPreview.tsx`**
 
-1. **Sync default prices to variants** — Add a `useEffect` that updates all variant `pur_price`/`sale_price`/`mrp` whenever `formData.default_pur_price`, `formData.default_sale_price`, or `formData.default_mrp` changes and variants already exist:
-   ```typescript
-   useEffect(() => {
-     if (variants.length > 0 && showVariants) {
-       setVariants(prev => prev.map(v => ({
-         ...v,
-         pur_price: formData.default_pur_price ?? v.pur_price,
-         sale_price: formData.default_sale_price ?? v.sale_price,
-         mrp: formData.default_mrp ?? v.mrp,
-       })));
-     }
-   }, [formData.default_pur_price, formData.default_sale_price, formData.default_mrp]);
-   ```
+1. **Tighten barcode container height** — Change the print-mode barcode height from `${barcodeHeight / 3.7795}mm` to a more accurate calculation that matches JsBarcode's actual rendered height. Use `${(barcodeHeight * 0.35) / 3.7795}mm` to keep consistency with the preview scaling factor.
 
-2. **Show recent products on dialog open** — Fetch last 10 products for the organization when dialog opens. Display them as a compact horizontal scrollable list below the "Copy from Existing" field, showing product name, brand, and sale price. Clicking one populates the form (same as existing `handleCopyFromProduct`).
+2. **Remove default 1mm left offset on barcode** — Change the barcode container's `left` from `barcodeConfig.x ?? 1` to `barcodeConfig.x ?? 0` so barcode starts flush left unless explicitly configured otherwise.
+
+3. **Align barcode to top of container** — Remove vertical centering (`justifyContent: center`) from the barcode wrapper div in the config-driven path, replacing with `align-items: flex-start` so the barcode sits tight against the top with no gap.
+
+**File: `src/pages/BarcodePrinting.tsx`** (PDF generation path)
+
+4. **Ensure xOffset=0 in precision PDF rendering** — Already passing `xOffset: 0` in the `renderLabelToCanvas` helper (line 3523), so this is correct. Verify no other offset is applied at the grid/cell level for 2-up mode.
+
+**File: `src/components/precision-barcode/PrecisionThermalPrint.tsx`**
+
+5. **Verify thermal print xOffset handling** — The thermal print component passes `xOffset` and `yOffset` through to `PrecisionLabelPreview`. For 2-up, ensure these are calibration-only values that don't introduce unintended left margins on individual labels.
 
