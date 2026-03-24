@@ -3701,7 +3701,7 @@ export default function BarcodePrinting() {
           gridDiv.style.cssText = `
             display: grid;
             grid-template-columns: repeat(${thermalCols}, ${baseDimensions.width}mm);
-            gap: ${is2Up ? baseDimensions.gap : 0}mm;
+            gap: 0mm;
             width: ${pageWidthMm}mm;
             height: ${pageHeightMm}mm;
             overflow: hidden;
