@@ -1314,7 +1314,7 @@ const PurchaseEntry = () => {
       const product = v.products as any;
       let barcode = v.barcode || "";
       
-      if (!barcode) {
+      if (!barcode && isAutoBarcode) {
         try {
           barcode = await generateCentralizedBarcode();
           await supabase.from("product_variants").update({ barcode }).eq("id", v.id);
