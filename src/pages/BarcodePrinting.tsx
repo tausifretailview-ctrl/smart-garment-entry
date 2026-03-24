@@ -2925,6 +2925,17 @@ export default function BarcodePrinting() {
     return precisionSettings.printMode === 'thermal2up';
   };
 
+  const getThermal2UpGap = (): number => {
+    if (!isThermal2Up()) return 0;
+
+    if (sheetType === "custom") {
+      return Math.max(0, customGap || 0);
+    }
+
+    const preset = sheetPresets[sheetType];
+    return preset?.cols === 2 ? parseFloat(preset.gap) || 0 : 0;
+  };
+
   // Auto-fit scale: shrink content to fit within A4 default-margin printable area
   // For thermal/1-up labels, no scaling is needed — return 1.0
   const getAutoFitScale = () => {
@@ -3260,7 +3271,8 @@ export default function BarcodePrinting() {
 
         const labelHTML = printArea.innerHTML;
         const cols = precisionSettings.thermalCols || 1;
-        const w = precisionSettings.labelWidth * cols;
+        const horizontalGap = cols > 1 ? getThermal2UpGap() : 0;
+        const w = precisionSettings.labelWidth * cols + horizontalGap * Math.max(0, cols - 1);
         const h = precisionSettings.labelHeight + (precisionSettings.vGap || 0);
         const isA4 = precisionSettings.printMode === 'a4';
         const is2Up = precisionSettings.printMode === 'thermal2up';
@@ -3462,15 +3474,22 @@ export default function BarcodePrinting() {
       try {
         const { labelWidth, labelHeight, xOffset, yOffset, vGap, labelConfig } = precisionSettings;
         const is2Up = precisionSettings.printMode === 'thermal2up';
+        const horizontalGap = is2Up ? getThermal2UpGap() : 0;
         const totalLabels = labelItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
         if (totalLabels === 0) { toast.error("No labels to print"); return; }
 
-        const pageW = is2Up ? labelWidth * 2 : labelWidth;
-        const pdf = new jsPDF({
-          orientation: "portrait",
-          unit: "mm",
-          format: [pageW, labelHeight],
-        });
+        const pageW = is2Up ? labelWidth * 2 + horizontalGap : labelWidth;
+        const pdf = is2Up
+          ? new jsPDF({
+              orientation: "landscape",
+              unit: "mm",
+              format: [labelHeight, pageW],
+            })
+          : new jsPDF({
+              orientation: "portrait",
+              unit: "mm",
+              format: [pageW, labelHeight],
+            });
 
         // Expand items by qty
         const allItems: LabelItem[] = [];
@@ -3480,7 +3499,7 @@ export default function BarcodePrinting() {
 
         // Create a hidden container
         const container = document.createElement("div");
-        container.style.cssText = `position:absolute;left:-9999px;top:0;width:${labelWidth}mm;`;
+        container.style.cssText = `position:absolute;left:-9999px;top:0;width:${pageW}mm;`;
         document.body.appendChild(container);
 
         // Dynamically import ReactDOM to render PrecisionLabelPreview into container per label
@@ -3532,7 +3551,7 @@ export default function BarcodePrinting() {
             // Right label (if exists)
             if (i + 1 < allItems.length) {
               const canvasRight = await renderLabelToCanvas(allItems[i + 1]);
-              pdf.addImage(canvasRight.toDataURL("image/png"), "PNG", labelWidth, 0, labelWidth, labelHeight);
+              pdf.addImage(canvasRight.toDataURL("image/png"), "PNG", labelWidth + horizontalGap, 0, labelWidth, labelHeight);
             }
           }
         } else {
@@ -5494,6 +5513,7 @@ export default function BarcodePrinting() {
               vGap={precisionSettings.vGap}
               config={precisionSettings.labelConfig || undefined}
               thermalCols={precisionSettings.thermalCols}
+              horizontalGap={getThermal2UpGap()}
             />
           ) : (
             <PrecisionA4SheetPrint

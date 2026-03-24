@@ -12,10 +12,11 @@ interface PrecisionThermalPrintProps {
   vGap?: number;
   config?: LabelDesignConfig;
   thermalCols?: number;
+  horizontalGap?: number;
 }
 
 export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermalPrintProps>(
-  ({ items, labelWidth, labelHeight, xOffset, yOffset, vGap = 0, config, thermalCols = 1 }, ref) => {
+  ({ items, labelWidth, labelHeight, xOffset, yOffset, vGap = 0, config, thermalCols = 1, horizontalGap = 0 }, ref) => {
     const expandedItems: LabelItem[] = [];
     items.forEach((item) => {
       const qty = item.qty && item.qty > 0 ? item.qty : 0;
@@ -25,7 +26,7 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
     });
 
     const cols = Math.max(1, thermalCols);
-    const pageWidth = labelWidth * cols;
+    const pageWidth = (labelWidth * cols) + (horizontalGap * Math.max(0, cols - 1));
 
     // For multi-column, group items into rows
     if (cols > 1) {
@@ -49,6 +50,7 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
                   boxSizing: "border-box",
                   overflow: "hidden",
                   display: "flex",
+                  gap: `${horizontalGap}mm`,
                   position: "relative",
                   pageBreakAfter: "always",
                   breakAfter: "page",
