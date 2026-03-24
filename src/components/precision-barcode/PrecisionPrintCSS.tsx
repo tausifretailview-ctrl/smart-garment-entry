@@ -72,6 +72,10 @@ export function PrecisionPrintCSS({ labelWidth, labelHeight, mode }: PrecisionPr
           page-break-after: auto !important;
           break-after: auto !important;
         }
+        .precision-print-area > div > div {
+          padding: inherit !important;
+          box-sizing: border-box !important;
+        }
         .precision-label-container {
           position: relative !important;
         }
