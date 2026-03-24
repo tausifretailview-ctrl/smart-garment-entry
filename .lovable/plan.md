@@ -1,34 +1,38 @@
 
 
-## Fix Label Gap & Left Margin Issues for 38x25 2-Up Labels
+## Add Per-Organization Barcode Mode Setting (Auto vs Scan/Manual)
 
-### Problem 1: Gap between business name and barcode
-The barcode SVG container in `PrecisionLabelPreview.tsx` has a height mismatch. The container height is calculated as `barcodeHeight / 3.7795`mm but the actual barcode SVG may not fill it fully, creating visible vertical whitespace. Additionally, the container's `overflow: hidden` combined with `justify-content: center` can push the barcode down, creating a gap between the business name text above and the barcode lines.
+### Overview
+Add a setting under Purchase Settings so organizations using manufacturer/supplier barcodes can disable auto-generation. When set to "Scan/Manual", barcode fields stay blank for users to scan or type barcodes.
 
-**Fix**: Reduce the barcode container height to match the actual rendered barcode more tightly. Change the container to use `align-items: flex-start` instead of centering, and set a tighter height that eliminates dead space. Also adjust the barcode height scaling factor from `0.35` (used in preview) to match the print path proportionally.
+### Changes
 
-### Problem 2: Left-side blank space on 1st label
-In the `PrecisionLabelPreview` component, the label container uses `transform: translate(xOffset, yOffset)`. For the first label in 2-up mode, if any xOffset is being passed, it shifts the content right. Additionally, the barcode field's `left` position (`barcodeConfig.x ?? 1`) defaults to 1mm, creating a left margin on the barcode.
+**1. Settings Page — Add barcode mode selector** (`src/pages/Settings.tsx`)
+- Add `barcode_mode` to `PurchaseSettings` interface
+- Add a Select dropdown in the Purchase tab (after default tax rate) with two options: "Auto Generate" and "Scan / Manual"
+- Stored in `purchase_settings.barcode_mode`, defaults to `"auto"`
 
-**Fix**: Ensure xOffset is 0 for both PDF and browser print paths in 2-up mode. Also verify the label config's barcode x-position is set to 0 instead of defaulting to 1mm.
+**2. ProductEntryDialog — Respect barcode mode** (`src/components/ProductEntryDialog.tsx`)
+- Add `isAutoBarcode?: boolean` prop (default `true`)
+- Guard the `autoBarcodePending.current = true` assignments — only set when `isAutoBarcode` is true
+- Guard the `useEffect` that auto-generates barcodes on variant creation — skip when `isAutoBarcode` is false
+- Update the "Regenerate Barcodes" button visibility — only show when `isAutoBarcode` is true
+- In scan mode, barcode fields remain blank for manual entry
 
----
+**3. PurchaseEntry — Read setting and pass to dialog** (`src/pages/PurchaseEntry.tsx`)
+- Read `barcode_mode` from `settings.purchase_settings`
+- Derive `isAutoBarcode = barcodeMode !== 'scan'`
+- Pass `isAutoBarcode` prop to `<ProductEntryDialog>`
+- Guard the existing `generateCentralizedBarcode()` calls in the size grid handler (lines 1384, 1427) — skip auto-generation when `isAutoBarcode` is false; in scan mode, variants without barcodes are added as-is (barcode stays blank or whatever the user typed)
+- Add a warning confirmation when saving a product with blank barcode in scan mode
 
-### Technical Changes
+**4. Barcode field UI hint** (`src/components/ProductEntryDialog.tsx`)
+- Show a small badge next to the Barcode label: blue "Auto" or orange "Scan/Manual"
+- In scan mode, show placeholder "Scan barcode or type manually..." instead of auto-generated value
+- In scan mode, barcode input gets focus-friendly orange border styling when empty
 
-**File: `src/components/precision-barcode/PrecisionLabelPreview.tsx`**
-
-1. **Tighten barcode container height** — Change the print-mode barcode height from `${barcodeHeight / 3.7795}mm` to a more accurate calculation that matches JsBarcode's actual rendered height. Use `${(barcodeHeight * 0.35) / 3.7795}mm` to keep consistency with the preview scaling factor.
-
-2. **Remove default 1mm left offset on barcode** — Change the barcode container's `left` from `barcodeConfig.x ?? 1` to `barcodeConfig.x ?? 0` so barcode starts flush left unless explicitly configured otherwise.
-
-3. **Align barcode to top of container** — Remove vertical centering (`justifyContent: center`) from the barcode wrapper div in the config-driven path, replacing with `align-items: flex-start` so the barcode sits tight against the top with no gap.
-
-**File: `src/pages/BarcodePrinting.tsx`** (PDF generation path)
-
-4. **Ensure xOffset=0 in precision PDF rendering** — Already passing `xOffset: 0` in the `renderLabelToCanvas` helper (line 3523), so this is correct. Verify no other offset is applied at the grid/cell level for 2-up mode.
-
-**File: `src/components/precision-barcode/PrecisionThermalPrint.tsx`**
-
-5. **Verify thermal print xOffset handling** — The thermal print component passes `xOffset` and `yOffset` through to `PrecisionLabelPreview`. For 2-up, ensure these are calibration-only values that don't introduce unintended left margins on individual labels.
+### What stays unchanged
+- POS barcode scan lookup — works the same since scan-mode products will have manufacturer barcodes stored
+- QuickAddProductDialog — unchanged (uses its own flow)
+- Product Entry standalone page — unchanged for now
 
