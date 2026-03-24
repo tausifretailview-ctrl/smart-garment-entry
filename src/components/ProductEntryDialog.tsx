@@ -1431,11 +1431,99 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     </Button>
                   </div>
 
-                  {/* Size Selection Checkboxes */}
+                  {/* Size Selection Checkboxes / Qty Grid */}
                   {formData.size_group_id && (() => {
                     const group = sizeGroups.find(g => g.id === formData.size_group_id);
                     if (!group || group.sizes.length === 0) return null;
                     const allSelected = selectedSizes.length === group.sizes.length;
+
+                    // Purchase context: show qty inputs per size
+                    if (hideOpeningQty) {
+                      const totalQty = variants.reduce((sum, v) => sum + (v.purchase_qty || 0), 0);
+                      const activeSizeCount = variants.filter(v => (v.purchase_qty || 0) > 0).length;
+                      return (
+                        <div className="space-y-2 mt-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-foreground">
+                              Size-wise Quantity
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              Total: {totalQty} pcs · {activeSizeCount} sizes
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5 p-3 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20">
+                            {group.sizes.map((size, sIdx) => {
+                              const variant = variants.find(v => v.size === size && v.color === (formData.colors[0] || ""));
+                              const qty = variant?.purchase_qty || 0;
+                              return (
+                                <div
+                                  key={size}
+                                  className={cn(
+                                    "flex flex-col items-center gap-1 p-1.5 rounded-md border transition-colors",
+                                    qty > 0
+                                      ? "bg-emerald-50 border-emerald-300 dark:bg-emerald-950/30 dark:border-emerald-700"
+                                      : "bg-card border-border"
+                                  )}
+                                >
+                                  <span className={cn(
+                                    "text-xs font-bold",
+                                    qty > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"
+                                  )}>
+                                    {size}
+                                  </span>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={qty === 0 ? '' : qty}
+                                    placeholder="0"
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value) || 0;
+                                      setVariants(prev => prev.map(v =>
+                                        v.size === size && v.color === (formData.colors[0] || "")
+                                          ? { ...v, purchase_qty: val }
+                                          : v
+                                      ));
+                                    }}
+                                    onFocus={(e) => e.target.select()}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
+                                        e.preventDefault();
+                                        const nextSize = group.sizes[sIdx + 1];
+                                        if (nextSize) {
+                                          document.getElementById(`size-qty-${nextSize}`)?.focus();
+                                        } else {
+                                          document.getElementById('btn-add-all-sizes')?.focus();
+                                        }
+                                      }
+                                    }}
+                                    id={`size-qty-${size}`}
+                                    className={cn(
+                                      "h-7 w-14 text-center text-sm font-semibold p-0.5 no-uppercase",
+                                      qty > 0 && "border-emerald-400 text-emerald-800"
+                                    )}
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {/* Active sizes preview */}
+                          {activeSizeCount > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-1">
+                              {variants.filter(v => (v.purchase_qty || 0) > 0).map(v => (
+                                <span
+                                  key={`${v.color}-${v.size}`}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded-full"
+                                >
+                                  {v.size} × {v.purchase_qty}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    // Non-purchase context: show checkboxes as before
                     return (
                       <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                         <button
