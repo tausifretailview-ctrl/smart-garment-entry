@@ -872,6 +872,22 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     });
   };
 
+  // Enter key moves to next field (like Tab)
+  const handleEnterAsTab = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const form = (e.target as HTMLElement).closest('[data-product-form]');
+      if (!form) return;
+      const focusable = Array.from(form.querySelectorAll<HTMLElement>(
+        'input:not([type="hidden"]):not([type="file"]):not(:disabled), select:not(:disabled), textarea:not(:disabled), [role="combobox"]:not(:disabled)'
+      )).filter(el => el.offsetParent !== null && !el.closest('.hidden'));
+      const idx = focusable.indexOf(e.target as HTMLElement);
+      if (idx >= 0 && idx < focusable.length - 1) {
+        focusable[idx + 1].focus();
+      }
+    }
+  }, []);
+
   const isFieldEnabled = (fieldName: string) => {
     if (!fieldSettings) return true;
     return fieldSettings[fieldName]?.enabled !== false;
@@ -917,7 +933,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               (window as any).__productDialogViewport = viewport;
             }
           }}>
-            <div className="space-y-6 py-4">
+            <div className="space-y-6 py-4" data-product-form>
               {/* Copy from Existing Product */}
               <div className="space-y-2">
                 <Label className="flex items-center gap-1 text-muted-foreground">
@@ -1053,13 +1069,14 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-2 col-span-2">
                   <Label htmlFor="product_name">{getFieldLabel("product_name", "Product Name")} *</Label>
-                  <Input
-                    ref={productNameInputRef}
-                    id="product_name"
-                    value={formData.product_name}
-                    onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
-                    placeholder={lastProductNameHint}
-                  />
+                    <Input
+                      ref={productNameInputRef}
+                      id="product_name"
+                      value={formData.product_name}
+                      onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
+                      onKeyDown={handleEnterAsTab}
+                      placeholder={lastProductNameHint}
+                    />
                 </div>
 
                 {isFieldEnabled("category") && (
@@ -1070,6 +1087,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         id="category"
                         value={formData.category}
                         onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                        onKeyDown={handleEnterAsTab}
                         placeholder="Category"
                         list="category-list"
                         autoComplete="off"
@@ -1091,6 +1109,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         id="brand"
                         value={formData.brand}
                         onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                        onKeyDown={handleEnterAsTab}
                         placeholder="Brand"
                         list="brand-list"
                         autoComplete="off"
@@ -1112,6 +1131,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         id="style"
                         value={formData.style}
                         onChange={(e) => setFormData({ ...formData, style: e.target.value })}
+                        onKeyDown={handleEnterAsTab}
                         placeholder="Style"
                         list="style-list"
                         autoComplete="off"
@@ -1128,14 +1148,15 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 <div className="space-y-2">
                   <Label htmlFor="hsn_code">HSN Code</Label>
                   <div className="relative">
-                    <Input
-                      id="hsn_code"
-                      value={formData.hsn_code}
-                      onChange={(e) => setFormData({ ...formData, hsn_code: e.target.value })}
-                      placeholder="HSN Code"
-                      list="hsn-list"
-                      autoComplete="off"
-                    />
+                      <Input
+                        id="hsn_code"
+                        value={formData.hsn_code}
+                        onChange={(e) => setFormData({ ...formData, hsn_code: e.target.value })}
+                        onKeyDown={handleEnterAsTab}
+                        placeholder="HSN Code"
+                        list="hsn-list"
+                        autoComplete="off"
+                      />
                     <datalist id="hsn-list">
                       {hsnCodes.map((hsn) => (
                         <option key={hsn} value={hsn} />
@@ -1227,6 +1248,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       }
                       setFormData({ ...formData, ...updates });
                     }}
+                    onKeyDown={handleEnterAsTab}
                     placeholder="0"
                   />
                 </div>
@@ -1247,6 +1269,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         setFormData({ ...formData, default_sale_price: Math.round(purPrice * (1 + mk / 100)) });
                       }
                     }}
+                    onKeyDown={handleEnterAsTab}
                     placeholder="%"
                     className="h-11"
                   />
@@ -1267,6 +1290,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         setMarkupPercent("");
                       }
                     }}
+                    onKeyDown={handleEnterAsTab}
                     placeholder="0"
                   />
                 </div>
@@ -1278,6 +1302,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       id="default_mrp"
                       value={formData.default_mrp ?? ""}
                       onChange={(val) => setFormData({ ...formData, default_mrp: val || undefined })}
+                      onKeyDown={handleEnterAsTab}
                       placeholder="MRP"
                     />
                   </div>
