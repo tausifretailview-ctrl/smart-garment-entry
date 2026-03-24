@@ -183,6 +183,7 @@ export function PrecisionLabelPreview({
             display: "flex",
             alignItems: "flex-start",
             overflow: "hidden",
+            marginTop: u(1),
           }}
         >
           <svg
