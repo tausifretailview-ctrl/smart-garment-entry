@@ -1501,6 +1501,7 @@ const PurchaseEntry = () => {
   };
 
   const addItemRow = (item: Omit<LineItem, "temp_id" | "line_total">) => {
+    const effectiveGst = isDcPurchase ? 0 : item.gst_per;
     const subTotal = item.qty * item.pur_price;
     const discountAmount = subTotal * (item.discount_percent / 100);
     const lineTotal = subTotal - discountAmount;
@@ -1508,6 +1509,7 @@ const PurchaseEntry = () => {
       ...prev,
       {
         ...item,
+        gst_per: effectiveGst,
         temp_id: Date.now().toString() + Math.random(),
         line_total: lineTotal,
       },
