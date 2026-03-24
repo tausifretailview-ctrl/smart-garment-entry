@@ -1135,7 +1135,48 @@ const App = () => {
                   }
                 />
 
-                {/* Recycle Bin - Admin Only */}
+                {/* Owner Mobile Placeholder Screens */}
+                <Route
+                  path="owner-sales"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <OwnerPlaceholderScreen screen="sales" />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="owner-purchases"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <OwnerPlaceholderScreen screen="purchases" />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="owner-stock"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <OwnerPlaceholderScreen screen="stock" />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="owner-reports"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <OwnerPlaceholderScreen screen="reports" />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+
                 <Route
                   path="recycle-bin"
                   element={
