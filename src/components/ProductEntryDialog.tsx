@@ -111,7 +111,29 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [creatingSizeGroup, setCreatingSizeGroup] = useState(false);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
+  const autoBarcodePending = useRef(false);
   
+  // Auto-generate barcodes when variants are created with empty barcodes
+  useEffect(() => {
+    if (autoBarcodePending.current && variants.length > 0 && variants.some(v => !v.barcode)) {
+      autoBarcodePending.current = false;
+      // Trigger auto barcode generation
+      (async () => {
+        try {
+          const updated = [...variants];
+          for (let i = 0; i < updated.length; i++) {
+            if (!updated[i].barcode) {
+              updated[i] = { ...updated[i], barcode: await generateSequentialBarcode() };
+            }
+          }
+          setVariants(updated);
+        } catch (e) {
+          console.error('Auto barcode generation failed:', e);
+        }
+      })();
+    }
+  }, [variants]);
+
   // Copy from existing product
   const [copySearch, setCopySearch] = useState("");
   const [copyResults, setCopyResults] = useState<any[]>([]);
@@ -532,6 +554,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         active: true,
         opening_qty: 0,
       }];
+      autoBarcodePending.current = true;
       setVariants(newVariants);
       setShowVariants(true);
       return;
@@ -581,6 +604,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       }
     }
 
+    autoBarcodePending.current = true;
     setVariants([...variants, ...newVariants]);
     setShowVariants(true);
     setTimeout(() => {
@@ -1470,7 +1494,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     <div className="flex items-center justify-between">
                       <Label className="text-xs font-semibold text-violet-700 font-outfit">{variants.length} Variant{variants.length !== 1 ? 's' : ''}</Label>
                       <Button type="button" variant="outline" size="sm" onClick={handleAutoGenerateBarcodes} className="gap-1 h-6 text-[11px] border-violet-300 text-violet-700 hover:bg-violet-100/60 font-outfit">
-                        <Barcode className="h-3 w-3" /> Auto Barcodes
+                        <Barcode className="h-3 w-3" /> 🔄 Regenerate Barcodes
                       </Button>
                     </div>
                     <div className="border border-violet-200/60 rounded-lg overflow-x-auto bg-white shadow-sm max-h-[260px] overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
