@@ -1268,6 +1268,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         setFormData({ ...formData, default_sale_price: Math.round(purPrice * (1 + mk / 100)) });
                       }
                     }}
+                    onKeyDown={handleEnterAsTab}
                     placeholder="%"
                     className="h-11"
                   />
