@@ -428,13 +428,13 @@ const SupplierOutstandingReport = ({ orgId }: { orgId?: string }) => {
       if (!suppliers?.length) return [];
 
       const { data: bills } = await supabase.from("purchase_bills")
-        .select("supplier_id, grand_total, paid_amount")
+        .select("supplier_id, net_amount, paid_amount")
         .eq("organization_id", orgId!).is("deleted_at", null);
 
       const outMap = new Map<string, number>();
       (bills || []).forEach((b: any) => {
         if (b.supplier_id) {
-          const due = (b.grand_total || 0) - (b.paid_amount || 0);
+          const due = (b.net_amount || 0) - (b.paid_amount || 0);
           if (due > 0) outMap.set(b.supplier_id, (outMap.get(b.supplier_id) || 0) + due);
         }
       });
