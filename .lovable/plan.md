@@ -1,38 +1,42 @@
 
 
-## Add Per-Organization Barcode Mode Setting (Auto vs Scan/Manual)
+## Fix: Allow "1" Key Shortcut Except in Supplier Invoice Number Field
 
-### Overview
-Add a setting under Purchase Settings so organizations using manufacturer/supplier barcodes can disable auto-generation. When set to "Scan/Manual", barcode fields stay blank for users to scan or type barcodes.
+### Problem
+Currently the "1" key shortcut to open Add New Product dialog is blocked in ALL input fields. The user wants it to work in all inputs EXCEPT the supplier invoice number field, since that field commonly contains the digit "1".
 
-### Changes
+### Solution
+Change the guard logic: instead of blocking the shortcut in any input, only block it when the focused element is the supplier invoice number input. Identify that field by checking if the focused input's value matches `billData.supplier_invoice_no` or by adding a `data-field` attribute to that specific input.
 
-**1. Settings Page — Add barcode mode selector** (`src/pages/Settings.tsx`)
-- Add `barcode_mode` to `PurchaseSettings` interface
-- Add a Select dropdown in the Purchase tab (after default tax rate) with two options: "Auto Generate" and "Scan / Manual"
-- Stored in `purchase_settings.barcode_mode`, defaults to `"auto"`
+### Technical Change
 
-**2. ProductEntryDialog — Respect barcode mode** (`src/components/ProductEntryDialog.tsx`)
-- Add `isAutoBarcode?: boolean` prop (default `true`)
-- Guard the `autoBarcodePending.current = true` assignments — only set when `isAutoBarcode` is true
-- Guard the `useEffect` that auto-generates barcodes on variant creation — skip when `isAutoBarcode` is false
-- Update the "Regenerate Barcodes" button visibility — only show when `isAutoBarcode` is true
-- In scan mode, barcode fields remain blank for manual entry
+**File: `src/pages/PurchaseEntry.tsx`** (lines 1560-1568)
 
-**3. PurchaseEntry — Read setting and pass to dialog** (`src/pages/PurchaseEntry.tsx`)
-- Read `barcode_mode` from `settings.purchase_settings`
-- Derive `isAutoBarcode = barcodeMode !== 'scan'`
-- Pass `isAutoBarcode` prop to `<ProductEntryDialog>`
-- Guard the existing `generateCentralizedBarcode()` calls in the size grid handler (lines 1384, 1427) — skip auto-generation when `isAutoBarcode` is false; in scan mode, variants without barcodes are added as-is (barcode stays blank or whatever the user typed)
-- Add a warning confirmation when saving a product with blank barcode in scan mode
+Replace the current input-field guard with a targeted check:
 
-**4. Barcode field UI hint** (`src/components/ProductEntryDialog.tsx`)
-- Show a small badge next to the Barcode label: blue "Auto" or orange "Scan/Manual"
-- In scan mode, show placeholder "Scan barcode or type manually..." instead of auto-generated value
-- In scan mode, barcode input gets focus-friendly orange border styling when empty
+```typescript
+// Press "1" key to open Add New Product dialog — block only in supplier invoice field
+if (e.key === "1" && !showProductDialog) {
+  const active = document.activeElement as HTMLInputElement;
+  const isSupplierInvField = active?.getAttribute('data-field') === 'supplier-invoice-no';
+  if (!isSupplierInvField) {
+    e.preventDefault();
+    setShowProductDialog(true);
+  }
+}
+```
 
-### What stays unchanged
-- POS barcode scan lookup — works the same since scan-mode products will have manufacturer barcodes stored
-- QuickAddProductDialog — unchanged (uses its own flow)
-- Product Entry standalone page — unchanged for now
+Also add `data-field="supplier-invoice-no"` attribute to the supplier invoice number `<Input>` element (line ~2609):
+
+```tsx
+<Input 
+  data-field="supplier-invoice-no"
+  value={billData.supplier_invoice_no} 
+  onChange={(e) => setBillData({ ...billData, supplier_invoice_no: e.target.value })} 
+  placeholder="Inv #" 
+  className="h-9 text-sm rounded-xl" 
+/>
+```
+
+This way, pressing "1" opens the dialog from anywhere (including search bar, other inputs) except the supplier invoice number field.
 
