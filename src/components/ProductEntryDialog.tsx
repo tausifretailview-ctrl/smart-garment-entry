@@ -97,6 +97,7 @@ interface ProductEntryDialogProps {
   }) => void;
   hideOpeningQty?: boolean;
   isDcPurchase?: boolean;
+  isAutoBarcode?: boolean;
 }
 
 export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideOpeningQty, isDcPurchase }: ProductEntryDialogProps) => {

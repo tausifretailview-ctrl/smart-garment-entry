@@ -324,6 +324,10 @@ const PurchaseEntry = () => {
 
   const showMrp = (settings?.purchase_settings as any)?.show_mrp || false;
   
+  // Barcode mode: 'auto' (default) or 'scan' (manual/manufacturer barcode)
+  const barcodeMode = (settings?.purchase_settings as any)?.barcode_mode || 'auto';
+  const isAutoBarcode = barcodeMode !== 'scan';
+  
   // Check if barcode prompt is enabled (defaults to true if not set)
   const enableBarcodePrompt = (settings?.bill_barcode_settings as any)?.enable_barcode_prompt !== false;
   

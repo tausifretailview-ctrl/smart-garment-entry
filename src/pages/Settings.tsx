@@ -1405,6 +1405,34 @@ export default function Settings() {
                     placeholder="e.g., 18"
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <Label>Barcode Mode</Label>
+                  <Select
+                    value={settings.purchase_settings?.barcode_mode || 'auto'}
+                    onValueChange={(value) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          barcode_mode: value as 'auto' | 'scan',
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger className="w-56">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">🔢 Auto Generate</SelectItem>
+                      <SelectItem value="scan">📷 Scan / Manual</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Auto Generate: system creates barcode on new product.<br />
+                    Scan / Manual: barcode field stays blank — user scans manufacturer barcode or types supplier code.
+                  </p>
+                </div>
                 
                 <div className="space-y-2">
                   <Label htmlFor="purchase_code_alphabet">Purchase Code Alphabet (0-9 mapping)</Label>
