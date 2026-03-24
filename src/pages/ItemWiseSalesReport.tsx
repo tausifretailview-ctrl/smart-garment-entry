@@ -847,7 +847,13 @@ export default function ItemWiseSalesReport() {
                     {isLoading ? (
                       <TableRow>
                         <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                          Loading...
+                          Loading sales data...
+                        </TableCell>
+                      </TableRow>
+                    ) : isError ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8 text-destructive">
+                          Failed to load data. Try a smaller date range.
                         </TableCell>
                       </TableRow>
                     ) : brandWiseData.length === 0 ? (
