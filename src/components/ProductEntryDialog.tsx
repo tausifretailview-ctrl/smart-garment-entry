@@ -1248,6 +1248,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       }
                       setFormData({ ...formData, ...updates });
                     }}
+                    onKeyDown={handleEnterAsTab}
                     placeholder="0"
                   />
                 </div>
