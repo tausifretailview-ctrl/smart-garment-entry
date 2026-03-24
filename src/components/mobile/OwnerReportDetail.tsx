@@ -247,7 +247,7 @@ const DailyPurchaseReport = ({ orgId, start, end }: RProps) => {
               <p className="text-sm font-semibold">{b.software_bill_no}</p>
               <p className="text-[11px] text-muted-foreground">{b.supplier_name} {b.supplier_invoice_no ? `• ${b.supplier_invoice_no}` : ""}</p>
             </div>
-            <p className="text-sm font-bold text-orange-600">{fmt(b.grand_total || 0)}</p>
+            <p className="text-sm font-bold text-orange-600">{fmt(b.net_amount || 0)}</p>
           </div>
         ))}
       </div>
