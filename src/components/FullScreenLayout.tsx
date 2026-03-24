@@ -6,7 +6,7 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/s
 import { ChatProvider } from "@/contexts/ChatContext";
 import { FloatingChatButton } from "@/components/AIChatbot/FloatingChatButton";
 import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
-import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
+import { OwnerBottomNav } from "@/components/mobile/OwnerBottomNav";
 import { MobileFAB } from "@/components/mobile/MobileFAB";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 
@@ -38,7 +38,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
         </div>
         
         {/* Mobile navigation */}
-        <MobileBottomNav />
+        <OwnerBottomNav />
         <MobileFAB />
         
         <FloatingWhatsAppInbox />

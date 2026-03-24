@@ -99,6 +99,7 @@ const MobileMoreMenu = lazy(() => import("./pages/mobile/MobileMoreMenu"));
 const MobileReportsHub = lazy(() => import("./pages/mobile/MobileReportsHub"));
 const MobileSalesHub = lazy(() => import("./pages/mobile/MobileSalesHub"));
 const MobileAccountsPage = lazy(() => import("./pages/mobile/MobileAccountsPage"));
+import { OwnerPlaceholderScreen } from "@/components/mobile/OwnerPlaceholderScreen";
 const StudentMaster = lazy(() => import("./pages/school/StudentMaster"));
 const StudentEntry = lazy(() => import("./pages/school/StudentEntry"));
 const AcademicYearSetup = lazy(() => import("./pages/school/AcademicYearSetup"));
@@ -1135,7 +1136,48 @@ const App = () => {
                   }
                 />
 
-                {/* Recycle Bin - Admin Only */}
+                {/* Owner Mobile Placeholder Screens */}
+                <Route
+                  path="owner-sales"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <OwnerPlaceholderScreen screen="sales" />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="owner-purchases"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <OwnerPlaceholderScreen screen="purchases" />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="owner-stock"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <OwnerPlaceholderScreen screen="stock" />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="owner-reports"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <OwnerPlaceholderScreen screen="reports" />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+
                 <Route
                   path="recycle-bin"
                   element={

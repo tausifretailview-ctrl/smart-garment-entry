@@ -10,7 +10,7 @@ import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { DashboardSkeleton, MetricCardSkeleton } from "@/components/ui/skeletons";
-import { MobileDashboard } from "@/components/mobile/MobileDashboard";
+import { OwnerDashboard } from "@/components/mobile/OwnerDashboard";
 import { MobileErrorBoundary } from "@/components/mobile/MobileErrorBoundary";
 import {
   Package,
@@ -191,7 +191,7 @@ const getDateRange = (type: DateRangeType) => {
 const MobileDashboardWrapper = () => {
   return (
     <MobileErrorBoundary>
-      <MobileDashboard />
+      <OwnerDashboard />
     </MobileErrorBoundary>
   );
 };
