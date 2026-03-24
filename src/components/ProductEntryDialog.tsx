@@ -786,8 +786,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     }
 
     // Validate variants: purchase price and sale price are required
-    for (let i = 0; i < variants.length; i++) {
-      const variant = variants[i];
+    // In purchase context, only validate variants with qty > 0
+    const variantsToValidate = hideOpeningQty
+      ? variants.filter((v) => (v.purchase_qty || 0) > 0)
+      : variants;
+
+    for (let i = 0; i < variantsToValidate.length; i++) {
+      const variant = variantsToValidate[i];
       
       // Check purchase price
       if (variant.pur_price === undefined || variant.pur_price === null || variant.pur_price <= 0) {
@@ -829,8 +834,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         return false;
       }
 
-      // Check barcode is present
-      if (!variant.barcode || variant.barcode.trim() === '') {
+      // Check barcode is present — skip in purchase context since barcodes are generated at save time
+      if (!hideOpeningQty && (!variant.barcode || variant.barcode.trim() === '')) {
         toast({
           title: "Barcode Required",
           description: `Barcode is required for variant ${variant.size}${variant.color ? ` (${variant.color})` : ''}. Please generate barcode first.`,
