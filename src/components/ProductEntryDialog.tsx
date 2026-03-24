@@ -1290,6 +1290,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         setMarkupPercent("");
                       }
                     }}
+                    onKeyDown={handleEnterAsTab}
                     placeholder="0"
                   />
                 </div>
