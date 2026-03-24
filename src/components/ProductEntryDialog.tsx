@@ -887,16 +887,29 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       // Save last product details for quick entry next time
       saveLastProductDetails();
 
-      // Call the callback with product data
+      // Call the callback with product data — include purchase_qty from variants
+      const variantsWithQty = insertedVariants.map((iv: any) => {
+        const matchingVariant = variants.find(v => v.size === iv.size && (v.color || "") === (iv.color || ""));
+        return {
+          ...iv,
+          purchase_qty: matchingVariant?.purchase_qty || 0,
+        };
+      });
+
       onProductCreated({
         id: productData.id,
         product_name: productData.product_name,
         brand: productData.brand,
         category: productData.category,
         gst_per: productData.gst_per || 0,
+        purchase_gst_percent: productData.purchase_gst_percent ?? productData.gst_per ?? 0,
+        sale_gst_percent: productData.sale_gst_percent ?? productData.gst_per ?? 0,
         hsn_code: productData.hsn_code,
         color: productData.color,
-        variants: insertedVariants,
+        style: productData.style,
+        purchase_discount_type: productData.purchase_discount_type,
+        purchase_discount_value: productData.purchase_discount_value,
+        variants: variantsWithQty,
       });
 
       onOpenChange(false);
