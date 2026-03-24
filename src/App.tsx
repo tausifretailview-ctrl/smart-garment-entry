@@ -103,6 +103,7 @@ import { OwnerPlaceholderScreen } from "@/components/mobile/OwnerPlaceholderScre
 import { OwnerSalesScreen } from "@/components/mobile/OwnerSalesScreen";
 import { OwnerPurchaseScreen } from "@/components/mobile/OwnerPurchaseScreen";
 import { OwnerStockScreen } from "@/components/mobile/OwnerStockScreen";
+import { OwnerReportsHub } from "@/components/mobile/OwnerReportsHub";
 const StudentMaster = lazy(() => import("./pages/school/StudentMaster"));
 const StudentEntry = lazy(() => import("./pages/school/StudentEntry"));
 const AcademicYearSetup = lazy(() => import("./pages/school/AcademicYearSetup"));
