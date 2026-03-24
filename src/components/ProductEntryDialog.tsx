@@ -1069,13 +1069,14 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-2 col-span-2">
                   <Label htmlFor="product_name">{getFieldLabel("product_name", "Product Name")} *</Label>
-                  <Input
-                    ref={productNameInputRef}
-                    id="product_name"
-                    value={formData.product_name}
-                    onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
-                    placeholder={lastProductNameHint}
-                  />
+                    <Input
+                      ref={productNameInputRef}
+                      id="product_name"
+                      value={formData.product_name}
+                      onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
+                      onKeyDown={handleEnterAsTab}
+                      placeholder={lastProductNameHint}
+                    />
                 </div>
 
                 {isFieldEnabled("category") && (
