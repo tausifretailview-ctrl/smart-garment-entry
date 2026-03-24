@@ -231,6 +231,37 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     }
   }, [formData.size_group_id, sizeGroups]);
 
+  // Sync default prices to existing variants when user edits price fields
+  useEffect(() => {
+    if (variants.length > 0 && showVariants) {
+      setVariants(prev => prev.map(v => ({
+        ...v,
+        pur_price: formData.default_pur_price ?? v.pur_price,
+        sale_price: formData.default_sale_price ?? v.sale_price,
+        mrp: formData.default_mrp ?? v.mrp,
+      })));
+    }
+  }, [formData.default_pur_price, formData.default_sale_price, formData.default_mrp]);
+
+  // Recent products state
+  const [recentProducts, setRecentProducts] = useState<any[]>([]);
+
+  // Fetch recent products when dialog opens
+  useEffect(() => {
+    if (open && currentOrganization?.id) {
+      (async () => {
+        const { data } = await supabase
+          .from("products")
+          .select("id, product_name, brand, category, default_sale_price, default_pur_price, size_group_id, size_groups(group_name)")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(10);
+        setRecentProducts(data || []);
+      })();
+    }
+  }, [open, currentOrganization?.id]);
+
   // Fetch unique categories, brands, HSN codes, and styles from existing products
   const fetchPreviousValues = async () => {
     if (!currentOrganization) return;
