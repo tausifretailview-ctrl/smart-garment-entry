@@ -134,37 +134,50 @@ export default function ItemWiseSalesReport() {
   }, [periodType, selectedDate, customDateRange]);
 
   // Fetch sale items with product details
-  const { data: saleItems = [], isLoading } = useQuery({
+  const { data: saleItems = [], isLoading, isError } = useQuery({
     queryKey: ["item-wise-sales", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
-      // First get sales within date range for the organization
-      let salesQuery = supabase
-        .from("sales")
-        .select("id, customer_name")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .gte("sale_date", dateRange.from.toISOString())
-        .lte("sale_date", dateRange.to.toISOString());
+      // Paginated fetch of sales to bypass 1000-row limit
+      const allSales: any[] = [];
+      let offset = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      // Apply customer filter at query level if selected
-      if (selectedCustomer !== "all") {
-        salesQuery = salesQuery.eq("customer_name", selectedCustomer);
+      while (hasMore) {
+        let salesQuery = supabase
+          .from("sales")
+          .select("id, customer_name")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .gte("sale_date", dateRange.from.toISOString())
+          .lte("sale_date", dateRange.to.toISOString())
+          .order("sale_date", { ascending: false })
+          .order("id")
+          .range(offset, offset + pageSize - 1);
+
+        if (selectedCustomer !== "all") {
+          salesQuery = salesQuery.eq("customer_name", selectedCustomer);
+        }
+
+        const { data: salesData, error: salesError } = await salesQuery;
+        if (salesError) throw salesError;
+
+        if (salesData && salesData.length > 0) {
+          allSales.push(...salesData);
+          offset += pageSize;
+          if (salesData.length < pageSize) hasMore = false;
+        } else {
+          hasMore = false;
+        }
       }
 
-      const { data: salesData, error: salesError } = await salesQuery;
+      if (allSales.length === 0) return [];
+      console.log(`ItemWiseSalesReport: fetched ${allSales.length} sales`);
 
-      if (salesError) throw salesError;
-      if (!salesData || salesData.length === 0) return [];
-
-      // Row count guard: warn if too many sales
-      if (salesData.length > 5000) {
-        console.warn(`ItemWiseSalesReport: ${salesData.length} sales found - consider narrowing date range`);
-      }
-
-      const saleIds = salesData.map((s) => s.id);
-      const salesMap = new Map(salesData.map(s => [s.id, s.customer_name]));
+      const saleIds = allSales.map((s) => s.id);
+      const salesMap = new Map(allSales.map(s => [s.id, s.customer_name]));
 
       // Use paginated fetch to bypass 1000 row limit
       const saleItemsData = await fetchAllSaleItems(saleIds);
