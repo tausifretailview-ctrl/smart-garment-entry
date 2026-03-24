@@ -32,12 +32,12 @@ export const OwnerPurchaseBillDetail = ({ billId, onBack }: Props) => {
   const { data: items, isLoading: itemsLoading } = useQuery({
     queryKey: ["owner-purchase-bill-items", billId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("purchase_items")
+      const res = await (supabase
+        .from("purchase_items") as any)
         .select("*")
         .eq("purchase_bill_id", billId)
         .order("created_at");
-      return (data as any[]) || [];
+      return (res.data as any[]) || [];
     },
     enabled: !!billId,
   });
