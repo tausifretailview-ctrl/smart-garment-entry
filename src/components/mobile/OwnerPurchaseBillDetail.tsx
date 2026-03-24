@@ -34,10 +34,10 @@ export const OwnerPurchaseBillDetail = ({ billId, onBack }: Props) => {
     queryFn: async () => {
       const { data } = await supabase
         .from("purchase_items")
-        .select("*")
+        .select("id, product_name, size, color, qty, pur_price, sale_price, gst_percent, created_at")
         .eq("purchase_bill_id", billId)
         .order("created_at");
-      return data || [];
+      return (data || []) as any[];
     },
     enabled: !!billId,
   });
