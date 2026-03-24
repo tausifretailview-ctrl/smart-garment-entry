@@ -1540,11 +1540,14 @@ const PurchaseEntry = () => {
         e.preventDefault();
         handleCopyLastRow();
       }
-      // Press "1" key (not in input/textarea/select) to open Add New Product dialog
+      // Press "1" key to open Add New Product dialog — works even from search/input fields
       if (e.key === "1" && !showProductDialog) {
-        const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
-        const isEditable = tag === "input" || tag === "textarea" || tag === "select" || (e.target as HTMLElement)?.isContentEditable;
-        if (!isEditable) {
+        const target = e.target as HTMLElement;
+        const tag = target?.tagName?.toLowerCase();
+        const isNumberInput = tag === "input" && (target as HTMLInputElement).type === "number";
+        const isTextarea = tag === "textarea";
+        // Allow from text inputs (like search), block only from number inputs and textareas
+        if (!isNumberInput && !isTextarea) {
           e.preventDefault();
           setShowProductDialog(true);
         }
