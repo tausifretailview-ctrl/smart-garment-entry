@@ -191,7 +191,7 @@ const getDateRange = (type: DateRangeType) => {
 const MobileDashboardWrapper = () => {
   return (
     <MobileErrorBoundary>
-      <MobileDashboard />
+      <OwnerDashboard />
     </MobileErrorBoundary>
   );
 };

@@ -43,7 +43,7 @@ export const Layout = ({ children }: LayoutProps) => {
         </div>
         
         {/* Mobile navigation */}
-        <MobileBottomNav />
+        <OwnerBottomNav />
         <MobileFAB />
         
         <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="general" />

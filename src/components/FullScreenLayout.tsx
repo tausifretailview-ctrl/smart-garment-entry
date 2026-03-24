@@ -38,7 +38,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
         </div>
         
         {/* Mobile navigation */}
-        <MobileBottomNav />
+        <OwnerBottomNav />
         <MobileFAB />
         
         <FloatingWhatsAppInbox />
