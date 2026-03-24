@@ -1909,6 +1909,27 @@ const PurchaseEntry = () => {
           insertedNewItems = lineItems.filter(item => !originalItemsMap.has(item.temp_id));
         }
 
+        // Store items for barcode printing (edit mode)
+        const editItemsWithDetails = await Promise.all(
+          lineItems.map(async (item) => {
+            const { data: product } = await supabase
+              .from("products")
+              .select("brand, color, style")
+              .eq("id", item.product_id)
+              .single();
+            return {
+              ...item,
+              brand: item.brand || product?.brand || "",
+              color: item.color || product?.color || "",
+              style: item.style || product?.style || "",
+            };
+          })
+        );
+        setSavedPurchaseItems(editItemsWithDetails);
+        setSavedBillId(editingBillId);
+        setSavedSupplierId(billData.supplier_id || null);
+        setNewlyAddedItems(insertedNewItems);
+
         // Check for price changes and show dialog if any
         const priceChanges = await detectPriceChanges(lineItems);
         if (priceChanges.length > 0) {
