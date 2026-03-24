@@ -1175,9 +1175,9 @@ const App = () => {
                   path="owner-reports"
                   element={
                     <ProtectedRoute>
-                      <Layout>
-                        <OwnerPlaceholderScreen screen="reports" />
-                      </Layout>
+                      <FullScreenLayout>
+                        <OwnerReportsHub />
+                      </FullScreenLayout>
                     </ProtectedRoute>
                   }
                 />
