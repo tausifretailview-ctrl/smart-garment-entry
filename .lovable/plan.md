@@ -1,34 +1,36 @@
 
 
-## Add "Brand-wise Sale" Tab to Item-wise Sales Report
+## Two Issues to Fix in Purchase "Add New Product" Dialog
 
-### What it does
-Adds a second tab to the Item-wise Sales Report page. The new "Brand-wise Sale" tab shows a table grouped by customer, with each customer's brand-level sales summary (brand name, total qty sold, total sale amount) for the selected date range.
+### Issue 1: Price changes via backspace not updating in bill
+**Root Cause**: When user changes `default_pur_price` or `default_sale_price` in the Add New Product dialog AFTER variants have already been generated, the variant prices are NOT updated. Variants are created with prices at generation time (lines 641-642 of ProductEntryDialog.tsx), but subsequent edits to the default prices don't propagate to existing variants. So when the product is added to the bill, the old variant prices are used.
 
-### Layout
-- Two tabs at the top of the content area: **Item-wise Details** (existing) | **Brand-wise Sale** (new)
-- Filters, summary cards, and charts remain shared across both tabs
-- The Brand-wise Sale table columns: **Customer Name** | **Brand** | **Total Qty** | **Total Amount**
-- Customer name shown only on the first row of each customer group (rowspan-style), subsequent brand rows show "-" for customer
-- Grand total row at the bottom
-- Excel export adapts to export whichever tab is active
+**Fix**: Add a `useEffect` in `ProductEntryDialog.tsx` that watches `formData.default_pur_price` and `formData.default_sale_price`. When these change AND variants exist, update all variant prices to match the new defaults. This mirrors real-world behavior where the default price is the "master" price for all sizes unless individually overridden.
+
+### Issue 2: Show existing stored products history
+**What it does**: Display a list/dropdown of recently created products from the database when the Add New Product dialog opens. This helps users reference previous products' details (prices, categories, etc.).
+
+**Fix**: Already partially implemented via the "Copy from Existing" search field (line 340-375). This searches products by name/brand/category. The feature exists but may need better visibility. Will add a "Recent Products" section that shows the last 5-10 products created by this organization, displayed as clickable chips/cards at the top of the dialog for quick reference.
+
+---
 
 ### Technical Changes
 
-**File: `src/pages/ItemWiseSalesReport.tsx`**
+**File: `src/components/ProductEntryDialog.tsx`**
 
-1. **Add tab state**: `const [activeTab, setActiveTab] = useState<"itemwise" | "brandwise">("itemwise");`
+1. **Sync default prices to variants** — Add a `useEffect` that updates all variant `pur_price`/`sale_price`/`mrp` whenever `formData.default_pur_price`, `formData.default_sale_price`, or `formData.default_mrp` changes and variants already exist:
+   ```typescript
+   useEffect(() => {
+     if (variants.length > 0 && showVariants) {
+       setVariants(prev => prev.map(v => ({
+         ...v,
+         pur_price: formData.default_pur_price ?? v.pur_price,
+         sale_price: formData.default_sale_price ?? v.sale_price,
+         mrp: formData.default_mrp ?? v.mrp,
+       })));
+     }
+   }, [formData.default_pur_price, formData.default_sale_price, formData.default_mrp]);
+   ```
 
-2. **Add `brandWiseData` memo**: Aggregate `saleItems` by `customer_name + brand`, producing `{ customer_name, brand, total_qty, total_amount }[]` sorted by customer name then brand. Apply the same client-side filters (selectedBrand, selectedCategory, search).
-
-3. **Wrap charts + table section in Tabs**: Use shadcn `Tabs` component. The "Item-wise Details" tab contains existing charts + table. The "Brand-wise Sale" tab contains the new customer-brand table.
-
-4. **Brand-wise table**: Simple Table with 4 columns. Customer name displayed on the first row of each group, blank for subsequent brands. Footer row with grand totals.
-
-5. **Update `exportToExcel`**: When `activeTab === "brandwise"`, export the brand-wise data instead of item-wise data.
-
-6. **Import `Tabs, TabsContent, TabsList, TabsTrigger`** from shadcn.
-
-### No database changes needed
-All data is already fetched — `saleItems` contains `customer_name` and `brand`. The new tab just aggregates differently.
+2. **Show recent products on dialog open** — Fetch last 10 products for the organization when dialog opens. Display them as a compact horizontal scrollable list below the "Copy from Existing" field, showing product name, brand, and sale price. Clicking one populates the form (same as existing `handleCopyFromProduct`).
 
