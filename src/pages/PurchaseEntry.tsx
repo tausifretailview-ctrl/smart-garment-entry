@@ -324,6 +324,10 @@ const PurchaseEntry = () => {
 
   const showMrp = (settings?.purchase_settings as any)?.show_mrp || false;
   
+  // Barcode mode: 'auto' (default) or 'scan' (manual/manufacturer barcode)
+  const barcodeMode = (settings?.purchase_settings as any)?.barcode_mode || 'auto';
+  const isAutoBarcode = barcodeMode !== 'scan';
+  
   // Check if barcode prompt is enabled (defaults to true if not set)
   const enableBarcodePrompt = (settings?.bill_barcode_settings as any)?.enable_barcode_prompt !== false;
   
@@ -1310,7 +1314,7 @@ const PurchaseEntry = () => {
       const product = v.products as any;
       let barcode = v.barcode || "";
       
-      if (!barcode) {
+      if (!barcode && isAutoBarcode) {
         try {
           barcode = await generateCentralizedBarcode();
           await supabase.from("product_variants").update({ barcode }).eq("id", v.id);
@@ -1381,7 +1385,7 @@ const PurchaseEntry = () => {
       if (variant.isCustomSize || isNewColorVariant) {
         try {
           // Generate barcode for new variant
-          barcode = await generateCentralizedBarcode();
+          barcode = isAutoBarcode ? await generateCentralizedBarcode() : '';
           
           // Create new product variant
           const { data: newVariant, error: createError } = await supabase
@@ -1422,7 +1426,7 @@ const PurchaseEntry = () => {
         }
       } else {
         // Existing variant - auto-generate barcode if missing
-        if (!barcode) {
+        if (!barcode && isAutoBarcode) {
           try {
             barcode = await generateCentralizedBarcode();
             await supabase
@@ -2744,7 +2748,7 @@ const PurchaseEntry = () => {
           </DialogContent>
         </Dialog>
         <ExcelImportDialog open={showExcelImport} onClose={() => setShowExcelImport(false)} targetFields={purchaseBillFields} onImport={handleExcelImport} title="Import Purchase Bill" sampleData={purchaseBillSampleData} sampleFileName="Purchase_Bill_Sample.xlsx" />
-        <ProductEntryDialog open={showProductDialog} onOpenChange={setShowProductDialog} onProductCreated={handleProductCreated} hideOpeningQty isDcPurchase={isDcPurchase} />
+        <ProductEntryDialog open={showProductDialog} onOpenChange={setShowProductDialog} onProductCreated={handleProductCreated} hideOpeningQty isDcPurchase={isDcPurchase} isAutoBarcode={isAutoBarcode} />
         <PriceUpdateConfirmDialog open={showPriceUpdateDialog} onOpenChange={setShowPriceUpdateDialog} priceChanges={detectedPriceChanges} onConfirm={handlePriceUpdateConfirm} onSkip={handlePriceUpdateSkip} />
         <AddSupplierDialog open={showAddSupplierDialog} onClose={() => setShowAddSupplierDialog(false)} onSupplierCreated={(supplier) => { refetchSuppliers(); setBillData((prev) => ({ ...prev, supplier_id: supplier.id, supplier_name: supplier.supplier_name })); }} />
         <SizeGridDialog open={showSizeGrid} onClose={() => setShowSizeGrid(false)} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} />
@@ -3781,6 +3785,7 @@ const PurchaseEntry = () => {
           onProductCreated={handleProductCreated}
           hideOpeningQty
           isDcPurchase={isDcPurchase}
+          isAutoBarcode={isAutoBarcode}
         />
 
         {/* Price Update Confirmation Dialog */}
