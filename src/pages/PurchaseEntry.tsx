@@ -1025,7 +1025,7 @@ const PurchaseEntry = () => {
     }, 0);
     const grossAfterItemDiscount = grossBeforeDiscount - itemDiscount;
     const grossAfterAllDiscount = grossAfterItemDiscount - discountAmount;
-    const gst = lineItems.reduce((sum, r) => sum + (r.line_total * r.gst_per / 100), 0);
+    const gst = isDcPurchase ? 0 : lineItems.reduce((sum, r) => sum + (r.line_total * r.gst_per / 100), 0);
     const netBeforeRoundOff = grossAfterAllDiscount + gst + otherCharges;
     // Auto round-off: calculate round-off so net amount is always a whole number
     const autoRoundOff = Math.round(netBeforeRoundOff) - netBeforeRoundOff;
