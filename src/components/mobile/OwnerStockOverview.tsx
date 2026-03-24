@@ -1,10 +1,9 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Package, Search, Layers, IndianRupee, AlertTriangle, XCircle, CheckCircle, ArrowUpDown,
 } from "lucide-react";
@@ -30,23 +29,21 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
   const [sortBy, setSortBy] = useState<"name" | "stock_low" | "stock_high" | "brand">("name");
   const [showSort, setShowSort] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Debounce search
-  const searchTimer = useState<ReturnType<typeof setTimeout> | null>(null);
   const handleSearch = useCallback((val: string) => {
     setSearch(val);
-    if (searchTimer[0]) clearTimeout(searchTimer[0]);
-    searchTimer[0] = setTimeout(() => setDebouncedSearch(val), 300);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setDebouncedSearch(val), 300);
   }, []);
 
-  /* ── Products with aggregated variant stock ── */
   const { data: products, isLoading } = useQuery({
     queryKey: ["owner-stock-products", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization) return [];
       const { data } = await supabase
         .from("products")
-        .select("id, product_name, brand, category, style, hsn_code, gst_percent")
+        .select("id, product_name, brand, product_type, style, hsn_code, gst_per")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .order("product_name")
@@ -63,7 +60,7 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
       if (!currentOrganization) return [];
       const { data } = await supabase
         .from("product_variants")
-        .select("id, product_id, size, color, barcode, current_stock, purchase_price, sale_price")
+        .select("id, product_id, size, color, barcode, current_stock, pur_price, sale_price")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .limit(5000);
@@ -73,7 +70,6 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
     staleTime: 60000,
   });
 
-  /* ── Aggregated product data ── */
   const productData = useMemo(() => {
     if (!products?.length || !variants?.length) return [];
     const variantMap = new Map<string, { totalStock: number; variantCount: number; purchaseValue: number; saleValue: number; salePrice: number }>();
@@ -82,7 +78,7 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
       const stock = Number(v.current_stock) || 0;
       ex.totalStock += stock;
       ex.variantCount++;
-      ex.purchaseValue += stock * (Number(v.purchase_price) || 0);
+      ex.purchaseValue += stock * (Number(v.pur_price) || 0);
       ex.saleValue += stock * (Number(v.sale_price) || 0);
       if (Number(v.sale_price) > ex.salePrice) ex.salePrice = Number(v.sale_price);
       variantMap.set(v.product_id, ex);
@@ -93,7 +89,6 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
     });
   }, [products, variants]);
 
-  /* ── Summary stats ── */
   const summary = useMemo(() => {
     const totalProducts = productData.length;
     const totalVariants = variants?.length || 0;
@@ -108,28 +103,23 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
     return { totalProducts, totalVariants, purchaseValue, saleValue, inStock, lowStock, outOfStock };
   }, [productData, variants]);
 
-  /* ── Filtered & sorted list ── */
   const filteredList = useMemo(() => {
     let list = productData;
-
-    // Stock filter
     if (stockFilter === "in") list = list.filter((p) => p.totalStock > 5);
     else if (stockFilter === "low") list = list.filter((p) => p.totalStock > 0 && p.totalStock <= 5);
     else if (stockFilter === "out") list = list.filter((p) => p.totalStock <= 0);
 
-    // Search
     if (debouncedSearch.trim()) {
       const q = debouncedSearch.toLowerCase();
       list = list.filter(
         (p) =>
           p.product_name?.toLowerCase().includes(q) ||
           p.brand?.toLowerCase().includes(q) ||
-          p.category?.toLowerCase().includes(q) ||
+          p.product_type?.toLowerCase().includes(q) ||
           p.style?.toLowerCase().includes(q)
       );
     }
 
-    // Sort
     switch (sortBy) {
       case "stock_low": list = [...list].sort((a, b) => a.totalStock - b.totalStock); break;
       case "stock_high": list = [...list].sort((a, b) => b.totalStock - a.totalStock); break;
@@ -144,11 +134,10 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
   const stockColor = (qty: number) =>
     qty <= 0 ? "text-destructive" : qty <= 5 ? "text-warning" : "text-success";
   const stockBg = (qty: number) =>
-    qty <= 0 ? "bg-destructive/10" : qty <= 5 ? "bg-warning/10" : "bg-success/10";
+    qty <= 0 ? "bg-destructive" : qty <= 5 ? "bg-warning" : "bg-success";
 
   return (
     <div className="min-h-screen bg-muted/30 pb-24">
-      {/* ── Header ── */}
       <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-md border-b border-border">
         <div className="px-4 py-3">
           <h1 className="text-base font-semibold text-foreground mb-3">Stock Overview</h1>
@@ -164,7 +153,6 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
         </div>
       </div>
 
-      {/* ── Summary Cards (2×2) ── */}
       <div className="px-4 mt-4 grid grid-cols-2 gap-2.5">
         {[
           { label: "Products", value: summary.totalProducts.toLocaleString("en-IN"), icon: Package, tint: "bg-primary/10", color: "text-primary" },
@@ -189,7 +177,6 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
         })}
       </div>
 
-      {/* ── Stock Health Chips ── */}
       <div className="px-4 mt-4 flex gap-2">
         {[
           { key: "all" as const, label: "All", count: summary.totalProducts, icon: Package, color: "text-foreground" },
@@ -215,15 +202,10 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
         })}
       </div>
 
-      {/* ── Sort toggle ── */}
       <div className="px-4 mt-3 flex items-center justify-between">
         <p className="text-xs text-muted-foreground">{filteredList.length} products</p>
-        <button
-          onClick={() => setShowSort(!showSort)}
-          className="flex items-center gap-1 text-xs text-primary font-medium touch-manipulation"
-        >
-          <ArrowUpDown className="h-3 w-3" />
-          Sort
+        <button onClick={() => setShowSort(!showSort)} className="flex items-center gap-1 text-xs text-primary font-medium touch-manipulation">
+          <ArrowUpDown className="h-3 w-3" /> Sort
         </button>
       </div>
       {showSort && (
@@ -248,7 +230,6 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
         </div>
       )}
 
-      {/* ── Product List ── */}
       <div className="px-4 mt-3 space-y-2">
         {isLoading ? (
           Array.from({ length: 8 }).map((_, i) => (
@@ -271,12 +252,12 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-bold text-foreground truncate">{p.product_name}</p>
                     <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                      {[p.brand, p.category].filter(Boolean).join(" • ") || "—"}
+                      {[p.brand, p.product_type].filter(Boolean).join(" • ") || "—"}
                     </p>
                   </div>
                   <div className="text-right shrink-0 ml-3">
                     <div className="flex items-center justify-end gap-1.5">
-                      <span className={cn("w-2 h-2 rounded-full", stockBg(p.totalStock).replace("/10", ""))} />
+                      <span className={cn("w-2 h-2 rounded-full", stockBg(p.totalStock))} />
                       <span className={cn("text-base font-bold tabular-nums", stockColor(p.totalStock))}>
                         {p.totalStock}
                       </span>
