@@ -1025,7 +1025,7 @@ const PurchaseEntry = () => {
     }, 0);
     const grossAfterItemDiscount = grossBeforeDiscount - itemDiscount;
     const grossAfterAllDiscount = grossAfterItemDiscount - discountAmount;
-    const gst = lineItems.reduce((sum, r) => sum + (r.line_total * r.gst_per / 100), 0);
+    const gst = isDcPurchase ? 0 : lineItems.reduce((sum, r) => sum + (r.line_total * r.gst_per / 100), 0);
     const netBeforeRoundOff = grossAfterAllDiscount + gst + otherCharges;
     // Auto round-off: calculate round-off so net amount is always a whole number
     const autoRoundOff = Math.round(netBeforeRoundOff) - netBeforeRoundOff;
@@ -1034,7 +1034,18 @@ const PurchaseEntry = () => {
     setGrossAmount(grossBeforeDiscount);
     setGstAmount(gst);
     setNetAmount(Math.round(netBeforeRoundOff));
-  }, [lineItems, discountAmount, otherCharges]);
+  }, [lineItems, discountAmount, otherCharges, isDcPurchase]);
+
+  // When DC Purchase is toggled ON, zero out GST on all existing line items
+  useEffect(() => {
+    if (isDcPurchase && lineItems.length > 0) {
+      const hasNonZeroGst = lineItems.some(item => item.gst_per > 0);
+      if (hasNonZeroGst) {
+        setLineItems(prev => prev.map(item => ({ ...item, gst_per: 0 })));
+        toast({ title: "DC Purchase", description: "Purchase GST set to 0% for all items (No GST)" });
+      }
+    }
+  }, [isDcPurchase]);
 
   const generateCentralizedBarcode = async (): Promise<string> => {
     try {
@@ -1490,6 +1501,7 @@ const PurchaseEntry = () => {
   };
 
   const addItemRow = (item: Omit<LineItem, "temp_id" | "line_total">) => {
+    const effectiveGst = isDcPurchase ? 0 : item.gst_per;
     const subTotal = item.qty * item.pur_price;
     const discountAmount = subTotal * (item.discount_percent / 100);
     const lineTotal = subTotal - discountAmount;
@@ -1497,6 +1509,7 @@ const PurchaseEntry = () => {
       ...prev,
       {
         ...item,
+        gst_per: effectiveGst,
         temp_id: Date.now().toString() + Math.random(),
         line_total: lineTotal,
       },
@@ -2710,7 +2723,7 @@ const PurchaseEntry = () => {
           </DialogContent>
         </Dialog>
         <ExcelImportDialog open={showExcelImport} onClose={() => setShowExcelImport(false)} targetFields={purchaseBillFields} onImport={handleExcelImport} title="Import Purchase Bill" sampleData={purchaseBillSampleData} sampleFileName="Purchase_Bill_Sample.xlsx" />
-        <ProductEntryDialog open={showProductDialog} onOpenChange={setShowProductDialog} onProductCreated={handleProductCreated} hideOpeningQty />
+        <ProductEntryDialog open={showProductDialog} onOpenChange={setShowProductDialog} onProductCreated={handleProductCreated} hideOpeningQty isDcPurchase={isDcPurchase} />
         <PriceUpdateConfirmDialog open={showPriceUpdateDialog} onOpenChange={setShowPriceUpdateDialog} priceChanges={detectedPriceChanges} onConfirm={handlePriceUpdateConfirm} onSkip={handlePriceUpdateSkip} />
         <AddSupplierDialog open={showAddSupplierDialog} onClose={() => setShowAddSupplierDialog(false)} onSupplierCreated={(supplier) => { refetchSuppliers(); setBillData((prev) => ({ ...prev, supplier_id: supplier.id, supplier_name: supplier.supplier_name })); }} />
         <SizeGridDialog open={showSizeGrid} onClose={() => setShowSizeGrid(false)} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} />
@@ -3746,6 +3759,7 @@ const PurchaseEntry = () => {
           onOpenChange={setShowProductDialog}
           onProductCreated={handleProductCreated}
           hideOpeningQty
+          isDcPurchase={isDcPurchase}
         />
 
         {/* Price Update Confirmation Dialog */}
