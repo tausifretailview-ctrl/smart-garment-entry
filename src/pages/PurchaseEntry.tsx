@@ -1426,7 +1426,7 @@ const PurchaseEntry = () => {
         }
       } else {
         // Existing variant - auto-generate barcode if missing
-        if (!barcode) {
+        if (!barcode && isAutoBarcode) {
           try {
             barcode = await generateCentralizedBarcode();
             await supabase
