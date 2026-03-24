@@ -3474,11 +3474,12 @@ export default function BarcodePrinting() {
       try {
         const { labelWidth, labelHeight, xOffset, yOffset, vGap, labelConfig } = precisionSettings;
         const is2Up = precisionSettings.printMode === 'thermal2up';
-        const horizontalGap = is2Up ? getThermal2UpGap() : 0;
+        // 2-Up: NO gap between labels — they sit side by side on a 76mm roll
+        const horizontalGap = 0;
         const totalLabels = labelItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
         if (totalLabels === 0) { toast.error("No labels to print"); return; }
 
-        const pageW = is2Up ? labelWidth * 2 + horizontalGap : labelWidth;
+        const pageW = is2Up ? labelWidth * 2 : labelWidth;
         const pdf = is2Up
           ? new jsPDF({
               orientation: "landscape",
@@ -3540,7 +3541,7 @@ export default function BarcodePrinting() {
         };
 
         if (is2Up) {
-          // 2-Up: render 2 labels per page side by side
+          // 2-Up: render 2 labels per page side by side, no gap
           for (let i = 0; i < allItems.length; i += 2) {
             if (i > 0) pdf.addPage();
 
@@ -3548,10 +3549,10 @@ export default function BarcodePrinting() {
             const canvasLeft = await renderLabelToCanvas(allItems[i]);
             pdf.addImage(canvasLeft.toDataURL("image/png"), "PNG", 0, 0, labelWidth, labelHeight);
 
-            // Right label (if exists)
+            // Right label (if exists) — starts at exactly labelWidth (no gap)
             if (i + 1 < allItems.length) {
               const canvasRight = await renderLabelToCanvas(allItems[i + 1]);
-              pdf.addImage(canvasRight.toDataURL("image/png"), "PNG", labelWidth + horizontalGap, 0, labelWidth, labelHeight);
+              pdf.addImage(canvasRight.toDataURL("image/png"), "PNG", labelWidth, 0, labelWidth, labelHeight);
             }
           }
         } else {
@@ -3624,10 +3625,17 @@ export default function BarcodePrinting() {
       // Create PDF - use label dimensions for thermal, A4 for sheets
       const is1Up = isThermal1Up();
       const is2Up = isThermal2Up();
+
+      // For 2-Up: force gap=0, labels sit flush side by side on 76mm roll
+      if (is2Up) {
+        baseDimensions.cols = 2;
+        baseDimensions.gap = 0;
+      }
+
       const pageWidthMm = is1Up
         ? baseDimensions.width
         : is2Up
-        ? baseDimensions.width * 2 + baseDimensions.gap
+        ? baseDimensions.width * 2
         : 210;
       const pageHeightMm = (is1Up || is2Up)
         ? baseDimensions.height
@@ -3636,7 +3644,7 @@ export default function BarcodePrinting() {
       const pdf = is1Up
         ? new jsPDF({ orientation: "portrait", unit: "mm", format: [baseDimensions.width, baseDimensions.height] })
         : is2Up
-        ? new jsPDF({ orientation: "landscape", unit: "mm", format: [baseDimensions.height, baseDimensions.width * 2 + baseDimensions.gap] })
+        ? new jsPDF({ orientation: "landscape", unit: "mm", format: [baseDimensions.height, baseDimensions.width * 2] })
         : new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
       // Create temporary container for rendering each page
@@ -3648,7 +3656,7 @@ export default function BarcodePrinting() {
       tempContainer.style.width = isThermal1Up()
         ? `${baseDimensions.width}mm`
         : isThermal2Up()
-        ? `${baseDimensions.width * 2 + baseDimensions.gap}mm`
+        ? `${baseDimensions.width * 2}mm`
         : "210mm";
       document.body.appendChild(tempContainer);
 
@@ -3693,7 +3701,7 @@ export default function BarcodePrinting() {
           gridDiv.style.cssText = `
             display: grid;
             grid-template-columns: repeat(${thermalCols}, ${baseDimensions.width}mm);
-            gap: ${is2Up ? baseDimensions.gap : 0}mm;
+            gap: 0mm;
             width: ${pageWidthMm}mm;
             height: ${pageHeightMm}mm;
             overflow: hidden;
