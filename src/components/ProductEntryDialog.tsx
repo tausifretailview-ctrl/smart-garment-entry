@@ -155,6 +155,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const [brands, setBrands] = useState<string[]>([]);
   const [hsnCodes, setHsnCodes] = useState<string[]>([]);
   const [styles, setStyles] = useState<string[]>([]);
+  const [existingColors, setExistingColors] = useState<string[]>([]);
   
   const [formData, setFormData] = useState<ProductForm>({
     product_type: "goods",
