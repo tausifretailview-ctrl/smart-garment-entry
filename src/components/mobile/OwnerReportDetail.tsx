@@ -11,7 +11,6 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { ReportType } from "./OwnerReportsHub";
-import { fetchAllRows } from "@/utils/fetchAllRows";
 
 /* ─── Helpers ─── */
 const fmt = (v: number) =>
