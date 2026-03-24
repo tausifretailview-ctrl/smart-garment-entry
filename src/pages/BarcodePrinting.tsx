@@ -1543,9 +1543,7 @@ export default function BarcodePrinting() {
             // Check if default preset name matches a saved label template
             const isLabelTemplate = savedLabelTemplates.some(t => t.name === defaultPreset.name);
             setActivePrecisionTemplateName(isLabelTemplate ? defaultPreset.name : `preset:${defaultPreset.name}`);
-            if (location.state?.purchaseItems) {
-              toast.success(`Auto-loaded default preset "${defaultPreset.name}"`);
-            }
+            toast.success(`Auto-loaded default preset "${defaultPreset.name}" (${defaultPreset.width}×${defaultPreset.height}mm, ${defaultPreset.printMode === 'thermal2up' ? '2-Up' : defaultPreset.printMode === 'a4' ? 'A4' : '1-Up'})`);
           }
         }
       } catch (error) {
