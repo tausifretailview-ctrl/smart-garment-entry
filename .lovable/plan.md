@@ -1,42 +1,22 @@
 
 
-## Fix: Allow "1" Key Shortcut Except in Supplier Invoice Number Field
+## Fix: Barcode Scan in Size Stock Should Show All Sizes Like Name Search
 
 ### Problem
-Currently the "1" key shortcut to open Add New Product dialog is blocked in ALL input fields. The user wants it to work in all inputs EXCEPT the supplier invoice number field, since that field commonly contains the digit "1".
+When a barcode is scanned in the Size Stock dialog, only the single product record owning that barcode is found. This means if the product has multiple color entries (each a separate `products` row), only one color's stock is shown. In contrast, searching by product name finds ALL matching product records and groups them, showing complete stock across all colors/sizes.
 
-### Solution
-Change the guard logic: instead of blocking the shortcut in any input, only block it when the focused element is the supplier invoice number input. Identify that field by checking if the focused input's value matches `billData.supplier_invoice_no` or by adding a `data-field` attribute to that specific input.
+### Root Cause
+In `SizeStockDialog.tsx` (lines 97-135), the barcode search finds the variant, extracts its parent product, but does NOT search for sibling products sharing the same name+brand. The name search (lines 142-154) does find all of them because it uses `product_name.ilike`.
 
-### Technical Change
+### Fix
+**File: `src/components/SizeStockDialog.tsx`**
 
-**File: `src/pages/PurchaseEntry.tsx`** (lines 1560-1568)
+After the barcode search finds matching products (line 135), add a secondary query to find ALL products with the same `product_name` and `brand` as the barcode-matched products. This ensures that scanning barcode "100001207" for "JEANS-FULL-TEST-6" will also pull in all other color entries of that product, just like a name search would.
 
-Replace the current input-field guard with a targeted check:
+Specifically, after building `barcodeProducts` map:
+1. Extract unique product names from barcode results
+2. Query `products` table for all records matching those names (same org, not deleted)
+3. Add those products to `barcodeProducts` map before merging
 
-```typescript
-// Press "1" key to open Add New Product dialog — block only in supplier invoice field
-if (e.key === "1" && !showProductDialog) {
-  const active = document.activeElement as HTMLInputElement;
-  const isSupplierInvField = active?.getAttribute('data-field') === 'supplier-invoice-no';
-  if (!isSupplierInvField) {
-    e.preventDefault();
-    setShowProductDialog(true);
-  }
-}
-```
-
-Also add `data-field="supplier-invoice-no"` attribute to the supplier invoice number `<Input>` element (line ~2609):
-
-```tsx
-<Input 
-  data-field="supplier-invoice-no"
-  value={billData.supplier_invoice_no} 
-  onChange={(e) => setBillData({ ...billData, supplier_invoice_no: e.target.value })} 
-  placeholder="Inv #" 
-  className="h-9 text-sm rounded-xl" 
-/>
-```
-
-This way, pressing "1" opens the dialog from anywhere (including search bar, other inputs) except the supplier invoice number field.
+This way the barcode scan behaves identically to a name search — the user sees the full size grid across all colors.
 
