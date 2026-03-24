@@ -155,6 +155,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const [brands, setBrands] = useState<string[]>([]);
   const [hsnCodes, setHsnCodes] = useState<string[]>([]);
   const [styles, setStyles] = useState<string[]>([]);
+  const [existingColors, setExistingColors] = useState<string[]>([]);
   
   const [formData, setFormData] = useState<ProductForm>({
     product_type: "goods",
@@ -250,6 +251,17 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       setBrands(uniqueBrands);
       setHsnCodes(uniqueHsnCodes);
       setStyles(uniqueStyles);
+    }
+
+    // Fetch unique colors from product_variants
+    const { data: variantsData, error: variantsError } = await supabase
+      .from("product_variants")
+      .select("color")
+      .eq("organization_id", currentOrganization.id);
+
+    if (!variantsError && variantsData) {
+      const uniqueColors = [...new Set(variantsData.map((v: any) => v.color).filter(Boolean) as string[])].sort();
+      setExistingColors(uniqueColors);
     }
   };
 
@@ -1434,7 +1446,14 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddColor())}
                       placeholder="e.g., Black, White, Red"
                       className="flex-1"
+                      list="color-list"
+                      autoComplete="off"
                     />
+                    <datalist id="color-list">
+                      {existingColors.filter(c => !formData.colors.includes(c)).map((color) => (
+                        <option key={color} value={color} />
+                      ))}
+                    </datalist>
                     <Button type="button" variant="secondary" onClick={handleAddColor}>
                       Add
                     </Button>
