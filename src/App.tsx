@@ -1142,9 +1142,9 @@ const App = () => {
                   path="owner-sales"
                   element={
                     <ProtectedRoute>
-                      <Layout>
-                        <OwnerPlaceholderScreen screen="sales" />
-                      </Layout>
+                      <FullScreenLayout>
+                        <OwnerSalesScreen />
+                      </FullScreenLayout>
                     </ProtectedRoute>
                   }
                 />
