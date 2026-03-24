@@ -1385,7 +1385,7 @@ const PurchaseEntry = () => {
       if (variant.isCustomSize || isNewColorVariant) {
         try {
           // Generate barcode for new variant
-          barcode = await generateCentralizedBarcode();
+          barcode = isAutoBarcode ? await generateCentralizedBarcode() : '';
           
           // Create new product variant
           const { data: newVariant, error: createError } = await supabase
