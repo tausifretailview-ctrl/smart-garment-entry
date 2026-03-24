@@ -1453,6 +1453,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         setFormData({ ...formData, size_group_id: value });
                         const group = sizeGroups.find(g => g.id === value);
                         setSelectedSizes(group ? [...group.sizes] : []);
+                        // Clear variants so useEffect regenerates them for new group
+                        if (hideOpeningQty) {
+                          setVariants([]);
+                          setShowVariants(false);
+                        }
                       }}
                     >
                       <SelectTrigger className="flex-1">
