@@ -2002,7 +2002,8 @@ const PurchaseEntry = () => {
 
         // Check for price changes and show dialog if any
         const priceChanges = await detectPriceChanges(lineItems);
-        if (priceChanges.length > 0) {
+        const hasPriceChanges = priceChanges.length > 0;
+        if (hasPriceChanges) {
           setDetectedPriceChanges(priceChanges);
           setPendingSaveItems([...lineItems]);
           setShowPriceUpdateDialog(true);
@@ -2033,13 +2034,18 @@ const PurchaseEntry = () => {
           })
         );
 
-        // Store items for barcode printing and show dialog (only if barcode prompt is enabled)
+        // Store items for barcode printing
         setSavedPurchaseItems(itemsWithDetails);
         setSavedBillId(billDataResult.id);
         setSavedSupplierId(billData.supplier_id || null);
         setNewlyAddedItems([]); // All items are new for a new bill
         if (enableBarcodePrompt) {
-          setShowPrintDialog(true);
+          if (hasPriceChanges) {
+            // Defer print dialog until price update is handled
+            setPendingPrintAfterPriceUpdate(true);
+          } else {
+            setShowPrintDialog(true);
+          }
         }
 
         // Clear draft after successful save and prevent re-save on cleanup
