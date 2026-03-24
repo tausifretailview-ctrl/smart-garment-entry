@@ -410,6 +410,52 @@ const PurchaseReturnDashboard = () => {
     }
   };
 
+  const handlePdfDownload = async (returnRecord: PurchaseReturn) => {
+    try {
+      let items = returnRecord.items;
+      if (!items || items.length === 0) {
+        items = await fetchReturnItems(returnRecord.id);
+      }
+      if (!items || items.length === 0) {
+        toast({ title: "Error", description: "No items found for this purchase return", variant: "destructive" });
+        return;
+      }
+
+      // Set the print data so the hidden PurchaseReturnPrint renders
+      setReturnToPrint({ ...returnRecord, items });
+
+      // Wait for render
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      if (!printRef.current) {
+        toast({ title: "Error", description: "Failed to render PDF content", variant: "destructive" });
+        return;
+      }
+
+      const canvas = await html2canvas(printRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
+
+      const fileName = `Purchase_Return_${returnRecord.return_number || returnRecord.id}.pdf`;
+      pdf.save(fileName);
+
+      toast({ title: "PDF Downloaded", description: fileName });
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast({ title: "Error", description: "Failed to generate PDF", variant: "destructive" });
+    }
+  };
+
   // Server-side filtering already applied
   const filteredReturns = returns;
   const paginatedReturns = returns; // Already paginated server-side
