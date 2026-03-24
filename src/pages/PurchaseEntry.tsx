@@ -164,6 +164,7 @@ const PurchaseEntry = () => {
   // Price update confirmation state
   const [showPriceUpdateDialog, setShowPriceUpdateDialog] = useState(false);
   const [detectedPriceChanges, setDetectedPriceChanges] = useState<PriceChange[]>([]);
+  const [pendingPrintAfterPriceUpdate, setPendingPrintAfterPriceUpdate] = useState(false);
   
   // State for selective barcode printing
   const [selectedForPrint, setSelectedForPrint] = useState<Set<string>>(new Set());
@@ -1696,12 +1697,22 @@ const PurchaseEntry = () => {
     } finally {
       setShowPriceUpdateDialog(false);
       setDetectedPriceChanges([]);
+      // Show print dialog if it was deferred
+      if (pendingPrintAfterPriceUpdate) {
+        setPendingPrintAfterPriceUpdate(false);
+        setShowPrintDialog(true);
+      }
     }
   };
 
   const handlePriceUpdateSkip = () => {
     setShowPriceUpdateDialog(false);
     setDetectedPriceChanges([]);
+    // Show print dialog if it was deferred
+    if (pendingPrintAfterPriceUpdate) {
+      setPendingPrintAfterPriceUpdate(false);
+      setShowPrintDialog(true);
+    }
   };
 
   const handleSave = async () => {
@@ -1888,49 +1899,15 @@ const PurchaseEntry = () => {
           setDetectedPriceChanges(priceChanges);
           setPendingSaveItems([...lineItems]);
           setShowPriceUpdateDialog(true);
-        }
-
-        toast({
-          title: "Success",
-          description: "Purchase bill updated successfully",
-        });
-
-        // Fetch full product details for barcode printing (all items)
-        const itemsWithDetails = await Promise.all(
-          lineItems.map(async (item) => {
-            const { data: product } = await supabase
-              .from("products")
-              .select("brand, color, style")
-              .eq("id", item.product_id)
-              .single();
-            
-            return {
-              ...item,
-              brand: item.brand || product?.brand || "",
-              color: item.color || product?.color || "",
-              style: item.style || product?.style || "",
-            };
-          })
-        );
-
-        // Store all items and newly added items for print dialog
-        setSavedPurchaseItems(itemsWithDetails);
-        setSavedBillId(editingBillId);
-        setSavedSupplierId(billData.supplier_id || null);
-        
-        // Only set newly added items if there are any
-        if (insertedNewItems.length > 0) {
-          const newItemsWithDetails = itemsWithDetails.filter(item => 
-            insertedNewItems.some(newItem => newItem.temp_id === item.temp_id)
-          );
-          setNewlyAddedItems(newItemsWithDetails);
+          // Defer print dialog until price update is handled
+          if (enableBarcodePrompt) {
+            setPendingPrintAfterPriceUpdate(true);
+          }
         } else {
-          setNewlyAddedItems([]);
-        }
-        
-        // Show print dialog after update (only if barcode prompt is enabled)
-        if (enableBarcodePrompt) {
-          setShowPrintDialog(true);
+          // No price changes — show print dialog immediately
+          if (enableBarcodePrompt) {
+            setShowPrintDialog(true);
+          }
         }
 
         // Clear draft after successful save
@@ -2035,7 +2012,8 @@ const PurchaseEntry = () => {
 
         // Check for price changes and show dialog if any
         const priceChanges = await detectPriceChanges(lineItems);
-        if (priceChanges.length > 0) {
+        const hasPriceChanges = priceChanges.length > 0;
+        if (hasPriceChanges) {
           setDetectedPriceChanges(priceChanges);
           setPendingSaveItems([...lineItems]);
           setShowPriceUpdateDialog(true);
@@ -2066,13 +2044,18 @@ const PurchaseEntry = () => {
           })
         );
 
-        // Store items for barcode printing and show dialog (only if barcode prompt is enabled)
+        // Store items for barcode printing
         setSavedPurchaseItems(itemsWithDetails);
         setSavedBillId(billDataResult.id);
         setSavedSupplierId(billData.supplier_id || null);
         setNewlyAddedItems([]); // All items are new for a new bill
         if (enableBarcodePrompt) {
-          setShowPrintDialog(true);
+          if (hasPriceChanges) {
+            // Defer print dialog until price update is handled
+            setPendingPrintAfterPriceUpdate(true);
+          } else {
+            setShowPrintDialog(true);
+          }
         }
 
         // Clear draft after successful save and prevent re-save on cleanup
