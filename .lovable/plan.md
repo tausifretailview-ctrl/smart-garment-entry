@@ -1,22 +1,30 @@
 
 
-## Fix: Barcode Scan in Size Stock Should Show All Sizes Like Name Search
+## Fix: Precision Pro 38×25 2-Up — Left Label Clipping & Business Name-Barcode Gap
 
-### Problem
-When a barcode is scanned in the Size Stock dialog, only the single product record owning that barcode is found. This means if the product has multiple color entries (each a separate `products` row), only one color's stock is shown. In contrast, searching by product name finds ALL matching product records and groups them, showing complete stock across all colors/sizes.
+### Root Cause Analysis
 
-### Root Cause
-In `SizeStockDialog.tsx` (lines 97-135), the barcode search finds the variant, extracts its parent product, but does NOT search for sibling products sharing the same name+brand. The name search (lines 142-154) does find all of them because it uses `product_name.ilike`.
+**Left label clipping**: In `PrecisionThermalPrint.tsx`, each label cell (line 62) has `overflow: 'hidden'` and `width: labelWidth mm`. Inside, `PrecisionLabelPreview` places content using absolute positioning with `left: 0mm` (from config `x: 0`). At the exact pixel boundary, the first 1-2 characters get clipped because there's zero internal padding. The right label appears fine because flex layout gives it slightly more breathing room.
 
-### Fix
-**File: `src/components/SizeStockDialog.tsx`**
+**Business name-barcode gap**: In `PrecisionLabelPreview.tsx`, the barcode container (line 176-198) is positioned at `top: u(barcodeConfig.y)` with no built-in margin from preceding text fields. Both are absolutely positioned, so there's no natural spacing.
 
-After the barcode search finds matching products (line 135), add a secondary query to find ALL products with the same `product_name` and `brand` as the barcode-matched products. This ensures that scanning barcode "100001207" for "JEANS-FULL-TEST-6" will also pull in all other color entries of that product, just like a name search would.
+### Changes
 
-Specifically, after building `barcodeProducts` map:
-1. Extract unique product names from barcode results
-2. Query `products` table for all records matching those names (same org, not deleted)
-3. Add those products to `barcodeProducts` map before merging
+**1. `src/components/precision-barcode/PrecisionThermalPrint.tsx`** — Add internal padding to label cells
 
-This way the barcode scan behaves identically to a name search — the user sees the full size grid across all colors.
+In the 2-Up row rendering (line 62), add `paddingLeft: '1mm'` and `paddingRight: '0.5mm'` to each label cell. Reduce content area slightly so labels don't overflow the 76.4mm printable zone. Change `overflow: 'hidden'` to `overflow: 'clip'` (same visual effect but more predictable with padding).
+
+**2. `src/components/precision-barcode/PrecisionLabelPreview.tsx`** — Add barcode top margin
+
+In the barcode SVG container (line 176-198), add `marginTop: '1mm'` (or `u(1)` in the unit system) as default spacing above the barcode. This creates breathing room between any text field above (like business name) and the barcode image.
+
+**3. `src/components/precision-barcode/PrecisionPrintCSS.tsx`** — Ensure print CSS doesn't strip padding
+
+The print CSS (line 55-56) forces `padding: 0 !important` on `.precision-print-area > div`. This targets row containers, not individual label cells. But to be safe, add a rule that preserves padding on label cell children: `.precision-print-area > div > div { padding: inherit !important; }`.
+
+### What stays unchanged
+- All label field positions, fonts, data content
+- 1-Up mode, A4 sheet mode
+- Label design config structure
+- PDF export logic
 
