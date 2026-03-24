@@ -121,8 +121,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const autoBarcodePending = useRef(false);
   
-  // Auto-generate barcodes when variants are created with empty barcodes
+  // Auto-generate barcodes when variants are created with empty barcodes (only in auto mode)
   useEffect(() => {
+    if (!isAutoBarcode) return; // Skip auto-generation in scan/manual mode
     if (autoBarcodePending.current && variants.length > 0 && variants.some(v => !v.barcode)) {
       autoBarcodePending.current = false;
       // Trigger auto barcode generation
@@ -140,7 +141,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         }
       })();
     }
-  }, [variants]);
+  }, [variants, isAutoBarcode]);
 
   // Copy from existing product
   const [copySearch, setCopySearch] = useState("");
