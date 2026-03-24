@@ -122,8 +122,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const autoBarcodePending = useRef(false);
   
   // Auto-generate barcodes when variants are created with empty barcodes (only in auto mode)
+  // In purchase context (hideOpeningQty), defer barcode generation to save time — only for sizes with qty > 0
   useEffect(() => {
     if (!isAutoBarcode) return; // Skip auto-generation in scan/manual mode
+    if (hideOpeningQty) return; // In purchase context, barcodes generated at save time
     if (autoBarcodePending.current && variants.length > 0 && variants.some(v => !v.barcode)) {
       autoBarcodePending.current = false;
       // Trigger auto barcode generation
@@ -141,7 +143,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         }
       })();
     }
-  }, [variants, isAutoBarcode]);
+  }, [variants, isAutoBarcode, hideOpeningQty]);
 
   // Copy from existing product
   const [copySearch, setCopySearch] = useState("");
@@ -894,10 +896,21 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
       if (productError) throw productError;
 
-      // Insert variants
+      // Insert variants — in purchase context, only create variants with purchase_qty > 0
       let insertedVariants: any[] = [];
-      if (variants.length > 0) {
-        const variantsToInsert = variants.map((v) => ({
+      let variantsToCreate = hideOpeningQty
+        ? variants.filter((v) => (v.purchase_qty || 0) > 0).map(v => ({ ...v }))
+        : [...variants];
+      if (variantsToCreate.length > 0) {
+        // In purchase context, generate barcodes at save time only for selected sizes
+        if (hideOpeningQty && isAutoBarcode) {
+          for (let i = 0; i < variantsToCreate.length; i++) {
+            if (!variantsToCreate[i].barcode) {
+              variantsToCreate[i] = { ...variantsToCreate[i], barcode: await generateSequentialBarcode() };
+            }
+          }
+        }
+        const variantsToInsert = variantsToCreate.map((v) => ({
           product_id: productData.id,
           organization_id: currentOrganization.id,
           color: v.color || null,
