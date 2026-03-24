@@ -99,7 +99,7 @@ interface ProductEntryDialogProps {
   isDcPurchase?: boolean;
 }
 
-export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideOpeningQty }: ProductEntryDialogProps) => {
+export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideOpeningQty, isDcPurchase }: ProductEntryDialogProps) => {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const [loading, setLoading] = useState(false);
