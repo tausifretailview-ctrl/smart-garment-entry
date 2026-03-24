@@ -231,6 +231,37 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     }
   }, [formData.size_group_id, sizeGroups]);
 
+  // Sync default prices to existing variants when user edits price fields
+  useEffect(() => {
+    if (variants.length > 0 && showVariants) {
+      setVariants(prev => prev.map(v => ({
+        ...v,
+        pur_price: formData.default_pur_price ?? v.pur_price,
+        sale_price: formData.default_sale_price ?? v.sale_price,
+        mrp: formData.default_mrp ?? v.mrp,
+      })));
+    }
+  }, [formData.default_pur_price, formData.default_sale_price, formData.default_mrp]);
+
+  // Recent products state
+  const [recentProducts, setRecentProducts] = useState<any[]>([]);
+
+  // Fetch recent products when dialog opens
+  useEffect(() => {
+    if (open && currentOrganization?.id) {
+      (async () => {
+        const { data } = await supabase
+          .from("products")
+          .select("id, product_name, brand, category, default_sale_price, default_pur_price, size_group_id, size_groups(group_name)")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(10);
+        setRecentProducts(data || []);
+      })();
+    }
+  }, [open, currentOrganization?.id]);
+
   // Fetch unique categories, brands, HSN codes, and styles from existing products
   const fetchPreviousValues = async () => {
     if (!currentOrganization) return;
@@ -1091,6 +1122,28 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                   document.body
                 )}
               </div>
+
+              {/* Recent Products */}
+              {recentProducts.length > 0 && !copySearch && (
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Recent Products</Label>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {recentProducts.slice(0, 8).map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => handleCopyFromProduct(p.id)}
+                        className="flex-shrink-0 px-2.5 py-1.5 rounded-md border border-border bg-muted/30 hover:bg-accent hover:border-primary/30 transition-colors text-left max-w-[160px]"
+                      >
+                        <div className="text-xs font-medium truncate">{p.product_name}</div>
+                        <div className="text-[10px] text-muted-foreground truncate">
+                          {[p.brand, p.default_sale_price ? `₹${p.default_sale_price}` : null].filter(Boolean).join(" · ")}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Product Type — Card Selector */}
               <div className="flex items-center justify-between gap-3">
