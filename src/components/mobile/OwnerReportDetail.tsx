@@ -229,7 +229,7 @@ const DailyPurchaseReport = ({ orgId, start, end }: RProps) => {
     },
   });
 
-  const total = useMemo(() => (data || []).reduce((s, r) => s + (r.grand_total || 0), 0), [data]);
+  const total = useMemo(() => (data || []).reduce((s, r) => s + (r.net_amount || 0), 0), [data]);
 
   if (isLoading) return <LoadingRows />;
   if (!data?.length) return <EmptyState />;
