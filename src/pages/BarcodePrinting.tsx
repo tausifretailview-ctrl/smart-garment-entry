@@ -3603,16 +3603,22 @@ export default function BarcodePrinting() {
       }
       
       // Create PDF - use label dimensions for thermal, A4 for sheets
-      const pdfFormat = isThermal1Up()
-        ? [baseDimensions.width, baseDimensions.height] as [number, number]
-        : isThermal2Up()
-        ? [baseDimensions.width * 2 + baseDimensions.gap, baseDimensions.height] as [number, number]
-        : "a4" as const;
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: pdfFormat,
-      });
+      const is1Up = isThermal1Up();
+      const is2Up = isThermal2Up();
+      const pageWidthMm = is1Up
+        ? baseDimensions.width
+        : is2Up
+        ? baseDimensions.width * 2 + baseDimensions.gap
+        : 210;
+      const pageHeightMm = (is1Up || is2Up)
+        ? baseDimensions.height
+        : 297;
+
+      const pdf = is1Up
+        ? new jsPDF({ orientation: "portrait", unit: "mm", format: [baseDimensions.width, baseDimensions.height] })
+        : is2Up
+        ? new jsPDF({ orientation: "landscape", unit: "mm", format: [baseDimensions.height, baseDimensions.width * 2 + baseDimensions.gap] })
+        : new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
       // Create temporary container for rendering each page
       const tempContainer = document.createElement("div");
@@ -3662,19 +3668,33 @@ export default function BarcodePrinting() {
         // Create grid for this page
         const gridDiv = document.createElement("div");
         gridDiv.className = "label-grid";
-        gridDiv.style.cssText = `
-          display: grid;
-          grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
-          grid-template-rows: repeat(${rowsOnThisPage}, ${dimensions.height}mm);
-          gap: ${dimensions.gap}mm;
-          padding-top: ${topOffset}mm;
-          padding-left: ${leftOffset}mm;
-          padding-bottom: ${bottomOffset}mm;
-          padding-right: ${rightOffset}mm;
-          width: 210mm;
-          height: ${Math.min(actualContentHeight, 297)}mm;
-          overflow: hidden;
-        `;
+        if (is1Up || is2Up) {
+          // Thermal: exact label size grid, no page offsets
+          const thermalCols = is2Up ? 2 : 1;
+          gridDiv.style.cssText = `
+            display: grid;
+            grid-template-columns: repeat(${thermalCols}, ${baseDimensions.width}mm);
+            gap: ${is2Up ? baseDimensions.gap : 0}mm;
+            width: ${pageWidthMm}mm;
+            height: ${pageHeightMm}mm;
+            overflow: hidden;
+            box-sizing: border-box;
+          `;
+        } else {
+          gridDiv.style.cssText = `
+            display: grid;
+            grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
+            grid-template-rows: repeat(${rowsOnThisPage}, ${dimensions.height}mm);
+            gap: ${dimensions.gap}mm;
+            padding-top: ${topOffset}mm;
+            padding-left: ${leftOffset}mm;
+            padding-bottom: ${bottomOffset}mm;
+            padding-right: ${rightOffset}mm;
+            width: 210mm;
+            height: ${Math.min(actualContentHeight, 297)}mm;
+            overflow: hidden;
+          `;
+        }
         
         // Check if using absolute positioning for cell styling
         const useAbsoluteLayout = hasAbsolutePositioning(labelConfig);
@@ -3738,19 +3758,20 @@ export default function BarcodePrinting() {
         await new Promise(resolve => setTimeout(resolve, 100));
 
         // Capture this page with high quality - only capture actual content height
-        const captureHeight = Math.min(actualContentHeight, 297);
+        const captureWidthMm = (is1Up || is2Up) ? pageWidthMm : 210;
+        const captureHeightMm = (is1Up || is2Up) ? pageHeightMm : Math.min(actualContentHeight, 297);
         const canvas = await html2canvas(tempContainer, {
           scale: 3, // Higher scale for better quality
           backgroundColor: "#ffffff",
           logging: false,
           useCORS: true,
           allowTaint: true,
-          width: 210 * 3.78, // Convert mm to pixels (1mm = ~3.78px)
-          height: captureHeight * 3.78,
+          width: captureWidthMm * 3.78, // Convert mm to pixels (1mm = ~3.78px)
+          height: captureHeightMm * 3.78,
         });
 
         const imgData = canvas.toDataURL("image/png");
-        pdf.addImage(imgData, "PNG", 0, 0, 210, captureHeight);
+        pdf.addImage(imgData, "PNG", 0, 0, captureWidthMm, captureHeightMm);
       }
 
       // Clean up
