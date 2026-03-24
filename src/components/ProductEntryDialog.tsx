@@ -695,7 +695,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       }
     }
 
-    autoBarcodePending.current = true;
+    if (isAutoBarcode) autoBarcodePending.current = true;
     setVariants([...variants, ...newVariants]);
     setShowVariants(true);
     setTimeout(() => {
