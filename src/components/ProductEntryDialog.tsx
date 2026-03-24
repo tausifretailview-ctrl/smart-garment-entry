@@ -902,6 +902,14 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         ? variants.filter((v) => (v.purchase_qty || 0) > 0)
         : variants;
       if (variantsToCreate.length > 0) {
+        // In purchase context, generate barcodes at save time only for selected sizes
+        if (hideOpeningQty && isAutoBarcode) {
+          for (let i = 0; i < variantsToCreate.length; i++) {
+            if (!variantsToCreate[i].barcode) {
+              variantsToCreate[i] = { ...variantsToCreate[i], barcode: await generateSequentialBarcode() };
+            }
+          }
+        }
         const variantsToInsert = variantsToCreate.map((v) => ({
           product_id: productData.id,
           organization_id: currentOrganization.id,
