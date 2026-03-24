@@ -1539,10 +1539,19 @@ const PurchaseEntry = () => {
         e.preventDefault();
         handleCopyLastRow();
       }
+      // Press "1" key (not in input/textarea/select) to open Add New Product dialog
+      if (e.key === "1" && !showProductDialog) {
+        const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+        const isEditable = tag === "input" || tag === "textarea" || tag === "select" || (e.target as HTMLElement)?.isContentEditable;
+        if (!isEditable) {
+          e.preventDefault();
+          setShowProductDialog(true);
+        }
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [lineItems]);
+  }, [lineItems, showProductDialog]);
 
   // Function to detect price changes between line items and product_variants
   const detectPriceChanges = async (items: LineItem[]): Promise<PriceChange[]> => {
