@@ -1034,7 +1034,18 @@ const PurchaseEntry = () => {
     setGrossAmount(grossBeforeDiscount);
     setGstAmount(gst);
     setNetAmount(Math.round(netBeforeRoundOff));
-  }, [lineItems, discountAmount, otherCharges]);
+  }, [lineItems, discountAmount, otherCharges, isDcPurchase]);
+
+  // When DC Purchase is toggled ON, zero out GST on all existing line items
+  useEffect(() => {
+    if (isDcPurchase && lineItems.length > 0) {
+      const hasNonZeroGst = lineItems.some(item => item.gst_per > 0);
+      if (hasNonZeroGst) {
+        setLineItems(prev => prev.map(item => ({ ...item, gst_per: 0 })));
+        toast({ title: "DC Purchase", description: "Purchase GST set to 0% for all items (No GST)" });
+      }
+    }
+  }, [isDcPurchase]);
 
   const generateCentralizedBarcode = async (): Promise<string> => {
     try {
