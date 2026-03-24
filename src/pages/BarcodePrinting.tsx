@@ -3668,19 +3668,33 @@ export default function BarcodePrinting() {
         // Create grid for this page
         const gridDiv = document.createElement("div");
         gridDiv.className = "label-grid";
-        gridDiv.style.cssText = `
-          display: grid;
-          grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
-          grid-template-rows: repeat(${rowsOnThisPage}, ${dimensions.height}mm);
-          gap: ${dimensions.gap}mm;
-          padding-top: ${topOffset}mm;
-          padding-left: ${leftOffset}mm;
-          padding-bottom: ${bottomOffset}mm;
-          padding-right: ${rightOffset}mm;
-          width: 210mm;
-          height: ${Math.min(actualContentHeight, 297)}mm;
-          overflow: hidden;
-        `;
+        if (is1Up || is2Up) {
+          // Thermal: exact label size grid, no page offsets
+          const thermalCols = is2Up ? 2 : 1;
+          gridDiv.style.cssText = `
+            display: grid;
+            grid-template-columns: repeat(${thermalCols}, ${baseDimensions.width}mm);
+            gap: ${is2Up ? baseDimensions.gap : 0}mm;
+            width: ${pageWidthMm}mm;
+            height: ${pageHeightMm}mm;
+            overflow: hidden;
+            box-sizing: border-box;
+          `;
+        } else {
+          gridDiv.style.cssText = `
+            display: grid;
+            grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
+            grid-template-rows: repeat(${rowsOnThisPage}, ${dimensions.height}mm);
+            gap: ${dimensions.gap}mm;
+            padding-top: ${topOffset}mm;
+            padding-left: ${leftOffset}mm;
+            padding-bottom: ${bottomOffset}mm;
+            padding-right: ${rightOffset}mm;
+            width: 210mm;
+            height: ${Math.min(actualContentHeight, 297)}mm;
+            overflow: hidden;
+          `;
+        }
         
         // Check if using absolute positioning for cell styling
         const useAbsoluteLayout = hasAbsolutePositioning(labelConfig);
