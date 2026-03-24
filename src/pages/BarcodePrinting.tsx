@@ -3625,10 +3625,17 @@ export default function BarcodePrinting() {
       // Create PDF - use label dimensions for thermal, A4 for sheets
       const is1Up = isThermal1Up();
       const is2Up = isThermal2Up();
+
+      // For 2-Up: force gap=0, labels sit flush side by side on 76mm roll
+      if (is2Up) {
+        baseDimensions.cols = 2;
+        baseDimensions.gap = 0;
+      }
+
       const pageWidthMm = is1Up
         ? baseDimensions.width
         : is2Up
-        ? baseDimensions.width * 2 + baseDimensions.gap
+        ? baseDimensions.width * 2
         : 210;
       const pageHeightMm = (is1Up || is2Up)
         ? baseDimensions.height
@@ -3637,7 +3644,7 @@ export default function BarcodePrinting() {
       const pdf = is1Up
         ? new jsPDF({ orientation: "portrait", unit: "mm", format: [baseDimensions.width, baseDimensions.height] })
         : is2Up
-        ? new jsPDF({ orientation: "landscape", unit: "mm", format: [baseDimensions.height, baseDimensions.width * 2 + baseDimensions.gap] })
+        ? new jsPDF({ orientation: "landscape", unit: "mm", format: [baseDimensions.height, baseDimensions.width * 2] })
         : new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
       // Create temporary container for rendering each page
@@ -3649,7 +3656,7 @@ export default function BarcodePrinting() {
       tempContainer.style.width = isThermal1Up()
         ? `${baseDimensions.width}mm`
         : isThermal2Up()
-        ? `${baseDimensions.width * 2 + baseDimensions.gap}mm`
+        ? `${baseDimensions.width * 2}mm`
         : "210mm";
       document.body.appendChild(tempContainer);
 
