@@ -1087,6 +1087,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         id="category"
                         value={formData.category}
                         onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                        onKeyDown={handleEnterAsTab}
                         placeholder="Category"
                         list="category-list"
                         autoComplete="off"
