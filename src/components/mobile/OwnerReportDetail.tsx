@@ -221,7 +221,7 @@ const DailyPurchaseReport = ({ orgId, start, end }: RProps) => {
     enabled: !!orgId,
     queryFn: async () => {
       const { data: bills } = await supabase.from("purchase_bills")
-        .select("id, software_bill_no, supplier_name, grand_total, bill_date, supplier_invoice_no")
+        .select("id, software_bill_no, supplier_name, net_amount, bill_date, supplier_invoice_no")
         .eq("organization_id", orgId!).is("deleted_at", null)
         .gte("bill_date", start!).lte("bill_date", end + "T23:59:59")
         .order("bill_date", { ascending: false }).limit(500);
