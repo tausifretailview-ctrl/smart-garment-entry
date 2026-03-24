@@ -100,6 +100,7 @@ const MobileReportsHub = lazy(() => import("./pages/mobile/MobileReportsHub"));
 const MobileSalesHub = lazy(() => import("./pages/mobile/MobileSalesHub"));
 const MobileAccountsPage = lazy(() => import("./pages/mobile/MobileAccountsPage"));
 import { OwnerPlaceholderScreen } from "@/components/mobile/OwnerPlaceholderScreen";
+import { OwnerSalesScreen } from "@/components/mobile/OwnerSalesScreen";
 const StudentMaster = lazy(() => import("./pages/school/StudentMaster"));
 const StudentEntry = lazy(() => import("./pages/school/StudentEntry"));
 const AcademicYearSetup = lazy(() => import("./pages/school/AcademicYearSetup"));
