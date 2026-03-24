@@ -3793,7 +3793,7 @@ export default function BarcodePrinting() {
         const captureWidthMm = (is1Up || is2Up) ? pageWidthMm : 210;
         const captureHeightMm = (is1Up || is2Up) ? pageHeightMm : Math.min(actualContentHeight, 297);
         const canvas = await html2canvas(tempContainer, {
-          scale: 3, // Higher scale for better quality
+          scale: (is1Up || is2Up) ? 8 : 3, // Higher scale for thermal labels — crisp barcodes
           backgroundColor: "#ffffff",
           logging: false,
           useCORS: true,
