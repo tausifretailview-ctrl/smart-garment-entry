@@ -45,7 +45,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
     setIsLoading(true);
 
     const startedAt = Date.now();
-    const MAX_WAIT_MS = 8000;
+    const MAX_WAIT_MS = 4000;
     const POLL_MS = 100;
 
     const isContentReady = () => {
