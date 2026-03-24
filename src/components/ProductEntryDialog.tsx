@@ -195,11 +195,38 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     }
   }, [open]);
 
-  // Sync selectedSizes when size_group_id or sizeGroups change (e.g. from defaults/copy)
+  // Sync selectedSizes and auto-generate variants when size_group_id changes
   useEffect(() => {
-    if (formData.size_group_id && sizeGroups.length > 0 && selectedSizes.length === 0) {
+    if (formData.size_group_id && sizeGroups.length > 0) {
       const group = sizeGroups.find(g => g.id === formData.size_group_id);
-      if (group) setSelectedSizes([...group.sizes]);
+      if (group) {
+        if (selectedSizes.length === 0) {
+          setSelectedSizes([...group.sizes]);
+        }
+        // In purchase context: auto-generate variants for qty entry
+        if (hideOpeningQty && variants.length === 0) {
+          const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
+          const newVariants: ProductVariant[] = [];
+          for (const color of colorsToUse) {
+            for (const size of group.sizes) {
+              newVariants.push({
+                color,
+                size,
+                pur_price: formData.default_pur_price ?? 0,
+                sale_price: formData.default_sale_price ?? 0,
+                mrp: formData.default_mrp ?? null,
+                barcode: "",
+                active: true,
+                opening_qty: 0,
+                purchase_qty: 0,
+              });
+            }
+          }
+          autoBarcodePending.current = true;
+          setVariants(newVariants);
+          setShowVariants(true);
+        }
+      }
     }
   }, [formData.size_group_id, sizeGroups]);
 
