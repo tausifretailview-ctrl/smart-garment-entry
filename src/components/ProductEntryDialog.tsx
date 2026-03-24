@@ -539,6 +539,18 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     }
   };
 
+  // When DC Purchase mode is active, default purchase GST to 0% and sale GST to 5%
+  useEffect(() => {
+    if (isDcPurchase && open) {
+      setFormData(prev => ({
+        ...prev,
+        gst_per: 0,
+        purchase_gst_percent: 0,
+        sale_gst_percent: 5,
+      }));
+    }
+  }, [isDcPurchase, open]);
+
   const fetchSizeGroups = async () => {
     if (!currentOrganization) return;
     
