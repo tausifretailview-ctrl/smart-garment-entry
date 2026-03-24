@@ -1153,7 +1153,7 @@ const App = () => {
                   element={
                     <ProtectedRoute>
                       <Layout>
-                        <OwnerPlaceholderScreen screen="purchases" />
+                        <OwnerPurchaseScreen />
                       </Layout>
                     </ProtectedRoute>
                   }
