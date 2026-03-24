@@ -111,7 +111,16 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [creatingSizeGroup, setCreatingSizeGroup] = useState(false);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
+  const autoBarcodePending = useRef(false);
   
+  // Auto-generate barcodes when variants are created with empty barcodes
+  useEffect(() => {
+    if (autoBarcodePending.current && variants.length > 0 && variants.some(v => !v.barcode)) {
+      autoBarcodePending.current = false;
+      handleAutoGenerateBarcodesFromVariants(variants);
+    }
+  }, [variants]);
+
   // Copy from existing product
   const [copySearch, setCopySearch] = useState("");
   const [copyResults, setCopyResults] = useState<any[]>([]);
