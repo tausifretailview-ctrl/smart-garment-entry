@@ -117,7 +117,20 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   useEffect(() => {
     if (autoBarcodePending.current && variants.length > 0 && variants.some(v => !v.barcode)) {
       autoBarcodePending.current = false;
-      handleAutoGenerateBarcodesFromVariants(variants);
+      // Trigger auto barcode generation
+      (async () => {
+        try {
+          const updated = [...variants];
+          for (let i = 0; i < updated.length; i++) {
+            if (!updated[i].barcode) {
+              updated[i] = { ...updated[i], barcode: await generateSequentialBarcode() };
+            }
+          }
+          setVariants(updated);
+        } catch (e) {
+          console.error('Auto barcode generation failed:', e);
+        }
+      })();
     }
   }, [variants]);
 
