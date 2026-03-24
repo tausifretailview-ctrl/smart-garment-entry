@@ -1123,6 +1123,28 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 )}
               </div>
 
+              {/* Recent Products */}
+              {recentProducts.length > 0 && !copySearch && (
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Recent Products</Label>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {recentProducts.slice(0, 8).map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => handleCopyFromProduct(p.id)}
+                        className="flex-shrink-0 px-2.5 py-1.5 rounded-md border border-border bg-muted/30 hover:bg-accent hover:border-primary/30 transition-colors text-left max-w-[160px]"
+                      >
+                        <div className="text-xs font-medium truncate">{p.product_name}</div>
+                        <div className="text-[10px] text-muted-foreground truncate">
+                          {[p.brand, p.default_sale_price ? `₹${p.default_sale_price}` : null].filter(Boolean).join(" · ")}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Product Type — Card Selector */}
               <div className="flex items-center justify-between gap-3">
                 <div className="flex gap-2 flex-1">
