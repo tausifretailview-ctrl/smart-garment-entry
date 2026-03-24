@@ -2605,7 +2605,7 @@ const PurchaseEntry = () => {
               </div>
               <div>
                 <Label className="text-[11px]">Supplier Inv. No.</Label>
-                <Input value={billData.supplier_invoice_no} onChange={(e) => setBillData({ ...billData, supplier_invoice_no: e.target.value })} placeholder="Inv #" className="h-9 text-sm rounded-xl" />
+                <Input data-field="supplier-invoice-no" value={billData.supplier_invoice_no} onChange={(e) => setBillData({ ...billData, supplier_invoice_no: e.target.value })} placeholder="Inv #" className="h-9 text-sm rounded-xl" />
               </div>
             </div>
           </div>
