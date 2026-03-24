@@ -1302,6 +1302,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       id="default_mrp"
                       value={formData.default_mrp ?? ""}
                       onChange={(val) => setFormData({ ...formData, default_mrp: val || undefined })}
+                      onKeyDown={handleEnterAsTab}
                       placeholder="MRP"
                     />
                   </div>
