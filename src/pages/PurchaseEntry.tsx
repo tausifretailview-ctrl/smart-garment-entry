@@ -1557,14 +1557,16 @@ const PurchaseEntry = () => {
         e.preventDefault();
         handleCopyLastRow();
       }
-      // Press "1" key to open Add New Product dialog — block only in supplier invoice field
+      // Press "1" key to open Add New Product dialog — skip when typing in any input field
       if (e.key === "1" && !showProductDialog) {
         const active = document.activeElement as HTMLElement;
-        const isSupplierInvField = active?.getAttribute('data-field') === 'supplier-invoice-no';
-        if (!isSupplierInvField) {
-          e.preventDefault();
-          setShowProductDialog(true);
+        const tag = active?.tagName?.toLowerCase();
+        const isEditable = active?.isContentEditable;
+        if (tag === "input" || tag === "textarea" || tag === "select" || isEditable) {
+          return; // Allow normal typing
         }
+        e.preventDefault();
+        setShowProductDialog(true);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
