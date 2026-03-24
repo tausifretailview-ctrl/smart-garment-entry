@@ -933,7 +933,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               (window as any).__productDialogViewport = viewport;
             }
           }}>
-            <div className="space-y-6 py-4">
+            <div className="space-y-6 py-4" data-product-form>
               {/* Copy from Existing Product */}
               <div className="space-y-2">
                 <Label className="flex items-center gap-1 text-muted-foreground">
