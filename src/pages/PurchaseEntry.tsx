@@ -164,6 +164,7 @@ const PurchaseEntry = () => {
   // Price update confirmation state
   const [showPriceUpdateDialog, setShowPriceUpdateDialog] = useState(false);
   const [detectedPriceChanges, setDetectedPriceChanges] = useState<PriceChange[]>([]);
+  const [pendingPrintAfterPriceUpdate, setPendingPrintAfterPriceUpdate] = useState(false);
   
   // State for selective barcode printing
   const [selectedForPrint, setSelectedForPrint] = useState<Set<string>>(new Set());
