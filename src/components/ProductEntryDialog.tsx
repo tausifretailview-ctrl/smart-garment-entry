@@ -201,7 +201,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     }
   }, [open]);
 
-  // Sync selectedSizes and auto-generate variants when size_group_id changes
+  // Sync selectedSizes and auto-generate variants when size_group_id or colors change
   useEffect(() => {
     if (formData.size_group_id && sizeGroups.length > 0) {
       const group = sizeGroups.find(g => g.id === formData.size_group_id);
@@ -210,11 +210,19 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           setSelectedSizes([...group.sizes]);
         }
         // In purchase context: auto-generate variants for qty entry
-        if (hideOpeningQty && variants.length === 0) {
+        if (hideOpeningQty) {
           const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
+          // Build a map of existing qty values to preserve them
+          const existingQtyMap = new Map<string, number>();
+          variants.forEach(v => {
+            if ((v.purchase_qty || 0) > 0) {
+              existingQtyMap.set(`${v.color}||${v.size}`, v.purchase_qty || 0);
+            }
+          });
           const newVariants: ProductVariant[] = [];
           for (const color of colorsToUse) {
             for (const size of group.sizes) {
+              const key = `${color}||${size}`;
               newVariants.push({
                 color,
                 size,
@@ -224,7 +232,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 barcode: "",
                 active: true,
                 opening_qty: 0,
-                purchase_qty: 0,
+                purchase_qty: existingQtyMap.get(key) || 0,
               });
             }
           }
@@ -234,7 +242,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         }
       }
     }
-  }, [formData.size_group_id, sizeGroups]);
+  }, [formData.size_group_id, sizeGroups, formData.colors]);
 
   // Sync default prices to existing variants when user edits price fields
   useEffect(() => {
@@ -1599,10 +1607,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     if (!group || group.sizes.length === 0) return null;
                     const allSelected = selectedSizes.length === group.sizes.length;
 
-                    // Purchase context: show qty inputs per size
+                    // Purchase context: show qty inputs per size (or color×size matrix)
                     if (hideOpeningQty) {
                       const totalQty = variants.reduce((sum, v) => sum + (v.purchase_qty || 0), 0);
                       const activeSizeCount = variants.filter(v => (v.purchase_qty || 0) > 0).length;
+                      const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
+                      const isMultiColor = colorsToUse.length > 1;
+
                       return (
                         <div className="space-y-2 mt-2">
                           <div className="flex items-center justify-between">
@@ -1613,61 +1624,160 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                               Total: {totalQty} pcs · {activeSizeCount} sizes
                             </span>
                           </div>
-                          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5 p-3 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20">
-                            {group.sizes.map((size, sIdx) => {
-                              const variant = variants.find(v => v.size === size && v.color === (formData.colors[0] || ""));
-                              const qty = variant?.purchase_qty || 0;
-                              return (
-                                <div
-                                  key={size}
-                                  className={cn(
-                                    "flex flex-col items-center gap-1 p-1.5 rounded-md border transition-colors",
-                                    qty > 0
-                                      ? "bg-emerald-50 border-emerald-300 dark:bg-emerald-950/30 dark:border-emerald-700"
-                                      : "bg-card border-border"
-                                  )}
-                                >
-                                  <span className={cn(
-                                    "text-xs font-bold",
-                                    qty > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"
-                                  )}>
-                                    {size}
+
+                          {isMultiColor ? (
+                            /* ── Color × Size Matrix ── */
+                            <div className="overflow-x-auto p-2 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20">
+                              <table className="w-full border-collapse">
+                                <thead>
+                                  <tr>
+                                    <th className="text-xs font-bold text-foreground px-1.5 py-1 text-left sticky left-0 bg-muted/30 z-10 min-w-[70px]">Color</th>
+                                    {group.sizes.map(size => (
+                                      <th key={size} className="text-xs font-bold text-muted-foreground px-1 py-1 text-center min-w-[52px]">{size}</th>
+                                    ))}
+                                    <th className="text-xs font-bold text-primary px-1.5 py-1 text-center min-w-[44px]">Total</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {colorsToUse.map((color, cIdx) => {
+                                    const colorTotal = variants
+                                      .filter(v => v.color === color)
+                                      .reduce((sum, v) => sum + (v.purchase_qty || 0), 0);
+                                    return (
+                                      <tr key={color} className={cIdx % 2 === 1 ? "bg-muted/40" : ""}>
+                                        <td className="text-xs font-bold text-foreground px-1.5 py-1 sticky left-0 z-10" style={{ backgroundColor: cIdx % 2 === 1 ? 'hsl(var(--muted) / 0.4)' : 'hsl(var(--muted) / 0.3)' }}>
+                                          {color}
+                                        </td>
+                                        {group.sizes.map((size, sIdx) => {
+                                          const variant = variants.find(v => v.size === size && v.color === color);
+                                          const qty = variant?.purchase_qty || 0;
+                                          return (
+                                            <td key={size} className="px-0.5 py-0.5 text-center">
+                                              <Input
+                                                type="number"
+                                                min="0"
+                                                value={qty === 0 ? '' : qty}
+                                                placeholder="0"
+                                                onChange={(e) => {
+                                                  const val = parseInt(e.target.value) || 0;
+                                                  setVariants(prev => prev.map(v =>
+                                                    v.size === size && v.color === color
+                                                      ? { ...v, purchase_qty: val }
+                                                      : v
+                                                  ));
+                                                }}
+                                                onFocus={(e) => e.target.select()}
+                                                onKeyDown={(e) => {
+                                                  if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
+                                                    e.preventDefault();
+                                                    const nextSize = group.sizes[sIdx + 1];
+                                                    if (nextSize) {
+                                                      document.getElementById(`size-qty-${color}-${nextSize}`)?.focus();
+                                                    } else {
+                                                      // Move to next color's first size
+                                                      const nextColor = colorsToUse[cIdx + 1];
+                                                      if (nextColor) {
+                                                        document.getElementById(`size-qty-${nextColor}-${group.sizes[0]}`)?.focus();
+                                                      } else {
+                                                        document.getElementById('btn-add-all-sizes')?.focus();
+                                                      }
+                                                    }
+                                                  }
+                                                }}
+                                                id={`size-qty-${color}-${size}`}
+                                                className={cn(
+                                                  "h-7 w-14 text-center text-sm font-semibold p-0.5 no-uppercase",
+                                                  qty > 0 && "border-emerald-400 text-emerald-800"
+                                                )}
+                                              />
+                                            </td>
+                                          );
+                                        })}
+                                        <td className="text-xs font-bold text-primary px-1.5 py-1 text-center">
+                                          {colorTotal > 0 ? colorTotal : ''}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                              {/* Per-color totals summary */}
+                              {totalQty > 0 && (
+                                <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t border-muted-foreground/10">
+                                  {colorsToUse.map(color => {
+                                    const ct = variants.filter(v => v.color === color).reduce((s, v) => s + (v.purchase_qty || 0), 0);
+                                    if (ct === 0) return null;
+                                    return (
+                                      <span key={color} className="text-xs font-medium text-muted-foreground">
+                                        {color}: <span className="font-bold text-foreground">{ct}</span>
+                                      </span>
+                                    );
+                                  })}
+                                  <span className="text-xs font-bold text-primary ml-auto">
+                                    Grand Total: {totalQty}
                                   </span>
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    value={qty === 0 ? '' : qty}
-                                    placeholder="0"
-                                    onChange={(e) => {
-                                      const val = parseInt(e.target.value) || 0;
-                                      setVariants(prev => prev.map(v =>
-                                        v.size === size && v.color === (formData.colors[0] || "")
-                                          ? { ...v, purchase_qty: val }
-                                          : v
-                                      ));
-                                    }}
-                                    onFocus={(e) => e.target.select()}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
-                                        e.preventDefault();
-                                        const nextSize = group.sizes[sIdx + 1];
-                                        if (nextSize) {
-                                          document.getElementById(`size-qty-${nextSize}`)?.focus();
-                                        } else {
-                                          document.getElementById('btn-add-all-sizes')?.focus();
-                                        }
-                                      }
-                                    }}
-                                    id={`size-qty-${size}`}
-                                    className={cn(
-                                      "h-7 w-14 text-center text-sm font-semibold p-0.5 no-uppercase",
-                                      qty > 0 && "border-emerald-400 text-emerald-800"
-                                    )}
-                                  />
                                 </div>
-                              );
-                            })}
-                          </div>
+                              )}
+                            </div>
+                          ) : (
+                            /* ── Single color / no color: original single-row grid ── */
+                            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5 p-3 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20">
+                              {group.sizes.map((size, sIdx) => {
+                                const variant = variants.find(v => v.size === size && v.color === (formData.colors[0] || ""));
+                                const qty = variant?.purchase_qty || 0;
+                                return (
+                                  <div
+                                    key={size}
+                                    className={cn(
+                                      "flex flex-col items-center gap-1 p-1.5 rounded-md border transition-colors",
+                                      qty > 0
+                                        ? "bg-emerald-50 border-emerald-300 dark:bg-emerald-950/30 dark:border-emerald-700"
+                                        : "bg-card border-border"
+                                    )}
+                                  >
+                                    <span className={cn(
+                                      "text-xs font-bold",
+                                      qty > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"
+                                    )}>
+                                      {size}
+                                    </span>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      value={qty === 0 ? '' : qty}
+                                      placeholder="0"
+                                      onChange={(e) => {
+                                        const val = parseInt(e.target.value) || 0;
+                                        setVariants(prev => prev.map(v =>
+                                          v.size === size && v.color === (formData.colors[0] || "")
+                                            ? { ...v, purchase_qty: val }
+                                            : v
+                                        ));
+                                      }}
+                                      onFocus={(e) => e.target.select()}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
+                                          e.preventDefault();
+                                          const nextSize = group.sizes[sIdx + 1];
+                                          if (nextSize) {
+                                            document.getElementById(`size-qty-${nextSize}`)?.focus();
+                                          } else {
+                                            document.getElementById('btn-add-all-sizes')?.focus();
+                                          }
+                                        }
+                                      }}
+                                      id={`size-qty-${size}`}
+                                      className={cn(
+                                        "h-7 w-14 text-center text-sm font-semibold p-0.5 no-uppercase",
+                                        qty > 0 && "border-emerald-400 text-emerald-800"
+                                      )}
+                                    />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
                           {/* Active sizes preview */}
                           {activeSizeCount > 0 && (
                             <div className="flex flex-wrap gap-1.5 mt-1">
@@ -1676,7 +1786,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                   key={`${v.color}-${v.size}`}
                                   className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded-full"
                                 >
-                                  {v.size} × {v.purchase_qty}
+                                  {v.color ? `${v.color}-` : ''}{v.size} × {v.purchase_qty}
                                 </span>
                               ))}
                             </div>
