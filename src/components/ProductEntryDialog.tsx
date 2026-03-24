@@ -86,8 +86,13 @@ interface ProductEntryDialogProps {
     brand: string | null;
     category: string | null;
     gst_per: number;
+    purchase_gst_percent?: number;
+    sale_gst_percent?: number;
     hsn_code: string | null;
     color: string | null;
+    style?: string | null;
+    purchase_discount_type?: string | null;
+    purchase_discount_value?: number | null;
     variants: any[];
   }) => void;
   hideOpeningQty?: boolean;
