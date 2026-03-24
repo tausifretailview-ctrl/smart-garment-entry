@@ -252,6 +252,17 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       setHsnCodes(uniqueHsnCodes);
       setStyles(uniqueStyles);
     }
+
+    // Fetch unique colors from product_variants
+    const { data: variantsData, error: variantsError } = await supabase
+      .from("product_variants")
+      .select("color")
+      .eq("organization_id", currentOrganization.id);
+
+    if (!variantsError && variantsData) {
+      const uniqueColors = [...new Set(variantsData.map((v: any) => v.color).filter(Boolean) as string[])].sort();
+      setExistingColors(uniqueColors);
+    }
   };
 
   const LAST_PRODUCT_KEY = `last_product_details_${currentOrganization?.id || ''}`;
