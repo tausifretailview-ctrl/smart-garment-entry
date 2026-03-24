@@ -812,6 +812,15 @@ const PurchaseReturnDashboard = () => {
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7"
+                              onClick={() => handlePdfDownload(returnRecord)}
+                              title="Download PDF"
+                            >
+                              <Download className="h-3.5 w-3.5 text-orange-600" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
                               onClick={() => toggleExpanded(returnRecord.id)}
                               title={expandedReturns.has(returnRecord.id) ? "Collapse" : "Expand"}
                             >
