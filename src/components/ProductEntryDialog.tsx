@@ -1446,7 +1446,14 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddColor())}
                       placeholder="e.g., Black, White, Red"
                       className="flex-1"
+                      list="color-list"
+                      autoComplete="off"
                     />
+                    <datalist id="color-list">
+                      {existingColors.filter(c => !formData.colors.includes(c)).map((color) => (
+                        <option key={color} value={color} />
+                      ))}
+                    </datalist>
                     <Button type="button" variant="secondary" onClick={handleAddColor}>
                       Add
                     </Button>
