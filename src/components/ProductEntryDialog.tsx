@@ -894,10 +894,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
       if (productError) throw productError;
 
-      // Insert variants
+      // Insert variants — in purchase context, only create variants with purchase_qty > 0
       let insertedVariants: any[] = [];
-      if (variants.length > 0) {
-        const variantsToInsert = variants.map((v) => ({
+      const variantsToCreate = hideOpeningQty
+        ? variants.filter((v) => (v.purchase_qty || 0) > 0)
+        : variants;
+      if (variantsToCreate.length > 0) {
+        const variantsToInsert = variantsToCreate.map((v) => ({
           product_id: productData.id,
           organization_id: currentOrganization.id,
           color: v.color || null,
