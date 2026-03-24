@@ -3516,19 +3516,21 @@ export default function BarcodePrinting() {
           container.appendChild(wrapper);
 
           const root = createRoot(wrapper);
+          // For PDF: do NOT apply xOffset/yOffset — those are for browser print calibration only
+          // PDF placement is handled by addImage coordinates
           root.render(createElement(PrecisionLabelPreview, {
             item,
             width: labelWidth,
             height: labelHeight,
-            xOffset,
-            yOffset,
+            xOffset: 0,
+            yOffset: 0,
             config: labelConfig || undefined,
           }));
 
-          await new Promise(resolve => setTimeout(resolve, 150));
+          await new Promise(resolve => setTimeout(resolve, 200));
 
           const canvas = await html2canvas(wrapper, {
-            scale: 4,
+            scale: 8,  // High DPI for crisp, scannable barcodes
             backgroundColor: "#ffffff",
             logging: false,
             useCORS: true,
