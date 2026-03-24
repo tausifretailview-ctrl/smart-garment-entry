@@ -187,41 +187,43 @@ export const OwnerDashboard = () => {
     queryKey: ["owner-recent-activity", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization) return [];
-      const [{ data: sales }, { data: purchases }, { data: payments }] = await Promise.all([
+      const [{ data: sales }, { data: purchases }, { data: vouchers }] = await Promise.all([
         supabase
           .from("sales")
-          .select("id, bill_number, net_amount, created_at, customer_name")
+          .select("id, sale_number, net_amount, created_at, customer_name")
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
           .order("created_at", { ascending: false })
           .limit(5),
         supabase
           .from("purchase_bills")
-          .select("id, bill_number, net_amount, created_at, supplier_name")
+          .select("id, software_bill_no, net_amount, created_at, supplier_name")
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
           .order("created_at", { ascending: false })
           .limit(5),
         supabase
-          .from("customer_payments")
-          .select("id, amount, created_at, customer_name, payment_method")
+          .from("voucher_entries")
+          .select("id, voucher_number, total_amount, created_at, voucher_type, description")
           .eq("organization_id", currentOrganization.id)
+          .eq("voucher_type", "receipt")
+          .is("deleted_at", null)
           .order("created_at", { ascending: false })
           .limit(5),
       ]);
 
       const items = [
         ...(sales || []).map((s) => ({
-          id: s.id, type: "sale" as const, desc: `Sale ${s.bill_number} — ${s.customer_name || "Walk-in"}`,
+          id: s.id, type: "sale" as const, desc: `Sale ${s.sale_number} — ${s.customer_name || "Walk-in"}`,
           amount: s.net_amount || 0, time: s.created_at,
         })),
         ...(purchases || []).map((p) => ({
-          id: p.id, type: "purchase" as const, desc: `Purchase ${p.bill_number} — ${p.supplier_name || ""}`,
+          id: p.id, type: "purchase" as const, desc: `Purchase ${p.software_bill_no || ""} — ${p.supplier_name || ""}`,
           amount: Number(p.net_amount) || 0, time: p.created_at,
         })),
-        ...(payments || []).map((p) => ({
-          id: p.id, type: "payment" as const, desc: `Payment — ${p.customer_name || "Unknown"} (${p.payment_method || "cash"})`,
-          amount: Number(p.amount) || 0, time: p.created_at,
+        ...(vouchers || []).map((v) => ({
+          id: v.id, type: "payment" as const, desc: `Receipt ${v.voucher_number} — ${v.description || ""}`,
+          amount: Number(v.total_amount) || 0, time: v.created_at,
         })),
       ];
       items.sort((a, b) => new Date(b.time!).getTime() - new Date(a.time!).getTime());
