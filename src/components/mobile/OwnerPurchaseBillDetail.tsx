@@ -130,9 +130,9 @@ export const OwnerPurchaseBillDetail = ({ billId, onBack }: Props) => {
                   <span className="text-xs text-muted-foreground">Supplier Inv: {bill.supplier_invoice_no}</span>
                 </div>
               )}
-              {bill.supplier_code && (
+              {bill.supplier_id && (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Supplier Code: {bill.supplier_code}</span>
+                  <span className="text-xs text-muted-foreground">Supplier ID: {bill.supplier_id}</span>
                 </div>
               )}
             </div>
