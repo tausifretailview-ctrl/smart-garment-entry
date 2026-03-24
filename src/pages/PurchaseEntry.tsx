@@ -863,48 +863,97 @@ const PurchaseEntry = () => {
     setShowProductDialog(true);
   };
 
-  // Handle product created from dialog - auto open size grid
+  // Handle product created from dialog - auto-add items with qty to bill
   const handleProductCreated = async (product: {
     id: string;
     product_name: string;
     brand: string | null;
     category: string | null;
     gst_per: number;
+    purchase_gst_percent?: number;
+    sale_gst_percent?: number;
     hsn_code: string | null;
     color: string | null;
+    style?: string | null;
+    purchase_discount_type?: string | null;
+    purchase_discount_value?: number | null;
     variants: any[];
   }) => {
     if (product.variants && product.variants.length > 0) {
-      // Map variants for SizeGridDialog
-      const mappedVariants = product.variants.map((v: any) => ({
-        id: v.id,
-        size: v.size,
-        sale_price: v.sale_price,
-        pur_price: v.pur_price,
-        mrp: v.mrp || v.sale_price || 0,
-        barcode: v.barcode,
-        color: v.color || product.color || "",
-        stock_qty: v.stock_qty || 0,
-      }));
+      // Check if any variant has purchase_qty > 0 (size-wise qty was entered)
+      const variantsWithQty = product.variants.filter((v: any) => (v.purchase_qty || 0) > 0);
 
-      // Set up and open the size grid
-      setSelectedProduct({
-        id: product.id,
-        product_name: product.product_name,
-        brand: product.brand,
-        category: product.category,
-        gst_per: product.gst_per,
-        hsn_code: product.hsn_code,
-        color: product.color,
-      });
-      setSizeGridVariants(mappedVariants);
-      setSizeQty({});
-      setShowSizeGrid(true);
+      if (variantsWithQty.length > 0) {
+        // Auto-add all sizes with qty directly to bill
+        let addedCount = 0;
+        for (const variant of variantsWithQty) {
+          const discountPercent = (() => {
+            const pdt = product.purchase_discount_type;
+            const pdv = product.purchase_discount_value || 0;
+            if (pdv > 0 && (!pdt || pdt === 'percent')) return pdv;
+            return 0;
+          })();
 
-      toast({
-        title: "Product Created",
-        description: `${product.product_name} created. Enter quantities in the size grid.`,
-      });
+          addItemRow({
+            product_name: product.product_name,
+            product_id: product.id,
+            sku_id: variant.id,
+            size: variant.size,
+            qty: variant.purchase_qty,
+            pur_price: variant.pur_price || 0,
+            sale_price: variant.sale_price || 0,
+            mrp: variant.mrp || variant.sale_price || 0,
+            gst_per: product.purchase_gst_percent || product.gst_per || 0,
+            hsn_code: product.hsn_code || "",
+            barcode: variant.barcode || "",
+            discount_percent: discountPercent,
+            brand: product.brand || "",
+            category: product.category || "",
+            color: variant.color || product.color || "",
+            style: product.style || "",
+          });
+          addedCount++;
+        }
+
+        const totalQty = variantsWithQty.reduce((s: number, v: any) => s + (v.purchase_qty || 0), 0);
+        toast({
+          title: "Product Added to Bill",
+          description: `${product.product_name}: ${addedCount} sizes, ${totalQty} pcs added`,
+        });
+
+        // Focus search for next product
+        setTimeout(() => inlineSearchInputRef.current?.focus(), 100);
+      } else {
+        // No qty entered — fallback to size grid
+        const mappedVariants = product.variants.map((v: any) => ({
+          id: v.id,
+          size: v.size,
+          sale_price: v.sale_price,
+          pur_price: v.pur_price,
+          mrp: v.mrp || v.sale_price || 0,
+          barcode: v.barcode,
+          color: v.color || product.color || "",
+          stock_qty: v.stock_qty || 0,
+        }));
+
+        setSelectedProduct({
+          id: product.id,
+          product_name: product.product_name,
+          brand: product.brand,
+          category: product.category,
+          gst_per: product.gst_per,
+          hsn_code: product.hsn_code,
+          color: product.color,
+        });
+        setSizeGridVariants(mappedVariants);
+        setSizeQty({});
+        setShowSizeGrid(true);
+
+        toast({
+          title: "Product Created",
+          description: `${product.product_name} created. Enter quantities in the size grid.`,
+        });
+      }
     } else {
       toast({
         title: "Product Created",

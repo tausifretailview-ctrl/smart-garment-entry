@@ -1747,10 +1747,26 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           </ScrollArea>
 
           <DialogFooter className="px-6 py-4 mt-4 border-t bg-muted/20">
+            {hideOpeningQty && (
+              <span className="text-sm text-muted-foreground mr-auto">
+                {(() => {
+                  const totalQty = variants.reduce((s, v) => s + (v.purchase_qty || 0), 0);
+                  const activeCount = variants.filter(v => (v.purchase_qty || 0) > 0).length;
+                  return totalQty > 0
+                    ? `${activeCount} sizes · ${totalQty} pcs`
+                    : 'Enter qty per size above';
+                })()}
+              </span>
+            )}
             <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading} className="font-outfit font-semibold">
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={loading} className="gap-1.5 min-w-[140px] font-outfit font-semibold shadow-md hover:shadow-lg transition-all bg-emerald-600 hover:bg-emerald-700 text-white">
+            <Button
+              id="btn-add-all-sizes"
+              onClick={handleSave}
+              disabled={loading}
+              className="gap-1.5 min-w-[140px] font-outfit font-semibold shadow-md hover:shadow-lg transition-all bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-1 animate-spin" />
@@ -1758,7 +1774,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </>
               ) : (
                 <>
-                  ➕ Add to Bill
+                  ➕ {hideOpeningQty
+                    ? `Add ${variants.filter(v => (v.purchase_qty || 0) > 0).length || ''} Sizes to Bill`
+                    : 'Add to Bill'
+                  }
                 </>
               )}
             </Button>
