@@ -4536,23 +4536,6 @@ export default function POSSales() {
           />
         )}
 
-        {/* Keyboard Shortcut Hints Bar - Desktop only */}
-        <div className="hidden md:flex fixed bottom-0 left-[72px] right-0 h-7 bg-slate-800 dark:bg-slate-950 text-slate-400 text-[11px] items-center justify-center gap-5 z-40 border-t border-slate-700/50 select-none font-medium">
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">F1</kbd> Cash</span>
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">F2</kbd> UPI</span>
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">F3</kbd> Card</span>
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">F4</kbd> Credit</span>
-          <span className="text-slate-500">│</span>
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">F5</kbd> Return</span>
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">F6</kbd> Mix Pay</span>
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">F7</kbd> Hold</span>
-          <span className="text-slate-500">│</span>
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">F8</kbd> Report</span>
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">F9</kbd> Estimate</span>
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">Esc</kbd> Clear</span>
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">Ctrl+P</kbd> Print</span>
-        </div>
-
       </div>
 
       {/* DC Sale Transfer Dialog */}
