@@ -603,6 +603,7 @@ const PurchaseEntry = () => {
           setRoundOff(Number(existingBill.round_off) || 0);
           setOtherCharges(Number(existingBill.other_charges) || 0);
           setDiscountAmount(Number(existingBill.discount_amount) || 0);
+          setIsDcPurchase(existingBill.is_dc_purchase === true);
           
           // Load bill items - get product details from purchase_items (denormalized data)
           const { data: itemsData, error: itemsError } = await supabase
