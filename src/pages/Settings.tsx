@@ -1355,6 +1355,159 @@ export default function Settings() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Mobile ERP / IMEI Tracking Mode */}
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Smartphone className="h-5 w-5" />
+                  Mobile ERP Mode
+                </CardTitle>
+                <CardDescription>
+                  Enable IMEI tracking for mobile/electronics shops. Each unit gets a unique IMEI number for full traceability.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+                  <div>
+                    <Label className="text-base font-semibold">Enable Mobile ERP Mode</Label>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Activates IMEI tracking, locked size/qty, and financer billing across purchase & sales
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.product_settings?.mobile_erp?.enabled || false}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        product_settings: {
+                          ...settings.product_settings,
+                          mobile_erp: {
+                            ...settings.product_settings?.mobile_erp,
+                            enabled: checked,
+                          },
+                        },
+                      })
+                    }
+                  />
+                </div>
+
+                {settings.product_settings?.mobile_erp?.enabled && (
+                  <div className="space-y-3 pl-4 border-l-2 border-primary/30">
+                    <div className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <Label className="font-medium">IMEI Scan Enforcement</Label>
+                        <p className="text-xs text-muted-foreground">Require scanning IMEI — block manual entry without scan</p>
+                      </div>
+                      <Switch
+                        checked={settings.product_settings?.mobile_erp?.imei_scan_enforcement ?? true}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            product_settings: {
+                              ...settings.product_settings,
+                              mobile_erp: {
+                                ...settings.product_settings?.mobile_erp,
+                                imei_scan_enforcement: checked,
+                              },
+                            },
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <Label className="font-medium">Locked Size & Qty</Label>
+                        <p className="text-xs text-muted-foreground">Size fixed to "Free", Qty fixed to 1 per IMEI</p>
+                      </div>
+                      <Switch
+                        checked={settings.product_settings?.mobile_erp?.locked_size_qty ?? true}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            product_settings: {
+                              ...settings.product_settings,
+                              mobile_erp: {
+                                ...settings.product_settings?.mobile_erp,
+                                locked_size_qty: checked,
+                              },
+                            },
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <Label className="font-medium">Financer Billing</Label>
+                        <p className="text-xs text-muted-foreground">Add EMI/Loan details (Bajaj, IDFC, TVS Credit, etc.) to sale bills</p>
+                      </div>
+                      <Switch
+                        checked={settings.product_settings?.mobile_erp?.financer_billing ?? true}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            product_settings: {
+                              ...settings.product_settings,
+                              mobile_erp: {
+                                ...settings.product_settings?.mobile_erp,
+                                financer_billing: checked,
+                              },
+                            },
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 p-3 border rounded-lg">
+                      <div className="space-y-1">
+                        <Label className="text-sm">IMEI Min Length</Label>
+                        <Input
+                          type="number"
+                          min="10"
+                          max="20"
+                          value={settings.product_settings?.mobile_erp?.imei_min_length ?? 15}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              product_settings: {
+                                ...settings.product_settings,
+                                mobile_erp: {
+                                  ...settings.product_settings?.mobile_erp,
+                                  imei_min_length: parseInt(e.target.value) || 15,
+                                },
+                              },
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-sm">IMEI Max Length</Label>
+                        <Input
+                          type="number"
+                          min="10"
+                          max="25"
+                          value={settings.product_settings?.mobile_erp?.imei_max_length ?? 19}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              product_settings: {
+                                ...settings.product_settings,
+                                mobile_erp: {
+                                  ...settings.product_settings?.mobile_erp,
+                                  imei_max_length: parseInt(e.target.value) || 19,
+                                },
+                              },
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
             
             <SizeGroupManagement />
           </TabsContent>
