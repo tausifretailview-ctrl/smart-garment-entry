@@ -61,11 +61,21 @@ interface BarcodeTemplate {
   };
 }
 
+interface MobileERPConfig {
+  enabled?: boolean;
+  imei_scan_enforcement?: boolean;
+  locked_size_qty?: boolean;
+  financer_billing?: boolean;
+  imei_min_length?: number;
+  imei_max_length?: number;
+}
+
 interface ProductSettings {
   default_margin?: number;
   low_stock_threshold?: number;
   sku_format?: string;
   default_size_group?: string;
+  mobile_erp?: MobileERPConfig;
   fields?: {
     category?: FieldConfig;
     brand?: FieldConfig;
