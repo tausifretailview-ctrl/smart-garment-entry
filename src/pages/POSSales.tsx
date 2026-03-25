@@ -3429,7 +3429,7 @@ export default function POSSales() {
                         onClick={handlePreviousInvoice}
                         variant="outline"
                         size="sm"
-                        className="h-12"
+                        className="h-10"
                         disabled={!todaysSales || todaysSales.length === 0 || currentInvoiceIndex >= todaysSales.length - 1}
                       >
                         <ChevronLeft className="h-4 w-4 mr-1" />
