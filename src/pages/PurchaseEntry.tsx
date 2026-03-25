@@ -3172,7 +3172,7 @@ const PurchaseEntry = () => {
                         </TableCell>
                         <TableCell className="w-[50px] text-sm">{item.size || "—"}</TableCell>
                         <TableCell className="w-[120px]">
-                          <Badge variant="outline" className="font-mono text-xs">
+                          <Badge variant="outline" className={cn("text-xs", isMobileERPMode ? "font-mono tracking-wider" : "font-mono")}>
                             {item.barcode || "—"}
                           </Badge>
                           {barcodeWarnings.has(item.temp_id) && (
