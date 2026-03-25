@@ -3082,23 +3082,23 @@ export default function POSSales() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Sticky Header Section - Barcode scanning bar stays fixed */}
-        <div className="sticky top-0 z-20 bg-background border-b shadow-sm px-2 md:px-4 py-2">
-          <div className="max-w-[1800px] w-full pl-4">
-            <div className="flex flex-wrap items-end gap-4">
+        <div className="sticky top-0 z-20 bg-background border-b border-border/60 shadow-sm px-3 md:px-4 py-2.5">
+          <div className="max-w-[1800px] w-full pl-2">
+            <div className="flex flex-wrap items-end gap-3">
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
-              <div className="relative w-56">
-                <Label className="text-sm font-medium mb-1 block">Barcode</Label>
+              <div className="relative w-60">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">Barcode</Label>
                 <Input
                   ref={barcodeInputRef}
                   placeholder="Scan Barcode/Enter Product Name"
                   value={searchInput}
                   onChange={handleBarcodeInputChange}
                   onKeyDown={handleSearch}
-                  className="h-12 text-lg pr-12"
+                  className="h-10 text-base pr-10 border-border/80 focus:border-primary"
                   autoFocus
                 />
-                <Scan className="absolute right-3 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground" />
+                <Scan className="absolute right-3 top-[calc(50%+10px)] -translate-y-1/2 h-5 w-5 text-muted-foreground/60" />
               </div>
             </PopoverTrigger>
             <PopoverContent 
