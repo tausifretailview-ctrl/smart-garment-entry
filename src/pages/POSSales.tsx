@@ -3014,10 +3014,10 @@ export default function POSSales() {
           {/* 8. Cashier Report F8 */}
           <Button
             onClick={() => setShowFloatingCashierReport(true)}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-teal-500 hover:bg-teal-600 text-white shadow-none"
+            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-teal-500 hover:bg-teal-600 active:scale-95 text-white shadow-sm transition-all duration-150"
             title="Daily Cashier Report (F8)"
           >
-            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F8</Badge>
+            <Badge className="absolute top-0.5 right-0.5 h-[14px] px-1 text-[8px] leading-[14px] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F8</Badge>
             <BarChart3 className="h-4 w-4" />
             <span>Cashier</span>
           </Button>
