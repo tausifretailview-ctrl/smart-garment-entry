@@ -1584,10 +1584,20 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
                     // Purchase context: show qty inputs per size (or color×size matrix)
                     if (hideOpeningQty) {
+                      const allSizes = [...group.sizes, ...customSizes];
+                      const enabledSizes = allSizes.filter(s => !disabledSizes.has(s));
                       const totalQty = variants.reduce((sum, v) => sum + (v.purchase_qty || 0), 0);
                       const activeSizeCount = variants.filter(v => (v.purchase_qty || 0) > 0).length;
                       const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
                       const isMultiColor = colorsToUse.length > 1;
+
+                      // Helper to find next enabled size for keyboard nav
+                      const getNextEnabledSize = (currentIdx: number) => {
+                        for (let i = currentIdx + 1; i < allSizes.length; i++) {
+                          if (!disabledSizes.has(allSizes[i])) return allSizes[i];
+                        }
+                        return null;
+                      };
 
                       return (
                         <div className="space-y-2 mt-2">
@@ -1607,8 +1617,27 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                 <thead>
                                   <tr>
                                     <th className="text-xs font-bold text-foreground px-1.5 py-1 text-left sticky left-0 bg-muted/30 z-10 min-w-[70px]">Color</th>
-                                    {group.sizes.map(size => (
-                                      <th key={size} className="text-xs font-bold text-muted-foreground px-1 py-1 text-center min-w-[52px]">{size}</th>
+                                    {allSizes.map(size => (
+                                      <th key={size} className="px-0.5 py-1 text-center min-w-[52px]">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setDisabledSizes(prev => {
+                                              const next = new Set(prev);
+                                              if (next.has(size)) next.delete(size); else next.add(size);
+                                              return next;
+                                            });
+                                          }}
+                                          className={cn(
+                                            "text-xs font-bold px-1.5 py-0.5 rounded transition-colors",
+                                            disabledSizes.has(size)
+                                              ? "text-muted-foreground/40 line-through bg-muted/50"
+                                              : "text-muted-foreground hover:text-primary"
+                                          )}
+                                        >
+                                          {disabledSizes.has(size) ? '✕' : '✓'} {size}
+                                        </button>
+                                      </th>
                                     ))}
                                     <th className="text-xs font-bold text-primary px-1.5 py-1 text-center min-w-[44px]">Total</th>
                                   </tr>
@@ -1616,55 +1645,61 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                 <tbody>
                                   {colorsToUse.map((color, cIdx) => {
                                     const colorTotal = variants
-                                      .filter(v => v.color === color)
+                                      .filter(v => v.color === color && !disabledSizes.has(v.size))
                                       .reduce((sum, v) => sum + (v.purchase_qty || 0), 0);
                                     return (
                                       <tr key={color} className={cIdx % 2 === 1 ? "bg-muted/40" : ""}>
                                         <td className="text-xs font-bold text-foreground px-1.5 py-1 sticky left-0 z-10" style={{ backgroundColor: cIdx % 2 === 1 ? 'hsl(var(--muted) / 0.4)' : 'hsl(var(--muted) / 0.3)' }}>
                                           {color}
                                         </td>
-                                        {group.sizes.map((size, sIdx) => {
+                                        {allSizes.map((size) => {
+                                          const sIdx = allSizes.indexOf(size);
+                                          const isDisabled = disabledSizes.has(size);
                                           const variant = variants.find(v => v.size === size && v.color === color);
                                           const qty = variant?.purchase_qty || 0;
                                           return (
                                             <td key={size} className="px-0.5 py-0.5 text-center">
-                                              <Input
-                                                type="number"
-                                                min="0"
-                                                value={qty === 0 ? '' : qty}
-                                                placeholder="0"
-                                                onChange={(e) => {
-                                                  const val = parseInt(e.target.value) || 0;
-                                                  setVariants(prev => prev.map(v =>
-                                                    v.size === size && v.color === color
-                                                      ? { ...v, purchase_qty: val }
-                                                      : v
-                                                  ));
-                                                }}
-                                                onFocus={(e) => e.target.select()}
-                                                onKeyDown={(e) => {
-                                                  if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
-                                                    e.preventDefault();
-                                                    const nextSize = group.sizes[sIdx + 1];
-                                                    if (nextSize) {
-                                                      document.getElementById(`size-qty-${color}-${nextSize}`)?.focus();
-                                                    } else {
-                                                      // Move to next color's first size
-                                                      const nextColor = colorsToUse[cIdx + 1];
-                                                      if (nextColor) {
-                                                        document.getElementById(`size-qty-${nextColor}-${group.sizes[0]}`)?.focus();
+                                              {isDisabled ? (
+                                                <span className="text-muted-foreground/30 text-xs">—</span>
+                                              ) : (
+                                                <Input
+                                                  type="number"
+                                                  min="0"
+                                                  value={qty === 0 ? '' : qty}
+                                                  placeholder="0"
+                                                  onChange={(e) => {
+                                                    const val = parseInt(e.target.value) || 0;
+                                                    setVariants(prev => prev.map(v =>
+                                                      v.size === size && v.color === color
+                                                        ? { ...v, purchase_qty: val }
+                                                        : v
+                                                    ));
+                                                  }}
+                                                  onFocus={(e) => e.target.select()}
+                                                  onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
+                                                      e.preventDefault();
+                                                      const nextSize = getNextEnabledSize(sIdx);
+                                                      if (nextSize) {
+                                                        document.getElementById(`size-qty-${color}-${nextSize}`)?.focus();
                                                       } else {
-                                                        document.getElementById('btn-add-all-sizes')?.focus();
+                                                        const nextColor = colorsToUse[cIdx + 1];
+                                                        if (nextColor) {
+                                                          const firstEnabled = allSizes.find(s => !disabledSizes.has(s));
+                                                          if (firstEnabled) document.getElementById(`size-qty-${nextColor}-${firstEnabled}`)?.focus();
+                                                        } else {
+                                                          document.getElementById('btn-add-all-sizes')?.focus();
+                                                        }
                                                       }
                                                     }
-                                                  }
-                                                }}
-                                                id={`size-qty-${color}-${size}`}
-                                                className={cn(
-                                                  "h-7 w-14 text-center text-sm font-semibold p-0.5 no-uppercase",
-                                                  qty > 0 && "border-emerald-400 text-emerald-800"
-                                                )}
-                                              />
+                                                  }}
+                                                  id={`size-qty-${color}-${size}`}
+                                                  className={cn(
+                                                    "h-7 w-14 text-center text-sm font-semibold p-0.5 no-uppercase",
+                                                    qty > 0 && "border-emerald-400 text-emerald-800"
+                                                  )}
+                                                />
+                                              )}
                                             </td>
                                           );
                                         })}
@@ -1676,11 +1711,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                   })}
                                 </tbody>
                               </table>
-                              {/* Per-color totals summary */}
                               {totalQty > 0 && (
                                 <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t border-muted-foreground/10">
                                   {colorsToUse.map(color => {
-                                    const ct = variants.filter(v => v.color === color).reduce((s, v) => s + (v.purchase_qty || 0), 0);
+                                    const ct = variants.filter(v => v.color === color && !disabledSizes.has(v.size)).reduce((s, v) => s + (v.purchase_qty || 0), 0);
                                     if (ct === 0) return null;
                                     return (
                                       <span key={color} className="text-xs font-medium text-muted-foreground">
@@ -1695,68 +1729,191 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                               )}
                             </div>
                           ) : (
-                            /* ── Single color / no color: original single-row grid ── */
+                            /* ── Single color / no color: single-row grid with toggle ── */
                             <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5 p-3 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20">
-                              {group.sizes.map((size, sIdx) => {
+                              {allSizes.map((size) => {
+                                const sIdx = allSizes.indexOf(size);
+                                const isDisabled = disabledSizes.has(size);
+                                const isCustom = customSizes.includes(size);
                                 const variant = variants.find(v => v.size === size && v.color === (formData.colors[0] || ""));
                                 const qty = variant?.purchase_qty || 0;
                                 return (
                                   <div
                                     key={size}
                                     className={cn(
-                                      "flex flex-col items-center gap-1 p-1.5 rounded-md border transition-colors",
-                                      qty > 0
-                                        ? "bg-emerald-50 border-emerald-300 dark:bg-emerald-950/30 dark:border-emerald-700"
-                                        : "bg-card border-border"
+                                      "flex flex-col items-center gap-1 p-1.5 rounded-md border transition-colors relative",
+                                      isDisabled
+                                        ? "bg-muted/50 border-border/50 opacity-50"
+                                        : qty > 0
+                                          ? "bg-emerald-50 border-emerald-300 dark:bg-emerald-950/30 dark:border-emerald-700"
+                                          : "bg-card border-border"
                                     )}
                                   >
-                                    <span className={cn(
-                                      "text-xs font-bold",
-                                      qty > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"
-                                    )}>
-                                      {size}
-                                    </span>
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      value={qty === 0 ? '' : qty}
-                                      placeholder="0"
-                                      onChange={(e) => {
-                                        const val = parseInt(e.target.value) || 0;
-                                        setVariants(prev => prev.map(v =>
-                                          v.size === size && v.color === (formData.colors[0] || "")
-                                            ? { ...v, purchase_qty: val }
-                                            : v
-                                        ));
+                                    {/* Toggle button on size label */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setDisabledSizes(prev => {
+                                          const next = new Set(prev);
+                                          if (next.has(size)) next.delete(size); else next.add(size);
+                                          return next;
+                                        });
                                       }}
-                                      onFocus={(e) => e.target.select()}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
-                                          e.preventDefault();
-                                          const nextSize = group.sizes[sIdx + 1];
-                                          if (nextSize) {
-                                            document.getElementById(`size-qty-${nextSize}`)?.focus();
-                                          } else {
-                                            document.getElementById('btn-add-all-sizes')?.focus();
-                                          }
-                                        }
-                                      }}
-                                      id={`size-qty-${size}`}
                                       className={cn(
-                                        "h-7 w-14 text-center text-sm font-semibold p-0.5 no-uppercase",
-                                        qty > 0 && "border-emerald-400 text-emerald-800"
+                                        "text-xs font-bold flex items-center gap-0.5 cursor-pointer transition-colors",
+                                        isDisabled
+                                          ? "text-muted-foreground/40 line-through"
+                                          : qty > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"
                                       )}
-                                    />
+                                    >
+                                      {isDisabled ? (
+                                        <X className="h-3 w-3 text-muted-foreground/40" />
+                                      ) : (
+                                        <Check className="h-3 w-3 text-emerald-600" />
+                                      )}
+                                      {size}
+                                    </button>
+                                    {/* Remove custom size */}
+                                    {isCustom && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setCustomSizes(prev => prev.filter(s => s !== size));
+                                          setVariants(prev => prev.filter(v => v.size !== size));
+                                          setDisabledSizes(prev => { const n = new Set(prev); n.delete(size); return n; });
+                                        }}
+                                        className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 hover:bg-destructive/80 shadow-sm"
+                                      >
+                                        <X className="h-2.5 w-2.5" />
+                                      </button>
+                                    )}
+                                    {!isDisabled ? (
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        value={qty === 0 ? '' : qty}
+                                        placeholder="0"
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value) || 0;
+                                          setVariants(prev => {
+                                            const exists = prev.some(v => v.size === size && v.color === (formData.colors[0] || ""));
+                                            if (exists) {
+                                              return prev.map(v =>
+                                                v.size === size && v.color === (formData.colors[0] || "")
+                                                  ? { ...v, purchase_qty: val }
+                                                  : v
+                                              );
+                                            }
+                                            // Add variant for custom size
+                                            return [...prev, {
+                                              color: formData.colors[0] || "",
+                                              size,
+                                              pur_price: formData.default_pur_price ?? 0,
+                                              sale_price: formData.default_sale_price ?? 0,
+                                              mrp: formData.default_mrp ?? null,
+                                              barcode: "",
+                                              active: true,
+                                              opening_qty: 0,
+                                              purchase_qty: val,
+                                            }];
+                                          });
+                                        }}
+                                        onFocus={(e) => e.target.select()}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
+                                            e.preventDefault();
+                                            const nextSize = getNextEnabledSize(sIdx);
+                                            if (nextSize) {
+                                              document.getElementById(`size-qty-${nextSize}`)?.focus();
+                                            } else {
+                                              document.getElementById('btn-add-all-sizes')?.focus();
+                                            }
+                                          }
+                                        }}
+                                        id={`size-qty-${size}`}
+                                        className={cn(
+                                          "h-7 w-14 text-center text-sm font-semibold p-0.5 no-uppercase",
+                                          qty > 0 && "border-emerald-400 text-emerald-800"
+                                        )}
+                                      />
+                                    ) : (
+                                      <span className="h-7 w-14 flex items-center justify-center text-muted-foreground/30 text-xs">—</span>
+                                    )}
                                   </div>
                                 );
                               })}
                             </div>
                           )}
 
+                          {/* + Add Custom Size */}
+                          <div className="flex items-center gap-2 mt-1">
+                            <Input
+                              value={customSizeInput}
+                              onChange={(e) => setCustomSizeInput(e.target.value.toUpperCase())}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && customSizeInput.trim()) {
+                                  e.preventDefault();
+                                  const newSize = customSizeInput.trim();
+                                  if (!allSizes.includes(newSize)) {
+                                    setCustomSizes(prev => [...prev, newSize]);
+                                    // Add variant for this custom size
+                                    const colorsForVariant = formData.colors.length > 0 ? formData.colors : [""];
+                                    setVariants(prev => [
+                                      ...prev,
+                                      ...colorsForVariant.map(color => ({
+                                        color,
+                                        size: newSize,
+                                        pur_price: formData.default_pur_price ?? 0,
+                                        sale_price: formData.default_sale_price ?? 0,
+                                        mrp: formData.default_mrp ?? null,
+                                        barcode: "",
+                                        active: true,
+                                        opening_qty: 0,
+                                        purchase_qty: 0,
+                                      }))
+                                    ]);
+                                  }
+                                  setCustomSizeInput("");
+                                }
+                              }}
+                              placeholder="Custom size (e.g. 3XL)"
+                              className="h-7 w-36 text-xs"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!customSizeInput.trim()) return;
+                                const newSize = customSizeInput.trim().toUpperCase();
+                                if (!allSizes.includes(newSize)) {
+                                  setCustomSizes(prev => [...prev, newSize]);
+                                  const colorsForVariant = formData.colors.length > 0 ? formData.colors : [""];
+                                  setVariants(prev => [
+                                    ...prev,
+                                    ...colorsForVariant.map(color => ({
+                                      color,
+                                      size: newSize,
+                                      pur_price: formData.default_pur_price ?? 0,
+                                      sale_price: formData.default_sale_price ?? 0,
+                                      mrp: formData.default_mrp ?? null,
+                                      barcode: "",
+                                      active: true,
+                                      opening_qty: 0,
+                                      purchase_qty: 0,
+                                    }))
+                                  ]);
+                                }
+                                setCustomSizeInput("");
+                              }}
+                              className="text-xs font-medium text-primary hover:underline flex items-center gap-0.5"
+                            >
+                              <Plus className="h-3 w-3" /> Add Size
+                            </button>
+                          </div>
+
                           {/* Active sizes preview */}
                           {activeSizeCount > 0 && (
                             <div className="flex flex-wrap gap-1.5 mt-1">
-                              {variants.filter(v => (v.purchase_qty || 0) > 0).map(v => (
+                              {variants.filter(v => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size)).map(v => (
                                 <span
                                   key={`${v.color}-${v.size}`}
                                   className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded-full"
