@@ -3336,14 +3336,14 @@ export default function POSSales() {
           <Popover open={openSalesmanSearch} onOpenChange={setOpenSalesmanSearch}>
             <PopoverTrigger asChild>
               <div className="relative w-36">
-                <Label className="text-sm font-medium mb-1 block">Salesperson</Label>
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">Salesperson</Label>
                 <Input
                   value={selectedSalesman}
                   onChange={(e) => {
                     setSelectedSalesman(e.target.value);
                     setOpenSalesmanSearch(true);
                   }}
-                  className="h-12 text-sm pr-8"
+                  className="h-10 text-sm pr-8 border-border/80 focus:border-primary"
                   placeholder="Select..."
                 />
                 {selectedSalesman && (
