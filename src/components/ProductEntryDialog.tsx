@@ -1067,7 +1067,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-5xl max-h-[90vh] p-0 font-outfit flex flex-col">
+        <DialogContent className="max-w-5xl max-h-[85vh] p-0 font-outfit flex flex-col overflow-hidden">
           {/* Purchase Context Header */}
           <div className="mx-6 mt-6 mb-2 rounded-xl border-[1.5px] border-success/30 bg-gradient-to-br from-success/5 to-success/10 p-4">
             <div className="flex items-center gap-3">
@@ -1085,22 +1085,23 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             <DialogDescription>Create a new product with size variants</DialogDescription>
           </DialogHeader>
           
-          <ScrollArea className="flex-1 min-h-0 px-6" showScrollbar ref={(node) => {
-            const viewport = node?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null;
-            if (viewport && !viewport.dataset.scrollListenerAttached) {
-              viewport.dataset.scrollListenerAttached = 'true';
-              viewport.style.scrollBehavior = 'smooth';
-              viewport.addEventListener('scroll', () => {
-                const btn = document.getElementById('product-dialog-back-to-top');
-                if (btn) {
-                  btn.style.display = viewport.scrollTop > 200 ? 'flex' : 'none';
-                }
-              });
-              // Store ref for scrolling back
-              (window as any).__productDialogViewport = viewport;
-            }
-          }}>
-            <div className="space-y-6 py-4" data-product-form>
+          <div 
+            className="flex-1 min-h-0 overflow-y-auto px-6 overscroll-contain"
+            style={{ scrollBehavior: 'smooth' }}
+            ref={(node) => {
+              if (node && !node.dataset.scrollListenerAttached) {
+                node.dataset.scrollListenerAttached = 'true';
+                node.addEventListener('scroll', () => {
+                  const btn = document.getElementById('product-dialog-back-to-top');
+                  if (btn) {
+                    btn.style.display = node.scrollTop > 200 ? 'flex' : 'none';
+                  }
+                });
+                (window as any).__productDialogViewport = node;
+              }
+            }}
+          >
+            <div className="space-y-6 py-4 pb-8" data-product-form>
               {/* Copy from Existing Product */}
               <div className="space-y-2">
                 <Label className="flex items-center gap-1 text-muted-foreground">
@@ -2012,9 +2013,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               <ChevronUp className="h-3 w-3" />
               Product Details
             </button>
-          </ScrollArea>
+          </div>
 
-          <DialogFooter className="px-6 py-4 mt-4 border-t bg-muted/20">
+          <DialogFooter className="px-6 py-4 border-t bg-muted/20 flex-shrink-0">
             {hideOpeningQty && (
               <span className="text-sm text-muted-foreground mr-auto">
                 {(() => {
