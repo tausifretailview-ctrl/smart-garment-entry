@@ -3450,7 +3450,7 @@ export default function POSSales() {
                   {/* Position Indicator - Always visible */}
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div className="h-12 px-3 bg-muted rounded-md flex flex-col items-center justify-center min-w-[60px] cursor-pointer" onClick={handleLastInvoice}>
+                      <div className="h-10 px-3 bg-muted/60 rounded-md flex flex-col items-center justify-center min-w-[52px] cursor-pointer border border-border/50" onClick={handleLastInvoice}>
                         <span className="text-sm font-semibold text-foreground">
                           {todaysSales && todaysSales.length > 0 && currentSaleId 
                             ? todaysSales.length - currentInvoiceIndex 
