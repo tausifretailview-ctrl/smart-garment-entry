@@ -3811,7 +3811,7 @@ export default function POSSales() {
             <div className="flex items-end gap-3">
               {/* Flat Disc */}
               <div className="text-center">
-                <div className="text-[9px] text-white/60 uppercase font-medium mb-0.5">Flat Disc</div>
+                <div className="text-[11px] text-white/80 uppercase font-bold mb-0.5 tracking-wide">Flat Disc</div>
                 <div className="flex items-center">
                   <Button
                     size="sm"
