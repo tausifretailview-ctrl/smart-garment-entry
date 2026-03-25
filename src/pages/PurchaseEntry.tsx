@@ -3467,17 +3467,17 @@ const PurchaseEntry = () => {
       <footer className="sticky bottom-0 z-20 shrink-0">
         {/* Top Row: GROSS AMT + BILL DISC inputs + Net Amount — single line */}
         <div className="bg-gradient-to-r from-teal-700 to-teal-800 text-white overflow-x-auto">
-          <div className="flex items-center px-4 py-2 gap-0 min-w-max">
+          <div className="flex items-center px-4 py-2.5 gap-0 min-w-max">
             {/* GROSS AMT */}
-            <span className="text-[11px] font-bold uppercase tracking-wider text-teal-200 mr-2 whitespace-nowrap">Gross Amt</span>
-            <span className="bg-white/10 rounded-sm px-3 h-8 flex items-center text-sm font-bold font-mono tabular-nums min-w-[72px] justify-end">
+            <span className="text-[13px] font-extrabold uppercase tracking-wider text-teal-100 mr-2 whitespace-nowrap">Gross Amt</span>
+            <span className="bg-white/10 rounded-sm px-3 h-9 flex items-center text-[15px] font-bold font-mono tabular-nums min-w-[80px] justify-end">
               {totals.grossAmount.toFixed(0)}
             </span>
 
-            <div className="w-px h-7 bg-teal-500/50 mx-3 shrink-0" />
+            <div className="w-px h-8 bg-teal-500/50 mx-3 shrink-0" />
 
             {/* BILL DISC % */}
-            <span className="text-[11px] font-bold uppercase tracking-wider text-teal-200 mr-2 whitespace-nowrap">Bill Disc %</span>
+            <span className="text-[13px] font-extrabold uppercase tracking-wider text-teal-100 mr-2 whitespace-nowrap">Bill Disc %</span>
             <Input type="number" step="0.01"
               value={totals.grossAmount > 0 ? Number((discountAmount / totals.grossAmount * 100).toFixed(2)) || "" : ""}
               onChange={(e) => {
@@ -3486,35 +3486,35 @@ const PurchaseEntry = () => {
               }}
               onWheel={(e) => (e.target as HTMLInputElement).blur()}
               placeholder="0"
-              className="w-16 h-8 text-sm text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
+              className="w-[72px] h-9 text-[15px] text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
             />
 
-            <div className="w-px h-7 bg-teal-500/50 mx-3 shrink-0" />
+            <div className="w-px h-8 bg-teal-500/50 mx-3 shrink-0" />
 
             {/* BILL DISC ₹ */}
-            <span className="text-[11px] font-bold uppercase tracking-wider text-teal-200 mr-2 whitespace-nowrap">Bill Disc ₹</span>
+            <span className="text-[13px] font-extrabold uppercase tracking-wider text-teal-100 mr-2 whitespace-nowrap">Bill Disc ₹</span>
             <Input type="number" step="0.01" value={discountAmount || ""}
               onChange={(e) => setDiscountAmount(parseFloat(e.target.value) || 0)}
               onWheel={(e) => (e.target as HTMLInputElement).blur()}
               placeholder="0"
-              className="w-[72px] h-8 text-sm text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
+              className="w-[80px] h-9 text-[15px] text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
             />
 
-            <div className="w-px h-7 bg-teal-500/50 mx-3 shrink-0" />
+            <div className="w-px h-8 bg-teal-500/50 mx-3 shrink-0" />
 
             {/* Other Charges */}
-            <span className="text-[11px] font-bold uppercase tracking-wider text-teal-200 mr-2 whitespace-nowrap">Charges</span>
+            <span className="text-[13px] font-extrabold uppercase tracking-wider text-teal-100 mr-2 whitespace-nowrap">Charges</span>
             <Input type="number" step="0.01" value={otherCharges || ""}
               onChange={(e) => setOtherCharges(parseFloat(e.target.value) || 0)}
               onWheel={(e) => (e.target as HTMLInputElement).blur()}
               placeholder="0"
-              className="w-[72px] h-8 text-sm text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
+              className="w-[80px] h-9 text-[15px] text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
             />
 
             {/* Right-pinned Net Amount */}
-            <div className="ml-auto pl-4 border-l-2 border-teal-500/40 flex items-center gap-2 shrink-0">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-teal-200">Net</span>
-              <span className="text-[22px] font-black font-mono tabular-nums leading-none">₹{totals.netAmount.toLocaleString('en-IN')}</span>
+            <div className="ml-auto pl-4 border-l-2 border-teal-500/40 flex items-center gap-3 shrink-0">
+              <span className="text-[13px] font-extrabold uppercase tracking-wider text-teal-100">Net</span>
+              <span className="text-[26px] font-black font-mono tabular-nums leading-none">₹{totals.netAmount.toLocaleString('en-IN')}</span>
             </div>
           </div>
         </div>
