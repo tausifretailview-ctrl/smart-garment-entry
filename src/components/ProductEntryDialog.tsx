@@ -357,6 +357,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     setColorInput("");
     setMarkupPercent("");
     setSelectedSizes([]);
+    setDisabledSizes(new Set());
+    setCustomSizes([]);
+    setCustomSizeInput("");
     setVariants([]);
     setShowVariants(false);
     setProductImage(null);
