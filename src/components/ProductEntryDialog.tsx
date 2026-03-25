@@ -965,14 +965,33 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         const missingBarcode = variantsToCreate.some(v => !v.barcode || !v.barcode.trim());
         if (missingBarcode) {
           toast({
-            title: "Barcode Required",
+            title: mobileERPMode?.enabled ? "IMEI Required" : "Barcode Required",
             description: isAutoBarcode
               ? "Failed to generate barcodes. Please try again."
-              : "Please scan or enter barcode for all variants before adding to bill",
+              : mobileERPMode?.enabled
+                ? "Please scan IMEI for all variants before adding to bill"
+                : "Please scan or enter barcode for all variants before adding to bill",
             variant: "destructive",
           });
           setLoading(false);
           return;
+        }
+        
+        // IMEI format validation in Mobile ERP mode
+        if (mobileERPMode?.enabled) {
+          const invalidIMEI = variantsToCreate.find(v => {
+            const cleaned = (v.barcode || '').replace(/\s/g, '');
+            return !/^\d+$/.test(cleaned) || cleaned.length < (mobileERPMode.imei_min_length || 15) || cleaned.length > (mobileERPMode.imei_max_length || 19);
+          });
+          if (invalidIMEI) {
+            toast({
+              title: "Invalid IMEI",
+              description: `IMEI must be ${mobileERPMode.imei_min_length}-${mobileERPMode.imei_max_length} digits. Check: ${invalidIMEI.barcode}`,
+              variant: "destructive",
+            });
+            setLoading(false);
+            return;
+          }
         }
         const variantsToInsert = variantsToCreate.map((v) => ({
           product_id: productData.id,
