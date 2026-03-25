@@ -77,6 +77,14 @@ interface ProductForm {
   status: string;
 }
 
+interface MobileERPModeConfig {
+  enabled: boolean;
+  imei_scan_enforcement: boolean;
+  locked_size_qty: boolean;
+  imei_min_length: number;
+  imei_max_length: number;
+}
+
 interface ProductEntryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -98,9 +106,10 @@ interface ProductEntryDialogProps {
   hideOpeningQty?: boolean;
   isDcPurchase?: boolean;
   isAutoBarcode?: boolean;
+  mobileERPMode?: MobileERPModeConfig;
 }
 
-export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideOpeningQty, isDcPurchase, isAutoBarcode = true }: ProductEntryDialogProps) => {
+export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideOpeningQty, isDcPurchase, isAutoBarcode = true, mobileERPMode }: ProductEntryDialogProps) => {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const [loading, setLoading] = useState(false);
