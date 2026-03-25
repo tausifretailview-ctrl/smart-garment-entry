@@ -3914,7 +3914,7 @@ export default function POSSales() {
               {/* Credit Applied */}
               {(availableCreditBalance > 0 || creditApplied > 0) && (
                 <div className="text-center">
-                  <div className="text-[9px] text-white/60 uppercase font-medium mb-0.5">Cr ₹{availableCreditBalance.toFixed(0)}</div>
+                  <div className="text-[11px] text-white/80 uppercase font-bold mb-0.5 tracking-wide">Cr ₹{availableCreditBalance.toFixed(0)}</div>
                   <Input 
                     type="number"
                     className="w-20 h-7 bg-purple-100 text-purple-700 text-center text-sm font-semibold border-0 rounded-md" 
