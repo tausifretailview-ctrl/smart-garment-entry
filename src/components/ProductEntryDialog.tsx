@@ -1992,7 +1992,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                   <div ref={variantsSectionRef} className="space-y-2 pt-1">
                     <div className="flex items-center justify-between">
                       <Label className="text-xs font-semibold text-violet-700 font-outfit flex items-center gap-2">
-                        {variants.length} Variant{variants.length !== 1 ? 's' : ''}
+                        {variants.filter(v => !disabledSizes.has(v.size) && (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color))).length} Variant{variants.filter(v => !disabledSizes.has(v.size) && (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color))).length !== 1 ? 's' : ''}
                         {isAutoBarcode ? (
                           <span className="text-[10px] font-normal px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">Auto Barcode</span>
                         ) : (
@@ -2021,7 +2021,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {variants.map((variant, index) => (
+                          {variants.map((variant, index) => {
+                            // Hide variants for disabled sizes or removed colors
+                            if (disabledSizes.has(variant.size)) return null;
+                            if (formData.colors.length > 0 && variant.color && !formData.colors.includes(variant.color)) return null;
+                            return (
                             <TableRow key={index} className="hover:bg-violet-50/30 transition-colors">
                               {formData.colors.length > 0 && (
                                 <TableCell className="font-medium text-xs py-1.5">{variant.color || "-"}</TableCell>
@@ -2097,7 +2101,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                 </Button>
                               </TableCell>
                             </TableRow>
-                          ))}
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </div>
