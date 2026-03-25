@@ -3003,10 +3003,10 @@ export default function POSSales() {
           <Button
             onClick={handleHoldBill}
             disabled={items.length === 0 || isSaving || isHeldSale}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-amber-500 hover:bg-amber-600 text-white shadow-none disabled:opacity-50"
+            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-amber-500 hover:bg-amber-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Hold Bill (F7)"
           >
-            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F7</Badge>
+            <Badge className="absolute top-0.5 right-0.5 h-[14px] px-1 text-[8px] leading-[14px] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F7</Badge>
             <Pause className="h-4 w-4" />
             <span>Hold</span>
           </Button>
