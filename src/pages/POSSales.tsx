@@ -2979,10 +2979,10 @@ export default function POSSales() {
           {/* 5. Sale Return F5 */}
           <Button
             onClick={() => setShowFloatingSaleReturn(true)}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-red-500 hover:bg-red-600 text-white shadow-none"
+            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-red-500 hover:bg-red-600 active:scale-95 text-white shadow-sm transition-all duration-150"
             title="Sale Return (F5)"
           >
-            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F5</Badge>
+            <Badge className="absolute top-0.5 right-0.5 h-[14px] px-1 text-[8px] leading-[14px] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F5</Badge>
             <RotateCcw className="h-4 w-4" />
             <span>S/R</span>
           </Button>
