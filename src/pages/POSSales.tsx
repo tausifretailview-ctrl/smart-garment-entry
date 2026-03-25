@@ -3997,9 +3997,9 @@ export default function POSSales() {
             { key: 'F8', label: 'Report' },
             { key: 'F9', label: 'Estimate' },
           ].map(({ key, label }) => (
-            <div key={key} className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-blue-600/20 cursor-pointer transition-colors min-w-[56px]">
-              <kbd className="text-[9px] font-mono text-blue-400/70 leading-tight">{key}</kbd>
-              <span className="text-[12px] font-bold text-blue-400 leading-tight">{label}</span>
+            <div key={key} className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-blue-600/20 cursor-pointer transition-colors min-w-[60px]">
+              <kbd className="text-[10px] font-mono text-blue-400/80 font-bold leading-tight">{key}</kbd>
+              <span className="text-[13px] font-extrabold text-blue-400 leading-tight">{label}</span>
             </div>
           ))}
           
