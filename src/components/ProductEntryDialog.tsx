@@ -246,7 +246,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         }
       }
     }
-  }, [formData.size_group_id, sizeGroups, formData.colors]);
+  }, [formData.size_group_id, sizeGroups, formData.colors, customSizes]);
 
   // Sync default prices to existing variants when user edits price fields
   useEffect(() => {
