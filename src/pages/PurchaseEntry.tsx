@@ -3488,7 +3488,6 @@ const PurchaseEntry = () => {
               placeholder="0"
               className="w-16 h-8 text-sm text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
             />
-            />
 
             <div className="w-px h-7 bg-teal-500/50 mx-3 shrink-0" />
 
