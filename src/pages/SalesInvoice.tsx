@@ -31,6 +31,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBeepSound } from "@/hooks/useBeepSound";
+import { useMobileERP } from "@/hooks/useMobileERP";
+import { FinancerDetailsForm } from "@/components/FinancerDetailsForm";
 
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { format } from "date-fns";
@@ -186,6 +188,14 @@ export default function SalesInvoice() {
   const [shippingAddress, setShippingAddress] = useState<string>("");
   const [shippingInstructions, setShippingInstructions] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
+  const mobileERP = useMobileERP();
+  const [financerDetails, setFinancerDetails] = useState<{
+    financer_name: string;
+    loan_number: string;
+    emi_amount: number;
+    tenure: number;
+    down_payment: number;
+  } | null>(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
   const [originalItemsForEdit, setOriginalItemsForEdit] = useState<Array<{ variantId: string; quantity: number }>>([]);
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
@@ -2048,6 +2058,21 @@ Thank you for choosing us!`;
 
         if (itemsError) throw itemsError;
 
+        // Save financer details if provided (Mobile ERP)
+        if (mobileERP.enabled && mobileERP.financer_billing && financerDetails?.financer_name) {
+          await supabase
+            .from('sale_financer_details')
+            .insert({
+              sale_id: saleData.id,
+              organization_id: currentOrganization?.id,
+              financer_name: financerDetails.financer_name,
+              loan_number: financerDetails.loan_number || null,
+              emi_amount: financerDetails.emi_amount || null,
+              tenure: financerDetails.tenure || null,
+              down_payment: financerDetails.down_payment || null,
+            });
+        }
+
         // CRM: Redeem points if requested
         if (pointsToRedeem > 0 && selectedCustomerId) {
           redeemPoints(
@@ -3315,6 +3340,16 @@ Thank you for choosing us!`;
             </Button>
           </div>
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="text-[13px] bg-white" placeholder="Add notes or remarks..." />
+        </div>
+      )}
+
+      {/* Financer Details (Mobile ERP) */}
+      {mobileERP.enabled && mobileERP.financer_billing && (
+        <div className="px-6 py-3 border-t border-slate-200">
+          <FinancerDetailsForm
+            value={financerDetails}
+            onChange={(details) => setFinancerDetails(details)}
+          />
         </div>
       )}
 
