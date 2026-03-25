@@ -4012,9 +4012,9 @@ export default function POSSales() {
           </div>
           
           {/* Print - white/neutral */}
-          <div className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-slate-600/40 cursor-pointer transition-colors min-w-[56px]">
-            <kbd className="text-[9px] font-mono text-slate-400/70 leading-tight">CTRL+P</kbd>
-            <span className="text-[12px] font-bold text-slate-300 leading-tight">Print</span>
+          <div className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-slate-600/40 cursor-pointer transition-colors min-w-[60px]">
+            <kbd className="text-[10px] font-mono text-slate-400/80 font-bold leading-tight">CTRL+P</kbd>
+            <span className="text-[13px] font-extrabold text-slate-300 leading-tight">Print</span>
           </div>
         </div>
         </div>
