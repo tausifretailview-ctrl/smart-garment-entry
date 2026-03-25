@@ -2944,10 +2944,10 @@ export default function POSSales() {
           <Button
             onClick={() => handlePaymentAndPrint('upi')}
             disabled={items.length === 0 || isSaving}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-purple-500 hover:bg-purple-600 text-white shadow-none disabled:opacity-50"
+            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-purple-500 hover:bg-purple-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="UPI Payment - Save & Print (F2)"
           >
-            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F2</Badge>
+            <Badge className="absolute top-0.5 right-0.5 h-[14px] px-1 text-[8px] leading-[14px] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F2</Badge>
             <Smartphone className="h-4 w-4" />
             <span>UPI</span>
           </Button>
