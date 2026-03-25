@@ -2013,7 +2013,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               <ChevronUp className="h-3 w-3" />
               Product Details
             </button>
-          </ScrollArea>
+          </div>
 
           <DialogFooter className="px-6 py-4 mt-4 border-t bg-muted/20">
             {hideOpeningQty && (
