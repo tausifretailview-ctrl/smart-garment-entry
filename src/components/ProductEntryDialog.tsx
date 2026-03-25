@@ -1085,10 +1085,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             <DialogDescription>Create a new product with size variants</DialogDescription>
           </DialogHeader>
           
-          <ScrollArea className="flex-1 min-h-0 px-6" ref={(node) => {
+          <ScrollArea className="flex-1 min-h-0 px-6" showScrollbar ref={(node) => {
             const viewport = node?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null;
             if (viewport && !viewport.dataset.scrollListenerAttached) {
               viewport.dataset.scrollListenerAttached = 'true';
+              viewport.style.scrollBehavior = 'smooth';
               viewport.addEventListener('scroll', () => {
                 const btn = document.getElementById('product-dialog-back-to-top');
                 if (btn) {
