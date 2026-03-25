@@ -3493,11 +3493,11 @@ export default function POSSales() {
               </TooltipProvider>
               
               {/* Date & Time Display */}
-              <div className="relative h-12 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-md px-4 flex flex-col items-center justify-center">
-                <div className="text-white font-semibold text-sm">
+              <div className="relative h-10 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-md px-3 flex flex-col items-center justify-center shadow-sm">
+                <div className="text-white font-semibold text-xs">
                   {currentDateTime.toLocaleDateString('en-GB')}
                 </div>
-                <div className="text-white text-xs">
+                <div className="text-white/80 text-[10px]">
                   {currentDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </div>
             </div>
