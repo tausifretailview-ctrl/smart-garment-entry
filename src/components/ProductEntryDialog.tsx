@@ -224,34 +224,53 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         // In purchase context: auto-generate variants for qty entry
         if (hideOpeningQty) {
           const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
-          // Build a map of existing qty values to preserve them
-          const existingQtyMap = new Map<string, number>();
-          variants.forEach(v => {
-            if ((v.purchase_qty || 0) > 0) {
-              existingQtyMap.set(`${v.color}||${v.size}`, v.purchase_qty || 0);
+          
+          // Mobile ERP / IMEI mode: single "Free" size per color, qty=1
+          if (mobileERPMode?.locked_size_qty) {
+            const newVariants: ProductVariant[] = colorsToUse.map(color => ({
+              color,
+              size: "Free",
+              pur_price: formData.default_pur_price ?? 0,
+              sale_price: formData.default_sale_price ?? 0,
+              mrp: formData.default_mrp ?? null,
+              barcode: "",
+              active: true,
+              opening_qty: 0,
+              purchase_qty: 1,
+            }));
+            if (isAutoBarcode) autoBarcodePending.current = true;
+            setVariants(newVariants);
+            setShowVariants(true);
+          } else {
+            // Build a map of existing qty values to preserve them
+            const existingQtyMap = new Map<string, number>();
+            variants.forEach(v => {
+              if ((v.purchase_qty || 0) > 0) {
+                existingQtyMap.set(`${v.color}||${v.size}`, v.purchase_qty || 0);
+              }
+            });
+            const newVariants: ProductVariant[] = [];
+            const allSizesForGroup = [...group.sizes, ...customSizes];
+            for (const color of colorsToUse) {
+              for (const size of allSizesForGroup) {
+                const key = `${color}||${size}`;
+                newVariants.push({
+                  color,
+                  size,
+                  pur_price: formData.default_pur_price ?? 0,
+                  sale_price: formData.default_sale_price ?? 0,
+                  mrp: formData.default_mrp ?? null,
+                  barcode: "",
+                  active: true,
+                  opening_qty: 0,
+                  purchase_qty: existingQtyMap.get(key) || 0,
+                });
+              }
             }
-          });
-          const newVariants: ProductVariant[] = [];
-          const allSizesForGroup = [...group.sizes, ...customSizes];
-          for (const color of colorsToUse) {
-            for (const size of allSizesForGroup) {
-              const key = `${color}||${size}`;
-              newVariants.push({
-                color,
-                size,
-                pur_price: formData.default_pur_price ?? 0,
-                sale_price: formData.default_sale_price ?? 0,
-                mrp: formData.default_mrp ?? null,
-                barcode: "",
-                active: true,
-                opening_qty: 0,
-                purchase_qty: existingQtyMap.get(key) || 0,
-              });
-            }
+            if (isAutoBarcode) autoBarcodePending.current = true;
+            setVariants(newVariants);
+            setShowVariants(true);
           }
-          if (isAutoBarcode) autoBarcodePending.current = true;
-          setVariants(newVariants);
-          setShowVariants(true);
         }
       }
     }
