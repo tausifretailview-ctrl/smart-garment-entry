@@ -2925,9 +2925,9 @@ export default function POSSales() {
   return (
     <div className="min-h-screen w-full bg-background flex">
       {/* Left Action Button Bar */}
-      <div className="w-20 bg-slate-100 dark:bg-slate-900 border-r flex flex-col gap-2 p-2 pb-32 z-30 relative overflow-y-auto">
+      <div className="w-[72px] bg-slate-50 dark:bg-slate-900 border-r border-border/60 flex flex-col gap-1.5 p-1.5 pb-32 z-30 relative overflow-y-auto">
         {/* Buttons in sequence: Cash, UPI, Card, Credit, Mix, Hold, New, Last, Print, Clear, WhatsApp */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {/* 1. Cash F1 */}
           <Button
             onClick={() => handlePaymentAndPrint('cash')}
