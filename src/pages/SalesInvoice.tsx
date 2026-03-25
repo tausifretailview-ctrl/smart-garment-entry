@@ -3359,85 +3359,85 @@ Thank you for choosing us!`;
       <footer className="sticky bottom-0 z-20 shrink-0">
         {/* Top Row: Inputs + Stats + Net Amount — single line */}
         <div className="bg-gradient-to-r from-teal-700 to-teal-800 text-white overflow-x-auto">
-          <div className="flex items-center px-4 py-2 gap-0 min-w-max">
+          <div className="flex items-center px-4 py-2.5 gap-0 min-w-max">
             {/* FLAT DISC % */}
-            <span className="text-[11px] font-bold uppercase tracking-wider text-teal-200 mr-2 whitespace-nowrap">Flat Disc %</span>
+            <span className="text-[13px] font-extrabold uppercase tracking-wider text-teal-100 mr-2 whitespace-nowrap">Flat Disc %</span>
             <Input
               type="number" min="0" max="100"
               value={flatDiscountPercent || ""}
               placeholder="0"
               onChange={(e) => setFlatDiscountPercent(parseFloat(e.target.value) || 0)}
               onWheel={(e) => (e.target as HTMLInputElement).blur()}
-              className="w-16 h-8 text-sm text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
+              className="w-[72px] h-9 text-[15px] text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
             />
 
-            <div className="w-px h-7 bg-teal-500/50 mx-3 shrink-0" />
+            <div className="w-px h-8 bg-teal-500/50 mx-3 shrink-0" />
 
             {/* FLAT DISC ₹ */}
-            <span className="text-[11px] font-bold uppercase tracking-wider text-teal-200 mr-2 whitespace-nowrap">Flat Disc ₹</span>
+            <span className="text-[13px] font-extrabold uppercase tracking-wider text-teal-100 mr-2 whitespace-nowrap">Flat Disc ₹</span>
             <Input
               type="number" min="0"
               value={flatDiscountRupees || ""}
               placeholder="0"
               onChange={(e) => setFlatDiscountRupees(parseFloat(e.target.value) || 0)}
               onWheel={(e) => (e.target as HTMLInputElement).blur()}
-              className="w-[72px] h-8 text-sm text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
+              className="w-[80px] h-9 text-[15px] text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
             />
 
-            <div className="w-px h-7 bg-teal-500/50 mx-3 shrink-0" />
+            <div className="w-px h-8 bg-teal-500/50 mx-3 shrink-0" />
 
             {/* Other Charges */}
-            <span className="text-[11px] font-bold uppercase tracking-wider text-teal-200 mr-2 whitespace-nowrap">Charges</span>
+            <span className="text-[13px] font-extrabold uppercase tracking-wider text-teal-100 mr-2 whitespace-nowrap">Charges</span>
             <Input
               type="number" min="0"
               value={otherCharges || ""}
               placeholder="0"
               onChange={(e) => setOtherCharges(parseFloat(e.target.value) || 0)}
               onWheel={(e) => (e.target as HTMLInputElement).blur()}
-              className="w-[72px] h-8 text-sm text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
+              className="w-[80px] h-9 text-[15px] text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
             />
 
-            <div className="w-px h-7 bg-teal-500/50 mx-3 shrink-0" />
+            <div className="w-px h-8 bg-teal-500/50 mx-3 shrink-0" />
 
             {/* Round Off */}
-            <span className="text-[11px] font-bold uppercase tracking-wider text-teal-200 mr-2 whitespace-nowrap">Round</span>
+            <span className="text-[13px] font-extrabold uppercase tracking-wider text-teal-100 mr-2 whitespace-nowrap">Round</span>
             <Input
               type="number" step="0.01"
               value={roundOff || ""}
               placeholder="0"
               onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
               onWheel={(e) => (e.target as HTMLInputElement).blur()}
-              className="w-16 h-8 text-sm text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
+              className="w-[72px] h-9 text-[15px] text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
             />
 
             {pointsToRedeem > 0 && (
               <>
-                <div className="w-px h-7 bg-teal-500/50 mx-3 shrink-0" />
-                <span className="text-[11px] text-amber-300 flex items-center gap-1 whitespace-nowrap">
-                  <Coins className="h-3 w-3" />
+                <div className="w-px h-8 bg-teal-500/50 mx-3 shrink-0" />
+                <span className="text-[13px] text-amber-300 font-bold flex items-center gap-1 whitespace-nowrap">
+                  <Coins className="h-3.5 w-3.5" />
                   Pts: -₹{pointsRedemptionValue.toFixed(0)}
                 </span>
               </>
             )}
 
             {/* Right-pinned Net Amount */}
-            <div className="ml-auto pl-4 border-l-2 border-teal-500/40 flex items-center gap-2 shrink-0">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-teal-200">Net</span>
-              <span className="text-[22px] font-black font-mono tabular-nums leading-none">₹{netAmount.toLocaleString('en-IN')}</span>
+            <div className="ml-auto pl-4 border-l-2 border-teal-500/40 flex items-center gap-3 shrink-0">
+              <span className="text-[13px] font-extrabold uppercase tracking-wider text-teal-100">Net</span>
+              <span className="text-[26px] font-black font-mono tabular-nums leading-none">₹{netAmount.toLocaleString('en-IN')}</span>
             </div>
           </div>
         </div>
 
         {/* Bottom Bar: Formula strip + action buttons */}
         <div className="bg-teal-900 flex items-center px-4 py-1.5 gap-3">
-          <div className="flex items-center gap-1.5 text-[11px] text-teal-300 font-mono flex-1 min-w-0 overflow-x-auto whitespace-nowrap">
+          <div className="flex items-center gap-2 text-[13px] text-teal-300 font-mono flex-1 min-w-0 overflow-x-auto whitespace-nowrap">
             <span>Subtotal <span className="text-white font-bold">₹{grossAmount.toFixed(0)}</span></span>
             <span className="text-teal-500">—</span>
             <span>Disc <span className="text-red-300 font-bold">₹{(lineItemDiscount + flatDiscountAmount).toFixed(0)}</span></span>
             <span className="text-teal-500">+</span>
             <span>GST <span className="text-white font-bold">₹{taxType === 'exclusive' ? totalGST.toFixed(0) : '0'}</span></span>
             <span className="text-teal-500">=</span>
-            <span>Net <span className="text-emerald-300 font-bold">₹{netAmount.toLocaleString('en-IN')}</span></span>
+            <span>Net <span className="text-emerald-300 font-extrabold">₹{netAmount.toLocaleString('en-IN')}</span></span>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
