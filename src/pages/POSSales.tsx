@@ -2925,17 +2925,17 @@ export default function POSSales() {
   return (
     <div className="min-h-screen w-full bg-background flex">
       {/* Left Action Button Bar */}
-      <div className="w-20 bg-slate-100 dark:bg-slate-900 border-r flex flex-col gap-2 p-2 pb-32 z-30 relative overflow-y-auto">
+      <div className="w-[72px] bg-slate-50 dark:bg-slate-900 border-r border-border/60 flex flex-col gap-1.5 p-1.5 pb-32 z-30 relative overflow-y-auto">
         {/* Buttons in sequence: Cash, UPI, Card, Credit, Mix, Hold, New, Last, Print, Clear, WhatsApp */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {/* 1. Cash F1 */}
           <Button
             onClick={() => handlePaymentAndPrint('cash')}
             disabled={items.length === 0 || isSaving}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-green-500 hover:bg-green-600 text-white shadow-none disabled:opacity-50"
+            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-green-500 hover:bg-green-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Cash Payment - Save & Print (F1)"
           >
-            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F1</Badge>
+            <Badge className="absolute top-0.5 right-0.5 h-[14px] px-1 text-[8px] leading-[14px] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F1</Badge>
             <Banknote className="h-4 w-4" />
             <span>Cash</span>
           </Button>
@@ -2944,10 +2944,10 @@ export default function POSSales() {
           <Button
             onClick={() => handlePaymentAndPrint('upi')}
             disabled={items.length === 0 || isSaving}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-purple-500 hover:bg-purple-600 text-white shadow-none disabled:opacity-50"
+            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-purple-500 hover:bg-purple-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="UPI Payment - Save & Print (F2)"
           >
-            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F2</Badge>
+            <Badge className="absolute top-0.5 right-0.5 h-[14px] px-1 text-[8px] leading-[14px] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F2</Badge>
             <Smartphone className="h-4 w-4" />
             <span>UPI</span>
           </Button>
@@ -2956,10 +2956,10 @@ export default function POSSales() {
           <Button
             onClick={() => handlePaymentAndPrint('card')}
             disabled={items.length === 0 || isSaving}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-cyan-500 hover:bg-cyan-600 text-white shadow-none disabled:opacity-50"
+            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-cyan-500 hover:bg-cyan-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Card Payment - Save & Print (F3)"
           >
-            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F3</Badge>
+            <Badge className="absolute top-0.5 right-0.5 h-[14px] px-1 text-[8px] leading-[14px] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F3</Badge>
             <CreditCard className="h-4 w-4" />
             <span>Card</span>
           </Button>
@@ -2968,10 +2968,10 @@ export default function POSSales() {
           <Button
             onClick={() => handlePaymentAndPrint('pay_later')}
             disabled={items.length === 0 || isSaving}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-orange-500 hover:bg-orange-600 text-white shadow-none disabled:opacity-50"
+            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-orange-500 hover:bg-orange-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Credit - Pay Later (F4)"
           >
-            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F4</Badge>
+            <Badge className="absolute top-0.5 right-0.5 h-[14px] px-1 text-[8px] leading-[14px] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F4</Badge>
             <Clock className="h-4 w-4" />
             <span>Credit</span>
           </Button>
@@ -2979,10 +2979,10 @@ export default function POSSales() {
           {/* 5. Sale Return F5 */}
           <Button
             onClick={() => setShowFloatingSaleReturn(true)}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-red-500 hover:bg-red-600 text-white shadow-none"
+            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-red-500 hover:bg-red-600 active:scale-95 text-white shadow-sm transition-all duration-150"
             title="Sale Return (F5)"
           >
-            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F5</Badge>
+            <Badge className="absolute top-0.5 right-0.5 h-[14px] px-1 text-[8px] leading-[14px] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F5</Badge>
             <RotateCcw className="h-4 w-4" />
             <span>S/R</span>
           </Button>
@@ -2991,10 +2991,10 @@ export default function POSSales() {
           <Button
             onClick={handleMixPayment}
             disabled={items.length === 0 || isSaving}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-violet-500 hover:bg-violet-600 text-white shadow-none disabled:opacity-50"
+            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-violet-500 hover:bg-violet-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Mix Payment - Save & Print (F6)"
           >
-            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F6</Badge>
+            <Badge className="absolute top-0.5 right-0.5 h-[14px] px-1 text-[8px] leading-[14px] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F6</Badge>
             <Wallet className="h-4 w-4" />
             <span>Mix</span>
           </Button>
@@ -3003,10 +3003,10 @@ export default function POSSales() {
           <Button
             onClick={handleHoldBill}
             disabled={items.length === 0 || isSaving || isHeldSale}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-amber-500 hover:bg-amber-600 text-white shadow-none disabled:opacity-50"
+            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-amber-500 hover:bg-amber-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Hold Bill (F7)"
           >
-            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F7</Badge>
+            <Badge className="absolute top-0.5 right-0.5 h-[14px] px-1 text-[8px] leading-[14px] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F7</Badge>
             <Pause className="h-4 w-4" />
             <span>Hold</span>
           </Button>
@@ -3014,10 +3014,10 @@ export default function POSSales() {
           {/* 8. Cashier Report F8 */}
           <Button
             onClick={() => setShowFloatingCashierReport(true)}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-teal-500 hover:bg-teal-600 text-white shadow-none"
+            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-teal-500 hover:bg-teal-600 active:scale-95 text-white shadow-sm transition-all duration-150"
             title="Daily Cashier Report (F8)"
           >
-            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F8</Badge>
+            <Badge className="absolute top-0.5 right-0.5 h-[14px] px-1 text-[8px] leading-[14px] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F8</Badge>
             <BarChart3 className="h-4 w-4" />
             <span>Cashier</span>
           </Button>
@@ -3026,17 +3026,17 @@ export default function POSSales() {
           <Button
             onClick={handleEstimatePrint}
             disabled={items.length === 0}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-sky-500 hover:bg-sky-600 text-white shadow-none disabled:opacity-50"
+            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-sky-500 hover:bg-sky-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Print Estimate - No Save (F9)"
           >
-            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F9</Badge>
+            <Badge className="absolute top-0.5 right-0.5 h-[14px] px-1 text-[8px] leading-[14px] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F9</Badge>
             <FileText className="h-4 w-4" />
             <span>Estimate</span>
           </Button>
           
           <Button
             onClick={handleNewInvoice}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs w-full bg-none from-transparent to-transparent bg-emerald-500 hover:bg-emerald-600 text-white shadow-none"
+            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold w-full rounded-lg bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white shadow-sm transition-all duration-150"
             title="New Invoice"
           >
             <FileText className="h-4 w-4" />
@@ -3047,7 +3047,7 @@ export default function POSSales() {
           <Button
             onClick={handleLastInvoice}
             disabled={!todaysSales || todaysSales.length === 0}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs w-full bg-none from-transparent to-transparent bg-blue-500 hover:bg-blue-600 text-white shadow-none disabled:opacity-50"
+            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold w-full rounded-lg bg-blue-500 hover:bg-blue-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Last Invoice"
           >
             <RotateCcw className="h-4 w-4" />
@@ -3058,7 +3058,7 @@ export default function POSSales() {
           <Button
             onClick={handlePrint}
             disabled={items.length === 0}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs w-full bg-none from-transparent to-transparent bg-indigo-500 hover:bg-indigo-600 text-white shadow-none disabled:opacity-50"
+            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold w-full rounded-lg bg-indigo-500 hover:bg-indigo-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Print"
           >
             <Printer className="h-4 w-4" />
@@ -3068,10 +3068,10 @@ export default function POSSales() {
           {/* 10. Clear - matches Dashboard "With Refunds" rose-500 */}
           <Button
             onClick={handleClearAll}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-rose-500 hover:bg-rose-600 text-white shadow-none"
+            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-rose-500 hover:bg-rose-600 active:scale-95 text-white shadow-sm transition-all duration-150"
             title="Clear (Esc)"
           >
-            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">ESC</Badge>
+            <Badge className="absolute top-0.5 right-0.5 h-[14px] px-1 text-[8px] leading-[14px] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">ESC</Badge>
             <X className="h-4 w-4" />
             <span>Clear</span>
           </Button>
@@ -3082,23 +3082,23 @@ export default function POSSales() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Sticky Header Section - Barcode scanning bar stays fixed */}
-        <div className="sticky top-0 z-20 bg-background border-b shadow-sm px-2 md:px-4 py-2">
-          <div className="max-w-[1800px] w-full pl-4">
-            <div className="flex flex-wrap items-end gap-4">
+        <div className="sticky top-0 z-20 bg-background border-b border-border/60 shadow-sm px-3 md:px-4 py-2.5">
+          <div className="max-w-[1800px] w-full pl-2">
+            <div className="flex flex-wrap items-end gap-3">
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
-              <div className="relative w-56">
-                <Label className="text-sm font-medium mb-1 block">Barcode</Label>
+              <div className="relative w-60">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">Barcode</Label>
                 <Input
                   ref={barcodeInputRef}
                   placeholder="Scan Barcode/Enter Product Name"
                   value={searchInput}
                   onChange={handleBarcodeInputChange}
                   onKeyDown={handleSearch}
-                  className="h-12 text-lg pr-12"
+                  className="h-10 text-base pr-10 border-border/80 focus:border-primary"
                   autoFocus
                 />
-                <Scan className="absolute right-3 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground" />
+                <Scan className="absolute right-3 top-[calc(50%+10px)] -translate-y-1/2 h-5 w-5 text-muted-foreground/60" />
               </div>
             </PopoverTrigger>
             <PopoverContent 
@@ -3178,7 +3178,7 @@ export default function POSSales() {
             <PopoverTrigger asChild>
               <div className="relative w-72">
                 <div className="flex items-center justify-between mb-1">
-                  <Label className="text-sm font-medium">Customer Name</Label>
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Customer Name</Label>
                   {/* Customer Balance Display - on top of label */}
                   <div className="flex items-center gap-2">
                     {/* Credit Note Balance */}
@@ -3216,14 +3216,14 @@ export default function POSSales() {
                     setCustomerName(e.target.value);
                     setOpenCustomerSearch(true);
                   }}
-                  className="h-12 text-lg pr-32"
+                  className="h-10 text-base pr-20 border-border/80 focus:border-primary"
                   placeholder="Enter customer name or phone"
                 />
                 {customerName && (
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="absolute right-10 top-1/2 translate-y-0.5 h-9 w-9"
+                    className="absolute right-8 top-1/2 translate-y-0.5 h-8 w-8"
                     onClick={() => {
                       setCustomerName("");
                       setCustomerId("");
@@ -3236,7 +3236,7 @@ export default function POSSales() {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="absolute right-2 top-1/2 translate-y-0.5 h-9 w-9"
+                  className="absolute right-1 top-1/2 translate-y-0.5 h-8 w-8"
                   onClick={() => setShowAddCustomerDialog(true)}
                   title="Add New Customer"
                 >
@@ -3336,14 +3336,14 @@ export default function POSSales() {
           <Popover open={openSalesmanSearch} onOpenChange={setOpenSalesmanSearch}>
             <PopoverTrigger asChild>
               <div className="relative w-36">
-                <Label className="text-sm font-medium mb-1 block">Salesperson</Label>
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">Salesperson</Label>
                 <Input
                   value={selectedSalesman}
                   onChange={(e) => {
                     setSelectedSalesman(e.target.value);
                     setOpenSalesmanSearch(true);
                   }}
-                  className="h-12 text-sm pr-8"
+                  className="h-10 text-sm pr-8 border-border/80 focus:border-primary"
                   placeholder="Select..."
                 />
                 {selectedSalesman && (
@@ -3399,24 +3399,24 @@ export default function POSSales() {
 
           {/* Invoice Number Display */}
           <div className="relative w-40">
-            <Label className="text-sm font-medium mb-1 block">Invoice No</Label>
+            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">Invoice No</Label>
             <Input
               value={currentInvoiceNumber || nextInvoicePreview || "NEW"}
               readOnly
-              className="h-12 text-sm font-semibold text-center bg-gradient-to-r from-primary/10 to-secondary/10"
+              className="h-10 text-sm font-semibold text-center bg-muted/50 border-border/80"
               placeholder="Invoice #"
             />
           </div>
           
           {/* Running Total Display */}
-          <div className="h-12 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-4 flex items-center justify-center min-w-[180px]">
-            <div className="text-white font-bold text-xl">
+          <div className="h-10 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-5 flex items-center justify-center min-w-[160px] shadow-sm">
+            <div className="text-white font-bold text-lg tracking-tight">
               ₹{Math.round(finalAmount).toLocaleString('en-IN')}
             </div>
           </div>
               
-              <div className="relative h-12 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-md px-4 flex items-center justify-center min-w-[100px]">
-                <div className="text-white font-semibold text-base">
+              <div className="relative h-10 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-md px-3 flex items-center justify-center min-w-[90px] shadow-sm">
+                <div className="text-white font-semibold text-sm">
                   {items.length} {items.length === 1 ? 'Item' : 'Items'}
                 </div>
               </div>
@@ -3429,7 +3429,7 @@ export default function POSSales() {
                         onClick={handlePreviousInvoice}
                         variant="outline"
                         size="sm"
-                        className="h-12"
+                        className="h-10"
                         disabled={!todaysSales || todaysSales.length === 0 || currentInvoiceIndex >= todaysSales.length - 1}
                       >
                         <ChevronLeft className="h-4 w-4 mr-1" />
@@ -3450,7 +3450,7 @@ export default function POSSales() {
                   {/* Position Indicator - Always visible */}
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div className="h-12 px-3 bg-muted rounded-md flex flex-col items-center justify-center min-w-[60px] cursor-pointer" onClick={handleLastInvoice}>
+                      <div className="h-10 px-3 bg-muted/60 rounded-md flex flex-col items-center justify-center min-w-[52px] cursor-pointer border border-border/50" onClick={handleLastInvoice}>
                         <span className="text-sm font-semibold text-foreground">
                           {todaysSales && todaysSales.length > 0 && currentSaleId 
                             ? todaysSales.length - currentInvoiceIndex 
@@ -3471,7 +3471,7 @@ export default function POSSales() {
                         onClick={handleNextInvoice}
                         variant="outline"
                         size="sm"
-                        className="h-12"
+                        className="h-10"
                         disabled={!todaysSales || todaysSales.length === 0 || currentInvoiceIndex <= 0}
                       >
                         <div className="flex flex-col items-end">
@@ -3493,11 +3493,11 @@ export default function POSSales() {
               </TooltipProvider>
               
               {/* Date & Time Display */}
-              <div className="relative h-12 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-md px-4 flex flex-col items-center justify-center">
-                <div className="text-white font-semibold text-sm">
+              <div className="relative h-10 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-md px-3 flex flex-col items-center justify-center shadow-sm">
+                <div className="text-white font-semibold text-xs">
                   {currentDateTime.toLocaleDateString('en-GB')}
                 </div>
-                <div className="text-white text-xs">
+                <div className="text-white/80 text-[10px]">
                   {currentDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </div>
             </div>
@@ -3505,22 +3505,22 @@ export default function POSSales() {
         </div>
 
         {/* Items Table - Scrollable Section */}
-        <div className="flex-1 overflow-hidden flex flex-col px-2 md:px-4 pb-36 mt-3">
+        <div className="flex-1 overflow-hidden flex flex-col px-2 md:px-4 pb-36 mt-2">
           <div className="max-w-[1800px] w-full flex-1 flex flex-col overflow-hidden">
-          <Card className="flex-1 overflow-hidden flex flex-col">
-            <div className="bg-black text-white overflow-x-auto">
-              <div className="min-w-[1200px] grid gap-3 p-4 text-base font-medium" style={{ gridTemplateColumns: '60px 140px 1fr 80px 70px 100px 60px 70px 80px 100px 130px' }}>
-                <div>Sr No</div>
+          <Card className="flex-1 overflow-hidden flex flex-col border-border/60 shadow-sm">
+            <div className="bg-slate-900 text-white overflow-x-auto">
+              <div className="min-w-[1200px] grid gap-2 px-4 py-3 text-[13px] font-semibold uppercase tracking-wider" style={{ gridTemplateColumns: '50px 130px 1fr 70px 65px 95px 65px 65px 75px 95px 120px' }}>
+                <div className="text-center">Sr No</div>
                 <div>Barcode</div>
                 <div>Product</div>
-                <div>Size</div>
-                <div>Qty</div>
-                <div>MRP</div>
-                <div>Tax%</div>
-                <div>Disc%</div>
-                <div>Disc Rs</div>
-                <div>Unit Price</div>
-                <div>Net Amount</div>
+                <div className="text-center">Size</div>
+                <div className="text-center">Qty</div>
+                <div className="text-right">MRP</div>
+                <div className="text-center">Tax%</div>
+                <div className="text-center">Disc%</div>
+                <div className="text-right">Disc Rs</div>
+                <div className="text-right">Unit Price</div>
+                <div className="text-right">Net Amount</div>
               </div>
             </div>
             
@@ -3552,41 +3552,41 @@ export default function POSSales() {
               )}
               <div className="overflow-x-auto">
                 {items.length === 0 ? (
-                  // Show 6 blank rows with serial numbers
+                  // Show 5 blank rows with serial numbers
                   Array.from({ length: 5 }).map((_, index) => (
-                    <div key={index} className="min-w-[1200px] grid gap-3 p-4 border-b text-base" style={{ gridTemplateColumns: '60px 140px 1fr 80px 70px 100px 60px 70px 80px 100px 130px' }}>
-                      <div className="flex items-center text-muted-foreground">{index + 1}</div>
-                      <div className="flex items-center text-muted-foreground">-</div>
-                      <div className="flex items-center text-muted-foreground">-</div>
-                      <div className="flex items-center text-muted-foreground">-</div>
-                      <div className="flex items-center text-muted-foreground">-</div>
-                      <div className="flex items-center text-muted-foreground">-</div>
-                      <div className="flex items-center text-muted-foreground">-</div>
-                      <div className="flex items-center text-muted-foreground">-</div>
-                      <div className="flex items-center text-muted-foreground">-</div>
-                      <div className="flex items-center text-muted-foreground">-</div>
-                      <div className="flex items-center text-muted-foreground">-</div>
+                    <div key={index} className={`min-w-[1200px] grid gap-2 px-4 py-3 border-b border-border/40 text-sm ${index % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: '50px 130px 1fr 70px 65px 95px 65px 65px 75px 95px 120px' }}>
+                      <div className="flex items-center justify-center text-muted-foreground/50 font-medium">{index + 1}</div>
+                      <div className="flex items-center text-muted-foreground/30">—</div>
+                      <div className="flex items-center text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-center text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-center text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-end text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-center text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-center text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-end text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-end text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-end text-muted-foreground/30">—</div>
                     </div>
                   ))
                 ) : (
                   items.map((item, index) => (
-                    <div key={index} className="min-w-[1200px] grid gap-3 p-4 border-b hover:bg-muted/50 text-base" style={{ gridTemplateColumns: '60px 140px 1fr 80px 70px 100px 60px 70px 80px 100px 130px' }}>
-                      <div className="flex items-center font-semibold">{index + 1}</div>
-                      <div className="flex items-center text-sm">{item.barcode}</div>
-                      <div className="flex items-center font-medium truncate gap-1">
+                    <div key={index} className={`min-w-[1200px] grid gap-2 px-4 py-2.5 border-b border-border/40 hover:bg-accent/30 text-sm transition-colors ${index % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: '50px 130px 1fr 70px 65px 95px 65px 65px 75px 95px 120px' }}>
+                      <div className="flex items-center justify-center font-semibold text-foreground/80">{index + 1}</div>
+                      <div className="flex items-center text-xs font-mono text-muted-foreground">{item.barcode}</div>
+                      <div className="flex items-center font-medium text-sm truncate gap-1">
                         {item.productName}
                         {item.isDcProduct && (
                           <span className="px-1 py-0.5 text-[9px] font-bold bg-orange-100 text-orange-700 border border-orange-300 rounded flex-shrink-0">DC</span>
                         )}
                       </div>
-                      <div className="flex items-center text-sm font-medium">{item.size}</div>
+                      <div className="flex items-center justify-center text-sm font-medium">{item.size}</div>
                       <div>
                         <Input
                           type="number"
                           value={item.quantity || ""}
                           onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
                           placeholder="1"
-                          className="h-9 text-base w-full"
+                          className="h-8 text-sm w-full text-center bg-muted/30 border-border/60"
                           min="1"
                         />
                       </div>
@@ -3596,7 +3596,7 @@ export default function POSSales() {
                           value={item.mrp || ""}
                           onChange={(e) => updateMrp(index, parseFloat(e.target.value) || 0)}
                           placeholder="0"
-                          className="h-9 text-base w-full"
+                          className="h-8 text-sm w-full text-right bg-muted/30 border-border/60"
                           min="0"
                           step="0.01"
                         />
@@ -3605,7 +3605,7 @@ export default function POSSales() {
                         <select
                           value={item.gstPer}
                           onChange={(e) => updateGstPer(index, parseInt(e.target.value))}
-                          className="h-9 w-full rounded-md border border-input bg-background px-2 text-base focus:outline-none focus:ring-2 focus:ring-ring"
+                          className="h-8 w-full rounded-md border border-border/60 bg-muted/30 px-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-ring"
                         >
                           <option value="0">0%</option>
                           <option value="5">5%</option>
@@ -3620,7 +3620,7 @@ export default function POSSales() {
                           value={item.discountPercent || ""}
                           onChange={(e) => updateDiscountPercent(index, parseFloat(e.target.value) || 0)}
                           placeholder="0"
-                          className="h-9 text-base w-full"
+                          className="h-8 text-sm w-full text-center bg-muted/30 border-border/60"
                           min="0"
                           max="100"
                           step="0.01"
@@ -3632,21 +3632,21 @@ export default function POSSales() {
                           value={item.discountAmount || ""}
                           onChange={(e) => updateDiscountAmount(index, parseFloat(e.target.value) || 0)}
                           placeholder="0"
-                          className="h-9 text-base w-full"
+                          className="h-8 text-sm w-full text-right bg-muted/30 border-border/60"
                           min="0"
                           step="0.01"
                         />
                       </div>
-                      <div className="flex items-center">₹{Math.round(item.unitCost).toLocaleString('en-IN')}</div>
+                      <div className="flex items-center justify-end text-sm text-muted-foreground">₹{Math.round(item.unitCost).toLocaleString('en-IN')}</div>
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold">₹{Math.round(item.netAmount).toLocaleString('en-IN')}</span>
+                        <span className="font-bold text-sm">₹{Math.round(item.netAmount).toLocaleString('en-IN')}</span>
                         <Button
                           size="icon"
                           variant="ghost"
                           onClick={() => removeItem(index)}
-                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </div>
@@ -3750,68 +3750,75 @@ export default function POSSales() {
         </div>
 
         {/* Totals Section - Fixed at Bottom, above keyboard shortcut bar */}
-        <div className="fixed bottom-0 md:bottom-7 left-20 right-0 bg-cyan-500 text-white p-2 md:p-4 shadow-lg z-20">
-          <div className={`grid ${totals.savings > 0 || totals.mrp > totals.subtotal || creditApplied > 0 || availableCreditBalance > 0 ? 'grid-cols-5 md:grid-cols-10' : 'grid-cols-4 md:grid-cols-8'} gap-1 md:gap-3`}>
-            <div className="text-center">
-              <div className="text-xl md:text-2xl font-bold">{totals.quantity}</div>
-              <div className="text-xs md:text-sm mt-1">Quantity</div>
+        <div className="fixed bottom-0 md:bottom-7 left-[72px] right-0 bg-gradient-to-r from-cyan-600 to-teal-600 text-white px-3 py-2.5 shadow-[0_-4px_20px_rgba(0,0,0,0.15)] z-20">
+          <div className={`grid ${totals.savings > 0 || totals.mrp > totals.subtotal || creditApplied > 0 || availableCreditBalance > 0 ? 'grid-cols-5 md:grid-cols-10' : 'grid-cols-4 md:grid-cols-8'} gap-1 md:gap-2 items-center`}>
+            {/* Quantity */}
+            <div className="text-center px-1">
+              <div className="text-lg md:text-xl font-bold">{totals.quantity}</div>
+              <div className="text-[10px] md:text-xs mt-0.5 text-white/70 uppercase tracking-wider font-medium">Quantity</div>
             </div>
+            {/* MRP Total */}
             {(totals.mrp > totals.subtotal && totals.savings > 0) && (
-            <div className="text-center bg-white/10 rounded-md py-1 px-1">
-              <div className="text-xl md:text-2xl font-bold line-through decoration-2 decoration-red-300 text-white/80">
+            <div className="text-center bg-white/10 rounded-lg py-1.5 px-1">
+              <div className="text-lg md:text-xl font-bold line-through decoration-2 decoration-red-300 text-white/70">
                 ₹{Math.round(totals.mrp).toLocaleString('en-IN')}
               </div>
-              <div className="text-xs md:text-sm mt-0.5 font-semibold tracking-wide">MRP Total</div>
+              <div className="text-[10px] md:text-xs mt-0.5 font-semibold uppercase tracking-wide text-white/70">MRP Total</div>
             </div>
             )}
+            {/* Customer Saves */}
             {(totals.mrp > totals.subtotal || totals.savings > 0) && (
-              <div className="text-center bg-green-600 rounded-md py-1 px-1">
-                <div className="text-xl md:text-2xl font-bold">
+              <div className="text-center bg-green-500 rounded-lg py-1.5 px-2 max-w-[140px] mx-auto w-full">
+                <div className="text-lg md:text-xl font-bold leading-tight">
                   ₹{Math.round(totals.mrp - totals.subtotal > 0 ? totals.mrp - totals.subtotal : totals.savings).toLocaleString('en-IN')}
                 </div>
-                <div className="text-xs md:text-sm mt-0.5 font-semibold">
+                <div className="text-[10px] font-semibold leading-tight">
                   🎉 Customer Saves
                 </div>
                 {totals.mrp > 0 && (
-                  <div className="text-[10px] text-green-200 leading-tight">
+                  <div className="text-[9px] text-green-100 leading-tight">
                     {(((totals.mrp - totals.subtotal) / totals.mrp) * 100).toFixed(0)}% off MRP
                   </div>
                 )}
               </div>
             )}
-            <div className="text-center">
-              <div className="text-xl md:text-2xl font-bold">₹0</div>
-              <div className="text-xs md:text-sm mt-1">Add. Charges</div>
+            {/* Add. Charges */}
+            <div className="text-center px-1">
+              <div className="text-lg md:text-xl font-bold">₹0</div>
+              <div className="text-[10px] md:text-xs mt-0.5 text-white/70 uppercase tracking-wider font-medium">Add. Charges</div>
             </div>
-            <div className="text-center">
-              <div className="text-xl md:text-2xl font-bold">₹{Math.round(totals.discount).toLocaleString('en-IN')}</div>
-              <div className="text-xs md:text-sm mt-1">Discount</div>
+            {/* Discount */}
+            <div className="text-center px-1">
+              <div className="text-lg md:text-xl font-bold">₹{Math.round(totals.discount).toLocaleString('en-IN')}</div>
+              <div className="text-[10px] md:text-xs mt-0.5 text-white/70 uppercase tracking-wider font-medium">Discount</div>
             </div>
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-1">
+            {/* Flat Discount */}
+            <div className="text-center px-1">
+              <div className="flex items-center justify-center gap-0.5">
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="bg-black text-white px-2 py-1 text-sm rounded h-8 hover:bg-gray-800"
+                  className="bg-white/20 text-white px-2 py-1 text-xs rounded-l-md h-8 hover:bg-white/30 border-0 font-bold min-w-[28px]"
                   onClick={() => setFlatDiscountMode(flatDiscountMode === 'percent' ? 'amount' : 'percent')}
                 >
                   {flatDiscountMode === 'percent' ? '%' : '₹'}
                 </Button>
                 <Input 
                   type="number"
-                  className="w-24 h-8 bg-white text-black text-center text-base font-semibold" 
+                  className="w-20 h-8 bg-white text-foreground text-center text-sm font-semibold rounded-l-none border-0" 
                   value={flatDiscountValue || ""}
                   placeholder="0"
                   onChange={(e) => setFlatDiscountValue(parseFloat(e.target.value) || 0)}
                 />
               </div>
-              <div className="text-xs md:text-sm mt-1">Flat Discount</div>
+              <div className="text-[10px] md:text-xs mt-0.5 text-white/70 uppercase tracking-wider font-medium">Flat Discount</div>
             </div>
-            <div className="text-center relative">
+            {/* S/R Adjust */}
+            <div className="text-center relative px-1">
               <div className="flex items-center justify-center gap-0.5">
                 <Input 
                   type="number"
-                  className="w-20 h-8 bg-white text-black text-center text-base font-semibold" 
+                  className="w-[72px] h-8 bg-white text-foreground text-center text-sm font-semibold border-0" 
                   value={saleReturnAdjust || ""}
                   placeholder="0"
                   onChange={(e) => setSaleReturnAdjust(parseFloat(e.target.value) || 0)}
@@ -3845,14 +3852,14 @@ export default function POSSales() {
                   </Popover>
                 )}
               </div>
-              <div className="text-xs md:text-sm mt-1">S/R Adjust{customerId && pendingSaleReturnCredits.length > 0 ? ` (${pendingSaleReturnCredits.length})` : ''}</div>
+              <div className="text-[10px] md:text-xs mt-0.5 text-white/70 uppercase tracking-wider font-medium">S/R Adjust{customerId && pendingSaleReturnCredits.length > 0 ? ` (${pendingSaleReturnCredits.length})` : ''}</div>
             </div>
             {/* Credit Applied Field - Only show if customer has credit balance */}
             {(availableCreditBalance > 0 || creditApplied > 0) && (
-              <div className="text-center bg-purple-600 rounded-md py-1">
+              <div className="text-center bg-purple-500/80 rounded-lg py-1.5 px-1">
                 <Input 
                   type="number"
-                  className="w-20 h-8 bg-white text-purple-700 text-center text-base font-semibold mx-auto" 
+                  className="w-[72px] h-8 bg-white text-purple-700 text-center text-sm font-semibold mx-auto border-0" 
                   value={creditApplied || ""}
                   placeholder="0"
                   onChange={(e) => {
@@ -3864,11 +3871,12 @@ export default function POSSales() {
                   step="0.01"
                   disabled={!customerId || availableCreditBalance <= 0 || isApplyingCredit}
                 />
-                <div className="text-xs md:text-sm mt-1">Credit (₹{availableCreditBalance.toFixed(0)})</div>
+                <div className="text-[10px] md:text-xs mt-0.5 font-medium">Credit (₹{availableCreditBalance.toFixed(0)})</div>
               </div>
             )}
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-1">
+            {/* Round OFF */}
+            <div className="text-center px-1">
+              <div className="flex items-center justify-center gap-0.5">
                 {isManualRoundOff && (
                   <TooltipProvider>
                     <Tooltip>
@@ -3876,7 +3884,7 @@ export default function POSSales() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="bg-white text-cyan-600 px-1 py-0.5 text-xs rounded h-6 hover:bg-cyan-50"
+                          className="bg-white/20 text-white px-1 py-0.5 text-xs rounded h-6 hover:bg-white/30"
                           onClick={handleResetRoundOff}
                         >
                           <RotateCcw className="h-3 w-3" />
@@ -3890,34 +3898,35 @@ export default function POSSales() {
                 )}
                 <Input 
                   type="number"
-                  className={`w-20 h-8 text-center text-base font-semibold ${roundOff >= 0 ? 'bg-green-100 text-green-700 border-green-300' : 'bg-red-100 text-red-700 border-red-300'}`}
+                  className={`w-[72px] h-8 text-center text-sm font-semibold border-0 ${roundOff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
                   value={roundOff || ""}
                   placeholder="0"
                   onChange={(e) => handleRoundOffChange(parseFloat(e.target.value) || 0)}
                   step="1"
                 />
               </div>
-              <div className="text-xs md:text-sm mt-1">
-                Round OFF {isManualRoundOff && <span className="text-yellow-300">(Manual)</span>}
+              <div className="text-[10px] md:text-xs mt-0.5 text-white/70 uppercase tracking-wider font-medium">
+                Round OFF {isManualRoundOff && <span className="text-yellow-300 normal-case">(Manual)</span>}
               </div>
             </div>
-            <div className="text-center">
+            {/* Net Amount */}
+            <div className="text-center bg-white/10 rounded-lg py-1.5 px-2 min-w-[150px]">
               {totals.mrp > 0 && totals.mrp !== finalAmount && (
-                <div className="text-[10px] text-cyan-200 line-through mb-0.5">
+                <div className="text-[10px] text-white/60 line-through leading-tight">
                   MRP ₹{Math.round(totals.mrp).toLocaleString('en-IN')}
                 </div>
               )}
               <Input 
                 type="number"
-                className={`w-36 md:w-44 h-10 text-center text-xl md:text-2xl font-bold bg-white text-cyan-700 border-white mx-auto ${finalAmount < 0 ? 'text-orange-600' : ''}`}
+                className={`w-32 md:w-40 h-10 text-center text-xl md:text-2xl font-bold bg-white border-0 mx-auto shadow-sm ${finalAmount < 0 ? 'text-orange-600' : 'text-cyan-700'}`}
                 value={Math.round(finalAmount)}
                 onChange={(e) => handleFinalAmountChange(parseFloat(e.target.value) || 0)}
                 step="1"
               />
-              <div className="text-xs md:text-sm mt-1">
+              <div className="text-[10px] md:text-xs mt-0.5 font-medium">
                 {finalAmount < 0 ? "Refund" : "Net Amount"}
                 {effectiveDiscountPercent > 0 && (
-                  <span className="block text-yellow-300 font-bold text-xs">
+                  <span className="block text-yellow-300 font-bold text-[10px]">
                     ↓ {effectiveDiscountPercent.toFixed(1)}% off MRP
                   </span>
                 )}
@@ -4446,7 +4455,7 @@ export default function POSSales() {
         )}
 
         {/* Keyboard Shortcut Hints Bar - Desktop only */}
-        <div className="hidden md:flex fixed bottom-0 left-20 right-0 h-7 bg-slate-800 dark:bg-slate-950 text-slate-300 text-[11px] items-center justify-center gap-6 z-40 border-t border-slate-700 select-none">
+        <div className="hidden md:flex fixed bottom-0 left-[72px] right-0 h-7 bg-slate-800 dark:bg-slate-950 text-slate-400 text-[11px] items-center justify-center gap-5 z-40 border-t border-slate-700/50 select-none font-medium">
           <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">F1</kbd> Cash</span>
           <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">F2</kbd> UPI</span>
           <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">F3</kbd> Card</span>
