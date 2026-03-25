@@ -2169,7 +2169,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               ) : (
                 <>
                   ➕ {hideOpeningQty
-                    ? `Add ${variants.filter(v => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size)).length || ''} Sizes to Bill`
+                    ? `Add ${variants.filter(v => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size) && (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color))).length || ''} Sizes to Bill`
                     : 'Add to Bill'
                   }
                 </>
