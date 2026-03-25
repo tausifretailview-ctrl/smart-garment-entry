@@ -1508,6 +1508,19 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         ...formData,
                         default_pur_discount: e.target.value ? Number(e.target.value) : undefined
                       })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const form = e.currentTarget.closest("form") || e.currentTarget.closest("[role='dialog']");
+                          if (form) {
+                            const inputs = Array.from(form.querySelectorAll("input:not([disabled]):not([type='hidden']), select:not([disabled]), textarea:not([disabled])"));
+                            const idx = inputs.indexOf(e.currentTarget);
+                            if (idx >= 0 && idx < inputs.length - 1) {
+                              (inputs[idx + 1] as HTMLElement).focus();
+                            }
+                          }
+                        }
+                      }}
                       className="h-9 text-sm"
                     />
                   </div>
