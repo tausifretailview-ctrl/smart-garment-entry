@@ -113,7 +113,7 @@ interface SaleSettings {
   defaultEntryMode?: 'grid' | 'inline';  // Default entry mode for Sale Order
   enable_size_grid_sales?: boolean; // Enable/disable size grid in Sales Invoice
   sales_tax_rate?: number;
-  invoice_template?: 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'retail' | 'retail-erp';
+  invoice_template?: 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'retail' | 'retail-erp';
   invoice_color_scheme?: string;
   declaration_text?: string;
   terms_list?: string[];
@@ -2324,7 +2324,7 @@ export default function Settings() {
                           ...settings,
                           sale_settings: {
                             ...settings.sale_settings,
-                            invoice_template: value as 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'retail' | 'retail-erp',
+                            invoice_template: value as 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'retail' | 'retail-erp',
                           },
                         })
                       }
@@ -2379,6 +2379,12 @@ export default function Settings() {
                           <span className="flex items-center gap-2">
                             <span className="text-red-600 font-bold text-xs w-5">TAX</span>
                             Tax Invoice — GST B2B compliant
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="tally-tax-invoice">
+                          <span className="flex items-center gap-2">
+                            <span className="text-amber-700 font-bold text-xs w-5">TLY</span>
+                            Tally Tax Invoice — Mobile/Electronics Shop
                           </span>
                         </SelectItem>
                         <SelectItem value="retail">

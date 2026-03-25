@@ -9,6 +9,7 @@ import { MinimalTemplate } from './invoice-templates/MinimalTemplate';
 import { CompactTemplate } from './invoice-templates/CompactTemplate';
 import { DetailedTemplate } from './invoice-templates/DetailedTemplate';
 import { TaxInvoiceTemplate } from './invoice-templates/TaxInvoiceTemplate';
+import { TallyTaxInvoiceTemplate } from './invoice-templates/TallyTaxInvoiceTemplate';
 import { RetailTemplate } from './invoice-templates/RetailTemplate';
 import { RetailERPTemplate } from './invoice-templates/RetailERPTemplate';
 import { A5HorizontalBillFormat } from './A5HorizontalBillFormat';
@@ -465,6 +466,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           return <DetailedTemplate {...commonProps} />;
         case 'tax-invoice':
           return <TaxInvoiceTemplate {...commonProps} />;
+        case 'tally-tax-invoice':
+          return <TallyTaxInvoiceTemplate {...commonProps} />;
         case 'retail':
           return <RetailTemplate {...commonProps} />;
         case 'retail-erp':
