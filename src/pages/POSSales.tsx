@@ -3178,7 +3178,7 @@ export default function POSSales() {
             <PopoverTrigger asChild>
               <div className="relative w-72">
                 <div className="flex items-center justify-between mb-1">
-                  <Label className="text-sm font-medium">Customer Name</Label>
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Customer Name</Label>
                   {/* Customer Balance Display - on top of label */}
                   <div className="flex items-center gap-2">
                     {/* Credit Note Balance */}
