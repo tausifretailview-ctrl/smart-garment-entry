@@ -2381,6 +2381,12 @@ export default function Settings() {
                             Tax Invoice — GST B2B compliant
                           </span>
                         </SelectItem>
+                        <SelectItem value="tally-tax-invoice">
+                          <span className="flex items-center gap-2">
+                            <span className="text-amber-700 font-bold text-xs w-5">TLY</span>
+                            Tally Tax Invoice — Mobile/Electronics Shop
+                          </span>
+                        </SelectItem>
                         <SelectItem value="retail">
                           <span className="flex items-center gap-2">
                             <span className="text-pink-600 font-bold text-xs w-5">RET</span>

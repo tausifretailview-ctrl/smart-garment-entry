@@ -466,6 +466,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           return <DetailedTemplate {...commonProps} />;
         case 'tax-invoice':
           return <TaxInvoiceTemplate {...commonProps} />;
+        case 'tally-tax-invoice':
+          return <TallyTaxInvoiceTemplate {...commonProps} />;
         case 'retail':
           return <RetailTemplate {...commonProps} />;
         case 'retail-erp':
