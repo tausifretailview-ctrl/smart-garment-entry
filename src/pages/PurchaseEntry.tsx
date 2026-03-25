@@ -1471,10 +1471,8 @@ const PurchaseEntry = () => {
 
     setShowSizeGrid(false);
     setSizeQty({});
-    // For Size Grid mode - focus on search box to find next product
-    setTimeout(() => {
-      inlineSearchInputRef.current?.focus();
-    }, 100);
+    // Blur so "1" shortcut works immediately
+    (document.activeElement as HTMLElement)?.blur();
   };
 
   const addInlineRow = (variant: ProductVariant) => {
