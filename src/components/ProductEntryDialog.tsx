@@ -737,9 +737,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         }
       }
       
-      // Generate barcodes sequentially for empty/cleared slots
+      // Generate barcodes only for variants that will actually be used (qty > 0 in purchase context)
       for (let i = 0; i < updatedVariants.length; i++) {
-        if (!updatedVariants[i].barcode) {
+        const v = updatedVariants[i];
+        const shouldSkip = hideOpeningQty && (v.purchase_qty || 0) <= 0;
+        if (!v.barcode && !shouldSkip) {
           updatedVariants[i] = {
             ...updatedVariants[i],
             barcode: await generateSequentialBarcode(),
@@ -919,7 +921,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       // Insert variants — in purchase context, only create variants with purchase_qty > 0
       let insertedVariants: any[] = [];
       let variantsToCreate = hideOpeningQty
-        ? variants.filter((v) => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size)).map(v => ({ ...v }))
+        ? variants.filter((v) => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size) && (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color))).map(v => ({ ...v }))
         : [...variants];
       if (variantsToCreate.length > 0) {
         // In purchase context, generate barcodes at save time only for selected sizes
@@ -1992,7 +1994,15 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                   <div ref={variantsSectionRef} className="space-y-2 pt-1">
                     <div className="flex items-center justify-between">
                       <Label className="text-xs font-semibold text-violet-700 font-outfit flex items-center gap-2">
-                        {variants.filter(v => !disabledSizes.has(v.size) && (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color))).length} Variant{variants.filter(v => !disabledSizes.has(v.size) && (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color))).length !== 1 ? 's' : ''}
+                        {(() => {
+                          const visibleCount = variants.filter(v => {
+                            if (disabledSizes.has(v.size)) return false;
+                            if (formData.colors.length > 0 && v.color && !formData.colors.includes(v.color)) return false;
+                            if (hideOpeningQty && (v.purchase_qty || 0) <= 0) return false;
+                            return true;
+                          }).length;
+                          return `${visibleCount} Variant${visibleCount !== 1 ? 's' : ''}`;
+                        })()}
                         {isAutoBarcode ? (
                           <span className="text-[10px] font-normal px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">Auto Barcode</span>
                         ) : (
@@ -2022,9 +2032,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         </TableHeader>
                         <TableBody>
                           {variants.map((variant, index) => {
-                            // Hide variants for disabled sizes or removed colors
+                            // Hide variants for disabled sizes, removed colors, or qty=0 in purchase context
                             if (disabledSizes.has(variant.size)) return null;
                             if (formData.colors.length > 0 && variant.color && !formData.colors.includes(variant.color)) return null;
+                            if (hideOpeningQty && (variant.purchase_qty || 0) <= 0) return null;
                             return (
                             <TableRow key={index} className="hover:bg-violet-50/30 transition-colors">
                               {formData.colors.length > 0 && (
@@ -2129,10 +2140,14 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             {hideOpeningQty && (
               <span className="text-sm text-muted-foreground mr-auto">
                 {(() => {
-                  const totalQty = variants.filter(v => !disabledSizes.has(v.size)).reduce((s, v) => s + (v.purchase_qty || 0), 0);
-                  const activeCount = variants.filter(v => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size)).length;
+                  const activeVariants = variants.filter(v => 
+                    !disabledSizes.has(v.size) && 
+                    (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color)) &&
+                    (v.purchase_qty || 0) > 0
+                  );
+                  const totalQty = activeVariants.reduce((s, v) => s + (v.purchase_qty || 0), 0);
                   return totalQty > 0
-                    ? `${activeCount} sizes · ${totalQty} pcs`
+                    ? `${activeVariants.length} sizes · ${totalQty} pcs`
                     : 'Enter qty per size above';
                 })()}
               </span>
@@ -2154,7 +2169,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               ) : (
                 <>
                   ➕ {hideOpeningQty
-                    ? `Add ${variants.filter(v => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size)).length || ''} Sizes to Bill`
+                    ? `Add ${variants.filter(v => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size) && (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color))).length || ''} Sizes to Bill`
                     : 'Add to Bill'
                   }
                 </>
