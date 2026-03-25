@@ -3353,135 +3353,125 @@ Thank you for choosing us!`;
         </div>
       )}
 
-      {/* Bill Summary Inline (Flat Disc / Other Charges / Round Off) */}
-      <div className="px-6 py-2.5 bg-slate-50/80 border-t border-slate-100 flex items-center gap-4 flex-wrap">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[13px] text-slate-500 whitespace-nowrap">Flat Disc %</span>
-          <Input
-            type="number" min="0" max="100"
-            value={flatDiscountPercent || ""}
-            placeholder="0"
-            onChange={(e) => setFlatDiscountPercent(parseFloat(e.target.value) || 0)}
-            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-            className="w-20 h-9 text-sm"
-          />
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-[13px] text-slate-500 whitespace-nowrap">Flat Disc ₹</span>
-          <Input
-            type="number" min="0"
-            value={flatDiscountRupees || ""}
-            placeholder="0"
-            onChange={(e) => setFlatDiscountRupees(parseFloat(e.target.value) || 0)}
-            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-            className="w-20 h-9 text-sm"
-          />
-        </div>
-        <div className="w-px h-5 bg-slate-200" />
-        <div className="flex items-center gap-1.5">
-          <span className="text-[13px] text-slate-500 whitespace-nowrap">Other Charges</span>
-          <Input
-            type="number" min="0"
-            value={otherCharges || ""}
-            placeholder="0"
-            onChange={(e) => setOtherCharges(parseFloat(e.target.value) || 0)}
-            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-            className="w-24 h-9 text-sm"
-          />
-        </div>
-        {pointsToRedeem > 0 && (
-          <div className="flex items-center gap-1.5">
-            <span className="text-[13px] text-amber-600 flex items-center gap-1">
-              <Coins className="h-3 w-3 text-amber-500" />
-              Points ({pointsToRedeem} pts):
-            </span>
-            <span className="font-medium text-green-600 text-[13px]">
-              -₹{pointsRedemptionValue.toFixed(2)}
-            </span>
-          </div>
-        )}
-        <div className="flex items-center gap-1.5">
-          <span className="text-[13px] text-slate-500 whitespace-nowrap">Round Off</span>
-          <Input
-            type="number" step="0.01"
-            value={roundOff || ""}
-            placeholder="0"
-            onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
-            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-            className="w-24 h-9 text-sm"
-          />
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-[15px] font-semibold text-slate-600">Net:</span>
-          <span className="text-[22px] font-black text-blue-700 font-mono tabular-nums">₹{netAmount.toLocaleString('en-IN')}</span>
-        </div>
-      </div>
-
       </main>
 
-      {/* Sticky Footer */}
-      <footer className="sticky bottom-0 z-20 bg-white border-t-2 border-slate-200 shadow-[0_-4px_16px_rgba(0,0,0,.07)] shrink-0">
-        {/* Footer Row 1: Totals + Action Buttons */}
-        <div className="flex items-center px-5 py-2.5 gap-4 border-b border-slate-100">
-          <span className="text-[14px] text-slate-500">Subtotal</span>
-          <span className="text-[15px] font-black text-slate-800 font-mono">₹{grossAmount.toFixed(2)}</span>
-          <span className="text-slate-300 text-lg font-light">—</span>
-          <span className="text-[14px] text-slate-500">Discount</span>
-          <span className="text-[15px] font-black text-red-500 font-mono">
-            ₹{(lineItemDiscount + flatDiscountAmount).toFixed(2)}
-          </span>
-          <span className="text-slate-300 text-lg font-light">+</span>
-          <span className="text-[14px] text-slate-500">GST</span>
-          <span className="text-[15px] font-black text-slate-800 font-mono">
-            ₹{taxType === 'exclusive' ? totalGST.toFixed(2) : '0.00'}
-          </span>
+      {/* Sticky Footer — Compact teal bar */}
+      <footer className="sticky bottom-0 z-20 shrink-0">
+        {/* Top Row: Inputs + Stats + Net Amount — single line */}
+        <div className="bg-gradient-to-r from-teal-700 to-teal-800 text-white overflow-x-auto">
+          <div className="flex items-center px-4 py-2 gap-0 min-w-max">
+            {/* FLAT DISC % */}
+            <span className="text-[11px] font-bold uppercase tracking-wider text-teal-200 mr-2 whitespace-nowrap">Flat Disc %</span>
+            <Input
+              type="number" min="0" max="100"
+              value={flatDiscountPercent || ""}
+              placeholder="0"
+              onChange={(e) => setFlatDiscountPercent(parseFloat(e.target.value) || 0)}
+              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+              className="w-16 h-8 text-sm text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
+            />
 
-          {/* Action buttons pushed to the right */}
-          <div className="flex items-center gap-2 ml-auto">
+            <div className="w-px h-7 bg-teal-500/50 mx-3 shrink-0" />
+
+            {/* FLAT DISC ₹ */}
+            <span className="text-[11px] font-bold uppercase tracking-wider text-teal-200 mr-2 whitespace-nowrap">Flat Disc ₹</span>
+            <Input
+              type="number" min="0"
+              value={flatDiscountRupees || ""}
+              placeholder="0"
+              onChange={(e) => setFlatDiscountRupees(parseFloat(e.target.value) || 0)}
+              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+              className="w-[72px] h-8 text-sm text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
+            />
+
+            <div className="w-px h-7 bg-teal-500/50 mx-3 shrink-0" />
+
+            {/* Other Charges */}
+            <span className="text-[11px] font-bold uppercase tracking-wider text-teal-200 mr-2 whitespace-nowrap">Charges</span>
+            <Input
+              type="number" min="0"
+              value={otherCharges || ""}
+              placeholder="0"
+              onChange={(e) => setOtherCharges(parseFloat(e.target.value) || 0)}
+              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+              className="w-[72px] h-8 text-sm text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
+            />
+
+            <div className="w-px h-7 bg-teal-500/50 mx-3 shrink-0" />
+
+            {/* Round Off */}
+            <span className="text-[11px] font-bold uppercase tracking-wider text-teal-200 mr-2 whitespace-nowrap">Round</span>
+            <Input
+              type="number" step="0.01"
+              value={roundOff || ""}
+              placeholder="0"
+              onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
+              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+              className="w-16 h-8 text-sm text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
+            />
+
+            {pointsToRedeem > 0 && (
+              <>
+                <div className="w-px h-7 bg-teal-500/50 mx-3 shrink-0" />
+                <span className="text-[11px] text-amber-300 flex items-center gap-1 whitespace-nowrap">
+                  <Coins className="h-3 w-3" />
+                  Pts: -₹{pointsRedemptionValue.toFixed(0)}
+                </span>
+              </>
+            )}
+
+            {/* Right-pinned Net Amount */}
+            <div className="ml-auto pl-4 border-l-2 border-teal-500/40 flex items-center gap-2 shrink-0">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-teal-200">Net</span>
+              <span className="text-[22px] font-black font-mono tabular-nums leading-none">₹{netAmount.toLocaleString('en-IN')}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Bar: Formula strip + action buttons */}
+        <div className="bg-teal-900 flex items-center px-4 py-1.5 gap-3">
+          <div className="flex items-center gap-1.5 text-[11px] text-teal-300 font-mono flex-1 min-w-0 overflow-x-auto whitespace-nowrap">
+            <span>Subtotal <span className="text-white font-bold">₹{grossAmount.toFixed(0)}</span></span>
+            <span className="text-teal-500">—</span>
+            <span>Disc <span className="text-red-300 font-bold">₹{(lineItemDiscount + flatDiscountAmount).toFixed(0)}</span></span>
+            <span className="text-teal-500">+</span>
+            <span>GST <span className="text-white font-bold">₹{taxType === 'exclusive' ? totalGST.toFixed(0) : '0'}</span></span>
+            <span className="text-teal-500">=</span>
+            <span>Net <span className="text-emerald-300 font-bold">₹{netAmount.toLocaleString('en-IN')}</span></span>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={() => setShowNotesSection(prev => !prev)}
-              className="h-10 px-4 text-sm gap-1.5 border-slate-300 text-slate-600 hover:bg-slate-50"
+              className="h-8 px-3 text-xs text-teal-200 hover:bg-teal-800 hover:text-white gap-1"
             >
-              <FileText className="h-4 w-4" />
+              <FileText className="h-3.5 w-3.5" />
               Notes
             </Button>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={() => navigate('/sales-invoice-dashboard')}
-              className="h-10 px-4 text-sm gap-1.5 border-slate-300 text-slate-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+              className="h-8 px-3 text-xs text-red-300 hover:bg-red-900/50 hover:text-red-200 gap-1"
             >
-              <X className="h-4 w-4" />
+              <X className="h-3.5 w-3.5" />
               Cancel
             </Button>
             <Button
               size="sm"
               onClick={handleSaveInvoice}
               disabled={isSaving || savingLockRef.current || !lineItems.some(i => i.productId)}
-              className="h-10 px-6 text-sm bg-green-600 hover:bg-green-700 text-white font-bold gap-1.5 shadow-md hover:shadow-lg transition-all"
+              className="h-8 px-5 text-xs bg-white text-teal-900 hover:bg-teal-100 font-bold gap-1.5 shadow-sm"
             >
               {isSaving ? (
-                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...</>
+                <><Loader2 className="h-3 w-3 animate-spin" /> Saving...</>
               ) : (
-                <><Check className="h-3.5 w-3.5" /> {editingInvoiceId ? 'Update Invoice' : 'Save Invoice'}</>
+                <><Check className="h-3 w-3" /> {editingInvoiceId ? 'Save Invoice' : '✓ Save Invoice'}</>
               )}
             </Button>
           </div>
-        </div>
-
-        {/* Footer Row 2: Items count + Total Qty + dotted line + Ctrl+S hint */}
-        <div className="flex items-center px-5 py-1.5 gap-4">
-          <span className="text-[13px] text-slate-500">
-            Items <span className="font-bold text-slate-700">{lineItems.filter(i => i.productId).length}</span>
-          </span>
-          <div className="w-px h-4 bg-slate-200" />
-          <span className="text-[13px] text-slate-500">
-            Total Qty <span className="font-bold text-slate-700">{lineItems.reduce((s, i) => s + (i.productId ? i.quantity : 0), 0)}</span>
-          </span>
-          <div className="flex-1 border-t-2 border-dotted border-slate-200 mx-3 opacity-60" />
-          <span className="text-[11px] text-slate-400 font-mono border border-slate-200 bg-slate-50 px-2 py-0.5 rounded">Ctrl+S</span>
         </div>
       </footer>
 
