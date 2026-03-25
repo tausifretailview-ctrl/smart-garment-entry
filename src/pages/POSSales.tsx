@@ -3833,7 +3833,7 @@ export default function POSSales() {
               
               {/* S/R Adj */}
               <div className="text-center">
-                <div className="text-[9px] text-white/60 uppercase font-medium mb-0.5">
+                <div className="text-[11px] text-white/80 uppercase font-bold mb-0.5 tracking-wide">
                   S/R Adj{customerId && pendingSaleReturnCredits.length > 0 ? ` (${pendingSaleReturnCredits.length})` : ''}
                 </div>
                 <div className="flex items-center">
