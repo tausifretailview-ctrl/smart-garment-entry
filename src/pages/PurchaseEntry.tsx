@@ -3799,6 +3799,7 @@ const PurchaseEntry = () => {
           hideOpeningQty
           isDcPurchase={isDcPurchase}
           isAutoBarcode={isAutoBarcode}
+          mobileERPMode={mobileERPSettings || undefined}
         />
 
         {/* Price Update Confirmation Dialog */}
