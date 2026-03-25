@@ -1,41 +1,47 @@
 
 
-## POS Screen — Footer Alignment & Visual Fixes
+## Fix: Barcode Handling Based on Barcode Mode Setting
 
-### Issues Identified
+### Problem
+The recent change always auto-generates barcodes in purchase context, even when barcode mode is set to "Scan/Manual". The correct behavior:
+- **Auto Generate mode**: Auto-generate barcodes at save time (current behavior) — works correctly
+- **Scan/Manual mode**: Require user to scan/enter barcode — block "Add to Bill" if any variant has an empty barcode, show a clear message to scan
 
-1. **Barcode font invisible**: Currently `text-xs font-mono text-muted-foreground` — too small and too faint
-2. **Disc% column too narrow**: 65px makes input cramped
-3. **Footer totals not aligned with table columns**: Footer uses a dynamic `grid-cols-N` layout that doesn't match the table's `gridTemplateColumns`, so Qty total floats left while Net Amount is far from its column
+### Fix — `src/components/ProductEntryDialog.tsx`
 
-### Plan
+**In `handleSave` (lines ~928-946):**
 
-**File: `src/pages/POSSales.tsx`**
+1. Wrap the auto-generation loop (lines 928-934) with an `if (isAutoBarcode)` check so it only runs in auto mode
+2. Keep the "missing barcode" validation block (lines 937-946) for **both modes** — but customize the toast message:
+   - Auto mode: This path should never trigger (barcodes just got generated), but kept as safety net
+   - Scan/Manual mode: Show "Please scan or enter barcode for all variants before adding to bill"
 
-#### 1. Fix Barcode Font Visibility
-- Change barcode text from `text-xs font-mono text-muted-foreground` to `text-sm font-mono text-foreground/80`
-- Applies to data rows (line ~3575)
+```
+if (hideOpeningQty) {
+  if (isAutoBarcode) {
+    // Auto mode: generate barcodes for any missing
+    for (let i = 0; i < variantsToCreate.length; i++) {
+      if (!variantsToCreate[i].barcode) {
+        variantsToCreate[i] = { ...variantsToCreate[i], barcode: await generateSequentialBarcode() };
+      }
+    }
+  }
+}
 
-#### 2. Widen Disc% Column
-- Increase Disc% from `65px` to `80px` in the `gridTemplateColumns` string
-- Update all 4 grid template locations (header, empty rows, data rows, and any other instances)
-- New column template: `'50px 130px 1fr 70px 65px 95px 65px 80px 75px 95px 120px'`
+// Block save if any variant still has no barcode
+const missingBarcode = variantsToCreate.some(v => !v.barcode || !v.barcode.trim());
+if (missingBarcode) {
+  toast({
+    title: "Barcode Required",
+    description: isAutoBarcode
+      ? "Failed to generate barcodes. Please try again."
+      : "Please scan or enter barcode for all variants before adding to bill",
+    variant: "destructive",
+  });
+  setLoading(false);
+  return;
+}
+```
 
-#### 3. Align Footer with Table Columns
-- Replace the current dynamic `grid-cols-N` layout with a **matching `gridTemplateColumns`** that mirrors the table grid
-- The footer bar will use the same column structure as the table, placing:
-  - **Qty total** → under the Qty column
-  - **Discount total** → spanning the Disc%/DiscRs area
-  - **Net Amount box** → under the Net Amount column (right-aligned)
-- The first few columns (Sr, Barcode, Product) will be merged to hold: Quantity count, Customer Saves badge, Add Charges, and Discount
-- The remaining columns (Size, Qty, MRP, Tax, Disc%, DiscRs, UnitPrice, NetAmount) will hold: Flat Discount, S/R Adjust, Round Off, and the Net Amount box aligned to the right edge
-- This ensures the footer's right edge (Net Amount) sits exactly below the table's Net Amount column
-
-#### Technical Approach
-- Use the same `gridTemplateColumns` as the table but with `left-[72px]` offset preserved
-- Group the left-side footer items (Qty, Saves, Charges, Discount) into the merged Product column area
-- Place Flat Discount, S/R Adjust, Round Off in the middle columns
-- Place Net Amount box in the last column, right-aligned
-
-No logic, functionality, or button behavior changes — purely CSS/layout alignment.
+This is a ~5 line change in one file. No other files affected.
 
