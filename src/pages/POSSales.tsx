@@ -3750,68 +3750,75 @@ export default function POSSales() {
         </div>
 
         {/* Totals Section - Fixed at Bottom, above keyboard shortcut bar */}
-        <div className="fixed bottom-0 md:bottom-7 left-20 right-0 bg-cyan-500 text-white p-2 md:p-4 shadow-lg z-20">
-          <div className={`grid ${totals.savings > 0 || totals.mrp > totals.subtotal || creditApplied > 0 || availableCreditBalance > 0 ? 'grid-cols-5 md:grid-cols-10' : 'grid-cols-4 md:grid-cols-8'} gap-1 md:gap-3`}>
-            <div className="text-center">
-              <div className="text-xl md:text-2xl font-bold">{totals.quantity}</div>
-              <div className="text-xs md:text-sm mt-1">Quantity</div>
+        <div className="fixed bottom-0 md:bottom-7 left-[72px] right-0 bg-gradient-to-r from-cyan-600 to-teal-600 text-white px-3 py-2.5 shadow-[0_-4px_20px_rgba(0,0,0,0.15)] z-20">
+          <div className={`grid ${totals.savings > 0 || totals.mrp > totals.subtotal || creditApplied > 0 || availableCreditBalance > 0 ? 'grid-cols-5 md:grid-cols-10' : 'grid-cols-4 md:grid-cols-8'} gap-1 md:gap-2 items-center`}>
+            {/* Quantity */}
+            <div className="text-center px-1">
+              <div className="text-lg md:text-xl font-bold">{totals.quantity}</div>
+              <div className="text-[10px] md:text-xs mt-0.5 text-white/70 uppercase tracking-wider font-medium">Quantity</div>
             </div>
+            {/* MRP Total */}
             {(totals.mrp > totals.subtotal && totals.savings > 0) && (
-            <div className="text-center bg-white/10 rounded-md py-1 px-1">
-              <div className="text-xl md:text-2xl font-bold line-through decoration-2 decoration-red-300 text-white/80">
+            <div className="text-center bg-white/10 rounded-lg py-1.5 px-1">
+              <div className="text-lg md:text-xl font-bold line-through decoration-2 decoration-red-300 text-white/70">
                 ₹{Math.round(totals.mrp).toLocaleString('en-IN')}
               </div>
-              <div className="text-xs md:text-sm mt-0.5 font-semibold tracking-wide">MRP Total</div>
+              <div className="text-[10px] md:text-xs mt-0.5 font-semibold uppercase tracking-wide text-white/70">MRP Total</div>
             </div>
             )}
+            {/* Customer Saves */}
             {(totals.mrp > totals.subtotal || totals.savings > 0) && (
-              <div className="text-center bg-green-600 rounded-md py-1 px-1">
-                <div className="text-xl md:text-2xl font-bold">
+              <div className="text-center bg-green-500 rounded-lg py-1.5 px-2 max-w-[140px] mx-auto w-full">
+                <div className="text-lg md:text-xl font-bold leading-tight">
                   ₹{Math.round(totals.mrp - totals.subtotal > 0 ? totals.mrp - totals.subtotal : totals.savings).toLocaleString('en-IN')}
                 </div>
-                <div className="text-xs md:text-sm mt-0.5 font-semibold">
+                <div className="text-[10px] font-semibold leading-tight">
                   🎉 Customer Saves
                 </div>
                 {totals.mrp > 0 && (
-                  <div className="text-[10px] text-green-200 leading-tight">
+                  <div className="text-[9px] text-green-100 leading-tight">
                     {(((totals.mrp - totals.subtotal) / totals.mrp) * 100).toFixed(0)}% off MRP
                   </div>
                 )}
               </div>
             )}
-            <div className="text-center">
-              <div className="text-xl md:text-2xl font-bold">₹0</div>
-              <div className="text-xs md:text-sm mt-1">Add. Charges</div>
+            {/* Add. Charges */}
+            <div className="text-center px-1">
+              <div className="text-lg md:text-xl font-bold">₹0</div>
+              <div className="text-[10px] md:text-xs mt-0.5 text-white/70 uppercase tracking-wider font-medium">Add. Charges</div>
             </div>
-            <div className="text-center">
-              <div className="text-xl md:text-2xl font-bold">₹{Math.round(totals.discount).toLocaleString('en-IN')}</div>
-              <div className="text-xs md:text-sm mt-1">Discount</div>
+            {/* Discount */}
+            <div className="text-center px-1">
+              <div className="text-lg md:text-xl font-bold">₹{Math.round(totals.discount).toLocaleString('en-IN')}</div>
+              <div className="text-[10px] md:text-xs mt-0.5 text-white/70 uppercase tracking-wider font-medium">Discount</div>
             </div>
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-1">
+            {/* Flat Discount */}
+            <div className="text-center px-1">
+              <div className="flex items-center justify-center gap-0.5">
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="bg-black text-white px-2 py-1 text-sm rounded h-8 hover:bg-gray-800"
+                  className="bg-white/20 text-white px-2 py-1 text-xs rounded-l-md h-8 hover:bg-white/30 border-0 font-bold min-w-[28px]"
                   onClick={() => setFlatDiscountMode(flatDiscountMode === 'percent' ? 'amount' : 'percent')}
                 >
                   {flatDiscountMode === 'percent' ? '%' : '₹'}
                 </Button>
                 <Input 
                   type="number"
-                  className="w-24 h-8 bg-white text-black text-center text-base font-semibold" 
+                  className="w-20 h-8 bg-white text-foreground text-center text-sm font-semibold rounded-l-none border-0" 
                   value={flatDiscountValue || ""}
                   placeholder="0"
                   onChange={(e) => setFlatDiscountValue(parseFloat(e.target.value) || 0)}
                 />
               </div>
-              <div className="text-xs md:text-sm mt-1">Flat Discount</div>
+              <div className="text-[10px] md:text-xs mt-0.5 text-white/70 uppercase tracking-wider font-medium">Flat Discount</div>
             </div>
-            <div className="text-center relative">
+            {/* S/R Adjust */}
+            <div className="text-center relative px-1">
               <div className="flex items-center justify-center gap-0.5">
                 <Input 
                   type="number"
-                  className="w-20 h-8 bg-white text-black text-center text-base font-semibold" 
+                  className="w-[72px] h-8 bg-white text-foreground text-center text-sm font-semibold border-0" 
                   value={saleReturnAdjust || ""}
                   placeholder="0"
                   onChange={(e) => setSaleReturnAdjust(parseFloat(e.target.value) || 0)}
@@ -3845,14 +3852,14 @@ export default function POSSales() {
                   </Popover>
                 )}
               </div>
-              <div className="text-xs md:text-sm mt-1">S/R Adjust{customerId && pendingSaleReturnCredits.length > 0 ? ` (${pendingSaleReturnCredits.length})` : ''}</div>
+              <div className="text-[10px] md:text-xs mt-0.5 text-white/70 uppercase tracking-wider font-medium">S/R Adjust{customerId && pendingSaleReturnCredits.length > 0 ? ` (${pendingSaleReturnCredits.length})` : ''}</div>
             </div>
             {/* Credit Applied Field - Only show if customer has credit balance */}
             {(availableCreditBalance > 0 || creditApplied > 0) && (
-              <div className="text-center bg-purple-600 rounded-md py-1">
+              <div className="text-center bg-purple-500/80 rounded-lg py-1.5 px-1">
                 <Input 
                   type="number"
-                  className="w-20 h-8 bg-white text-purple-700 text-center text-base font-semibold mx-auto" 
+                  className="w-[72px] h-8 bg-white text-purple-700 text-center text-sm font-semibold mx-auto border-0" 
                   value={creditApplied || ""}
                   placeholder="0"
                   onChange={(e) => {
@@ -3864,11 +3871,12 @@ export default function POSSales() {
                   step="0.01"
                   disabled={!customerId || availableCreditBalance <= 0 || isApplyingCredit}
                 />
-                <div className="text-xs md:text-sm mt-1">Credit (₹{availableCreditBalance.toFixed(0)})</div>
+                <div className="text-[10px] md:text-xs mt-0.5 font-medium">Credit (₹{availableCreditBalance.toFixed(0)})</div>
               </div>
             )}
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-1">
+            {/* Round OFF */}
+            <div className="text-center px-1">
+              <div className="flex items-center justify-center gap-0.5">
                 {isManualRoundOff && (
                   <TooltipProvider>
                     <Tooltip>
@@ -3876,7 +3884,7 @@ export default function POSSales() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="bg-white text-cyan-600 px-1 py-0.5 text-xs rounded h-6 hover:bg-cyan-50"
+                          className="bg-white/20 text-white px-1 py-0.5 text-xs rounded h-6 hover:bg-white/30"
                           onClick={handleResetRoundOff}
                         >
                           <RotateCcw className="h-3 w-3" />
@@ -3890,34 +3898,35 @@ export default function POSSales() {
                 )}
                 <Input 
                   type="number"
-                  className={`w-20 h-8 text-center text-base font-semibold ${roundOff >= 0 ? 'bg-green-100 text-green-700 border-green-300' : 'bg-red-100 text-red-700 border-red-300'}`}
+                  className={`w-[72px] h-8 text-center text-sm font-semibold border-0 ${roundOff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
                   value={roundOff || ""}
                   placeholder="0"
                   onChange={(e) => handleRoundOffChange(parseFloat(e.target.value) || 0)}
                   step="1"
                 />
               </div>
-              <div className="text-xs md:text-sm mt-1">
-                Round OFF {isManualRoundOff && <span className="text-yellow-300">(Manual)</span>}
+              <div className="text-[10px] md:text-xs mt-0.5 text-white/70 uppercase tracking-wider font-medium">
+                Round OFF {isManualRoundOff && <span className="text-yellow-300 normal-case">(Manual)</span>}
               </div>
             </div>
-            <div className="text-center">
+            {/* Net Amount */}
+            <div className="text-center bg-white/10 rounded-lg py-1.5 px-2 min-w-[150px]">
               {totals.mrp > 0 && totals.mrp !== finalAmount && (
-                <div className="text-[10px] text-cyan-200 line-through mb-0.5">
+                <div className="text-[10px] text-white/60 line-through leading-tight">
                   MRP ₹{Math.round(totals.mrp).toLocaleString('en-IN')}
                 </div>
               )}
               <Input 
                 type="number"
-                className={`w-36 md:w-44 h-10 text-center text-xl md:text-2xl font-bold bg-white text-cyan-700 border-white mx-auto ${finalAmount < 0 ? 'text-orange-600' : ''}`}
+                className={`w-32 md:w-40 h-10 text-center text-xl md:text-2xl font-bold bg-white border-0 mx-auto shadow-sm ${finalAmount < 0 ? 'text-orange-600' : 'text-cyan-700'}`}
                 value={Math.round(finalAmount)}
                 onChange={(e) => handleFinalAmountChange(parseFloat(e.target.value) || 0)}
                 step="1"
               />
-              <div className="text-xs md:text-sm mt-1">
+              <div className="text-[10px] md:text-xs mt-0.5 font-medium">
                 {finalAmount < 0 ? "Refund" : "Net Amount"}
                 {effectiveDiscountPercent > 0 && (
-                  <span className="block text-yellow-300 font-bold text-xs">
+                  <span className="block text-yellow-300 font-bold text-[10px]">
                     ↓ {effectiveDiscountPercent.toFixed(1)}% off MRP
                   </span>
                 )}
