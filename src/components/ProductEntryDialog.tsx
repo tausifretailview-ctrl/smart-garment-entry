@@ -2065,7 +2065,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                 <TableCell className="font-medium text-xs py-1.5">{variant.color || "-"}</TableCell>
                               )}
                               <TableCell className="py-1.5">
-                                <span className="inline-flex items-center justify-center min-w-[32px] px-2 py-0.5 rounded-md bg-violet-100 text-violet-800 text-xs font-bold font-outfit">
+                                <span className={cn(
+                                  "inline-flex items-center justify-center min-w-[32px] px-2 py-0.5 rounded-md text-xs font-bold font-outfit",
+                                  mobileERPMode?.locked_size_qty ? "bg-purple-200 text-purple-900" : "bg-violet-100 text-violet-800"
+                                )}>
+                                  {variant.size}
+                                </span>
                                   {variant.size}
                                 </span>
                               </TableCell>
