@@ -223,8 +223,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             }
           });
           const newVariants: ProductVariant[] = [];
+          const allSizesForGroup = [...group.sizes, ...customSizes];
           for (const color of colorsToUse) {
-            for (const size of group.sizes) {
+            for (const size of allSizesForGroup) {
               const key = `${color}||${size}`;
               newVariants.push({
                 color,
