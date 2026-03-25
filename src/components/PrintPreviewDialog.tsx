@@ -52,6 +52,9 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
       const el = printRef.current;
       if (!el) return false;
 
+      // Check for data-invoice-loading attribute (InvoiceWrapper still fetching settings)
+      if (el.querySelector('[data-invoice-loading]')) return false;
+
       // Has at least one rendered element
       const hasChildren = el.childElementCount > 0;
       if (!hasChildren) return false;

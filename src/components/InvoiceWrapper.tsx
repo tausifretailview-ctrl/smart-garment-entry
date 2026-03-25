@@ -180,9 +180,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
 
     if (!settings) {
       return (
-        <div ref={ref} style={{ padding: '20px', textAlign: 'center' }}>
-          <div style={{ display: 'inline-block', width: 24, height: 24, border: '3px solid #ccc', borderTopColor: '#333', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-          <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+        <div ref={ref} data-invoice-loading="true" style={{ padding: '20px', textAlign: 'center' }}>
+          Loading...
         </div>
       );
     }
