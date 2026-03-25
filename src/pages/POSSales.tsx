@@ -3766,134 +3766,121 @@ export default function POSSales() {
         </div>
 
         {/* Totals Section - Fixed at Bottom, above keyboard shortcut bar */}
-        <div className="fixed bottom-0 md:bottom-7 left-[72px] right-0 bg-gradient-to-r from-cyan-600 to-teal-600 text-white px-3 py-2.5 shadow-[0_-4px_20px_rgba(0,0,0,0.15)] z-20">
-          <div className="min-w-[1200px] grid gap-2 px-4 items-center" style={{ gridTemplateColumns: '50px 130px 1fr 70px 65px 95px 65px 80px 75px 95px 120px' }}>
-            {/* Cols 1-3 (Sr+Barcode+Product area): Quantity, MRP Total, Customer Saves, Add.Charges, Discount */}
-            <div className="flex items-center justify-center" style={{ gridColumn: '1' }}>
-              <div className="text-center">
-                <div className="text-lg font-bold">{totals.quantity}</div>
-                <div className="text-[10px] text-white/70 uppercase tracking-wider font-medium">Qty</div>
-              </div>
+        <div className="fixed bottom-0 md:bottom-[52px] left-[72px] right-0 bg-gradient-to-r from-cyan-600 to-teal-600 text-white shadow-[0_-4px_20px_rgba(0,0,0,0.15)] z-20">
+          {/* Top Info Bar — Qty, Savings, Charges, Discount with vertical dividers */}
+          <div className="flex items-center px-4 py-1.5 gap-0 border-b border-white/10">
+            {/* Qty */}
+            <div className="text-center px-3">
+              <div className="text-lg font-bold leading-tight">{totals.quantity}</div>
+              <div className="text-[9px] text-white/60 uppercase tracking-wider font-medium">Qty</div>
             </div>
-            <div className="flex items-center gap-2 overflow-hidden" style={{ gridColumn: '2 / 4' }}>
-              {/* MRP Total */}
-              {(totals.mrp > totals.subtotal && totals.savings > 0) && (
-                <div className="text-center bg-white/10 rounded-lg py-1 px-2 shrink-0">
-                  <div className="text-sm font-bold line-through decoration-1 decoration-red-300 text-white/70">
-                    ₹{Math.round(totals.mrp).toLocaleString('en-IN')}
-                  </div>
-                  <div className="text-[9px] font-semibold uppercase text-white/70">MRP</div>
-                </div>
-              )}
-              {/* Customer Saves */}
-              {(totals.mrp > totals.subtotal || totals.savings > 0) && (
-                <div className="text-center bg-green-500 rounded-lg py-1 px-2 shrink-0">
+            
+            {/* Savings */}
+            {(totals.mrp > totals.subtotal || totals.savings > 0) && (
+              <>
+                <div className="w-px h-8 bg-white/20 shrink-0" />
+                <div className="text-center bg-green-500/90 rounded-md py-1 px-3 mx-2 shrink-0">
                   <div className="text-sm font-bold leading-tight">
-                    ₹{Math.round(totals.mrp - totals.subtotal > 0 ? totals.mrp - totals.subtotal : totals.savings).toLocaleString('en-IN')}
+                    ₹{Math.round(totals.mrp - totals.subtotal > 0 ? totals.mrp - totals.subtotal : totals.savings).toLocaleString('en-IN')} · Saves {totals.mrp > 0 ? `${(((totals.mrp - totals.subtotal) / totals.mrp) * 100).toFixed(0)}%` : ''}
                   </div>
-                  <div className="text-[9px] font-semibold leading-tight">
-                    🎉 Saves{totals.mrp > 0 ? ` ${(((totals.mrp - totals.subtotal) / totals.mrp) * 100).toFixed(0)}%` : ''}
-                  </div>
+                  <div className="text-[9px] font-medium uppercase">Savings</div>
                 </div>
-              )}
-              {/* Add. Charges */}
-              <div className="text-center shrink-0 px-1">
-                <div className="text-sm font-bold">₹0</div>
-                <div className="text-[9px] text-white/70 uppercase font-medium">Charges</div>
-              </div>
-              {/* Discount */}
-              <div className="text-center shrink-0 px-1">
-                <div className="text-sm font-bold">₹{Math.round(totals.discount).toLocaleString('en-IN')}</div>
-                <div className="text-[9px] text-white/70 uppercase font-medium">Discount</div>
-              </div>
+              </>
+            )}
+            
+            <div className="w-px h-8 bg-white/20 shrink-0" />
+            
+            {/* Charges */}
+            <div className="text-center px-3">
+              <div className="text-sm font-bold leading-tight">₹0</div>
+              <div className="text-[9px] text-white/60 uppercase font-medium">Charges</div>
             </div>
-            {/* Col 4 (Size): Flat Discount */}
-            <div className="text-center" style={{ gridColumn: '4 / 6' }}>
-              <div className="flex items-center justify-center gap-0.5">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="bg-white/20 text-white px-2 py-1 text-xs rounded-l-md h-7 hover:bg-white/30 border-0 font-bold min-w-[24px]"
-                  onClick={() => setFlatDiscountMode(flatDiscountMode === 'percent' ? 'amount' : 'percent')}
-                >
-                  {flatDiscountMode === 'percent' ? '%' : '₹'}
-                </Button>
-                <Input 
-                  type="number"
-                  className="w-16 h-7 bg-white text-foreground text-center text-sm font-semibold rounded-l-none border-0" 
-                  value={flatDiscountValue || ""}
-                  placeholder="0"
-                  onChange={(e) => setFlatDiscountValue(parseFloat(e.target.value) || 0)}
-                />
-              </div>
-              <div className="text-[9px] mt-0.5 text-white/70 uppercase font-medium">Flat Disc</div>
+            
+            <div className="w-px h-8 bg-white/20 shrink-0" />
+            
+            {/* Discount */}
+            <div className="text-center px-3">
+              <div className="text-sm font-bold leading-tight">₹{Math.round(totals.discount).toLocaleString('en-IN')}</div>
+              <div className="text-[9px] text-white/60 uppercase font-medium">Discount</div>
             </div>
-            {/* Col 6 (MRP area): S/R Adjust */}
-            <div className="text-center relative" style={{ gridColumn: '6 / 8' }}>
-              <div className="flex items-center justify-center gap-0.5">
-                <Input 
-                  type="number"
-                  className="w-16 h-7 bg-white text-foreground text-center text-sm font-semibold border-0" 
-                  value={saleReturnAdjust || ""}
-                  placeholder="0"
-                  onChange={(e) => setSaleReturnAdjust(parseFloat(e.target.value) || 0)}
-                  step="0.01"
-                />
-                {customerId && pendingSaleReturnCredits.length > 0 && (
-                  <Popover open={showSRCreditDropdown} onOpenChange={setShowSRCreditDropdown}>
-                    <PopoverTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20 p-0">
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-64 p-2" align="center" side="top">
-                      <div className="text-xs font-semibold text-muted-foreground mb-1.5">Pending Credit Notes</div>
-                      <div className="space-y-1 max-h-40 overflow-y-auto">
-                        {pendingSaleReturnCredits.map((sr) => (
-                          <button
-                            key={sr.id}
-                            className="w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-accent text-sm text-left"
-                            onClick={() => {
-                              setSaleReturnAdjust(sr.net_amount);
-                              setShowSRCreditDropdown(false);
-                            }}
-                          >
-                            <span className="font-medium truncate">{sr.return_number || "S/R"}</span>
-                            <Badge variant="secondary" className="ml-2 shrink-0">₹{sr.net_amount.toLocaleString('en-IN')}</Badge>
-                          </button>
-                        ))}
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                )}
-              </div>
-              <div className="text-[9px] mt-0.5 text-white/70 uppercase font-medium">S/R Adj{customerId && pendingSaleReturnCredits.length > 0 ? ` (${pendingSaleReturnCredits.length})` : ''}</div>
-            </div>
-            {/* Col 8-9 (Disc area): Credit Applied + Round OFF */}
-            <div className="flex items-center gap-1" style={{ gridColumn: '8 / 10' }}>
-              {/* Credit Applied */}
-              {(availableCreditBalance > 0 || creditApplied > 0) && (
-                <div className="text-center bg-purple-500/80 rounded-lg py-1 px-1 shrink-0">
+            
+            {/* Spacer */}
+            <div className="flex-1" />
+            
+            {/* Middle Fields — Flat Disc, S/R Adj, Round */}
+            <div className="flex items-end gap-3">
+              {/* Flat Disc */}
+              <div className="text-center">
+                <div className="text-[9px] text-white/60 uppercase font-medium mb-0.5">Flat Disc</div>
+                <div className="flex items-center">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="bg-white/20 text-white px-1.5 py-0.5 text-xs rounded-l-md h-7 hover:bg-white/30 border-0 font-bold min-w-[22px]"
+                    onClick={() => setFlatDiscountMode(flatDiscountMode === 'percent' ? 'amount' : 'percent')}
+                  >
+                    {flatDiscountMode === 'percent' ? '%' : '₹'}
+                  </Button>
                   <Input 
                     type="number"
-                    className="w-14 h-7 bg-white text-purple-700 text-center text-xs font-semibold mx-auto border-0" 
-                    value={creditApplied || ""}
+                    className="w-14 h-7 bg-white text-foreground text-center text-sm font-semibold rounded-l-none border-0" 
+                    value={flatDiscountValue || ""}
                     placeholder="0"
-                    onChange={(e) => {
-                      const value = parseFloat(e.target.value) || 0;
-                      const maxApplicable = Math.min(value, availableCreditBalance, amountBeforeCredit);
-                      handleApplyCredit(maxApplicable > 0 ? maxApplicable : value);
-                    }}
-                    max={Math.min(availableCreditBalance, amountBeforeCredit)}
-                    step="0.01"
-                    disabled={!customerId || availableCreditBalance <= 0 || isApplyingCredit}
+                    onChange={(e) => setFlatDiscountValue(parseFloat(e.target.value) || 0)}
                   />
-                  <div className="text-[9px] font-medium">Cr ₹{availableCreditBalance.toFixed(0)}</div>
                 </div>
-              )}
-              {/* Round OFF */}
-              <div className="text-center flex-1">
-                <div className="flex items-center justify-center gap-0.5">
+              </div>
+              
+              {/* S/R Adj */}
+              <div className="text-center">
+                <div className="text-[9px] text-white/60 uppercase font-medium mb-0.5">
+                  S/R Adj{customerId && pendingSaleReturnCredits.length > 0 ? ` (${pendingSaleReturnCredits.length})` : ''}
+                </div>
+                <div className="flex items-center">
+                  <Input 
+                    type="number"
+                    className="w-14 h-7 bg-white text-foreground text-center text-sm font-semibold border-0 rounded-md" 
+                    value={saleReturnAdjust || ""}
+                    placeholder="0"
+                    onChange={(e) => setSaleReturnAdjust(parseFloat(e.target.value) || 0)}
+                    step="0.01"
+                  />
+                  {customerId && pendingSaleReturnCredits.length > 0 && (
+                    <Popover open={showSRCreditDropdown} onOpenChange={setShowSRCreditDropdown}>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20 p-0 ml-0.5">
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-2" align="center" side="top">
+                        <div className="text-xs font-semibold text-muted-foreground mb-1.5">Pending Credit Notes</div>
+                        <div className="space-y-1 max-h-40 overflow-y-auto">
+                          {pendingSaleReturnCredits.map((sr) => (
+                            <button
+                              key={sr.id}
+                              className="w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-accent text-sm text-left"
+                              onClick={() => {
+                                setSaleReturnAdjust(sr.net_amount);
+                                setShowSRCreditDropdown(false);
+                              }}
+                            >
+                              <span className="font-medium truncate">{sr.return_number || "S/R"}</span>
+                              <Badge variant="secondary" className="ml-2 shrink-0">₹{sr.net_amount.toLocaleString('en-IN')}</Badge>
+                            </button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </div>
+              </div>
+              
+              {/* Round */}
+              <div className="text-center">
+                <div className="text-[9px] text-white/60 uppercase font-medium mb-0.5">
+                  Round{isManualRoundOff && <span className="text-yellow-300 normal-case"> (M)</span>}
+                </div>
+                <div className="flex items-center gap-0.5">
                   {isManualRoundOff && (
                     <TooltipProvider>
                       <Tooltip>
@@ -3915,43 +3902,119 @@ export default function POSSales() {
                   )}
                   <Input 
                     type="number"
-                    className={`w-14 h-7 text-center text-xs font-semibold border-0 ${roundOff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
+                    className={`w-14 h-7 text-center text-sm font-semibold border-0 rounded-md ${roundOff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
                     value={roundOff || ""}
                     placeholder="0"
                     onChange={(e) => handleRoundOffChange(parseFloat(e.target.value) || 0)}
                     step="1"
                   />
                 </div>
-                <div className="text-[9px] mt-0.5 text-white/70 uppercase font-medium">
-                  Round{isManualRoundOff && <span className="text-yellow-300 normal-case"> (M)</span>}
-                </div>
               </div>
+
+              {/* Credit Applied */}
+              {(availableCreditBalance > 0 || creditApplied > 0) && (
+                <div className="text-center">
+                  <div className="text-[9px] text-white/60 uppercase font-medium mb-0.5">Cr ₹{availableCreditBalance.toFixed(0)}</div>
+                  <Input 
+                    type="number"
+                    className="w-14 h-7 bg-purple-100 text-purple-700 text-center text-sm font-semibold border-0 rounded-md" 
+                    value={creditApplied || ""}
+                    placeholder="0"
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value) || 0;
+                      const maxApplicable = Math.min(value, availableCreditBalance, amountBeforeCredit);
+                      handleApplyCredit(maxApplicable > 0 ? maxApplicable : value);
+                    }}
+                    max={Math.min(availableCreditBalance, amountBeforeCredit)}
+                    step="0.01"
+                    disabled={!customerId || availableCreditBalance <= 0 || isApplyingCredit}
+                  />
+                </div>
+              )}
             </div>
-            {/* Col 10 (Unit Price): empty spacer */}
-            <div style={{ gridColumn: '10' }}></div>
-            {/* Col 11 (Net Amount): aligned under table Net Amount */}
-            <div className="text-center bg-white/10 rounded-lg py-1.5 px-1" style={{ gridColumn: '11' }}>
+            
+            <div className="w-px h-8 bg-white/20 mx-3 shrink-0" />
+            
+            {/* Right Summary — MRP (strikethrough), Net Amount, discount badge */}
+            <div className="text-right min-w-[130px]">
               {totals.mrp > 0 && totals.mrp !== finalAmount && (
-                <div className="text-[9px] text-white/60 line-through leading-tight">
+                <div className="text-[10px] text-white/50 line-through leading-tight">
                   MRP ₹{Math.round(totals.mrp).toLocaleString('en-IN')}
                 </div>
               )}
+              <div className="flex items-center justify-end gap-1">
+                <span className="text-[10px] text-white/60 uppercase font-medium">Net Amount</span>
+              </div>
               <Input 
                 type="number"
-                className={`w-full h-9 text-center text-lg font-bold bg-white border-0 mx-auto shadow-sm ${finalAmount < 0 ? 'text-orange-600' : 'text-cyan-700'}`}
+                className={`w-full h-9 text-right text-xl font-black bg-white border-0 rounded-md shadow-sm tabular-nums ${finalAmount < 0 ? 'text-orange-600' : 'text-emerald-700'}`}
                 value={Math.round(finalAmount)}
                 onChange={(e) => handleFinalAmountChange(parseFloat(e.target.value) || 0)}
                 step="1"
               />
-              <div className="text-[9px] mt-0.5 font-medium">
-                {finalAmount < 0 ? "Refund" : "Net Amt"}
-                {effectiveDiscountPercent > 0 && (
-                  <span className="block text-yellow-300 font-bold text-[9px]">
-                    ↓ {effectiveDiscountPercent.toFixed(1)}% off
-                  </span>
-                )}
-              </div>
+              {effectiveDiscountPercent > 0 && (
+                <div className="text-[10px] font-bold text-green-300 mt-0.5">
+                  ↓ {effectiveDiscountPercent.toFixed(1)}% off
+                </div>
+              )}
             </div>
+          </div>
+        </div>
+
+        {/* Keyboard Shortcut Bar - Desktop only, redesigned with columns */}
+        <div className="hidden md:flex fixed bottom-0 left-[72px] right-0 h-[52px] bg-slate-800 dark:bg-slate-950 text-white items-center justify-center gap-1 z-40 border-t border-slate-700/50 select-none px-2">
+          {/* Payment methods - amber/yellow */}
+          {[
+            { key: 'F1', label: 'Cash' },
+            { key: 'F2', label: 'UPI' },
+            { key: 'F3', label: 'Card' },
+            { key: 'F4', label: 'Credit' },
+          ].map(({ key, label }) => (
+            <div key={key} className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-amber-600/20 cursor-pointer transition-colors min-w-[56px]">
+              <kbd className="text-[9px] font-mono text-amber-400/70 leading-tight">{key}</kbd>
+              <span className="text-[12px] font-bold text-amber-400 leading-tight">{label}</span>
+            </div>
+          ))}
+          
+          <div className="w-px h-7 bg-slate-600 mx-1 shrink-0" />
+          
+          {/* Actions - blue */}
+          {[
+            { key: 'F5', label: 'Return' },
+            { key: 'F6', label: 'Mix Pay' },
+            { key: 'F7', label: 'Hold' },
+          ].map(({ key, label }) => (
+            <div key={key} className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-blue-600/20 cursor-pointer transition-colors min-w-[56px]">
+              <kbd className="text-[9px] font-mono text-blue-400/70 leading-tight">{key}</kbd>
+              <span className="text-[12px] font-bold text-blue-400 leading-tight">{label}</span>
+            </div>
+          ))}
+          
+          <div className="w-px h-7 bg-slate-600 mx-1 shrink-0" />
+          
+          {/* Reports/actions - blue */}
+          {[
+            { key: 'F8', label: 'Report' },
+            { key: 'F9', label: 'Estimate' },
+          ].map(({ key, label }) => (
+            <div key={key} className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-blue-600/20 cursor-pointer transition-colors min-w-[56px]">
+              <kbd className="text-[9px] font-mono text-blue-400/70 leading-tight">{key}</kbd>
+              <span className="text-[12px] font-bold text-blue-400 leading-tight">{label}</span>
+            </div>
+          ))}
+          
+          <div className="w-px h-7 bg-slate-600 mx-1 shrink-0" />
+          
+          {/* Clear - red */}
+          <div className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-red-600/20 cursor-pointer transition-colors min-w-[56px]">
+            <kbd className="text-[9px] font-mono text-red-400/70 leading-tight">ESC</kbd>
+            <span className="text-[12px] font-bold text-red-400 leading-tight">Clear</span>
+          </div>
+          
+          {/* Print - white/neutral */}
+          <div className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-slate-600/40 cursor-pointer transition-colors min-w-[56px]">
+            <kbd className="text-[9px] font-mono text-slate-400/70 leading-tight">CTRL+P</kbd>
+            <span className="text-[12px] font-bold text-slate-300 leading-tight">Print</span>
           </div>
         </div>
         </div>
@@ -4473,23 +4536,6 @@ export default function POSSales() {
             organizationId={currentOrganization?.id || ""}
           />
         )}
-
-        {/* Keyboard Shortcut Hints Bar - Desktop only */}
-        <div className="hidden md:flex fixed bottom-0 left-[72px] right-0 h-7 bg-slate-800 dark:bg-slate-950 text-slate-400 text-[11px] items-center justify-center gap-5 z-40 border-t border-slate-700/50 select-none font-medium">
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">F1</kbd> Cash</span>
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">F2</kbd> UPI</span>
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">F3</kbd> Card</span>
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">F4</kbd> Credit</span>
-          <span className="text-slate-500">│</span>
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">F5</kbd> Return</span>
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">F6</kbd> Mix Pay</span>
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">F7</kbd> Hold</span>
-          <span className="text-slate-500">│</span>
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">F8</kbd> Report</span>
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">F9</kbd> Estimate</span>
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">Esc</kbd> Clear</span>
-          <span><kbd className="px-1 py-0.5 bg-slate-700 rounded text-[10px] font-mono">Ctrl+P</kbd> Print</span>
-        </div>
 
       </div>
 
