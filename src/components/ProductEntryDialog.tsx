@@ -2106,9 +2106,20 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                 <Input
                                   value={variant.barcode}
                                   onChange={(e) => handleVariantChange(index, "barcode", e.target.value)}
-                                  className="w-32 h-7 text-xs font-mono border-violet-200"
-                                  placeholder="Barcode"
+                                  className={cn(
+                                    "w-32 h-7 text-xs font-mono border-violet-200",
+                                    mobileERPMode?.enabled && "tracking-wider"
+                                  )}
+                                  placeholder={mobileERPMode?.enabled ? "Scan IMEI..." : "Barcode"}
                                 />
+                                {mobileERPMode?.enabled && variant.barcode && (() => {
+                                  const cleaned = variant.barcode.replace(/\s/g, '');
+                                  const isValid = /^\d+$/.test(cleaned) && cleaned.length >= (mobileERPMode.imei_min_length || 15) && cleaned.length <= (mobileERPMode.imei_max_length || 19);
+                                  if (!isValid && cleaned.length > 0) {
+                                    return <span className="text-[9px] text-amber-600 font-semibold mt-0.5 block">Need {mobileERPMode.imei_min_length}-{mobileERPMode.imei_max_length} digits</span>;
+                                  }
+                                  return null;
+                                })()}
                               </TableCell>
                               {!hideOpeningQty && (
                                 <TableCell className="py-1.5">
