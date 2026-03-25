@@ -924,8 +924,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         ? variants.filter((v) => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size) && (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color))).map(v => ({ ...v }))
         : [...variants];
       if (variantsToCreate.length > 0) {
-        // In purchase context, always generate barcodes at save time for variants without one
-        if (hideOpeningQty) {
+        // In purchase context, auto-generate barcodes only in auto mode
+        if (hideOpeningQty && isAutoBarcode) {
           for (let i = 0; i < variantsToCreate.length; i++) {
             if (!variantsToCreate[i].barcode) {
               variantsToCreate[i] = { ...variantsToCreate[i], barcode: await generateSequentialBarcode() };
@@ -938,7 +938,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         if (missingBarcode) {
           toast({
             title: "Barcode Required",
-            description: "All variants must have a barcode number before adding to bill",
+            description: isAutoBarcode
+              ? "Failed to generate barcodes. Please try again."
+              : "Please scan or enter barcode for all variants before adding to bill",
             variant: "destructive",
           });
           setLoading(false);
