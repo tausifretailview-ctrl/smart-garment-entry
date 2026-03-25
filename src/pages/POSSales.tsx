@@ -1033,6 +1033,8 @@ export default function POSSales() {
     }
   }, [recordKeystroke, detectScannerInput]);
 
+  const mobileERP = useMobileERP();
+
   const searchAndAddProduct = useCallback(async (searchTerm: string) => {
     // Quick service shortcodes (1-9) ALWAYS open the dialog, even if a product has that barcode
     if (/^[1-9]$/.test(searchTerm)) {
@@ -1045,6 +1047,19 @@ export default function POSSales() {
     if (!productsData) {
       setSearchInput("");
       return;
+    }
+
+    // Mobile ERP IMEI enforcement: validate IMEI format before allowing scan
+    if (mobileERP.enabled && mobileERP.imei_scan_enforcement) {
+      if (!validateIMEI(searchTerm, mobileERP.imei_min_length, mobileERP.imei_max_length)) {
+        toast({
+          title: "Invalid IMEI",
+          description: `Please scan a valid IMEI number (${mobileERP.imei_min_length}-${mobileERP.imei_max_length} digits)`,
+          variant: "destructive",
+        });
+        setSearchInput("");
+        return;
+      }
     }
 
     // Search by barcode first (exact match for speed)
@@ -1064,8 +1079,8 @@ export default function POSSales() {
       }
     }
 
-    // Priority 2: Product name match (for manual search)
-    if (!foundVariant) {
+    // Priority 2: Product name match (for manual search) — blocked in IMEI mode
+    if (!foundVariant && !(mobileERP.enabled && mobileERP.imei_scan_enforcement)) {
       for (const product of productsData) {
         if (product.product_name.toLowerCase().includes(searchTerm.toLowerCase())) {
           foundVariant = product.product_variants?.[0];

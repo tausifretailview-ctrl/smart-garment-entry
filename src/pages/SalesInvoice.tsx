@@ -31,6 +31,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBeepSound } from "@/hooks/useBeepSound";
+import { useMobileERP } from "@/hooks/useMobileERP";
+import { FinancerDetailsForm } from "@/components/FinancerDetailsForm";
 
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { format } from "date-fns";
