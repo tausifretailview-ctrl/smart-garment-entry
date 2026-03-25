@@ -3328,6 +3328,15 @@ Thank you for choosing us!`;
         </div>
       )}
 
+      {/* Financer Details (Mobile ERP) */}
+      {mobileERP.enabled && mobileERP.financer_billing && (
+        <div className="px-6 py-3 border-t border-slate-200">
+          <FinancerDetailsForm
+            onChange={(details) => setFinancerDetails(details)}
+          />
+        </div>
+      )}
+
       {/* Bill Summary Inline (Flat Disc / Other Charges / Round Off) */}
       <div className="px-6 py-2.5 bg-slate-50/80 border-t border-slate-100 flex items-center gap-4 flex-wrap">
         <div className="flex items-center gap-1.5">
