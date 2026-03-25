@@ -3471,7 +3471,7 @@ export default function POSSales() {
                         onClick={handleNextInvoice}
                         variant="outline"
                         size="sm"
-                        className="h-12"
+                        className="h-10"
                         disabled={!todaysSales || todaysSales.length === 0 || currentInvoiceIndex <= 0}
                       >
                         <div className="flex flex-col items-end">
