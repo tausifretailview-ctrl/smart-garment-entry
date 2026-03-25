@@ -3823,7 +3823,7 @@ export default function POSSales() {
                   </Button>
                   <Input 
                     type="number"
-                    className="w-14 h-7 bg-white text-foreground text-center text-sm font-semibold rounded-l-none border-0" 
+                    className="w-20 h-7 bg-white text-foreground text-center text-sm font-semibold rounded-l-none border-0" 
                     value={flatDiscountValue || ""}
                     placeholder="0"
                     onChange={(e) => setFlatDiscountValue(parseFloat(e.target.value) || 0)}
