@@ -737,9 +737,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         }
       }
       
-      // Generate barcodes sequentially for empty/cleared slots
+      // Generate barcodes only for variants that will actually be used (qty > 0 in purchase context)
       for (let i = 0; i < updatedVariants.length; i++) {
-        if (!updatedVariants[i].barcode) {
+        const v = updatedVariants[i];
+        const shouldSkip = hideOpeningQty && (v.purchase_qty || 0) <= 0;
+        if (!v.barcode && !shouldSkip) {
           updatedVariants[i] = {
             ...updatedVariants[i],
             barcode: await generateSequentialBarcode(),
