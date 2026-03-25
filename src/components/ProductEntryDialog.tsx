@@ -2140,10 +2140,14 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             {hideOpeningQty && (
               <span className="text-sm text-muted-foreground mr-auto">
                 {(() => {
-                  const totalQty = variants.filter(v => !disabledSizes.has(v.size)).reduce((s, v) => s + (v.purchase_qty || 0), 0);
-                  const activeCount = variants.filter(v => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size)).length;
+                  const activeVariants = variants.filter(v => 
+                    !disabledSizes.has(v.size) && 
+                    (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color)) &&
+                    (v.purchase_qty || 0) > 0
+                  );
+                  const totalQty = activeVariants.reduce((s, v) => s + (v.purchase_qty || 0), 0);
                   return totalQty > 0
-                    ? `${activeCount} sizes · ${totalQty} pcs`
+                    ? `${activeVariants.length} sizes · ${totalQty} pcs`
                     : 'Enter qty per size above';
                 })()}
               </span>
