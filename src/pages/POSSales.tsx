@@ -3811,7 +3811,7 @@ export default function POSSales() {
             <div className="flex items-end gap-3">
               {/* Flat Disc */}
               <div className="text-center">
-                <div className="text-[9px] text-white/60 uppercase font-medium mb-0.5">Flat Disc</div>
+                <div className="text-[11px] text-white/80 uppercase font-bold mb-0.5 tracking-wide">Flat Disc</div>
                 <div className="flex items-center">
                   <Button
                     size="sm"
@@ -3833,7 +3833,7 @@ export default function POSSales() {
               
               {/* S/R Adj */}
               <div className="text-center">
-                <div className="text-[9px] text-white/60 uppercase font-medium mb-0.5">
+                <div className="text-[11px] text-white/80 uppercase font-bold mb-0.5 tracking-wide">
                   S/R Adj{customerId && pendingSaleReturnCredits.length > 0 ? ` (${pendingSaleReturnCredits.length})` : ''}
                 </div>
                 <div className="flex items-center">
@@ -3877,7 +3877,7 @@ export default function POSSales() {
               
               {/* Round */}
               <div className="text-center">
-                <div className="text-[9px] text-white/60 uppercase font-medium mb-0.5">
+                <div className="text-[11px] text-white/80 uppercase font-bold mb-0.5 tracking-wide">
                   Round{isManualRoundOff && <span className="text-yellow-300 normal-case"> (M)</span>}
                 </div>
                 <div className="flex items-center gap-0.5">
@@ -3914,7 +3914,7 @@ export default function POSSales() {
               {/* Credit Applied */}
               {(availableCreditBalance > 0 || creditApplied > 0) && (
                 <div className="text-center">
-                  <div className="text-[9px] text-white/60 uppercase font-medium mb-0.5">Cr ₹{availableCreditBalance.toFixed(0)}</div>
+                  <div className="text-[11px] text-white/80 uppercase font-bold mb-0.5 tracking-wide">Cr ₹{availableCreditBalance.toFixed(0)}</div>
                   <Input 
                     type="number"
                     className="w-20 h-7 bg-purple-100 text-purple-700 text-center text-sm font-semibold border-0 rounded-md" 
@@ -3970,9 +3970,9 @@ export default function POSSales() {
             { key: 'F3', label: 'Card' },
             { key: 'F4', label: 'Credit' },
           ].map(({ key, label }) => (
-            <div key={key} className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-amber-600/20 cursor-pointer transition-colors min-w-[56px]">
-              <kbd className="text-[9px] font-mono text-amber-400/70 leading-tight">{key}</kbd>
-              <span className="text-[12px] font-bold text-amber-400 leading-tight">{label}</span>
+            <div key={key} className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-amber-600/20 cursor-pointer transition-colors min-w-[60px]">
+              <kbd className="text-[10px] font-mono text-amber-400/80 font-bold leading-tight">{key}</kbd>
+              <span className="text-[13px] font-extrabold text-amber-400 leading-tight">{label}</span>
             </div>
           ))}
           
@@ -3984,9 +3984,9 @@ export default function POSSales() {
             { key: 'F6', label: 'Mix Pay' },
             { key: 'F7', label: 'Hold' },
           ].map(({ key, label }) => (
-            <div key={key} className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-blue-600/20 cursor-pointer transition-colors min-w-[56px]">
-              <kbd className="text-[9px] font-mono text-blue-400/70 leading-tight">{key}</kbd>
-              <span className="text-[12px] font-bold text-blue-400 leading-tight">{label}</span>
+            <div key={key} className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-blue-600/20 cursor-pointer transition-colors min-w-[60px]">
+              <kbd className="text-[10px] font-mono text-blue-400/80 font-bold leading-tight">{key}</kbd>
+              <span className="text-[13px] font-extrabold text-blue-400 leading-tight">{label}</span>
             </div>
           ))}
           
@@ -3997,24 +3997,24 @@ export default function POSSales() {
             { key: 'F8', label: 'Report' },
             { key: 'F9', label: 'Estimate' },
           ].map(({ key, label }) => (
-            <div key={key} className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-blue-600/20 cursor-pointer transition-colors min-w-[56px]">
-              <kbd className="text-[9px] font-mono text-blue-400/70 leading-tight">{key}</kbd>
-              <span className="text-[12px] font-bold text-blue-400 leading-tight">{label}</span>
+            <div key={key} className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-blue-600/20 cursor-pointer transition-colors min-w-[60px]">
+              <kbd className="text-[10px] font-mono text-blue-400/80 font-bold leading-tight">{key}</kbd>
+              <span className="text-[13px] font-extrabold text-blue-400 leading-tight">{label}</span>
             </div>
           ))}
           
           <div className="w-px h-7 bg-slate-600 mx-1 shrink-0" />
           
           {/* Clear - red */}
-          <div className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-red-600/20 cursor-pointer transition-colors min-w-[56px]">
-            <kbd className="text-[9px] font-mono text-red-400/70 leading-tight">ESC</kbd>
-            <span className="text-[12px] font-bold text-red-400 leading-tight">Clear</span>
+          <div className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-red-600/20 cursor-pointer transition-colors min-w-[60px]">
+            <kbd className="text-[10px] font-mono text-red-400/80 font-bold leading-tight">ESC</kbd>
+            <span className="text-[13px] font-extrabold text-red-400 leading-tight">Clear</span>
           </div>
           
           {/* Print - white/neutral */}
-          <div className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-slate-600/40 cursor-pointer transition-colors min-w-[56px]">
-            <kbd className="text-[9px] font-mono text-slate-400/70 leading-tight">CTRL+P</kbd>
-            <span className="text-[12px] font-bold text-slate-300 leading-tight">Print</span>
+          <div className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-slate-600/40 cursor-pointer transition-colors min-w-[60px]">
+            <kbd className="text-[10px] font-mono text-slate-400/80 font-bold leading-tight">CTRL+P</kbd>
+            <span className="text-[13px] font-extrabold text-slate-300 leading-tight">Print</span>
           </div>
         </div>
         </div>
