@@ -3332,6 +3332,7 @@ Thank you for choosing us!`;
       {mobileERP.enabled && mobileERP.financer_billing && (
         <div className="px-6 py-3 border-t border-slate-200">
           <FinancerDetailsForm
+            value={financerDetails}
             onChange={(details) => setFinancerDetails(details)}
           />
         </div>
