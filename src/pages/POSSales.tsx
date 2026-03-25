@@ -4017,6 +4017,7 @@ export default function POSSales() {
             <span className="text-[12px] font-bold text-slate-300 leading-tight">Print</span>
           </div>
         </div>
+        </div>
 
         {/* Print Dialog */}
         <Dialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
