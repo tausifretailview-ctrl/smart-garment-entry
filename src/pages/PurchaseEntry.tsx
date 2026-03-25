@@ -3478,11 +3478,16 @@ const PurchaseEntry = () => {
 
             {/* BILL DISC % */}
             <span className="text-[11px] font-bold uppercase tracking-wider text-teal-200 mr-2 whitespace-nowrap">Bill Disc %</span>
-            <Input type="number" step="0.01" value={discountPercent || ""}
-              onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)}
+            <Input type="number" step="0.01"
+              value={totals.grossAmount > 0 ? Number((discountAmount / totals.grossAmount * 100).toFixed(2)) || "" : ""}
+              onChange={(e) => {
+                const pct = parseFloat(e.target.value) || 0;
+                setDiscountAmount(Math.round(totals.grossAmount * pct / 100 * 100) / 100);
+              }}
               onWheel={(e) => (e.target as HTMLInputElement).blur()}
               placeholder="0"
               className="w-16 h-8 text-sm text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
+            />
             />
 
             <div className="w-px h-7 bg-teal-500/50 mx-3 shrink-0" />
