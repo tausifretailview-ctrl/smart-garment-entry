@@ -3823,7 +3823,7 @@ export default function POSSales() {
                   </Button>
                   <Input 
                     type="number"
-                    className="w-14 h-7 bg-white text-foreground text-center text-sm font-semibold rounded-l-none border-0" 
+                    className="w-20 h-7 bg-white text-foreground text-center text-sm font-semibold rounded-l-none border-0" 
                     value={flatDiscountValue || ""}
                     placeholder="0"
                     onChange={(e) => setFlatDiscountValue(parseFloat(e.target.value) || 0)}
@@ -3839,7 +3839,7 @@ export default function POSSales() {
                 <div className="flex items-center">
                   <Input 
                     type="number"
-                    className="w-14 h-7 bg-white text-foreground text-center text-sm font-semibold border-0 rounded-md" 
+                    className="w-20 h-7 bg-white text-foreground text-center text-sm font-semibold border-0 rounded-md" 
                     value={saleReturnAdjust || ""}
                     placeholder="0"
                     onChange={(e) => setSaleReturnAdjust(parseFloat(e.target.value) || 0)}
@@ -3902,7 +3902,7 @@ export default function POSSales() {
                   )}
                   <Input 
                     type="number"
-                    className={`w-14 h-7 text-center text-sm font-semibold border-0 rounded-md ${roundOff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
+                    className={`w-20 h-7 text-center text-sm font-semibold border-0 rounded-md ${roundOff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
                     value={roundOff || ""}
                     placeholder="0"
                     onChange={(e) => handleRoundOffChange(parseFloat(e.target.value) || 0)}
@@ -3917,7 +3917,7 @@ export default function POSSales() {
                   <div className="text-[9px] text-white/60 uppercase font-medium mb-0.5">Cr ₹{availableCreditBalance.toFixed(0)}</div>
                   <Input 
                     type="number"
-                    className="w-14 h-7 bg-purple-100 text-purple-700 text-center text-sm font-semibold border-0 rounded-md" 
+                    className="w-20 h-7 bg-purple-100 text-purple-700 text-center text-sm font-semibold border-0 rounded-md" 
                     value={creditApplied || ""}
                     placeholder="0"
                     onChange={(e) => {
