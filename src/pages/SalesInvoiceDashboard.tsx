@@ -1003,7 +1003,8 @@ export default function SalesInvoiceDashboard() {
         const poll = () => {
           const el = printRef.current;
           const text = (el?.textContent || '').trim();
-          const isReady = !!el && el.childElementCount > 0 && text.length > 32 && !/^loading\.?\.?\.?$/i.test(text);
+          const hasLoadingAttr = el?.querySelector('[data-invoice-loading]') !== null;
+          const isReady = !!el && el.childElementCount > 0 && !hasLoadingAttr && text.length > 32 && !/^loading\.?\.?\.?$/i.test(text);
           if (isReady) return resolve(true);
           if (Date.now() - startTime > MAX_WAIT) return resolve(false);
           setTimeout(poll, 250);
