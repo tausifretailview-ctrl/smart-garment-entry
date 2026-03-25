@@ -3552,20 +3552,20 @@ export default function POSSales() {
               )}
               <div className="overflow-x-auto">
                 {items.length === 0 ? (
-                  // Show 6 blank rows with serial numbers
+                  // Show 5 blank rows with serial numbers
                   Array.from({ length: 5 }).map((_, index) => (
-                    <div key={index} className="min-w-[1200px] grid gap-3 p-4 border-b text-base" style={{ gridTemplateColumns: '60px 140px 1fr 80px 70px 100px 60px 70px 80px 100px 130px' }}>
-                      <div className="flex items-center text-muted-foreground">{index + 1}</div>
-                      <div className="flex items-center text-muted-foreground">-</div>
-                      <div className="flex items-center text-muted-foreground">-</div>
-                      <div className="flex items-center text-muted-foreground">-</div>
-                      <div className="flex items-center text-muted-foreground">-</div>
-                      <div className="flex items-center text-muted-foreground">-</div>
-                      <div className="flex items-center text-muted-foreground">-</div>
-                      <div className="flex items-center text-muted-foreground">-</div>
-                      <div className="flex items-center text-muted-foreground">-</div>
-                      <div className="flex items-center text-muted-foreground">-</div>
-                      <div className="flex items-center text-muted-foreground">-</div>
+                    <div key={index} className={`min-w-[1200px] grid gap-2 px-4 py-3 border-b border-border/40 text-sm ${index % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: '50px 130px 1fr 70px 65px 95px 65px 65px 75px 95px 120px' }}>
+                      <div className="flex items-center justify-center text-muted-foreground/50 font-medium">{index + 1}</div>
+                      <div className="flex items-center text-muted-foreground/30">—</div>
+                      <div className="flex items-center text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-center text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-center text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-end text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-center text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-center text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-end text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-end text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-end text-muted-foreground/30">—</div>
                     </div>
                   ))
                 ) : (
