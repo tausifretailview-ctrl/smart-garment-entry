@@ -3902,7 +3902,7 @@ export default function POSSales() {
                   )}
                   <Input 
                     type="number"
-                    className={`w-14 h-7 text-center text-sm font-semibold border-0 rounded-md ${roundOff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
+                    className={`w-20 h-7 text-center text-sm font-semibold border-0 rounded-md ${roundOff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
                     value={roundOff || ""}
                     placeholder="0"
                     onChange={(e) => handleRoundOffChange(parseFloat(e.target.value) || 0)}
