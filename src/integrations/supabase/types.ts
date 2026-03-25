@@ -3835,6 +3835,74 @@ export type Database = {
           },
         ]
       }
+      sale_financer_details: {
+        Row: {
+          created_at: string | null
+          down_payment: number | null
+          emi_amount: number | null
+          financer_name: string
+          id: string
+          loan_number: string | null
+          organization_id: string
+          sale_id: string
+          tenure: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          down_payment?: number | null
+          emi_amount?: number | null
+          financer_name: string
+          id?: string
+          loan_number?: string | null
+          organization_id: string
+          sale_id: string
+          tenure?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          down_payment?: number | null
+          emi_amount?: number | null
+          financer_name?: string
+          id?: string
+          loan_number?: string | null
+          organization_id?: string
+          sale_id?: string
+          tenure?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_financer_details_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_financer_details_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "sale_financer_details_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_financer_details_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales_with_customer"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sale_items: {
         Row: {
           barcode: string | null

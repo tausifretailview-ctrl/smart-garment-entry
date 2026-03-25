@@ -331,6 +331,21 @@ const PurchaseEntry = () => {
   // Check if barcode prompt is enabled (defaults to true if not set)
   const enableBarcodePrompt = (settings?.bill_barcode_settings as any)?.enable_barcode_prompt !== false;
   
+  // Mobile ERP / IMEI mode
+  const mobileERPSettings = (() => {
+    const productSettings = settings?.product_settings as any;
+    const merp = productSettings?.mobile_erp;
+    if (!merp?.enabled) return null;
+    return {
+      enabled: true,
+      imei_scan_enforcement: merp.imei_scan_enforcement ?? true,
+      locked_size_qty: merp.locked_size_qty ?? true,
+      imei_min_length: merp.imei_min_length ?? 15,
+      imei_max_length: merp.imei_max_length ?? 19,
+    };
+  })();
+  const isMobileERPMode = !!mobileERPSettings?.enabled;
+  
   // Check if color field is enabled in product settings
   const isColorFieldEnabled = (() => {
     const productSettings = settings?.product_settings as any;
@@ -2746,7 +2761,7 @@ const PurchaseEntry = () => {
           </DialogContent>
         </Dialog>
         <ExcelImportDialog open={showExcelImport} onClose={() => setShowExcelImport(false)} targetFields={purchaseBillFields} onImport={handleExcelImport} title="Import Purchase Bill" sampleData={purchaseBillSampleData} sampleFileName="Purchase_Bill_Sample.xlsx" />
-        <ProductEntryDialog open={showProductDialog} onOpenChange={setShowProductDialog} onProductCreated={handleProductCreated} hideOpeningQty isDcPurchase={isDcPurchase} isAutoBarcode={isAutoBarcode} />
+        <ProductEntryDialog open={showProductDialog} onOpenChange={setShowProductDialog} onProductCreated={handleProductCreated} hideOpeningQty isDcPurchase={isDcPurchase} isAutoBarcode={isAutoBarcode} mobileERPMode={mobileERPSettings || undefined} />
         <PriceUpdateConfirmDialog open={showPriceUpdateDialog} onOpenChange={setShowPriceUpdateDialog} priceChanges={detectedPriceChanges} onConfirm={handlePriceUpdateConfirm} onSkip={handlePriceUpdateSkip} />
         <AddSupplierDialog open={showAddSupplierDialog} onClose={() => setShowAddSupplierDialog(false)} onSupplierCreated={(supplier) => { refetchSuppliers(); setBillData((prev) => ({ ...prev, supplier_id: supplier.id, supplier_name: supplier.supplier_name })); }} />
         <SizeGridDialog open={showSizeGrid} onClose={() => setShowSizeGrid(false)} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} />
@@ -3121,7 +3136,7 @@ const PurchaseEntry = () => {
                     <TableHead className="w-[60px]">SR.NO</TableHead>
                     <TableHead className="w-[260px]">ITEM NAME</TableHead>
                     <TableHead className="w-[50px]">SIZE</TableHead>
-                    <TableHead className="w-[120px]">BARCODE</TableHead>
+                    <TableHead className="w-[120px]">{isMobileERPMode ? 'IMEI NUMBER' : 'BARCODE'}</TableHead>
                     <TableHead className="w-[80px] text-right">QTY</TableHead>
                     <TableHead className='w-[120px] text-right pur-rate-col'>PUR.RATE</TableHead>
                     <TableHead className='w-[120px] text-right sale-rate-col'>SALE.RATE</TableHead>
@@ -3157,7 +3172,7 @@ const PurchaseEntry = () => {
                         </TableCell>
                         <TableCell className="w-[50px] text-sm">{item.size || "—"}</TableCell>
                         <TableCell className="w-[120px]">
-                          <Badge variant="outline" className="font-mono text-xs">
+                          <Badge variant="outline" className={cn("text-xs", isMobileERPMode ? "font-mono tracking-wider" : "font-mono")}>
                             {item.barcode || "—"}
                           </Badge>
                           {barcodeWarnings.has(item.temp_id) && (
@@ -3784,6 +3799,7 @@ const PurchaseEntry = () => {
           hideOpeningQty
           isDcPurchase={isDcPurchase}
           isAutoBarcode={isAutoBarcode}
+          mobileERPMode={mobileERPSettings || undefined}
         />
 
         {/* Price Update Confirmation Dialog */}

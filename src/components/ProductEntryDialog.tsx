@@ -77,6 +77,14 @@ interface ProductForm {
   status: string;
 }
 
+interface MobileERPModeConfig {
+  enabled: boolean;
+  imei_scan_enforcement: boolean;
+  locked_size_qty: boolean;
+  imei_min_length: number;
+  imei_max_length: number;
+}
+
 interface ProductEntryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -98,9 +106,10 @@ interface ProductEntryDialogProps {
   hideOpeningQty?: boolean;
   isDcPurchase?: boolean;
   isAutoBarcode?: boolean;
+  mobileERPMode?: MobileERPModeConfig;
 }
 
-export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideOpeningQty, isDcPurchase, isAutoBarcode = true }: ProductEntryDialogProps) => {
+export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideOpeningQty, isDcPurchase, isAutoBarcode = true, mobileERPMode }: ProductEntryDialogProps) => {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const [loading, setLoading] = useState(false);
@@ -215,34 +224,53 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         // In purchase context: auto-generate variants for qty entry
         if (hideOpeningQty) {
           const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
-          // Build a map of existing qty values to preserve them
-          const existingQtyMap = new Map<string, number>();
-          variants.forEach(v => {
-            if ((v.purchase_qty || 0) > 0) {
-              existingQtyMap.set(`${v.color}||${v.size}`, v.purchase_qty || 0);
+          
+          // Mobile ERP / IMEI mode: single "Free" size per color, qty=1
+          if (mobileERPMode?.locked_size_qty) {
+            const newVariants: ProductVariant[] = colorsToUse.map(color => ({
+              color,
+              size: "Free",
+              pur_price: formData.default_pur_price ?? 0,
+              sale_price: formData.default_sale_price ?? 0,
+              mrp: formData.default_mrp ?? null,
+              barcode: "",
+              active: true,
+              opening_qty: 0,
+              purchase_qty: 1,
+            }));
+            if (isAutoBarcode) autoBarcodePending.current = true;
+            setVariants(newVariants);
+            setShowVariants(true);
+          } else {
+            // Build a map of existing qty values to preserve them
+            const existingQtyMap = new Map<string, number>();
+            variants.forEach(v => {
+              if ((v.purchase_qty || 0) > 0) {
+                existingQtyMap.set(`${v.color}||${v.size}`, v.purchase_qty || 0);
+              }
+            });
+            const newVariants: ProductVariant[] = [];
+            const allSizesForGroup = [...group.sizes, ...customSizes];
+            for (const color of colorsToUse) {
+              for (const size of allSizesForGroup) {
+                const key = `${color}||${size}`;
+                newVariants.push({
+                  color,
+                  size,
+                  pur_price: formData.default_pur_price ?? 0,
+                  sale_price: formData.default_sale_price ?? 0,
+                  mrp: formData.default_mrp ?? null,
+                  barcode: "",
+                  active: true,
+                  opening_qty: 0,
+                  purchase_qty: existingQtyMap.get(key) || 0,
+                });
+              }
             }
-          });
-          const newVariants: ProductVariant[] = [];
-          const allSizesForGroup = [...group.sizes, ...customSizes];
-          for (const color of colorsToUse) {
-            for (const size of allSizesForGroup) {
-              const key = `${color}||${size}`;
-              newVariants.push({
-                color,
-                size,
-                pur_price: formData.default_pur_price ?? 0,
-                sale_price: formData.default_sale_price ?? 0,
-                mrp: formData.default_mrp ?? null,
-                barcode: "",
-                active: true,
-                opening_qty: 0,
-                purchase_qty: existingQtyMap.get(key) || 0,
-              });
-            }
+            if (isAutoBarcode) autoBarcodePending.current = true;
+            setVariants(newVariants);
+            setShowVariants(true);
           }
-          if (isAutoBarcode) autoBarcodePending.current = true;
-          setVariants(newVariants);
-          setShowVariants(true);
         }
       }
     }
@@ -937,14 +965,33 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         const missingBarcode = variantsToCreate.some(v => !v.barcode || !v.barcode.trim());
         if (missingBarcode) {
           toast({
-            title: "Barcode Required",
+            title: mobileERPMode?.enabled ? "IMEI Required" : "Barcode Required",
             description: isAutoBarcode
               ? "Failed to generate barcodes. Please try again."
-              : "Please scan or enter barcode for all variants before adding to bill",
+              : mobileERPMode?.enabled
+                ? "Please scan IMEI for all variants before adding to bill"
+                : "Please scan or enter barcode for all variants before adding to bill",
             variant: "destructive",
           });
           setLoading(false);
           return;
+        }
+        
+        // IMEI format validation in Mobile ERP mode
+        if (mobileERPMode?.enabled) {
+          const invalidIMEI = variantsToCreate.find(v => {
+            const cleaned = (v.barcode || '').replace(/\s/g, '');
+            return !/^\d+$/.test(cleaned) || cleaned.length < (mobileERPMode.imei_min_length || 15) || cleaned.length > (mobileERPMode.imei_max_length || 19);
+          });
+          if (invalidIMEI) {
+            toast({
+              title: "Invalid IMEI",
+              description: `IMEI must be ${mobileERPMode.imei_min_length}-${mobileERPMode.imei_max_length} digits. Check: ${invalidIMEI.barcode}`,
+              variant: "destructive",
+            });
+            setLoading(false);
+            return;
+          }
         }
         const variantsToInsert = variantsToCreate.map((v) => ({
           product_id: productData.id,
@@ -2038,7 +2085,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                             <TableHead className="text-[11px] py-2 font-bold text-amber-700 font-outfit bg-amber-50/50">Pur Price<span className="text-destructive ml-0.5">*</span></TableHead>
                             <TableHead className="text-[11px] py-2 font-bold text-emerald-700 font-outfit bg-emerald-50/50">Sale Price<span className="text-destructive ml-0.5">*</span></TableHead>
                             {showMrp && <TableHead className="text-[11px] py-2 font-bold text-blue-700 font-outfit bg-blue-50/50">MRP<span className="text-destructive ml-0.5">*</span></TableHead>}
-                            <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit">Barcode<span className="text-destructive ml-0.5">*</span></TableHead>
+                            <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit">{mobileERPMode?.enabled ? 'IMEI Number' : 'Barcode'}<span className="text-destructive ml-0.5">*</span></TableHead>
                             {!hideOpeningQty && <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit">Qty</TableHead>}
                             <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit text-center">Active</TableHead>
                             <TableHead className="text-[11px] py-2 w-8"></TableHead>
@@ -2056,7 +2103,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                 <TableCell className="font-medium text-xs py-1.5">{variant.color || "-"}</TableCell>
                               )}
                               <TableCell className="py-1.5">
-                                <span className="inline-flex items-center justify-center min-w-[32px] px-2 py-0.5 rounded-md bg-violet-100 text-violet-800 text-xs font-bold font-outfit">
+                                <span className={cn(
+                                  "inline-flex items-center justify-center min-w-[32px] px-2 py-0.5 rounded-md text-xs font-bold font-outfit",
+                                  mobileERPMode?.locked_size_qty ? "bg-purple-200 text-purple-900" : "bg-violet-100 text-violet-800"
+                                )}>
                                   {variant.size}
                                 </span>
                               </TableCell>
@@ -2092,9 +2142,20 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                 <Input
                                   value={variant.barcode}
                                   onChange={(e) => handleVariantChange(index, "barcode", e.target.value)}
-                                  className="w-32 h-7 text-xs font-mono border-violet-200"
-                                  placeholder="Barcode"
+                                  className={cn(
+                                    "w-32 h-7 text-xs font-mono border-violet-200",
+                                    mobileERPMode?.enabled && "tracking-wider"
+                                  )}
+                                  placeholder={mobileERPMode?.enabled ? "Scan IMEI..." : "Barcode"}
                                 />
+                                {mobileERPMode?.enabled && variant.barcode && (() => {
+                                  const cleaned = variant.barcode.replace(/\s/g, '');
+                                  const isValid = /^\d+$/.test(cleaned) && cleaned.length >= (mobileERPMode.imei_min_length || 15) && cleaned.length <= (mobileERPMode.imei_max_length || 19);
+                                  if (!isValid && cleaned.length > 0) {
+                                    return <span className="text-[9px] text-amber-600 font-semibold mt-0.5 block">Need {mobileERPMode.imei_min_length}-{mobileERPMode.imei_max_length} digits</span>;
+                                  }
+                                  return null;
+                                })()}
                               </TableCell>
                               {!hideOpeningQty && (
                                 <TableCell className="py-1.5">
