@@ -926,8 +926,8 @@ const PurchaseEntry = () => {
           description: `${product.product_name}: ${addedCount} sizes, ${totalQty} pcs added`,
         });
 
-        // Focus search for next product
-        setTimeout(() => inlineSearchInputRef.current?.focus(), 100);
+        // Blur so "1" shortcut works immediately
+        (document.activeElement as HTMLElement)?.blur();
       } else {
         // No qty entered — fallback to size grid
         const mappedVariants = product.variants.map((v: any) => ({
