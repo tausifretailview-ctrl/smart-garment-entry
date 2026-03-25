@@ -136,6 +136,7 @@ interface SaleSettings {
     account_number?: string;
     ifsc_code?: string;
     account_holder?: string;
+    branch?: string;
   };
   // Invoice Customization
   invoice_header_text?: string;
