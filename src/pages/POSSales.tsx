@@ -3571,22 +3571,22 @@ export default function POSSales() {
                 ) : (
                   items.map((item, index) => (
                     <div key={index} className={`min-w-[1200px] grid gap-2 px-4 py-2.5 border-b border-border/40 hover:bg-accent/30 text-sm transition-colors ${index % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: '50px 130px 1fr 70px 65px 95px 65px 65px 75px 95px 120px' }}>
-                      <div className="flex items-center font-semibold">{index + 1}</div>
-                      <div className="flex items-center text-sm">{item.barcode}</div>
-                      <div className="flex items-center font-medium truncate gap-1">
+                      <div className="flex items-center justify-center font-semibold text-foreground/80">{index + 1}</div>
+                      <div className="flex items-center text-xs font-mono text-muted-foreground">{item.barcode}</div>
+                      <div className="flex items-center font-medium text-sm truncate gap-1">
                         {item.productName}
                         {item.isDcProduct && (
                           <span className="px-1 py-0.5 text-[9px] font-bold bg-orange-100 text-orange-700 border border-orange-300 rounded flex-shrink-0">DC</span>
                         )}
                       </div>
-                      <div className="flex items-center text-sm font-medium">{item.size}</div>
+                      <div className="flex items-center justify-center text-sm font-medium">{item.size}</div>
                       <div>
                         <Input
                           type="number"
                           value={item.quantity || ""}
                           onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
                           placeholder="1"
-                          className="h-9 text-base w-full"
+                          className="h-8 text-sm w-full text-center bg-muted/30 border-border/60"
                           min="1"
                         />
                       </div>
@@ -3596,7 +3596,7 @@ export default function POSSales() {
                           value={item.mrp || ""}
                           onChange={(e) => updateMrp(index, parseFloat(e.target.value) || 0)}
                           placeholder="0"
-                          className="h-9 text-base w-full"
+                          className="h-8 text-sm w-full text-right bg-muted/30 border-border/60"
                           min="0"
                           step="0.01"
                         />
@@ -3605,7 +3605,7 @@ export default function POSSales() {
                         <select
                           value={item.gstPer}
                           onChange={(e) => updateGstPer(index, parseInt(e.target.value))}
-                          className="h-9 w-full rounded-md border border-input bg-background px-2 text-base focus:outline-none focus:ring-2 focus:ring-ring"
+                          className="h-8 w-full rounded-md border border-border/60 bg-muted/30 px-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-ring"
                         >
                           <option value="0">0%</option>
                           <option value="5">5%</option>
@@ -3620,7 +3620,7 @@ export default function POSSales() {
                           value={item.discountPercent || ""}
                           onChange={(e) => updateDiscountPercent(index, parseFloat(e.target.value) || 0)}
                           placeholder="0"
-                          className="h-9 text-base w-full"
+                          className="h-8 text-sm w-full text-center bg-muted/30 border-border/60"
                           min="0"
                           max="100"
                           step="0.01"
@@ -3632,21 +3632,21 @@ export default function POSSales() {
                           value={item.discountAmount || ""}
                           onChange={(e) => updateDiscountAmount(index, parseFloat(e.target.value) || 0)}
                           placeholder="0"
-                          className="h-9 text-base w-full"
+                          className="h-8 text-sm w-full text-right bg-muted/30 border-border/60"
                           min="0"
                           step="0.01"
                         />
                       </div>
-                      <div className="flex items-center">₹{Math.round(item.unitCost).toLocaleString('en-IN')}</div>
+                      <div className="flex items-center justify-end text-sm text-muted-foreground">₹{Math.round(item.unitCost).toLocaleString('en-IN')}</div>
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold">₹{Math.round(item.netAmount).toLocaleString('en-IN')}</span>
+                        <span className="font-bold text-sm">₹{Math.round(item.netAmount).toLocaleString('en-IN')}</span>
                         <Button
                           size="icon"
                           variant="ghost"
                           onClick={() => removeItem(index)}
-                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </div>
