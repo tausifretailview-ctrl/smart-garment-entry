@@ -924,13 +924,25 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         ? variants.filter((v) => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size) && (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color))).map(v => ({ ...v }))
         : [...variants];
       if (variantsToCreate.length > 0) {
-        // In purchase context, generate barcodes at save time only for selected sizes
-        if (hideOpeningQty && isAutoBarcode) {
+        // In purchase context, always generate barcodes at save time for variants without one
+        if (hideOpeningQty) {
           for (let i = 0; i < variantsToCreate.length; i++) {
             if (!variantsToCreate[i].barcode) {
               variantsToCreate[i] = { ...variantsToCreate[i], barcode: await generateSequentialBarcode() };
             }
           }
+        }
+        
+        // Block save if any variant still has no barcode
+        const missingBarcode = variantsToCreate.some(v => !v.barcode || !v.barcode.trim());
+        if (missingBarcode) {
+          toast({
+            title: "Barcode Required",
+            description: "All variants must have a barcode number before adding to bill",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
         }
         const variantsToInsert = variantsToCreate.map((v) => ({
           product_id: productData.id,
