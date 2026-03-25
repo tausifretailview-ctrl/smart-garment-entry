@@ -136,6 +136,7 @@ interface SaleSettings {
     account_number?: string;
     ifsc_code?: string;
     account_holder?: string;
+    branch?: string;
   };
   // Invoice Customization
   invoice_header_text?: string;
@@ -2915,6 +2916,27 @@ export default function Settings() {
                             })
                           }
                           placeholder="e.g., HDFC0001234"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="bank_branch">Branch Name</Label>
+                        <Input
+                          id="bank_branch"
+                          value={(settings.sale_settings?.bank_details as any)?.branch || ""}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                bank_details: {
+                                  ...settings.sale_settings?.bank_details,
+                                  branch: e.target.value,
+                                },
+                              },
+                            })
+                          }
+                          placeholder="e.g., Andheri West Branch"
                         />
                       </div>
                     </div>
