@@ -2021,7 +2021,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {variants.map((variant, index) => (
+                          {variants.map((variant, index) => {
+                            // Hide variants for disabled sizes or removed colors
+                            if (disabledSizes.has(variant.size)) return null;
+                            if (formData.colors.length > 0 && variant.color && !formData.colors.includes(variant.color)) return null;
+                            return (
                             <TableRow key={index} className="hover:bg-violet-50/30 transition-colors">
                               {formData.colors.length > 0 && (
                                 <TableCell className="font-medium text-xs py-1.5">{variant.color || "-"}</TableCell>
