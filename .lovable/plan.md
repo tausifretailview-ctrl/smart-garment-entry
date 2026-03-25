@@ -1,26 +1,21 @@
 
 
-## Issue: "Barcode Required" Error — Already Fixed, Users Need Cache Refresh
+## Fix: Remove Auto-Focus on Search Bar After Adding New Product
 
-### Analysis
+### Problem
+After adding a new product via the "Add New Product" dialog, the cursor auto-focuses on the search bar (line 930 in `PurchaseEntry.tsx`). This prevents the user from pressing "1" to quickly open the Add New Product dialog again, because the "1" keystroke gets typed into the search input instead.
 
-I reviewed the current code thoroughly. The fix is **already correctly implemented**:
+### Fix
+**File: `src/pages/PurchaseEntry.tsx`**
 
-1. **`ProductEntryDialog.tsx` line 846**: The barcode validation is guarded with `!hideOpeningQty` — so it **never fires** in the Purchase Entry context
-2. **`ProductEntryDialog.tsx` line 798-800**: Only variants with `purchase_qty > 0` are validated in purchase context
-3. **`ProductEntryDialog.tsx` line 914-916**: Only variants with `purchase_qty > 0` are created and get barcodes at save time
+1. **Line 930**: Remove or comment out `setTimeout(() => inlineSearchInputRef.current?.focus(), 100)` — the line that focuses the search bar after product is added with qty.
 
-The code is correct. The users are seeing the old behavior because their **browsers have cached the previous JavaScript bundle**.
+2. **Line 1475-1477**: Similarly remove the `setTimeout(() => inlineSearchInputRef.current?.focus(), 100)` after Size Grid mode adds items — same issue applies there.
 
-### Recommended Action
+3. After both operations, add `document.activeElement?.blur()` to ensure no input has focus, so the "1" keyboard shortcut works immediately.
 
-No code changes are needed. To resolve for users:
-
-1. **Hard refresh**: Users should press `Ctrl + Shift + R` (Windows) or `Cmd + Shift + R` (Mac) to force-reload
-2. **Clear cache**: If hard refresh doesn't work, clear browser cache or open in an incognito/private window
-3. **PWA cache**: If the app is installed as a PWA, users may need to uninstall and reinstall the app, or clear the service worker cache
-
-### Optional: Force Cache Bust
-
-If you want, I can add a cache-busting mechanism (like incrementing a version in the service worker or manifest) to force all users to get the latest code automatically. Want me to plan that instead?
+### What stays unchanged
+- The "1" shortcut logic itself
+- All other focus behaviors (supplier invoice field guard, etc.)
+- Search bar still focusable by clicking on it manually
 
