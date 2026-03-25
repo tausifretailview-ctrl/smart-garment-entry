@@ -3236,7 +3236,7 @@ export default function POSSales() {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="absolute right-2 top-1/2 translate-y-0.5 h-9 w-9"
+                  className="absolute right-1 top-1/2 translate-y-0.5 h-8 w-8"
                   onClick={() => setShowAddCustomerDialog(true)}
                   title="Add New Customer"
                 >
