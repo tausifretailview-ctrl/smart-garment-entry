@@ -4006,9 +4006,9 @@ export default function POSSales() {
           <div className="w-px h-7 bg-slate-600 mx-1 shrink-0" />
           
           {/* Clear - red */}
-          <div className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-red-600/20 cursor-pointer transition-colors min-w-[56px]">
-            <kbd className="text-[9px] font-mono text-red-400/70 leading-tight">ESC</kbd>
-            <span className="text-[12px] font-bold text-red-400 leading-tight">Clear</span>
+          <div className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-red-600/20 cursor-pointer transition-colors min-w-[60px]">
+            <kbd className="text-[10px] font-mono text-red-400/80 font-bold leading-tight">ESC</kbd>
+            <span className="text-[13px] font-extrabold text-red-400 leading-tight">Clear</span>
           </div>
           
           {/* Print - white/neutral */}
