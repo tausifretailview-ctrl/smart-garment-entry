@@ -2124,8 +2124,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             {hideOpeningQty && (
               <span className="text-sm text-muted-foreground mr-auto">
                 {(() => {
-                  const totalQty = variants.reduce((s, v) => s + (v.purchase_qty || 0), 0);
-                  const activeCount = variants.filter(v => (v.purchase_qty || 0) > 0).length;
+                  const totalQty = variants.filter(v => !disabledSizes.has(v.size)).reduce((s, v) => s + (v.purchase_qty || 0), 0);
+                  const activeCount = variants.filter(v => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size)).length;
                   return totalQty > 0
                     ? `${activeCount} sizes · ${totalQty} pcs`
                     : 'Enter qty per size above';
