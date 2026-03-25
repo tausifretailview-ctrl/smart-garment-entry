@@ -3839,7 +3839,7 @@ export default function POSSales() {
                 <div className="flex items-center">
                   <Input 
                     type="number"
-                    className="w-14 h-7 bg-white text-foreground text-center text-sm font-semibold border-0 rounded-md" 
+                    className="w-20 h-7 bg-white text-foreground text-center text-sm font-semibold border-0 rounded-md" 
                     value={saleReturnAdjust || ""}
                     placeholder="0"
                     onChange={(e) => setSaleReturnAdjust(parseFloat(e.target.value) || 0)}
