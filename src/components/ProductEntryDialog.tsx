@@ -1085,22 +1085,23 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             <DialogDescription>Create a new product with size variants</DialogDescription>
           </DialogHeader>
           
-          <ScrollArea className="flex-1 min-h-0 px-6" showScrollbar ref={(node) => {
-            const viewport = node?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null;
-            if (viewport && !viewport.dataset.scrollListenerAttached) {
-              viewport.dataset.scrollListenerAttached = 'true';
-              viewport.style.scrollBehavior = 'smooth';
-              viewport.addEventListener('scroll', () => {
-                const btn = document.getElementById('product-dialog-back-to-top');
-                if (btn) {
-                  btn.style.display = viewport.scrollTop > 200 ? 'flex' : 'none';
-                }
-              });
-              // Store ref for scrolling back
-              (window as any).__productDialogViewport = viewport;
-            }
-          }}>
-            <div className="space-y-6 py-4" data-product-form>
+          <div 
+            className="flex-1 min-h-0 overflow-y-auto px-6 overscroll-contain"
+            style={{ scrollBehavior: 'smooth' }}
+            ref={(node) => {
+              if (node && !node.dataset.scrollListenerAttached) {
+                node.dataset.scrollListenerAttached = 'true';
+                node.addEventListener('scroll', () => {
+                  const btn = document.getElementById('product-dialog-back-to-top');
+                  if (btn) {
+                    btn.style.display = node.scrollTop > 200 ? 'flex' : 'none';
+                  }
+                });
+                (window as any).__productDialogViewport = node;
+              }
+            }}
+          >
+            <div className="space-y-6 py-4 pb-8" data-product-form>
               {/* Copy from Existing Product */}
               <div className="space-y-2">
                 <Label className="flex items-center gap-1 text-muted-foreground">
