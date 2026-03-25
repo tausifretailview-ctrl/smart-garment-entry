@@ -3554,7 +3554,7 @@ export default function POSSales() {
                 {items.length === 0 ? (
                   // Show 5 blank rows with serial numbers
                   Array.from({ length: 5 }).map((_, index) => (
-                    <div key={index} className={`min-w-[1200px] grid gap-2 px-4 py-3 border-b border-border/40 text-sm ${index % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: '50px 130px 1fr 70px 65px 95px 65px 65px 75px 95px 120px' }}>
+                    <div key={index} className={`min-w-[1200px] grid gap-2 px-4 py-3 border-b border-border/40 text-sm ${index % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: '50px 130px 1fr 70px 65px 95px 65px 80px 75px 95px 120px' }}>
                       <div className="flex items-center justify-center text-muted-foreground/50 font-medium">{index + 1}</div>
                       <div className="flex items-center text-muted-foreground/30">—</div>
                       <div className="flex items-center text-muted-foreground/30">—</div>
