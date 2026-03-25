@@ -1484,9 +1484,32 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                   <div className="flex gap-2">
                     <Input
                       value={colorInput}
-                      onChange={(e) => setColorInput(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddColor())}
-                      placeholder="e.g., Black, White, Red"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setColorInput(val);
+                        // Auto-parse on comma/tab: extract finished colors
+                        if (val.endsWith(',') || val.endsWith(', ')) {
+                          const parts = val.split(',').map(c => c.trim()).filter(c => c);
+                          const uniqueNew = parts.filter(c => !formData.colors.includes(c));
+                          if (uniqueNew.length > 0) {
+                            setFormData(prev => ({ ...prev, colors: [...prev.colors, ...uniqueNew] }));
+                          }
+                          setColorInput('');
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === "Tab") {
+                          if (colorInput.trim()) {
+                            e.preventDefault();
+                            handleAddColor();
+                          }
+                        }
+                        // Backspace on empty input removes last color
+                        if (e.key === "Backspace" && !colorInput && formData.colors.length > 0) {
+                          handleRemoveColor(formData.colors[formData.colors.length - 1]);
+                        }
+                      }}
+                      placeholder={formData.colors.length > 0 ? "Add more colors..." : "e.g., Black, White, Red"}
                       className="flex-1"
                       list="color-list"
                       autoComplete="off"
@@ -1501,12 +1524,16 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     </Button>
                   </div>
                   {formData.colors.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2">
+                    <div className="flex flex-wrap gap-1.5 mt-2">
                       {formData.colors.map((color, i) => (
-                        <span key={i} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-secondary text-secondary-foreground text-sm">
+                        <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium border border-primary/20">
                           {color}
-                          <button type="button" onClick={() => handleRemoveColor(color)} className="hover:text-destructive">
-                            ×
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveColor(color)}
+                            className="hover:text-destructive hover:bg-destructive/10 rounded-full p-0.5 transition-colors"
+                          >
+                            <X className="h-3 w-3" />
                           </button>
                         </span>
                       ))}
