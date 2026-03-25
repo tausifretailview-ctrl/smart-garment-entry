@@ -3136,7 +3136,7 @@ const PurchaseEntry = () => {
                     <TableHead className="w-[60px]">SR.NO</TableHead>
                     <TableHead className="w-[260px]">ITEM NAME</TableHead>
                     <TableHead className="w-[50px]">SIZE</TableHead>
-                    <TableHead className="w-[120px]">BARCODE</TableHead>
+                    <TableHead className="w-[120px]">{isMobileERPMode ? 'IMEI NUMBER' : 'BARCODE'}</TableHead>
                     <TableHead className="w-[80px] text-right">QTY</TableHead>
                     <TableHead className='w-[120px] text-right pur-rate-col'>PUR.RATE</TableHead>
                     <TableHead className='w-[120px] text-right sale-rate-col'>SALE.RATE</TableHead>
