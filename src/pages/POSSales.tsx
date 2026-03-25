@@ -3216,7 +3216,7 @@ export default function POSSales() {
                     setCustomerName(e.target.value);
                     setOpenCustomerSearch(true);
                   }}
-                  className="h-12 text-lg pr-32"
+                  className="h-10 text-base pr-20 border-border/80 focus:border-primary"
                   placeholder="Enter customer name or phone"
                 />
                 {customerName && (
