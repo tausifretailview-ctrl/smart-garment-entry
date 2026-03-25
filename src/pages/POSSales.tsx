@@ -3107,7 +3107,7 @@ export default function POSSales() {
                 <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">Barcode</Label>
                 <Input
                   ref={barcodeInputRef}
-                  placeholder="Scan Barcode/Enter Product Name"
+                  placeholder={mobileERP.enabled && mobileERP.imei_scan_enforcement ? "Scan IMEI Number" : "Scan Barcode/Enter Product Name"}
                   value={searchInput}
                   onChange={handleBarcodeInputChange}
                   onKeyDown={handleSearch}
