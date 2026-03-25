@@ -2071,8 +2071,6 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                 )}>
                                   {variant.size}
                                 </span>
-                                  {variant.size}
-                                </span>
                               </TableCell>
                               <TableCell className="py-1.5 bg-amber-50/20">
                                 <CalculatorInput
