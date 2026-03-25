@@ -2058,6 +2058,21 @@ Thank you for choosing us!`;
 
         if (itemsError) throw itemsError;
 
+        // Save financer details if provided (Mobile ERP)
+        if (mobileERP.enabled && mobileERP.financer_billing && financerDetails?.financer_name) {
+          await supabase
+            .from('sale_financer_details')
+            .insert({
+              sale_id: saleData.id,
+              organization_id: currentOrganization?.id,
+              financer_name: financerDetails.financer_name,
+              loan_number: financerDetails.loan_number || null,
+              emi_amount: financerDetails.emi_amount || null,
+              tenure: financerDetails.tenure || null,
+              down_payment: financerDetails.down_payment || null,
+            });
+        }
+
         // CRM: Redeem points if requested
         if (pointsToRedeem > 0 && selectedCustomerId) {
           redeemPoints(
