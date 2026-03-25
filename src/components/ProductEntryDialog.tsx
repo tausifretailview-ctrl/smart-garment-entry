@@ -1992,7 +1992,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                   <div ref={variantsSectionRef} className="space-y-2 pt-1">
                     <div className="flex items-center justify-between">
                       <Label className="text-xs font-semibold text-violet-700 font-outfit flex items-center gap-2">
-                        {variants.length} Variant{variants.length !== 1 ? 's' : ''}
+                        {variants.filter(v => !disabledSizes.has(v.size) && (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color))).length} Variant{variants.filter(v => !disabledSizes.has(v.size) && (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color))).length !== 1 ? 's' : ''}
                         {isAutoBarcode ? (
                           <span className="text-[10px] font-normal px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">Auto Barcode</span>
                         ) : (
