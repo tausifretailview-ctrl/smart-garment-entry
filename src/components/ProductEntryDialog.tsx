@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, Package, Barcode, Plus, Edit, Trash2, ImagePlus, X, Search, Copy, ChevronUp } from "lucide-react";
+import { Loader2, Package, Barcode, Plus, Edit, Trash2, ImagePlus, X, Search, Copy, ChevronUp, Check } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -119,6 +119,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [creatingSizeGroup, setCreatingSizeGroup] = useState(false);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
+  const [disabledSizes, setDisabledSizes] = useState<Set<string>>(new Set());
+  const [customSizes, setCustomSizes] = useState<string[]>([]);
+  const [customSizeInput, setCustomSizeInput] = useState("");
   const autoBarcodePending = useRef(false);
   
   // Auto-generate barcodes when variants are created with empty barcodes (only in auto mode)
@@ -220,8 +223,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             }
           });
           const newVariants: ProductVariant[] = [];
+          const allSizesForGroup = [...group.sizes, ...customSizes];
           for (const color of colorsToUse) {
-            for (const size of group.sizes) {
+            for (const size of allSizesForGroup) {
               const key = `${color}||${size}`;
               newVariants.push({
                 color,
@@ -242,7 +246,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         }
       }
     }
-  }, [formData.size_group_id, sizeGroups, formData.colors]);
+  }, [formData.size_group_id, sizeGroups, formData.colors, customSizes]);
 
   // Sync default prices to existing variants when user edits price fields
   useEffect(() => {
@@ -354,6 +358,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     setColorInput("");
     setMarkupPercent("");
     setSelectedSizes([]);
+    setDisabledSizes(new Set());
+    setCustomSizes([]);
+    setCustomSizeInput("");
     setVariants([]);
     setShowVariants(false);
     setProductImage(null);
@@ -912,7 +919,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       // Insert variants — in purchase context, only create variants with purchase_qty > 0
       let insertedVariants: any[] = [];
       let variantsToCreate = hideOpeningQty
-        ? variants.filter((v) => (v.purchase_qty || 0) > 0).map(v => ({ ...v }))
+        ? variants.filter((v) => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size)).map(v => ({ ...v }))
         : [...variants];
       if (variantsToCreate.length > 0) {
         // In purchase context, generate barcodes at save time only for selected sizes
@@ -1102,92 +1109,6 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             }}
           >
             <div className="space-y-6 py-4 pb-8" data-product-form>
-              {/* Copy from Existing Product */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-1 text-muted-foreground">
-                  <Copy className="h-3 w-3" />
-                  Copy from Existing Product
-                </Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    ref={copyInputRef}
-                    value={copySearch}
-                    onChange={(e) => setCopySearch(e.target.value)}
-                    onFocus={() => {
-                      if (copyResults.length > 0) {
-                        updateCopyDropdownPos();
-                        setShowCopyDropdown(true);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (!showCopyDropdown || copyResults.length === 0) return;
-                      if (e.key === "ArrowDown") { e.preventDefault(); setCopySelectedIndex(prev => Math.min(prev + 1, copyResults.length - 1)); }
-                      else if (e.key === "ArrowUp") { e.preventDefault(); setCopySelectedIndex(prev => Math.max(prev - 1, 0)); }
-                      else if (e.key === "Enter" && copySelectedIndex >= 0) { e.preventDefault(); handleCopyFromProduct(copyResults[copySelectedIndex].id); }
-                      else if (e.key === "Escape") { setShowCopyDropdown(false); }
-                    }}
-                    placeholder="Search product to copy details from..."
-                    className="pl-9 pr-8 bg-muted/30 border-dashed"
-                  />
-                  {copyLoading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />}
-                </div>
-                {createPortal(
-                  showCopyDropdown ? (
-                    <div
-                      ref={copyDropdownRef}
-                      className="fixed bg-popover border border-border rounded-md shadow-lg overflow-hidden"
-                      style={{ top: copyDropdownPos.top, left: copyDropdownPos.left, width: copyDropdownPos.width, zIndex: 9999, maxHeight: 250, overflowY: "auto" }}
-                    >
-                      {copyResults.map((p, i) => (
-                        <div
-                          key={p.id}
-                          className={cn("px-3 py-2 cursor-pointer hover:bg-accent text-sm border-b border-border last:border-b-0", copySelectedIndex === i && "bg-primary text-primary-foreground")}
-                          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleCopyFromProduct(p.id); }}
-                          onMouseEnter={() => setCopySelectedIndex(i)}
-                        >
-                          <div className="font-medium truncate">{p.product_name}</div>
-                          <div className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">
-                            {[p.brand, p.category].filter(Boolean).join(" • ")}
-                            {(p as any).size_groups?.group_name && (
-                              <span className="bg-muted px-1.5 py-0.5 rounded text-[10px] font-medium">
-                                {(p as any).size_groups.group_name}
-                              </span>
-                            )}
-                            {p.default_sale_price != null && p.default_sale_price > 0 && (
-                              <span className="ml-auto font-medium text-primary">₹{p.default_sale_price}</span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null,
-                  document.body
-                )}
-              </div>
-
-              {/* Recent Products */}
-              {recentProducts.length > 0 && !copySearch && (
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Recent Products</Label>
-                  <div className="flex gap-2 overflow-x-auto pb-1">
-                    {recentProducts.slice(0, 8).map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => handleCopyFromProduct(p.id)}
-                        className="flex-shrink-0 px-2.5 py-1.5 rounded-md border border-border bg-muted/30 hover:bg-accent hover:border-primary/30 transition-colors text-left max-w-[160px]"
-                      >
-                        <div className="text-xs font-medium truncate">{p.product_name}</div>
-                        <div className="text-[10px] text-muted-foreground truncate">
-                          {[p.brand, p.default_sale_price ? `₹${p.default_sale_price}` : null].filter(Boolean).join(" · ")}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* Product Type — Card Selector */}
               <div className="flex items-center justify-between gap-3">
                 <div className="flex gap-2 flex-1">
@@ -1564,9 +1485,32 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                   <div className="flex gap-2">
                     <Input
                       value={colorInput}
-                      onChange={(e) => setColorInput(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddColor())}
-                      placeholder="e.g., Black, White, Red"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setColorInput(val);
+                        // Auto-parse on comma/tab: extract finished colors
+                        if (val.endsWith(',') || val.endsWith(', ')) {
+                          const parts = val.split(',').map(c => c.trim()).filter(c => c);
+                          const uniqueNew = parts.filter(c => !formData.colors.includes(c));
+                          if (uniqueNew.length > 0) {
+                            setFormData(prev => ({ ...prev, colors: [...prev.colors, ...uniqueNew] }));
+                          }
+                          setColorInput('');
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === "Tab") {
+                          if (colorInput.trim()) {
+                            e.preventDefault();
+                            handleAddColor();
+                          }
+                        }
+                        // Backspace on empty input removes last color
+                        if (e.key === "Backspace" && !colorInput && formData.colors.length > 0) {
+                          handleRemoveColor(formData.colors[formData.colors.length - 1]);
+                        }
+                      }}
+                      placeholder={formData.colors.length > 0 ? "Add more colors..." : "e.g., Black, White, Red"}
                       className="flex-1"
                       list="color-list"
                       autoComplete="off"
@@ -1581,12 +1525,16 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     </Button>
                   </div>
                   {formData.colors.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2">
+                    <div className="flex flex-wrap gap-1.5 mt-2">
                       {formData.colors.map((color, i) => (
-                        <span key={i} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-secondary text-secondary-foreground text-sm">
+                        <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium border border-primary/20">
                           {color}
-                          <button type="button" onClick={() => handleRemoveColor(color)} className="hover:text-destructive">
-                            ×
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveColor(color)}
+                            className="hover:text-destructive hover:bg-destructive/10 rounded-full p-0.5 transition-colors"
+                          >
+                            <X className="h-3 w-3" />
                           </button>
                         </span>
                       ))}
@@ -1637,10 +1585,20 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
                     // Purchase context: show qty inputs per size (or color×size matrix)
                     if (hideOpeningQty) {
+                      const allSizes = [...group.sizes, ...customSizes];
+                      const enabledSizes = allSizes.filter(s => !disabledSizes.has(s));
                       const totalQty = variants.reduce((sum, v) => sum + (v.purchase_qty || 0), 0);
                       const activeSizeCount = variants.filter(v => (v.purchase_qty || 0) > 0).length;
                       const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
                       const isMultiColor = colorsToUse.length > 1;
+
+                      // Helper to find next enabled size for keyboard nav
+                      const getNextEnabledSize = (currentIdx: number) => {
+                        for (let i = currentIdx + 1; i < allSizes.length; i++) {
+                          if (!disabledSizes.has(allSizes[i])) return allSizes[i];
+                        }
+                        return null;
+                      };
 
                       return (
                         <div className="space-y-2 mt-2">
@@ -1660,8 +1618,27 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                 <thead>
                                   <tr>
                                     <th className="text-xs font-bold text-foreground px-1.5 py-1 text-left sticky left-0 bg-muted/30 z-10 min-w-[70px]">Color</th>
-                                    {group.sizes.map(size => (
-                                      <th key={size} className="text-xs font-bold text-muted-foreground px-1 py-1 text-center min-w-[52px]">{size}</th>
+                                    {allSizes.map(size => (
+                                      <th key={size} className="px-0.5 py-1 text-center min-w-[52px]">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setDisabledSizes(prev => {
+                                              const next = new Set(prev);
+                                              if (next.has(size)) next.delete(size); else next.add(size);
+                                              return next;
+                                            });
+                                          }}
+                                          className={cn(
+                                            "text-xs font-bold px-1.5 py-0.5 rounded transition-colors",
+                                            disabledSizes.has(size)
+                                              ? "text-muted-foreground/40 line-through bg-muted/50"
+                                              : "text-muted-foreground hover:text-primary"
+                                          )}
+                                        >
+                                          {disabledSizes.has(size) ? '✕' : '✓'} {size}
+                                        </button>
+                                      </th>
                                     ))}
                                     <th className="text-xs font-bold text-primary px-1.5 py-1 text-center min-w-[44px]">Total</th>
                                   </tr>
@@ -1669,55 +1646,61 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                 <tbody>
                                   {colorsToUse.map((color, cIdx) => {
                                     const colorTotal = variants
-                                      .filter(v => v.color === color)
+                                      .filter(v => v.color === color && !disabledSizes.has(v.size))
                                       .reduce((sum, v) => sum + (v.purchase_qty || 0), 0);
                                     return (
                                       <tr key={color} className={cIdx % 2 === 1 ? "bg-muted/40" : ""}>
                                         <td className="text-xs font-bold text-foreground px-1.5 py-1 sticky left-0 z-10" style={{ backgroundColor: cIdx % 2 === 1 ? 'hsl(var(--muted) / 0.4)' : 'hsl(var(--muted) / 0.3)' }}>
                                           {color}
                                         </td>
-                                        {group.sizes.map((size, sIdx) => {
+                                        {allSizes.map((size) => {
+                                          const sIdx = allSizes.indexOf(size);
+                                          const isDisabled = disabledSizes.has(size);
                                           const variant = variants.find(v => v.size === size && v.color === color);
                                           const qty = variant?.purchase_qty || 0;
                                           return (
                                             <td key={size} className="px-0.5 py-0.5 text-center">
-                                              <Input
-                                                type="number"
-                                                min="0"
-                                                value={qty === 0 ? '' : qty}
-                                                placeholder="0"
-                                                onChange={(e) => {
-                                                  const val = parseInt(e.target.value) || 0;
-                                                  setVariants(prev => prev.map(v =>
-                                                    v.size === size && v.color === color
-                                                      ? { ...v, purchase_qty: val }
-                                                      : v
-                                                  ));
-                                                }}
-                                                onFocus={(e) => e.target.select()}
-                                                onKeyDown={(e) => {
-                                                  if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
-                                                    e.preventDefault();
-                                                    const nextSize = group.sizes[sIdx + 1];
-                                                    if (nextSize) {
-                                                      document.getElementById(`size-qty-${color}-${nextSize}`)?.focus();
-                                                    } else {
-                                                      // Move to next color's first size
-                                                      const nextColor = colorsToUse[cIdx + 1];
-                                                      if (nextColor) {
-                                                        document.getElementById(`size-qty-${nextColor}-${group.sizes[0]}`)?.focus();
+                                              {isDisabled ? (
+                                                <span className="text-muted-foreground/30 text-xs">—</span>
+                                              ) : (
+                                                <Input
+                                                  type="number"
+                                                  min="0"
+                                                  value={qty === 0 ? '' : qty}
+                                                  placeholder="0"
+                                                  onChange={(e) => {
+                                                    const val = parseInt(e.target.value) || 0;
+                                                    setVariants(prev => prev.map(v =>
+                                                      v.size === size && v.color === color
+                                                        ? { ...v, purchase_qty: val }
+                                                        : v
+                                                    ));
+                                                  }}
+                                                  onFocus={(e) => e.target.select()}
+                                                  onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
+                                                      e.preventDefault();
+                                                      const nextSize = getNextEnabledSize(sIdx);
+                                                      if (nextSize) {
+                                                        document.getElementById(`size-qty-${color}-${nextSize}`)?.focus();
                                                       } else {
-                                                        document.getElementById('btn-add-all-sizes')?.focus();
+                                                        const nextColor = colorsToUse[cIdx + 1];
+                                                        if (nextColor) {
+                                                          const firstEnabled = allSizes.find(s => !disabledSizes.has(s));
+                                                          if (firstEnabled) document.getElementById(`size-qty-${nextColor}-${firstEnabled}`)?.focus();
+                                                        } else {
+                                                          document.getElementById('btn-add-all-sizes')?.focus();
+                                                        }
                                                       }
                                                     }
-                                                  }
-                                                }}
-                                                id={`size-qty-${color}-${size}`}
-                                                className={cn(
-                                                  "h-7 w-14 text-center text-sm font-semibold p-0.5 no-uppercase",
-                                                  qty > 0 && "border-emerald-400 text-emerald-800"
-                                                )}
-                                              />
+                                                  }}
+                                                  id={`size-qty-${color}-${size}`}
+                                                  className={cn(
+                                                    "h-7 w-14 text-center text-sm font-semibold p-0.5 no-uppercase",
+                                                    qty > 0 && "border-emerald-400 text-emerald-800"
+                                                  )}
+                                                />
+                                              )}
                                             </td>
                                           );
                                         })}
@@ -1729,11 +1712,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                   })}
                                 </tbody>
                               </table>
-                              {/* Per-color totals summary */}
                               {totalQty > 0 && (
                                 <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t border-muted-foreground/10">
                                   {colorsToUse.map(color => {
-                                    const ct = variants.filter(v => v.color === color).reduce((s, v) => s + (v.purchase_qty || 0), 0);
+                                    const ct = variants.filter(v => v.color === color && !disabledSizes.has(v.size)).reduce((s, v) => s + (v.purchase_qty || 0), 0);
                                     if (ct === 0) return null;
                                     return (
                                       <span key={color} className="text-xs font-medium text-muted-foreground">
@@ -1748,68 +1730,191 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                               )}
                             </div>
                           ) : (
-                            /* ── Single color / no color: original single-row grid ── */
+                            /* ── Single color / no color: single-row grid with toggle ── */
                             <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5 p-3 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20">
-                              {group.sizes.map((size, sIdx) => {
+                              {allSizes.map((size) => {
+                                const sIdx = allSizes.indexOf(size);
+                                const isDisabled = disabledSizes.has(size);
+                                const isCustom = customSizes.includes(size);
                                 const variant = variants.find(v => v.size === size && v.color === (formData.colors[0] || ""));
                                 const qty = variant?.purchase_qty || 0;
                                 return (
                                   <div
                                     key={size}
                                     className={cn(
-                                      "flex flex-col items-center gap-1 p-1.5 rounded-md border transition-colors",
-                                      qty > 0
-                                        ? "bg-emerald-50 border-emerald-300 dark:bg-emerald-950/30 dark:border-emerald-700"
-                                        : "bg-card border-border"
+                                      "flex flex-col items-center gap-1 p-1.5 rounded-md border transition-colors relative",
+                                      isDisabled
+                                        ? "bg-muted/50 border-border/50 opacity-50"
+                                        : qty > 0
+                                          ? "bg-emerald-50 border-emerald-300 dark:bg-emerald-950/30 dark:border-emerald-700"
+                                          : "bg-card border-border"
                                     )}
                                   >
-                                    <span className={cn(
-                                      "text-xs font-bold",
-                                      qty > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"
-                                    )}>
-                                      {size}
-                                    </span>
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      value={qty === 0 ? '' : qty}
-                                      placeholder="0"
-                                      onChange={(e) => {
-                                        const val = parseInt(e.target.value) || 0;
-                                        setVariants(prev => prev.map(v =>
-                                          v.size === size && v.color === (formData.colors[0] || "")
-                                            ? { ...v, purchase_qty: val }
-                                            : v
-                                        ));
+                                    {/* Toggle button on size label */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setDisabledSizes(prev => {
+                                          const next = new Set(prev);
+                                          if (next.has(size)) next.delete(size); else next.add(size);
+                                          return next;
+                                        });
                                       }}
-                                      onFocus={(e) => e.target.select()}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
-                                          e.preventDefault();
-                                          const nextSize = group.sizes[sIdx + 1];
-                                          if (nextSize) {
-                                            document.getElementById(`size-qty-${nextSize}`)?.focus();
-                                          } else {
-                                            document.getElementById('btn-add-all-sizes')?.focus();
-                                          }
-                                        }
-                                      }}
-                                      id={`size-qty-${size}`}
                                       className={cn(
-                                        "h-7 w-14 text-center text-sm font-semibold p-0.5 no-uppercase",
-                                        qty > 0 && "border-emerald-400 text-emerald-800"
+                                        "text-xs font-bold flex items-center gap-0.5 cursor-pointer transition-colors",
+                                        isDisabled
+                                          ? "text-muted-foreground/40 line-through"
+                                          : qty > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"
                                       )}
-                                    />
+                                    >
+                                      {isDisabled ? (
+                                        <X className="h-3 w-3 text-muted-foreground/40" />
+                                      ) : (
+                                        <Check className="h-3 w-3 text-emerald-600" />
+                                      )}
+                                      {size}
+                                    </button>
+                                    {/* Remove custom size */}
+                                    {isCustom && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setCustomSizes(prev => prev.filter(s => s !== size));
+                                          setVariants(prev => prev.filter(v => v.size !== size));
+                                          setDisabledSizes(prev => { const n = new Set(prev); n.delete(size); return n; });
+                                        }}
+                                        className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 hover:bg-destructive/80 shadow-sm"
+                                      >
+                                        <X className="h-2.5 w-2.5" />
+                                      </button>
+                                    )}
+                                    {!isDisabled ? (
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        value={qty === 0 ? '' : qty}
+                                        placeholder="0"
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value) || 0;
+                                          setVariants(prev => {
+                                            const exists = prev.some(v => v.size === size && v.color === (formData.colors[0] || ""));
+                                            if (exists) {
+                                              return prev.map(v =>
+                                                v.size === size && v.color === (formData.colors[0] || "")
+                                                  ? { ...v, purchase_qty: val }
+                                                  : v
+                                              );
+                                            }
+                                            // Add variant for custom size
+                                            return [...prev, {
+                                              color: formData.colors[0] || "",
+                                              size,
+                                              pur_price: formData.default_pur_price ?? 0,
+                                              sale_price: formData.default_sale_price ?? 0,
+                                              mrp: formData.default_mrp ?? null,
+                                              barcode: "",
+                                              active: true,
+                                              opening_qty: 0,
+                                              purchase_qty: val,
+                                            }];
+                                          });
+                                        }}
+                                        onFocus={(e) => e.target.select()}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
+                                            e.preventDefault();
+                                            const nextSize = getNextEnabledSize(sIdx);
+                                            if (nextSize) {
+                                              document.getElementById(`size-qty-${nextSize}`)?.focus();
+                                            } else {
+                                              document.getElementById('btn-add-all-sizes')?.focus();
+                                            }
+                                          }
+                                        }}
+                                        id={`size-qty-${size}`}
+                                        className={cn(
+                                          "h-7 w-14 text-center text-sm font-semibold p-0.5 no-uppercase",
+                                          qty > 0 && "border-emerald-400 text-emerald-800"
+                                        )}
+                                      />
+                                    ) : (
+                                      <span className="h-7 w-14 flex items-center justify-center text-muted-foreground/30 text-xs">—</span>
+                                    )}
                                   </div>
                                 );
                               })}
                             </div>
                           )}
 
+                          {/* + Add Custom Size */}
+                          <div className="flex items-center gap-2 mt-1">
+                            <Input
+                              value={customSizeInput}
+                              onChange={(e) => setCustomSizeInput(e.target.value.toUpperCase())}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && customSizeInput.trim()) {
+                                  e.preventDefault();
+                                  const newSize = customSizeInput.trim();
+                                  if (!allSizes.includes(newSize)) {
+                                    setCustomSizes(prev => [...prev, newSize]);
+                                    // Add variant for this custom size
+                                    const colorsForVariant = formData.colors.length > 0 ? formData.colors : [""];
+                                    setVariants(prev => [
+                                      ...prev,
+                                      ...colorsForVariant.map(color => ({
+                                        color,
+                                        size: newSize,
+                                        pur_price: formData.default_pur_price ?? 0,
+                                        sale_price: formData.default_sale_price ?? 0,
+                                        mrp: formData.default_mrp ?? null,
+                                        barcode: "",
+                                        active: true,
+                                        opening_qty: 0,
+                                        purchase_qty: 0,
+                                      }))
+                                    ]);
+                                  }
+                                  setCustomSizeInput("");
+                                }
+                              }}
+                              placeholder="Custom size (e.g. 3XL)"
+                              className="h-7 w-36 text-xs"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!customSizeInput.trim()) return;
+                                const newSize = customSizeInput.trim().toUpperCase();
+                                if (!allSizes.includes(newSize)) {
+                                  setCustomSizes(prev => [...prev, newSize]);
+                                  const colorsForVariant = formData.colors.length > 0 ? formData.colors : [""];
+                                  setVariants(prev => [
+                                    ...prev,
+                                    ...colorsForVariant.map(color => ({
+                                      color,
+                                      size: newSize,
+                                      pur_price: formData.default_pur_price ?? 0,
+                                      sale_price: formData.default_sale_price ?? 0,
+                                      mrp: formData.default_mrp ?? null,
+                                      barcode: "",
+                                      active: true,
+                                      opening_qty: 0,
+                                      purchase_qty: 0,
+                                    }))
+                                  ]);
+                                }
+                                setCustomSizeInput("");
+                              }}
+                              className="text-xs font-medium text-primary hover:underline flex items-center gap-0.5"
+                            >
+                              <Plus className="h-3 w-3" /> Add Size
+                            </button>
+                          </div>
+
                           {/* Active sizes preview */}
                           {activeSizeCount > 0 && (
                             <div className="flex flex-wrap gap-1.5 mt-1">
-                              {variants.filter(v => (v.purchase_qty || 0) > 0).map(v => (
+                              {variants.filter(v => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size)).map(v => (
                                 <span
                                   key={`${v.color}-${v.size}`}
                                   className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs font-medium rounded-full"
@@ -2019,8 +2124,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             {hideOpeningQty && (
               <span className="text-sm text-muted-foreground mr-auto">
                 {(() => {
-                  const totalQty = variants.reduce((s, v) => s + (v.purchase_qty || 0), 0);
-                  const activeCount = variants.filter(v => (v.purchase_qty || 0) > 0).length;
+                  const totalQty = variants.filter(v => !disabledSizes.has(v.size)).reduce((s, v) => s + (v.purchase_qty || 0), 0);
+                  const activeCount = variants.filter(v => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size)).length;
                   return totalQty > 0
                     ? `${activeCount} sizes · ${totalQty} pcs`
                     : 'Enter qty per size above';
@@ -2044,7 +2149,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               ) : (
                 <>
                   ➕ {hideOpeningQty
-                    ? `Add ${variants.filter(v => (v.purchase_qty || 0) > 0).length || ''} Sizes to Bill`
+                    ? `Add ${variants.filter(v => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size)).length || ''} Sizes to Bill`
                     : 'Add to Bill'
                   }
                 </>
