@@ -3036,7 +3036,7 @@ export default function POSSales() {
           
           <Button
             onClick={handleNewInvoice}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs w-full bg-none from-transparent to-transparent bg-emerald-500 hover:bg-emerald-600 text-white shadow-none"
+            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold w-full rounded-lg bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white shadow-sm transition-all duration-150"
             title="New Invoice"
           >
             <FileText className="h-4 w-4" />
