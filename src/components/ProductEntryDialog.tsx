@@ -2015,7 +2015,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             </button>
           </div>
 
-          <DialogFooter className="px-6 py-4 mt-4 border-t bg-muted/20">
+          <DialogFooter className="px-6 py-4 border-t bg-muted/20 flex-shrink-0">
             {hideOpeningQty && (
               <span className="text-sm text-muted-foreground mr-auto">
                 {(() => {
