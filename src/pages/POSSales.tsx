@@ -3917,7 +3917,7 @@ export default function POSSales() {
                   <div className="text-[9px] text-white/60 uppercase font-medium mb-0.5">Cr ₹{availableCreditBalance.toFixed(0)}</div>
                   <Input 
                     type="number"
-                    className="w-14 h-7 bg-purple-100 text-purple-700 text-center text-sm font-semibold border-0 rounded-md" 
+                    className="w-20 h-7 bg-purple-100 text-purple-700 text-center text-sm font-semibold border-0 rounded-md" 
                     value={creditApplied || ""}
                     placeholder="0"
                     onChange={(e) => {
