@@ -331,6 +331,21 @@ const PurchaseEntry = () => {
   // Check if barcode prompt is enabled (defaults to true if not set)
   const enableBarcodePrompt = (settings?.bill_barcode_settings as any)?.enable_barcode_prompt !== false;
   
+  // Mobile ERP / IMEI mode
+  const mobileERPSettings = (() => {
+    const productSettings = settings?.product_settings as any;
+    const merp = productSettings?.mobile_erp;
+    if (!merp?.enabled) return null;
+    return {
+      enabled: true,
+      imei_scan_enforcement: merp.imei_scan_enforcement ?? true,
+      locked_size_qty: merp.locked_size_qty ?? true,
+      imei_min_length: merp.imei_min_length ?? 15,
+      imei_max_length: merp.imei_max_length ?? 19,
+    };
+  })();
+  const isMobileERPMode = !!mobileERPSettings?.enabled;
+  
   // Check if color field is enabled in product settings
   const isColorFieldEnabled = (() => {
     const productSettings = settings?.product_settings as any;
