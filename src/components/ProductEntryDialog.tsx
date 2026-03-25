@@ -119,6 +119,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [creatingSizeGroup, setCreatingSizeGroup] = useState(false);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
+  const [disabledSizes, setDisabledSizes] = useState<Set<string>>(new Set());
+  const [customSizes, setCustomSizes] = useState<string[]>([]);
+  const [customSizeInput, setCustomSizeInput] = useState("");
   const autoBarcodePending = useRef(false);
   
   // Auto-generate barcodes when variants are created with empty barcodes (only in auto mode)
