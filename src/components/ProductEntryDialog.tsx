@@ -2101,7 +2101,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                 </Button>
                               </TableCell>
                             </TableRow>
-                          ))}
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </div>
