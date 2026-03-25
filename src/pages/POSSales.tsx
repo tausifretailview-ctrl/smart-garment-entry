@@ -3877,7 +3877,7 @@ export default function POSSales() {
               
               {/* Round */}
               <div className="text-center">
-                <div className="text-[9px] text-white/60 uppercase font-medium mb-0.5">
+                <div className="text-[11px] text-white/80 uppercase font-bold mb-0.5 tracking-wide">
                   Round{isManualRoundOff && <span className="text-yellow-300 normal-case"> (M)</span>}
                 </div>
                 <div className="flex items-center gap-0.5">
