@@ -3505,22 +3505,22 @@ export default function POSSales() {
         </div>
 
         {/* Items Table - Scrollable Section */}
-        <div className="flex-1 overflow-hidden flex flex-col px-2 md:px-4 pb-36 mt-3">
+        <div className="flex-1 overflow-hidden flex flex-col px-2 md:px-4 pb-36 mt-2">
           <div className="max-w-[1800px] w-full flex-1 flex flex-col overflow-hidden">
-          <Card className="flex-1 overflow-hidden flex flex-col">
-            <div className="bg-black text-white overflow-x-auto">
-              <div className="min-w-[1200px] grid gap-3 p-4 text-base font-medium" style={{ gridTemplateColumns: '60px 140px 1fr 80px 70px 100px 60px 70px 80px 100px 130px' }}>
-                <div>Sr No</div>
+          <Card className="flex-1 overflow-hidden flex flex-col border-border/60 shadow-sm">
+            <div className="bg-slate-900 text-white overflow-x-auto">
+              <div className="min-w-[1200px] grid gap-2 px-4 py-3 text-[13px] font-semibold uppercase tracking-wider" style={{ gridTemplateColumns: '50px 130px 1fr 70px 65px 95px 65px 65px 75px 95px 120px' }}>
+                <div className="text-center">Sr No</div>
                 <div>Barcode</div>
                 <div>Product</div>
-                <div>Size</div>
-                <div>Qty</div>
-                <div>MRP</div>
-                <div>Tax%</div>
-                <div>Disc%</div>
-                <div>Disc Rs</div>
-                <div>Unit Price</div>
-                <div>Net Amount</div>
+                <div className="text-center">Size</div>
+                <div className="text-center">Qty</div>
+                <div className="text-right">MRP</div>
+                <div className="text-center">Tax%</div>
+                <div className="text-center">Disc%</div>
+                <div className="text-right">Disc Rs</div>
+                <div className="text-right">Unit Price</div>
+                <div className="text-right">Net Amount</div>
               </div>
             </div>
             
