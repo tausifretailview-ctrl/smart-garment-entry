@@ -3399,24 +3399,24 @@ export default function POSSales() {
 
           {/* Invoice Number Display */}
           <div className="relative w-40">
-            <Label className="text-sm font-medium mb-1 block">Invoice No</Label>
+            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">Invoice No</Label>
             <Input
               value={currentInvoiceNumber || nextInvoicePreview || "NEW"}
               readOnly
-              className="h-12 text-sm font-semibold text-center bg-gradient-to-r from-primary/10 to-secondary/10"
+              className="h-10 text-sm font-semibold text-center bg-muted/50 border-border/80"
               placeholder="Invoice #"
             />
           </div>
           
           {/* Running Total Display */}
-          <div className="h-12 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-4 flex items-center justify-center min-w-[180px]">
-            <div className="text-white font-bold text-xl">
+          <div className="h-10 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-5 flex items-center justify-center min-w-[160px] shadow-sm">
+            <div className="text-white font-bold text-lg tracking-tight">
               ₹{Math.round(finalAmount).toLocaleString('en-IN')}
             </div>
           </div>
               
-              <div className="relative h-12 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-md px-4 flex items-center justify-center min-w-[100px]">
-                <div className="text-white font-semibold text-base">
+              <div className="relative h-10 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-md px-3 flex items-center justify-center min-w-[90px] shadow-sm">
+                <div className="text-white font-semibold text-sm">
                   {items.length} {items.length === 1 ? 'Item' : 'Items'}
                 </div>
               </div>
