@@ -3521,25 +3521,25 @@ const PurchaseEntry = () => {
 
         {/* Bottom Bar: Formula strip + action buttons */}
         <div className="bg-teal-900 flex items-center px-4 py-1.5 gap-3">
-          <div className="flex items-center gap-1.5 text-[11px] text-teal-300 font-mono flex-1 min-w-0 overflow-x-auto whitespace-nowrap">
+          <div className="flex items-center gap-2 text-[13px] text-teal-300 font-mono flex-1 min-w-0 overflow-x-auto whitespace-nowrap">
             <span>Gross <span className="text-white font-bold">₹{totals.grossAmount.toFixed(0)}</span></span>
             <span className="text-teal-500">—</span>
             <span>Disc <span className="text-red-300 font-bold">₹{(totals.itemDiscount + discountAmount).toFixed(0)}</span></span>
             <span className="text-teal-500">+</span>
             <span>GST <span className="text-white font-bold">₹{totals.gstAmount.toFixed(0)}</span></span>
             <span className="text-teal-500">=</span>
-            <span>Net <span className="text-emerald-300 font-bold">₹{totals.netAmount.toLocaleString('en-IN')}</span></span>
+            <span>Net <span className="text-emerald-300 font-extrabold">₹{totals.netAmount.toLocaleString('en-IN')}</span></span>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
             {(savedBillId || isEditMode) && (
               <Button onClick={handlePrintBarcodes}
                 disabled={lineItems.length === 0}
-                variant="ghost"
                 size="sm"
-                className="h-8 px-3 text-xs text-purple-300 hover:bg-purple-900/50 hover:text-purple-200 gap-1">
+                className="h-8 px-4 text-xs bg-purple-500 hover:bg-purple-600 text-white font-bold gap-1.5 border border-purple-400 shadow-sm">
                 <Printer className="h-3.5 w-3.5" />
-                Barcodes
+                Print Barcodes
+                {selectedForPrint.size > 0 && ` (${selectedForPrint.size})`}
               </Button>
             )}
             <Button
