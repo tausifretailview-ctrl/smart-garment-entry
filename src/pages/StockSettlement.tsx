@@ -187,6 +187,15 @@ const StockSettlement = () => {
     });
   }, [products, search, shopFilter, deptFilter, brandFilter]);
 
+  // Reset page when filters change
+  useEffect(() => { setCurrentPage(1); }, [search, shopFilter, deptFilter, brandFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginatedFiltered = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
+
   const hasFilters = search || shopFilter || deptFilter || brandFilter;
 
   // Stats
