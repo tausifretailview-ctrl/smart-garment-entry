@@ -5,8 +5,9 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   Search, CheckCircle2, BarChart3, Clock, ScanBarcode, 
   ArrowUpCircle, ArrowDownCircle, ChevronDown, ChevronUp,
-  Download, FileSpreadsheet, FileText, X, Check, Loader2, Box
+  Download, FileSpreadsheet, FileText, X, Check, Loader2, Box, Upload
 } from "lucide-react";
+import StockImportTab from "@/components/StockImportTab";
 
 /* ─── Types ─── */
 interface Product {
@@ -75,7 +76,7 @@ const getDeptColor = (d: string) => deptColors[d] || "#64748b";
 const StockSettlement = () => {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
-  const [activeTab, setActiveTab] = useState<"scan" | "differences" | "settlement" | "history">("scan");
+  const [activeTab, setActiveTab] = useState<"scan" | "differences" | "settlement" | "history" | "import">("scan");
   const [products, setProducts] = useState<Product[]>([]);
   const [history, setHistory] = useState<SettlementHistory[]>([]);
   const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
@@ -266,8 +267,20 @@ const StockSettlement = () => {
     return { label: "Shortage", color: C.red, bg: `${C.red}18`, icon: <ArrowDownCircle size={13} /> };
   };
 
+  // Handle import from file
+  const handleImportApply = useCallback((updates: { productId: string; actualQty: number }[]) => {
+    setProducts(prev => prev.map(p => {
+      const update = updates.find(u => u.productId === p.id);
+      if (!update) return p;
+      return { ...p, actualStock: update.actualQty, scanned: true };
+    }));
+    toast({ title: "Import Applied", description: `${updates.length} products updated with imported quantities` });
+    setActiveTab("scan");
+  }, [toast]);
+
   const tabs = [
     { key: "scan" as const, label: "Stock Scan", icon: <ScanBarcode size={16} /> },
+    { key: "import" as const, label: "Import File", icon: <Upload size={16} /> },
     { key: "differences" as const, label: "Differences", icon: <BarChart3 size={16} />, badge: differences.length || null },
     { key: "settlement" as const, label: "Settlement", icon: <CheckCircle2 size={16} /> },
     { key: "history" as const, label: "History", icon: <Clock size={16} /> },
@@ -321,8 +334,8 @@ const StockSettlement = () => {
         {tabs.map(t => (
           <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
             flex: 1, borderRadius: 10, padding: "10px 16px",
-            background: activeTab === t.key ? C.border : "transparent",
-            color: activeTab === t.key ? C.cyan : C.textMuted,
+            background: activeTab === t.key ? (t.key === "import" ? "#a78bfa20" : C.border) : "transparent",
+            color: activeTab === t.key ? (t.key === "import" ? "#a78bfa" : C.cyan) : C.textMuted,
             fontWeight: activeTab === t.key ? 600 : 500,
             fontSize: 13, fontFamily: font, border: "none", cursor: "pointer",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
@@ -493,6 +506,11 @@ const StockSettlement = () => {
               </div>
             )}
           </div>
+        )}
+
+        {/* ═══ IMPORT FILE TAB ═══ */}
+        {activeTab === "import" && (
+          <StockImportTab products={products} onApplyImport={handleImportApply} />
         )}
 
         {/* ═══ DIFFERENCES TAB ═══ */}
