@@ -508,7 +508,10 @@ const ProductDashboard = () => {
         const uniqueTypes = Array.from(new Set((typeData || []).map((p: any) => p.product_type).filter(Boolean))).sort();
         setProductTypes(uniqueTypes as string[]);
       }
+      setFetchError(null);
     } catch (error: any) {
+      console.error("ProductDashboard fetch error:", error);
+      setFetchError(error.message || "Failed to load products");
       toast({
         title: "Error",
         description: error.message || "Failed to load products",
