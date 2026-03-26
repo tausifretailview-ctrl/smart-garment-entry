@@ -389,7 +389,7 @@ const ProductDashboard = () => {
           default_pur_price,
           default_sale_price,
           status,
-          product_variants (
+          product_variants!product_variants_product_id_fkey (
             id,
             size,
             color,
@@ -397,7 +397,8 @@ const ProductDashboard = () => {
             pur_price,
             sale_price,
             mrp,
-            stock_qty
+            stock_qty,
+            deleted_at
           )
         `)
         .is("deleted_at", null)
