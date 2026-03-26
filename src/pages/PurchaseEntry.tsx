@@ -20,7 +20,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet, ChevronLeft, ChevronRight, Check, AlertTriangle, SkipBack, Search, Save, Trash2 } from "lucide-react";
+import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet, ChevronLeft, ChevronRight, Check, AlertTriangle, SkipBack, Search, Save, Trash2, Pencil } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,6 +34,8 @@ import { purchaseBillFields, purchaseBillSampleData, parseExcelDate, parseLocali
 import { validatePurchaseBill } from "@/lib/validations";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { ProductEntryDialog } from "@/components/ProductEntryDialog";
+import ProductEditPanel from "@/components/ProductEditPanel";
+import QuickEditPopover from "@/components/QuickEditPopover";
 import { PriceUpdateConfirmDialog } from "@/components/PriceUpdateConfirmDialog";
 import { AddSupplierDialog } from "@/components/AddSupplierDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
@@ -183,6 +185,12 @@ const PurchaseEntry = () => {
   const [barcodeWarnings, setBarcodeWarnings] = useState<Map<string, string>>(new Map());
   const barcodeCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Product Edit Panel state
+  const [showEditPanel, setShowEditPanel] = useState(false);
+  const [editPanelIndex, setEditPanelIndex] = useState(0);
+  const [editPanelFocusField, setEditPanelFocusField] = useState<string | undefined>();
+  const [updatedRows, setUpdatedRows] = useState<Set<string>>(new Set());
+
   // DC Purchase (Direct Cash / No GST) state
   const [isDcPurchase, setIsDcPurchase] = useState(false);
 
@@ -203,6 +211,24 @@ const PurchaseEntry = () => {
     startAutoSave,
     stopAutoSave,
   } = useDraftSave('purchase');
+
+  // Handle product edit panel updates
+  const handleProductUpdated = useCallback((tempId: string, updates: Partial<LineItem>) => {
+    setLineItems(prev => prev.map(item => 
+      item.temp_id === tempId ? { ...item, ...updates, line_total: ((updates.pur_price ?? item.pur_price) * item.qty) * (1 - item.discount_percent / 100) } : item
+    ));
+    // Show updated badge briefly
+    setUpdatedRows(prev => new Set(prev).add(tempId));
+    setTimeout(() => {
+      setUpdatedRows(prev => { const next = new Set(prev); next.delete(tempId); return next; });
+    }, 3000);
+  }, []);
+
+  const openEditPanel = useCallback((index: number, focusField?: string) => {
+    setEditPanelIndex(index);
+    setEditPanelFocusField(focusField);
+    setShowEditPanel(true);
+  }, []);
 
   // Load draft data callback
   const loadDraftData = useCallback((data: any) => {
@@ -3142,6 +3168,7 @@ const PurchaseEntry = () => {
                     <TableHead className="w-[100px] text-right">DISC %</TableHead>
                     <TableHead className='w-[120px] text-right total-col'>TOTAL</TableHead>
                     <TableHead className="w-[40px]"></TableHead>
+                    <TableHead className="w-[40px]">Action</TableHead>
                   </TableRow>
                 </TableHeader>
               </Table>
@@ -3163,7 +3190,8 @@ const PurchaseEntry = () => {
                           />
                         </TableCell>
                         <TableCell className="w-[60px] text-center font-medium">{index + 1}</TableCell>
-                        <TableCell className="w-[260px] max-w-[260px] font-medium" title={formatProductDescription(item)}>
+                        <TableCell className="w-[260px] max-w-[260px] font-medium cursor-pointer" title={formatProductDescription(item)}
+                          onDoubleClick={() => openEditPanel(index, "product_name")}>
                           <div className="text-sm leading-snug break-words">{formatProductDescription(item)}</div>
                         </TableCell>
                         <TableCell className="w-[50px] text-sm">{item.size || "—"}</TableCell>
@@ -3276,6 +3304,24 @@ const PurchaseEntry = () => {
                           >
                             <X className="h-4 w-4 text-destructive" />
                           </Button>
+                        </TableCell>
+                        <TableCell className="w-[40px]">
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 hover:bg-primary/10 group"
+                              onClick={() => openEditPanel(index)}
+                              title="Edit Product Details"
+                            >
+                              <Pencil className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                            </Button>
+                            {updatedRows.has(item.temp_id) && (
+                              <Badge variant="outline" className="text-[10px] px-1 py-0 text-green-600 border-green-300 bg-green-50 animate-in fade-in">
+                                ✓
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -3818,6 +3864,17 @@ const PurchaseEntry = () => {
               description: `${supplier.supplier_name} has been selected`,
             });
           }}
+        />
+
+        {/* Product Edit Panel */}
+        <ProductEditPanel
+          open={showEditPanel}
+          onClose={() => setShowEditPanel(false)}
+          lineItems={lineItems}
+          currentIndex={editPanelIndex}
+          onIndexChange={setEditPanelIndex}
+          onProductUpdated={handleProductUpdated}
+          focusField={editPanelFocusField}
         />
 
     </div>
