@@ -6,9 +6,10 @@ import {
   Search, CheckCircle2, BarChart3, Clock, ScanBarcode, 
   ArrowUpCircle, ArrowDownCircle, ChevronDown, ChevronUp,
   Download, FileSpreadsheet, FileText, X, Check, Loader2, Box, Upload,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, IndianRupee, Package
 } from "lucide-react";
 import StockImportTab from "@/components/StockImportTab";
+import * as XLSX from "xlsx";
 
 /* ─── Types ─── */
 interface Product {
