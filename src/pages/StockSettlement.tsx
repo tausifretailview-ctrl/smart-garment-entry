@@ -510,24 +510,26 @@ const StockSettlement = () => {
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <button onClick={() => {
-                  const wsData = [["Product ID", "Product Name", "Department", "Brand", "Unit", "Barcode", "Stock Qty", "Pur Price", "Sale Price", "Pur Value", "Sale Value"]];
-                  filtered.forEach(p => {
-                    wsData.push([
-                      p.id, p.name, p.department, p.brand, p.unit, p.barcode || "",
-                      String(p.softwareStock), String(p.purPrice), String(p.salePrice),
-                      String(p.softwareStock * p.purPrice), String(p.softwareStock * p.salePrice),
-                    ]);
-                  });
-                  const totalQty = filtered.reduce((s, p) => s + p.softwareStock, 0);
-                  const totalPur = filtered.reduce((s, p) => s + (p.softwareStock * p.purPrice), 0);
-                  const totalSale = filtered.reduce((s, p) => s + (p.softwareStock * p.salePrice), 0);
-                  wsData.push(["", "", "", "", "", "TOTAL", String(totalQty), "", "", String(totalPur), String(totalSale)]);
-                  const ws = XLSX.utils.aoa_to_sheet(wsData);
-                  ws["!cols"] = [{ wch: 10 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 8 }, { wch: 15 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }];
-                  const wb = XLSX.utils.book_new();
-                  XLSX.utils.book_append_sheet(wb, ws, "Existing Stock");
-                  XLSX.writeFile(wb, `Stock_Report_${new Date().toISOString().split("T")[0]}.xlsx`);
-                  toast({ title: "Exported", description: `${filtered.length} products exported to Excel` });
+                   const all = products;
+                   const wsData: (string | number)[][] = [["Sr No", "Product Name", "Department", "Brand", "Unit", "Barcode", "Stock Qty", "Pur Price", "Sale Price", "Pur Value", "Sale Value"]];
+                   all.forEach((p, idx) => {
+                     const purVal = +(p.softwareStock * p.purPrice).toFixed(2);
+                     const saleVal = +(p.softwareStock * p.salePrice).toFixed(2);
+                     wsData.push([
+                       idx + 1, p.name, p.department, p.brand, p.unit, p.barcode || "",
+                       p.softwareStock, p.purPrice, p.salePrice, purVal, saleVal,
+                     ]);
+                   });
+                   const totalQty = all.reduce((s, p) => s + p.softwareStock, 0);
+                   const totalPur = +all.reduce((s, p) => s + (p.softwareStock * p.purPrice), 0).toFixed(2);
+                   const totalSale = +all.reduce((s, p) => s + (p.softwareStock * p.salePrice), 0).toFixed(2);
+                   wsData.push(["", "", "", "", "", "TOTAL", totalQty, "", "", totalPur, totalSale]);
+                   const ws = XLSX.utils.aoa_to_sheet(wsData);
+                   ws["!cols"] = [{ wch: 6 }, { wch: 32 }, { wch: 15 }, { wch: 15 }, { wch: 8 }, { wch: 16 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }];
+                   const wb = XLSX.utils.book_new();
+                   XLSX.utils.book_append_sheet(wb, ws, "Complete Stock");
+                   XLSX.writeFile(wb, `Complete_Stock_Report_${new Date().toISOString().split("T")[0]}.xlsx`);
+                   toast({ title: "Exported", description: `All ${all.length} products exported with totals` });
                 }} style={{
                   background: C.bgCard, border: `1px solid ${C.green}40`, borderRadius: 10,
                   padding: "10px 18px", color: C.green, fontWeight: 600, fontSize: 13, fontFamily: font,
