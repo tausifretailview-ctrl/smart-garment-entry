@@ -5,8 +5,9 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   Search, CheckCircle2, BarChart3, Clock, ScanBarcode, 
   ArrowUpCircle, ArrowDownCircle, ChevronDown, ChevronUp,
-  Download, FileSpreadsheet, FileText, X, Check, Loader2, Box
+  Download, FileSpreadsheet, FileText, X, Check, Loader2, Box, Upload
 } from "lucide-react";
+import StockImportTab from "@/components/StockImportTab";
 
 /* ─── Types ─── */
 interface Product {
