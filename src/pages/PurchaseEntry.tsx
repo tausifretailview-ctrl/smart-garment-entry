@@ -212,6 +212,24 @@ const PurchaseEntry = () => {
     stopAutoSave,
   } = useDraftSave('purchase');
 
+  // Handle product edit panel updates
+  const handleProductUpdated = useCallback((tempId: string, updates: Partial<LineItem>) => {
+    setLineItems(prev => prev.map(item => 
+      item.temp_id === tempId ? { ...item, ...updates, line_total: ((updates.pur_price ?? item.pur_price) * item.qty) * (1 - item.discount_percent / 100) } : item
+    ));
+    // Show updated badge briefly
+    setUpdatedRows(prev => new Set(prev).add(tempId));
+    setTimeout(() => {
+      setUpdatedRows(prev => { const next = new Set(prev); next.delete(tempId); return next; });
+    }, 3000);
+  }, []);
+
+  const openEditPanel = useCallback((index: number, focusField?: string) => {
+    setEditPanelIndex(index);
+    setEditPanelFocusField(focusField);
+    setShowEditPanel(true);
+  }, []);
+
   // Load draft data callback
   const loadDraftData = useCallback((data: any) => {
     if (!data) return;
