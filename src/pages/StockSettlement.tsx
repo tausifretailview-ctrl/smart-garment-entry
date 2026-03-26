@@ -425,19 +425,80 @@ const StockSettlement = () => {
         {/* ═══ SCAN TAB ═══ */}
         {activeTab === "scan" && (
           <div>
+            {/* Stock Totals Summary */}
+            {(() => {
+              const totalQty = filtered.reduce((s, p) => s + p.softwareStock, 0);
+              const totalPurValue = filtered.reduce((s, p) => s + (p.softwareStock * p.purPrice), 0);
+              const totalSaleValue = filtered.reduce((s, p) => s + (p.softwareStock * p.salePrice), 0);
+              const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+              return (
+                <div style={{ display: "flex", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+                  {[
+                    { label: "Total Stock Qty", val: totalQty.toLocaleString("en-IN"), icon: <Package size={16} />, color: C.cyan },
+                    { label: "Purchase Value", val: `₹${fmt(totalPurValue)}`, icon: <IndianRupee size={16} />, color: C.yellow },
+                    { label: "Sale Value", val: `₹${fmt(totalSaleValue)}`, icon: <IndianRupee size={16} />, color: C.green },
+                  ].map((c, i) => (
+                    <div key={i} style={{
+                      flex: 1, minWidth: 180, background: C.bgCard, borderRadius: 12,
+                      padding: "14px 18px", borderLeft: `4px solid ${c.color}`,
+                      display: "flex", alignItems: "center", gap: 12,
+                    }}>
+                      <div style={{
+                        width: 36, height: 36, borderRadius: 10,
+                        background: `${c.color}15`, display: "flex", alignItems: "center", justifyContent: "center",
+                        color: c.color,
+                      }}>{c.icon}</div>
+                      <div>
+                        <div style={{ fontSize: 11, color: C.textDim, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{c.label}</div>
+                        <div style={{ fontFamily: mono, fontSize: 18, fontWeight: 700, color: c.color }}>{c.val}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 14 }}>
               <div>
                 <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Scan Products</h2>
                 <p style={{ fontSize: 13, color: C.textDim, margin: 0 }}>Enter actual physical count for each product</p>
               </div>
-              <button onClick={autoMatchAll} style={{
-                background: `linear-gradient(135deg, ${C.cyanDark}, ${C.cyan})`,
-                color: "#042f2e", fontWeight: 600, fontSize: 13, fontFamily: font,
-                border: "none", borderRadius: 10, padding: "10px 18px",
-                cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
-              }}>
-                <Check size={15} /> Auto-Match All
-              </button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => {
+                  const wsData = [["Product ID", "Product Name", "Department", "Brand", "Unit", "Barcode", "Stock Qty", "Pur Price", "Sale Price", "Pur Value", "Sale Value"]];
+                  filtered.forEach(p => {
+                    wsData.push([
+                      p.id, p.name, p.department, p.brand, p.unit, p.barcode || "",
+                      String(p.softwareStock), String(p.purPrice), String(p.salePrice),
+                      String(p.softwareStock * p.purPrice), String(p.softwareStock * p.salePrice),
+                    ]);
+                  });
+                  const totalQty = filtered.reduce((s, p) => s + p.softwareStock, 0);
+                  const totalPur = filtered.reduce((s, p) => s + (p.softwareStock * p.purPrice), 0);
+                  const totalSale = filtered.reduce((s, p) => s + (p.softwareStock * p.salePrice), 0);
+                  wsData.push(["", "", "", "", "", "TOTAL", String(totalQty), "", "", String(totalPur), String(totalSale)]);
+                  const ws = XLSX.utils.aoa_to_sheet(wsData);
+                  ws["!cols"] = [{ wch: 10 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 8 }, { wch: 15 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }];
+                  const wb = XLSX.utils.book_new();
+                  XLSX.utils.book_append_sheet(wb, ws, "Existing Stock");
+                  XLSX.writeFile(wb, `Stock_Report_${new Date().toISOString().split("T")[0]}.xlsx`);
+                  toast({ title: "Exported", description: `${filtered.length} products exported to Excel` });
+                }} style={{
+                  background: C.bgCard, border: `1px solid ${C.green}40`, borderRadius: 10,
+                  padding: "10px 18px", color: C.green, fontWeight: 600, fontSize: 13, fontFamily: font,
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+                }}>
+                  <Download size={15} /> Export Stock
+                </button>
+                <button onClick={autoMatchAll} style={{
+                  background: `linear-gradient(135deg, ${C.cyanDark}, ${C.cyan})`,
+                  color: "#042f2e", fontWeight: 600, fontSize: 13, fontFamily: font,
+                  border: "none", borderRadius: 10, padding: "10px 18px",
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+                }}>
+                  <Check size={15} /> Auto-Match All
+                </button>
+              </div>
             </div>
 
             {loading ? (
