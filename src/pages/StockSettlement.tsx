@@ -654,6 +654,7 @@ const StockSettlement = () => {
 
             {/* Differences Table */}
             {differences.length > 0 ? (
+              <>
               <div style={{ borderRadius: 12, border: `1px solid ${C.border}`, background: C.bgCard, overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontFamily: font }}>
                   <thead>
@@ -668,7 +669,7 @@ const StockSettlement = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {differences.map((p, idx) => {
+                    {paginatedDifferences.map((p, idx) => {
                       const diff = p.actualStock! - p.softwareStock;
                       const isPositive = diff > 0;
                       return (
@@ -708,6 +709,82 @@ const StockSettlement = () => {
                   </tbody>
                 </table>
               </div>
+
+              {/* Differences Pagination */}
+              {differences.length > diffPageSize && (
+                <div style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "12px 16px", background: C.bgCard, borderRadius: 12,
+                  border: `1px solid ${C.border}`, marginTop: 8, flexWrap: "wrap", gap: 10,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.textMuted }}>
+                    <span>Showing {((diffPage - 1) * diffPageSize) + 1}–{Math.min(diffPage * diffPageSize, differences.length)} of {differences.length}</span>
+                    <select
+                      value={diffPageSize}
+                      onChange={e => { setDiffPageSize(Number(e.target.value)); setDiffPage(1); }}
+                      style={{
+                        background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 8,
+                        padding: "4px 8px", color: C.textBody, fontSize: 12, fontFamily: font,
+                        outline: "none", cursor: "pointer",
+                      }}
+                    >
+                      {[25, 50, 100, 200].map(s => <option key={s} value={s}>{s} / page</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <button
+                      onClick={() => setDiffPage(p => Math.max(1, p - 1))}
+                      disabled={diffPage === 1}
+                      style={{
+                        background: diffPage === 1 ? "transparent" : C.border,
+                        border: `1px solid ${C.border}`, borderRadius: 8,
+                        padding: "6px 10px", color: diffPage === 1 ? C.textDim : C.textBody,
+                        cursor: diffPage === 1 ? "not-allowed" : "pointer", fontFamily: font, fontSize: 12,
+                        display: "flex", alignItems: "center", gap: 4,
+                      }}
+                    >
+                      <ChevronLeft size={14} /> Prev
+                    </button>
+                    {Array.from({ length: Math.min(5, diffTotalPages) }, (_, i) => {
+                      let page: number;
+                      if (diffTotalPages <= 5) { page = i + 1; }
+                      else if (diffPage <= 3) { page = i + 1; }
+                      else if (diffPage >= diffTotalPages - 2) { page = diffTotalPages - 4 + i; }
+                      else { page = diffPage - 2 + i; }
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => setDiffPage(page)}
+                          style={{
+                            width: 32, height: 32, borderRadius: 8,
+                            background: diffPage === page ? C.cyan : "transparent",
+                            border: diffPage === page ? "none" : `1px solid ${C.border}`,
+                            color: diffPage === page ? "#042f2e" : C.textMuted,
+                            fontWeight: diffPage === page ? 700 : 500,
+                            fontSize: 13, fontFamily: mono, cursor: "pointer",
+                          }}
+                        >
+                          {page}
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={() => setDiffPage(p => Math.min(diffTotalPages, p + 1))}
+                      disabled={diffPage === diffTotalPages}
+                      style={{
+                        background: diffPage === diffTotalPages ? "transparent" : C.border,
+                        border: `1px solid ${C.border}`, borderRadius: 8,
+                        padding: "6px 10px", color: diffPage === diffTotalPages ? C.textDim : C.textBody,
+                        cursor: diffPage === diffTotalPages ? "not-allowed" : "pointer", fontFamily: font, fontSize: 12,
+                        display: "flex", alignItems: "center", gap: 4,
+                      }}
+                    >
+                      Next <ChevronRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
+              </>
             ) : (
               <div style={{ textAlign: "center", padding: 60, color: "#475569" }}>
                 {scannedCount === 0 ? "Scan products first to see differences" : "No differences found — all scanned items match!"}
