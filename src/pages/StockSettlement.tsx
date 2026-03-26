@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -9,6 +9,7 @@ import {
   ChevronLeft, ChevronRight, IndianRupee, Package
 } from "lucide-react";
 import StockImportTab from "@/components/StockImportTab";
+import BarcodeScanSection from "@/components/BarcodeScanSection";
 import * as XLSX from "xlsx";
 
 /* ─── Types ─── */
@@ -25,6 +26,9 @@ interface Product {
   barcode?: string;
   purPrice: number;
   salePrice: number;
+  source?: "scanned" | "manual" | "imported" | null;
+  scanCount?: number;
+  lastScannedAt?: number | null;
 }
 
 interface SettlementHistory {
@@ -101,6 +105,8 @@ const StockSettlement = () => {
   const [pageSize, setPageSize] = useState(50);
   const [diffPage, setDiffPage] = useState(1);
   const [diffPageSize, setDiffPageSize] = useState(50);
+  const [highlightedRow, setHighlightedRow] = useState<string | null>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
 
   // Load products from DB
   useEffect(() => {
@@ -230,6 +236,25 @@ const StockSettlement = () => {
       if (isNaN(num)) return p;
       return { ...p, actualStock: num, scanned: true };
     }));
+  }, []);
+
+  const handleProductScanned = useCallback((productIndex: number, newActual: number, source: "scanned") => {
+    setProducts(prev => prev.map((p, i) => {
+      if (i !== productIndex) return p;
+      if (newActual === -1) return { ...p, actualStock: null, scanned: false, source: null, scanCount: 0, lastScannedAt: null };
+      return { ...p, actualStock: newActual, scanned: true, source, scanCount: (p.scanCount || 0) + 1, lastScannedAt: Date.now() };
+    }));
+  }, []);
+
+  const handleHighlightRow = useCallback((productId: string) => {
+    setHighlightedRow(productId);
+    // Auto-scroll to the row
+    setTimeout(() => {
+      const row = document.getElementById(`scan-row-${productId}`);
+      if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
+    // Clear highlight after 1.5s
+    setTimeout(() => setHighlightedRow(null), 1500);
   }, []);
 
   const autoMatchAll = useCallback(() => {
@@ -460,6 +485,13 @@ const StockSettlement = () => {
               );
             })()}
 
+            {/* ─── BARCODE SCAN SECTION ─── */}
+            <BarcodeScanSection
+              products={products}
+              onProductScanned={handleProductScanned}
+              onHighlightRow={handleHighlightRow}
+            />
+
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 14 }}>
               <div>
                 <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Scan Products</h2>
@@ -517,7 +549,7 @@ const StockSettlement = () => {
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontFamily: font }}>
                   <thead>
                     <tr style={{ background: C.bgInput }}>
-                      {["Product ID", "Barcode", "Product Name", "Shop", "Dept", "Brand", "Unit", "Software Qty", "Actual Qty", "Difference", "Status"].map(h => (
+                      {["Product ID", "Barcode", "Product Name", "Shop", "Dept", "Brand", "Unit", "Software Qty", "Actual Qty", "Difference", "Status", "Source"].map(h => (
                         <th key={h} style={{
                           padding: "10px 14px", textAlign: "left", fontSize: 11, fontWeight: 600,
                           textTransform: "uppercase", letterSpacing: 0.8, color: C.textDim,
@@ -530,10 +562,13 @@ const StockSettlement = () => {
                     {paginatedFiltered.map((p, idx) => {
                       const diffBadge = getDiffBadge(p);
                       const status = getStatus(p);
+                      const isHighlighted = highlightedRow === p.id;
                       return (
-                        <tr key={p.id} style={{
+                        <tr key={p.id} id={`scan-row-${p.id}`} style={{
                           borderBottom: `1px solid ${C.border}10`,
                           animation: `fadeIn 0.3s ease ${idx * 0.02}s both`,
+                          background: isHighlighted ? `${C.green}12` : "transparent",
+                          transition: "background 0.3s ease",
                         }}>
                           <td style={{ padding: "10px 14px" }}>
                             <code style={{
@@ -559,20 +594,25 @@ const StockSettlement = () => {
                           <td style={{ padding: "10px 14px", color: C.textMuted }}>{p.unit}</td>
                           <td style={{ padding: "10px 14px", fontFamily: mono, fontWeight: 600 }}>{p.softwareStock}</td>
                           <td style={{ padding: "10px 14px" }}>
-                            <input
-                              type="number"
-                              value={p.actualStock ?? ""}
-                              onChange={e => handleActualChange(p.id, e.target.value)}
-                              placeholder="—"
-                              style={{
-                                width: 72, textAlign: "center", background: C.bgInput,
-                                border: `1px solid ${C.borderHover}`, borderRadius: 8,
-                                fontFamily: mono, fontSize: 14, fontWeight: 700, color: C.textPrimary,
-                                padding: "6px 4px", outline: "none",
-                              }}
-                              onFocus={e => e.target.style.borderColor = C.cyan}
-                              onBlur={e => e.target.style.borderColor = C.borderHover}
-                            />
+                            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                              <input
+                                type="number"
+                                value={p.actualStock ?? ""}
+                                onChange={e => handleActualChange(p.id, e.target.value)}
+                                placeholder="—"
+                                style={{
+                                  width: 72, textAlign: "center", background: C.bgInput,
+                                  border: `1px solid ${C.borderHover}`, borderRadius: 8,
+                                  fontFamily: mono, fontSize: 14, fontWeight: 700, color: C.textPrimary,
+                                  padding: "6px 4px", outline: "none",
+                                }}
+                                onFocus={e => e.target.style.borderColor = C.cyan}
+                                onBlur={e => e.target.style.borderColor = C.borderHover}
+                              />
+                              {(p.scanCount || 0) > 1 && (
+                                <span style={{ fontSize: 9, color: C.textDim, fontFamily: mono, whiteSpace: "nowrap" }}>×{p.scanCount}</span>
+                              )}
+                            </div>
                           </td>
                           <td style={{ padding: "10px 14px" }}>
                             {diffBadge ? (
@@ -591,11 +631,21 @@ const StockSettlement = () => {
                               {status.icon} {status.label}
                             </span>
                           </td>
+                          <td style={{ padding: "10px 14px" }}>
+                            {p.source ? (
+                              <span style={{
+                                fontSize: 10, padding: "3px 8px", borderRadius: 6, fontWeight: 600,
+                                background: p.source === "scanned" ? `${C.cyan}15` : p.source === "imported" ? `${C.yellow}15` : `${C.textDim}15`,
+                                color: p.source === "scanned" ? C.cyan : p.source === "imported" ? C.yellow : C.textDim,
+                                textTransform: "capitalize",
+                              }}>{p.source}</span>
+                            ) : <span style={{ color: C.textDim }}>—</span>}
+                          </td>
                         </tr>
                       );
                     })}
                     {filtered.length === 0 && (
-                      <tr><td colSpan={11} style={{ textAlign: "center", padding: 40, color: C.textDim }}>No products found</td></tr>
+                      <tr><td colSpan={12} style={{ textAlign: "center", padding: 40, color: C.textDim }}>No products found</td></tr>
                     )}
                   </tbody>
                 </table>
