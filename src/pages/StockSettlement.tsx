@@ -1053,7 +1053,7 @@ const StockSettlement = () => {
             </div>
 
             {history.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 60, color: "#475569" }}>No settlements recorded yet</div>
+              <div style={{ textAlign: "center", padding: 60, color: "#94a3b8" }}>No settlements recorded yet</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {history.map(h => {
