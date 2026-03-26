@@ -45,18 +45,18 @@ interface SettlementHistory {
   items: Product[];
 }
 
-/* ─── Inline Styles (dark theme tokens) ─── */
+/* ─── Inline Styles (light theme tokens) ─── */
 const C = {
-  bgRoot: "#0b1120",
-  bgCard: "#0f172a",
-  bgInput: "#111827",
-  border: "#1e293b",
-  borderHover: "#334155",
-  textPrimary: "#f1f5f9",
-  textBody: "#e2e8f0",
-  textSecondary: "#cbd5e1",
-  textMuted: "#94a3b8",
-  textDim: "#64748b",
+  bgRoot: "#f8fafc",
+  bgCard: "#ffffff",
+  bgInput: "#f1f5f9",
+  border: "#e2e8f0",
+  borderHover: "#cbd5e1",
+  textPrimary: "#0f172a",
+  textBody: "#1e293b",
+  textSecondary: "#334155",
+  textMuted: "#64748b",
+  textDim: "#94a3b8",
   cyan: "#22d3ee",
   cyanDark: "#0e7490",
   green: "#34d399",
@@ -77,7 +77,7 @@ const deptColors: Record<string, string> = {
   Hardware: "#f97316",
 };
 
-const getDeptBg = (d: string) => `${deptColors[d] || "#64748b"}20`;
+const getDeptBg = (d: string) => `${deptColors[d] || "#64748b"}15`;
 const getDeptColor = (d: string) => deptColors[d] || "#64748b";
 
 /* ─── Component ─── */
@@ -431,7 +431,7 @@ const StockSettlement = () => {
       {/* ─── FILTER BAR ─── */}
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
-          <Search size={16} color="#475569" style={{ position: "absolute", left: 14, top: 12 }} />
+          <Search size={16} color="#94a3b8" style={{ position: "absolute", left: 14, top: 12 }} />
           <input
             value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search product or ID..."
@@ -960,7 +960,7 @@ const StockSettlement = () => {
               )}
               </>
             ) : (
-              <div style={{ textAlign: "center", padding: 60, color: "#475569" }}>
+              <div style={{ textAlign: "center", padding: 60, color: "#94a3b8" }}>
                 {scannedCount === 0 ? "Scan products first to see differences" : "No differences found — all scanned items match!"}
               </div>
             )}
@@ -1053,7 +1053,7 @@ const StockSettlement = () => {
             </div>
 
             {history.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 60, color: "#475569" }}>No settlements recorded yet</div>
+              <div style={{ textAlign: "center", padding: 60, color: "#94a3b8" }}>No settlements recorded yet</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {history.map(h => {
@@ -1145,7 +1145,7 @@ const StockSettlement = () => {
       {/* ─── SETTLEMENT MODAL ─── */}
       {showSettleModal && (
         <div style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 100,
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 100,
           display: "flex", alignItems: "center", justifyContent: "center",
           animation: "fadeIn 0.2s ease",
         }} onClick={() => setShowSettleModal(false)}>
@@ -1207,7 +1207,7 @@ const StockSettlement = () => {
       {/* ─── EXPORT MODAL ─── */}
       {showExportModal && (
         <div style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 100,
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 100,
           display: "flex", alignItems: "center", justifyContent: "center",
           animation: "fadeIn 0.2s ease",
         }} onClick={() => setShowExportModal(false)}>
