@@ -238,6 +238,25 @@ const StockSettlement = () => {
     }));
   }, []);
 
+  const handleProductScanned = useCallback((productIndex: number, newActual: number, source: "scanned") => {
+    setProducts(prev => prev.map((p, i) => {
+      if (i !== productIndex) return p;
+      if (newActual === -1) return { ...p, actualStock: null, scanned: false, source: null, scanCount: 0, lastScannedAt: null };
+      return { ...p, actualStock: newActual, scanned: true, source, scanCount: (p.scanCount || 0) + 1, lastScannedAt: Date.now() };
+    }));
+  }, []);
+
+  const handleHighlightRow = useCallback((productId: string) => {
+    setHighlightedRow(productId);
+    // Auto-scroll to the row
+    setTimeout(() => {
+      const row = document.getElementById(`scan-row-${productId}`);
+      if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
+    // Clear highlight after 1.5s
+    setTimeout(() => setHighlightedRow(null), 1500);
+  }, []);
+
   const autoMatchAll = useCallback(() => {
     setProducts(prev => prev.map(p => {
       const inFiltered = filtered.some(f => f.id === p.id);
