@@ -594,20 +594,25 @@ const StockSettlement = () => {
                           <td style={{ padding: "10px 14px", color: C.textMuted }}>{p.unit}</td>
                           <td style={{ padding: "10px 14px", fontFamily: mono, fontWeight: 600 }}>{p.softwareStock}</td>
                           <td style={{ padding: "10px 14px" }}>
-                            <input
-                              type="number"
-                              value={p.actualStock ?? ""}
-                              onChange={e => handleActualChange(p.id, e.target.value)}
-                              placeholder="—"
-                              style={{
-                                width: 72, textAlign: "center", background: C.bgInput,
-                                border: `1px solid ${C.borderHover}`, borderRadius: 8,
-                                fontFamily: mono, fontSize: 14, fontWeight: 700, color: C.textPrimary,
-                                padding: "6px 4px", outline: "none",
-                              }}
-                              onFocus={e => e.target.style.borderColor = C.cyan}
-                              onBlur={e => e.target.style.borderColor = C.borderHover}
-                            />
+                            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                              <input
+                                type="number"
+                                value={p.actualStock ?? ""}
+                                onChange={e => handleActualChange(p.id, e.target.value)}
+                                placeholder="—"
+                                style={{
+                                  width: 72, textAlign: "center", background: C.bgInput,
+                                  border: `1px solid ${C.borderHover}`, borderRadius: 8,
+                                  fontFamily: mono, fontSize: 14, fontWeight: 700, color: C.textPrimary,
+                                  padding: "6px 4px", outline: "none",
+                                }}
+                                onFocus={e => e.target.style.borderColor = C.cyan}
+                                onBlur={e => e.target.style.borderColor = C.borderHover}
+                              />
+                              {(p.scanCount || 0) > 1 && (
+                                <span style={{ fontSize: 9, color: C.textDim, fontFamily: mono, whiteSpace: "nowrap" }}>×{p.scanCount}</span>
+                              )}
+                            </div>
                           </td>
                           <td style={{ padding: "10px 14px" }}>
                             {diffBadge ? (
