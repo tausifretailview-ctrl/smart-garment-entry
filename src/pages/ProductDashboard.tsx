@@ -514,6 +514,12 @@ const ProductDashboard = () => {
       setFetchError(null);
     } catch (error: any) {
       console.error("ProductDashboard fetch error:", error);
+      // Auto-retry once on first failure
+      if (retryCount < 1) {
+        console.log("ProductDashboard: retrying fetch...");
+        setTimeout(() => fetchProductVariants(retryCount + 1), 1000);
+        return;
+      }
       setFetchError(error.message || "Failed to load products");
       toast({
         title: "Error",
