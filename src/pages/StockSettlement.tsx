@@ -515,7 +515,7 @@ const StockSettlement = () => {
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontFamily: font }}>
                   <thead>
                     <tr style={{ background: C.bgInput }}>
-                      {["Product ID", "Product Name", "Shop", "Dept", "Brand", "Unit", "Software Qty", "Actual Qty", "Difference", "Status"].map(h => (
+                      {["Product ID", "Barcode", "Product Name", "Shop", "Dept", "Brand", "Unit", "Software Qty", "Actual Qty", "Difference", "Status"].map(h => (
                         <th key={h} style={{
                           padding: "10px 14px", textAlign: "left", fontSize: 11, fontWeight: 600,
                           textTransform: "uppercase", letterSpacing: 0.8, color: C.textDim,
