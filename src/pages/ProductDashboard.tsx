@@ -76,6 +76,7 @@ const ProductDashboard = () => {
   const { currentOrganization } = useOrganization();
   const [productRows, setProductRows] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [isRefetching, setIsRefetching] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -362,7 +363,7 @@ const ProductDashboard = () => {
     fetchProductVariants();
   }, [currentOrganization?.id, currentPage, itemsPerPage, debouncedSearch, selectedCategory, selectedProductType, selectedStockLevel]);
 
-  const fetchProductVariants = async () => {
+  const fetchProductVariants = async (retryCount = 0) => {
     if (!currentOrganization?.id) return;
     if (productRows.length === 0) {
       setLoading(true);
@@ -388,7 +389,7 @@ const ProductDashboard = () => {
           default_pur_price,
           default_sale_price,
           status,
-          product_variants (
+          product_variants!product_variants_product_id_fkey (
             id,
             size,
             color,
@@ -396,7 +397,8 @@ const ProductDashboard = () => {
             pur_price,
             sale_price,
             mrp,
-            stock_qty
+            stock_qty,
+            deleted_at
           )
         `)
         .is("deleted_at", null)
@@ -417,6 +419,7 @@ const ProductDashboard = () => {
         const { data: barcodeMatches } = await supabase
           .from("product_variants")
           .select("product_id")
+          .eq("organization_id", currentOrganization.id)
           .ilike("barcode", `%${term}%`);
         barcodeProductIds = [...new Set((barcodeMatches || []).map((v: any) => v.product_id))];
         
@@ -484,6 +487,7 @@ const ProductDashboard = () => {
       });
 
       setProductRows(rows);
+      setFetchError(null);
       
       // Extract unique categories (fetch separately for filters, only once)
       if (categories.length === 0) {
@@ -507,7 +511,16 @@ const ProductDashboard = () => {
         const uniqueTypes = Array.from(new Set((typeData || []).map((p: any) => p.product_type).filter(Boolean))).sort();
         setProductTypes(uniqueTypes as string[]);
       }
+      setFetchError(null);
     } catch (error: any) {
+      console.error("ProductDashboard fetch error:", error);
+      // Auto-retry once on first failure
+      if (retryCount < 1) {
+        console.log("ProductDashboard: retrying fetch...");
+        setTimeout(() => fetchProductVariants(retryCount + 1), 1000);
+        return;
+      }
+      setFetchError(error.message || "Failed to load products");
       toast({
         title: "Error",
         description: error.message || "Failed to load products",
@@ -1451,8 +1464,20 @@ const ProductDashboard = () => {
             {filteredRows.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p className="text-lg">No products found</p>
-                <p className="text-sm">Add your first product to get started</p>
+                {fetchError ? (
+                  <>
+                    <p className="text-lg text-destructive">Failed to load products</p>
+                    <p className="text-sm mb-3">{fetchError}</p>
+                    <Button variant="outline" size="sm" onClick={() => fetchProductVariants()}>
+                      <RefreshCw className="h-4 w-4 mr-2" /> Retry
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-lg">No products found</p>
+                    <p className="text-sm">Add your first product to get started</p>
+                  </>
+                )}
               </div>
             ) : (
                <ERPTable<ProductRow>
