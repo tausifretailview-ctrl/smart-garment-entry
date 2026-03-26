@@ -26,6 +26,9 @@ interface Product {
   barcode?: string;
   purPrice: number;
   salePrice: number;
+  source?: "scanned" | "manual" | "imported" | null;
+  scanCount?: number;
+  lastScannedAt?: number | null;
 }
 
 interface SettlementHistory {
