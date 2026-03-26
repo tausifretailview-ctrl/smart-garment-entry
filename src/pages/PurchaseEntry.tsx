@@ -3865,6 +3865,17 @@ const PurchaseEntry = () => {
           }}
         />
 
+        {/* Product Edit Panel */}
+        <ProductEditPanel
+          open={showEditPanel}
+          onClose={() => setShowEditPanel(false)}
+          lineItems={lineItems}
+          currentIndex={editPanelIndex}
+          onIndexChange={setEditPanelIndex}
+          onProductUpdated={handleProductUpdated}
+          focusField={editPanelFocusField}
+        />
+
     </div>
   );
 };
