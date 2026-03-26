@@ -102,7 +102,7 @@ const StockSettlement = () => {
           .from("product_variants")
           .select(`
             id, barcode, size, current_stock, opening_qty,
-            products!inner(product_name, department, brand, hsn_code, unit, organization_id)
+            products!inner(product_name, category, brand, hsn_code, uom, organization_id)
           `)
           .eq("products.organization_id", currentOrganization.id)
           .is("deleted_at", null)
