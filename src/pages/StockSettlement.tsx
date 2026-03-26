@@ -110,8 +110,8 @@ const StockSettlement = () => {
         const { data: variants, error } = await supabase
           .from("product_variants")
           .select(`
-            id, barcode, size, current_stock, opening_qty,
-            products!inner(product_name, category, brand, hsn_code, uom, organization_id)
+            id, barcode, size, current_stock, opening_qty, pur_price, sale_price,
+            products!inner(product_name, category, brand, hsn_code, uom, organization_id, default_pur_price, default_sale_price)
           `)
           .eq("products.organization_id", currentOrganization.id)
           .is("deleted_at", null)
