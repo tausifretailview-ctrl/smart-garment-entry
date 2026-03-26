@@ -485,6 +485,7 @@ const ProductDashboard = () => {
       });
 
       setProductRows(rows);
+      setFetchError(null);
       
       // Extract unique categories (fetch separately for filters, only once)
       if (categories.length === 0) {
