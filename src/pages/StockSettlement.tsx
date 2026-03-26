@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -9,6 +9,7 @@ import {
   ChevronLeft, ChevronRight, IndianRupee, Package
 } from "lucide-react";
 import StockImportTab from "@/components/StockImportTab";
+import BarcodeScanSection from "@/components/BarcodeScanSection";
 import * as XLSX from "xlsx";
 
 /* ─── Types ─── */
