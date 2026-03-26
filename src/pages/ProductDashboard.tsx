@@ -419,6 +419,7 @@ const ProductDashboard = () => {
         const { data: barcodeMatches } = await supabase
           .from("product_variants")
           .select("product_id")
+          .eq("organization_id", currentOrganization.id)
           .ilike("barcode", `%${term}%`);
         barcodeProductIds = [...new Set((barcodeMatches || []).map((v: any) => v.product_id))];
         
