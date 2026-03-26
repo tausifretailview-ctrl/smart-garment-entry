@@ -3190,7 +3190,8 @@ const PurchaseEntry = () => {
                           />
                         </TableCell>
                         <TableCell className="w-[60px] text-center font-medium">{index + 1}</TableCell>
-                        <TableCell className="w-[260px] max-w-[260px] font-medium" title={formatProductDescription(item)}>
+                        <TableCell className="w-[260px] max-w-[260px] font-medium cursor-pointer" title={formatProductDescription(item)}
+                          onDoubleClick={() => openEditPanel(index, "product_name")}>
                           <div className="text-sm leading-snug break-words">{formatProductDescription(item)}</div>
                         </TableCell>
                         <TableCell className="w-[50px] text-sm">{item.size || "—"}</TableCell>
