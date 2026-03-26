@@ -485,6 +485,13 @@ const StockSettlement = () => {
               );
             })()}
 
+            {/* ─── BARCODE SCAN SECTION ─── */}
+            <BarcodeScanSection
+              products={products}
+              onProductScanned={handleProductScanned}
+              onHighlightRow={handleHighlightRow}
+            />
+
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 14 }}>
               <div>
                 <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Scan Products</h2>
