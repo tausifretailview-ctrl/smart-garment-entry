@@ -113,8 +113,7 @@ const StockSettlement = () => {
           `)
           .eq("products.organization_id", currentOrganization.id)
           .is("deleted_at", null)
-          .order("created_at", { ascending: false })
-          .limit(500);
+          .order("created_at", { ascending: false });
 
         if (error) throw error;
 
