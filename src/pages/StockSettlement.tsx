@@ -22,6 +22,8 @@ interface Product {
   actualStock: number | null;
   scanned: boolean;
   barcode?: string;
+  purPrice: number;
+  salePrice: number;
 }
 
 interface SettlementHistory {
