@@ -334,8 +334,8 @@ const StockSettlement = () => {
         {tabs.map(t => (
           <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
             flex: 1, borderRadius: 10, padding: "10px 16px",
-            background: activeTab === t.key ? C.border : "transparent",
-            color: activeTab === t.key ? C.cyan : C.textMuted,
+            background: activeTab === t.key ? (t.key === "import" ? "#a78bfa20" : C.border) : "transparent",
+            color: activeTab === t.key ? (t.key === "import" ? "#a78bfa" : C.cyan) : C.textMuted,
             fontWeight: activeTab === t.key ? 600 : 500,
             fontSize: 13, fontFamily: font, border: "none", cursor: "pointer",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
