@@ -515,7 +515,7 @@ const StockSettlement = () => {
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontFamily: font }}>
                   <thead>
                     <tr style={{ background: C.bgInput }}>
-                      {["Product ID", "Product Name", "Shop", "Dept", "Brand", "Unit", "Software Qty", "Actual Qty", "Difference", "Status"].map(h => (
+                      {["Product ID", "Barcode", "Product Name", "Shop", "Dept", "Brand", "Unit", "Software Qty", "Actual Qty", "Difference", "Status"].map(h => (
                         <th key={h} style={{
                           padding: "10px 14px", textAlign: "left", fontSize: 11, fontWeight: 600,
                           textTransform: "uppercase", letterSpacing: 0.8, color: C.textDim,
@@ -538,6 +538,12 @@ const StockSettlement = () => {
                               fontFamily: mono, fontSize: 12, background: C.border,
                               padding: "2px 8px", borderRadius: 5, color: C.cyan,
                             }}>{p.id}</code>
+                          </td>
+                          <td style={{ padding: "10px 14px" }}>
+                            <code style={{
+                              fontFamily: mono, fontSize: 11, background: `${C.yellow}12`,
+                              padding: "2px 6px", borderRadius: 4, color: C.yellow,
+                            }}>{p.barcode || "—"}</code>
                           </td>
                           <td style={{ padding: "10px 14px", fontWeight: 500, color: C.textBody }}>{p.name}</td>
                           <td style={{ padding: "10px 14px", color: C.textSecondary }}>{p.shop}</td>
@@ -587,7 +593,7 @@ const StockSettlement = () => {
                       );
                     })}
                     {filtered.length === 0 && (
-                      <tr><td colSpan={10} style={{ textAlign: "center", padding: 40, color: C.textDim }}>No products found</td></tr>
+                      <tr><td colSpan={11} style={{ textAlign: "center", padding: 40, color: C.textDim }}>No products found</td></tr>
                     )}
                   </tbody>
                 </table>
