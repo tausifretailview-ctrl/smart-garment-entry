@@ -77,7 +77,7 @@ const deptColors: Record<string, string> = {
   Hardware: "#f97316",
 };
 
-const getDeptBg = (d: string) => `${deptColors[d] || "#64748b"}20`;
+const getDeptBg = (d: string) => `${deptColors[d] || "#64748b"}15`;
 const getDeptColor = (d: string) => deptColors[d] || "#64748b";
 
 /* ─── Component ─── */
