@@ -185,6 +185,12 @@ const PurchaseEntry = () => {
   const [barcodeWarnings, setBarcodeWarnings] = useState<Map<string, string>>(new Map());
   const barcodeCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Product Edit Panel state
+  const [showEditPanel, setShowEditPanel] = useState(false);
+  const [editPanelIndex, setEditPanelIndex] = useState(0);
+  const [editPanelFocusField, setEditPanelFocusField] = useState<string | undefined>();
+  const [updatedRows, setUpdatedRows] = useState<Set<string>>(new Set());
+
   // DC Purchase (Direct Cash / No GST) state
   const [isDcPurchase, setIsDcPurchase] = useState(false);
 
