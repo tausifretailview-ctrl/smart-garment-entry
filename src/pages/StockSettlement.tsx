@@ -442,7 +442,7 @@ const StockSettlement = () => {
                 Loading products...
               </div>
             ) : (
-              <div style={{
+              <>
                 borderRadius: 12, border: `1px solid ${C.border}`, background: C.bgCard,
                 overflowX: "auto",
               }}>
