@@ -960,7 +960,7 @@ const StockSettlement = () => {
               )}
               </>
             ) : (
-              <div style={{ textAlign: "center", padding: 60, color: "#475569" }}>
+              <div style={{ textAlign: "center", padding: 60, color: "#94a3b8" }}>
                 {scannedCount === 0 ? "Scan products first to see differences" : "No differences found — all scanned items match!"}
               </div>
             )}
