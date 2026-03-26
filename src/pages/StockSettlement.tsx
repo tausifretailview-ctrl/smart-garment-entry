@@ -539,6 +539,12 @@ const StockSettlement = () => {
                               padding: "2px 8px", borderRadius: 5, color: C.cyan,
                             }}>{p.id}</code>
                           </td>
+                          <td style={{ padding: "10px 14px" }}>
+                            <code style={{
+                              fontFamily: mono, fontSize: 11, background: `${C.yellow}12`,
+                              padding: "2px 6px", borderRadius: 4, color: C.yellow,
+                            }}>{p.barcode || "—"}</code>
+                          </td>
                           <td style={{ padding: "10px 14px", fontWeight: 500, color: C.textBody }}>{p.name}</td>
                           <td style={{ padding: "10px 14px", color: C.textSecondary }}>{p.shop}</td>
                           <td style={{ padding: "10px 14px" }}>
