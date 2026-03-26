@@ -1207,7 +1207,7 @@ const StockSettlement = () => {
       {/* ─── EXPORT MODAL ─── */}
       {showExportModal && (
         <div style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 100,
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 100,
           display: "flex", alignItems: "center", justifyContent: "center",
           animation: "fadeIn 0.2s ease",
         }} onClick={() => setShowExportModal(false)}>
