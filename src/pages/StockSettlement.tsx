@@ -562,10 +562,13 @@ const StockSettlement = () => {
                     {paginatedFiltered.map((p, idx) => {
                       const diffBadge = getDiffBadge(p);
                       const status = getStatus(p);
+                      const isHighlighted = highlightedRow === p.id;
                       return (
-                        <tr key={p.id} style={{
+                        <tr key={p.id} id={`scan-row-${p.id}`} style={{
                           borderBottom: `1px solid ${C.border}10`,
                           animation: `fadeIn 0.3s ease ${idx * 0.02}s both`,
+                          background: isHighlighted ? `${C.green}12` : "transparent",
+                          transition: "background 0.3s ease",
                         }}>
                           <td style={{ padding: "10px 14px" }}>
                             <code style={{
