@@ -3304,6 +3304,24 @@ const PurchaseEntry = () => {
                             <X className="h-4 w-4 text-destructive" />
                           </Button>
                         </TableCell>
+                        <TableCell className="w-[40px]">
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 hover:bg-primary/10 group"
+                              onClick={() => openEditPanel(index)}
+                              title="Edit Product Details"
+                            >
+                              <Pencil className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                            </Button>
+                            {updatedRows.has(item.temp_id) && (
+                              <Badge variant="outline" className="text-[10px] px-1 py-0 text-green-600 border-green-300 bg-green-50 animate-in fade-in">
+                                ✓
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
