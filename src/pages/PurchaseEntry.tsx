@@ -404,25 +404,17 @@ const PurchaseEntry = () => {
     enabled: !!currentOrganization?.id && !isEditMode,
   });
 
-  // Fetch next serial supplier invoice number
+  // Fetch next serial supplier invoice number based on total bill count
   const { data: nextSupplierInvNo } = useQuery({
     queryKey: ["next-supplier-inv-no", currentOrganization?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { count, error } = await supabase
         .from("purchase_bills")
-        .select("supplier_invoice_no")
+        .select("id", { count: "exact", head: true })
         .eq("organization_id", currentOrganization?.id)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-        .limit(200);
+        .is("deleted_at", null);
       if (error) throw error;
-      // Find the highest numeric supplier_invoice_no
-      let maxNum = 0;
-      (data || []).forEach((row: any) => {
-        const num = parseInt(row.supplier_invoice_no, 10);
-        if (!isNaN(num) && num > maxNum) maxNum = num;
-      });
-      return String(maxNum + 1);
+      return String((count || 0) + 1);
     },
     enabled: !!currentOrganization?.id && !isEditMode,
   });
