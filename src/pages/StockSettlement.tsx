@@ -459,7 +459,7 @@ const StockSettlement = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((p, idx) => {
+                    {paginatedFiltered.map((p, idx) => {
                       const diffBadge = getDiffBadge(p);
                       const status = getStatus(p);
                       return (
@@ -526,6 +526,86 @@ const StockSettlement = () => {
                   </tbody>
                 </table>
               </div>
+
+              {/* Pagination Controls */}
+              {filtered.length > 0 && (
+                <div style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "12px 16px", background: C.bgCard, borderRadius: "0 0 12px 12px",
+                  borderTop: `1px solid ${C.border}`, flexWrap: "wrap", gap: 10,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.textMuted }}>
+                    <span>Showing {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length}</span>
+                    <select
+                      value={pageSize}
+                      onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+                      style={{
+                        background: C.bgInput, border: `1px solid ${C.border}`, borderRadius: 8,
+                        padding: "4px 8px", color: C.textBody, fontSize: 12, fontFamily: font,
+                        outline: "none", cursor: "pointer",
+                      }}
+                    >
+                      {[25, 50, 100, 200].map(s => <option key={s} value={s}>{s} / page</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      style={{
+                        background: currentPage === 1 ? "transparent" : C.border,
+                        border: `1px solid ${C.border}`, borderRadius: 8,
+                        padding: "6px 10px", color: currentPage === 1 ? C.textDim : C.textBody,
+                        cursor: currentPage === 1 ? "not-allowed" : "pointer", fontFamily: font, fontSize: 12,
+                        display: "flex", alignItems: "center", gap: 4,
+                      }}
+                    >
+                      <ChevronLeft size={14} /> Prev
+                    </button>
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let page: number;
+                      if (totalPages <= 5) {
+                        page = i + 1;
+                      } else if (currentPage <= 3) {
+                        page = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        page = totalPages - 4 + i;
+                      } else {
+                        page = currentPage - 2 + i;
+                      }
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          style={{
+                            width: 32, height: 32, borderRadius: 8,
+                            background: currentPage === page ? C.cyan : "transparent",
+                            border: currentPage === page ? "none" : `1px solid ${C.border}`,
+                            color: currentPage === page ? "#042f2e" : C.textMuted,
+                            fontWeight: currentPage === page ? 700 : 500,
+                            fontSize: 13, fontFamily: mono, cursor: "pointer",
+                          }}
+                        >
+                          {page}
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      style={{
+                        background: currentPage === totalPages ? "transparent" : C.border,
+                        border: `1px solid ${C.border}`, borderRadius: 8,
+                        padding: "6px 10px", color: currentPage === totalPages ? C.textDim : C.textBody,
+                        cursor: currentPage === totalPages ? "not-allowed" : "pointer", fontFamily: font, fontSize: 12,
+                        display: "flex", alignItems: "center", gap: 4,
+                      }}
+                    >
+                      Next <ChevronRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
             )}
           </div>
         )}
