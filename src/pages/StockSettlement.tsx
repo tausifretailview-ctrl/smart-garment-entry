@@ -114,9 +114,9 @@ const StockSettlement = () => {
         const mapped: Product[] = (variants || []).map((v: any, i: number) => ({
           id: `PRD-${String(i + 1).padStart(4, "0")}`,
           name: `${v.products?.product_name || "Unknown"}${v.size ? ` - ${v.size}` : ""}`,
-          department: v.products?.department || "General",
+          department: v.products?.category || "General",
           brand: v.products?.brand || "—",
-          unit: v.products?.unit || "Pcs",
+          unit: v.products?.uom || "Pcs",
           shop: "Main Store",
           softwareStock: Number(v.current_stock) || 0,
           actualStock: null,
