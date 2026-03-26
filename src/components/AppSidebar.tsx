@@ -96,7 +96,7 @@ export function AppSidebar() {
 
   // Menu structure
   const masterPaths = ["/customers", "/suppliers", "/employees"];
-  const inventoryPaths = ["/purchase-bills", "/purchase-returns", "/purchase-entry", "/purchase-orders", "/purchase-order-entry", "/product-entry", "/products", "/bulk-product-update"];
+  const inventoryPaths = ["/purchase-bills", "/purchase-returns", "/purchase-entry", "/purchase-orders", "/purchase-order-entry", "/product-entry", "/products", "/bulk-product-update", "/stock-settlement"];
   const salesPaths = ["/quotation-entry", "/quotation-dashboard", "/sale-order-entry", "/sale-order-dashboard", "/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard", "/sale-return-entry", "/sale-returns", "/delivery-challan-entry", "/delivery-challan-dashboard", "/advance-booking-dashboard"];
   const reportsPaths = ["/stock-report", "/stock-analysis", "/stock-ageing", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/daily-tally", "/item-wise-sales", "/item-wise-stock", "/price-history", "/gst-reports", "/gst-register", "/tally-export", "/sales-analytics", "/accounting-reports", "/customer-ledger-report", "/daily-sale-analysis", "/einvoice-report"];
   const accountsPaths = ["/accounts", "/payments-dashboard"];
@@ -393,6 +393,16 @@ export function AppSidebar() {
                               <NavLink to="/bulk-product-update" className="flex items-center gap-3 group">
                                 <Pencil className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
                                 <span className="dark:text-white">Bulk Update</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("product_dashboard")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/stock-settlement")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/stock-settlement" className="flex items-center gap-3 group">
+                                <PackageCheck className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Stock Settlement</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
