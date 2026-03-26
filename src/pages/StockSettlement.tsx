@@ -114,21 +114,32 @@ const StockSettlement = () => {
     const load = async () => {
       setLoading(true);
       try {
-        const { data: variants, error } = await supabase
-          .from("product_variants")
-          .select(`
-            id, barcode, size, stock_qty, opening_qty, pur_price, sale_price,
-            products!inner(product_name, category, brand, hsn_code, uom, organization_id, default_pur_price, default_sale_price, product_type)
-          `)
-          .eq("products.organization_id", currentOrganization.id)
-          .eq("active", true)
-          .is("deleted_at", null)
-          .neq("products.product_type", "service")
-          .order("created_at", { ascending: false });
+        const allVariants: any[] = [];
+        const FETCH_PAGE = 1000;
+        let offset = 0;
+        let hasMore = true;
 
-        if (error) throw error;
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from("product_variants")
+            .select(`
+              id, barcode, size, stock_qty, opening_qty, pur_price, sale_price,
+              products!inner(product_name, category, brand, hsn_code, uom, organization_id, default_pur_price, default_sale_price, product_type, deleted_at)
+            `)
+            .eq("organization_id", currentOrganization.id)
+            .eq("active", true)
+            .is("deleted_at", null)
+            .is("products.deleted_at", null)
+            .neq("products.product_type", "service")
+            .range(offset, offset + FETCH_PAGE - 1);
 
-        const mapped: Product[] = (variants || []).map((v: any, i: number) => ({
+          if (error) throw error;
+          allVariants.push(...(data || []));
+          offset += FETCH_PAGE;
+          hasMore = (data?.length || 0) === FETCH_PAGE;
+        }
+
+        const mapped: Product[] = allVariants.map((v: any, i: number) => ({
           id: `PRD-${String(i + 1).padStart(4, "0")}`,
           name: `${v.products?.product_name || "Unknown"}${v.size ? ` - ${v.size}` : ""}`,
           department: v.products?.category || "General",
