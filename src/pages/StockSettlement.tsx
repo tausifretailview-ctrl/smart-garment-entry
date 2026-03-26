@@ -593,7 +593,7 @@ const StockSettlement = () => {
                       );
                     })}
                     {filtered.length === 0 && (
-                      <tr><td colSpan={10} style={{ textAlign: "center", padding: 40, color: C.textDim }}>No products found</td></tr>
+                      <tr><td colSpan={11} style={{ textAlign: "center", padding: 40, color: C.textDim }}>No products found</td></tr>
                     )}
                   </tbody>
                 </table>
