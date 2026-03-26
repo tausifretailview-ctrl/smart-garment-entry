@@ -1456,8 +1456,20 @@ const ProductDashboard = () => {
             {filteredRows.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p className="text-lg">No products found</p>
-                <p className="text-sm">Add your first product to get started</p>
+                {fetchError ? (
+                  <>
+                    <p className="text-lg text-destructive">Failed to load products</p>
+                    <p className="text-sm mb-3">{fetchError}</p>
+                    <Button variant="outline" size="sm" onClick={() => fetchProductVariants()}>
+                      <RefreshCw className="h-4 w-4 mr-2" /> Retry
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-lg">No products found</p>
+                    <p className="text-sm">Add your first product to get started</p>
+                  </>
+                )}
               </div>
             ) : (
                <ERPTable<ProductRow>
