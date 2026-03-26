@@ -631,11 +631,21 @@ const StockSettlement = () => {
                               {status.icon} {status.label}
                             </span>
                           </td>
+                          <td style={{ padding: "10px 14px" }}>
+                            {p.source ? (
+                              <span style={{
+                                fontSize: 10, padding: "3px 8px", borderRadius: 6, fontWeight: 600,
+                                background: p.source === "scanned" ? `${C.cyan}15` : p.source === "imported" ? `${C.yellow}15` : `${C.textDim}15`,
+                                color: p.source === "scanned" ? C.cyan : p.source === "imported" ? C.yellow : C.textDim,
+                                textTransform: "capitalize",
+                              }}>{p.source}</span>
+                            ) : <span style={{ color: C.textDim }}>—</span>}
+                          </td>
                         </tr>
                       );
                     })}
                     {filtered.length === 0 && (
-                      <tr><td colSpan={11} style={{ textAlign: "center", padding: 40, color: C.textDim }}>No products found</td></tr>
+                      <tr><td colSpan={12} style={{ textAlign: "center", padding: 40, color: C.textDim }}>No products found</td></tr>
                     )}
                   </tbody>
                 </table>
