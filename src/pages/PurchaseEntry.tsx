@@ -3076,6 +3076,9 @@ const PurchaseEntry = () => {
                             <span className="text-primary font-medium">
                               Pur: ₹{result.pur_price?.toFixed(2) || '0.00'}
                             </span>
+                            <span className="text-amber-600 dark:text-amber-400 font-bold">
+                              MRP: ₹{result.mrp?.toFixed(2) || '0.00'}
+                            </span>
                             <span className="text-green-600 dark:text-green-400 font-medium">
                               Sale: ₹{result.sale_price?.toFixed(2) || '0.00'}
                             </span>
