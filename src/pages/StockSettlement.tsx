@@ -102,7 +102,7 @@ const StockSettlement = () => {
           .from("product_variants")
           .select(`
             id, barcode, size, current_stock, opening_qty,
-            products!inner(product_name, department, brand, hsn_code, unit, organization_id)
+            products!inner(product_name, category, brand, hsn_code, uom, organization_id)
           `)
           .eq("products.organization_id", currentOrganization.id)
           .is("deleted_at", null)
@@ -114,9 +114,9 @@ const StockSettlement = () => {
         const mapped: Product[] = (variants || []).map((v: any, i: number) => ({
           id: `PRD-${String(i + 1).padStart(4, "0")}`,
           name: `${v.products?.product_name || "Unknown"}${v.size ? ` - ${v.size}` : ""}`,
-          department: v.products?.department || "General",
+          department: v.products?.category || "General",
           brand: v.products?.brand || "—",
-          unit: v.products?.unit || "Pcs",
+          unit: v.products?.uom || "Pcs",
           shop: "Main Store",
           softwareStock: Number(v.current_stock) || 0,
           actualStock: null,
