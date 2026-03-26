@@ -34,6 +34,8 @@ import { purchaseBillFields, purchaseBillSampleData, parseExcelDate, parseLocali
 import { validatePurchaseBill } from "@/lib/validations";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { ProductEntryDialog } from "@/components/ProductEntryDialog";
+import ProductEditPanel from "@/components/ProductEditPanel";
+import QuickEditPopover from "@/components/QuickEditPopover";
 import { PriceUpdateConfirmDialog } from "@/components/PriceUpdateConfirmDialog";
 import { AddSupplierDialog } from "@/components/AddSupplierDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
