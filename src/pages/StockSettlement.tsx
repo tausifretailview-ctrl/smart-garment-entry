@@ -105,6 +105,8 @@ const StockSettlement = () => {
   const [pageSize, setPageSize] = useState(50);
   const [diffPage, setDiffPage] = useState(1);
   const [diffPageSize, setDiffPageSize] = useState(50);
+  const [highlightedRow, setHighlightedRow] = useState<string | null>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
 
   // Load products from DB
   useEffect(() => {
