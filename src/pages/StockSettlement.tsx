@@ -76,7 +76,7 @@ const getDeptColor = (d: string) => deptColors[d] || "#64748b";
 const StockSettlement = () => {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
-  const [activeTab, setActiveTab] = useState<"scan" | "differences" | "settlement" | "history">("scan");
+  const [activeTab, setActiveTab] = useState<"scan" | "differences" | "settlement" | "history" | "import">("scan");
   const [products, setProducts] = useState<Product[]>([]);
   const [history, setHistory] = useState<SettlementHistory[]>([]);
   const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
