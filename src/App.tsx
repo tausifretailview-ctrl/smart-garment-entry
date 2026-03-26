@@ -459,8 +459,19 @@ const App = () => {
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="stock-settlement"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin"]}>
+                        <Layout>
+                          <StockSettlement />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
 
-                {/* Settings & Profile */}
                 <Route
                   path="settings"
                   element={
