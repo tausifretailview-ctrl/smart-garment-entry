@@ -130,6 +130,8 @@ const StockSettlement = () => {
           actualStock: null,
           scanned: false,
           barcode: v.barcode,
+          purPrice: Number(v.pur_price) || Number(v.products?.default_pur_price) || 0,
+          salePrice: Number(v.sale_price) || Number(v.products?.default_sale_price) || 0,
         }));
         setProducts(mapped);
 
