@@ -267,8 +267,20 @@ const StockSettlement = () => {
     return { label: "Shortage", color: C.red, bg: `${C.red}18`, icon: <ArrowDownCircle size={13} /> };
   };
 
+  // Handle import from file
+  const handleImportApply = useCallback((updates: { productId: string; actualQty: number }[]) => {
+    setProducts(prev => prev.map(p => {
+      const update = updates.find(u => u.productId === p.id);
+      if (!update) return p;
+      return { ...p, actualStock: update.actualQty, scanned: true };
+    }));
+    toast({ title: "Import Applied", description: `${updates.length} products updated with imported quantities` });
+    setActiveTab("scan");
+  }, [toast]);
+
   const tabs = [
     { key: "scan" as const, label: "Stock Scan", icon: <ScanBarcode size={16} /> },
+    { key: "import" as const, label: "Import File", icon: <Upload size={16} /> },
     { key: "differences" as const, label: "Differences", icon: <BarChart3 size={16} />, badge: differences.length || null },
     { key: "settlement" as const, label: "Settlement", icon: <CheckCircle2 size={16} /> },
     { key: "history" as const, label: "History", icon: <Clock size={16} /> },
