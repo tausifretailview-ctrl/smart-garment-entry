@@ -363,7 +363,7 @@ const ProductDashboard = () => {
     fetchProductVariants();
   }, [currentOrganization?.id, currentPage, itemsPerPage, debouncedSearch, selectedCategory, selectedProductType, selectedStockLevel]);
 
-  const fetchProductVariants = async () => {
+  const fetchProductVariants = async (retryCount = 0) => {
     if (!currentOrganization?.id) return;
     if (productRows.length === 0) {
       setLoading(true);
