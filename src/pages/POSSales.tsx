@@ -1096,22 +1096,34 @@ export default function POSSales() {
       // Await stock check before adding - prevents out-of-stock items from being added
       await addItemToCart(foundProduct, foundVariant);
     } else {
-      // Barcode not found in cached (in-stock) data — check DB for zero-stock match
+      // Barcode not found in cached data — check DB directly (handles cache misses & zero-stock)
       if (currentOrganization?.id) {
-        const { data: zeroStockVariant } = await supabase
+        const { data: dbVariant } = await supabase
           .from('product_variants')
-          .select('id, barcode, size, color, stock_qty, sale_price, mrp, product_id, products!inner(id, product_name, brand, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value)')
+          .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status)')
           .eq('products.organization_id', currentOrganization.id)
           .eq('barcode', searchTerm)
           .is('deleted_at', null)
+          .is('products.deleted_at', null)
+          .eq('products.status', 'active')
           .maybeSingle();
 
-        if (zeroStockVariant && (zeroStockVariant as any).products) {
-          const prod = (zeroStockVariant as any).products;
+        if (dbVariant && (dbVariant as any).products) {
+          const prod = (dbVariant as any).products;
+          const stockQty = dbVariant.stock_qty || 0;
+          
+          // If product has stock, add it to cart directly (cache miss recovery)
+          if (stockQty > 0) {
+            setSearchInput("");
+            await addItemToCart(prod, dbVariant);
+            return;
+          }
+          
+          // Zero stock — show out-of-stock dialog
           setSearchInput("");
           playErrorBeep();
           setOutOfStockProduct({ productId: prod.id, productName: prod.product_name });
-          setStockNotAvailableMessage(`${prod.product_name} (Size: ${zeroStockVariant.size}) — Stock: ${zeroStockVariant.stock_qty || 0}`);
+          setStockNotAvailableMessage(`${prod.product_name} (Size: ${dbVariant.size}) — Stock: ${stockQty}`);
           setShowStockNotAvailableDialog(true);
           return;
         }
