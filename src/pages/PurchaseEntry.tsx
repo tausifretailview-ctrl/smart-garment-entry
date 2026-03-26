@@ -2670,6 +2670,7 @@ const PurchaseEntry = () => {
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-sm font-bold text-primary">₹{result.pur_price?.toFixed(2) || '0.00'}</p>
+                        <p className="text-[12px] font-bold text-amber-600 dark:text-amber-400">MRP: ₹{result.mrp?.toFixed(2) || '0.00'}</p>
                         <p className="text-[11px] text-muted-foreground">Sale: ₹{result.sale_price?.toFixed(2) || '0.00'}</p>
                       </div>
                     </div>
