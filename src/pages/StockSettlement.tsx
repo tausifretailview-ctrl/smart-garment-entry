@@ -111,11 +111,13 @@ const StockSettlement = () => {
         const { data: variants, error } = await supabase
           .from("product_variants")
           .select(`
-            id, barcode, size, current_stock, opening_qty, pur_price, sale_price,
-            products!inner(product_name, category, brand, hsn_code, uom, organization_id, default_pur_price, default_sale_price)
+            id, barcode, size, stock_qty, opening_qty, pur_price, sale_price,
+            products!inner(product_name, category, brand, hsn_code, uom, organization_id, default_pur_price, default_sale_price, product_type)
           `)
           .eq("products.organization_id", currentOrganization.id)
+          .eq("active", true)
           .is("deleted_at", null)
+          .neq("products.product_type", "service")
           .order("created_at", { ascending: false });
 
         if (error) throw error;
@@ -127,7 +129,7 @@ const StockSettlement = () => {
           brand: v.products?.brand || "—",
           unit: v.products?.uom || "Pcs",
           shop: "Main Store",
-          softwareStock: Number(v.current_stock) || 0,
+          softwareStock: Number(v.stock_qty) || 0,
           actualStock: null,
           scanned: false,
           barcode: v.barcode,
