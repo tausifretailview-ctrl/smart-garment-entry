@@ -202,12 +202,22 @@ const StockSettlement = () => {
   const brands = useMemo(() => [...new Set(products.map(p => p.brand))].filter(b => b !== "—"), [products]);
 
   const filtered = useMemo(() => {
-    return products.filter(p => {
-      if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !p.id.toLowerCase().includes(search.toLowerCase())) return false;
+    const list = products.filter(p => {
+      if (search) {
+        const s = search.toLowerCase();
+        if (!p.name.toLowerCase().includes(s) && !p.id.toLowerCase().includes(s) && !(p.barcode && p.barcode.toLowerCase().includes(s))) return false;
+      }
       if (shopFilter && p.shop !== shopFilter) return false;
       if (deptFilter && p.department !== deptFilter) return false;
       if (brandFilter && p.brand !== brandFilter) return false;
       return true;
+    });
+    // Sort scanned items to top, most recently scanned first
+    return [...list].sort((a, b) => {
+      if (a.scanned && !b.scanned) return -1;
+      if (!a.scanned && b.scanned) return 1;
+      if (a.scanned && b.scanned) return (b.lastScannedAt || 0) - (a.lastScannedAt || 0);
+      return 0;
     });
   }, [products, search, shopFilter, deptFilter, brandFilter]);
 
@@ -536,7 +546,35 @@ const StockSettlement = () => {
                   cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
                 }}>
                   <Download size={15} /> Export Stock
-                </button>
+                 </button>
+                 <button onClick={() => {
+                   const scannedProducts = products.filter(p => p.scanned);
+                   if (scannedProducts.length === 0) {
+                     toast({ title: "No scanned items", description: "Scan products first before exporting", variant: "destructive" });
+                     return;
+                   }
+                   const wsData: any[][] = [["Sr", "Barcode", "Product Name", "Dept", "Brand", "Unit", "Software Qty", "Actual Qty", "Difference", "Status", "Source"]];
+                   scannedProducts.forEach((p, i) => {
+                     const diff = (p.actualStock ?? 0) - p.softwareStock;
+                     const status = diff === 0 ? "Match" : diff > 0 ? "Surplus" : "Shortage";
+                     wsData.push([i + 1, p.barcode || "—", p.name, p.department, p.brand, p.unit, p.softwareStock, p.actualStock ?? 0, diff, status, p.source || "manual"]);
+                   });
+                   const totalSW = scannedProducts.reduce((s, p) => s + p.softwareStock, 0);
+                   const totalAct = scannedProducts.reduce((s, p) => s + (p.actualStock ?? 0), 0);
+                   wsData.push(["", "", "", "", "", "TOTAL", totalSW, totalAct, totalAct - totalSW, "", ""]);
+                   const ws = XLSX.utils.aoa_to_sheet(wsData);
+                   ws["!cols"] = [{ wch: 6 }, { wch: 16 }, { wch: 32 }, { wch: 15 }, { wch: 15 }, { wch: 8 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }];
+                   const wb = XLSX.utils.book_new();
+                   XLSX.utils.book_append_sheet(wb, ws, "Scanned Products");
+                   XLSX.writeFile(wb, `Scanned_Stock_${new Date().toISOString().split("T")[0]}.xlsx`);
+                   toast({ title: "Exported", description: `${scannedProducts.length} scanned products exported` });
+                 }} style={{
+                   background: C.bgCard, border: `1px solid ${C.yellow}40`, borderRadius: 10,
+                   padding: "10px 18px", color: C.yellow, fontWeight: 600, fontSize: 13, fontFamily: font,
+                   cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+                 }}>
+                   <FileSpreadsheet size={15} /> Export Scanned
+                 </button>
                 <button onClick={autoMatchAll} style={{
                   background: `linear-gradient(135deg, ${C.cyanDark}, ${C.cyan})`,
                   color: "#042f2e", fontWeight: 600, fontSize: 13, fontFamily: font,
