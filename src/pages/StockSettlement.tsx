@@ -92,6 +92,12 @@ const StockSettlement = () => {
   const [deptFilter, setDeptFilter] = useState("");
   const [brandFilter, setBrandFilter] = useState("");
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [diffPage, setDiffPage] = useState(1);
+  const [diffPageSize, setDiffPageSize] = useState(50);
+
   // Load products from DB
   useEffect(() => {
     if (!currentOrganization?.id) return;
