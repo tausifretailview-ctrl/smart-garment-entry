@@ -64,6 +64,16 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
       if (suppError) throw suppError;
       const { data: allBills, error: billsError } = await supabase.from("purchase_bills").select("supplier_id, net_amount, paid_amount").eq("organization_id", organizationId).is("deleted_at", null);
       if (billsError) throw billsError;
+
+      // Fetch credit note vouchers for suppliers to subtract from outstanding
+      const { data: creditNoteVouchers, error: cnError } = await supabase.from("voucher_entries")
+        .select("reference_id, total_amount")
+        .eq("organization_id", organizationId)
+        .eq("reference_type", "supplier")
+        .eq("voucher_type", "credit_note")
+        .is("deleted_at", null);
+      if (cnError) throw cnError;
+
       const supplierBalances = new Map<string, number>();
       allBills?.forEach((bill: any) => {
         if (bill.supplier_id) {
@@ -71,11 +81,24 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
           supplierBalances.set(bill.supplier_id, (supplierBalances.get(bill.supplier_id) || 0) + outstanding);
         }
       });
+
+      // Subtract credit note amounts from supplier balances
+      const creditNoteAmounts = new Map<string, number>();
+      creditNoteVouchers?.forEach((v: any) => {
+        if (v.reference_id) {
+          creditNoteAmounts.set(v.reference_id, (creditNoteAmounts.get(v.reference_id) || 0) + (v.total_amount || 0));
+        }
+      });
+
       return allSuppliers?.filter((s: any) => {
         const ob = s.opening_balance || 0;
         const bb = supplierBalances.get(s.id) || 0;
-        return (ob + bb) > 0;
-      }).map((s: any) => ({ ...s, outstandingBalance: (s.opening_balance || 0) + (supplierBalances.get(s.id) || 0) })) || [];
+        const cn = creditNoteAmounts.get(s.id) || 0;
+        return (ob + bb - cn) > 0;
+      }).map((s: any) => ({
+        ...s,
+        outstandingBalance: (s.opening_balance || 0) + (supplierBalances.get(s.id) || 0) - (creditNoteAmounts.get(s.id) || 0),
+      })) || [];
     },
     enabled: !!organizationId,
   });
