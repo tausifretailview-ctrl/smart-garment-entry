@@ -202,12 +202,22 @@ const StockSettlement = () => {
   const brands = useMemo(() => [...new Set(products.map(p => p.brand))].filter(b => b !== "—"), [products]);
 
   const filtered = useMemo(() => {
-    return products.filter(p => {
-      if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !p.id.toLowerCase().includes(search.toLowerCase())) return false;
+    const list = products.filter(p => {
+      if (search) {
+        const s = search.toLowerCase();
+        if (!p.name.toLowerCase().includes(s) && !p.id.toLowerCase().includes(s) && !(p.barcode && p.barcode.toLowerCase().includes(s))) return false;
+      }
       if (shopFilter && p.shop !== shopFilter) return false;
       if (deptFilter && p.department !== deptFilter) return false;
       if (brandFilter && p.brand !== brandFilter) return false;
       return true;
+    });
+    // Sort scanned items to top, most recently scanned first
+    return [...list].sort((a, b) => {
+      if (a.scanned && !b.scanned) return -1;
+      if (!a.scanned && b.scanned) return 1;
+      if (a.scanned && b.scanned) return (b.lastScannedAt || 0) - (a.lastScannedAt || 0);
+      return 0;
     });
   }, [products, search, shopFilter, deptFilter, brandFilter]);
 
