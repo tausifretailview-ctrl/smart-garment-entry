@@ -3168,6 +3168,7 @@ const PurchaseEntry = () => {
                     <TableHead className="w-[100px] text-right">DISC %</TableHead>
                     <TableHead className='w-[120px] text-right total-col'>TOTAL</TableHead>
                     <TableHead className="w-[40px]"></TableHead>
+                    <TableHead className="w-[40px]">Action</TableHead>
                   </TableRow>
                 </TableHeader>
               </Table>
