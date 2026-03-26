@@ -206,6 +206,12 @@ const StockSettlement = () => {
 
   // Differences
   const differences = useMemo(() => products.filter(p => p.scanned && p.actualStock !== null && p.actualStock !== p.softwareStock), [products]);
+  useEffect(() => { setDiffPage(1); }, [differences.length]);
+  const diffTotalPages = Math.max(1, Math.ceil(differences.length / diffPageSize));
+  const paginatedDifferences = useMemo(() => {
+    const start = (diffPage - 1) * diffPageSize;
+    return differences.slice(start, start + diffPageSize);
+  }, [differences, diffPage, diffPageSize]);
   const totalSurplus = differences.filter(p => p.actualStock! > p.softwareStock).reduce((s, p) => s + (p.actualStock! - p.softwareStock), 0);
   const totalShortage = differences.filter(p => p.actualStock! < p.softwareStock).reduce((s, p) => s + (p.softwareStock - p.actualStock!), 0);
 
