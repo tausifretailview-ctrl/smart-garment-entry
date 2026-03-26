@@ -52,11 +52,11 @@ const C = {
   bgInput: "#f1f5f9",
   border: "#e2e8f0",
   borderHover: "#cbd5e1",
-  textPrimary: "#0f172a",
-  textBody: "#1e293b",
-  textSecondary: "#334155",
-  textMuted: "#64748b",
-  textDim: "#94a3b8",
+  textPrimary: "#020617",
+  textBody: "#0f172a",
+  textSecondary: "#1e293b",
+  textMuted: "#475569",
+  textDim: "#64748b",
   cyan: "#22d3ee",
   cyanDark: "#0e7490",
   green: "#34d399",
@@ -431,7 +431,7 @@ const StockSettlement = () => {
       {/* ─── FILTER BAR ─── */}
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
-          <Search size={16} color="#94a3b8" style={{ position: "absolute", left: 14, top: 12 }} />
+          <Search size={16} color="#64748b" style={{ position: "absolute", left: 14, top: 12 }} />
           <input
             value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search product or ID..."
