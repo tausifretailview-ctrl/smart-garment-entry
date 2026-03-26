@@ -110,7 +110,17 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
       const { data: bills } = await supabase.from("purchase_bills").select("id, net_amount, paid_amount").eq("supplier_id", referenceId).is("deleted_at", null);
       const totalBills = bills?.reduce((sum, bill) => sum + (bill.net_amount || 0), 0) || 0;
       const totalPaid = bills?.reduce((sum, bill) => sum + (bill.paid_amount || 0), 0) || 0;
-      return totalBills - totalPaid;
+
+      // Subtract credit note vouchers for this supplier
+      const { data: cnVouchers } = await supabase.from("voucher_entries")
+        .select("total_amount")
+        .eq("reference_type", "supplier")
+        .eq("reference_id", referenceId)
+        .eq("voucher_type", "credit_note")
+        .is("deleted_at", null);
+      const totalCN = cnVouchers?.reduce((sum, v) => sum + (v.total_amount || 0), 0) || 0;
+
+      return totalBills - totalPaid - totalCN;
     },
     enabled: !!referenceId,
   });
