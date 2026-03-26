@@ -508,6 +508,11 @@ const StockSettlement = () => {
           </div>
         )}
 
+        {/* ═══ IMPORT FILE TAB ═══ */}
+        {activeTab === "import" && (
+          <StockImportTab products={products} onApplyImport={handleImportApply} />
+        )}
+
         {/* ═══ DIFFERENCES TAB ═══ */}
         {activeTab === "differences" && (
           <div>
