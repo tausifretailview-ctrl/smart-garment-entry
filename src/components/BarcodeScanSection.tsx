@@ -44,8 +44,8 @@ interface Props {
 const C = {
   bgRoot: "#f8fafc", bgCard: "#ffffff", bgInput: "#f1f5f9",
   border: "#e2e8f0", borderHover: "#cbd5e1",
-  textPrimary: "#0f172a", textBody: "#1e293b", textSecondary: "#334155",
-  textMuted: "#64748b", textDim: "#94a3b8",
+  textPrimary: "#020617", textBody: "#0f172a", textSecondary: "#1e293b",
+  textMuted: "#475569", textDim: "#64748b",
   cyan: "#22d3ee", cyanDark: "#0e7490",
   green: "#34d399", greenDark: "#059669",
   yellow: "#fbbf24", red: "#f87171",

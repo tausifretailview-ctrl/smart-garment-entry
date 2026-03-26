@@ -431,7 +431,7 @@ const StockSettlement = () => {
       {/* ─── FILTER BAR ─── */}
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
-          <Search size={16} color="#94a3b8" style={{ position: "absolute", left: 14, top: 12 }} />
+          <Search size={16} color="#64748b" style={{ position: "absolute", left: 14, top: 12 }} />
           <input
             value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search product or ID..."
