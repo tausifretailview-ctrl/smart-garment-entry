@@ -607,7 +607,8 @@ const StockSettlement = () => {
                   </div>
                 </div>
               )}
-            )}
+              </>
+            )
           </div>
         )}
 
