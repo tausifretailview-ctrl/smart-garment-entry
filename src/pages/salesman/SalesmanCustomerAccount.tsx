@@ -312,7 +312,7 @@ const SalesmanCustomerAccount = () => {
       `Total Sales: ₹${summary.totalSales.toLocaleString("en-IN")}\n` +
       `Total Paid: ₹${summary.totalPaid.toLocaleString("en-IN")}\n` +
       `────────────────\n` +
-      `*Outstanding: ₹${Math.abs(summary.currentBalance).toLocaleString("en-IN")}${summary.currentBalance < 0 ? " CR" : ""}*` +
+      `*Outstanding: ₹${Math.abs(authoritativeBalance).toLocaleString("en-IN")}${authoritativeBalance < 0 ? " CR" : ""}*` +
       txnList +
       `\n\nPlease clear your dues at the earliest. Thank you! 🙏`;
 
