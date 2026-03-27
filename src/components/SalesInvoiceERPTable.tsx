@@ -325,7 +325,8 @@ export function SalesInvoiceERPTable({
 
     cols.push({
       id: "actions",
-      header: "Actions",
+      header: () => <div className="text-right pr-1">Actions</div>,
+      meta: { stickyRight: true },
       cell: ({ row }) => {
         const invoice = row.original;
         if (invoice.is_cancelled) {
