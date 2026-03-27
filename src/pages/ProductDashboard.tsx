@@ -369,12 +369,73 @@ const ProductDashboard = () => {
     setCurrentPage(1);
   }, [searchQuery, selectedCategory, selectedProductType, selectedSizeGroup, selectedStockLevel, minPrice, maxPrice, itemsPerPage]);
 
-  // Fetch only current page of products with server-side filters
+  // Variant cache for lazy loading
+  const [variantCache, setVariantCache] = useState<Record<string, ProductVariant[]>>({});
+
+  const fetchVariantsForProduct = useCallback(async (productId: string) => {
+    if (variantCache[productId]) return variantCache[productId];
+    const { data, error } = await supabase
+      .from("product_variants")
+      .select("id, size, color, barcode, pur_price, sale_price, mrp, stock_qty")
+      .eq("product_id", productId)
+      .is("deleted_at", null)
+      .order("size");
+    if (error) { console.error("Variant fetch error:", error); return []; }
+    const variants: ProductVariant[] = (data || []).map((v: any) => ({
+      variant_id: v.id, size: v.size, color: v.color || "", barcode: v.barcode || "",
+      pur_price: v.pur_price, sale_price: v.sale_price, mrp: v.mrp || 0, stock_qty: v.stock_qty,
+    }));
+    setVariantCache(prev => ({ ...prev, [productId]: variants }));
+    return variants;
+  }, [variantCache]);
+
+  // Fetch only current page of products with server-side filters via RPC
   useEffect(() => {
-    fetchProductVariants();
+    fetchProducts();
   }, [currentOrganization?.id, currentPage, itemsPerPage, debouncedSearch, selectedCategory, selectedProductType, selectedStockLevel]);
 
-  const fetchProductVariants = async (retryCount = 0) => {
+  // Fetch stats separately (lightweight)
+  useEffect(() => {
+    fetchStats();
+  }, [currentOrganization?.id, debouncedSearch, selectedCategory, selectedProductType, selectedStockLevel]);
+
+  const getRpcParams = () => {
+    const term = debouncedSearch.trim() || undefined;
+    return {
+      p_org_id: currentOrganization!.id,
+      p_search: term || null,
+      p_category: selectedCategory !== "all" ? selectedCategory : null,
+      p_product_type: selectedProductType !== "all" ? selectedProductType : null,
+      p_size_group_id: null,
+      p_stock_level: selectedStockLevel !== "all" ? selectedStockLevel : null,
+      p_min_price: minPrice ? parseFloat(minPrice) : null,
+      p_max_price: maxPrice ? parseFloat(maxPrice) : null,
+    };
+  };
+
+  const fetchStats = async () => {
+    if (!currentOrganization?.id) return;
+    setStatsLoading(true);
+    try {
+      const { data, error } = await supabase.rpc("get_product_dashboard_stats", getRpcParams());
+      if (error) throw error;
+      if (data) {
+        const s = data as any;
+        setDashboardStats({
+          total_items: s.total_items || 0,
+          total_stock_qty: s.total_stock_qty || 0,
+          purchase_value: s.purchase_value || 0,
+          sale_value: s.sale_value || 0,
+        });
+      }
+    } catch (error) {
+      console.error("Stats fetch error:", error);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  const fetchProducts = async (retryCount = 0) => {
     if (!currentOrganization?.id) return;
     if (productRows.length === 0) {
       setLoading(true);
@@ -382,125 +443,40 @@ const ProductDashboard = () => {
       setIsRefetching(true);
     }
     try {
-      const offset = (currentPage - 1) * itemsPerPage;
-      
-      let query = supabase
-        .from("products")
-        .select(`
-          id,
-          product_name,
-          product_type,
-          category,
-          brand,
-          style,
-          color,
-          hsn_code,
-          image_url,
-          gst_per,
-          default_pur_price,
-          default_sale_price,
-          status,
-          product_variants!product_variants_product_id_fkey (
-            id,
-            size,
-            color,
-            barcode,
-            pur_price,
-            sale_price,
-            mrp,
-            stock_qty,
-            deleted_at
-          )
-        `)
-        .is("deleted_at", null)
-        .eq("organization_id", currentOrganization.id);
-      
-      // Server-side search
-      const term = debouncedSearch.trim();
-      const isNumericTerm = term && /^\d+$/.test(term);
-      
-      if (term && !isNumericTerm) {
-        // Text search: search product-level fields
-        query = query.or(`product_name.ilike.%${term}%,brand.ilike.%${term}%,category.ilike.%${term}%,style.ilike.%${term}%`);
-      }
-      
-      // If numeric (barcode), find matching product IDs first via barcode lookup
-      let barcodeProductIds: string[] = [];
-      if (isNumericTerm) {
-        const { data: barcodeMatches } = await supabase
-          .from("product_variants")
-          .select("product_id")
-          .eq("organization_id", currentOrganization.id)
-          .ilike("barcode", `%${term}%`);
-        barcodeProductIds = [...new Set((barcodeMatches || []).map((v: any) => v.product_id))];
-        
-        if (barcodeProductIds.length > 0) {
-          // Filter products to those matching barcode OR text fields
-          query = query.or(`id.in.(${barcodeProductIds.join(',')}),product_name.ilike.%${term}%,brand.ilike.%${term}%,category.ilike.%${term}%,style.ilike.%${term}%`);
-        } else {
-          // No barcode match, fallback to text search
-          query = query.or(`product_name.ilike.%${term}%,brand.ilike.%${term}%,category.ilike.%${term}%,style.ilike.%${term}%`);
-        }
-      }
-      
-      // Server-side filters
-      if (selectedCategory !== "all") {
-        query = query.eq("category", selectedCategory);
-      }
-      if (selectedProductType !== "all") {
-        query = query.eq("product_type", selectedProductType);
-      }
-      
-      const { data, error } = await query
-        .order("created_at", { ascending: false })
-        .order("id")
-        .range(offset, offset + itemsPerPage - 1);
-
+      const params = { ...getRpcParams(), p_page: currentPage, p_page_size: itemsPerPage };
+      const { data, error } = await supabase.rpc("get_product_catalog_page", params);
       if (error) throw error;
 
-      const rows: ProductRow[] = (data || []).map((product: any) => {
-        // Filter out deleted variants
-        const activeVariants = (product.product_variants || []).filter((v: any) => !v.deleted_at);
-        const variants: ProductVariant[] = activeVariants.map((v: any) => ({
-          variant_id: v.id,
-          size: v.size,
-          color: v.color || "",
-          barcode: v.barcode || "",
-          pur_price: v.pur_price,
-          sale_price: v.sale_price,
-          mrp: v.mrp || 0,
-          stock_qty: v.stock_qty,
-        }));
+      const rows: ProductRow[] = (data || []).map((p: any) => ({
+        product_id: p.product_id,
+        product_name: p.product_name || "",
+        product_type: p.product_type || "",
+        category: p.category || "",
+        brand: p.brand || "",
+        style: p.style || "",
+        color: p.color || "",
+        image_url: p.image_url,
+        hsn_code: p.hsn_code || "",
+        gst_per: p.gst_per || 0,
+        default_pur_price: Number(p.default_pur_price) || 0,
+        default_sale_price: Number(p.default_sale_price) || 0,
+        status: p.status || "active",
+        variants: variantCache[p.product_id] || [],
+        total_stock: Number(p.total_stock) || 0,
+        variant_count: Number(p.variant_count) || 0,
+      }));
 
-        const total_stock = variants.reduce((sum, v) => sum + v.stock_qty, 0);
-        
-        // Get unique colors from variants, or fallback to product color
-        const variantColors = [...new Set(variants.map(v => v.color).filter(Boolean))];
-        const displayColor = variantColors.length > 0 ? variantColors.join(', ') : (product.color || "");
-
-        return {
-          product_id: product.id,
-          product_name: product.product_name,
-          product_type: product.product_type || "",
-          category: product.category || "",
-          brand: product.brand || "",
-          style: product.style || "",
-          color: displayColor,
-          image_url: product.image_url,
-          hsn_code: product.hsn_code || "",
-          gst_per: product.gst_per || 0,
-          default_pur_price: product.default_pur_price || 0,
-          default_sale_price: product.default_sale_price || 0,
-          status: product.status || "active",
-          variants,
-          total_stock,
-        };
-      });
+      // Get total_count from first row (all rows carry same total_count)
+      if (data && data.length > 0) {
+        setTotalCount(Number((data as any)[0].total_count) || 0);
+      } else if (currentPage === 1) {
+        setTotalCount(0);
+      }
 
       setProductRows(rows);
       setFetchError(null);
       
-      // Extract unique categories (fetch separately for filters, only once)
+      // Extract unique categories/types for filters (only once)
       if (categories.length === 0) {
         const { data: catData } = await supabase
           .from("products")
@@ -522,13 +498,10 @@ const ProductDashboard = () => {
         const uniqueTypes = Array.from(new Set((typeData || []).map((p: any) => p.product_type).filter(Boolean))).sort();
         setProductTypes(uniqueTypes as string[]);
       }
-      setFetchError(null);
     } catch (error: any) {
       console.error("ProductDashboard fetch error:", error);
-      // Auto-retry once on first failure
       if (retryCount < 1) {
-        console.log("ProductDashboard: retrying fetch...");
-        setTimeout(() => fetchProductVariants(retryCount + 1), 1000);
+        setTimeout(() => fetchProducts(retryCount + 1), 1000);
         return;
       }
       setFetchError(error.message || "Failed to load products");
@@ -538,6 +511,13 @@ const ProductDashboard = () => {
         variant: "destructive",
       });
     } finally {
+      setLoading(false);
+      setIsRefetching(false);
+    }
+  };
+
+  // Alias for backward compatibility with context menu etc.
+  const fetchProductVariants = fetchProducts;
       setLoading(false);
       setIsRefetching(false);
     }
