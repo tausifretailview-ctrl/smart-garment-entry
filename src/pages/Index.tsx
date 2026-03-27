@@ -334,6 +334,117 @@ const DesktopDashboard = () => {
   const NewUpdatesPanel = () => {
     const updates = [
       {
+        version: "v1.4.5",
+        date: "27/03/2026",
+        changes: [
+          "Sales Dashboard: actions column sticky to right edge",
+          "Customer name single-line display in invoice table",
+          "Action icon buttons compact size (h-7 w-7)",
+          "Toolbar buttons (Comfortable/Columns/Reset) polished"
+        ]
+      },
+      {
+        version: "v1.4.4",
+        date: "27/03/2026",
+        changes: [
+          "Sales Dashboard filter bar right-side blank gap fixed",
+          "Stat cards stretch full width with truncation",
+          "Filter bar stays in single row with overflow scroll"
+        ]
+      },
+      {
+        version: "v1.4.3",
+        date: "27/03/2026",
+        changes: [
+          "Sidebar auto-hide: icon-only mode by default (44px)",
+          "Hover to expand sidebar with smooth 0.22s transition",
+          "Lock/unlock toggle button at sidebar bottom",
+          "Sidebar preference saved to localStorage"
+        ]
+      },
+      {
+        version: "v1.4.2",
+        date: "26/03/2026",
+        changes: [
+          "Purchase Bill: Auto-Focus Search Bar setting added",
+          "Size Grid Review Mode setting — check prices before adding to bill",
+          "Ctrl+A shortcut to add product to purchase bill",
+          "Both settings under Settings → Purchase tab"
+        ]
+      },
+      {
+        version: "v1.4.1",
+        date: "25/03/2026",
+        changes: [
+          "Purchase Bill: size grid review mode with editable Pur/Sale/MRP per size",
+          "Cursor position setting — auto-focus search bar on product add",
+          "After size qty entry: direct add to bill or review variant details"
+        ]
+      },
+      {
+        version: "v1.4.0",
+        date: "20/03/2026",
+        changes: [
+          "Stock Settlement module with file import support",
+          "Product Modify feature inside Purchase Bill screen",
+          "DC Purchase feature for non-GST supplier purchases"
+        ]
+      },
+      {
+        version: "v1.3.9",
+        date: "15/03/2026",
+        changes: [
+          "Barcode label printing fixes: 38×25mm and 40×25mm 2-up thermal",
+          "TSC 80mm roll label layout improvements",
+          "Label Designer settings sync via localStorage"
+        ]
+      },
+      {
+        version: "v1.3.8",
+        date: "10/03/2026",
+        changes: [
+          "Brand-wise sale report bug fixes",
+          "Size-group-based quantity entry with per-org feature flag",
+          "Org-level barcode mode: Auto Generate vs Scan/Manual"
+        ]
+      },
+      {
+        version: "v1.3.7",
+        date: "08/03/2026",
+        changes: [
+          "IST-aware Supabase date queries for accurate daily reports",
+          "Inline calculator for price fields in purchase entry",
+          "SIZE_ORDER constant for consistent size sorting"
+        ]
+      },
+      {
+        version: "v1.3.6",
+        date: "05/03/2026",
+        changes: [
+          "KS Footwear: PDF download fix on mobile devices",
+          "Customer account statement WhatsApp message fix",
+          "Payment allocation mismatch fix (Tally bill-by-bill model)"
+        ]
+      },
+      {
+        version: "v1.3.5",
+        date: "01/03/2026",
+        changes: [
+          "Purchase Discount and Sale Discount feature with Settings toggle",
+          "Discounts auto-apply in Purchase Bills, Sales, and POS",
+          "UI color system polish across all dashboards"
+        ]
+      },
+      {
+        version: "v1.3.4",
+        date: "24/02/2026",
+        changes: [
+          "Five-phase mobile app redesign — read-only owner dashboard",
+          "Mobile POS improvements and bottom navigation polish",
+          "Offline indicator for mobile ERP mode"
+        ]
+      },
+      {
         version: "v1.3.3",
         date: "18/02/2026",
         changes: [
