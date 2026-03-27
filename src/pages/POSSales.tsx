@@ -3539,44 +3539,46 @@ export default function POSSales() {
                 </div>
               </TooltipProvider>
               
-              {/* Date & Time Display */}
-              <div className="relative h-10 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-md px-3 flex flex-col items-center justify-center shadow-sm">
-                <div className="text-white font-semibold text-xs">
-                  {currentDateTime.toLocaleDateString('en-GB')}
+              {/* Date & Time Display + EMI Button Row */}
+              <div className="flex items-center gap-2">
+                <div className="relative h-10 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-md px-3 flex flex-col items-center justify-center shadow-sm">
+                  <div className="text-white font-semibold text-xs">
+                    {currentDateTime.toLocaleDateString('en-GB')}
+                  </div>
+                  <div className="text-white/80 text-[10px]">
+                    {currentDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </div>
                 </div>
-                <div className="text-white/80 text-[10px]">
-                  {currentDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-             </div>
 
-              {/* Financer / EMI Button (Mobile ERP only) */}
-              {mobileERP.enabled && mobileERP.financer_billing && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        onClick={() => setShowFinancerDialog(true)}
-                        className={`h-10 px-3 flex items-center gap-1.5 text-xs font-semibold rounded-md shadow-sm transition-all ${
-                          financerDetails?.financer_name
-                            ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white'
-                            : 'bg-muted/60 hover:bg-muted text-foreground border border-border/50'
-                        }`}
-                      >
-                        <CreditCard className="h-4 w-4" />
-                        <span className="hidden lg:inline">EMI</span>
-                        {financerDetails?.financer_name && (
-                          <Badge className="h-4 px-1 text-[9px] bg-white/20 hover:bg-white/20 text-white">
-                            {financerDetails.financer_name.split(' ')[0]}
-                          </Badge>
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Financer / EMI Details</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-          </div>
+                {/* Financer / EMI Button (Mobile ERP only) */}
+                {mobileERP.enabled && mobileERP.financer_billing && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          onClick={() => setShowFinancerDialog(true)}
+                          className={`h-10 px-3 flex items-center gap-1.5 text-xs font-semibold rounded-md shadow-sm transition-all ${
+                            financerDetails?.financer_name
+                              ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white'
+                              : 'bg-muted/60 hover:bg-muted text-foreground border border-border/50'
+                          }`}
+                        >
+                          <CreditCard className="h-4 w-4" />
+                          <span className="hidden lg:inline">EMI</span>
+                          {financerDetails?.financer_name && (
+                            <Badge className="h-4 px-1 text-[9px] bg-white/20 hover:bg-white/20 text-white">
+                              {financerDetails.financer_name.split(' ')[0]}
+                            </Badge>
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Financer / EMI Details</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
         </div>
       </div>
 
