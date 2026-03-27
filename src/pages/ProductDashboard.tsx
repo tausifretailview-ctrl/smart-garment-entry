@@ -410,7 +410,7 @@ const ProductDashboard = () => {
       p_search: term || null,
       p_category: selectedCategory !== "all" ? selectedCategory : null,
       p_product_type: selectedProductType !== "all" ? selectedProductType : null,
-      p_size_group_id: null,
+      p_size_group_id: selectedSizeGroup !== "all" ? selectedSizeGroup : null,
       p_stock_level: selectedStockLevel !== "all" ? selectedStockLevel : null,
       p_min_price: minPrice ? parseFloat(minPrice) : null,
       p_max_price: maxPrice ? parseFloat(maxPrice) : null,
