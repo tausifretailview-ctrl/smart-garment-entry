@@ -563,13 +563,7 @@ const POSDashboard = () => {
       // Set print data first
       setPrintData(invoiceData);
       
-      // If using print preview, just show the dialog
-      if (showInvoicePreviewSetting) {
-        setShowPrintPreview(true);
-        return;
-      }
-      
-      // Direct print - wait for InvoiceWrapper to fully render (data + DOM + images)
+      // Wait for InvoiceWrapper to fully render (data + DOM + images) before printing
       waitForPrintReady(invoicePrintRef, () => {
         handlePrint();
       });
