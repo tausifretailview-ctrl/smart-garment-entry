@@ -1,41 +1,45 @@
 
 
-## Bug Fix: WhatsApp Outstanding Amount Mismatch
+## Fix: WhatsApp Message Status Incorrectly Marked as Failed
 
-**Problem**: WhatsApp reminder messages show incorrect "Total Outstanding" amounts because they calculate balances only from pending invoice rows, missing opening balance, balance adjustments, customer advances, and sale return credits. The actual ledger (using `useCustomerBalance`) shows ₹10,452 but WhatsApp says ₹7,793.
+### Problem
+The `send-whatsapp` edge function only recognizes the direct Meta API response format (`responseData.messages[0].id`). When using a provider/BSP that wraps the Meta API (returning `{ message: { queue_id, message_status: "queued" } }`), the success check fails and the message is marked as "failed" with "Unknown error from Meta API" — even though the message was actually delivered.
 
-**Root Cause**: Two places compute balances independently instead of using the authoritative `useCustomerBalance` hook logic:
-1. `SalesmanCustomerAccount.tsx` — `sendAllOutstandingReminder` sums only `pendingInvoices` balances
-2. `SalesmanCustomerAccount.tsx` — `summary.currentBalance` ignores adjustments, advances, sale returns
-3. `SalesmanOutstanding.tsx` — `fetchOutstanding` balance ignores adjustments, advances, sale returns
+### Solution
 
----
+**File: `supabase/functions/send-whatsapp/index.ts` (line ~1055)**
 
-### Fix 1: SalesmanCustomerAccount.tsx — Use `useCustomerBalance` hook
+Update the success detection logic to handle both response formats:
 
-- Import and call `useCustomerBalance(customerId, organizationId)` to get the authoritative balance
-- In `sendAllOutstandingReminder`, replace `pendingInvoices.reduce(...)` with the hook's `balance` value for the "Total Outstanding" line
-- In `shareStatement`, use the hook's `balance` for the "Outstanding" line
-- Update the summary card's "Outstanding" value to use the hook's balance (ensures UI matches WhatsApp message)
+1. **Direct Meta API format**: `responseData.messages?.[0]?.id` exists
+2. **BSP/provider format**: `responseData.message?.message_status === "queued"` or `responseData.message?.queue_id` exists
 
-### Fix 2: SalesmanOutstanding.tsx — Include adjustments, advances, sale returns
+```
+// Current (only handles direct Meta format):
+if (response.ok && responseData.messages?.[0]?.id) {
+  updateData.status = 'sent';
+  updateData.wamid = responseData.messages[0].id;
+} else {
+  updateData.status = 'failed';
+  ...
+}
 
-- After fetching sales and vouchers, also fetch `customer_balance_adjustments`, `customer_advances` (active/partially_used), `sale_returns`, and refund `voucher_entries` (voucher_type='payment', reference_type='customer')
-- Factor these into each customer's `totalBalance` calculation:
-  `balance = opening + invoiceBalance - obPayments + adjustments - unusedAdvances - saleReturns - refunds`
-- This ensures the Outstanding list and WhatsApp reminder from this page also show correct amounts
+// Fixed (handles both formats):
+if (response.ok && responseData.messages?.[0]?.id) {
+  updateData.status = 'sent';
+  updateData.wamid = responseData.messages[0].id;
+} else if (response.ok && responseData.message?.message_status === 'queued') {
+  updateData.status = 'sent';
+  updateData.wamid = responseData.message.queue_id || '';
+} else {
+  updateData.status = 'failed';
+  ...
+}
+```
 
-### Fix 3: SalesmanCustomerAccount summary calculation
+Also apply the same fix to the return response block (~line 1069) so it doesn't return a failure response when the BSP format indicates success.
 
-- Update `fetchCustomerData` summary to also fetch and include:
-  - `customer_balance_adjustments` (outstanding_difference sum)
-  - `customer_advances` (unused amount for active/partially_used)
-  - `sale_returns` (net_amount sum)
-  - Refund vouchers (payment type, reference_type='customer')
-- Update `currentBalance` formula to match `useCustomerBalance`:
-  `currentBalance = opening + totalSales - totalPaid + adjustments - unusedAdvances - saleReturns - refunds`
-
-### Files to modify
-1. `src/pages/salesman/SalesmanCustomerAccount.tsx` — Use `useCustomerBalance` hook for WhatsApp messages and summary
-2. `src/pages/salesman/SalesmanOutstanding.tsx` — Add missing balance components (adjustments, advances, returns, refunds)
+### Scope
+- Only `supabase/functions/send-whatsapp/index.ts` — status detection logic
+- No UI, layout, or other file changes
 
