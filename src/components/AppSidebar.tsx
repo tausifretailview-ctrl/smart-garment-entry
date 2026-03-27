@@ -1028,6 +1028,31 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroup>
         )}
+        {/* Sidebar lock toggle button */}
+        <SidebarGroup className="mt-auto pb-2">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={handleToggleLock}
+                className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] cursor-pointer opacity-60 hover:opacity-100 transition-opacity"
+                title={isLocked ? "Collapse sidebar" : "Lock sidebar open"}
+              >
+                <div className="flex items-center gap-3">
+                  {isLocked ? (
+                    <ChevronsLeft className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)] flex-shrink-0" />
+                  ) : (
+                    <ChevronsRight className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)] flex-shrink-0" />
+                  )}
+                  {open && (
+                    <span className="text-sm font-normal dark:text-white">
+                      {isLocked ? "Collapse" : "Lock open"}
+                    </span>
+                  )}
+                </div>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
       </SidebarContent>
     </Sidebar>
   );

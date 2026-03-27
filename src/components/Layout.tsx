@@ -21,7 +21,7 @@ export const Layout = ({ children }: LayoutProps) => {
 
   return (
     <ChatProvider>
-      <SidebarProvider>
+      <SidebarProvider defaultOpen={false}>
         {/* Mobile offline indicator */}
         <OfflineIndicator />
         
