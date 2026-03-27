@@ -183,8 +183,9 @@ const ProductDashboard = () => {
       {
         label: "Print Barcodes",
         icon: Barcode,
-        onClick: () => {
-          const barcodeItems = product.variants.map(variant => ({
+        onClick: async () => {
+          const variants = product.variants.length > 0 ? product.variants : await fetchVariantsForProduct(product.product_id);
+          const barcodeItems = variants.map(variant => ({
             sku_id: variant.variant_id,
             product_name: product.product_name,
             brand: product.brand || "",
