@@ -1019,7 +1019,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         .from("sales")
         .select("id, sale_number, net_amount, paid_amount, cash_amount, card_amount, upi_amount, sale_date, payment_method, payment_status, sale_return_adjust")
         .eq("customer_id", selectedCustomer.id)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .neq("payment_status", "hold");
 
       if (salesError) throw salesError;
 

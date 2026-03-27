@@ -369,6 +369,7 @@ export function CustomerHistoryDialog({
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .is('deleted_at', null)
+        .neq('payment_status', 'hold')
         .order('sale_date', { ascending: false });
       if (error) throw error;
       return data || [];
