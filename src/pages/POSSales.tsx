@@ -2417,11 +2417,11 @@ export default function POSSales() {
     }
 
     try {
-      // Trigger print using react-to-print
-      handlePrint();
-      
-      // Close dialog after initiating print
-      setShowPrintDialog(false);
+      // Wait for invoice to be fully rendered then print
+      waitForPrintReady(invoicePrintRef, () => {
+        handlePrint();
+        setShowPrintDialog(false);
+      });
     } catch (error: any) {
       console.error('Error printing invoice:', error);
       toast({
