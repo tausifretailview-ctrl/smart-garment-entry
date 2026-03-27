@@ -117,6 +117,17 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
         return sum + Math.max(0, (adv.amount || 0) - (adv.used_amount || 0));
       }, 0) || 0;
 
+      // Fetch advance refunds (refunded advances reduce unused credit)
+      const advanceIds = advances?.map(a => a.id) || [];
+      let advanceRefundTotal = 0;
+      if (advanceIds.length > 0) {
+        const { data: advRefunds } = await supabase
+          .from('advance_refunds')
+          .select('refund_amount')
+          .in('advance_id', advanceIds);
+        advanceRefundTotal = advRefunds?.reduce((s, r) => s + (r.refund_amount || 0), 0) || 0;
+      }
+
       // Fetch sale returns (credit notes) for this customer
       const { data: saleReturns, error: srError } = await supabase
         .from('sale_returns')
