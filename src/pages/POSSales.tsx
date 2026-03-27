@@ -2094,14 +2094,7 @@ export default function POSSales() {
         }
       }
       
-      toast({
-        title: wasEditing ? "Sale Updated" : "Sale Saved",
-        description: isCreditNote 
-          ? `Invoice ${result.sale_number} saved with Credit Note of ₹${paymentData.refundAmount.toFixed(2)}`
-          : isRefund 
-            ? `Invoice ${result.sale_number} ${wasEditing ? 'updated' : 'saved'} with refund of ₹${paymentData.refundAmount.toFixed(2)}`
-            : `Invoice ${result.sale_number} ${wasEditing ? 'updated' : 'saved'} with mixed payment${balanceAmount > 0 ? ` (Balance: ₹${balanceAmount.toFixed(2)})` : ''}`,
-      });
+      // Silent operation - no toast for POS save
       
       // Credit and points operations moved to after print dialog (non-blocking, see below)
       
