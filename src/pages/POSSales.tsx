@@ -80,6 +80,7 @@ import { useReactToPrint } from "react-to-print";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { DcSaleTransferDialog } from "@/components/DcSaleTransferDialog";
+import { FinancerDetailsForm, FinancerDetails, saveFinancerDetails } from "@/components/FinancerDetailsForm";
 
 interface PendingPriceSelection {
   product: any;
@@ -234,6 +235,10 @@ export default function POSSales() {
   // Quick service product dialog state
   const [showQuickServiceDialog, setShowQuickServiceDialog] = useState(false);
   const [quickServiceCode, setQuickServiceCode] = useState("");
+
+  // Financer / EMI details state (for Mobile ERP)
+  const [financerDetails, setFinancerDetails] = useState<FinancerDetails | null>(null);
+  const [showFinancerDialog, setShowFinancerDialog] = useState(false);
 
   // Out-of-stock product history dialog state
   const [showOutOfStockHistory, setShowOutOfStockHistory] = useState(false);
@@ -629,6 +634,7 @@ export default function POSSales() {
       setCurrentInvoiceNumber("");
       setSelectedSalesman("");
       setSaleNotes("");
+      setFinancerDetails(null);
       toast({
         title: "New Invoice",
         description: "Cart cleared. Ready for new sale.",
@@ -1574,8 +1580,6 @@ export default function POSSales() {
     setOnEstimatePrint(() => handleEstimatePrint);
     return () => { setOnEstimatePrint(null); };
   }, [setOnEstimatePrint, handleEstimatePrint]);
-
-
   const handleApplyCredit = (amount: number) => {
     if (!customerId) {
       toast({
@@ -1654,6 +1658,10 @@ export default function POSSales() {
       : await saveSale(saleData, forcePaymentMethod || paymentMethod);
     
     if (result) {
+      // Save financer details if provided (Mobile ERP)
+      if (mobileERP.enabled && mobileERP.financer_billing && financerDetails?.financer_name) {
+        await saveFinancerDetails(result.id, currentOrganization?.id || '', financerDetails);
+      }
       // Store invoice number for printing
       setCurrentInvoiceNumber(result.sale_number);
       
@@ -1717,6 +1725,7 @@ export default function POSSales() {
       setCurrentSaleId(null); // Reset edit mode
       setOriginalItemsForEdit([]); // Clear original items for edit
       setSaleNotes("");
+      setFinancerDetails(null);
     }
   };
 
@@ -1793,6 +1802,10 @@ export default function POSSales() {
     }
     
     if (result) {
+      // Save financer details if provided (Mobile ERP)
+      if (mobileERP.enabled && mobileERP.financer_billing && financerDetails?.financer_name) {
+        await saveFinancerDetails(result.id, currentOrganization?.id || '', financerDetails);
+      }
       // Store invoice number and sale ID for printing
       setCurrentInvoiceNumber(result.sale_number);
       const wasEditing = !!currentSaleId;
@@ -1846,6 +1859,7 @@ export default function POSSales() {
       setOriginalItemsForEdit([]);
       setSelectedSalesman("");
       setSaleNotes("");
+      setFinancerDetails(null);
       setIsHeldSale(false);
       setPointsToRedeem(0);
       
@@ -1969,6 +1983,10 @@ export default function POSSales() {
       : await saveSale(saleData, paymentMethodType as any, paymentData);
     
     if (result) {
+      // Save financer details if provided (Mobile ERP)
+      if (mobileERP.enabled && mobileERP.financer_billing && financerDetails?.financer_name) {
+        await saveFinancerDetails(result.id, currentOrganization?.id || '', financerDetails);
+      }
       // Store invoice number and sale ID for printing
       setCurrentInvoiceNumber(result.sale_number);
       const wasEditing = !!currentSaleId;
@@ -2051,6 +2069,7 @@ export default function POSSales() {
       setOriginalItemsForEdit([]);
       setSelectedSalesman("");
       setSaleNotes("");
+      setFinancerDetails(null);
       setIsHeldSale(false);
       setPointsToRedeem(0);
       
@@ -3527,10 +3546,39 @@ export default function POSSales() {
                 </div>
                 <div className="text-white/80 text-[10px]">
                   {currentDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-              </div>
-            </div>
+             </div>
+
+              {/* Financer / EMI Button (Mobile ERP only) */}
+              {mobileERP.enabled && mobileERP.financer_billing && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={() => setShowFinancerDialog(true)}
+                        className={`h-10 px-3 flex items-center gap-1.5 text-xs font-semibold rounded-md shadow-sm transition-all ${
+                          financerDetails?.financer_name
+                            ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white'
+                            : 'bg-muted/60 hover:bg-muted text-foreground border border-border/50'
+                        }`}
+                      >
+                        <CreditCard className="h-4 w-4" />
+                        <span className="hidden lg:inline">EMI</span>
+                        {financerDetails?.financer_name && (
+                          <Badge className="h-4 px-1 text-[9px] bg-white/20 hover:bg-white/20 text-white">
+                            {financerDetails.financer_name.split(' ')[0]}
+                          </Badge>
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Financer / EMI Details</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
           </div>
         </div>
+      </div>
 
         {/* Items Table - Scrollable Section */}
         <div className="flex-1 overflow-hidden flex flex-col px-2 md:px-4 pb-36 mt-2">
@@ -4560,6 +4608,27 @@ export default function POSSales() {
         customerName={customerName || "Walk-in"}
         dcItems={dcTransferItems}
       />
+
+      {/* Financer / EMI Floating Dialog (Mobile ERP) */}
+      <Dialog open={showFinancerDialog} onOpenChange={setShowFinancerDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Financer / EMI Details
+            </DialogTitle>
+          </DialogHeader>
+          <FinancerDetailsForm
+            value={financerDetails}
+            onChange={(details) => setFinancerDetails(details)}
+          />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => setShowFinancerDialog(false)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
