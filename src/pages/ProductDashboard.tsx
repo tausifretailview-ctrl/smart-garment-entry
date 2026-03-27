@@ -811,52 +811,12 @@ const ProductDashboard = () => {
     maxPrice !== "" ||
     searchQuery !== "";
 
-  // Client-side filters for fields not handled server-side (stock level, price range, barcode)
-  const filteredRows = productRows.filter((row) => {
-    // Barcode search (server doesn't search variants)
-    if (debouncedSearch.trim()) {
-      const searchLower = debouncedSearch.toLowerCase();
-      const matchesBarcodeSearch = row.variants.some(variant => 
-        variant.barcode?.toLowerCase().includes(searchLower)
-      );
-      // If server didn't match (no basic field match), check barcode
-      const matchesBasicSearch = 
-        row.product_name.toLowerCase().includes(searchLower) ||
-        row.brand?.toLowerCase().includes(searchLower) ||
-        row.category?.toLowerCase().includes(searchLower) ||
-        row.color?.toLowerCase().includes(searchLower) ||
-        row.style?.toLowerCase().includes(searchLower);
-      if (!matchesBasicSearch && !matchesBarcodeSearch) return false;
-    }
+  // Server-side handles all filtering now; just use productRows directly
+  const filteredRows = productRows;
 
-    // Stock level filter (client-side)
-    if (selectedStockLevel !== "all") {
-      if (selectedStockLevel === "out_of_stock" && row.total_stock > 0) return false;
-      if (selectedStockLevel === "low_stock" && (row.total_stock === 0 || row.total_stock > 10)) return false;
-      if (selectedStockLevel === "in_stock" && row.total_stock <= 0) return false;
-    }
-
-    // Price range filter
-    const min = minPrice ? parseFloat(minPrice) : null;
-    const max = maxPrice ? parseFloat(maxPrice) : null;
-    
-    if (min !== null || max !== null) {
-      const hasVariantInRange = row.variants.some(v => {
-        const price = v.sale_price;
-        if (min !== null && price < min) return false;
-        if (max !== null && price > max) return false;
-        return true;
-      });
-      if (!hasVariantInRange) return false;
-    }
-
-    return true;
-  });
-
-  // Data is already paginated server-side, so paginatedRows = filteredRows
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / itemsPerPage) || 1);
-  const startIndex = 0;
-  const endIndex = filteredRows.length;
+  // Pagination is server-side; totalCount from RPC
+  const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
+  const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedRows = filteredRows;
 
   // ---- ERPTable columns ----
