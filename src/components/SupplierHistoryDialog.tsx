@@ -134,7 +134,6 @@ export const SupplierHistoryDialog = ({
   // Calculate totals matching ledger logic
   const openingBalance = supplier?.opening_balance || 0;
   const totalPurchases = purchaseBills?.reduce((sum, bill) => sum + (bill.net_amount || 0), 0) || 0;
-  const totalReturns = purchaseReturns?.reduce((sum, ret) => sum + (ret.net_amount || 0), 0) || 0;
   const totalCreditNoteAdjust = creditNotes?.reduce((sum, cn) => sum + (Number(cn.total_amount) || 0), 0) || 0;
 
   // Use only voucher payments as the authoritative paid amount.
@@ -150,9 +149,8 @@ export const SupplierHistoryDialog = ({
     ? voucherPaymentTotal 
     : totalPaidOnBills;
 
-  // Returns reduce what we owe the supplier (credit to us)
-  const currentBalance = openingBalance + totalPurchases 
-    - totalReturns - totalPaid - totalCreditNoteAdjust;
+  // Credit notes already represent returns — no separate totalReturns subtraction
+  const currentBalance = openingBalance + totalPurchases - totalPaid - totalCreditNoteAdjust;
 
   const getPaymentStatusBadge = (status: string | null | undefined) => {
     switch (status) {
@@ -209,9 +207,9 @@ export const SupplierHistoryDialog = ({
             </Card>
             <Card className="border-l-4 border-l-orange-500 shadow-sm">
               <CardContent className="p-2.5">
-                <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">Returns</p>
+                <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">Credit Notes</p>
                 <p className="text-sm font-bold text-orange-600 tabular-nums mt-0.5">
-                  ₹{totalReturns.toLocaleString('en-IN')}
+                  ₹{totalCreditNoteAdjust.toLocaleString('en-IN')}
                 </p>
               </CardContent>
             </Card>

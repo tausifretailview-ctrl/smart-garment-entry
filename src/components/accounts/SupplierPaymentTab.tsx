@@ -109,7 +109,30 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
     queryFn: async () => {
       const { data: bills } = await supabase.from("purchase_bills").select("id, net_amount, paid_amount").eq("supplier_id", referenceId).is("deleted_at", null);
       const totalBills = bills?.reduce((sum, bill) => sum + (bill.net_amount || 0), 0) || 0;
-      const totalPaid = bills?.reduce((sum, bill) => sum + (bill.paid_amount || 0), 0) || 0;
+      const totalPaidOnBills = bills?.reduce((sum, bill) => sum + (bill.paid_amount || 0), 0) || 0;
+
+      // Fetch voucher payments for this supplier
+      const { data: voucherPmts } = await supabase.from("voucher_entries")
+        .select("total_amount")
+        .eq("reference_type", "supplier")
+        .eq("reference_id", referenceId)
+        .or("voucher_type.eq.payment,voucher_type.eq.PAYMENT")
+        .is("deleted_at", null);
+      const totalVoucherPaid = voucherPmts?.reduce((s, v) => s + (Number(v.total_amount) || 0), 0) || 0;
+
+      // Also fetch bill-linked voucher payments
+      const billIds = bills?.map(b => b.id) || [];
+      let billLinkedVoucherPaid = 0;
+      if (billIds.length > 0) {
+        const { data: billVouchers } = await supabase.from("voucher_entries")
+          .select("total_amount")
+          .in("reference_id", billIds)
+          .or("voucher_type.eq.payment,voucher_type.eq.PAYMENT")
+          .is("deleted_at", null);
+        billLinkedVoucherPaid = billVouchers?.reduce((s, v) => s + (Number(v.total_amount) || 0), 0) || 0;
+      }
+      const totalVoucherAll = totalVoucherPaid + billLinkedVoucherPaid;
+      const totalPaid = Math.max(totalPaidOnBills, totalVoucherAll);
 
       // Subtract credit note vouchers for this supplier
       const { data: cnVouchers } = await supabase.from("voucher_entries")
@@ -233,13 +256,55 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
   // Delete supplier payment
   const deletePayment = useMutation({
     mutationFn: async (voucher: any) => {
-      // Reverse bill paid_amount if linked
+      const voucherAmount = Number(voucher.total_amount) || 0;
+
+      // Reverse bill paid_amount if this voucher is linked to specific bills
       if (voucher.reference_type === "supplier" && voucher.reference_id) {
-        // Try to find bills that were paid by this voucher and reverse
-        const desc = voucher.description || "";
-        const billMatch = desc.match(/Bills?:\s*(.+?)(?:\s*\||$)/i);
-        // For simplicity, just soft-delete the voucher
+        // Check if reference_id is a bill ID (not a supplier ID)
+        const { data: linkedBill } = await supabase
+          .from("purchase_bills")
+          .select("id, paid_amount, net_amount")
+          .eq("id", voucher.reference_id)
+          .is("deleted_at", null)
+          .maybeSingle();
+
+        if (linkedBill) {
+          // Direct bill-linked payment — reverse on that single bill
+          const newPaid = Math.max(0, (linkedBill.paid_amount || 0) - voucherAmount);
+          const newStatus = newPaid >= (linkedBill.net_amount || 0) ? 'paid' : newPaid > 0 ? 'partial' : 'unpaid';
+          await supabase.from("purchase_bills").update({ paid_amount: newPaid, payment_status: newStatus }).eq("id", linkedBill.id);
+        } else {
+          // Supplier-level payment — try to find bills from description
+          const desc = voucher.description || "";
+          const billMatch = desc.match(/Bills?:\s*(.+?)(?:\s*\||$)/i);
+          if (billMatch) {
+            const billRefs = billMatch[1].split(",").map((s: string) => s.trim()).filter(Boolean);
+            if (billRefs.length > 0) {
+              // Find matching bills by invoice number
+              const { data: matchedBills } = await supabase
+                .from("purchase_bills")
+                .select("id, paid_amount, net_amount, supplier_invoice_no, software_bill_no")
+                .eq("supplier_id", voucher.reference_id)
+                .is("deleted_at", null);
+
+              let remaining = voucherAmount;
+              for (const bill of (matchedBills || [])) {
+                if (remaining <= 0) break;
+                const billRef = bill.supplier_invoice_no || bill.software_bill_no || bill.id.slice(0, 8);
+                if (billRefs.includes(billRef)) {
+                  const amountToReverse = Math.min(remaining, bill.paid_amount || 0);
+                  const newPaid = Math.max(0, (bill.paid_amount || 0) - amountToReverse);
+                  const newStatus = newPaid >= (bill.net_amount || 0) ? 'paid' : newPaid > 0 ? 'partial' : 'unpaid';
+                  await supabase.from("purchase_bills").update({ paid_amount: newPaid, payment_status: newStatus }).eq("id", bill.id);
+                  remaining -= amountToReverse;
+                }
+              }
+            }
+          }
+        }
       }
+
+      // Soft-delete the voucher
       const { error } = await supabase.from("voucher_entries").update({ deleted_at: new Date().toISOString() }).eq("id", voucher.id);
       if (error) throw error;
     },

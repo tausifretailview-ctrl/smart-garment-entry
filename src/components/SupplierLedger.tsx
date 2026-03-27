@@ -115,8 +115,23 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
         const totalPurchases = supplierBills.reduce((sum: number, b: any) => sum + (b.net_amount || 0), 0);
         const totalPaidOnBills = supplierBills.reduce((sum: number, b: any) => sum + (b.paid_amount || 0), 0);
         const voucherPaymentTotal = supplierVoucherPayments.get(supplier.id) || 0;
-        // Use Math.max to avoid double-counting (same fix as customer side)
-        const totalPaid = Math.max(totalPaidOnBills, voucherPaymentTotal);
+        // Per-bill voucher logic: for each bill, use voucher total if available, else bill.paid_amount
+        const supplierBillIds = supplierBills.map((b: any) => b.id);
+        // Build per-bill voucher payment map
+        const perBillVoucherMap = new Map<string, number>();
+        voucherPayments?.forEach((v: any) => {
+          if (supplierBillIds.includes(v.reference_id)) {
+            perBillVoucherMap.set(v.reference_id, (perBillVoucherMap.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
+          }
+        });
+        // For each bill: use voucher payments if any, else fall back to bill.paid_amount
+        const totalPaidFromBills = supplierBills.reduce((sum: number, b: any) => {
+          const voucherPaid = perBillVoucherMap.get(b.id) || 0;
+          return sum + (voucherPaid > 0 ? voucherPaid : (b.paid_amount || 0));
+        }, 0);
+        // Add supplier-level voucher payments (reference_id = supplier.id, not a bill id)
+        const supplierLevelPayments = voucherPayments?.filter((v: any) => v.reference_id === supplier.id).reduce((sum: number, v: any) => sum + (Number(v.total_amount) || 0), 0) || 0;
+        const totalPaid = totalPaidFromBills + supplierLevelPayments;
         const totalCreditNotes = supplierCreditNotes.get(supplier.id) || 0;
         const openingBalance = supplier.opening_balance || 0;
         // Balance = Opening Balance + Total Purchases - Total Paid - Credit Notes
@@ -270,7 +285,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
           reference: 'Opening',
           description: 'Opening Balance (Carried Forward)',
           debit: 0,
-          credit: openingBalance > 0 ? openingBalance : 0,
+          credit: openingBalance,  // Supplier opening balance is a liability (credit)
           balance: runningBalance,
         });
       }
