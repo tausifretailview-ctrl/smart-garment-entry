@@ -563,16 +563,16 @@ const POSDashboard = () => {
       // Set print data first
       setPrintData(invoiceData);
       
-      // Wait for React to render the InvoiceWrapper with new data
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // If using print preview, just show the dialog
+      if (showInvoicePreviewSetting) {
+        setShowPrintPreview(true);
+        return;
+      }
       
-      // Request animation frame to ensure DOM is painted
-      await new Promise(resolve => requestAnimationFrame(resolve));
-      
-      // Additional delay for complex rendering
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
-      handlePrint();
+      // Direct print - wait for InvoiceWrapper to fully render (data + DOM + images)
+      waitForPrintReady(invoicePrintRef, () => {
+        handlePrint();
+      });
       
       toast({
         title: "Printing Invoice",
