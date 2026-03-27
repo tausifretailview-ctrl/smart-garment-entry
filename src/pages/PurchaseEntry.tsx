@@ -41,6 +41,7 @@ import { AddSupplierDialog } from "@/components/AddSupplierDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { checkBarcodeExists } from "@/utils/barcodeValidation";
+import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 
 interface PriceChange {
   sku_id: string;
@@ -193,6 +194,10 @@ const PurchaseEntry = () => {
 
   // DC Purchase (Direct Cash / No GST) state
   const [isDcPurchase, setIsDcPurchase] = useState(false);
+
+  // IMEI Scan Dialog state (Mobile ERP mode)
+  const [showIMEIScanDialog, setShowIMEIScanDialog] = useState(false);
+  const [imeiScanItem, setImeiScanItem] = useState<{ tempId: string; qty: number; item: LineItem } | null>(null);
 
   const [billData, setBillData] = useState({
     supplier_id: "",
@@ -1547,6 +1552,16 @@ const PurchaseEntry = () => {
   };
 
   const updateLineItem = (temp_id: string, field: keyof LineItem, value: any) => {
+    // Mobile ERP mode: when qty changes to > 1, open IMEI scan dialog
+    if (isMobileERPMode && field === "qty" && Number(value) > 1) {
+      const item = lineItems.find(i => i.temp_id === temp_id);
+      if (item) {
+        setImeiScanItem({ tempId: temp_id, qty: Number(value), item });
+        setShowIMEIScanDialog(true);
+        return; // Don't update qty yet - wait for IMEI dialog
+      }
+    }
+
     setLineItems((items) =>
       items.map((item) => {
         if (item.temp_id === temp_id) {
@@ -1561,6 +1576,44 @@ const PurchaseEntry = () => {
         return item;
       })
     );
+  };
+
+  // Handle IMEI scan confirmation - split single row into multiple rows with individual IMEIs
+  const handleIMEIScanConfirm = (imeiNumbers: string[]) => {
+    if (!imeiScanItem) return;
+    const { tempId, item } = imeiScanItem;
+
+    setLineItems(prev => {
+      // Remove the original row
+      const filtered = prev.filter(i => i.temp_id !== tempId);
+      // Find insertion index (where original was)
+      const originalIndex = prev.findIndex(i => i.temp_id === tempId);
+      
+      // Create individual rows for each IMEI
+      const newRows: LineItem[] = imeiNumbers.map((imei, idx) => {
+        const subTotal = 1 * item.pur_price;
+        const discountAmount = subTotal * (item.discount_percent / 100);
+        return {
+          ...item,
+          temp_id: Date.now().toString() + Math.random() + idx,
+          qty: 1,
+          barcode: imei,
+          line_total: subTotal - discountAmount,
+        };
+      });
+
+      // Insert at original position
+      filtered.splice(originalIndex >= 0 ? originalIndex : filtered.length, 0, ...newRows);
+      return filtered;
+    });
+
+    setShowIMEIScanDialog(false);
+    setImeiScanItem(null);
+
+    toast({
+      title: "IMEI Numbers Added",
+      description: `${imeiNumbers.length} items added with individual IMEI numbers`,
+    });
   };
 
   const removeLineItem = (temp_id: string) => {
@@ -2778,6 +2831,17 @@ const PurchaseEntry = () => {
         <PriceUpdateConfirmDialog open={showPriceUpdateDialog} onOpenChange={setShowPriceUpdateDialog} priceChanges={detectedPriceChanges} onConfirm={handlePriceUpdateConfirm} onSkip={handlePriceUpdateSkip} />
         <AddSupplierDialog open={showAddSupplierDialog} onClose={() => setShowAddSupplierDialog(false)} onSupplierCreated={(supplier) => { refetchSuppliers(); setBillData((prev) => ({ ...prev, supplier_id: supplier.id, supplier_name: supplier.supplier_name })); }} />
         <SizeGridDialog open={showSizeGrid} onClose={() => setShowSizeGrid(false)} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} />
+        {isMobileERPMode && (
+          <IMEIScanDialog
+            open={showIMEIScanDialog}
+            onClose={() => { setShowIMEIScanDialog(false); setImeiScanItem(null); }}
+            quantity={imeiScanItem?.qty || 2}
+            productName={imeiScanItem?.item ? formatProductDescription(imeiScanItem.item) : ''}
+            onConfirm={handleIMEIScanConfirm}
+            minLength={mobileERPSettings?.imei_min_length}
+            maxLength={mobileERPSettings?.imei_max_length}
+          />
+        )}
       </div>
     );
   }
