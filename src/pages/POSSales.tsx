@@ -3837,6 +3837,14 @@ export default function POSSales() {
               <div className="text-[9px] text-white/60 uppercase tracking-wider font-medium">Qty</div>
             </div>
             
+            <div className="w-px h-8 bg-white/20 shrink-0" />
+            
+            {/* MRP Total */}
+            <div className="text-center px-3">
+              <div className="text-sm font-bold leading-tight">₹{Math.round(totals.mrp).toLocaleString('en-IN')}</div>
+              <div className="text-[9px] text-white/60 uppercase font-medium">MRP Total</div>
+            </div>
+            
             {/* Savings */}
             {(totals.mrp > totals.subtotal || totals.savings > 0) && (
               <>
