@@ -134,7 +134,6 @@ export const SupplierHistoryDialog = ({
   // Calculate totals matching ledger logic
   const openingBalance = supplier?.opening_balance || 0;
   const totalPurchases = purchaseBills?.reduce((sum, bill) => sum + (bill.net_amount || 0), 0) || 0;
-  const totalReturns = purchaseReturns?.reduce((sum, ret) => sum + (ret.net_amount || 0), 0) || 0;
   const totalCreditNoteAdjust = creditNotes?.reduce((sum, cn) => sum + (Number(cn.total_amount) || 0), 0) || 0;
 
   // Use only voucher payments as the authoritative paid amount.
