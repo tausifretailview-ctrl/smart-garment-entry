@@ -1657,6 +1657,10 @@ export default function POSSales() {
       : await saveSale(saleData, forcePaymentMethod || paymentMethod);
     
     if (result) {
+      // Save financer details if provided (Mobile ERP)
+      if (mobileERP.enabled && mobileERP.financer_billing && financerDetails?.financer_name) {
+        await saveFinancerDetails(result.id, currentOrganization?.id || '', financerDetails);
+      }
       // Store invoice number for printing
       setCurrentInvoiceNumber(result.sale_number);
       
