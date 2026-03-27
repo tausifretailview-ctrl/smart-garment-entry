@@ -781,6 +781,16 @@ export default function OrgAuth() {
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
+                    {loginAttempts > 0 && (
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        {Array.from({ length: MAX_LOGIN_ATTEMPTS }).map((_, i) => (
+                          <div key={i} className="h-1 flex-1 rounded-full" style={{ background: i < loginAttempts ? '#ef4444' : 'hsl(var(--muted))' }} />
+                        ))}
+                        <span className="text-xs text-muted-foreground ml-1">
+                          {MAX_LOGIN_ATTEMPTS - loginAttempts} attempt{MAX_LOGIN_ATTEMPTS - loginAttempts !== 1 ? 's' : ''} left
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <Button 
