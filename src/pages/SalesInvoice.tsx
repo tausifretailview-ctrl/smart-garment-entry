@@ -2277,10 +2277,10 @@ Thank you for choosing us!`;
       return;
     }
     
-    // Fallback: browser print
-    setTimeout(() => {
+    // Fallback: browser print - wait for data + DOM + images
+    waitForPrintReady(printRef, () => {
       handlePrint();
-    }, 100);
+    });
   };
 
   const handleClosePrintDialog = () => {

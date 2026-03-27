@@ -2295,10 +2295,10 @@ export default function POSSales() {
       // Show preview dialog
       setShowPrintPreview(true);
     } else {
-      // Direct print without preview
-      setTimeout(() => {
+      // Direct print without preview - wait for data + DOM + images
+      waitForPrintReady(invoicePrintRef, () => {
         handlePrint();
-      }, 100);
+      });
     }
   };
 
