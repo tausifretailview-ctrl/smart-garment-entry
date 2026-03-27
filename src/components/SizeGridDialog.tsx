@@ -51,13 +51,15 @@ interface SizeGridDialogProps {
   title?: string;
   allowCustomSizes?: boolean;
   allowAddColor?: boolean;
-  allowMultiColor?: boolean; // Show all colors at once for batch entry
+  allowMultiColor?: boolean;
   defaultPurPrice?: number;
   defaultSalePrice?: number;
   defaultMrp?: number;
   showMrp?: boolean;
   showSizePrices?: boolean;
   onColorAdded?: (color: string) => void;
+  reviewMode?: boolean;
+  showPurPrice?: boolean;
 }
 
 export function SizeGridDialog({
@@ -78,10 +80,13 @@ export function SizeGridDialog({
   showMrp = false,
   showSizePrices = true,
   onColorAdded,
+  reviewMode = false,
+  showPurPrice = false,
 }: SizeGridDialogProps) {
   const { toast } = useToast();
   const [sizeQty, setSizeQty] = useState<{ [size: string]: string }>({});
   const [sizePrices, setSizePrices] = useState<{ [variantId: string]: string }>({});
+  const [sizePurPrices, setSizePurPrices] = useState<{ [variantId: string]: string }>({});
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [customSizes, setCustomSizes] = useState<CustomSizeEntry[]>([]);
   const [showAddCustom, setShowAddCustom] = useState(false);
@@ -141,6 +146,7 @@ export function SizeGridDialog({
     if (open) {
       setSizeQty({});
       setSizePrices({});
+      setSizePurPrices({});
       setCustomSizes([]);
       setShowAddCustom(false);
       setShowAddColor(false);
@@ -374,9 +380,12 @@ export function SizeGridDialog({
                        filteredVariants.find((v) => v.size === sizeKey);
         if (variant) {
           const overridePrice = sizePrices[variant.id];
-          const updatedVariant = overridePrice && Number(overridePrice) > 0
-            ? { ...variant, sale_price: Number(overridePrice) }
-            : variant;
+          const overridePurPrice = sizePurPrices[variant.id];
+          const updatedVariant = {
+            ...variant,
+            ...(overridePrice && Number(overridePrice) > 0 ? { sale_price: Number(overridePrice) } : {}),
+            ...(overridePurPrice && Number(overridePurPrice) > 0 ? { pur_price: Number(overridePurPrice) } : {}),
+          };
           items.push({ variant: updatedVariant, qty });
         }
       }
@@ -405,16 +414,35 @@ export function SizeGridDialog({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.ctrlKey && e.key === "a") {
+      e.preventDefault();
+      handleConfirm();
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey && !showAddCustom && !showAddColor) {
       e.preventDefault();
       handleConfirm();
     }
   };
 
+  // Global Ctrl+A shortcut while dialog is open
+  useEffect(() => {
+    if (!open) return;
+    const handleGlobalKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === "a") {
+        e.preventDefault();
+        handleConfirm();
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKey);
+    return () => window.removeEventListener("keydown", handleGlobalKey);
+  }, [open, sizeQty, sizePrices, sizePurPrices, customSizes]);
+
   const handleColorSelect = (color: string) => {
     setSelectedColor(color);
     setSizeQty({});
     setSizePrices({});
+    setSizePurPrices({});
     setCustomSizes([]);
   };
 
@@ -912,6 +940,20 @@ export function SizeGridDialog({
                             placeholder="Price"
                             title="Sale Price"
                           />
+                         )}
+                        {(reviewMode || showPurPrice) && (
+                          <input
+                            type="number"
+                            min="0"
+                            tabIndex={-1}
+                            className="w-16 text-center border rounded p-1 text-xs bg-background border-orange-300"
+                            value={sizePurPrices[v.id] ?? (v.pur_price || "")}
+                            onChange={(e) =>
+                              setSizePurPrices({ ...sizePurPrices, [v.id]: e.target.value })
+                            }
+                            placeholder="Pur₹"
+                            title="Purchase Price"
+                          />
                         )}
                       </div>
                     ))}
@@ -1081,13 +1123,13 @@ export function SizeGridDialog({
         {/* Multi-color mode confirm button */}
           {allowMultiColor && hasMultipleColors && totalQty > 0 && (
             <Button onClick={handleConfirm}>
-              Confirm (Enter)
+              {reviewMode ? "Add to Bill (Ctrl+A / Enter)" : "Confirm (Enter)"}
             </Button>
           )}
           {/* Single-color mode confirm button - show when in single-color mode (either disabled multi-color OR single-color product) */}
           {(!allowMultiColor || !hasMultipleColors) && (selectedColor || !hasMultipleColors) && (filteredVariants.length > 0 || customSizes.length > 0) && (
             <Button onClick={handleConfirm}>
-              Confirm (Enter)
+              {reviewMode ? "Add to Bill (Ctrl+A / Enter)" : "Confirm (Enter)"}
             </Button>
           )}
         </div>
