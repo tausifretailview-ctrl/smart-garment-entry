@@ -143,10 +143,7 @@ export default function PurchaseOrderEntry() {
     setTermsConditions(data.termsConditions || "");
     setNotes(data.notes || "");
     setTaxType(data.taxType || "exclusive");
-    toast({
-      title: "Draft Loaded",
-      description: "Your previous work has been restored",
-    });
+    // Silent restore - no toast to avoid disturbing user
   }, [toast]);
 
   // Check for draft on mount

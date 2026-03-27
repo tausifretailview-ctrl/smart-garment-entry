@@ -282,10 +282,7 @@ export default function POSSales() {
           );
           const timeDiff = Date.now() - (parsed.savedAt || 0);
           if (timeDiff < 4 * 60 * 60 * 1000) {
-            toast({
-              title: "🛒 Cart Restored",
-              description: `${parsed.items.length} item${parsed.items.length > 1 ? 's' : ''} · ${totalQty} qty restored from previous session`,
-            });
+            // Silent restore - no toast to avoid disturbing user
           } else {
             localStorage.removeItem(key);
             setItems([]);
