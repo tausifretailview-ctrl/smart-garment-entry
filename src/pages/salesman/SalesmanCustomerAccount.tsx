@@ -433,16 +433,16 @@ const SalesmanCustomerAccount = () => {
         {/* Outstanding Banner */}
         <Card className={cn(
           "border-0",
-          summary.currentBalance > 0 ? "bg-red-500/10" : "bg-green-500/10"
+          displayBalance > 0 ? "bg-red-500/10" : "bg-green-500/10"
         )}>
           <CardContent className="p-4 text-center">
             <p className="text-sm text-muted-foreground mb-1">Outstanding Balance</p>
             <p className={cn(
               "text-3xl font-bold",
-              summary.currentBalance > 0 ? "text-red-600" : "text-green-600"
+              displayBalance > 0 ? "text-red-600" : "text-green-600"
             )}>
-              ₹{Math.abs(summary.currentBalance).toLocaleString("en-IN")}
-              {summary.currentBalance < 0 && " CR"}
+              ₹{Math.abs(displayBalance).toLocaleString("en-IN")}
+              {displayBalance < 0 && " CR"}
             </p>
           </CardContent>
         </Card>
