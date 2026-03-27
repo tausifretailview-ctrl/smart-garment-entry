@@ -1760,10 +1760,7 @@ export default function POSSales() {
       setCurrentInvoiceIndex(0);
       setCurrentSaleId(result.id);
       
-      toast({
-        title: currentSaleId ? "Sale Updated" : "Sale Saved",
-        description: `Invoice ${result.sale_number} ${currentSaleId ? 'updated' : 'saved'} successfully`,
-      });
+      // Silent operation - no toast for POS save
       
       // Apply credit if any
       if (creditApplied > 0 && customerId) {
