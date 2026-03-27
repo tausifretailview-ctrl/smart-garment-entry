@@ -66,6 +66,7 @@ import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
 import { MobilePeriodChips } from "@/components/mobile/MobilePeriodChips";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { cn } from "@/lib/utils";
+import { waitForPrintReady } from "@/utils/printReady";
 
 interface ColumnSettings {
   [key: string]: boolean;
