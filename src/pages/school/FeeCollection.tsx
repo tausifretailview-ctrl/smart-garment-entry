@@ -418,7 +418,7 @@ const FeeCollection = () => {
             class_name: student.school_classes?.class_name || "",
             amount: student.totalDue,
             organization_name: currentOrganization?.name || "",
-            payment_link: paymentLink,
+            payment_link: paymentLink || "Please pay at the school office",
             upi_id: upiId,
           },
         });
