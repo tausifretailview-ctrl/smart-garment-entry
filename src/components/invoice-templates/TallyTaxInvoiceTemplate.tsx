@@ -63,6 +63,13 @@ interface TallyTaxInvoiceTemplateProps {
   showBankDetails?: boolean;
   notes?: string;
   format?: string;
+  financerDetails?: {
+    financer_name: string;
+    loan_number?: string;
+    emi_amount?: number;
+    tenure?: number;
+    down_payment?: number;
+  } | null;
   [key: string]: any;
 }
 
