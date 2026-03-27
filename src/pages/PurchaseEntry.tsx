@@ -1654,6 +1654,20 @@ const PurchaseEntry = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [lineItems, showProductDialog]);
 
+  // Auto-focus search bar when ProductEntryDialog closes
+  useEffect(() => {
+    if (!showProductDialog) {
+      focusSearchBar();
+    }
+  }, [showProductDialog, focusSearchBar]);
+
+  // Auto-focus search bar on page load
+  useEffect(() => {
+    if (settings && autoFocusSearch) {
+      setTimeout(() => searchInputRef.current?.focus(), 300);
+    }
+  }, [settings, autoFocusSearch]);
+
   // Function to detect price changes between line items and product_variants
   const detectPriceChanges = async (items: LineItem[]): Promise<PriceChange[]> => {
     const changes: PriceChange[] = [];
