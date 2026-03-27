@@ -247,6 +247,43 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         }
       });
 
+      // Fetch advance refunds to reduce unused advance credit
+      const advanceIdsAll = allAdvances?.map((a: any) => a.id) || [];
+      const customerAdvanceRefunds = new Map<string, number>();
+      if (advanceIdsAll.length > 0) {
+        const { data: advRefunds } = await supabase
+          .from('advance_refunds')
+          .select('advance_id, refund_amount')
+          .in('advance_id', advanceIdsAll);
+        
+        // Map advance_id -> customer_id
+        const advToCustomer = new Map<string, string>();
+        allAdvances?.forEach((a: any) => advToCustomer.set(a.id, a.customer_id));
+        
+        advRefunds?.forEach((r: any) => {
+          const custId = advToCustomer.get(r.advance_id);
+          if (custId) {
+            customerAdvanceRefunds.set(custId, (customerAdvanceRefunds.get(custId) || 0) + (r.refund_amount || 0));
+          }
+        });
+      }
+
+      // Fetch refund payment vouchers per customer
+      const { data: refundVouchers } = await supabase
+        .from('voucher_entries')
+        .select('reference_id, total_amount')
+        .eq('organization_id', organizationId)
+        .eq('voucher_type', 'payment')
+        .eq('reference_type', 'customer')
+        .is('deleted_at', null);
+
+      const customerRefundsPaid = new Map<string, number>();
+      refundVouchers?.forEach((v: any) => {
+        if (v.reference_id) {
+          customerRefundsPaid.set(v.reference_id, (customerRefundsPaid.get(v.reference_id) || 0) + (v.total_amount || 0));
+        }
+      });
+
       // Build sale_id -> customer_id map for invoice vouchers
       const saleToCustomerMap = new Map<string, string>();
       salesData.forEach((s: any) => {
