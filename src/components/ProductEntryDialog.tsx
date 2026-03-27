@@ -213,6 +213,27 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     }
   }, [open]);
 
+  // Mobile ERP mode: auto-generate variants without needing a size group
+  useEffect(() => {
+    if (mobileERPMode?.locked_size_qty && hideOpeningQty && !formData.size_group_id) {
+      const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
+      const newVariants: ProductVariant[] = colorsToUse.map(color => ({
+        color,
+        size: "None",
+        pur_price: formData.default_pur_price ?? 0,
+        sale_price: formData.default_sale_price ?? 0,
+        mrp: formData.default_mrp ?? null,
+        barcode: "",
+        active: true,
+        opening_qty: 0,
+        purchase_qty: 1,
+      }));
+      if (isAutoBarcode) autoBarcodePending.current = true;
+      setVariants(newVariants);
+      setShowVariants(true);
+    }
+  }, [mobileERPMode?.locked_size_qty, hideOpeningQty, formData.colors, formData.size_group_id]);
+
   // Sync selectedSizes and auto-generate variants when size_group_id or colors change
   useEffect(() => {
     if (formData.size_group_id && sizeGroups.length > 0) {
