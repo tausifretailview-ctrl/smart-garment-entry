@@ -3251,63 +3251,71 @@ export default function POSSales() {
                   <CommandInput value={searchInput} onValueChange={() => {}} />
                 </div>
                 <CommandList>
-                  <CommandEmpty>No products found.</CommandEmpty>
-                  <CommandGroup heading="Products">
-                    {filteredProducts.slice(0, 10).map((item: any, index: number) => {
-                      const product = item.product;
-                      const descriptionParts = [product.product_name];
-                      if (product.category) descriptionParts.push(product.category);
-                      if (product.style) descriptionParts.push(product.style);
-                      
-                      let displayName = descriptionParts.join('-');
-                      
-                      const extraParts = [];
-                      if (product.brand) extraParts.push(product.brand);
-                      if (item.variant.color && item.variant.color !== '-') extraParts.push(item.variant.color);
-                      
-                      if (extraParts.length > 0) {
-                        displayName += ',' + extraParts.join('-');
-                      }
-                      
-                      return (
-                        <CommandItem
-                          key={`${product.id}-${item.variant.id}-${index}`}
-                          value={item.searchText}
-                          onSelect={() => {
-                            addItemToCart(product, item.variant);
-                          }}
-                          className="cursor-pointer group"
-                        >
-                           <Check className="mr-2 h-4 w-4 opacity-0" />
-                          <div className="flex flex-col flex-1">
-                            <span className="font-medium">{displayName}</span>
-                            <span className="text-sm text-foreground/70 group-data-[selected=true]:text-accent-foreground/80">
-                              Size: {item.variant.size} | 
-                              {item.variant.barcode && ` Barcode: ${item.variant.barcode} | `}
-                              Price: ₹{item.variant.sale_price} | 
-                              Stock: {item.variant.stock_qty}
-                            </span>
-                            {item.variant.batch_stock && item.variant.batch_stock.length > 0 && (
-                              <span className="text-xs text-foreground/60 group-data-[selected=true]:text-accent-foreground/70 mt-1">
-                                <span className="font-semibold">Bills: </span>
-                                {item.variant.batch_stock
-                                  .slice(0, 3)
-                                  .map((batch: any, idx: number) => (
-                                    <span key={batch.bill_number} className="font-mono">
-                                      {batch.bill_number}({batch.quantity})
-                                      {idx < Math.min(item.variant.batch_stock.length - 1, 2) ? ', ' : ''}
-                                    </span>
-                                  ))}
-                                {item.variant.batch_stock.length > 3 && (
-                                  <span> +{item.variant.batch_stock.length - 3} more</span>
-                                )}
+                  {isProductSearchLoading ? (
+                    <div className="flex items-center justify-center p-4 text-sm text-muted-foreground">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Searching products...
+                    </div>
+                  ) : filteredProducts.length === 0 ? (
+                    <div className="p-4 text-sm text-muted-foreground">No products found.</div>
+                  ) : (
+                    <CommandGroup heading="Products">
+                      {filteredProducts.slice(0, 10).map((item: any, index: number) => {
+                        const product = item.product;
+                        const descriptionParts = [product.product_name];
+                        if (product.category) descriptionParts.push(product.category);
+                        if (product.style) descriptionParts.push(product.style);
+                        
+                        let displayName = descriptionParts.join('-');
+                        
+                        const extraParts = [];
+                        if (product.brand) extraParts.push(product.brand);
+                        if (item.variant.color && item.variant.color !== '-') extraParts.push(item.variant.color);
+                        
+                        if (extraParts.length > 0) {
+                          displayName += ',' + extraParts.join('-');
+                        }
+                        
+                        return (
+                          <CommandItem
+                            key={`${product.id}-${item.variant.id}-${index}`}
+                            value={item.searchText}
+                            onSelect={() => {
+                              addItemToCart(product, item.variant);
+                            }}
+                            className="cursor-pointer group"
+                          >
+                             <Check className="mr-2 h-4 w-4 opacity-0" />
+                            <div className="flex flex-col flex-1">
+                              <span className="font-medium">{displayName}</span>
+                              <span className="text-sm text-foreground/70 group-data-[selected=true]:text-accent-foreground/80">
+                                Size: {item.variant.size} | 
+                                {item.variant.barcode && ` Barcode: ${item.variant.barcode} | `}
+                                Price: ₹{item.variant.sale_price} | 
+                                Stock: {item.variant.stock_qty}
                               </span>
-                            )}
-                          </div>
-                        </CommandItem>
-                      );
-                    })}
-                  </CommandGroup>
+                              {item.variant.batch_stock && item.variant.batch_stock.length > 0 && (
+                                <span className="text-xs text-foreground/60 group-data-[selected=true]:text-accent-foreground/70 mt-1">
+                                  <span className="font-semibold">Bills: </span>
+                                  {item.variant.batch_stock
+                                    .slice(0, 3)
+                                    .map((batch: any, idx: number) => (
+                                      <span key={batch.bill_number} className="font-mono">
+                                        {batch.bill_number}({batch.quantity})
+                                        {idx < Math.min(item.variant.batch_stock.length - 1, 2) ? ', ' : ''}
+                                      </span>
+                                    ))}
+                                  {item.variant.batch_stock.length > 3 && (
+                                    <span> +{item.variant.batch_stock.length - 3} more</span>
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  )}
                 </CommandList>
               </Command>
             </PopoverContent>
