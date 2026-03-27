@@ -332,14 +332,14 @@ const ProductDashboard = () => {
 
   const visibleColumnCount = Object.values(columnVisibility).filter(Boolean).length + 4; // +4 for expand, checkbox, sr.no, actions
 
-  // Debounced search
+  // Debounced search with proper useRef
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const searchTimerRef2 = useState<ReturnType<typeof setTimeout> | null>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   useEffect(() => {
-    if (searchTimerRef2[0]) clearTimeout(searchTimerRef2[0]);
-    searchTimerRef2[0] = setTimeout(() => setDebouncedSearch(searchQuery), 300);
-    return () => { if (searchTimerRef2[0]) clearTimeout(searchTimerRef2[0]); };
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
   }, [searchQuery]);
 
   useEffect(() => {
