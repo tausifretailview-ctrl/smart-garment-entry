@@ -1,0 +1,3 @@
+UPDATE whatsapp_api_settings 
+SET fee_receipt_template_params = '[{"field":"student_name","index":1,"label":"Student Name"},{"field":"admission_number","index":2,"label":"Admission Number"},{"field":"class_name","index":3,"label":"Class"},{"field":"organization_name","index":4,"label":"Organization Name"},{"field":"receipt_number","index":5,"label":"Receipt Number"},{"field":"date","index":6,"label":"Date"},{"field":"amount","index":7,"label":"Amount Paid"},{"field":"payment_method","index":8,"label":"Payment Method"},{"field":"fee_heads","index":9,"label":"Fee Heads"},{"field":"balance","index":10,"label":"Remaining Balance"}]'::jsonb
+WHERE organization_id = '316740b9-e571-465c-af8f-41c581ed067a';
