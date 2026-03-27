@@ -723,7 +723,7 @@ const ProductDashboard = () => {
   };
 
   const handleNextPage = () => {
-    if (productRows.length >= itemsPerPage) {
+    if (currentPage < totalPages) {
       setCurrentPage(currentPage + 1);
     }
   };
