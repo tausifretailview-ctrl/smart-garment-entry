@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +59,7 @@ const SalesmanCustomerAccount = () => {
   const { navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
   const { sendWhatsApp } = useWhatsAppSend();
+  const { balance: authoritativeBalance } = useCustomerBalance(customerId || null, currentOrganization?.id || null);
 
   const [customer, setCustomer] = useState<CustomerDetails | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -310,7 +312,7 @@ const SalesmanCustomerAccount = () => {
       `Total Sales: ₹${summary.totalSales.toLocaleString("en-IN")}\n` +
       `Total Paid: ₹${summary.totalPaid.toLocaleString("en-IN")}\n` +
       `────────────────\n` +
-      `*Outstanding: ₹${Math.abs(summary.currentBalance).toLocaleString("en-IN")}${summary.currentBalance < 0 ? " CR" : ""}*` +
+      `*Outstanding: ₹${Math.abs(authoritativeBalance).toLocaleString("en-IN")}${authoritativeBalance < 0 ? " CR" : ""}*` +
       txnList +
       `\n\nPlease clear your dues at the earliest. Thank you! 🙏`;
 
@@ -342,7 +344,7 @@ const SalesmanCustomerAccount = () => {
   const sendAllOutstandingReminder = async () => {
     if (!customer?.phone || pendingInvoices.length === 0) return;
 
-    const totalOutstanding = pendingInvoices.reduce((s, i) => s + i.balance, 0);
+    const totalOutstanding = authoritativeBalance;
     const invoiceLines = pendingInvoices
       .map(inv =>
         `• ${inv.sale_number} (${format(new Date(inv.sale_date), 'dd MMM')})` +
@@ -387,11 +389,14 @@ const SalesmanCustomerAccount = () => {
     );
   }
 
+  // Use authoritative balance from useCustomerBalance hook
+  const displayBalance = authoritativeBalance;
+
   const summaryCards = [
     { label: "Opening", value: summary.openingBalance, icon: Clock, color: "text-blue-500" },
     { label: "Total Sales", value: summary.totalSales, icon: TrendingUp, color: "text-green-500" },
     { label: "Total Paid", value: summary.totalPaid, icon: TrendingDown, color: "text-purple-500" },
-    { label: "Outstanding", value: summary.currentBalance, icon: IndianRupee, color: summary.currentBalance > 0 ? "text-red-500" : "text-green-500" },
+    { label: "Outstanding", value: displayBalance, icon: IndianRupee, color: displayBalance > 0 ? "text-red-500" : "text-green-500" },
   ];
 
   return (
@@ -428,16 +433,16 @@ const SalesmanCustomerAccount = () => {
         {/* Outstanding Banner */}
         <Card className={cn(
           "border-0",
-          summary.currentBalance > 0 ? "bg-red-500/10" : "bg-green-500/10"
+          displayBalance > 0 ? "bg-red-500/10" : "bg-green-500/10"
         )}>
           <CardContent className="p-4 text-center">
             <p className="text-sm text-muted-foreground mb-1">Outstanding Balance</p>
             <p className={cn(
               "text-3xl font-bold",
-              summary.currentBalance > 0 ? "text-red-600" : "text-green-600"
+              displayBalance > 0 ? "text-red-600" : "text-green-600"
             )}>
-              ₹{Math.abs(summary.currentBalance).toLocaleString("en-IN")}
-              {summary.currentBalance < 0 && " CR"}
+              ₹{Math.abs(displayBalance).toLocaleString("en-IN")}
+              {displayBalance < 0 && " CR"}
             </p>
           </CardContent>
         </Card>

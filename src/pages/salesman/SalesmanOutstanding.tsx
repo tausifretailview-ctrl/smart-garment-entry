@@ -69,19 +69,68 @@ const SalesmanOutstanding = () => {
 
   const fetchOutstanding = async () => {
     try {
+      const orgId = currentOrganization!.id;
       // Use same paginated fetches as Accounts page for consistency
-      const customersData = await fetchAllCustomers(currentOrganization!.id);
-      const allSales = await fetchAllSalesSummary(currentOrganization!.id);
+      const customersData = await fetchAllCustomers(orgId);
+      const allSales = await fetchAllSalesSummary(orgId);
 
-      // Fetch ALL voucher payments (paginated not needed as receipts are fewer)
+      // Fetch ALL voucher payments (receipts)
       const { data: allVouchers, error: vouchersError } = await supabase
         .from("voucher_entries")
         .select("reference_id, reference_type, total_amount")
-        .eq("organization_id", currentOrganization!.id)
+        .eq("organization_id", orgId)
         .eq("voucher_type", "receipt")
         .is("deleted_at", null);
 
       if (vouchersError) throw vouchersError;
+
+      // Fetch refund payments (voucher_type='payment', reference_type='customer')
+      const { data: refundVouchers } = await supabase
+        .from("voucher_entries")
+        .select("reference_id, total_amount")
+        .eq("organization_id", orgId)
+        .eq("voucher_type", "payment")
+        .eq("reference_type", "customer")
+        .is("deleted_at", null);
+
+      // Fetch balance adjustments
+      const { data: adjustments } = await supabase
+        .from("customer_balance_adjustments")
+        .select("customer_id, outstanding_difference")
+        .eq("organization_id", orgId);
+
+      // Fetch unused advances
+      const { data: advances } = await supabase
+        .from("customer_advances")
+        .select("customer_id, amount, used_amount")
+        .eq("organization_id", orgId)
+        .in("status", ["active", "partially_used"]);
+
+      // Fetch sale returns
+      const { data: saleReturns } = await supabase
+        .from("sale_returns")
+        .select("customer_id, net_amount")
+        .eq("organization_id", orgId)
+        .is("deleted_at", null);
+
+      // Build maps per customer for adjustments, advances, returns, refunds
+      const adjMap = new Map<string, number>();
+      (adjustments || []).forEach((a: any) => {
+        adjMap.set(a.customer_id, (adjMap.get(a.customer_id) || 0) + (a.outstanding_difference || 0));
+      });
+      const advMap = new Map<string, number>();
+      (advances || []).forEach((a: any) => {
+        const unused = Math.max(0, (a.amount || 0) - (a.used_amount || 0));
+        advMap.set(a.customer_id, (advMap.get(a.customer_id) || 0) + unused);
+      });
+      const srMap = new Map<string, number>();
+      (saleReturns || []).forEach((sr: any) => {
+        if (sr.customer_id) srMap.set(sr.customer_id, (srMap.get(sr.customer_id) || 0) + (sr.net_amount || 0));
+      });
+      const refundMap = new Map<string, number>();
+      (refundVouchers || []).forEach((v: any) => {
+        if (v.reference_id) refundMap.set(v.reference_id, (refundMap.get(v.reference_id) || 0) + (v.total_amount || 0));
+      });
 
       // Build invoice voucher payments map AND opening balance payments map
       const invoiceVoucherPayments = new Map<string, number>();
@@ -114,13 +163,17 @@ const SalesmanOutstanding = () => {
         }
       });
 
-      // Build outstanding list - includes opening balance payments
+      // Build outstanding list with full balance formula matching useCustomerBalance
       const outstandingCustomers: CustomerOutstanding[] = (customersData || [])
         .map((c: any) => {
           const openingBalance = c.opening_balance || 0;
           const invoiceBalance = customerBalances.get(c.id) || 0;
           const obPayments = openingBalancePayments.get(c.id) || 0;
-          const totalBalance = Math.round(openingBalance + invoiceBalance - obPayments);
+          const adjustment = adjMap.get(c.id) || 0;
+          const unusedAdvance = advMap.get(c.id) || 0;
+          const saleReturn = srMap.get(c.id) || 0;
+          const refunds = refundMap.get(c.id) || 0;
+          const totalBalance = Math.round(openingBalance + invoiceBalance - obPayments + adjustment - unusedAdvance - saleReturn - refunds);
           return {
             id: c.id,
             customer_name: c.customer_name,
