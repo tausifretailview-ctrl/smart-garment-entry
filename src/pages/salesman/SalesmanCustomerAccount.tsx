@@ -344,7 +344,7 @@ const SalesmanCustomerAccount = () => {
   const sendAllOutstandingReminder = async () => {
     if (!customer?.phone || pendingInvoices.length === 0) return;
 
-    const totalOutstanding = pendingInvoices.reduce((s, i) => s + i.balance, 0);
+    const totalOutstanding = authoritativeBalance;
     const invoiceLines = pendingInvoices
       .map(inv =>
         `• ${inv.sale_number} (${format(new Date(inv.sale_date), 'dd MMM')})` +
