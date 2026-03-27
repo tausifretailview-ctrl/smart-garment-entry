@@ -116,6 +116,13 @@ interface InvoiceWrapperProps {
   salesman?: string;
   notes?: string;
   isDcInvoice?: boolean;
+  financerDetails?: {
+    financer_name: string;
+    loan_number?: string;
+    emi_amount?: number;
+    tenure?: number;
+    down_payment?: number;
+  } | null;
 }
 
 export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperProps>(
@@ -349,6 +356,9 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       pointsRedeemed: props.pointsRedeemed || 0,
       pointsRedemptionValue: props.pointsRedemptionValue || 0,
       pointsBalance: props.pointsBalance || 0,
+      
+      // Financer details
+      financerDetails: props.financerDetails || null,
     };
 
     // Select template component based on settings

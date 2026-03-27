@@ -63,6 +63,13 @@ interface TallyTaxInvoiceTemplateProps {
   showBankDetails?: boolean;
   notes?: string;
   format?: string;
+  financerDetails?: {
+    financer_name: string;
+    loan_number?: string;
+    emi_amount?: number;
+    tenure?: number;
+    down_payment?: number;
+  } | null;
   [key: string]: any;
 }
 
@@ -125,6 +132,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
   cgstAmount = 0, sgstAmount = 0, igstAmount = 0, totalTax, roundOff, grandTotal,
   paymentMethod, declarationText, bankDetails, qrCodeUrl, upiId,
   showHSN = true, showGSTBreakdown = true, showBankDetails = true, notes,
+  financerDetails,
 }) => {
   const sellerState = getStateFromGSTIN(gstNumber);
   const buyerState = getStateFromGSTIN(customerGSTIN);
@@ -465,6 +473,26 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
             </div>
           </div>
         </div>
+
+        {/* Financer / EMI Details */}
+        {financerDetails?.financer_name && (
+          <div style={{ borderTop: b, padding: '4px 8px', flexShrink: 0, fontSize: '9px' }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '2px', fontSize: '10px' }}>Finance Details:</div>
+            <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+              <div><strong>Financer:</strong> {financerDetails.financer_name}</div>
+              {financerDetails.loan_number && <div><strong>Loan No:</strong> {financerDetails.loan_number}</div>}
+              {financerDetails.down_payment != null && financerDetails.down_payment > 0 && (
+                <div><strong>Down Payment:</strong> ₹{fmt(financerDetails.down_payment)}</div>
+              )}
+              {financerDetails.emi_amount != null && financerDetails.emi_amount > 0 && (
+                <div><strong>EMI Amount:</strong> ₹{fmt(financerDetails.emi_amount)}</div>
+              )}
+              {financerDetails.tenure != null && financerDetails.tenure > 0 && (
+                <div><strong>Tenure:</strong> {financerDetails.tenure} months</div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Bottom line */}
         <div style={{ borderTop: b, textAlign: 'center', padding: '2px 0', fontSize: '8px', color: '#555', flexShrink: 0 }}>
