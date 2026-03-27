@@ -95,6 +95,7 @@ interface PurchaseSettings {
   show_mrp?: boolean;
   product_entry_discount_enabled?: boolean;
   barcode_mode?: 'auto' | 'scan';
+  auto_focus_search?: boolean;
 }
 
 interface EInvoiceSettings {
