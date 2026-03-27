@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -360,32 +360,35 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
     enabled: !!currentOrganization?.id && open,
   });
 
-  // Client-side filtering for search (handles multi-term and cross-table filtering)
-  const stockData = searchQuery.length >= 1
-    ? (allProducts || []).filter((item: any) => {
-        const searchTerms = searchQuery.toLowerCase().split(/[\s-]+/).filter(Boolean);
-        const productName = (item.product?.product_name || '').toLowerCase();
-        const brand = (item.product?.brand || '').toLowerCase();
-        const variantColor = (item.color || '').toLowerCase(); // Use variant color
-        const category = (item.product?.category || '').toLowerCase();
-        const barcode = (item.barcode || '').toLowerCase();
-        const size = (item.size || '').toLowerCase();
-        
-        const combinedText = `${productName} ${brand} ${variantColor} ${category} ${barcode} ${size}`;
-        
-        // All search terms must match
-        return searchTerms.every(term => combinedText.includes(term));
-      }).slice(0, 100)
-    : [];
+  // Client-side filtering for search (memoized to avoid effect loops)
+  const stockData = useMemo(() => {
+    if (searchQuery.length < 1) return [];
+
+    return (allProducts || []).filter((item: any) => {
+      const searchTerms = searchQuery.toLowerCase().split(/[\s-]+/).filter(Boolean);
+      const productName = (item.product?.product_name || '').toLowerCase();
+      const brand = (item.product?.brand || '').toLowerCase();
+      const variantColor = (item.color || '').toLowerCase();
+      const category = (item.product?.category || '').toLowerCase();
+      const barcode = (item.barcode || '').toLowerCase();
+      const size = (item.size || '').toLowerCase();
+
+      const combinedText = `${productName} ${brand} ${variantColor} ${category} ${barcode} ${size}`;
+      return searchTerms.every(term => combinedText.includes(term));
+    }).slice(0, 100);
+  }, [allProducts, searchQuery]);
 
   // Fetch supplier names for filtered variants
   const [supplierMap, setSupplierMap] = useState<Record<string, string>>({});
   useEffect(() => {
-    if (!stockData || stockData.length === 0 || !currentOrganization?.id) {
+    if (!stockData.length || !currentOrganization?.id) {
       setSupplierMap({});
       return;
     }
+
     const variantIds = stockData.map((item: any) => item.id);
+    const variantKey = variantIds.join(',');
+
     (async () => {
       try {
         const { data } = await supabase
@@ -394,7 +397,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
           .in("sku_id", variantIds)
           .is("deleted_at", null)
           .order("created_at", { ascending: false });
-        
+
         const map: Record<string, string> = {};
         (data || []).forEach((row: any) => {
           if (row.sku_id && !map[row.sku_id]) {
@@ -402,9 +405,11 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
           }
         });
         setSupplierMap(map);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     })();
-  }, [stockData, currentOrganization?.id]);
+  }, [currentOrganization?.id, stockData.map((item: any) => item.id).join(',')]);
 
   // Total stock value
   const totalStockValue = stockData?.reduce((sum, item) => {

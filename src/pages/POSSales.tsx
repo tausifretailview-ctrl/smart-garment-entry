@@ -180,6 +180,8 @@ export default function POSSales() {
   const [isManualRoundOff, setIsManualRoundOff] = useState(false);
   const [currentInvoiceIndex, setCurrentInvoiceIndex] = useState(0);
   const [openProductSearch, setOpenProductSearch] = useState(false);
+  const [productSearchResults, setProductSearchResults] = useState<any[]>([]);
+  const [isProductSearchLoading, setIsProductSearchLoading] = useState(false);
   const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
   const [currentSaleId, setCurrentSaleId] = useState<string | null>(null);
   const [originalItemsForEdit, setOriginalItemsForEdit] = useState<Array<{ variantId: string; quantity: number }>>([]);
@@ -297,6 +299,7 @@ export default function POSSales() {
   const { recordKeystroke, reset: resetScannerDetection, detectScannerInput } = useBarcodeScanner();
   const lastInputTime = useRef<number>(0);
   const dropdownDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const productSearchSeqRef = useRef(0);
   
   // Visibility-based polling - pauses when tab is hidden
   const posRefetchInterval = useVisibilityRefetch(300000); // 5 minutes (reduced from 1 min for multi-tab perf)
@@ -1012,31 +1015,95 @@ export default function POSSales() {
     
     // For scanner input: DON'T open dropdown, wait for Enter key
     if (isScannerLike || (value.length >= 4 && timeSinceLastKeystroke < 50)) {
-      // Keep dropdown closed for scanner input
       setOpenProductSearch(false);
+      setProductSearchResults([]);
+      setIsProductSearchLoading(false);
       return;
     }
     
-    // For manual typing: debounce dropdown opening
-    // Only show dropdown for manual searches (alphabetic or slow input)
     if (value.length >= 2) {
       dropdownDebounceTimer.current = setTimeout(() => {
-        // Only open dropdown if:
-        // 1. Input contains non-numeric characters OR
-        // 2. Input is relatively short (likely partial search)
         const hasNonNumeric = /[a-zA-Z]/.test(value);
         const isShortNumeric = /^\d+$/.test(value) && value.length < 8;
-        
+
         if (hasNonNumeric || isShortNumeric) {
           setOpenProductSearch(true);
+        } else {
+          setOpenProductSearch(false);
+          setProductSearchResults([]);
         }
-      }, 300); // 300ms debounce for dropdown
+      }, 300);
     } else {
       setOpenProductSearch(false);
+      setProductSearchResults([]);
+      setIsProductSearchLoading(false);
     }
   }, [recordKeystroke, detectScannerInput]);
 
   const mobileERP = useMobileERP();
+
+  useEffect(() => {
+    const term = searchInput.trim();
+
+    if (!openProductSearch || term.length < 2 || !currentOrganization?.id) {
+      setProductSearchResults([]);
+      setIsProductSearchLoading(false);
+      return;
+    }
+
+    const requestSeq = ++productSearchSeqRef.current;
+    setIsProductSearchLoading(true);
+
+    const runSearch = async () => {
+      let query = supabase
+        .from('product_variants')
+        .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status, deleted_at)')
+        .eq('products.organization_id', currentOrganization.id)
+        .eq('products.status', 'active')
+        .eq('active', true)
+        .is('deleted_at', null)
+        .is('products.deleted_at', null)
+        .limit(20);
+
+      if (selectedProductType !== 'all') {
+        query = query.eq('products.product_type', selectedProductType);
+      }
+
+      const escapedTerm = term.replace(/[%_,]/g, '');
+      const isNumeric = /^\d+$/.test(term);
+
+      if (isNumeric) {
+        query = query.or(`barcode.eq.${escapedTerm},barcode.ilike.%${escapedTerm}%`);
+      } else {
+        query = query.or(`barcode.ilike.%${escapedTerm}%,size.ilike.%${escapedTerm}%,color.ilike.%${escapedTerm}%,products.product_name.ilike.%${escapedTerm}%,products.brand.ilike.%${escapedTerm}%,products.category.ilike.%${escapedTerm}%,products.style.ilike.%${escapedTerm}%`);
+      }
+
+      const { data, error } = await query.order('stock_qty', { ascending: false });
+      if (requestSeq !== productSearchSeqRef.current) return;
+      if (error) throw error;
+
+      const formatted = (data || [])
+        .filter((item: any) => {
+          const product = item.products;
+          return product?.product_type === 'service' || product?.product_type === 'combo' || (item.stock_qty || 0) > 0;
+        })
+        .map((item: any) => ({
+          product: item.products,
+          variant: item,
+          searchText: `${item.products?.product_name || ''} ${item.size || ''} ${item.color || ''} ${item.barcode || ''} ${item.products?.brand || ''} ${item.products?.category || ''}`.toLowerCase(),
+        }));
+
+      setProductSearchResults(formatted);
+      setIsProductSearchLoading(false);
+    };
+
+    runSearch().catch((error) => {
+      if (requestSeq !== productSearchSeqRef.current) return;
+      console.error('POS product search failed:', error);
+      setProductSearchResults([]);
+      setIsProductSearchLoading(false);
+    });
+  }, [openProductSearch, searchInput, selectedProductType, currentOrganization?.id]);
 
   const searchAndAddProduct = useCallback(async (searchTerm: string) => {
     // Quick service shortcodes (1-9) ALWAYS open the dialog, even if a product has that barcode
@@ -1155,6 +1222,8 @@ export default function POSSales() {
 
       // Clear input and show error for product not found
       setSearchInput("");
+      setProductSearchResults([]);
+      setIsProductSearchLoading(false);
       playErrorBeep();
       toast({
         title: "Product not found",
@@ -1162,7 +1231,7 @@ export default function POSSales() {
         variant: "destructive",
       });
     }
-  }, [productsData, playErrorBeep, toast, currentOrganization?.id]);
+  }, [productsData, playErrorBeep, toast, currentOrganization?.id, mobileERP]);
 
   const handleQuickServiceAdd = useCallback(({ code, quantity, mrp }: { code: string; quantity: number; mrp: number }) => {
     // Try to find actual product with matching barcode to get valid IDs
@@ -2732,24 +2801,21 @@ export default function POSSales() {
     },
   });
 
-  // Filter products based on search input — uses local cache when available
-  // Also applies selectedProductType filter
+  // Filter products for POS suggestions: prefer fast server results, fall back to local cache
   const filteredProducts = useMemo(() => {
+    if (productSearchResults.length > 0) return productSearchResults;
     if (!productsData || !searchInput.trim()) return [];
+
     const term = searchInput.toLowerCase();
-    const results = productsData.flatMap(product => {
-      // Apply product type filter
+    return productsData.flatMap(product => {
       if (selectedProductType !== 'all' && product.product_type !== selectedProductType) return [];
       return product.product_variants?.map((variant: any) => ({
         product,
         variant,
         searchText: `${product.product_name} ${variant.size} ${variant.color || ''} ${variant.barcode || ''} ${product.brand || ''} ${product.category || ''}`.toLowerCase()
-      })).filter((item: any) => 
-        item.searchText.includes(term)
-      ) || [];
+      })).filter((item: any) => item.searchText.includes(term)) || [];
     });
-    return results;
-  }, [productsData, searchInput, selectedProductType]);
+  }, [productSearchResults, productsData, searchInput, selectedProductType]);
 
   // Mobile POS Layout
   if (isMobile) {
@@ -3185,63 +3251,71 @@ export default function POSSales() {
                   <CommandInput value={searchInput} onValueChange={() => {}} />
                 </div>
                 <CommandList>
-                  <CommandEmpty>No products found.</CommandEmpty>
-                  <CommandGroup heading="Products">
-                    {filteredProducts.slice(0, 10).map((item: any, index: number) => {
-                      const product = item.product;
-                      const descriptionParts = [product.product_name];
-                      if (product.category) descriptionParts.push(product.category);
-                      if (product.style) descriptionParts.push(product.style);
-                      
-                      let displayName = descriptionParts.join('-');
-                      
-                      const extraParts = [];
-                      if (product.brand) extraParts.push(product.brand);
-                      if (item.variant.color && item.variant.color !== '-') extraParts.push(item.variant.color);
-                      
-                      if (extraParts.length > 0) {
-                        displayName += ',' + extraParts.join('-');
-                      }
-                      
-                      return (
-                        <CommandItem
-                          key={`${product.id}-${item.variant.id}-${index}`}
-                          value={item.searchText}
-                          onSelect={() => {
-                            addItemToCart(product, item.variant);
-                          }}
-                          className="cursor-pointer group"
-                        >
-                           <Check className="mr-2 h-4 w-4 opacity-0" />
-                          <div className="flex flex-col flex-1">
-                            <span className="font-medium">{displayName}</span>
-                            <span className="text-sm text-foreground/70 group-data-[selected=true]:text-accent-foreground/80">
-                              Size: {item.variant.size} | 
-                              {item.variant.barcode && ` Barcode: ${item.variant.barcode} | `}
-                              Price: ₹{item.variant.sale_price} | 
-                              Stock: {item.variant.stock_qty}
-                            </span>
-                            {item.variant.batch_stock && item.variant.batch_stock.length > 0 && (
-                              <span className="text-xs text-foreground/60 group-data-[selected=true]:text-accent-foreground/70 mt-1">
-                                <span className="font-semibold">Bills: </span>
-                                {item.variant.batch_stock
-                                  .slice(0, 3)
-                                  .map((batch: any, idx: number) => (
-                                    <span key={batch.bill_number} className="font-mono">
-                                      {batch.bill_number}({batch.quantity})
-                                      {idx < Math.min(item.variant.batch_stock.length - 1, 2) ? ', ' : ''}
-                                    </span>
-                                  ))}
-                                {item.variant.batch_stock.length > 3 && (
-                                  <span> +{item.variant.batch_stock.length - 3} more</span>
-                                )}
+                  {isProductSearchLoading ? (
+                    <div className="flex items-center justify-center p-4 text-sm text-muted-foreground">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Searching products...
+                    </div>
+                  ) : filteredProducts.length === 0 ? (
+                    <div className="p-4 text-sm text-muted-foreground">No products found.</div>
+                  ) : (
+                    <CommandGroup heading="Products">
+                      {filteredProducts.slice(0, 10).map((item: any, index: number) => {
+                        const product = item.product;
+                        const descriptionParts = [product.product_name];
+                        if (product.category) descriptionParts.push(product.category);
+                        if (product.style) descriptionParts.push(product.style);
+                        
+                        let displayName = descriptionParts.join('-');
+                        
+                        const extraParts = [];
+                        if (product.brand) extraParts.push(product.brand);
+                        if (item.variant.color && item.variant.color !== '-') extraParts.push(item.variant.color);
+                        
+                        if (extraParts.length > 0) {
+                          displayName += ',' + extraParts.join('-');
+                        }
+                        
+                        return (
+                          <CommandItem
+                            key={`${product.id}-${item.variant.id}-${index}`}
+                            value={item.searchText}
+                            onSelect={() => {
+                              addItemToCart(product, item.variant);
+                            }}
+                            className="cursor-pointer group"
+                          >
+                             <Check className="mr-2 h-4 w-4 opacity-0" />
+                            <div className="flex flex-col flex-1">
+                              <span className="font-medium">{displayName}</span>
+                              <span className="text-sm text-foreground/70 group-data-[selected=true]:text-accent-foreground/80">
+                                Size: {item.variant.size} | 
+                                {item.variant.barcode && ` Barcode: ${item.variant.barcode} | `}
+                                Price: ₹{item.variant.sale_price} | 
+                                Stock: {item.variant.stock_qty}
                               </span>
-                            )}
-                          </div>
-                        </CommandItem>
-                      );
-                    })}
-                  </CommandGroup>
+                              {item.variant.batch_stock && item.variant.batch_stock.length > 0 && (
+                                <span className="text-xs text-foreground/60 group-data-[selected=true]:text-accent-foreground/70 mt-1">
+                                  <span className="font-semibold">Bills: </span>
+                                  {item.variant.batch_stock
+                                    .slice(0, 3)
+                                    .map((batch: any, idx: number) => (
+                                      <span key={batch.bill_number} className="font-mono">
+                                        {batch.bill_number}({batch.quantity})
+                                        {idx < Math.min(item.variant.batch_stock.length - 1, 2) ? ', ' : ''}
+                                      </span>
+                                    ))}
+                                  {item.variant.batch_stock.length > 3 && (
+                                    <span> +{item.variant.batch_stock.length - 3} more</span>
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  )}
                 </CommandList>
               </Command>
             </PopoverContent>
