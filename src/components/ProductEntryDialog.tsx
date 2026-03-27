@@ -718,7 +718,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     }
 
     const selectedGroup = sizeGroups.find((g) => g.id === formData.size_group_id);
-    if (!selectedGroup) {
+    if (!selectedGroup && !mobileERPMode?.locked_size_qty) {
       toast({
         title: "Error",
         description: "Please select a size group first",
