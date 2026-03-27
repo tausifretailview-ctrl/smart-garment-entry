@@ -289,7 +289,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
       // Calculate totals per customer using Math.max to avoid double-counting
       const customerTotals = customersData.map((customer: any) => {
-        const customerSales = salesData.filter((s: any) => s.customer_id === customer.id);
+        const customerSales = salesData.filter((s: any) => s.customer_id === customer.id && s.payment_status !== 'cancelled');
         const totalSales = customerSales.reduce((sum: number, s: any) => sum + (s.net_amount || 0), 0);
         
         let totalPaidOnSales = 0;
