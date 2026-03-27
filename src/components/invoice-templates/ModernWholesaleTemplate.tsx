@@ -368,8 +368,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         </div>
         {/* Inv No + Date — wider box, larger font to prevent truncation */}
         <div style={{ 
-          width: isA5 ? "148px" : "190px", 
-          minWidth: isA5 ? "148px" : "190px", 
+          width: isA5 ? "170px" : "220px", 
+          minWidth: isA5 ? "170px" : "220px", 
           padding: isA5 ? "3px 6px" : "6px 8px", 
           background: colors.light, 
           boxSizing: "border-box",
@@ -379,7 +379,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <tbody>
               <tr>
                 <td style={{ fontSize: isA5 ? "6.5pt" : "8pt", whiteSpace: "nowrap", paddingRight: "4px", fontWeight: "600" }}>Inv No:</td>
-                <td style={{ fontWeight: "700", textAlign: "right", wordBreak: "break-all", fontSize: isA5 ? "6.5pt" : "9pt", color: colors.primary }}>{invoiceNumber}</td>
+                <td style={{ fontWeight: "700", textAlign: "right", whiteSpace: "nowrap", fontSize: isA5 ? "6.5pt" : "9pt", color: colors.primary }}>{invoiceNumber}</td>
               </tr>
               <tr>
                 <td style={{ fontSize: isA5 ? "6.5pt" : "8pt", whiteSpace: "nowrap", paddingRight: "4px", fontWeight: "600" }}>Date:</td>
