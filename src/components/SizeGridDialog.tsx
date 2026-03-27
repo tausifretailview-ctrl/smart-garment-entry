@@ -380,9 +380,12 @@ export function SizeGridDialog({
                        filteredVariants.find((v) => v.size === sizeKey);
         if (variant) {
           const overridePrice = sizePrices[variant.id];
-          const updatedVariant = overridePrice && Number(overridePrice) > 0
-            ? { ...variant, sale_price: Number(overridePrice) }
-            : variant;
+          const overridePurPrice = sizePurPrices[variant.id];
+          const updatedVariant = {
+            ...variant,
+            ...(overridePrice && Number(overridePrice) > 0 ? { sale_price: Number(overridePrice) } : {}),
+            ...(overridePurPrice && Number(overridePurPrice) > 0 ? { pur_price: Number(overridePurPrice) } : {}),
+          };
           items.push({ variant: updatedVariant, qty });
         }
       }
