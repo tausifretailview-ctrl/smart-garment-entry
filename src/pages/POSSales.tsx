@@ -1042,6 +1042,69 @@ export default function POSSales() {
 
   const mobileERP = useMobileERP();
 
+  useEffect(() => {
+    const term = searchInput.trim();
+
+    if (!openProductSearch || term.length < 2 || !currentOrganization?.id) {
+      setProductSearchResults([]);
+      setIsProductSearchLoading(false);
+      return;
+    }
+
+    const requestSeq = ++productSearchSeqRef.current;
+    setIsProductSearchLoading(true);
+
+    const runSearch = async () => {
+      let query = supabase
+        .from('product_variants')
+        .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status, deleted_at)')
+        .eq('products.organization_id', currentOrganization.id)
+        .eq('products.status', 'active')
+        .eq('active', true)
+        .is('deleted_at', null)
+        .is('products.deleted_at', null)
+        .limit(20);
+
+      if (selectedProductType !== 'all') {
+        query = query.eq('products.product_type', selectedProductType);
+      }
+
+      const escapedTerm = term.replace(/[%_,]/g, '');
+      const isNumeric = /^\d+$/.test(term);
+
+      if (isNumeric) {
+        query = query.or(`barcode.eq.${escapedTerm},barcode.ilike.%${escapedTerm}%`);
+      } else {
+        query = query.or(`barcode.ilike.%${escapedTerm}%,size.ilike.%${escapedTerm}%,color.ilike.%${escapedTerm}%,products.product_name.ilike.%${escapedTerm}%,products.brand.ilike.%${escapedTerm}%,products.category.ilike.%${escapedTerm}%,products.style.ilike.%${escapedTerm}%`);
+      }
+
+      const { data, error } = await query.order('stock_qty', { ascending: false });
+      if (requestSeq !== productSearchSeqRef.current) return;
+      if (error) throw error;
+
+      const formatted = (data || [])
+        .filter((item: any) => {
+          const product = item.products;
+          return product?.product_type === 'service' || product?.product_type === 'combo' || (item.stock_qty || 0) > 0;
+        })
+        .map((item: any) => ({
+          product: item.products,
+          variant: item,
+          searchText: `${item.products?.product_name || ''} ${item.size || ''} ${item.color || ''} ${item.barcode || ''} ${item.products?.brand || ''} ${item.products?.category || ''}`.toLowerCase(),
+        }));
+
+      setProductSearchResults(formatted);
+      setIsProductSearchLoading(false);
+    };
+
+    runSearch().catch((error) => {
+      if (requestSeq !== productSearchSeqRef.current) return;
+      console.error('POS product search failed:', error);
+      setProductSearchResults([]);
+      setIsProductSearchLoading(false);
+    });
+  }, [openProductSearch, searchInput, selectedProductType, currentOrganization?.id]);
+
   const searchAndAddProduct = useCallback(async (searchTerm: string) => {
     // Quick service shortcodes (1-9) ALWAYS open the dialog, even if a product has that barcode
     if (/^[1-9]$/.test(searchTerm)) {
