@@ -1981,6 +1981,10 @@ export default function POSSales() {
       : await saveSale(saleData, paymentMethodType as any, paymentData);
     
     if (result) {
+      // Save financer details if provided (Mobile ERP)
+      if (mobileERP.enabled && mobileERP.financer_billing && financerDetails?.financer_name) {
+        await saveFinancerDetails(result.id, currentOrganization?.id || '', financerDetails);
+      }
       // Store invoice number and sale ID for printing
       setCurrentInvoiceNumber(result.sale_number);
       const wasEditing = !!currentSaleId;
