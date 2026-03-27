@@ -1052,12 +1052,16 @@ serve(async (req) => {
         sent_at: new Date().toISOString(),
       };
 
-      if (response.ok && responseData.messages?.[0]?.id) {
+      const metaId = responseData?.messages?.[0]?.id;
+      const bspQueued = responseData?.message?.message_status === 'queued' || !!responseData?.message?.queue_id;
+      const successId = metaId || responseData?.message?.queue_id || '';
+
+      if (response.ok && (metaId || bspQueued)) {
         updateData.status = 'sent';
-        updateData.wamid = responseData.messages[0].id;
+        updateData.wamid = successId;
       } else {
         updateData.status = 'failed';
-        updateData.error_message = responseData.error?.message || 'Unknown error from Meta API';
+        updateData.error_message = responseData.error?.message || responseData?.message || 'Unknown error from Meta API';
       }
 
       await supabase
@@ -1066,7 +1070,10 @@ serve(async (req) => {
         .eq('id', logEntry.id);
     }
 
-    if (!response.ok) {
+    const metaIdCheck = responseData?.messages?.[0]?.id;
+    const bspQueuedCheck = responseData?.message?.message_status === 'queued' || !!responseData?.message?.queue_id;
+
+    if (!response.ok && !bspQueuedCheck) {
       console.error('Meta API Error:', responseData);
       return new Response(
         JSON.stringify({ 
