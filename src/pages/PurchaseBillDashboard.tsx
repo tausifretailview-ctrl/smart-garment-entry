@@ -107,6 +107,7 @@ interface PurchaseBill {
   payment_status?: string;
   paid_amount?: number;
   total_qty?: number;
+  is_dc_purchase?: boolean;
   items?: PurchaseItem[];
 }
 
