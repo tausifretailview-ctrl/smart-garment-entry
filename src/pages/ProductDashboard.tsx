@@ -1003,24 +1003,11 @@ const ProductDashboard = () => {
     );
   }
 
-  // Calculate totals from filtered products
-  const totalStockQty = filteredRows.reduce((sum, product) => 
-    sum + product.variants.reduce((vSum, variant) => vSum + variant.stock_qty, 0), 0
-  );
-  
-  const totalItems = filteredRows.reduce((sum, product) => sum + product.variants.length, 0);
-  
-  const totalPurchaseValue = filteredRows.reduce((sum, product) => 
-    sum + product.variants.reduce((vSum, variant) => 
-      vSum + (variant.stock_qty * variant.pur_price), 0
-    ), 0
-  );
-  
-  const totalSaleValue = filteredRows.reduce((sum, product) => 
-    sum + product.variants.reduce((vSum, variant) => 
-      vSum + (variant.stock_qty * variant.sale_price), 0
-    ), 0
-  );
+  // Use server-side stats from RPC
+  const totalStockQty = dashboardStats.total_stock_qty;
+  const totalItems = dashboardStats.total_items;
+  const totalPurchaseValue = dashboardStats.purchase_value;
+  const totalSaleValue = dashboardStats.sale_value;
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
