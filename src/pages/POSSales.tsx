@@ -1047,11 +1047,6 @@ export default function POSSales() {
       return;
     }
 
-    if (!productsData) {
-      setSearchInput("");
-      return;
-    }
-
     // Mobile ERP IMEI enforcement: validate IMEI format before allowing scan
     if (mobileERP.enabled && mobileERP.imei_scan_enforcement) {
       if (!validateIMEI(searchTerm, mobileERP.imei_min_length, mobileERP.imei_max_length)) {
@@ -1069,26 +1064,29 @@ export default function POSSales() {
     let foundVariant: any = null;
     let foundProduct: any = null;
 
-    // Priority 1: Exact barcode match (most common for scanners)
-    for (const product of productsData) {
-      const variantMatch = product.product_variants?.find((v: any) => 
-        v.barcode?.toLowerCase() === searchTerm.toLowerCase()
-      );
-      
-      if (variantMatch) {
-        foundVariant = variantMatch;
-        foundProduct = product;
-        break;
-      }
-    }
-
-    // Priority 2: Product name match (for manual search) — blocked in IMEI mode
-    if (!foundVariant && !(mobileERP.enabled && mobileERP.imei_scan_enforcement)) {
+    // Try local cache first if available
+    if (productsData) {
+      // Priority 1: Exact barcode match (most common for scanners)
       for (const product of productsData) {
-        if (product.product_name.toLowerCase().includes(searchTerm.toLowerCase())) {
-          foundVariant = product.product_variants?.[0];
+        const variantMatch = product.product_variants?.find((v: any) => 
+          v.barcode?.toLowerCase() === searchTerm.toLowerCase()
+        );
+        
+        if (variantMatch) {
+          foundVariant = variantMatch;
           foundProduct = product;
           break;
+        }
+      }
+
+      // Priority 2: Product name match (for manual search) — blocked in IMEI mode
+      if (!foundVariant && !(mobileERP.enabled && mobileERP.imei_scan_enforcement)) {
+        for (const product of productsData) {
+          if (product.product_name.toLowerCase().includes(searchTerm.toLowerCase())) {
+            foundVariant = product.product_variants?.[0];
+            foundProduct = product;
+            break;
+          }
         }
       }
     }
@@ -1099,8 +1097,9 @@ export default function POSSales() {
       // Await stock check before adding - prevents out-of-stock items from being added
       await addItemToCart(foundProduct, foundVariant);
     } else {
-      // Barcode not found in cached data — check DB directly (handles cache misses & zero-stock)
+      // Not found in local cache (or cache not loaded yet) — search DB directly
       if (currentOrganization?.id) {
+        // Try exact barcode match first
         const { data: dbVariant } = await supabase
           .from('product_variants')
           .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status)')
@@ -1116,7 +1115,7 @@ export default function POSSales() {
           const stockQty = dbVariant.stock_qty || 0;
           
           // If product has stock, add it to cart directly (cache miss recovery)
-          if (stockQty > 0) {
+          if (stockQty > 0 || prod.product_type === 'service' || prod.product_type === 'combo') {
             setSearchInput("");
             await addItemToCart(prod, dbVariant);
             return;
@@ -1130,9 +1129,31 @@ export default function POSSales() {
           setShowStockNotAvailableDialog(true);
           return;
         }
+
+        // Try product name search via DB if not IMEI mode
+        if (!(mobileERP.enabled && mobileERP.imei_scan_enforcement)) {
+          const { data: nameResults } = await supabase
+            .from('product_variants')
+            .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status)')
+            .eq('products.organization_id', currentOrganization.id)
+            .ilike('products.product_name', `%${searchTerm}%`)
+            .is('deleted_at', null)
+            .is('products.deleted_at', null)
+            .eq('products.status', 'active')
+            .gt('stock_qty', 0)
+            .limit(1);
+
+          if (nameResults && nameResults.length > 0) {
+            const match = nameResults[0];
+            const prod = (match as any).products;
+            setSearchInput("");
+            await addItemToCart(prod, match);
+            return;
+          }
+        }
       }
 
-      // Clear input and show error for barcode not found
+      // Clear input and show error for product not found
       setSearchInput("");
       playErrorBeep();
       toast({
