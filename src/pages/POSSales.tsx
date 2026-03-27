@@ -2262,8 +2262,8 @@ export default function POSSales() {
 
     // Try QZ Tray direct print first
     if (isDirectPrintEnabled) {
-      // Wait a tick for the invoice to render
-      setTimeout(async () => {
+      // Wait for invoice to fully render before direct printing
+      waitForPrintReady(invoicePrintRef, async () => {
         const paperSize = posBillFormat === 'thermal' ? '80mm' : posBillFormat === 'a5' || posBillFormat === 'a5-horizontal' ? 'A5' : 'A4';
         const success = await directPrint(invoicePrintRef.current, {
           context: 'pos',
@@ -2288,7 +2288,7 @@ export default function POSSales() {
             setTimeout(() => barcodeInputRef.current?.focus(), 100);
           },
         });
-      }, 150);
+      });
       return;
     }
     

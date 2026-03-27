@@ -2257,7 +2257,7 @@ Thank you for choosing us!`;
     
     // Try QZ Tray direct print first
     if (isDirectPrintEnabled) {
-      setTimeout(async () => {
+      waitForPrintReady(printRef, async () => {
         const saleSettings = (settingsData as any)?.sale_settings;
         const billFormat = saleSettings?.sales_bill_format || 'a4';
         const paperSize = billFormat === 'thermal' ? '80mm' : billFormat === 'a5' ? 'A5' : 'A4';
@@ -2274,7 +2274,7 @@ Thank you for choosing us!`;
             setShowPrintDialog(false);
           },
         });
-      }, 150);
+      });
       return;
     }
     
