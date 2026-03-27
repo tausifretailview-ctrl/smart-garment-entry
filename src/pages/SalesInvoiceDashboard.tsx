@@ -2238,7 +2238,7 @@ export default function SalesInvoiceDashboard() {
         {/* Summary Statistics - Vasy ERP Style Vibrant Cards - 7 cards in 1 row */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 w-full">
           <Card 
-            className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-md rounded-xl"
+            className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-md rounded-xl min-w-0"
             onClick={() => setDeliveryFilter("all")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
@@ -2248,13 +2248,13 @@ export default function SalesInvoiceDashboard() {
               </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
-              <div className="text-[22px] font-black text-white tabular-nums leading-tight">{effectiveStats.totalInvoices}</div>
+              <div className="text-[19px] font-black text-white tabular-nums leading-tight truncate">{effectiveStats.totalInvoices}</div>
               <p className="text-xs text-white/65 mt-0.5">All invoices</p>
             </CardContent>
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-md rounded-xl"
+            className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-md rounded-xl min-w-0"
             onClick={() => setDeliveryFilter("all")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
@@ -2264,13 +2264,13 @@ export default function SalesInvoiceDashboard() {
               </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
-              <div className="text-[22px] font-black text-white tabular-nums leading-tight">{effectiveStats.totalQty}</div>
+              <div className="text-[19px] font-black text-white tabular-nums leading-tight truncate">{effectiveStats.totalQty}</div>
               <p className="text-xs text-white/65 mt-0.5">Items sold</p>
             </CardContent>
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-md rounded-xl"
+            className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-md rounded-xl min-w-0"
             onClick={() => setDeliveryFilter("all")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
@@ -2280,13 +2280,13 @@ export default function SalesInvoiceDashboard() {
               </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
-              <div className="text-[22px] font-black text-white tabular-nums leading-tight">₹{effectiveStats.totalAmount.toFixed(0)}</div>
+              <div className="text-[19px] font-black text-white tabular-nums leading-tight truncate">₹{effectiveStats.totalAmount.toFixed(0)}</div>
               <p className="text-xs text-white/65 mt-0.5">Net amount</p>
             </CardContent>
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-pink-500 to-pink-600 border-0 shadow-md rounded-xl"
+            className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-pink-500 to-pink-600 border-0 shadow-md rounded-xl min-w-0"
             onClick={() => setDeliveryFilter("all")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
@@ -2296,13 +2296,13 @@ export default function SalesInvoiceDashboard() {
               </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
-              <div className="text-[22px] font-black text-white tabular-nums leading-tight">₹{effectiveStats.totalDiscount.toFixed(0)}</div>
+              <div className="text-[19px] font-black text-white tabular-nums leading-tight truncate">₹{effectiveStats.totalDiscount.toFixed(0)}</div>
               <p className="text-xs text-white/65 mt-0.5">Given</p>
             </CardContent>
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-md rounded-xl"
+            className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-md rounded-xl min-w-0"
             onClick={() => setDeliveryFilter("all")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
@@ -2312,13 +2312,13 @@ export default function SalesInvoiceDashboard() {
               </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
-              <div className="text-[22px] font-black text-white tabular-nums leading-tight">₹{effectiveStats.pendingAmount.toFixed(0)}</div>
+              <div className="text-[19px] font-black text-white tabular-nums leading-tight truncate">₹{effectiveStats.pendingAmount.toFixed(0)}</div>
               <p className="text-xs text-white/65 mt-0.5">Outstanding</p>
             </CardContent>
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-teal-500 to-teal-600 border-0 shadow-md rounded-xl"
+            className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-teal-500 to-teal-600 border-0 shadow-md rounded-xl min-w-0"
             onClick={() => setDeliveryFilter("delivered")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
@@ -2328,13 +2328,13 @@ export default function SalesInvoiceDashboard() {
               </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
-              <div className="text-[22px] font-black text-white tabular-nums leading-tight">{effectiveStats.deliveredCount}</div>
+              <div className="text-[19px] font-black text-white tabular-nums leading-tight truncate">{effectiveStats.deliveredCount}</div>
               <p className="text-xs text-white/65 mt-0.5">₹{effectiveStats.deliveredAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-md rounded-xl"
+            className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-md rounded-xl min-w-0"
             onClick={() => setDeliveryFilter("undelivered")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
@@ -2344,7 +2344,7 @@ export default function SalesInvoiceDashboard() {
               </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
-              <div className="text-[22px] font-black text-white tabular-nums leading-tight">{effectiveStats.undeliveredCount}</div>
+              <div className="text-[19px] font-black text-white tabular-nums leading-tight truncate">{effectiveStats.undeliveredCount}</div>
               <p className="text-xs text-white/65 mt-0.5">₹{effectiveStats.undeliveredAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
