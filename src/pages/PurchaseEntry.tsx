@@ -356,6 +356,14 @@ const PurchaseEntry = () => {
   const barcodeMode = (settings?.purchase_settings as any)?.barcode_mode || 'auto';
   const isAutoBarcode = barcodeMode !== 'scan';
   
+  const autoFocusSearch = (settings?.purchase_settings as any)?.auto_focus_search || false;
+  
+  const focusSearchBar = useCallback(() => {
+    if (autoFocusSearch) {
+      setTimeout(() => searchInputRef.current?.focus(), 100);
+    }
+  }, [autoFocusSearch]);
+  
   // Check if barcode prompt is enabled (defaults to true if not set)
   const enableBarcodePrompt = (settings?.bill_barcode_settings as any)?.enable_barcode_prompt !== false;
   
