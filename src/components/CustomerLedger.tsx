@@ -517,7 +517,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         .from("sales")
         .select("*, created_at")
         .eq("customer_id", selectedCustomer.id)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .neq("payment_status", "hold");
 
       // Apply date filters - normalize dates to yyyy-MM-dd format for accurate comparison
       if (startDate) {
