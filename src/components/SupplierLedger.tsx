@@ -285,7 +285,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
           reference: 'Opening',
           description: 'Opening Balance (Carried Forward)',
           debit: 0,
-          credit: openingBalance > 0 ? openingBalance : 0,
+          credit: openingBalance,  // Supplier opening balance is a liability (credit)
           balance: runningBalance,
         });
       }

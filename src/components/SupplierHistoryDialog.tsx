@@ -149,9 +149,8 @@ export const SupplierHistoryDialog = ({
     ? voucherPaymentTotal 
     : totalPaidOnBills;
 
-  // Returns reduce what we owe the supplier (credit to us)
-  const currentBalance = openingBalance + totalPurchases 
-    - totalReturns - totalPaid - totalCreditNoteAdjust;
+  // Credit notes already represent returns — no separate totalReturns subtraction
+  const currentBalance = openingBalance + totalPurchases - totalPaid - totalCreditNoteAdjust;
 
   const getPaymentStatusBadge = (status: string | null | undefined) => {
     switch (status) {
