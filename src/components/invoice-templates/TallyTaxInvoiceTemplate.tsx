@@ -147,19 +147,26 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
   const colCount = showHSN ? 8 : 7;
   const defaultDeclaration = `We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.\nWARRANTY TO CUSTOMER IS DIRECTLY FROM MANUFACTURER.\nDEALER IS NOT RESPONSIBLE. GOODS ONCE SOLD WILL NOT BE TAKEN BACK OR EXCHANGED.`;
 
-  // Count actual content rows (product + tax sub-rows + round off)
-  let contentRows = 0;
+  // Count actual content rows (product rows + tax summary rows + round off)
+  let contentRows = items.length;
+  // Aggregate GST totals for bottom summary
+  let totalCgst = 0, totalSgst = 0, totalIgst = 0;
+  let summaryGstRate = 0;
   items.forEach(item => {
-    contentRows++; // product row
     const gstPct = item.gstPercent || 0;
-    if (showGSTBreakdown && gstPct > 0) {
-      contentRows += isInterState ? 1 : 2; // tax rows
+    if (gstPct > 0) {
+      const gstAmt = (item.total * gstPct) / (100 + gstPct);
+      if (isInterState) { totalIgst += gstAmt; } else { totalCgst += gstAmt / 2; totalSgst += gstAmt / 2; }
+      summaryGstRate = gstPct; // use last non-zero rate for label
     }
   });
+  if (showGSTBreakdown && (totalCgst > 0 || totalSgst > 0)) contentRows += 2;
+  if (showGSTBreakdown && totalIgst > 0) contentRows += 1;
   if (roundOff !== 0) contentRows++;
   const blankRowsNeeded = Math.max(0, MIN_ITEM_ROWS - contentRows);
 
   const b = '1px solid #000';
+  const cellNoRowBorder: React.CSSProperties = { borderLeft: b, borderRight: b, borderTop: 'none', borderBottom: 'none', padding: '2px 5px', fontSize: '10px', lineHeight: '1.3' };
   const cell: React.CSSProperties = { border: b, padding: '2px 5px', fontSize: '10px', lineHeight: '1.3' };
   const hCell: React.CSSProperties = { ...cell, fontWeight: 'bold', textAlign: 'center', backgroundColor: '#f5f5f5', fontSize: '9px' };
 
