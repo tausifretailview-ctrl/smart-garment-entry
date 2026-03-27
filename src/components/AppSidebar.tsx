@@ -35,7 +35,10 @@ import {
   Grid3X3,
   Clock,
   ArrowRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -59,7 +62,46 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 export function AppSidebar() {
-  const { open } = useSidebar();
+  const { open, setOpen } = useSidebar();
+  const [isLocked, setIsLocked] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("sidebar_locked") === "true";
+    } catch {
+      return false;
+    }
+  });
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const locked = localStorage.getItem("sidebar_locked") === "true";
+    if (locked) {
+      setOpen(true);
+    } else {
+      setOpen(false);
+    }
+  }, []);
+
+  const handleMouseEnter = () => {
+    if (isLocked) return;
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    setOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    if (isLocked) return;
+    hoverTimeoutRef.current = setTimeout(() => {
+      setOpen(false);
+    }, 120);
+  };
+
+  const handleToggleLock = () => {
+    const newLocked = !isLocked;
+    setIsLocked(newLocked);
+    setOpen(newLocked);
+    try {
+      localStorage.setItem("sidebar_locked", String(newLocked));
+    } catch {}
+  };
   const location = useLocation();
   const { canAccessSettings, canAccessPurchases, isPlatformAdmin, isAdmin } = useUserRoles();
   const { hasMenuAccess, hasMainMenuAccess, hasSpecialPermission, isAdmin: isAdminPermissions, loading: permissionsLoading } = useUserPermissions();
@@ -104,7 +146,13 @@ export function AppSidebar() {
   const schoolPaths = ["/students", "/student-entry", "/teachers", "/fee-collection", "/fee-heads", "/fee-structures", "/academic-years", "/classes", "/student-reports", "/student-promotion"];
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border dark:bg-[hsl(213,32%,17%)] pt-0" style={{ width: '280px' }}>
+    <Sidebar
+      collapsible="icon"
+      className="border-r border-sidebar-border dark:bg-[hsl(213,32%,17%)] pt-0"
+      style={{ transition: 'width 0.22s ease' }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <SidebarContent className="font-sans text-[16px] text-white pt-0 mt-0 space-y-1">
         {/* Platform Admin - Only visible to platform admins */}
         {isPlatformAdmin && (
@@ -980,6 +1028,31 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroup>
         )}
+        {/* Sidebar lock toggle button */}
+        <SidebarGroup className="mt-auto pb-2">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={handleToggleLock}
+                className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] cursor-pointer opacity-60 hover:opacity-100 transition-opacity"
+                title={isLocked ? "Collapse sidebar" : "Lock sidebar open"}
+              >
+                <div className="flex items-center gap-3">
+                  {isLocked ? (
+                    <ChevronsLeft className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)] flex-shrink-0" />
+                  ) : (
+                    <ChevronsRight className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)] flex-shrink-0" />
+                  )}
+                  {open && (
+                    <span className="text-sm font-normal dark:text-white">
+                      {isLocked ? "Collapse" : "Lock open"}
+                    </span>
+                  )}
+                </div>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
       </SidebarContent>
     </Sidebar>
   );
