@@ -172,7 +172,7 @@ export function SalesInvoiceERPTable({
           const invoice = row.original;
           return (
             <span
-              className="cursor-pointer text-blue-600 hover:underline"
+              className="cursor-pointer text-blue-600 hover:underline whitespace-nowrap block truncate max-w-[200px]"
               onClick={(e) => {
                 e.stopPropagation();
                 setSelectedCustomerForHistory({
@@ -186,7 +186,7 @@ export function SalesInvoiceERPTable({
             </span>
           );
         },
-        size: 180,
+        size: 200,
       });
 
     if (columnSettings.phone) {
@@ -325,7 +325,8 @@ export function SalesInvoiceERPTable({
 
     cols.push({
       id: "actions",
-      header: "Actions",
+      header: () => <div className="text-right pr-1">Actions</div>,
+      meta: { stickyRight: true },
       cell: ({ row }) => {
         const invoice = row.original;
         if (invoice.is_cancelled) {
@@ -536,7 +537,7 @@ export function SalesInvoiceERPTable({
           </div>
         );
       },
-      size: 220,
+      size: 240,
     });
 
     return cols;
