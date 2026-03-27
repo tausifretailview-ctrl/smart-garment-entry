@@ -172,7 +172,7 @@ export function SalesInvoiceERPTable({
           const invoice = row.original;
           return (
             <span
-              className="cursor-pointer text-blue-600 hover:underline"
+              className="cursor-pointer text-blue-600 hover:underline whitespace-nowrap block truncate max-w-[200px]"
               onClick={(e) => {
                 e.stopPropagation();
                 setSelectedCustomerForHistory({
