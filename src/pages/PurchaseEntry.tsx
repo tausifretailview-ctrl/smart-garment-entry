@@ -1514,6 +1514,7 @@ const PurchaseEntry = () => {
     setSizeQty({});
     // Blur so "1" shortcut works immediately
     (document.activeElement as HTMLElement)?.blur();
+    focusSearchBar();
   };
 
   const addInlineRow = (variant: ProductVariant) => {
