@@ -3649,6 +3649,7 @@ Thank you for choosing us!`;
             discount={savedInvoiceData?.totalDiscount ?? totalDiscount}
             grandTotal={savedInvoiceData?.netAmount ?? netAmount}
             paymentMethod="Cash"
+            financerDetails={financerDetails}
           />
         </div>
 
