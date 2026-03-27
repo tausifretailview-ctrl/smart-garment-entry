@@ -41,6 +41,7 @@ import { AddSupplierDialog } from "@/components/AddSupplierDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { checkBarcodeExists } from "@/utils/barcodeValidation";
+import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 
 interface PriceChange {
   sku_id: string;
