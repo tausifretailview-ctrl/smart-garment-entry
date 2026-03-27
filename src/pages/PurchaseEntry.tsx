@@ -246,10 +246,7 @@ const PurchaseEntry = () => {
       setEditingBillId(data.editingBillId);
       setOriginalLineItems(data.originalLineItems || []);
     }
-    toast({
-      title: "Draft Loaded",
-      description: "Your previous work has been restored",
-    });
+    // Silent restore - no toast to avoid disturbing user
   }, [toast]);
 
   // Load draft automatically if navigated from dashboard with loadDraft flag

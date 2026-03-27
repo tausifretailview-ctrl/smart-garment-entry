@@ -258,10 +258,7 @@ export default function SalesInvoice() {
     setFlatDiscountRupees(data.flatDiscountRupees || 0);
     setOtherCharges(data.otherCharges || 0);
     setRoundOff(data.roundOff || 0);
-    toast({
-      title: "Draft Loaded",
-      description: "Your previous work has been restored",
-    });
+    // Silent restore - no toast to avoid disturbing user
   }, [toast]);
 
   // Check for draft on mount (only if not in edit mode)

@@ -172,10 +172,7 @@ export default function QuotationEntry() {
     setFlatDiscountPercent(data.flatDiscountPercent || 0);
     setFlatDiscountAmount(data.flatDiscountAmount || 0);
     setRoundOff(data.roundOff || 0);
-    toast({
-      title: "Draft Loaded",
-      description: "Your previous work has been restored",
-    });
+    // Silent restore - no toast to avoid disturbing user
   }, [toast]);
 
   // Auto-load draft if navigated with resumeDraft flag

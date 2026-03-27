@@ -118,10 +118,7 @@ const PurchaseReturnEntry = () => {
     setTaxType(data.taxType || "exclusive");
     setDiscountPercent(data.discountPercent || 0);
     setDiscountAmount(data.discountAmount || 0);
-    toast({
-      title: "Draft Loaded",
-      description: "Your previous work has been restored",
-    });
+    // Silent restore - no toast to avoid disturbing user
   }, [toast]);
 
   // Load draft automatically if navigated from dashboard with loadDraft flag

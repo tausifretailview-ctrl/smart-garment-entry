@@ -190,10 +190,7 @@ export default function SaleOrderEntry() {
     setFlatDiscountPercent(data.flatDiscountPercent || 0);
     setFlatDiscountAmount(data.flatDiscountAmount || 0);
     setRoundOff(data.roundOff || 0);
-    toast({
-      title: "Draft Loaded",
-      description: "Your previous work has been restored",
-    });
+    // Silent restore - no toast to avoid disturbing user
   }, [toast]);
 
   // Load draft automatically if navigated from dashboard with loadDraft flag
