@@ -86,12 +86,85 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
 
     const totalQty = items.reduce((s, i) => s + i.orderQty, 0);
 
-    const itemsPerPage = isA4 ? 20 : isHorizontal ? 12 : 16;
-    const pages: SaleOrderItem[][] = [];
-    for (let i = 0; i < items.length; i += itemsPerPage) {
-      pages.push(items.slice(i, i + itemsPerPage));
-    }
-    if (pages.length === 0) pages.push([]);
+    // ── Smart pagination with product grouping ──────────────────────────────
+    const FIRST_PAGE_ROWS = isA4 ? 30 : isHorizontal ? 14 : 18;
+    const MIDDLE_PAGE_ROWS = isA4 ? 34 : isHorizontal ? 16 : 20;
+    const LAST_PAGE_ROWS = isA4 ? 26 : isHorizontal ? 10 : 14;
+
+    const pages: SaleOrderItem[][] = React.useMemo(() => {
+      if (items.length === 0) return [[]];
+
+      // Group items by product+color to avoid orphans
+      const groups: SaleOrderItem[][] = [];
+      let currentGroup: SaleOrderItem[] = [];
+      items.forEach((item, idx) => {
+        if (idx === 0) {
+          currentGroup = [item];
+        } else {
+          const prev = items[idx - 1];
+          if (item.particulars === prev.particulars && item.color === prev.color) {
+            currentGroup.push(item);
+          } else {
+            groups.push(currentGroup);
+            currentGroup = [item];
+          }
+        }
+      });
+      if (currentGroup.length > 0) groups.push(currentGroup);
+
+      const result: SaleOrderItem[][] = [];
+      let currentPage: SaleOrderItem[] = [];
+      let pageIdx = 0;
+
+      const getLimit = (pIdx: number, isDefinitelyLast: boolean) => {
+        if (pIdx === 0) return isDefinitelyLast ? LAST_PAGE_ROWS : FIRST_PAGE_ROWS;
+        return isDefinitelyLast ? LAST_PAGE_ROWS : MIDDLE_PAGE_ROWS;
+      };
+
+      let groupIndex = 0;
+      while (groupIndex < groups.length) {
+        const group = groups[groupIndex];
+        const remainingItems = groups.slice(groupIndex).reduce((s, g) => s + g.length, 0);
+        const isLastBatch = remainingItems <= getLimit(pageIdx, true);
+        const limit = getLimit(pageIdx, isLastBatch);
+        const slotsLeft = limit - currentPage.length;
+
+        if (group.length <= slotsLeft) {
+          // Group fits on current page
+          currentPage.push(...group);
+          groupIndex++;
+        } else if (group.length > limit) {
+          // Group is larger than a full page — split it
+          const chunk = group.splice(0, slotsLeft);
+          currentPage.push(...chunk);
+          // Don't increment groupIndex — remaining items stay
+        } else if (slotsLeft < 3 || (group.length <= 5 && slotsLeft < group.length)) {
+          // Avoid orphans: push group to next page
+          result.push(currentPage);
+          currentPage = [];
+          pageIdx++;
+        } else {
+          // Split group at page boundary
+          const chunk = group.splice(0, slotsLeft);
+          currentPage.push(...chunk);
+        }
+
+        // If current page is full, push it
+        const currentLimit = getLimit(pageIdx, false);
+        if (currentPage.length >= currentLimit) {
+          result.push(currentPage);
+          currentPage = [];
+          pageIdx++;
+        }
+      }
+
+      if (currentPage.length > 0) {
+        result.push(currentPage);
+      }
+
+      return result.length > 0 ? result : [[]];
+    }, [items, FIRST_PAGE_ROWS, MIDDLE_PAGE_ROWS, LAST_PAGE_ROWS]);
+
     const totalPages = pages.length;
 
     const groupedItems = React.useMemo(() => {
@@ -126,27 +199,30 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
       return sortSizes(Array.from(sizes));
     }, [items, invoiceFormat]);
 
+    // ── Compact styling ─────────────────────────────────────────────────────
     const baseFontSize = isA4 ? '9pt' : '7.5pt';
     const smallFont = isA4 ? '7.5pt' : '6.5pt';
     const tinyFont = isA4 ? '7pt' : '6pt';
 
     const thStyle = (extra: React.CSSProperties = {}): React.CSSProperties => ({
       border: `1px solid ${BORDER}`,
-      padding: isA4 ? '5px 4px' : '3px 2px',
+      padding: isA4 ? '3px 3px' : '2px 2px',
       background: PRIMARY,
       color: '#fff',
       fontWeight: 700,
       fontSize: isA4 ? '8pt' : '7pt',
       textTransform: 'uppercase',
       letterSpacing: '0.03em',
+      lineHeight: 1.2,
       ...extra,
     });
 
     const tdStyle = (extra: React.CSSProperties = {}): React.CSSProperties => ({
       border: `1px solid ${BORDER}`,
-      padding: isA4 ? '4px 4px' : '3px 2px',
+      padding: isA4 ? '2px 3px' : '2px 2px',
       fontSize: baseFontSize,
       verticalAlign: 'middle',
+      lineHeight: 1.15,
       ...extra,
     });
 
@@ -154,12 +230,12 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
     const pageMinHeight = isA4 ? '297mm' : isHorizontal ? '148mm' : '210mm';
     const pagePadding = isA4 ? '8mm' : isHorizontal ? '6mm' : '4mm';
 
-    // ── Header ──────────────────────────────────────────────────────────────
-    const renderHeader = () => (
-      <div style={{ marginBottom: isA4 ? '8px' : '5px' }}>
+    // ── Full Header (first page) ────────────────────────────────────────────
+    const renderFullHeader = () => (
+      <div style={{ marginBottom: isA4 ? '6px' : '4px' }}>
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-          paddingBottom: isA4 ? '8px' : '5px',
+          paddingBottom: isA4 ? '6px' : '4px',
           borderBottom: `2px solid ${PRIMARY}`,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
@@ -186,7 +262,6 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
               </div>
             </div>
           </div>
-
           <div style={{ textAlign: 'right' }}>
             <div style={{
               background: PRIMARY, color: '#fff', padding: isA4 ? '6px 16px' : '4px 10px',
@@ -206,13 +281,64 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
       </div>
     );
 
-    // ── Customer Info Strip ─────────────────────────────────────────────────
+    // ── Slim Header (continuation pages) ────────────────────────────────────
+    const renderSlimHeader = (pageIndex: number) => (
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        borderBottom: `2px solid ${PRIMARY}`,
+        paddingBottom: '3px',
+        marginBottom: isA4 ? '4px' : '3px',
+        fontSize: isA4 ? '8pt' : '6.5pt',
+        lineHeight: 1.3,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontWeight: 800, color: PRIMARY, fontSize: isA4 ? '11pt' : '9pt', textTransform: 'uppercase' }}>
+            {businessName}
+          </span>
+          {gstNumber && <span style={{ color: '#555', fontSize: tinyFont }}>GSTIN: {gstNumber}</span>}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#333' }}>
+          <span style={{
+            background: PRIMARY, color: '#fff', padding: '2px 8px',
+            borderRadius: '3px', fontWeight: 700, fontSize: isA4 ? '8pt' : '6.5pt',
+            letterSpacing: '0.06em',
+          }}>
+            SALE ORDER
+          </span>
+          <span><strong>{orderNumber}</strong></span>
+          <span>{fmtDate(orderDate)}</span>
+          <span style={{ fontWeight: 600 }}>Page {pageIndex + 1}/{totalPages}</span>
+        </div>
+      </div>
+    );
+
+    // ── Slim Customer Strip (continuation pages) ────────────────────────────
+    const renderSlimCustomerStrip = (pageIndex: number) => (
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        background: LIGHT, border: `1px solid ${BORDER}`, borderRadius: '3px',
+        padding: isA4 ? '3px 8px' : '2px 5px',
+        marginBottom: isA4 ? '4px' : '3px',
+        fontSize: isA4 ? '7.5pt' : '6.5pt',
+      }}>
+        <div>
+          <span style={{ fontSize: tinyFont, fontWeight: 700, color: PRIMARY, textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: '6px' }}>
+            Bill To:
+          </span>
+          <span style={{ fontWeight: 700, color: '#111' }}>{customerName}</span>
+          {customerMobile && <span style={{ color: '#555', marginLeft: '8px' }}>📞 {customerMobile}</span>}
+        </div>
+        {salesman && <span style={{ color: '#555' }}><strong>Salesman:</strong> {salesman}</span>}
+      </div>
+    );
+
+    // ── Full Customer Info Strip (first page) ───────────────────────────────
     const renderCustomerStrip = (pageIndex: number) => (
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
         background: LIGHT, border: `1px solid ${BORDER}`, borderRadius: '4px',
-        padding: isA4 ? '8px 10px' : '5px 6px',
-        marginBottom: isA4 ? '8px' : '5px',
+        padding: isA4 ? '6px 10px' : '4px 6px',
+        marginBottom: isA4 ? '6px' : '4px',
         fontSize: smallFont,
       }}>
         <div style={{ flex: 1 }}>
@@ -237,73 +363,26 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
       </div>
     );
 
-    // ── Items Table (standard) ──────────────────────────────────────────────
-    const renderItemsTable = (pageItems: SaleOrderItem[]) => (
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            <th style={thStyle({ width: '5%', textAlign: 'center' })}>Sr</th>
-            <th style={thStyle({ textAlign: 'left' })}>Product</th>
-            {showColor && <th style={thStyle({ width: '10%', textAlign: 'center' })}>Color</th>}
-            <th style={thStyle({ width: '8%', textAlign: 'center' })}>Size</th>
-            <th style={thStyle({ width: '7%', textAlign: 'center' })}>Qty</th>
-            {showMRP && <th style={thStyle({ width: '10%', textAlign: 'right' })}>MRP</th>}
-            <th style={thStyle({ width: '10%', textAlign: 'right' })}>Rate</th>
-            <th style={thStyle({ width: '12%', textAlign: 'right' })}>Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {pageItems.map((item, idx) => {
-            const details = [item.brand, item.style].filter(Boolean).join(' · ');
-            const rowBg = idx % 2 === 0 ? '#fff' : '#f7f9fc';
-            return (
-              <tr key={item.sr} style={{ background: rowBg }}>
-                <td style={tdStyle({ textAlign: 'center', color: '#888' })}>{item.sr}</td>
-                <td style={tdStyle({ textAlign: 'left' })}>
-                  {item.particulars}
-                  {details && (
-                    <span style={{ color: '#888', marginLeft: '4px', fontSize: '85%' }}>({details})</span>
-                  )}
-                </td>
-                {showColor && (
-                  <td style={tdStyle({ textAlign: 'center', fontWeight: 600 })}>{item.color || '—'}</td>
-                )}
-                <td style={tdStyle({ textAlign: 'center', fontWeight: 700, fontSize: isA4 ? '10pt' : '8pt' })}>
-                  {item.size}
-                </td>
-                <td style={tdStyle({ textAlign: 'center', fontWeight: 600 })}>{item.orderQty}</td>
-                {showMRP && <td style={tdStyle({ textAlign: 'right' })}>{fmt(item.mrp)}</td>}
-                <td style={tdStyle({ textAlign: 'right' })}>{fmt(item.rate)}</td>
-                <td style={tdStyle({ textAlign: 'right', fontWeight: 700 })}>{fmt(item.total)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    );
-
     // ── Footer (last page only) ─────────────────────────────────────────────
     const renderFooter = () => (
-      <div style={{ marginTop: isA4 ? '10px' : '6px' }}>
-        {/* Notes + Summary row */}
+      <div style={{ marginTop: isA4 ? '8px' : '5px' }}>
         <div style={{
-          display: 'flex', gap: isA4 ? '16px' : '8px',
-          alignItems: 'flex-start', marginBottom: isA4 ? '10px' : '6px',
+          display: 'flex', gap: isA4 ? '12px' : '6px',
+          alignItems: 'flex-start', marginBottom: isA4 ? '8px' : '5px',
         }}>
-          {/* Left: Notes + Terms */}
           <div style={{ flex: 1, minWidth: 0 }}>
             {notes && (
               <div style={{
                 border: `1px solid ${BORDER}`, borderRadius: '4px',
-                padding: isA4 ? '8px' : '5px', marginBottom: '6px',
+                padding: isA4 ? '6px' : '4px', marginBottom: '5px',
               }}>
                 <div style={{
                   fontSize: tinyFont, fontWeight: 700, color: PRIMARY,
-                  textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '3px',
+                  textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px',
                 }}>
                   📝 Notes
                 </div>
-                <div style={{ fontSize: smallFont, color: '#333', whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>
+                <div style={{ fontSize: smallFont, color: '#333', whiteSpace: 'pre-wrap', lineHeight: 1.3 }}>
                   {notes}
                 </div>
               </div>
@@ -311,11 +390,11 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
             {termsConditions && (
               <div style={{
                 border: `1px solid ${BORDER}`, borderRadius: '4px',
-                padding: isA4 ? '8px' : '5px',
+                padding: isA4 ? '6px' : '4px',
               }}>
                 <div style={{
                   fontSize: tinyFont, fontWeight: 700, color: PRIMARY,
-                  textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '3px',
+                  textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px',
                 }}>
                   Terms & Conditions
                 </div>
@@ -327,7 +406,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
             {!notes && !termsConditions && (
               <div style={{
                 border: `1px dashed ${BORDER}`, borderRadius: '4px',
-                padding: isA4 ? '8px' : '5px', minHeight: isA4 ? '40px' : '25px',
+                padding: isA4 ? '6px' : '4px', minHeight: isA4 ? '30px' : '20px',
               }}>
                 <div style={{
                   fontSize: tinyFont, fontWeight: 700, color: '#aaa',
@@ -338,20 +417,18 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
               </div>
             )}
           </div>
-
-          {/* Right: Summary box */}
           <div style={{
             width: isA4 ? '200px' : '150px', flexShrink: 0,
             border: `1.5px solid ${PRIMARY}`, borderRadius: '4px', overflow: 'hidden',
           }}>
             <div style={{
-              background: PRIMARY, color: '#fff', padding: '4px 8px',
+              background: PRIMARY, color: '#fff', padding: '3px 8px',
               fontSize: tinyFont, fontWeight: 700, textTransform: 'uppercase',
               letterSpacing: '0.06em', textAlign: 'center',
             }}>
               Order Summary
             </div>
-            <div style={{ padding: isA4 ? '6px 8px' : '4px 6px' }}>
+            <div style={{ padding: isA4 ? '5px 8px' : '3px 6px' }}>
               {[
                 ['Total Items', items.length.toString()],
                 ['Total Qty', totalQty.toString()],
@@ -362,7 +439,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
               ].map(([label, value]) => (
                 <div key={label} style={{
                   display: 'flex', justifyContent: 'space-between',
-                  fontSize: smallFont, padding: '2px 0', color: '#333',
+                  fontSize: smallFont, padding: '1px 0', color: '#333',
                 }}>
                   <span>{label}</span>
                   <span style={{ fontWeight: 600 }}>{value}</span>
@@ -371,7 +448,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
               <div style={{
                 display: 'flex', justifyContent: 'space-between',
                 fontSize: isA4 ? '10pt' : '8.5pt', fontWeight: 800,
-                borderTop: `1.5px solid ${PRIMARY}`, marginTop: '4px', paddingTop: '4px',
+                borderTop: `1.5px solid ${PRIMARY}`, marginTop: '3px', paddingTop: '3px',
                 color: PRIMARY,
               }}>
                 <span>NET AMOUNT</span>
@@ -380,11 +457,9 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
             </div>
           </div>
         </div>
-
-        {/* Signature row */}
         <div style={{
           display: 'flex', justifyContent: 'space-between',
-          borderTop: `1.5px solid ${PRIMARY}`, paddingTop: isA4 ? '30px' : '20px',
+          borderTop: `1.5px solid ${PRIMARY}`, paddingTop: isA4 ? '25px' : '16px',
           fontSize: smallFont, color: '#555',
         }}>
           <div style={{ textAlign: 'center', width: '30%' }}>
@@ -404,12 +479,11 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
     // ── Render standard page ────────────────────────────────────────────────
     const renderPage = (pageItems: SaleOrderItem[], pageIndex: number) => {
       const isLastPage = pageIndex === totalPages - 1;
+      const isFirstPage = pageIndex === 0;
 
-      // Page-level subtotals
       const pageQty = pageItems.reduce((s, i) => s + i.orderQty, 0);
       const pageAmount = pageItems.reduce((s, i) => s + i.total, 0);
 
-      // Cumulative qty and amount up to and including this page
       const cumulativeQty = pages
         .slice(0, pageIndex + 1)
         .flat()
@@ -418,6 +492,9 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
         .slice(0, pageIndex + 1)
         .flat()
         .reduce((s, i) => s + i.total, 0);
+
+      // Calculate SR offset
+      const srOffset = pages.slice(0, pageIndex).reduce((s, p) => s + p.length, 0);
 
       return (
         <div
@@ -431,16 +508,16 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
             pageBreakAfter: isLastPage ? 'auto' : 'always',
           }}
         >
-          {renderHeader()}
-          {renderCustomerStrip(pageIndex)}
+          {isFirstPage ? renderFullHeader() : renderSlimHeader(pageIndex)}
+          {isFirstPage ? renderCustomerStrip(pageIndex) : renderSlimCustomerStrip(pageIndex)}
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th style={thStyle({ width: '5%', textAlign: 'center' })}>Sr</th>
+                <th style={thStyle({ width: '4%', textAlign: 'center' })}>Sr</th>
                 <th style={thStyle({ textAlign: 'left' })}>Product</th>
-                {showColor && <th style={thStyle({ width: '10%', textAlign: 'center' })}>Color</th>}
-                <th style={thStyle({ width: '8%', textAlign: 'center' })}>Size</th>
-                <th style={thStyle({ width: '7%', textAlign: 'center' })}>Qty</th>
+                {showColor && <th style={thStyle({ width: '9%', textAlign: 'center' })}>Color</th>}
+                <th style={thStyle({ width: '6%', textAlign: 'center' })}>Size</th>
+                <th style={thStyle({ width: '6%', textAlign: 'center' })}>Qty</th>
                 {showMRP && <th style={thStyle({ width: '10%', textAlign: 'right' })}>MRP</th>}
                 <th style={thStyle({ width: '10%', textAlign: 'right' })}>Rate</th>
                 <th style={thStyle({ width: '12%', textAlign: 'right' })}>Amount</th>
@@ -449,20 +526,20 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
             <tbody>
               {pageItems.map((item, idx) => {
                 const details = [item.brand, item.style].filter(Boolean).join(' · ');
-                const rowBg = idx % 2 === 0 ? '#fff' : '#f7f9fc';
+                const rowBg = idx % 2 === 0 ? '#fff' : '#f8fafc';
                 return (
                   <tr key={item.sr} style={{ background: rowBg }}>
                     <td style={tdStyle({ textAlign: 'center', color: '#888' })}>{item.sr}</td>
                     <td style={tdStyle({ textAlign: 'left' })}>
                       {item.particulars}
                       {details && (
-                        <span style={{ color: '#888', marginLeft: '4px', fontSize: '85%' }}>({details})</span>
+                        <span style={{ color: '#888', marginLeft: '3px', fontSize: '85%' }}>({details})</span>
                       )}
                     </td>
                     {showColor && (
                       <td style={tdStyle({ textAlign: 'center', fontWeight: 600 })}>{item.color || '—'}</td>
                     )}
-                    <td style={tdStyle({ textAlign: 'center', fontWeight: 700, fontSize: isA4 ? '10pt' : '8pt' })}>
+                    <td style={tdStyle({ textAlign: 'center', fontWeight: 700, fontSize: isA4 ? '9pt' : '7.5pt' })}>
                       {item.size}
                     </td>
                     <td style={tdStyle({ textAlign: 'center', fontWeight: 600 })}>{item.orderQty}</td>
@@ -479,9 +556,9 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                   colSpan={showColor ? (showMRP ? 4 : 3) : (showMRP ? 3 : 2)}
                   style={{
                     border: `1px solid ${PRIMARY}`,
-                    padding: isA4 ? '4px 4px' : '3px 3px',
+                    padding: isA4 ? '3px 3px' : '2px 2px',
                     fontWeight: 700,
-                    fontSize: isA4 ? '8.5pt' : '7pt',
+                    fontSize: isA4 ? '8pt' : '7pt',
                     color: '#fff',
                     textAlign: 'right',
                   }}
@@ -490,10 +567,10 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                 </td>
                 <td style={{
                   border: `1px solid ${PRIMARY}`,
-                  padding: isA4 ? '4px 3px' : '3px 2px',
+                  padding: isA4 ? '3px 3px' : '2px 2px',
                   textAlign: 'center',
                   fontWeight: 800,
-                  fontSize: isA4 ? '9.5pt' : '8pt',
+                  fontSize: isA4 ? '9pt' : '7.5pt',
                   color: '#fff',
                   backgroundColor: PRIMARY,
                 }}>
@@ -502,21 +579,21 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                 {showMRP && (
                   <td style={{
                     border: `1px solid ${PRIMARY}`,
-                    padding: isA4 ? '4px 4px' : '3px 3px',
+                    padding: isA4 ? '3px 3px' : '2px 2px',
                     backgroundColor: PRIMARY,
                   }} />
                 )}
                 <td style={{
                   border: `1px solid ${PRIMARY}`,
-                  padding: isA4 ? '4px 4px' : '3px 3px',
+                  padding: isA4 ? '3px 3px' : '2px 2px',
                   backgroundColor: PRIMARY,
                 }} />
                 <td style={{
                   border: `1px solid ${PRIMARY}`,
-                  padding: isA4 ? '4px 4px' : '3px 3px',
+                  padding: isA4 ? '3px 3px' : '2px 2px',
                   textAlign: 'right',
                   fontWeight: 800,
-                  fontSize: isA4 ? '9.5pt' : '8pt',
+                  fontSize: isA4 ? '9pt' : '7.5pt',
                   color: '#fff',
                   backgroundColor: PRIMARY,
                 }}>
@@ -531,22 +608,22 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                     colSpan={showColor ? (showMRP ? 4 : 3) : (showMRP ? 3 : 2)}
                     style={{
                       border: `1px solid ${BORDER}`,
-                      padding: isA4 ? '3px 4px' : '2px 3px',
+                      padding: isA4 ? '2px 3px' : '2px 2px',
                       fontWeight: 600,
-                      fontSize: isA4 ? '7.5pt' : '6.5pt',
+                      fontSize: isA4 ? '7pt' : '6pt',
                       color: PRIMARY,
                       textAlign: 'right',
                       fontStyle: 'italic',
                     }}
                   >
-                    Running Total (SR 1–{pageIndex * itemsPerPage + pageItems.length})
+                    Running Total (SR 1–{srOffset + pageItems.length})
                   </td>
                   <td style={{
                     border: `1px solid ${BORDER}`,
-                    padding: isA4 ? '3px 3px' : '2px 2px',
+                    padding: isA4 ? '2px 3px' : '2px 2px',
                     textAlign: 'center',
                     fontWeight: 700,
-                    fontSize: isA4 ? '8pt' : '7pt',
+                    fontSize: isA4 ? '7.5pt' : '6.5pt',
                     color: PRIMARY,
                     backgroundColor: LIGHT,
                   }}>
@@ -564,10 +641,10 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                   }} />
                   <td style={{
                     border: `1px solid ${BORDER}`,
-                    padding: isA4 ? '3px 4px' : '2px 3px',
+                    padding: isA4 ? '2px 3px' : '2px 2px',
                     textAlign: 'right',
                     fontWeight: 700,
-                    fontSize: isA4 ? '8pt' : '7pt',
+                    fontSize: isA4 ? '7.5pt' : '6.5pt',
                     color: PRIMARY,
                     backgroundColor: LIGHT,
                   }}>
@@ -581,7 +658,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
           {!isLastPage && (
             <div style={{
               textAlign: 'center', fontSize: tinyFont, color: '#999',
-              marginTop: '5px', fontStyle: 'italic',
+              marginTop: '3px', fontStyle: 'italic',
             }}>
               Continued on next page...
             </div>
@@ -603,7 +680,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
             boxSizing: 'border-box',
           }}
         >
-          {renderHeader()}
+          {renderFullHeader()}
           {renderCustomerStrip(0)}
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -629,7 +706,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
             <tbody>
               {groupedItems.map((g, idx) => {
                 const details = [g.brand, g.style].filter(Boolean).join(' · ');
-                const rowBg = idx % 2 === 0 ? '#fff' : '#f7f9fc';
+                const rowBg = idx % 2 === 0 ? '#fff' : '#f8fafc';
                 return (
                   <tr key={idx} style={{ background: rowBg }}>
                     <td style={tdStyle({ textAlign: 'center', color: '#888' })}>{idx + 1}</td>
@@ -641,7 +718,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                     {uniqueSizes.map(sz => (
                       <td key={sz} style={tdStyle({
                         textAlign: 'center', fontWeight: 700,
-                        fontSize: isA4 ? '10pt' : '8pt',
+                        fontSize: isA4 ? '9pt' : '7.5pt',
                       })}>
                         {g.sizes.get(sz)?.qty ?? '—'}
                       </td>
