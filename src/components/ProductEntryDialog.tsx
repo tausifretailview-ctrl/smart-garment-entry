@@ -134,6 +134,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const [customSizeInput, setCustomSizeInput] = useState("");
   const autoBarcodePending = useRef(false);
   
+  // Mobile ERP: qty input & IMEI scan
+  const [mobileERPQty, setMobileERPQty] = useState<number>(1);
+  const [imeiScanOpen, setImeiScanOpen] = useState(false);
+  const [imeiScanColor, setImeiScanColor] = useState<string>("");
+  
   // Auto-generate barcodes when variants are created with empty barcodes (only in auto mode)
   // In purchase context (hideOpeningQty), defer barcode generation to save time — only for sizes with qty > 0
   useEffect(() => {
