@@ -289,7 +289,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
       // Calculate totals per customer using Math.max to avoid double-counting
       const customerTotals = customersData.map((customer: any) => {
-        const customerSales = salesData.filter((s: any) => s.customer_id === customer.id);
+        const customerSales = salesData.filter((s: any) => s.customer_id === customer.id && s.payment_status !== 'cancelled');
         const totalSales = customerSales.reduce((sum: number, s: any) => sum + (s.net_amount || 0), 0);
         
         let totalPaidOnSales = 0;
@@ -775,7 +775,12 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       combined.forEach((item) => {
         if (item.type === 'invoice') {
           const sale = item.data as any;
-          runningBalance += sale.net_amount;
+          const isCancelled = sale.payment_status === 'cancelled';
+          
+          // Cancelled invoices: show in ledger but do NOT affect running balance
+          if (!isCancelled) {
+            runningBalance += sale.net_amount;
+          }
           
           // Build payment breakdown for display
           const paymentBreakdown: any = {};
@@ -790,12 +795,15 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             type: 'invoice',
             reference: sale.sale_number,
             description: `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status}`,
-            debit: sale.net_amount,
+            debit: isCancelled ? 0 : sale.net_amount,
             credit: 0,
             balance: runningBalance,
             paymentStatus: sale.payment_status,
             paymentBreakdown: Object.keys(paymentBreakdown).length > 0 ? paymentBreakdown : undefined,
           });
+
+          // Skip payment processing for cancelled invoices
+          if (isCancelled) return;
 
           // Calculate "payment at sale" - exclude amounts paid via vouchers (recorded payments)
           // Total paid_amount includes all payments, but voucher payments are recorded separately

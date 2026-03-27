@@ -39,13 +39,14 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
 
       const openingBalance = customer?.opening_balance || 0;
 
-      // Fetch all sales for this customer (id, net_amount and paid_amount)
+      // Fetch all sales for this customer (id, net_amount and paid_amount) - exclude cancelled
       const { data: sales, error: salesError } = await supabase
         .from('sales')
-        .select('id, net_amount, paid_amount, sale_return_adjust')
+        .select('id, net_amount, paid_amount, sale_return_adjust, payment_status')
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
-        .is('deleted_at', null);
+        .is('deleted_at', null)
+        .neq('payment_status', 'cancelled');
 
       if (salesError) throw salesError;
 
