@@ -1461,28 +1461,6 @@ export default function Settings() {
                       />
                     </div>
 
-                    <div className="flex items-center justify-between p-3 border rounded-lg">
-                      <div>
-                        <Label className="font-medium">Enable Customer</Label>
-                        <p className="text-xs text-muted-foreground">Show customer selection in POS and sales for Mobile ERP</p>
-                      </div>
-                      <Switch
-                        checked={settings.product_settings?.mobile_erp?.enable_customer ?? true}
-                        onCheckedChange={(checked) =>
-                          setSettings({
-                            ...settings,
-                            product_settings: {
-                              ...settings.product_settings,
-                              mobile_erp: {
-                                ...settings.product_settings?.mobile_erp,
-                                enable_customer: checked,
-                              },
-                            },
-                          })
-                        }
-                      />
-                    </div>
-
                     <div className="grid grid-cols-2 gap-4 p-3 border rounded-lg">
                       <div className="space-y-1">
                         <Label className="text-sm">IMEI Min Length</Label>
