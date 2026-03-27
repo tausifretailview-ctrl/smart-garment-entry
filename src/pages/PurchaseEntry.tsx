@@ -357,6 +357,7 @@ const PurchaseEntry = () => {
   const isAutoBarcode = barcodeMode !== 'scan';
   
   const autoFocusSearch = (settings?.purchase_settings as any)?.auto_focus_search || false;
+  const sizeGridReviewMode = (settings?.purchase_settings as any)?.size_grid_review_mode || false;
   
   const focusSearchBar = useCallback(() => {
     if (autoFocusSearch) {
