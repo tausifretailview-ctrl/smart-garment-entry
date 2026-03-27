@@ -236,6 +236,10 @@ export default function POSSales() {
   const [showQuickServiceDialog, setShowQuickServiceDialog] = useState(false);
   const [quickServiceCode, setQuickServiceCode] = useState("");
 
+  // Financer / EMI details state (for Mobile ERP)
+  const [financerDetails, setFinancerDetails] = useState<FinancerDetails | null>(null);
+  const [showFinancerDialog, setShowFinancerDialog] = useState(false);
+
   // Out-of-stock product history dialog state
   const [showOutOfStockHistory, setShowOutOfStockHistory] = useState(false);
   const [outOfStockProduct, setOutOfStockProduct] = useState<{ productId: string; productName: string } | null>(null);
