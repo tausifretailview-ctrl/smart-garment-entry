@@ -62,7 +62,46 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 export function AppSidebar() {
-  const { open } = useSidebar();
+  const { open, setOpen } = useSidebar();
+  const [isLocked, setIsLocked] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("sidebar_locked") === "true";
+    } catch {
+      return false;
+    }
+  });
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const locked = localStorage.getItem("sidebar_locked") === "true";
+    if (locked) {
+      setOpen(true);
+    } else {
+      setOpen(false);
+    }
+  }, []);
+
+  const handleMouseEnter = () => {
+    if (isLocked) return;
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    setOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    if (isLocked) return;
+    hoverTimeoutRef.current = setTimeout(() => {
+      setOpen(false);
+    }, 120);
+  };
+
+  const handleToggleLock = () => {
+    const newLocked = !isLocked;
+    setIsLocked(newLocked);
+    setOpen(newLocked);
+    try {
+      localStorage.setItem("sidebar_locked", String(newLocked));
+    } catch {}
+  };
   const location = useLocation();
   const { canAccessSettings, canAccessPurchases, isPlatformAdmin, isAdmin } = useUserRoles();
   const { hasMenuAccess, hasMainMenuAccess, hasSpecialPermission, isAdmin: isAdminPermissions, loading: permissionsLoading } = useUserPermissions();
