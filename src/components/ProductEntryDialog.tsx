@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -132,6 +133,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const [customSizes, setCustomSizes] = useState<string[]>([]);
   const [customSizeInput, setCustomSizeInput] = useState("");
   const autoBarcodePending = useRef(false);
+  
+  // Mobile ERP: qty input & IMEI scan
+  const [mobileERPQty, setMobileERPQty] = useState<number>(1);
+  const [imeiScanOpen, setImeiScanOpen] = useState(false);
+  const [imeiScanColor, setImeiScanColor] = useState<string>("");
   
   // Auto-generate barcodes when variants are created with empty barcodes (only in auto mode)
   // In purchase context (hideOpeningQty), defer barcode generation to save time — only for sizes with qty > 0
@@ -1627,7 +1633,55 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </div>
               )}
 
-              {/* Size Group Selection - hidden in Mobile ERP mode */}
+              {/* Mobile ERP: Quantity input - triggers IMEI scan when qty > 1 */}
+              {mobileERPMode?.locked_size_qty && hideOpeningQty && (
+                <div className="space-y-2">
+                  <Label className="font-semibold">Quantity</Label>
+                  <div className="flex items-center gap-3">
+                    <Input
+                      type="number"
+                      min={1}
+                      value={mobileERPQty}
+                      onChange={(e) => {
+                        const val = Math.max(1, parseInt(e.target.value) || 1);
+                        setMobileERPQty(val);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const qty = mobileERPQty;
+                          if (qty > 1) {
+                            const color = formData.colors.length > 0 ? formData.colors[0] : "";
+                            setImeiScanColor(color);
+                            setImeiScanOpen(true);
+                          }
+                        }
+                      }}
+                      className="w-24 h-9 text-center font-bold text-lg"
+                      placeholder="1"
+                    />
+                    {mobileERPQty > 1 && (
+                      <Button
+                        type="button"
+                        variant="default"
+                        size="sm"
+                        className="gap-1.5 bg-purple-600 hover:bg-purple-700 text-white"
+                        onClick={() => {
+                          const color = formData.colors.length > 0 ? formData.colors[0] : "";
+                          setImeiScanColor(color);
+                          setImeiScanOpen(true);
+                        }}
+                      >
+                        Scan {mobileERPQty} IMEI
+                      </Button>
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      {mobileERPQty === 1 ? "Single unit — scan IMEI below" : `${mobileERPQty} units — click to scan IMEIs`}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {formData.product_type !== 'service' && !mobileERPMode?.locked_size_qty && (
                 <div className="space-y-2">
                   <Label>Size Group</Label>
@@ -2312,6 +2366,35 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Mobile ERP: IMEI Multi-Scan Dialog */}
+      {mobileERPMode?.locked_size_qty && (
+        <IMEIScanDialog
+          open={imeiScanOpen}
+          onClose={() => setImeiScanOpen(false)}
+          quantity={mobileERPQty}
+          productName={formData.product_name || "New Product"}
+          minLength={mobileERPMode.imei_min_length || 15}
+          maxLength={mobileERPMode.imei_max_length || 19}
+          onConfirm={(imeiNumbers) => {
+            // Create one variant per IMEI
+            const newVariants: ProductVariant[] = imeiNumbers.map(imei => ({
+              color: imeiScanColor,
+              size: "None",
+              pur_price: formData.default_pur_price ?? 0,
+              sale_price: formData.default_sale_price ?? 0,
+              mrp: formData.default_mrp ?? null,
+              barcode: imei,
+              active: true,
+              opening_qty: 0,
+              purchase_qty: 1,
+            }));
+            setVariants(newVariants);
+            setShowVariants(true);
+            setImeiScanOpen(false);
+          }}
+        />
+      )}
     </>
   );
 };
