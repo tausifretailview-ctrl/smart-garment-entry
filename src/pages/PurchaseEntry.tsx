@@ -195,6 +195,10 @@ const PurchaseEntry = () => {
   // DC Purchase (Direct Cash / No GST) state
   const [isDcPurchase, setIsDcPurchase] = useState(false);
 
+  // IMEI Scan Dialog state (Mobile ERP mode)
+  const [showIMEIScanDialog, setShowIMEIScanDialog] = useState(false);
+  const [imeiScanItem, setImeiScanItem] = useState<{ tempId: string; qty: number; item: LineItem } | null>(null);
+
   const [billData, setBillData] = useState({
     supplier_id: "",
     supplier_name: "",
