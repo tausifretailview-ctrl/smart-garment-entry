@@ -66,6 +66,7 @@ interface MobileERPConfig {
   imei_scan_enforcement?: boolean;
   locked_size_qty?: boolean;
   financer_billing?: boolean;
+  enable_customer?: boolean;
   imei_min_length?: number;
   imei_max_length?: number;
 }

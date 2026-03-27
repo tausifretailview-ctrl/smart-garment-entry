@@ -225,11 +225,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         if (hideOpeningQty) {
           const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
           
-          // Mobile ERP / IMEI mode: single "Free" size per color, qty=1
+          // Mobile ERP / IMEI mode: single "None" size per color, qty=1
           if (mobileERPMode?.locked_size_qty) {
             const newVariants: ProductVariant[] = colorsToUse.map(color => ({
               color,
-              size: "Free",
+              size: "None",
               pur_price: formData.default_pur_price ?? 0,
               sale_price: formData.default_sale_price ?? 0,
               mrp: formData.default_mrp ?? null,
