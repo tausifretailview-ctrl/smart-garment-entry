@@ -51,13 +51,15 @@ interface SizeGridDialogProps {
   title?: string;
   allowCustomSizes?: boolean;
   allowAddColor?: boolean;
-  allowMultiColor?: boolean; // Show all colors at once for batch entry
+  allowMultiColor?: boolean;
   defaultPurPrice?: number;
   defaultSalePrice?: number;
   defaultMrp?: number;
   showMrp?: boolean;
   showSizePrices?: boolean;
   onColorAdded?: (color: string) => void;
+  reviewMode?: boolean;
+  showPurPrice?: boolean;
 }
 
 export function SizeGridDialog({
