@@ -1760,10 +1760,7 @@ export default function POSSales() {
       setCurrentInvoiceIndex(0);
       setCurrentSaleId(result.id);
       
-      toast({
-        title: currentSaleId ? "Sale Updated" : "Sale Saved",
-        description: `Invoice ${result.sale_number} ${currentSaleId ? 'updated' : 'saved'} successfully`,
-      });
+      // Silent operation - no toast for POS save
       
       // Apply credit if any
       if (creditApplied > 0 && customerId) {
@@ -1899,10 +1896,7 @@ export default function POSSales() {
       const wasEditing = !!currentSaleId;
       setCurrentSaleId(result.id);
       
-      toast({
-        title: wasEditing ? "Sale Updated" : "Sale Saved",
-        description: `Invoice ${result.sale_number} ${wasEditing ? 'updated' : 'saved'} with ${method.toUpperCase()} payment`,
-      });
+      // Silent operation - no toast for POS save
       
       // Store invoice data for print dialog BEFORE clearing the form
       const invoiceDataForPrint = {
@@ -2100,14 +2094,7 @@ export default function POSSales() {
         }
       }
       
-      toast({
-        title: wasEditing ? "Sale Updated" : "Sale Saved",
-        description: isCreditNote 
-          ? `Invoice ${result.sale_number} saved with Credit Note of ₹${paymentData.refundAmount.toFixed(2)}`
-          : isRefund 
-            ? `Invoice ${result.sale_number} ${wasEditing ? 'updated' : 'saved'} with refund of ₹${paymentData.refundAmount.toFixed(2)}`
-            : `Invoice ${result.sale_number} ${wasEditing ? 'updated' : 'saved'} with mixed payment${balanceAmount > 0 ? ` (Balance: ₹${balanceAmount.toFixed(2)})` : ''}`,
-      });
+      // Silent operation - no toast for POS save
       
       // Credit and points operations moved to after print dialog (non-blocking, see below)
       
