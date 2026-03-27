@@ -33,6 +33,7 @@ import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
 import { useBeepSound } from "@/hooks/useBeepSound";
 import { useCashDrawer } from "@/hooks/useCashDrawer";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
+import { waitForPrintReady } from "@/utils/printReady";
 import { CreditNotePrint } from "@/components/CreditNotePrint";
 import {
   Command,

@@ -42,6 +42,7 @@ import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 
 import { useReactToPrint } from "react-to-print";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
+import { waitForPrintReady } from "@/utils/printReady";
 import {
   Command,
   CommandEmpty,
