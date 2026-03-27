@@ -1483,7 +1483,7 @@ const ProductDashboard = () => {
                     variant="outline"
                     size="sm"
                     onClick={handleNextPage}
-                    disabled={productRows.length < itemsPerPage}
+                    disabled={currentPage >= totalPages}
                   >
                     Next
                   </Button>
