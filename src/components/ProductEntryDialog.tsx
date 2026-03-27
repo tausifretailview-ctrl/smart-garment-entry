@@ -2378,9 +2378,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           maxLength={mobileERPMode.imei_max_length || 19}
           onConfirm={(imeiNumbers) => {
             // Create one variant per IMEI
-            const newVariants: ProductVariant[] = imeiNumbers.map(imei => ({
+            const newVariants: ProductVariant[] = imeiNumbers.map((imei, idx) => ({
               color: imeiScanColor,
-              size: "None",
+              size: `IMEI-${idx + 1}`,
               pur_price: formData.default_pur_price ?? 0,
               sale_price: formData.default_sale_price ?? 0,
               mrp: formData.default_mrp ?? null,
