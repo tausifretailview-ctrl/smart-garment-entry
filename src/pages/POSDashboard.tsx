@@ -335,6 +335,38 @@ const POSDashboard = () => {
   const fetchSaleItems = async (saleId: string): Promise<SaleItem[]> => {
     if (saleItems[saleId]) return saleItems[saleId];
 
+    // Check if this is a hold bill - items are stored in notes JSON, not in sale_items
+    const sale = sales.find(s => s.id === saleId);
+    if (sale?.payment_status === 'hold' && sale?.notes) {
+      try {
+        const holdData = JSON.parse(sale.notes);
+        if (holdData.items && Array.isArray(holdData.items)) {
+          const parsedItems: SaleItem[] = holdData.items.map((item: any, idx: number) => ({
+            id: `hold-${saleId}-${idx}`,
+            sale_id: saleId,
+            product_id: item.productId || item.product_id || '',
+            product_name: item.productName || item.product_name || '',
+            size: item.size || '',
+            barcode: item.barcode || '',
+            quantity: item.quantity || item.qty || 0,
+            unit_price: item.salePrice || item.unit_price || item.rate || 0,
+            mrp: item.mrp || 0,
+            line_total: item.lineTotal || item.line_total || item.total || 0,
+            discount_percent: item.discountPercent || item.discount_percent || 0,
+            gst_percent: item.gstPercent || item.gst_percent || 0,
+            hsn_code: item.hsnCode || item.hsn_code || '',
+            brand: item.brand || '',
+            color: item.color || '',
+            style: item.style || '',
+          }));
+          setSaleItems((prev) => ({ ...prev, [saleId]: parsedItems }));
+          return parsedItems;
+        }
+      } catch (e) {
+        console.error('Error parsing hold bill items:', e);
+      }
+    }
+
     try {
       const { data, error } = await supabase
         .from("sale_items")
