@@ -86,6 +86,7 @@ export function SizeGridDialog({
   const { toast } = useToast();
   const [sizeQty, setSizeQty] = useState<{ [size: string]: string }>({});
   const [sizePrices, setSizePrices] = useState<{ [variantId: string]: string }>({});
+  const [sizePurPrices, setSizePurPrices] = useState<{ [variantId: string]: string }>({});
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [customSizes, setCustomSizes] = useState<CustomSizeEntry[]>([]);
   const [showAddCustom, setShowAddCustom] = useState(false);
