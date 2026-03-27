@@ -89,13 +89,21 @@ export function AdjustCustomerCreditNoteDialog({
         const newPaidAmount = (selectedSale.paid_amount || 0) + adjustAmount;
         const newStatus = newPaidAmount >= selectedSale.net_amount ? "completed" : "partial";
 
+        // Fetch current sale_return_adjust to accumulate
+        const { data: currentSale } = await supabase
+          .from("sales")
+          .select("sale_return_adjust")
+          .eq("id", selectedSaleId)
+          .single();
+        const existingAdjust = currentSale?.sale_return_adjust || 0;
+
         // Update the sale
         const { error: saleError } = await supabase
           .from("sales")
           .update({
             paid_amount: newPaidAmount,
             payment_status: newStatus,
-            sale_return_adjust: adjustAmount,
+            sale_return_adjust: existingAdjust + adjustAmount,
           })
           .eq("id", selectedSaleId);
 

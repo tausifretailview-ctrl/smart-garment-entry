@@ -1429,10 +1429,18 @@ export default function SalesInvoiceDashboard() {
           })
           .eq('id', selectedCNReturnId);
 
+        // Fetch current sale_return_adjust to accumulate
+        const { data: currentSaleForCN } = await supabase
+          .from('sales')
+          .select('sale_return_adjust')
+          .eq('id', selectedInvoiceForPayment.id)
+          .single();
+        const existingCNAdjust = currentSaleForCN?.sale_return_adjust || 0;
+
         await supabase
           .from('sales')
           .update({
-            sale_return_adjust: amount,
+            sale_return_adjust: existingCNAdjust + amount,
           })
           .eq('id', selectedInvoiceForPayment.id);
       }

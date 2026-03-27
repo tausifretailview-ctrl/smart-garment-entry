@@ -106,7 +106,7 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
       // Fetch unused advances
       const { data: advances, error: advError } = await supabase
         .from('customer_advances')
-        .select('amount, used_amount')
+        .select('id, amount, used_amount')
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .in('status', ['active', 'partially_used']);
@@ -116,6 +116,17 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
       const unusedAdvanceTotal = advances?.reduce((sum, adv) => {
         return sum + Math.max(0, (adv.amount || 0) - (adv.used_amount || 0));
       }, 0) || 0;
+
+      // Fetch advance refunds (refunded advances reduce unused credit)
+      const advanceIds = advances?.map(a => a.id) || [];
+      let advanceRefundTotal = 0;
+      if (advanceIds.length > 0) {
+        const { data: advRefunds } = await supabase
+          .from('advance_refunds')
+          .select('refund_amount')
+          .in('advance_id', advanceIds);
+        advanceRefundTotal = advRefunds?.reduce((s, r) => s + (r.refund_amount || 0), 0) || 0;
+      }
 
       // Fetch sale returns (credit notes) for this customer
       const { data: saleReturns, error: srError } = await supabase
@@ -140,8 +151,9 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
         .is('deleted_at', null);
       const totalRefundsPaid = refundVouchers?.reduce((s, v) => s + (v.total_amount || 0), 0) || 0;
 
-      // Balance = Opening + Sales - Paid + Adjustments - Unused Advances - Sale Returns - Refunds
-      const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - unusedAdvanceTotal - saleReturnTotal - totalRefundsPaid);
+      // Balance = Opening + Sales - Paid + Adjustments - (Unused Advances - Advance Refunds) - Sale Returns - Refunds
+      const effectiveUnusedAdvances = Math.max(0, unusedAdvanceTotal - advanceRefundTotal);
+      const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - effectiveUnusedAdvances - saleReturnTotal - totalRefundsPaid);
 
       return {
         balance,
