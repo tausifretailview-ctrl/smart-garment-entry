@@ -922,41 +922,62 @@ export default function SalesInvoiceDashboard() {
   });
 
   const ensureSaleItems = async (invoice: any) => {
-    if (invoice.sale_items && invoice.sale_items.length > 0) return invoice;
+    const needsItems = !invoice.sale_items || invoice.sale_items.length === 0;
+    const needsCustomerGst = invoice.customer_id && !invoice.customers?.gst_number;
+    
+    if (!needsItems && !needsCustomerGst) return invoice;
+    
     try {
-      // Fetch sale items first
-      const { data: items, error } = await supabase
-        .from('sale_items')
-        .select('*')
-        .eq('sale_id', invoice.id)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: true });
-      if (error) throw error;
+      let saleItems = invoice.sale_items || [];
+      let updatedInvoice = { ...invoice };
       
-      const saleItems = items || [];
-      
-      // Fetch product details (brand, color, style) for the items
-      if (saleItems.length > 0) {
-        const productIds = [...new Set(saleItems.map(i => i.product_id).filter(Boolean))];
-        if (productIds.length > 0) {
-          const { data: products } = await supabase
-            .from('products')
-            .select('id, brand, color, style')
-            .in('id', productIds);
-          
-          if (products) {
-            const productMap = Object.fromEntries(products.map(p => [p.id, p]));
-            saleItems.forEach((item: any) => {
-              item.products = productMap[item.product_id] || null;
-            });
+      // Fetch sale items if needed
+      if (needsItems) {
+        const { data: items, error } = await supabase
+          .from('sale_items')
+          .select('*')
+          .eq('sale_id', invoice.id)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: true });
+        if (error) throw error;
+        saleItems = items || [];
+        
+        // Fetch product details (brand, color, style) for the items
+        if (saleItems.length > 0) {
+          const productIds = [...new Set(saleItems.map((i: any) => i.product_id).filter(Boolean))] as string[];
+          if (productIds.length > 0) {
+            const { data: products } = await supabase
+              .from('products')
+              .select('id, brand, color, style')
+              .in('id', productIds);
+            
+            if (products) {
+              const productMap = Object.fromEntries(products.map(p => [p.id, p]));
+              saleItems.forEach((item: any) => {
+                item.products = productMap[item.product_id] || null;
+              });
+            }
           }
+        }
+        updatedInvoice.sale_items = saleItems;
+      }
+      
+      // Fetch customer GST number if not already loaded via join
+      if (needsCustomerGst) {
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('gst_number, transport_details')
+          .eq('id', invoice.customer_id)
+          .single();
+        if (customer) {
+          updatedInvoice.customers = { ...(invoice.customers || {}), gst_number: customer.gst_number, transport_details: customer.transport_details };
         }
       }
       
-      return { ...invoice, sale_items: saleItems };
+      return updatedInvoice;
     } catch (err) {
       console.error('Error fetching sale items for print:', err);
-      return { ...invoice, sale_items: [] };
+      return { ...invoice, sale_items: invoice.sale_items || [] };
     }
   };
 
