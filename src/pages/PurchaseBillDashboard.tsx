@@ -1228,6 +1228,9 @@ const PurchaseBillDashboard = () => {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-mono text-xs font-bold text-primary">{bill.software_bill_no}</span>
+                      {bill.is_dc_purchase && (
+                        <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400 border border-orange-300 dark:border-orange-700">DC</span>
+                      )}
                       <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border", statusCls)}>
                         {statusLabel}
                       </span>
