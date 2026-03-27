@@ -1222,6 +1222,8 @@ export default function POSSales() {
 
       // Clear input and show error for product not found
       setSearchInput("");
+      setProductSearchResults([]);
+      setIsProductSearchLoading(false);
       playErrorBeep();
       toast({
         title: "Product not found",
@@ -1229,7 +1231,7 @@ export default function POSSales() {
         variant: "destructive",
       });
     }
-  }, [productsData, playErrorBeep, toast, currentOrganization?.id]);
+  }, [productsData, playErrorBeep, toast, currentOrganization?.id, mobileERP, addItemToCart]);
 
   const handleQuickServiceAdd = useCallback(({ code, quantity, mrp }: { code: string; quantity: number; mrp: number }) => {
     // Try to find actual product with matching barcode to get valid IDs
