@@ -146,7 +146,13 @@ export function AppSidebar() {
   const schoolPaths = ["/students", "/student-entry", "/teachers", "/fee-collection", "/fee-heads", "/fee-structures", "/academic-years", "/classes", "/student-reports", "/student-promotion"];
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border dark:bg-[hsl(213,32%,17%)] pt-0" style={{ width: '280px' }}>
+    <Sidebar
+      collapsible="icon"
+      className="border-r border-sidebar-border dark:bg-[hsl(213,32%,17%)] pt-0"
+      style={{ transition: 'width 0.22s ease' }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <SidebarContent className="font-sans text-[16px] text-white pt-0 mt-0 space-y-1">
         {/* Platform Admin - Only visible to platform admins */}
         {isPlatformAdmin && (
