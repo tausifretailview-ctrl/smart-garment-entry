@@ -1015,27 +1015,28 @@ export default function POSSales() {
     
     // For scanner input: DON'T open dropdown, wait for Enter key
     if (isScannerLike || (value.length >= 4 && timeSinceLastKeystroke < 50)) {
-      // Keep dropdown closed for scanner input
       setOpenProductSearch(false);
+      setProductSearchResults([]);
+      setIsProductSearchLoading(false);
       return;
     }
     
-    // For manual typing: debounce dropdown opening
-    // Only show dropdown for manual searches (alphabetic or slow input)
     if (value.length >= 2) {
       dropdownDebounceTimer.current = setTimeout(() => {
-        // Only open dropdown if:
-        // 1. Input contains non-numeric characters OR
-        // 2. Input is relatively short (likely partial search)
         const hasNonNumeric = /[a-zA-Z]/.test(value);
         const isShortNumeric = /^\d+$/.test(value) && value.length < 8;
-        
+
         if (hasNonNumeric || isShortNumeric) {
           setOpenProductSearch(true);
+        } else {
+          setOpenProductSearch(false);
+          setProductSearchResults([]);
         }
-      }, 300); // 300ms debounce for dropdown
+      }, 300);
     } else {
       setOpenProductSearch(false);
+      setProductSearchResults([]);
+      setIsProductSearchLoading(false);
     }
   }, [recordKeystroke, detectScannerInput]);
 
