@@ -944,7 +944,7 @@ export default function SalesInvoiceDashboard() {
         
         // Fetch product details (brand, color, style) for the items
         if (saleItems.length > 0) {
-          const productIds = [...new Set(saleItems.map(i => i.product_id).filter(Boolean))];
+          const productIds = [...new Set(saleItems.map((i: any) => i.product_id).filter(Boolean))] as string[];
           if (productIds.length > 0) {
             const { data: products } = await supabase
               .from('products')
