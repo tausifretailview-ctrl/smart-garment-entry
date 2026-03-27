@@ -231,11 +231,17 @@ export function ERPTable<T>({
                           {row.getVisibleCells().map((cell, idx) => (
                             <td
                               key={cell.id}
-                              style={{ width: cell.column.getSize() }}
+                              style={{
+                                width: cell.column.getSize(),
+                                ...(((cell.column.columnDef as any).meta as any)?.stickyRight
+                                  ? { position: 'sticky', right: 0, zIndex: 5 }
+                                  : {}),
+                              }}
                               className={cn(
                                 "text-[15px] border-b border-muted/80",
                                 persistence.density === "compact" ? "px-3 py-1.5" : "px-5 py-4",
-                                stickyFirstColumn && idx === 0 && "erp-table-sticky-col bg-card"
+                                stickyFirstColumn && idx === 0 && "erp-table-sticky-col bg-card",
+                                ((cell.column.columnDef as any).meta as any)?.stickyRight && "bg-card shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]"
                               )}
                             >
                               {flexRender(cell.column.columnDef.cell, cell.getContext())}

@@ -537,7 +537,7 @@ export function SalesInvoiceERPTable({
           </div>
         );
       },
-      size: 220,
+      size: 240,
     });
 
     return cols;
