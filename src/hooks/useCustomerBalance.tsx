@@ -106,7 +106,7 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
       // Fetch unused advances
       const { data: advances, error: advError } = await supabase
         .from('customer_advances')
-        .select('amount, used_amount')
+        .select('id, amount, used_amount')
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .in('status', ['active', 'partially_used']);
