@@ -1606,8 +1606,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </div>
               )}
 
-              {/* Size Group Selection */}
-              {formData.product_type !== 'service' && (
+              {/* Size Group Selection - hidden in Mobile ERP mode */}
+              {formData.product_type !== 'service' && !mobileERPMode?.locked_size_qty && (
                 <div className="space-y-2">
                   <Label>Size Group</Label>
                   <div className="flex gap-2">
