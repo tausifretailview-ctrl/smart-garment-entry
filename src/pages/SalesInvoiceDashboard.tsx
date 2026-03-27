@@ -2352,7 +2352,7 @@ export default function SalesInvoiceDashboard() {
 
         <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0">
           <div className="space-y-0">
-            <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-slate-100 bg-white">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-white overflow-x-auto">
               <div className="relative flex-1 min-w-[200px] max-w-[280px]">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
