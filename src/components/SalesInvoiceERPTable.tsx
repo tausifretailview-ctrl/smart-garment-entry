@@ -347,75 +347,75 @@ export function SalesInvoiceERPTable({
         return (
           <div onClick={(e) => e.stopPropagation()}>
             {/* Desktop */}
-            <div className="hidden lg:flex justify-end gap-1">
+            <div className="hidden lg:flex justify-end items-center gap-0.5">
               {isEInvoiceEnabled && invoice.customers?.gst_number && (
                 <>
-                  <Button variant="ghost" size="icon" onClick={() => handleGenerateEInvoice(invoice)} title={invoice.irn ? `IRN: ${invoice.irn.substring(0, 20)}...` : "Generate E-Invoice"} disabled={isGeneratingEInvoice === invoice.id} className={invoice.irn ? "text-green-600" : "text-orange-600"}>
-                    {isGeneratingEInvoice === invoice.id ? <Loader2 className="h-4 w-4 animate-spin" /> : invoice.irn ? <CheckCircle2 className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleGenerateEInvoice(invoice)} title={invoice.irn ? `IRN: ${invoice.irn.substring(0, 20)}...` : "Generate E-Invoice"} disabled={isGeneratingEInvoice === invoice.id}>
+                    {isGeneratingEInvoice === invoice.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : invoice.irn ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> : <Zap className="h-3.5 w-3.5 text-orange-600" />}
                   </Button>
                   {invoice.irn && (
-                    <Button variant="ghost" size="icon" onClick={() => handleDownloadEInvoicePDF(invoice)} title="Download E-Invoice PDF" disabled={isDownloadingEInvoice === invoice.id} className="text-teal-600">
-                      {isDownloadingEInvoice === invoice.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDownloadEInvoicePDF(invoice)} title="Download E-Invoice PDF" disabled={isDownloadingEInvoice === invoice.id}>
+                      {isDownloadingEInvoice === invoice.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5 text-teal-600" />}
                     </Button>
                   )}
                 </>
               )}
               {invoice.payment_status !== 'completed' && (
-                <Button variant="ghost" size="icon" onClick={() => openPaymentDialog(invoice)} title="Record Payment">
-                  <IndianRupee className="h-4 w-4 text-purple-600" />
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openPaymentDialog(invoice)} title="Record Payment">
+                  <IndianRupee className="h-3.5 w-3.5 text-purple-600" />
                 </Button>
               )}
               {columnSettings.copyLink && (
-                <Button variant="ghost" size="icon" onClick={() => handleCopyLink(invoice)} title="Copy Invoice Link">
-                  <Link2 className="h-4 w-4 text-blue-600" />
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleCopyLink(invoice)} title="Copy Invoice Link">
+                  <Link2 className="h-3.5 w-3.5 text-blue-600" />
                 </Button>
               )}
               {columnSettings.whatsapp && (
-                <Button variant="ghost" size="icon" onClick={() => handleWhatsAppShare(invoice)} title="Share on WhatsApp" disabled={!invoice.customer_phone}>
-                  <MessageCircle className="h-4 w-4 text-green-600" />
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleWhatsAppShare(invoice)} title="Share on WhatsApp" disabled={!invoice.customer_phone}>
+                  <MessageCircle className="h-3.5 w-3.5 text-green-600" />
                 </Button>
               )}
               {whatsAppAPISettings?.is_active && (
-                <Button variant="ghost" size="icon" onClick={() => handleResendWhatsAppAPI(invoice)} title="Resend via WhatsApp API" disabled={!invoice.customer_phone || isSendingWhatsAppAPI}>
-                  <Send className="h-4 w-4 text-teal-600" />
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleResendWhatsAppAPI(invoice)} title="Resend via WhatsApp API" disabled={!invoice.customer_phone || isSendingWhatsAppAPI}>
+                  <Send className="h-3.5 w-3.5 text-teal-600" />
                 </Button>
               )}
               {invoice.payment_status !== 'completed' && (
-                <Button variant="ghost" size="icon" onClick={() => handlePaymentReminder(invoice)} title="Send Payment Reminder" disabled={!invoice.customer_phone}>
-                  <MessageCircle className="h-4 w-4 text-orange-600" />
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handlePaymentReminder(invoice)} title="Send Payment Reminder" disabled={!invoice.customer_phone}>
+                  <MessageCircle className="h-3.5 w-3.5 text-orange-600" />
                 </Button>
               )}
               {columnSettings.print && (
-                <Button variant="ghost" size="icon" onClick={() => handlePrintInvoice(invoice)} title="Print Invoice">
-                  <Printer className="h-4 w-4" />
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handlePrintInvoice(invoice)} title="Print Invoice">
+                  <Printer className="h-3.5 w-3.5" />
                 </Button>
               )}
               {columnSettings.download && (
-                <Button variant="ghost" size="icon" onClick={() => handleDownloadPDF(invoice)} title="Download PDF">
-                  <Download className="h-4 w-4 text-blue-600" />
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDownloadPDF(invoice)} title="Download PDF">
+                  <Download className="h-3.5 w-3.5 text-blue-600" />
                 </Button>
               )}
               {columnSettings.modify && (
                 invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices') ? (
-                  <Button variant="ghost" size="icon" disabled title="Invoice is locked (Fully Paid)">
-                    <Lock className="h-4 w-4 text-muted-foreground" />
+                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled title="Invoice is locked (Fully Paid)">
+                    <Lock className="h-3.5 w-3.5 text-muted-foreground" />
                   </Button>
                 ) : (
-                  <Button variant="ghost" size="icon" onClick={() => navigate('/sales-invoice', { state: { editInvoiceId: invoice.id } })}>
-                    <Edit className="h-4 w-4" />
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('/sales-invoice', { state: { editInvoiceId: invoice.id } })}>
+                    <Edit className="h-3.5 w-3.5" />
                   </Button>
                 )
               )}
               {columnSettings.delete && (
                 invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices') ? (
-                  <Button variant="ghost" size="icon" disabled title="Invoice is locked (Fully Paid)">
-                    <Lock className="h-4 w-4 text-muted-foreground" />
+                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled title="Invoice is locked (Fully Paid)">
+                    <Lock className="h-3.5 w-3.5 text-muted-foreground" />
                   </Button>
                 ) : (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" title="Cancel / Delete">
-                        <Trash2 className="h-4 w-4 text-destructive" />
+                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Cancel / Delete">
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="bg-popover z-[60]">
