@@ -491,6 +491,12 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                 <div><strong>Tenure:</strong> {financerDetails.tenure} months</div>
               )}
             </div>
+            {gstNumber && (
+              <div style={{ marginTop: '3px' }}><strong>Company GSTIN:</strong> {gstNumber}</div>
+            )}
+            {customerGSTIN && (
+              <div><strong>Customer GSTIN:</strong> {customerGSTIN}</div>
+            )}
           </div>
         )}
 
