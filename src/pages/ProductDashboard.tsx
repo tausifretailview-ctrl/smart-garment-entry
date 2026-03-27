@@ -1477,7 +1477,7 @@ const ProductDashboard = () => {
                     Previous
                   </Button>
                   <div className="text-sm text-muted-foreground">
-                    Page {currentPage}
+                    Page {currentPage} of {totalPages}
                   </div>
                   <Button
                     variant="outline"
