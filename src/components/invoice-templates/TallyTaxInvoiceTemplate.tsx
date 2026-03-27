@@ -490,6 +490,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
               {financerDetails.tenure != null && financerDetails.tenure > 0 && (
                 <div><strong>Tenure:</strong> {financerDetails.tenure} months</div>
               )}
+            </div>
           </div>
         )}
 
