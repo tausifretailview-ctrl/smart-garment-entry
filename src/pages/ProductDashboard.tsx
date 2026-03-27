@@ -441,6 +441,7 @@ const ProductDashboard = () => {
 
   const fetchProducts = async (retryCount = 0) => {
     if (!currentOrganization?.id) return;
+    const seq = ++fetchSeqRef.current;
     if (productRows.length === 0) {
       setLoading(true);
     } else {
@@ -450,6 +451,8 @@ const ProductDashboard = () => {
       const params = { ...getRpcParams(), p_page: currentPage, p_page_size: itemsPerPage };
       const { data, error } = await supabase.rpc("get_product_catalog_page", params);
       if (error) throw error;
+      // Stale response guard — ignore if a newer request was fired
+      if (seq !== fetchSeqRef.current) return;
 
       const rows: ProductRow[] = (data || []).map((p: any) => ({
         product_id: p.product_id,
@@ -489,7 +492,7 @@ const ProductDashboard = () => {
           .is("deleted_at", null)
           .not("category", "is", null);
         const uniqueCategories = Array.from(new Set((catData || []).map((p: any) => p.category).filter(Boolean))).sort();
-        setCategories(uniqueCategories as string[]);
+        if (seq === fetchSeqRef.current) setCategories(uniqueCategories as string[]);
       }
 
       if (productTypes.length === 0) {
@@ -500,9 +503,11 @@ const ProductDashboard = () => {
           .is("deleted_at", null)
           .not("product_type", "is", null);
         const uniqueTypes = Array.from(new Set((typeData || []).map((p: any) => p.product_type).filter(Boolean))).sort();
-        setProductTypes(uniqueTypes as string[]);
+        if (seq === fetchSeqRef.current) setProductTypes(uniqueTypes as string[]);
       }
     } catch (error: any) {
+      // Ignore errors from stale requests
+      if (seq !== fetchSeqRef.current) return;
       console.error("ProductDashboard fetch error:", error);
       if (retryCount < 1) {
         setTimeout(() => fetchProducts(retryCount + 1), 1000);
@@ -515,8 +520,10 @@ const ProductDashboard = () => {
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
-      setIsRefetching(false);
+      if (seq === fetchSeqRef.current) {
+        setLoading(false);
+        setIsRefetching(false);
+      }
     }
   };
 
