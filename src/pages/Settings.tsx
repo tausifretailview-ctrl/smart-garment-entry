@@ -1483,6 +1483,7 @@ export default function Settings() {
                       />
                     </div>
 
+                    <div className="grid grid-cols-2 gap-4 p-3 border rounded-lg">
                       <div className="space-y-1">
                         <Label className="text-sm">IMEI Min Length</Label>
                         <Input
