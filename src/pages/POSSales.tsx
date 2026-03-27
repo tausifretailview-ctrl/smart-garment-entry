@@ -4605,6 +4605,27 @@ export default function POSSales() {
         customerName={customerName || "Walk-in"}
         dcItems={dcTransferItems}
       />
+
+      {/* Financer / EMI Floating Dialog (Mobile ERP) */}
+      <Dialog open={showFinancerDialog} onOpenChange={setShowFinancerDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Financer / EMI Details
+            </DialogTitle>
+          </DialogHeader>
+          <FinancerDetailsForm
+            value={financerDetails}
+            onChange={(details) => setFinancerDetails(details)}
+          />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => setShowFinancerDialog(false)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
