@@ -66,6 +66,8 @@ const menuStructure = [
       { id: "sale_order_dashboard", name: "Sale Order Dashboard" },
       { id: "sale_return", name: "Sale Return" },
       { id: "sale_return_dashboard", name: "Sale Return Dashboard" },
+      { id: "delivery_challan_entry", name: "Delivery Challan" },
+      { id: "delivery_challan_dashboard", name: "Delivery Challan Dashboard" },
     ],
   },
   {
