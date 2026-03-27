@@ -2801,24 +2801,21 @@ export default function POSSales() {
     },
   });
 
-  // Filter products based on search input — uses local cache when available
-  // Also applies selectedProductType filter
+  // Filter products for POS suggestions: prefer fast server results, fall back to local cache
   const filteredProducts = useMemo(() => {
+    if (productSearchResults.length > 0) return productSearchResults;
     if (!productsData || !searchInput.trim()) return [];
+
     const term = searchInput.toLowerCase();
-    const results = productsData.flatMap(product => {
-      // Apply product type filter
+    return productsData.flatMap(product => {
       if (selectedProductType !== 'all' && product.product_type !== selectedProductType) return [];
       return product.product_variants?.map((variant: any) => ({
         product,
         variant,
         searchText: `${product.product_name} ${variant.size} ${variant.color || ''} ${variant.barcode || ''} ${product.brand || ''} ${product.category || ''}`.toLowerCase()
-      })).filter((item: any) => 
-        item.searchText.includes(term)
-      ) || [];
+      })).filter((item: any) => item.searchText.includes(term)) || [];
     });
-    return results;
-  }, [productsData, searchInput, selectedProductType]);
+  }, [productSearchResults, productsData, searchInput, selectedProductType]);
 
   // Mobile POS Layout
   if (isMobile) {
