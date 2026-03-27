@@ -66,7 +66,6 @@ interface MobileERPConfig {
   imei_scan_enforcement?: boolean;
   locked_size_qty?: boolean;
   financer_billing?: boolean;
-  enable_customer?: boolean;
   imei_min_length?: number;
   imei_max_length?: number;
 }
@@ -1454,28 +1453,6 @@ export default function Settings() {
                               mobile_erp: {
                                 ...settings.product_settings?.mobile_erp,
                                 financer_billing: checked,
-                              },
-                            },
-                          })
-                        }
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between p-3 border rounded-lg">
-                      <div>
-                        <Label className="font-medium">Enable Customer</Label>
-                        <p className="text-xs text-muted-foreground">Show customer selection in POS and sales for Mobile ERP</p>
-                      </div>
-                      <Switch
-                        checked={settings.product_settings?.mobile_erp?.enable_customer ?? true}
-                        onCheckedChange={(checked) =>
-                          setSettings({
-                            ...settings,
-                            product_settings: {
-                              ...settings.product_settings,
-                              mobile_erp: {
-                                ...settings.product_settings?.mobile_erp,
-                                enable_customer: checked,
                               },
                             },
                           })
