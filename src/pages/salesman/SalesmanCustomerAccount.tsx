@@ -59,6 +59,7 @@ const SalesmanCustomerAccount = () => {
   const { navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
   const { sendWhatsApp } = useWhatsAppSend();
+  const { balance: authoritativeBalance } = useCustomerBalance(customerId || null, currentOrganization?.id || null);
 
   const [customer, setCustomer] = useState<CustomerDetails | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
