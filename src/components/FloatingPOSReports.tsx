@@ -381,11 +381,14 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
   // Fetch supplier names for filtered variants
   const [supplierMap, setSupplierMap] = useState<Record<string, string>>({});
   useEffect(() => {
-    if (!stockData || stockData.length === 0 || !currentOrganization?.id) {
+    if (!stockData.length || !currentOrganization?.id) {
       setSupplierMap({});
       return;
     }
+
     const variantIds = stockData.map((item: any) => item.id);
+    const variantKey = variantIds.join(',');
+
     (async () => {
       try {
         const { data } = await supabase
@@ -394,7 +397,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
           .in("sku_id", variantIds)
           .is("deleted_at", null)
           .order("created_at", { ascending: false });
-        
+
         const map: Record<string, string> = {};
         (data || []).forEach((row: any) => {
           if (row.sku_id && !map[row.sku_id]) {
@@ -402,9 +405,11 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
           }
         });
         setSupplierMap(map);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     })();
-  }, [stockData, currentOrganization?.id]);
+  }, [currentOrganization?.id, stockData.map((item: any) => item.id).join(',')]);
 
   // Total stock value
   const totalStockValue = stockData?.reduce((sum, item) => {

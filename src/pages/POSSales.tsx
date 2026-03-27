@@ -299,6 +299,7 @@ export default function POSSales() {
   const { recordKeystroke, reset: resetScannerDetection, detectScannerInput } = useBarcodeScanner();
   const lastInputTime = useRef<number>(0);
   const dropdownDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const productSearchSeqRef = useRef(0);
   
   // Visibility-based polling - pauses when tab is hidden
   const posRefetchInterval = useVisibilityRefetch(300000); // 5 minutes (reduced from 1 min for multi-tab perf)
