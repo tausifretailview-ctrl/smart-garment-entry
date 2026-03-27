@@ -535,7 +535,7 @@ export default function OrgAuth() {
           }}
         />
 
-        <div className="relative z-10 h-full flex items-center justify-center px-6 py-4">
+        <div className="relative z-10 h-full flex flex-col items-center justify-center px-6 py-4">
           <div 
             className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[85%] h-8 rounded-[100%]"
             style={{
@@ -549,10 +549,76 @@ export default function OrgAuth() {
             className="w-full max-w-[90%] h-auto object-contain relative z-10"
             style={{ 
               filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.18)) contrast(1.03) saturate(1.05) brightness(1.01)',
-              maxHeight: '70vh',
+              maxHeight: '50vh',
               imageRendering: 'auto'
             }}
           />
+          
+          {/* Features Grid */}
+          <div className="mt-6 grid grid-cols-2 gap-2 w-full max-w-[90%] relative z-10">
+            {[
+              {
+                color: 'rgba(108,92,231,0.22)', iconColor: '#a78bfa',
+                icon: 'M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18',
+                title: 'POS & Sales Billing', desc: 'Fast billing, GST invoices',
+              },
+              {
+                color: 'rgba(52,211,153,0.15)', iconColor: '#34d399',
+                icon: 'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z',
+                title: 'Inventory Management', desc: 'Size-wise stock control',
+              },
+              {
+                color: 'rgba(251,191,36,0.15)', iconColor: '#fbbf24',
+                icon: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
+                title: 'Accounts & Ledgers', desc: 'Payments & outstanding',
+              },
+              {
+                color: 'rgba(248,113,113,0.15)', iconColor: '#f87171',
+                icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z',
+                title: 'GST & Tally Export', desc: 'GSTR-1, e-invoice, XML',
+              },
+              {
+                color: 'rgba(56,189,248,0.15)', iconColor: '#38bdf8',
+                icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10',
+                title: 'Barcoding Management', desc: 'Label print, thermal, scan',
+              },
+              {
+                color: 'rgba(34,197,94,0.15)', iconColor: '#22c55e',
+                icon: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
+                title: 'WhatsApp Integration', desc: 'Auto invoices & reminders',
+              },
+            ].map((f, i) => (
+              <div key={i} className="flex items-start gap-2 rounded-lg p-2"
+                style={{ background: 'rgba(255,255,255,0.55)', border: '0.5px solid rgba(0,0,0,0.08)' }}>
+                <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
+                  style={{ background: f.color }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={f.iconColor} strokeWidth="2">
+                    <path d={f.icon} />
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-medium" style={{ fontSize: 10.5, color: '#1e293b' }}>{f.title}</p>
+                  <p className="mt-0.5" style={{ fontSize: 9.5, color: 'rgba(0,0,0,0.45)', lineHeight: 1.4 }}>{f.desc}</p>
+                </div>
+              </div>
+            ))}
+            {/* Mobile App — full width */}
+            <div className="col-span-2 flex items-start gap-2 rounded-lg p-2"
+              style={{ background: 'rgba(255,255,255,0.55)', border: '0.5px solid rgba(0,0,0,0.08)' }}>
+              <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
+                style={{ background: 'rgba(244,114,182,0.15)' }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f472b6" strokeWidth="2">
+                  <rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18.01"/>
+                </svg>
+              </div>
+              <div>
+                <p className="font-medium" style={{ fontSize: 10.5, color: '#1e293b' }}>Mobile Application</p>
+                <p className="mt-0.5" style={{ fontSize: 9.5, color: 'rgba(0,0,0,0.45)', lineHeight: 1.4 }}>
+                  Owner dashboard, POS sales, stock & reports — anywhere, anytime
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
