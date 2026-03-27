@@ -505,7 +505,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         .from("sales")
         .select("id")
         .eq("customer_id", selectedCustomer.id)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .neq("payment_status", "hold");
 
       if (allSalesError) throw allSalesError;
 
@@ -516,7 +517,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         .from("sales")
         .select("*, created_at")
         .eq("customer_id", selectedCustomer.id)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .neq("payment_status", "hold");
 
       // Apply date filters - normalize dates to yyyy-MM-dd format for accurate comparison
       if (startDate) {
@@ -1017,7 +1019,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         .from("sales")
         .select("id, sale_number, net_amount, paid_amount, cash_amount, card_amount, upi_amount, sale_date, payment_method, payment_status, sale_return_adjust")
         .eq("customer_id", selectedCustomer.id)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .neq("payment_status", "hold");
 
       if (salesError) throw salesError;
 
