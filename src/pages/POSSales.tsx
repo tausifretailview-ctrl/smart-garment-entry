@@ -1896,10 +1896,7 @@ export default function POSSales() {
       const wasEditing = !!currentSaleId;
       setCurrentSaleId(result.id);
       
-      toast({
-        title: wasEditing ? "Sale Updated" : "Sale Saved",
-        description: `Invoice ${result.sale_number} ${wasEditing ? 'updated' : 'saved'} with ${method.toUpperCase()} payment`,
-      });
+      // Silent operation - no toast for POS save
       
       // Store invoice data for print dialog BEFORE clearing the form
       const invoiceDataForPrint = {
