@@ -941,7 +941,14 @@ const ProductDashboard = () => {
   }, [columnVisibility, selectedProducts, paginatedRows, startIndex, galleryRefreshKey, showMrp]);
 
   const renderProductSubRow = useCallback((row: ProductRow) => {
-    if (row.variants.length === 0) return null;
+    if (row.variants.length === 0) {
+      return (
+        <div className="p-4 flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="text-sm">Loading variants...</span>
+        </div>
+      );
+    }
     
     // Compute duplicate barcodes within all productRows
     const barcodeCount = new Map<string, number>();
