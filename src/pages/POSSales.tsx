@@ -1579,7 +1579,11 @@ export default function POSSales() {
     setOnEstimatePrint(() => handleEstimatePrint);
     return () => { setOnEstimatePrint(null); };
   }, [setOnEstimatePrint, handleEstimatePrint]);
-
+    
+    // Save financer details if provided (Mobile ERP)
+    if (result && mobileERP.enabled && mobileERP.financer_billing && financerDetails?.financer_name) {
+      await saveFinancerDetails(result.id, currentOrganization?.id || '', financerDetails);
+    }
 
   const handleApplyCredit = (amount: number) => {
     if (!customerId) {
