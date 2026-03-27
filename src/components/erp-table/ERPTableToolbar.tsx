@@ -22,19 +22,19 @@ export function ERPTableToolbar<T>({
   const allColumns = table.getAllLeafColumns().filter((c) => c.id !== "actions");
 
   return (
-    <div className="flex items-center gap-2 flex-nowrap">
+    <div className="flex items-center gap-1.5 flex-nowrap">
       {/* Density toggle */}
       <Button
         variant="outline"
         size="sm"
         onClick={onToggleDensity}
-        className="h-8 gap-1.5 text-xs"
+        className="h-7 gap-1 text-[11px] px-2.5 border-slate-200 text-slate-600"
         title={density === "compact" ? "Switch to comfortable" : "Switch to compact"}
       >
         {density === "compact" ? (
-          <LayoutGrid className="h-3.5 w-3.5" />
+          <LayoutGrid className="h-3 w-3" />
         ) : (
-          <AlignJustify className="h-3.5 w-3.5" />
+          <AlignJustify className="h-3 w-3" />
         )}
         {density === "compact" ? "Comfortable" : "Compact"}
       </Button>
@@ -42,8 +42,8 @@ export function ERPTableToolbar<T>({
       {/* Column visibility */}
       <Popover>
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-            <Columns3 className="h-3.5 w-3.5" />
+          <Button variant="outline" size="sm" className="h-7 gap-1 text-[11px] px-2.5 border-slate-200 text-slate-600">
+            <Columns3 className="h-3 w-3" />
             Columns
           </Button>
         </PopoverTrigger>
@@ -77,10 +77,10 @@ export function ERPTableToolbar<T>({
         variant="ghost"
         size="sm"
         onClick={onResetSettings}
-        className="h-8 gap-1.5 text-xs text-muted-foreground"
+        className="h-7 gap-1 text-[11px] px-2 text-slate-400 hover:text-slate-600"
         title="Reset column settings"
       >
-        <RotateCcw className="h-3.5 w-3.5" />
+        <RotateCcw className="h-3 w-3" />
         Reset
       </Button>
     </div>
