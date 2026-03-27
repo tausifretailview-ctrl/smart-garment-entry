@@ -81,6 +81,7 @@ interface MobileERPModeConfig {
   enabled: boolean;
   imei_scan_enforcement: boolean;
   locked_size_qty: boolean;
+  enable_customer?: boolean;
   imei_min_length: number;
   imei_max_length: number;
 }
@@ -213,6 +214,27 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     }
   }, [open]);
 
+  // Mobile ERP mode: auto-generate variants without needing a size group
+  useEffect(() => {
+    if (mobileERPMode?.locked_size_qty && hideOpeningQty && !formData.size_group_id) {
+      const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
+      const newVariants: ProductVariant[] = colorsToUse.map(color => ({
+        color,
+        size: "None",
+        pur_price: formData.default_pur_price ?? 0,
+        sale_price: formData.default_sale_price ?? 0,
+        mrp: formData.default_mrp ?? null,
+        barcode: "",
+        active: true,
+        opening_qty: 0,
+        purchase_qty: 1,
+      }));
+      if (isAutoBarcode) autoBarcodePending.current = true;
+      setVariants(newVariants);
+      setShowVariants(true);
+    }
+  }, [mobileERPMode?.locked_size_qty, hideOpeningQty, formData.colors, formData.size_group_id]);
+
   // Sync selectedSizes and auto-generate variants when size_group_id or colors change
   useEffect(() => {
     if (formData.size_group_id && sizeGroups.length > 0) {
@@ -225,11 +247,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         if (hideOpeningQty) {
           const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
           
-          // Mobile ERP / IMEI mode: single "Free" size per color, qty=1
+          // Mobile ERP / IMEI mode: single "None" size per color, qty=1
           if (mobileERPMode?.locked_size_qty) {
             const newVariants: ProductVariant[] = colorsToUse.map(color => ({
               color,
-              size: "Free",
+              size: "None",
               pur_price: formData.default_pur_price ?? 0,
               sale_price: formData.default_sale_price ?? 0,
               mrp: formData.default_mrp ?? null,
@@ -697,7 +719,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     }
 
     const selectedGroup = sizeGroups.find((g) => g.id === formData.size_group_id);
-    if (!selectedGroup) {
+    if (!selectedGroup && !mobileERPMode?.locked_size_qty) {
       toast({
         title: "Error",
         description: "Please select a size group first",
@@ -1606,8 +1628,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </div>
               )}
 
-              {/* Size Group Selection */}
-              {formData.product_type !== 'service' && (
+              {/* Size Group Selection - hidden in Mobile ERP mode */}
+              {formData.product_type !== 'service' && !mobileERPMode?.locked_size_qty && (
                 <div className="space-y-2">
                   <Label>Size Group</Label>
                   <div className="flex gap-2">

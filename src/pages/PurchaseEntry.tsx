@@ -368,6 +368,7 @@ const PurchaseEntry = () => {
       enabled: true,
       imei_scan_enforcement: merp.imei_scan_enforcement ?? true,
       locked_size_qty: merp.locked_size_qty ?? true,
+      enable_customer: merp.enable_customer ?? true,
       imei_min_length: merp.imei_min_length ?? 15,
       imei_max_length: merp.imei_max_length ?? 19,
     };
