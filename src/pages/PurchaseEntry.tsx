@@ -356,6 +356,14 @@ const PurchaseEntry = () => {
   const barcodeMode = (settings?.purchase_settings as any)?.barcode_mode || 'auto';
   const isAutoBarcode = barcodeMode !== 'scan';
   
+  const autoFocusSearch = (settings?.purchase_settings as any)?.auto_focus_search || false;
+  
+  const focusSearchBar = useCallback(() => {
+    if (autoFocusSearch) {
+      setTimeout(() => searchInputRef.current?.focus(), 100);
+    }
+  }, [autoFocusSearch]);
+  
   // Check if barcode prompt is enabled (defaults to true if not set)
   const enableBarcodePrompt = (settings?.bill_barcode_settings as any)?.enable_barcode_prompt !== false;
   
@@ -1506,6 +1514,7 @@ const PurchaseEntry = () => {
     setSizeQty({});
     // Blur so "1" shortcut works immediately
     (document.activeElement as HTMLElement)?.blur();
+    focusSearchBar();
   };
 
   const addInlineRow = (variant: ProductVariant) => {
@@ -1644,6 +1653,20 @@ const PurchaseEntry = () => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [lineItems, showProductDialog]);
+
+  // Auto-focus search bar when ProductEntryDialog closes
+  useEffect(() => {
+    if (!showProductDialog) {
+      focusSearchBar();
+    }
+  }, [showProductDialog, focusSearchBar]);
+
+  // Auto-focus search bar on page load
+  useEffect(() => {
+    if (settings && autoFocusSearch) {
+      setTimeout(() => searchInputRef.current?.focus(), 300);
+    }
+  }, [settings, autoFocusSearch]);
 
   // Function to detect price changes between line items and product_variants
   const detectPriceChanges = async (items: LineItem[]): Promise<PriceChange[]> => {

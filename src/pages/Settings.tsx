@@ -95,6 +95,7 @@ interface PurchaseSettings {
   show_mrp?: boolean;
   product_entry_discount_enabled?: boolean;
   barcode_mode?: 'auto' | 'scan';
+  auto_focus_search?: boolean;
 }
 
 interface EInvoiceSettings {
@@ -1724,6 +1725,28 @@ export default function Settings() {
                 <p className="text-xs text-muted-foreground ml-6">
                   When enabled, Purchase Discount and Sale Discount fields appear on the Product Entry form. 
                   Discounts auto-apply when adding products to Purchase Bills, Sales, and POS.
+                </p>
+
+                <div className="flex items-center space-x-2 pt-4">
+                  <Checkbox
+                    id="auto_focus_search"
+                    checked={settings.purchase_settings?.auto_focus_search || false}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          auto_focus_search: checked as boolean,
+                        },
+                      })
+                    }
+                  />
+                  <Label htmlFor="auto_focus_search" className="font-normal cursor-pointer">
+                    Auto-Focus Product Search Bar
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground ml-6">
+                  When enabled, cursor automatically moves to the product search bar after adding a product or closing the Add New Product window.
                 </p>
               </CardContent>
             </Card>
