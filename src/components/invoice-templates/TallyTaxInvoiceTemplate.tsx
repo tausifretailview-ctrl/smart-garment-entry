@@ -133,6 +133,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
   paymentMethod, declarationText, bankDetails, qrCodeUrl, upiId,
   showHSN = true, showGSTBreakdown = true, showBankDetails = true, notes,
   financerDetails,
+}) => {
   const sellerState = getStateFromGSTIN(gstNumber);
   const buyerState = getStateFromGSTIN(customerGSTIN);
   const isInterState = gstNumber && customerGSTIN && gstNumber.substring(0, 2) !== customerGSTIN.substring(0, 2);
