@@ -2831,6 +2831,17 @@ const PurchaseEntry = () => {
         <PriceUpdateConfirmDialog open={showPriceUpdateDialog} onOpenChange={setShowPriceUpdateDialog} priceChanges={detectedPriceChanges} onConfirm={handlePriceUpdateConfirm} onSkip={handlePriceUpdateSkip} />
         <AddSupplierDialog open={showAddSupplierDialog} onClose={() => setShowAddSupplierDialog(false)} onSupplierCreated={(supplier) => { refetchSuppliers(); setBillData((prev) => ({ ...prev, supplier_id: supplier.id, supplier_name: supplier.supplier_name })); }} />
         <SizeGridDialog open={showSizeGrid} onClose={() => setShowSizeGrid(false)} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} />
+        {isMobileERPMode && (
+          <IMEIScanDialog
+            open={showIMEIScanDialog}
+            onClose={() => { setShowIMEIScanDialog(false); setImeiScanItem(null); }}
+            quantity={imeiScanItem?.qty || 2}
+            productName={imeiScanItem?.item ? formatProductDescription(imeiScanItem.item) : ''}
+            onConfirm={handleIMEIScanConfirm}
+            minLength={mobileERPSettings?.imei_min_length}
+            maxLength={mobileERPSettings?.imei_max_length}
+          />
+        )}
       </div>
     );
   }
