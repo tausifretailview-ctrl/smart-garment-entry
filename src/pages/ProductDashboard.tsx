@@ -68,6 +68,14 @@ interface ProductRow {
   status: string;
   variants: ProductVariant[];
   total_stock: number;
+  variant_count: number;
+}
+
+interface DashboardStats {
+  total_items: number;
+  total_stock_qty: number;
+  purchase_value: number;
+  sale_value: number;
 }
 
 const ProductDashboard = () => {
