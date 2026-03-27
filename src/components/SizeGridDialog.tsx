@@ -442,6 +442,7 @@ export function SizeGridDialog({
     setSelectedColor(color);
     setSizeQty({});
     setSizePrices({});
+    setSizePurPrices({});
     setCustomSizes([]);
   };
 
