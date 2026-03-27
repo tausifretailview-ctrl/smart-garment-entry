@@ -390,15 +390,18 @@ const ProductDashboard = () => {
     return variants;
   }, [variantCache]);
 
+  // Request sequencing to prevent stale responses
+  const fetchSeqRef = useRef(0);
+
   // Fetch only current page of products with server-side filters via RPC
   useEffect(() => {
     fetchProducts();
-  }, [currentOrganization?.id, currentPage, itemsPerPage, debouncedSearch, selectedCategory, selectedProductType, selectedStockLevel]);
+  }, [currentOrganization?.id, currentPage, itemsPerPage, debouncedSearch, selectedCategory, selectedProductType, selectedSizeGroup, selectedStockLevel, minPrice, maxPrice]);
 
   // Fetch stats separately (lightweight)
   useEffect(() => {
     fetchStats();
-  }, [currentOrganization?.id, debouncedSearch, selectedCategory, selectedProductType, selectedStockLevel]);
+  }, [currentOrganization?.id, debouncedSearch, selectedCategory, selectedProductType, selectedSizeGroup, selectedStockLevel, minPrice, maxPrice]);
 
   const getRpcParams = () => {
     const term = debouncedSearch.trim() || undefined;
