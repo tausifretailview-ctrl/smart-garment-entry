@@ -1859,6 +1859,7 @@ export default function POSSales() {
       setOriginalItemsForEdit([]);
       setSelectedSalesman("");
       setSaleNotes("");
+      setFinancerDetails(null);
       setIsHeldSale(false);
       setPointsToRedeem(0);
       
