@@ -414,11 +414,29 @@ export function SizeGridDialog({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.ctrlKey && e.key === "a") {
+      e.preventDefault();
+      handleConfirm();
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey && !showAddCustom && !showAddColor) {
       e.preventDefault();
       handleConfirm();
     }
   };
+
+  // Global Ctrl+A shortcut while dialog is open
+  useEffect(() => {
+    if (!open) return;
+    const handleGlobalKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === "a") {
+        e.preventDefault();
+        handleConfirm();
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKey);
+    return () => window.removeEventListener("keydown", handleGlobalKey);
+  }, [open, sizeQty, sizePrices, sizePurPrices, customSizes]);
 
   const handleColorSelect = (color: string) => {
     setSelectedColor(color);
