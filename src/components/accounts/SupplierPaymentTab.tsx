@@ -109,7 +109,30 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
     queryFn: async () => {
       const { data: bills } = await supabase.from("purchase_bills").select("id, net_amount, paid_amount").eq("supplier_id", referenceId).is("deleted_at", null);
       const totalBills = bills?.reduce((sum, bill) => sum + (bill.net_amount || 0), 0) || 0;
-      const totalPaid = bills?.reduce((sum, bill) => sum + (bill.paid_amount || 0), 0) || 0;
+      const totalPaidOnBills = bills?.reduce((sum, bill) => sum + (bill.paid_amount || 0), 0) || 0;
+
+      // Fetch voucher payments for this supplier
+      const { data: voucherPmts } = await supabase.from("voucher_entries")
+        .select("total_amount")
+        .eq("reference_type", "supplier")
+        .eq("reference_id", referenceId)
+        .or("voucher_type.eq.payment,voucher_type.eq.PAYMENT")
+        .is("deleted_at", null);
+      const totalVoucherPaid = voucherPmts?.reduce((s, v) => s + (Number(v.total_amount) || 0), 0) || 0;
+
+      // Also fetch bill-linked voucher payments
+      const billIds = bills?.map(b => b.id) || [];
+      let billLinkedVoucherPaid = 0;
+      if (billIds.length > 0) {
+        const { data: billVouchers } = await supabase.from("voucher_entries")
+          .select("total_amount")
+          .in("reference_id", billIds)
+          .or("voucher_type.eq.payment,voucher_type.eq.PAYMENT")
+          .is("deleted_at", null);
+        billLinkedVoucherPaid = billVouchers?.reduce((s, v) => s + (Number(v.total_amount) || 0), 0) || 0;
+      }
+      const totalVoucherAll = totalVoucherPaid + billLinkedVoucherPaid;
+      const totalPaid = Math.max(totalPaidOnBills, totalVoucherAll);
 
       // Subtract credit note vouchers for this supplier
       const { data: cnVouchers } = await supabase.from("voucher_entries")
