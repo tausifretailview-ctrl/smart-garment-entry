@@ -634,6 +634,7 @@ export default function POSSales() {
       setCurrentInvoiceNumber("");
       setSelectedSalesman("");
       setSaleNotes("");
+      setFinancerDetails(null);
       toast({
         title: "New Invoice",
         description: "Cart cleared. Ready for new sale.",
