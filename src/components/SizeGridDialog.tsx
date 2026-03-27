@@ -146,6 +146,7 @@ export function SizeGridDialog({
     if (open) {
       setSizeQty({});
       setSizePrices({});
+      setSizePurPrices({});
       setCustomSizes([]);
       setShowAddCustom(false);
       setShowAddColor(false);
