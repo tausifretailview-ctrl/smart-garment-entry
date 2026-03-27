@@ -1913,7 +1913,7 @@ const PurchaseEntry = () => {
           console.log(`Deleted ${itemsToDelete.length} items`);
         }
 
-        // 2. Find items to UPDATE (exists in both, but qty/price changed)
+        // 2. Find items to UPDATE (exists in both, but qty/price/details changed)
         const itemsToUpdate = lineItems.filter(item => {
           const original = originalItemsMap.get(item.temp_id);
           if (!original) return false; // Not in original, so it's new
@@ -1924,7 +1924,13 @@ const PurchaseEntry = () => {
             original.pur_price !== item.pur_price ||
             original.sale_price !== item.sale_price ||
             original.mrp !== item.mrp ||
-            original.gst_per !== item.gst_per
+            original.gst_per !== item.gst_per ||
+            original.product_name !== item.product_name ||
+            original.brand !== item.brand ||
+            original.color !== item.color ||
+            original.style !== item.style ||
+            original.category !== item.category ||
+            original.hsn_code !== item.hsn_code
           );
         });
 
@@ -1932,13 +1938,14 @@ const PurchaseEntry = () => {
           const { error: updateError } = await supabase
             .from("purchase_items")
             .update({
+              product_name: item.product_name,
               qty: item.qty,
               pur_price: item.pur_price,
               sale_price: item.sale_price,
               mrp: item.mrp || 0,
               gst_per: item.gst_per,
               line_total: item.line_total,
-              // Also update product details that might have been missing in older records
+              hsn_code: item.hsn_code || null,
               brand: item.brand || null,
               category: item.category || null,
               color: item.color || null,
