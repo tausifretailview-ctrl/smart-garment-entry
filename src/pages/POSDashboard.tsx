@@ -320,6 +320,36 @@ const POSDashboard = () => {
           }
           itemsBySale[item.sale_id].push(item);
         });
+
+        // Parse hold bill items from notes JSON (hold bills have no sale_items rows)
+        allSales.forEach((sale: any) => {
+          if (sale.payment_status === 'hold' && sale.notes && !itemsBySale[sale.id]) {
+            try {
+              const holdData = JSON.parse(sale.notes);
+              if (holdData.items && Array.isArray(holdData.items)) {
+                itemsBySale[sale.id] = holdData.items.map((item: any, idx: number) => ({
+                  id: `hold-${sale.id}-${idx}`,
+                  sale_id: sale.id,
+                  product_id: item.productId || item.product_id || '',
+                  product_name: item.productName || item.product_name || '',
+                  size: item.size || '',
+                  barcode: item.barcode || '',
+                  quantity: item.quantity || item.qty || 0,
+                  unit_price: item.salePrice || item.unit_price || item.rate || 0,
+                  mrp: item.mrp || 0,
+                  line_total: item.lineTotal || item.line_total || item.total || 0,
+                  discount_percent: item.discountPercent || item.discount_percent || 0,
+                  gst_percent: item.gstPercent || item.gst_percent || 0,
+                  hsn_code: item.hsnCode || item.hsn_code || '',
+                  brand: item.brand || '',
+                  color: item.color || '',
+                  style: item.style || '',
+                }));
+              }
+            } catch (e) { /* ignore parse errors */ }
+          }
+        });
+
         setSaleItems(itemsBySale);
       }
     } catch (error: any) {
