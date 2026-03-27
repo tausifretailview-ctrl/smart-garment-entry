@@ -962,9 +962,14 @@ const PurchaseBillDashboard = () => {
       accessorKey: "software_bill_no",
       header: "Bill No.",
       cell: ({ row }) => (
-        <span className="font-mono text-sm font-semibold bg-primary/8 text-primary px-2 py-0.5 rounded-md">
-          {row.original.software_bill_no || "N/A"}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono text-sm font-semibold bg-primary/8 text-primary px-2 py-0.5 rounded-md">
+            {row.original.software_bill_no || "N/A"}
+          </span>
+          {row.original.is_dc_purchase && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400 border border-orange-300 dark:border-orange-700">DC</span>
+          )}
+        </div>
       ),
       size: 90,
       minSize: 70,
