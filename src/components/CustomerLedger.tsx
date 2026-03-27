@@ -345,9 +345,12 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         const openingBalance = customer.opening_balance || 0;
         const adjustmentTotal = customerAdjustments.get(customer.id) || 0;
         const unusedAdvanceTotal = customerUnusedAdvances.get(customer.id) || 0;
+        const advanceRefundTotal = customerAdvanceRefunds.get(customer.id) || 0;
+        const effectiveUnusedAdvances = Math.max(0, unusedAdvanceTotal - advanceRefundTotal);
         const creditNoteTotal = customerCreditNotes.get(customer.id) || 0;
-        // Balance = Opening + Sales - Paid + Adjustments - Unused Advances - Credit Notes
-        const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - unusedAdvanceTotal - creditNoteTotal);
+        const refundsPaidTotal = customerRefundsPaid.get(customer.id) || 0;
+        // Balance = Opening + Sales - Paid + Adjustments - Effective Unused Advances - Credit Notes - Refunds Paid
+        const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - effectiveUnusedAdvances - creditNoteTotal - refundsPaidTotal);
 
         return {
           ...customer,
