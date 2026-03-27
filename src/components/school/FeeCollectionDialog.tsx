@@ -310,6 +310,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
               payment_method: data.paymentMethod,
               organization_name: currentOrganization?.name || "",
               date: format(new Date(data.paidDate), "dd/MM/yyyy"),
+              balance: data.remainingBalance ?? 0,
             },
           });
           toast.success("WhatsApp receipt sent!");
