@@ -77,10 +77,10 @@ export function ERPTableToolbar<T>({
         variant="ghost"
         size="sm"
         onClick={onResetSettings}
-        className="h-8 gap-1.5 text-xs text-muted-foreground"
+        className="h-7 gap-1 text-[11px] px-2 text-slate-400 hover:text-slate-600"
         title="Reset column settings"
       >
-        <RotateCcw className="h-3.5 w-3.5" />
+        <RotateCcw className="h-3 w-3" />
         Reset
       </Button>
     </div>

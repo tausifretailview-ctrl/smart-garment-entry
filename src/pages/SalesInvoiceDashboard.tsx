@@ -2433,7 +2433,7 @@ export default function SalesInvoiceDashboard() {
                   <SelectItem value="order_cancelled" className="text-destructive">Order Cancelled</SelectItem>
                 </SelectContent>
               </Select>
-              <div id="erp-toolbar-portal" className="flex items-center gap-1.5 ml-auto" />
+              <div id="erp-toolbar-portal" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
             </div>
 
             <SalesInvoiceERPTable
