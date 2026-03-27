@@ -42,6 +42,7 @@ import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 
 import { useReactToPrint } from "react-to-print";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
+import { waitForPrintReady } from "@/utils/printReady";
 import {
   Command,
   CommandEmpty,
@@ -2256,7 +2257,7 @@ Thank you for choosing us!`;
     
     // Try QZ Tray direct print first
     if (isDirectPrintEnabled) {
-      setTimeout(async () => {
+      waitForPrintReady(printRef, async () => {
         const saleSettings = (settingsData as any)?.sale_settings;
         const billFormat = saleSettings?.sales_bill_format || 'a4';
         const paperSize = billFormat === 'thermal' ? '80mm' : billFormat === 'a5' ? 'A5' : 'A4';
@@ -2273,14 +2274,14 @@ Thank you for choosing us!`;
             setShowPrintDialog(false);
           },
         });
-      }, 150);
+      });
       return;
     }
     
-    // Fallback: browser print
-    setTimeout(() => {
+    // Fallback: browser print - wait for data + DOM + images
+    waitForPrintReady(printRef, () => {
       handlePrint();
-    }, 100);
+    });
   };
 
   const handleClosePrintDialog = () => {

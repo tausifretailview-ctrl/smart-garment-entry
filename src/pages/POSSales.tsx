@@ -33,6 +33,7 @@ import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
 import { useBeepSound } from "@/hooks/useBeepSound";
 import { useCashDrawer } from "@/hooks/useCashDrawer";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
+import { waitForPrintReady } from "@/utils/printReady";
 import { CreditNotePrint } from "@/components/CreditNotePrint";
 import {
   Command,
@@ -2261,8 +2262,8 @@ export default function POSSales() {
 
     // Try QZ Tray direct print first
     if (isDirectPrintEnabled) {
-      // Wait a tick for the invoice to render
-      setTimeout(async () => {
+      // Wait for invoice to fully render before direct printing
+      waitForPrintReady(invoicePrintRef, async () => {
         const paperSize = posBillFormat === 'thermal' ? '80mm' : posBillFormat === 'a5' || posBillFormat === 'a5-horizontal' ? 'A5' : 'A4';
         const success = await directPrint(invoicePrintRef.current, {
           context: 'pos',
@@ -2287,7 +2288,7 @@ export default function POSSales() {
             setTimeout(() => barcodeInputRef.current?.focus(), 100);
           },
         });
-      }, 150);
+      });
       return;
     }
     
@@ -2295,10 +2296,10 @@ export default function POSSales() {
       // Show preview dialog
       setShowPrintPreview(true);
     } else {
-      // Direct print without preview
-      setTimeout(() => {
+      // Direct print without preview - wait for data + DOM + images
+      waitForPrintReady(invoicePrintRef, () => {
         handlePrint();
-      }, 100);
+      });
     }
   };
 
@@ -2416,11 +2417,11 @@ export default function POSSales() {
     }
 
     try {
-      // Trigger print using react-to-print
-      handlePrint();
-      
-      // Close dialog after initiating print
-      setShowPrintDialog(false);
+      // Wait for invoice to be fully rendered then print
+      waitForPrintReady(invoicePrintRef, () => {
+        handlePrint();
+        setShowPrintDialog(false);
+      });
     } catch (error: any) {
       console.error('Error printing invoice:', error);
       toast({

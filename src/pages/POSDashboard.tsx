@@ -42,6 +42,7 @@ import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
+import { waitForPrintReady } from "@/utils/printReady";
 
 interface SaleItem {
   id: string;
@@ -563,16 +564,10 @@ const POSDashboard = () => {
       // Set print data first
       setPrintData(invoiceData);
       
-      // Wait for React to render the InvoiceWrapper with new data
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Request animation frame to ensure DOM is painted
-      await new Promise(resolve => requestAnimationFrame(resolve));
-      
-      // Additional delay for complex rendering
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
-      handlePrint();
+      // Wait for InvoiceWrapper to fully render (data + DOM + images) before printing
+      waitForPrintReady(invoicePrintRef, () => {
+        handlePrint();
+      });
       
       toast({
         title: "Printing Invoice",
