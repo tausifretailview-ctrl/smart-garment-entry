@@ -266,77 +266,76 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                 const rateExclTax = item.qty > 0 ? taxableAmt / item.qty : 0;
                 const halfRate = gstPct / 2;
                 return (
-                  <React.Fragment key={index}>
-                    <tr>
-                      <td style={{ ...cell, textAlign: 'center', verticalAlign: 'top' }}>{index + 1}</td>
-                      <td style={{ ...cell, verticalAlign: 'top' }}>
-                        <div style={{ fontWeight: 'bold', fontSize: '10px' }}>{item.particulars}</div>
-                        {item.color && <div style={{ fontSize: '9px', color: '#444' }}>Color: {item.color}</div>}
-                        {item.barcode && <div style={{ fontSize: '9px', color: '#333' }}>IMEI: {item.barcode}</div>}
-                      </td>
-                      {showHSN && <td style={{ ...cell, textAlign: 'center', verticalAlign: 'top' }}>{item.hsn}</td>}
-                      <td style={{ ...cell, textAlign: 'center', verticalAlign: 'top' }}>{item.qty} Pcs</td>
-                      <td style={{ ...cell, textAlign: 'right', verticalAlign: 'top' }}>{fmt(rateInclTax)}</td>
-                      <td style={{ ...cell, textAlign: 'right', verticalAlign: 'top' }}>{fmt(rateExclTax)}</td>
-                      <td style={{ ...cell, textAlign: 'center', verticalAlign: 'top' }}>Pcs</td>
-                      <td style={{ ...cell, textAlign: 'right', verticalAlign: 'top' }}>{fmt(taxableAmt)}</td>
-                    </tr>
-                    {showGSTBreakdown && gstPct > 0 && !isInterState && (
-                      <>
-                        <tr>
-                          <td style={cell}></td>
-                          <td style={{ ...cell, paddingLeft: '16px', fontSize: '9px' }}>OUTPUT CGST@{halfRate}%</td>
-                          {showHSN && <td style={cell}></td>}
-                          <td style={cell}></td><td style={cell}></td>
-                          <td style={{ ...cell, textAlign: 'right', fontSize: '9px' }}>{halfRate} %</td>
-                          <td style={cell}></td>
-                          <td style={{ ...cell, textAlign: 'right', fontSize: '9px' }}>{fmt(gstAmt / 2)}</td>
-                        </tr>
-                        <tr>
-                          <td style={cell}></td>
-                          <td style={{ ...cell, paddingLeft: '16px', fontSize: '9px' }}>OUTPUT SGST@{halfRate}%</td>
-                          {showHSN && <td style={cell}></td>}
-                          <td style={cell}></td><td style={cell}></td>
-                          <td style={{ ...cell, textAlign: 'right', fontSize: '9px' }}>{halfRate} %</td>
-                          <td style={cell}></td>
-                          <td style={{ ...cell, textAlign: 'right', fontSize: '9px' }}>{fmt(gstAmt / 2)}</td>
-                        </tr>
-                      </>
-                    )}
-                    {showGSTBreakdown && gstPct > 0 && isInterState && (
-                      <tr>
-                        <td style={cell}></td>
-                        <td style={{ ...cell, paddingLeft: '16px', fontSize: '9px' }}>OUTPUT IGST@{gstPct}%</td>
-                        {showHSN && <td style={cell}></td>}
-                        <td style={cell}></td><td style={cell}></td>
-                        <td style={{ ...cell, textAlign: 'right', fontSize: '9px' }}>{gstPct} %</td>
-                        <td style={cell}></td>
-                        <td style={{ ...cell, textAlign: 'right', fontSize: '9px' }}>{fmt(gstAmt)}</td>
-                      </tr>
-                    )}
-                  </React.Fragment>
+                  <tr key={index}>
+                    <td style={{ ...cellNoRowBorder, textAlign: 'center', verticalAlign: 'top' }}>{index + 1}</td>
+                    <td style={{ ...cellNoRowBorder, verticalAlign: 'top' }}>
+                      <div style={{ fontWeight: 'bold', fontSize: '10px' }}>{item.particulars}</div>
+                      {item.color && <div style={{ fontSize: '9px', color: '#444' }}>Color: {item.color}</div>}
+                      {item.barcode && <div style={{ fontSize: '9px', color: '#333' }}>IMEI: {item.barcode}</div>}
+                    </td>
+                    {showHSN && <td style={{ ...cellNoRowBorder, textAlign: 'center', verticalAlign: 'top' }}>{item.hsn}</td>}
+                    <td style={{ ...cellNoRowBorder, textAlign: 'center', verticalAlign: 'top' }}>{item.qty} Pcs</td>
+                    <td style={{ ...cellNoRowBorder, textAlign: 'right', verticalAlign: 'top' }}>{fmt(rateInclTax)}</td>
+                    <td style={{ ...cellNoRowBorder, textAlign: 'right', verticalAlign: 'top' }}>{fmt(rateExclTax)}</td>
+                    <td style={{ ...cellNoRowBorder, textAlign: 'center', verticalAlign: 'top' }}>Pcs</td>
+                    <td style={{ ...cellNoRowBorder, textAlign: 'right', verticalAlign: 'top' }}>{fmt(taxableAmt)}</td>
+                  </tr>
                 );
               })}
-              {/* Round Off */}
-              {roundOff !== 0 && (
-                <tr>
-                  <td style={cell}></td>
-                  <td style={{ ...cell, paddingLeft: '16px', fontSize: '9px' }}>ROUND OFF</td>
-                  {showHSN && <td style={cell}></td>}
-                  <td style={cell}></td><td style={cell}></td><td style={cell}></td><td style={cell}></td>
-                  <td style={{ ...cell, textAlign: 'right', fontSize: '9px' }}>{roundOff >= 0 ? '' : '(-)'}{fmt(Math.abs(roundOff))}</td>
-                </tr>
-              )}
               {/* Blank filler rows — minimum 5 total content rows */}
               {Array.from({ length: blankRowsNeeded }).map((_, i) => (
                 <tr key={`blank-${i}`}>
-                  <td style={cell}>&nbsp;</td>
-                  <td style={cell}></td>
-                  {showHSN && <td style={cell}></td>}
-                  <td style={cell}></td><td style={cell}></td><td style={cell}></td><td style={cell}></td>
-                  <td style={cell}></td>
+                  <td style={cellNoRowBorder}>&nbsp;</td>
+                  <td style={cellNoRowBorder}></td>
+                  {showHSN && <td style={cellNoRowBorder}></td>}
+                  <td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td>
+                  <td style={cellNoRowBorder}></td>
                 </tr>
               ))}
+              {/* CGST/SGST/IGST summary rows at bottom */}
+              {showGSTBreakdown && !isInterState && totalCgst > 0 && (
+                <>
+                  <tr>
+                    <td style={cellNoRowBorder}></td>
+                    <td style={{ ...cellNoRowBorder, paddingLeft: '16px', fontSize: '9px' }}>OUTPUT CGST@{summaryGstRate / 2}%</td>
+                    {showHSN && <td style={cellNoRowBorder}></td>}
+                    <td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td>
+                    <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{summaryGstRate / 2} %</td>
+                    <td style={cellNoRowBorder}></td>
+                    <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{fmt(totalCgst)}</td>
+                  </tr>
+                  <tr>
+                    <td style={cellNoRowBorder}></td>
+                    <td style={{ ...cellNoRowBorder, paddingLeft: '16px', fontSize: '9px' }}>OUTPUT SGST@{summaryGstRate / 2}%</td>
+                    {showHSN && <td style={cellNoRowBorder}></td>}
+                    <td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td>
+                    <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{summaryGstRate / 2} %</td>
+                    <td style={cellNoRowBorder}></td>
+                    <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{fmt(totalSgst)}</td>
+                  </tr>
+                </>
+              )}
+              {showGSTBreakdown && isInterState && totalIgst > 0 && (
+                <tr>
+                  <td style={cellNoRowBorder}></td>
+                  <td style={{ ...cellNoRowBorder, paddingLeft: '16px', fontSize: '9px' }}>OUTPUT IGST@{summaryGstRate}%</td>
+                  {showHSN && <td style={cellNoRowBorder}></td>}
+                  <td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td>
+                  <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{summaryGstRate} %</td>
+                  <td style={cellNoRowBorder}></td>
+                  <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{fmt(totalIgst)}</td>
+                </tr>
+              )}
+              {/* Round Off */}
+              {roundOff !== 0 && (
+                <tr>
+                  <td style={cellNoRowBorder}></td>
+                  <td style={{ ...cellNoRowBorder, paddingLeft: '16px', fontSize: '9px' }}>ROUND OFF</td>
+                  {showHSN && <td style={cellNoRowBorder}></td>}
+                  <td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td>
+                  <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{roundOff >= 0 ? '' : '(-)'}{fmt(Math.abs(roundOff))}</td>
+                </tr>
+              )}
               {/* Total Row */}
               <tr style={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>
                 <td style={{ ...cell, textAlign: 'center' }}></td>
