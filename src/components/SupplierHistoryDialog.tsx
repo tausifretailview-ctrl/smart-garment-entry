@@ -207,9 +207,9 @@ export const SupplierHistoryDialog = ({
             </Card>
             <Card className="border-l-4 border-l-orange-500 shadow-sm">
               <CardContent className="p-2.5">
-                <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">Returns</p>
+                <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">Credit Notes</p>
                 <p className="text-sm font-bold text-orange-600 tabular-nums mt-0.5">
-                  ₹{totalReturns.toLocaleString('en-IN')}
+                  ₹{totalCreditNoteAdjust.toLocaleString('en-IN')}
                 </p>
               </CardContent>
             </Card>
