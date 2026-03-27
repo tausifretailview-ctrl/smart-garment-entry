@@ -1231,7 +1231,7 @@ export default function POSSales() {
         variant: "destructive",
       });
     }
-  }, [productsData, playErrorBeep, toast, currentOrganization?.id, mobileERP, addItemToCart]);
+  }, [productsData, playErrorBeep, toast, currentOrganization?.id, mobileERP]);
 
   const handleQuickServiceAdd = useCallback(({ code, quantity, mrp }: { code: string; quantity: number; mrp: number }) => {
     // Try to find actual product with matching barcode to get valid IDs
