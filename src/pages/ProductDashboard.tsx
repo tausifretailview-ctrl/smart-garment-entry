@@ -84,7 +84,9 @@ const ProductDashboard = () => {
   const { currentOrganization } = useOrganization();
   const [productRows, setProductRows] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({ total_items: 0, total_stock_qty: 0, purchase_value: 0, sale_value: 0 });
+  const [totalCount, setTotalCount] = useState(0);
   const [isRefetching, setIsRefetching] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
