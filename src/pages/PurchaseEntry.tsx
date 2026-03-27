@@ -1552,6 +1552,16 @@ const PurchaseEntry = () => {
   };
 
   const updateLineItem = (temp_id: string, field: keyof LineItem, value: any) => {
+    // Mobile ERP mode: when qty changes to > 1, open IMEI scan dialog
+    if (isMobileERPMode && field === "qty" && Number(value) > 1) {
+      const item = lineItems.find(i => i.temp_id === temp_id);
+      if (item) {
+        setImeiScanItem({ tempId: temp_id, qty: Number(value), item });
+        setShowIMEIScanDialog(true);
+        return; // Don't update qty yet - wait for IMEI dialog
+      }
+    }
+
     setLineItems((items) =>
       items.map((item) => {
         if (item.temp_id === temp_id) {
@@ -1566,6 +1576,44 @@ const PurchaseEntry = () => {
         return item;
       })
     );
+  };
+
+  // Handle IMEI scan confirmation - split single row into multiple rows with individual IMEIs
+  const handleIMEIScanConfirm = (imeiNumbers: string[]) => {
+    if (!imeiScanItem) return;
+    const { tempId, item } = imeiScanItem;
+
+    setLineItems(prev => {
+      // Remove the original row
+      const filtered = prev.filter(i => i.temp_id !== tempId);
+      // Find insertion index (where original was)
+      const originalIndex = prev.findIndex(i => i.temp_id === tempId);
+      
+      // Create individual rows for each IMEI
+      const newRows: LineItem[] = imeiNumbers.map((imei, idx) => {
+        const subTotal = 1 * item.pur_price;
+        const discountAmount = subTotal * (item.discount_percent / 100);
+        return {
+          ...item,
+          temp_id: Date.now().toString() + Math.random() + idx,
+          qty: 1,
+          barcode: imei,
+          line_total: subTotal - discountAmount,
+        };
+      });
+
+      // Insert at original position
+      filtered.splice(originalIndex >= 0 ? originalIndex : filtered.length, 0, ...newRows);
+      return filtered;
+    });
+
+    setShowIMEIScanDialog(false);
+    setImeiScanItem(null);
+
+    toast({
+      title: "IMEI Numbers Added",
+      description: `${imeiNumbers.length} items added with individual IMEI numbers`,
+    });
   };
 
   const removeLineItem = (temp_id: string) => {
