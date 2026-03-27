@@ -940,6 +940,20 @@ export function SizeGridDialog({
                             placeholder="Price"
                             title="Sale Price"
                           />
+                         )}
+                        {(reviewMode || showPurPrice) && (
+                          <input
+                            type="number"
+                            min="0"
+                            tabIndex={-1}
+                            className="w-16 text-center border rounded p-1 text-xs bg-background border-orange-300"
+                            value={sizePurPrices[v.id] ?? (v.pur_price || "")}
+                            onChange={(e) =>
+                              setSizePurPrices({ ...sizePurPrices, [v.id]: e.target.value })
+                            }
+                            placeholder="Pur₹"
+                            title="Purchase Price"
+                          />
                         )}
                       </div>
                     ))}
