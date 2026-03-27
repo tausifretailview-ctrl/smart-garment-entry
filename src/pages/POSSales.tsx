@@ -1724,6 +1724,7 @@ export default function POSSales() {
       setCurrentSaleId(null); // Reset edit mode
       setOriginalItemsForEdit([]); // Clear original items for edit
       setSaleNotes("");
+      setFinancerDetails(null);
     }
   };
 
