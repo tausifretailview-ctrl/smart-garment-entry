@@ -2236,7 +2236,7 @@ export default function SalesInvoiceDashboard() {
         )}
 
         {/* Summary Statistics - Vasy ERP Style Vibrant Cards - 7 cards in 1 row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 w-full">
           <Card 
             className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-md rounded-xl"
             onClick={() => setDeliveryFilter("all")}
