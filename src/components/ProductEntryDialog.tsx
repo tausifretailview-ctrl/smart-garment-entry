@@ -1633,7 +1633,55 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </div>
               )}
 
-              {/* Size Group Selection - hidden in Mobile ERP mode */}
+              {/* Mobile ERP: Quantity input - triggers IMEI scan when qty > 1 */}
+              {mobileERPMode?.locked_size_qty && hideOpeningQty && (
+                <div className="space-y-2">
+                  <Label className="font-semibold">Quantity</Label>
+                  <div className="flex items-center gap-3">
+                    <Input
+                      type="number"
+                      min={1}
+                      value={mobileERPQty}
+                      onChange={(e) => {
+                        const val = Math.max(1, parseInt(e.target.value) || 1);
+                        setMobileERPQty(val);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const qty = mobileERPQty;
+                          if (qty > 1) {
+                            const color = formData.colors.length > 0 ? formData.colors[0] : "";
+                            setImeiScanColor(color);
+                            setImeiScanOpen(true);
+                          }
+                        }
+                      }}
+                      className="w-24 h-9 text-center font-bold text-lg"
+                      placeholder="1"
+                    />
+                    {mobileERPQty > 1 && (
+                      <Button
+                        type="button"
+                        variant="default"
+                        size="sm"
+                        className="gap-1.5 bg-purple-600 hover:bg-purple-700 text-white"
+                        onClick={() => {
+                          const color = formData.colors.length > 0 ? formData.colors[0] : "";
+                          setImeiScanColor(color);
+                          setImeiScanOpen(true);
+                        }}
+                      >
+                        Scan {mobileERPQty} IMEI
+                      </Button>
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      {mobileERPQty === 1 ? "Single unit — scan IMEI below" : `${mobileERPQty} units — click to scan IMEIs`}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {formData.product_type !== 'service' && !mobileERPMode?.locked_size_qty && (
                 <div className="space-y-2">
                   <Label>Size Group</Label>
