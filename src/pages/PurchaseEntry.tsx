@@ -952,10 +952,7 @@ const PurchaseEntry = () => {
         }
 
         const totalQty = variantsWithQty.reduce((s: number, v: any) => s + (v.purchase_qty || 0), 0);
-        toast({
-          title: "Product Added to Bill",
-          description: `${product.product_name}: ${addedCount} sizes, ${totalQty} pcs added`,
-        });
+        // Silent add - no toast to avoid disturbing user
 
         // Blur so "1" shortcut works immediately
         (document.activeElement as HTMLElement)?.blur();
