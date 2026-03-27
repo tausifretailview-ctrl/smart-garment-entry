@@ -389,11 +389,14 @@ const SalesmanCustomerAccount = () => {
     );
   }
 
+  // Use authoritative balance from useCustomerBalance hook
+  const displayBalance = authoritativeBalance;
+
   const summaryCards = [
     { label: "Opening", value: summary.openingBalance, icon: Clock, color: "text-blue-500" },
     { label: "Total Sales", value: summary.totalSales, icon: TrendingUp, color: "text-green-500" },
     { label: "Total Paid", value: summary.totalPaid, icon: TrendingDown, color: "text-purple-500" },
-    { label: "Outstanding", value: summary.currentBalance, icon: IndianRupee, color: summary.currentBalance > 0 ? "text-red-500" : "text-green-500" },
+    { label: "Outstanding", value: displayBalance, icon: IndianRupee, color: displayBalance > 0 ? "text-red-500" : "text-green-500" },
   ];
 
   return (
