@@ -518,10 +518,6 @@ const ProductDashboard = () => {
 
   // Alias for backward compatibility with context menu etc.
   const fetchProductVariants = fetchProducts;
-      setLoading(false);
-      setIsRefetching(false);
-    }
-  };
 
   const fetchSizeGroups = async () => {
     try {
