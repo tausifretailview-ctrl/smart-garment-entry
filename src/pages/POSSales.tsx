@@ -180,6 +180,8 @@ export default function POSSales() {
   const [isManualRoundOff, setIsManualRoundOff] = useState(false);
   const [currentInvoiceIndex, setCurrentInvoiceIndex] = useState(0);
   const [openProductSearch, setOpenProductSearch] = useState(false);
+  const [productSearchResults, setProductSearchResults] = useState<any[]>([]);
+  const [isProductSearchLoading, setIsProductSearchLoading] = useState(false);
   const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
   const [currentSaleId, setCurrentSaleId] = useState<string | null>(null);
   const [originalItemsForEdit, setOriginalItemsForEdit] = useState<Array<{ variantId: string; quantity: number }>>([]);
