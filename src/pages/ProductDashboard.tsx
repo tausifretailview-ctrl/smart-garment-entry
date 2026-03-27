@@ -1464,7 +1464,7 @@ const ProductDashboard = () => {
                     </Select>
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    Showing {((currentPage - 1) * itemsPerPage) + 1}-{((currentPage - 1) * itemsPerPage) + filteredRows.length} products (Page {currentPage})
+                    Showing {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} products (Page {currentPage} of {totalPages})
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
