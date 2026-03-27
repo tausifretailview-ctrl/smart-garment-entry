@@ -81,7 +81,6 @@ interface MobileERPModeConfig {
   enabled: boolean;
   imei_scan_enforcement: boolean;
   locked_size_qty: boolean;
-  enable_customer?: boolean;
   imei_min_length: number;
   imei_max_length: number;
 }
