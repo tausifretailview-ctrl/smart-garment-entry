@@ -80,6 +80,8 @@ export function SizeGridDialog({
   showMrp = false,
   showSizePrices = true,
   onColorAdded,
+  reviewMode = false,
+  showPurPrice = false,
 }: SizeGridDialogProps) {
   const { toast } = useToast();
   const [sizeQty, setSizeQty] = useState<{ [size: string]: string }>({});
