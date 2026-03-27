@@ -754,7 +754,13 @@ export default function OrgAuth() {
                   </div>
                   
                   <div className="space-y-1.5">
-                    <Label htmlFor="password" className="text-card-foreground font-medium text-sm">Password</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password" className="text-card-foreground font-medium text-sm">Password</Label>
+                      <button type="button" className="text-xs hover:underline" style={{ color: brandColor }}
+                        onClick={() => toast.info('Please contact your organization administrator to reset your password.')}>
+                        Forgot password?
+                      </button>
+                    </div>
                     <div className="relative">
                       <Input
                         id="password"
