@@ -1749,6 +1749,28 @@ export default function Settings() {
                 <p className="text-xs text-muted-foreground ml-6">
                   When enabled, cursor automatically moves to the product search bar after adding a product or closing the Add New Product window.
                 </p>
+
+                <div className="flex items-center space-x-2 pt-4">
+                  <Checkbox
+                    id="size_grid_review_mode"
+                    checked={settings.purchase_settings?.size_grid_review_mode || false}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          size_grid_review_mode: checked as boolean,
+                        },
+                      })
+                    }
+                  />
+                  <Label htmlFor="size_grid_review_mode" className="font-normal cursor-pointer">
+                    Review Variant Prices Before Adding to Bill
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground ml-6">
+                  When enabled, the size-wise quantity window shows editable Purchase Price, Sale Price, and MRP per size for review before adding to bill. Use Ctrl+A or the "Add to Bill" button to confirm.
+                </p>
               </CardContent>
             </Card>
           </TabsContent>

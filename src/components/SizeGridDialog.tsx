@@ -1123,13 +1123,13 @@ export function SizeGridDialog({
         {/* Multi-color mode confirm button */}
           {allowMultiColor && hasMultipleColors && totalQty > 0 && (
             <Button onClick={handleConfirm}>
-              Confirm (Enter)
+              {reviewMode ? "Add to Bill (Ctrl+A / Enter)" : "Confirm (Enter)"}
             </Button>
           )}
           {/* Single-color mode confirm button - show when in single-color mode (either disabled multi-color OR single-color product) */}
           {(!allowMultiColor || !hasMultipleColors) && (selectedColor || !hasMultipleColors) && (filteredVariants.length > 0 || customSizes.length > 0) && (
             <Button onClick={handleConfirm}>
-              Confirm (Enter)
+              {reviewMode ? "Add to Bill (Ctrl+A / Enter)" : "Confirm (Enter)"}
             </Button>
           )}
         </div>
