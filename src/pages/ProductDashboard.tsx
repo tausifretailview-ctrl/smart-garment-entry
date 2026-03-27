@@ -533,13 +533,21 @@ const ProductDashboard = () => {
     }
   };
 
-  const toggleExpanded = (productId: string) => {
+  const toggleExpanded = async (productId: string) => {
+    const shouldExpand = !expandedRows.has(productId);
     setExpandedRows(prev => {
       const next = new Set(prev);
       if (next.has(productId)) next.delete(productId);
       else next.add(productId);
       return next;
     });
+    if (shouldExpand && !variantCache[productId]) {
+      const variants = await fetchVariantsForProduct(productId);
+      // Update the product row with loaded variants
+      setProductRows(prev => prev.map(p => 
+        p.product_id === productId ? { ...p, variants } : p
+      ));
+    }
   };
 
   const clearAllFilters = () => {
