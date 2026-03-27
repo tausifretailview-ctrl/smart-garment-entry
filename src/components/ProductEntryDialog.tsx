@@ -2366,6 +2366,35 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Mobile ERP: IMEI Multi-Scan Dialog */}
+      {mobileERPMode?.locked_size_qty && (
+        <IMEIScanDialog
+          open={imeiScanOpen}
+          onClose={() => setImeiScanOpen(false)}
+          quantity={mobileERPQty}
+          productName={formData.product_name || "New Product"}
+          minLength={mobileERPMode.imei_min_length || 15}
+          maxLength={mobileERPMode.imei_max_length || 19}
+          onConfirm={(imeiNumbers) => {
+            // Create one variant per IMEI
+            const newVariants: ProductVariant[] = imeiNumbers.map(imei => ({
+              color: imeiScanColor,
+              size: "None",
+              pur_price: formData.default_pur_price ?? 0,
+              sale_price: formData.default_sale_price ?? 0,
+              mrp: formData.default_mrp ?? null,
+              barcode: imei,
+              active: true,
+              opening_qty: 0,
+              purchase_qty: 1,
+            }));
+            setVariants(newVariants);
+            setShowVariants(true);
+            setImeiScanOpen(false);
+          }}
+        />
+      )}
     </>
   );
 };
