@@ -1552,15 +1552,8 @@ const PurchaseEntry = () => {
   };
 
   const updateLineItem = (temp_id: string, field: keyof LineItem, value: any) => {
-    // Mobile ERP mode: when qty changes to > 1, open IMEI scan dialog
-    if (isMobileERPMode && field === "qty" && Number(value) > 1) {
-      const item = lineItems.find(i => i.temp_id === temp_id);
-      if (item) {
-        setImeiScanItem({ tempId: temp_id, qty: Number(value), item });
-        setShowIMEIScanDialog(true);
-        return; // Don't update qty yet - wait for IMEI dialog
-      }
-    }
+    // Mobile ERP mode: when qty changes to > 1, allow direct qty update
+    // (IMEI is already assigned to the row via barcode field, just update qty for stock)
 
     setLineItems((items) =>
       items.map((item) => {
