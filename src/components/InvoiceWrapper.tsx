@@ -356,6 +356,9 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       pointsRedeemed: props.pointsRedeemed || 0,
       pointsRedemptionValue: props.pointsRedemptionValue || 0,
       pointsBalance: props.pointsBalance || 0,
+      
+      // Financer details
+      financerDetails: props.financerDetails || null,
     };
 
     // Select template component based on settings
