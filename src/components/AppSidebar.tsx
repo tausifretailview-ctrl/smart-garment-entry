@@ -35,7 +35,10 @@ import {
   Grid3X3,
   Clock,
   ArrowRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useUserRoles } from "@/hooks/useUserRoles";
