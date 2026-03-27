@@ -1418,10 +1418,7 @@ const ProductEntry = () => {
           }
         }
 
-        toast({
-          title: "Success",
-          description: `Product "${formData.product_name}" saved successfully`,
-        });
+        // Silent operation - no toast for product save
 
         // Check if we need to navigate back to purchase entry
         const state = location.state as { returnToPurchase?: boolean };

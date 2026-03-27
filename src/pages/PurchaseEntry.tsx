@@ -2162,10 +2162,7 @@ const PurchaseEntry = () => {
           setShowPriceUpdateDialog(true);
         }
 
-        toast({
-          title: "Success",
-          description: `Purchase bill saved successfully`,
-        });
+        // Silent operation - no toast for purchase bill save
 
         // Invalidate dashboard queries for immediate UI refresh
         invalidatePurchases();

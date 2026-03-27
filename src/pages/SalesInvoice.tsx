@@ -2153,10 +2153,7 @@ Thank you for choosing us!`;
           } })();
         }
 
-        toast({
-          title: "Invoice Saved",
-          description: `Invoice ${saleNumber} has been created successfully`,
-        });
+        // Silent operation - no toast for invoice save
 
         // Invalidate dashboard queries so list refreshes on return
         queryClient.invalidateQueries({ queryKey: ['invoices'] });
