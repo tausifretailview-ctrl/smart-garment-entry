@@ -3684,11 +3684,12 @@ export default function POSSales() {
           <div className="max-w-[1800px] w-full flex-1 flex flex-col overflow-hidden">
           <Card className="flex-1 overflow-hidden flex flex-col border-border/60 shadow-sm">
             <div className="bg-slate-900 text-white overflow-x-auto">
-              <div className="min-w-[1200px] grid gap-2 px-4 py-3 text-[13px] font-semibold uppercase tracking-wider" style={{ gridTemplateColumns: '50px 130px 1fr 70px 65px 95px 65px 80px 75px 95px 120px' }}>
+              <div className="min-w-[1280px] grid gap-2 px-4 py-3 text-[13px] font-semibold uppercase tracking-wider" style={{ gridTemplateColumns: '50px 130px 1fr 70px 70px 65px 95px 65px 80px 75px 95px 120px' }}>
                 <div className="text-center">Sr No</div>
                 <div>Barcode</div>
                 <div>Product</div>
                 <div className="text-center">Size</div>
+                <div className="text-center">Color</div>
                 <div className="text-center">Qty</div>
                 <div className="text-right">MRP</div>
                 <div className="text-center">Tax%</div>
