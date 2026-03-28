@@ -289,8 +289,8 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                       <div style={{ fontWeight: 'bold', fontSize: '10px', lineHeight: '1.4' }}>{item.particulars}</div>
                       {item.color && <div style={{ fontSize: '8.5px', color: '#444' }}>Color: {item.color}</div>}
                       {item.barcode && (
-                        <div style={{ fontSize: '9px', color: '#333', fontFamily: 'monospace', marginTop: '1px' }}>
-                          IMEI: {item.barcode}
+                        <div style={{ fontSize: '10px', color: '#000', fontWeight: 'bold', marginTop: '1px' }}>
+                          Batch No: {item.barcode}
                         </div>
                       )}
                     </td>
