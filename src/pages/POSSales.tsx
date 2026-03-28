@@ -3831,7 +3831,7 @@ export default function POSSales() {
                   ))
                 )}
                 {/* Notes Section - Always visible after items */}
-                <div className="min-w-[1200px] p-4 border-t bg-muted/30">
+                <div className="min-w-[1280px] p-4 border-t bg-muted/30">
                   <div className="flex items-center gap-3">
                     <Label className="text-sm font-medium whitespace-nowrap">
                       <FileText className="h-4 w-4 inline mr-1" />
@@ -3856,7 +3856,7 @@ export default function POSSales() {
                   if (!hasDiscountInfo && !showPointsSection) return null;
                   
                   return (
-                    <div className="min-w-[1200px] p-3 border-t bg-amber-50/50 dark:bg-amber-950/20 flex items-center gap-4">
+                    <div className="min-w-[1280px] p-3 border-t bg-amber-50/50 dark:bg-amber-950/20 flex items-center gap-4">
                       {/* Discount Indicator */}
                       {hasBrandDiscounts && brandDiscounts.length > 0 ? (
                         <div className="flex items-center gap-2 bg-primary/5 px-3 py-2 rounded-lg">
