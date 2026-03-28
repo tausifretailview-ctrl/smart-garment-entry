@@ -46,7 +46,8 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .is('deleted_at', null)
-        .neq('payment_status', 'cancelled');
+        .neq('payment_status', 'cancelled')
+        .neq('payment_status', 'hold');
 
       if (salesError) throw salesError;
 
