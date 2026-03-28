@@ -3159,7 +3159,7 @@ export default function Settings() {
                     <h3 className="text-lg font-semibold">E-Invoice Settings (PeriOne API)</h3>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Configure WhiteBooks e-Invoice integration for B2B invoices
+                    Configure PeriOne e-Invoice integration for B2B invoices
                   </p>
                   
                   <div className="flex items-center space-x-2">
