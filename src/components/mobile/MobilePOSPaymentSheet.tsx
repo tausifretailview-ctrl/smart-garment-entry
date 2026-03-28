@@ -14,6 +14,7 @@ import {
   Printer,
   MessageCircle,
   RotateCcw,
+  BookmarkPlus,
   X
 } from "lucide-react";
 
