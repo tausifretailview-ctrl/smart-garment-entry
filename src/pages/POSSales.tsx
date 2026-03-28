@@ -3072,6 +3072,7 @@ export default function POSSales() {
             previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
             roundOff={savedInvoiceData?.roundOff ?? roundOff}
             salesman={savedInvoiceData?.salesman || selectedSalesman || ''}
+            financerDetails={financerDetails}
           />
         </div>
       </>
@@ -4251,6 +4252,9 @@ export default function POSSales() {
                 paidAmount={paymentMethod === 'pay_later' ? 0 : finalAmount}
                 previousBalance={customerBalance || 0}
                 roundOff={roundOff}
+                salesman={selectedSalesman || ''}
+                financerDetails={financerDetails}
+                notes={saleNotes}
               />
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setShowPrintDialog(false)}>
@@ -4442,6 +4446,7 @@ export default function POSSales() {
                 previousBalance={savedInvoiceData.previousBalance ?? 0}
                 roundOff={savedInvoiceData.roundOff ?? 0}
                 salesman={savedInvoiceData?.salesman || ''}
+                financerDetails={financerDetails}
               />
             )}
             onPrint={handleClosePrintConfirmDialog}
@@ -4541,6 +4546,7 @@ export default function POSSales() {
                 previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
                 roundOff={savedInvoiceData?.roundOff ?? roundOff}
                 salesman={savedInvoiceData?.salesman || selectedSalesman || ''}
+                financerDetails={financerDetails}
               />
             </div>
           )}
