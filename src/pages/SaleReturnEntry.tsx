@@ -86,6 +86,23 @@ export default function SaleReturnEntry() {
   // Store original item IDs for edit mode (to delete them on resave)
   const [originalItemIds, setOriginalItemIds] = useState<string[]>([]);
 
+  // Sale items loading state
+  const [saleItems, setSaleItems] = useState<Array<{
+    variantId: string;
+    productName: string;
+    size: string;
+    color: string | null;
+    barcode: string | null;
+    unitPrice: number;
+    gstPercent: number;
+    hsnCode: string;
+    productId: string;
+    quantity: number;
+  }>>([]);
+  const [saleLoading, setSaleLoading] = useState(false);
+  const [saleLoaded, setSaleLoaded] = useState(false);
+  const [selectedSaleItemIds, setSelectedSaleItemIds] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     if (!currentOrganization) return;
 
@@ -119,7 +136,6 @@ export default function SaleReturnEntry() {
   const loadReturnForEdit = async (returnId: string) => {
     setEditLoading(true);
     try {
-      // Fetch return header
       const { data: returnData, error: returnError } = await supabase
         .from("sale_returns")
         .select("*")
@@ -133,14 +149,12 @@ export default function SaleReturnEntry() {
         return;
       }
 
-      // Set header fields
       setNextReturnNumber(returnData.return_number || "");
       setSelectedCustomer(returnData.customer_id || "");
       setReturnDate(returnData.return_date?.split("T")[0] || new Date().toISOString().split("T")[0]);
       setOriginalSaleNumber(returnData.original_sale_number || "");
       setNotes(returnData.notes || "");
 
-      // If customer exists, make sure it's in the customers list
       if (returnData.customer_id) {
         const { data: custData } = await supabase
           .from("customers")
@@ -155,7 +169,6 @@ export default function SaleReturnEntry() {
         }
       }
 
-      // Fetch return items
       const { data: items, error: itemsError } = await supabase
         .from("sale_return_items")
         .select("*")
@@ -163,10 +176,8 @@ export default function SaleReturnEntry() {
 
       if (itemsError) throw itemsError;
 
-      // Store original item IDs
       setOriginalItemIds((items || []).map(i => i.id));
 
-      // Map to ReturnItem interface
       const mappedItems: ReturnItem[] = (items || []).map(item => ({
         productId: item.product_id || "",
         variantId: item.variant_id || "",
@@ -192,14 +203,12 @@ export default function SaleReturnEntry() {
 
   const fetchAllProducts = async () => {
     try {
-      // Fetch only products/variants that were sold via Sales & POS
       const soldVariantIds = new Set<string>();
       const soldProductIds = new Set<string>();
       const PAGE_SIZE = 1000;
       let page = 0;
       let hasMore = true;
 
-      // Paginate through sale_items to get all sold variant/product IDs
       while (hasMore) {
         const { data: batch, error } = await supabase
           .from("sale_items")
@@ -225,7 +234,6 @@ export default function SaleReturnEntry() {
         return;
       }
 
-      // Fetch product details for sold products in batches
       const allProducts: Product[] = [];
       for (let i = 0; i < productIdArray.length; i += 500) {
         const batch = productIdArray.slice(i, i + 500);
@@ -239,7 +247,6 @@ export default function SaleReturnEntry() {
         allProducts.push(...(data || []));
       }
 
-      // Fetch variants for sold products in batches
       const variantIdArray = Array.from(soldVariantIds);
       const allVariants: Variant[] = [];
       for (let i = 0; i < variantIdArray.length; i += 500) {
@@ -295,7 +302,6 @@ export default function SaleReturnEntry() {
 
     if (!product || !variant) return;
 
-    // Fetch original sale price from sale_items (most recent sale)
     const { data: saleItemData } = await supabase
       .from("sale_items")
       .select("per_qty_net_amount, net_after_discount, unit_price, line_total, quantity")
@@ -305,7 +311,6 @@ export default function SaleReturnEntry() {
       .limit(1)
       .maybeSingle();
 
-    // Use per_qty_net_amount if available (post-migration sales), else fall back
     let unitPrice = variant.sale_price;
     if (saleItemData) {
       if (saleItemData.per_qty_net_amount && saleItemData.per_qty_net_amount > 0) {
@@ -332,7 +337,6 @@ export default function SaleReturnEntry() {
     setSearchOpen(false);
     setSearchTerm("");
     
-    // Auto-focus barcode input after adding
     setTimeout(() => barcodeInputRef.current?.focus(), 100);
   };
 
@@ -342,11 +346,9 @@ export default function SaleReturnEntry() {
     if (!barcodeInput.trim()) return;
     const query = barcodeInput.trim();
     
-    // First try exact barcode match from local cache
     let variant = variants.find((v) => v.barcode === query);
     let product = variant ? products.find((p) => p.id === variant!.product_id) : null;
     
-    // If no local barcode match, try product name match
     if (!variant) {
       const matchedProduct = products.find((p) => 
         p.product_name.toLowerCase().includes(query.toLowerCase())
@@ -357,10 +359,8 @@ export default function SaleReturnEntry() {
       }
     }
     
-    // If still not found, try direct DB lookup but only if it was sold before
     if (!variant || !product) {
       try {
-        // First check if this barcode's variant was ever sold in this org
         const { data: dbVariant } = await supabase
           .from("product_variants")
           .select("id, product_id, size, color, sale_price, stock_qty, barcode, products(id, product_name, brand, category, hsn_code, gst_per, status, deleted_at)")
@@ -370,7 +370,6 @@ export default function SaleReturnEntry() {
           .maybeSingle();
 
         if (dbVariant && (dbVariant.products as any)?.status === 'active' && !(dbVariant.products as any)?.deleted_at) {
-          // Verify it was sold in this organization
           const { count } = await supabase
             .from("sale_items")
             .select("id", { count: "exact", head: true })
@@ -398,7 +397,6 @@ export default function SaleReturnEntry() {
       return;
     }
     
-    // Check if already added
     const existingIndex = returnItems.findIndex(
       (item) => item.variantId === variant!.id
     );
@@ -409,9 +407,7 @@ export default function SaleReturnEntry() {
       updated[existingIndex].lineTotal = 
         updated[existingIndex].quantity * updated[existingIndex].unitPrice;
       setReturnItems(updated);
-      toast({ title: "Updated", description: "Quantity increased" });
     } else {
-      // Fetch original sale price from sale_items (most recent sale)
       const { data: saleItemData } = await supabase
         .from("sale_items")
         .select("per_qty_net_amount, net_after_discount, unit_price, line_total, quantity")
@@ -421,7 +417,6 @@ export default function SaleReturnEntry() {
         .limit(1)
         .maybeSingle();
 
-      // Use per_qty_net_amount if available, else fall back to line_total/qty, then sale_price
       let unitPrice = variant.sale_price;
       if (saleItemData) {
         if (saleItemData.per_qty_net_amount && saleItemData.per_qty_net_amount > 0) {
@@ -445,7 +440,6 @@ export default function SaleReturnEntry() {
         hsnCode: product.hsn_code || '',
       };
       setReturnItems(prev => [...prev, newItem]);
-      toast({ title: "Added", description: `${product.product_name} added to return` });
     }
     
     setBarcodeInput("");
@@ -464,17 +458,113 @@ export default function SaleReturnEntry() {
     setReturnItems(returnItems.filter((_, i) => i !== index));
   };
 
+  // Load sale items by invoice number
+  const loadSaleByNumber = async () => {
+    if (!originalSaleNumber.trim() || !currentOrganization) return;
+    setSaleLoading(true);
+    setSaleLoaded(false);
+    setSaleItems([]);
+    setSelectedSaleItemIds(new Set());
+    try {
+      const { data: sale, error: saleError } = await supabase
+        .from('sales')
+        .select('id, customer_id, sale_items(id, product_id, variant_id, product_name, size, color, barcode, unit_price, gst_percent, hsn_code, quantity, line_total)')
+        .eq('organization_id', currentOrganization.id)
+        .eq('sale_number', originalSaleNumber.trim())
+        .is('deleted_at', null)
+        .single();
+
+      if (saleError || !sale) {
+        toast({ title: 'Not Found', description: `No sale found with number "${originalSaleNumber.trim()}"`, variant: 'destructive' });
+        setSaleLoading(false);
+        return;
+      }
+
+      if (!selectedCustomer && sale.customer_id) {
+        setSelectedCustomer(sale.customer_id);
+        const { data: custData } = await supabase
+          .from('customers')
+          .select('id, customer_name, phone')
+          .eq('id', sale.customer_id)
+          .single();
+        if (custData) {
+          setCustomers(prev => {
+            const exists = prev.some(c => c.id === custData.id);
+            return exists ? prev : [custData, ...prev];
+          });
+        }
+      }
+
+      const saleItemsArr = (sale as any).sale_items || [];
+      const items = saleItemsArr.map((item: any) => ({
+        variantId: item.variant_id || '',
+        productName: item.product_name || '',
+        size: item.size || '',
+        color: item.color || null,
+        barcode: item.barcode || null,
+        unitPrice: item.unit_price || 0,
+        gstPercent: item.gst_percent || 0,
+        hsnCode: item.hsn_code || '',
+        productId: item.product_id || '',
+        quantity: item.quantity || 1,
+      }));
+
+      setSaleItems(items);
+      setSaleLoaded(true);
+      toast({ title: 'Sale Loaded', description: `${items.length} item(s) found — select which to return` });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message || 'Failed to load sale', variant: 'destructive' });
+    } finally {
+      setSaleLoading(false);
+    }
+  };
+
+  const toggleSaleItemSelection = (variantId: string) => {
+    setSelectedSaleItemIds(prev => {
+      const next = new Set(prev);
+      if (next.has(variantId)) next.delete(variantId);
+      else next.add(variantId);
+      return next;
+    });
+  };
+
+  const addSelectedSaleItems = () => {
+    const toAdd = saleItems.filter(item => selectedSaleItemIds.has(item.variantId));
+    toAdd.forEach(item => {
+      const lineTotal = item.unitPrice * item.quantity;
+      setReturnItems(prev => {
+        const exists = prev.find(p => p.variantId === item.variantId);
+        if (exists) return prev;
+        return [...prev, {
+          productId: item.productId,
+          variantId: item.variantId,
+          productName: item.productName,
+          size: item.size,
+          color: item.color || undefined,
+          barcode: item.barcode,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          gstPercent: item.gstPercent,
+          lineTotal,
+          hsnCode: item.hsnCode,
+        }];
+      });
+    });
+    setSaleLoaded(false);
+    setSaleItems([]);
+    setSelectedSaleItemIds(new Set());
+    toast({ title: 'Added', description: `${toAdd.length} item(s) added to return` });
+  };
+
   const calculateTotals = () => {
     const grossAmount = returnItems.reduce((sum, item) => sum + item.lineTotal, 0);
     
     let gstAmount: number;
     if (taxType === "inclusive") {
-      // Extract GST from inclusive price
       gstAmount = returnItems.reduce((sum, item) => {
         return sum + (item.lineTotal - (item.lineTotal / (1 + item.gstPercent / 100)));
       }, 0);
     } else {
-      // Calculate GST on exclusive price
       gstAmount = returnItems.reduce((sum, item) => {
         return sum + (item.lineTotal * item.gstPercent) / 100;
       }, 0);
@@ -497,8 +587,6 @@ export default function SaleReturnEntry() {
       const totals = calculateTotals();
 
       if (isEditMode && editId) {
-        // ===== EDIT MODE =====
-        // Step 1: Delete old items (triggers will reverse stock for each deleted item)
         for (const itemId of originalItemIds) {
           const { error: delError } = await supabase
             .from("sale_return_items")
@@ -507,7 +595,6 @@ export default function SaleReturnEntry() {
           if (delError) throw delError;
         }
 
-        // Step 2: Insert new items (triggers will add stock for each new item)
         const itemsToInsert = returnItems.map((item) => ({
           return_id: editId,
           product_id: item.productId,
@@ -529,7 +616,6 @@ export default function SaleReturnEntry() {
 
         if (insertError) throw insertError;
 
-        // Step 3: Update return header
         const { error: updateError } = await supabase
           .from("sale_returns")
           .update({
@@ -548,14 +634,11 @@ export default function SaleReturnEntry() {
 
         toast({ title: "Success", description: `Sale return ${nextReturnNumber} updated successfully` });
       } else {
-        // ===== NEW MODE =====
-        // Generate sale return number
         const { data: returnNumber, error: returnNumberError } = await supabase
           .rpc('generate_sale_return_number', { p_organization_id: currentOrganization?.id });
 
         if (returnNumberError) throw returnNumberError;
 
-        // Insert sale return
         const { data: returnData, error: returnError } = await supabase
           .from("sale_returns")
           .insert({
@@ -575,7 +658,6 @@ export default function SaleReturnEntry() {
 
         if (returnError) throw returnError;
 
-        // Insert return items
         const itemsToInsert = returnItems.map((item) => ({
           return_id: returnData.id,
           product_id: item.productId,
@@ -620,302 +702,475 @@ export default function SaleReturnEntry() {
   }
 
   return (
-    <div className="w-full px-6 py-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">
-            {isEditMode ? "Edit Sale Return" : "Sale Return Entry"}
-          </h1>
-          <Button variant="outline" onClick={() => navigate("/sale-returns")}>
-            Back to Dashboard
-          </Button>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Barcode Scanner</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleBarcodeSubmit} className="flex gap-2">
-              <Input
-                ref={barcodeInputRef}
-                type="text"
-                placeholder="Scan barcode or enter product name..."
-                value={barcodeInput}
-                onChange={(e) => setBarcodeInput(e.target.value)}
-                className="flex-1"
-                autoFocus
-              />
-              <Button type="submit">Add</Button>
-            </form>
-            <p className="text-sm text-muted-foreground mt-2">
-              Scan barcode or enter product name/barcode number to add product to return
+    <div className="w-full px-6 py-5 space-y-5">
+      {/* Page Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-1 h-8 bg-destructive rounded-full" />
+          <div>
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">
+              {isEditMode ? 'Edit Sale Return' : 'Sale Return Entry'}
+            </h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {isEditMode ? `Editing return ${nextReturnNumber}` : 'Create a new return against a sale'}
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate('/sale-returns')}
+          className="h-9 px-4 text-sm font-medium border-border"
+        >
+          ← Back to Dashboard
+        </Button>
+      </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Return Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <Label>Return No</Label>
-                <Input
-                  value={nextReturnNumber}
-                  readOnly
-                  className="bg-muted"
-                />
-              </div>
+      {/* Barcode Scanner */}
+      <div className="rounded-xl border border-border bg-card shadow-sm px-5 py-4">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-1.5 h-5 bg-primary rounded-full" />
+          <h2 className="font-semibold text-sm text-foreground uppercase tracking-wide">Barcode Scanner</h2>
+        </div>
+        <form onSubmit={handleBarcodeSubmit} className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              ref={barcodeInputRef}
+              type="text"
+              placeholder="SCAN BARCODE OR ENTER PRODUCT NAME..."
+              value={barcodeInput}
+              onChange={(e) => setBarcodeInput(e.target.value)}
+              className="pl-9 h-10 text-sm uppercase tracking-wide placeholder:normal-case placeholder:tracking-normal"
+              autoFocus
+            />
+          </div>
+          <Button type="submit" className="h-10 px-5 text-sm font-semibold">
+            Add
+          </Button>
+        </form>
+        <p className="text-xs text-muted-foreground mt-2">
+          Scan barcode or enter product name/barcode number to add product to return
+        </p>
+      </div>
 
-              <div className="space-y-2">
-                <Label>Customer (Optional)</Label>
-                <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={customerSearchOpen}
-                      className="w-full justify-between font-normal"
-                    >
-                      {selectedCustomer
-                        ? customers.find(c => c.id === selectedCustomer)?.customer_name || "Selected"
-                        : "Select customer"}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[350px] p-0" align="start">
-                    <Command shouldFilter={false}>
-                      <CommandInput
-                        placeholder="Search by name or phone..."
-                        value={customerSearchTerm}
-                        onValueChange={(val) => {
-                          setCustomerSearchTerm(val);
-                          // Server-side search
-                          if (!currentOrganization) return;
-                          let query = supabase
-                            .from("customers")
-                            .select("id, customer_name, phone")
-                            .eq("organization_id", currentOrganization.id)
-                            .is("deleted_at", null)
-                            .order("customer_name")
-                            .limit(50);
-                          if (val.trim()) {
-                            const term = `%${val.trim()}%`;
-                            query = query.or(`customer_name.ilike.${term},phone.ilike.${term}`);
-                          }
-                          query.then(({ data }) => setCustomers(data || []));
-                        }}
-                      />
-                      <CommandList>
-                        <CommandEmpty>No customer found.</CommandEmpty>
-                        <CommandGroup>
-                          {customers.map((customer) => (
-                            <CommandItem
-                              key={customer.id}
-                              value={customer.customer_name + (customer.phone || "")}
-                              onSelect={() => {
-                                setSelectedCustomer(customer.id);
-                                setCustomerSearchOpen(false);
-                                setCustomerSearchTerm("");
-                              }}
-                            >
-                              <div className="flex flex-col">
-                                <span className="font-medium">{customer.customer_name}</span>
-                                {customer.phone && (
-                                  <span className="text-xs text-muted-foreground">{customer.phone}</span>
-                                )}
-                              </div>
-                              {selectedCustomer === customer.id && (
-                                <Check className="ml-auto h-4 w-4 text-primary" />
-                              )}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Return Date</Label>
-                <Input
-                  type="date"
-                  value={returnDate}
-                  onChange={(e) => setReturnDate(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Tax Type</Label>
-                <Select value={taxType} onValueChange={(value: "exclusive" | "inclusive") => setTaxType(value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="exclusive">Exclusive GST</SelectItem>
-                    <SelectItem value="inclusive">Inclusive GST</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2 md:col-span-2 lg:col-span-4">
-                <Label>Original Sale Number (Optional)</Label>
-                <Input
-                  placeholder="Enter original sale invoice number if available"
-                  value={originalSaleNumber}
-                  onChange={(e) => setOriginalSaleNumber(e.target.value)}
-                />
-              </div>
+      {/* Return Details */}
+      <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+        <div className="flex items-center gap-2 px-5 py-3 border-b border-border bg-muted/30">
+          <div className="w-1.5 h-5 bg-orange-500 rounded-full" />
+          <h2 className="font-semibold text-sm text-foreground uppercase tracking-wide">Return Details</h2>
+        </div>
+        <div className="px-5 py-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Return No</Label>
+              <Input
+                value={nextReturnNumber}
+                readOnly
+                className="bg-muted h-10 text-sm"
+              />
             </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span>Return Items</span>
-              </div>
-              <Popover open={searchOpen} onOpenChange={setSearchOpen}>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Customer (Optional)</Label>
+              <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
                 <PopoverTrigger asChild>
-                  <Button size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Product
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={customerSearchOpen}
+                    className="w-full justify-between font-normal h-10 text-sm"
+                  >
+                    {selectedCustomer
+                      ? customers.find(c => c.id === selectedCustomer)?.customer_name || "Selected"
+                      : "Select customer"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[400px] p-0" align="end">
-                  <Command>
+                <PopoverContent className="w-[350px] p-0" align="start">
+                  <Command shouldFilter={false}>
                     <CommandInput
-                      placeholder="Search products..."
-                      value={searchTerm}
-                      onValueChange={setSearchTerm}
+                      placeholder="Search by name or phone..."
+                      value={customerSearchTerm}
+                      onValueChange={(val) => {
+                        setCustomerSearchTerm(val);
+                        if (!currentOrganization) return;
+                        let query = supabase
+                          .from("customers")
+                          .select("id, customer_name, phone")
+                          .eq("organization_id", currentOrganization.id)
+                          .is("deleted_at", null)
+                          .order("customer_name")
+                          .limit(50);
+                        if (val.trim()) {
+                          const term = `%${val.trim()}%`;
+                          query = query.or(`customer_name.ilike.${term},phone.ilike.${term}`);
+                        }
+                        query.then(({ data }) => setCustomers(data || []));
+                      }}
                     />
                     <CommandList>
-                      <CommandEmpty>No products found</CommandEmpty>
+                      <CommandEmpty>No customer found.</CommandEmpty>
                       <CommandGroup>
-                        {filteredProducts.map((product) => {
-                          const productVariants = variants.filter((v) => v.product_id === product.id);
-                          return productVariants.map((variant) => (
-                            <CommandItem
-                              key={variant.id}
-                              onSelect={() => addProduct(product.id, variant.id)}
-                            >
-                              <div className="flex-1">
-                                <div className="font-medium">{product.product_name}</div>
-                                <div className="text-sm text-muted-foreground">
-                                  Size: {variant.size} | Price: ₹{variant.sale_price}
-                                  {variant.barcode && ` | ${variant.barcode}`}
-                                </div>
-                              </div>
-                            </CommandItem>
-                          ));
-                        })}
+                        {customers.map((customer) => (
+                          <CommandItem
+                            key={customer.id}
+                            value={customer.customer_name + (customer.phone || "")}
+                            onSelect={() => {
+                              setSelectedCustomer(customer.id);
+                              setCustomerSearchOpen(false);
+                              setCustomerSearchTerm("");
+                            }}
+                          >
+                            <div className="flex flex-col">
+                              <span className="font-medium">{customer.customer_name}</span>
+                              {customer.phone && (
+                                <span className="text-xs text-muted-foreground">{customer.phone}</span>
+                              )}
+                            </div>
+                            {selectedCustomer === customer.id && (
+                              <Check className="ml-auto h-4 w-4 text-primary" />
+                            )}
+                          </CommandItem>
+                        ))}
                       </CommandGroup>
                     </CommandList>
                   </Command>
                 </PopoverContent>
               </Popover>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Return Date</Label>
+              <Input
+                type="date"
+                value={returnDate}
+                onChange={(e) => setReturnDate(e.target.value)}
+                className="h-10 text-sm"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tax Type</Label>
+              <Select value={taxType} onValueChange={(value: "exclusive" | "inclusive") => setTaxType(value)}>
+                <SelectTrigger className="h-10 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="exclusive">Exclusive GST</SelectItem>
+                  <SelectItem value="inclusive">Inclusive GST</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2 md:col-span-2 lg:col-span-4">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Original Sale Number (Optional)</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Enter sale invoice number e.g. INV/25-26/123 or POS/25-26/34"
+                  value={originalSaleNumber}
+                  onChange={(e) => {
+                    setOriginalSaleNumber(e.target.value);
+                    setSaleLoaded(false);
+                    setSaleItems([]);
+                    setSelectedSaleItemIds(new Set());
+                  }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); loadSaleByNumber(); } }}
+                  className="h-10 flex-1 text-sm"
+                />
+                <Button
+                  type="button"
+                  onClick={loadSaleByNumber}
+                  disabled={saleLoading || !originalSaleNumber.trim()}
+                  className="h-10 px-4 flex items-center gap-2"
+                >
+                  {saleLoading ? (
+                    <><span className="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />Loading...</>
+                  ) : (
+                    <><Search className="h-4 w-4" />Load Items</>
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Enter sale number and click "Load Items" to auto-populate products for return selection</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Sale Items Selection Panel */}
+      {saleLoaded && saleItems.length > 0 && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-800 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-blue-200 dark:border-blue-800 bg-blue-100/60 dark:bg-blue-900/30">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-5 bg-blue-500 rounded-full" />
+              <h3 className="font-semibold text-blue-900 dark:text-blue-200 text-sm">
+                Sale Items — {originalSaleNumber}
+              </h3>
+              <span className="text-xs text-blue-600 dark:text-blue-300 bg-blue-200 dark:bg-blue-800 px-2 py-0.5 rounded-full font-medium">
+                {saleItems.length} items
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline"
+                onClick={() => setSelectedSaleItemIds(new Set(saleItems.map(i => i.variantId)))}
+              >
+                Select All
+              </button>
+              <span className="text-blue-300 dark:text-blue-600">|</span>
+              <button
+                type="button"
+                className="text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline"
+                onClick={() => setSelectedSaleItemIds(new Set())}
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <div className="divide-y divide-blue-100 dark:divide-blue-800">
+            {saleItems.map((item, i) => {
+              const isSelected = selectedSaleItemIds.has(item.variantId);
+              return (
+                <div
+                  key={item.variantId + i}
+                  onClick={() => toggleSaleItemSelection(item.variantId)}
+                  className={`flex items-center gap-4 px-5 py-3 cursor-pointer transition-colors ${
+                    isSelected ? 'bg-blue-100/80 dark:bg-blue-900/40' : 'hover:bg-blue-50 dark:hover:bg-blue-950/30'
+                  }`}
+                >
+                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                    isSelected ? 'bg-blue-600 border-blue-600' : 'border-blue-300 dark:border-blue-600 bg-white dark:bg-transparent'
+                  }`}>
+                    {isSelected && (
+                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                        <path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-foreground truncate">{item.productName}</p>
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      <span className="text-xs text-muted-foreground">Size: <span className="font-medium text-foreground">{item.size}</span></span>
+                      {item.color && <span className="text-xs text-muted-foreground">Color: <span className="font-medium text-foreground">{item.color}</span></span>}
+                      {item.barcode && <span className="text-xs text-muted-foreground">Barcode: <span className="font-mono text-foreground">{item.barcode}</span></span>}
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-sm font-bold text-foreground">₹{item.unitPrice.toFixed(2)}</p>
+                    <p className="text-xs text-muted-foreground">Qty: {item.quantity} | GST: {item.gstPercent}%</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="px-5 py-3 border-t border-blue-200 dark:border-blue-800 bg-blue-100/60 dark:bg-blue-900/30 flex items-center justify-between">
+            <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">
+              {selectedSaleItemIds.size} of {saleItems.length} selected
+            </span>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => { setSaleLoaded(false); setSaleItems([]); setSelectedSaleItemIds(new Set()); }}
+                className="h-8 text-xs"
+              >
+                Dismiss
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={selectedSaleItemIds.size === 0}
+                onClick={addSelectedSaleItems}
+                className="h-8 text-xs px-4"
+              >
+                Add {selectedSaleItemIds.size > 0 ? `${selectedSaleItemIds.size} ` : ''}Selected to Return
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Return Items */}
+      <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/30">
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-5 bg-green-600 rounded-full" />
+            <h2 className="font-semibold text-sm text-foreground uppercase tracking-wide">Return Items</h2>
+            {returnItems.length > 0 && (
+              <span className="text-xs bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 px-2 py-0.5 rounded-full font-semibold">
+                {returnItems.length} item{returnItems.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+          <Popover open={searchOpen} onOpenChange={setSearchOpen}>
+            <PopoverTrigger asChild>
+              <Button size="sm" className="h-8 px-3 text-xs font-semibold gap-1.5">
+                <Plus className="h-3.5 w-3.5" />
+                Add Product
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[400px] p-0" align="end">
+              <Command>
+                <CommandInput
+                  placeholder="Search products..."
+                  value={searchTerm}
+                  onValueChange={setSearchTerm}
+                />
+                <CommandList>
+                  <CommandEmpty>No products found</CommandEmpty>
+                  <CommandGroup>
+                    {filteredProducts.map((product) => {
+                      const productVariants = variants.filter((v) => v.product_id === product.id);
+                      return productVariants.map((variant) => (
+                        <CommandItem
+                          key={variant.id}
+                          onSelect={() => addProduct(product.id, variant.id)}
+                        >
+                          <div className="flex-1">
+                            <div className="font-medium">{product.product_name}</div>
+                            <div className="text-sm text-muted-foreground">
+                              Size: {variant.size} | Price: ₹{variant.sale_price}
+                              {variant.barcode && ` | ${variant.barcode}`}
+                            </div>
+                          </div>
+                        </CommandItem>
+                      ));
+                    })}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        <div className="px-5 py-4">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">Product</TableHead>
+                <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">Size</TableHead>
+                <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">Color</TableHead>
+                <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">Barcode</TableHead>
+                <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40 w-24">Qty</TableHead>
+                <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40 text-right">Price</TableHead>
+                <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40 text-right">GST%</TableHead>
+                <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40 text-right">Total</TableHead>
+                <TableHead className="bg-muted/40 w-12"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {returnItems.length === 0 ? (
                 <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Size</TableHead>
-                  <TableHead>Color</TableHead>
-                  <TableHead>Barcode</TableHead>
-                  <TableHead className="w-24">Qty</TableHead>
-                  <TableHead className="text-right">Price</TableHead>
-                  <TableHead className="text-right">GST%</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="w-16"></TableHead>
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                    No items added
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {returnItems.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center text-muted-foreground">
-                      No items added
+              ) : (
+                returnItems.map((item, index) => (
+                  <TableRow key={index}>
+                    <TableCell className="text-sm font-medium">{item.productName}</TableCell>
+                    <TableCell className="text-sm">{item.size}</TableCell>
+                    <TableCell className="text-sm">{item.color || "-"}</TableCell>
+                    <TableCell className="text-sm font-mono">{item.barcode || "-"}</TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={item.quantity}
+                        onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
+                        className="w-20 h-8 text-sm text-center"
+                      />
+                    </TableCell>
+                    <TableCell className="text-right text-sm">₹{item.unitPrice.toFixed(2)}</TableCell>
+                    <TableCell className="text-right text-sm">{item.gstPercent}%</TableCell>
+                    <TableCell className="text-right text-sm font-semibold">₹{item.lineTotal.toFixed(2)}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeItem(index)}
+                        className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                     </TableCell>
                   </TableRow>
-                ) : (
-                  returnItems.map((item, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{item.productName}</TableCell>
-                      <TableCell>{item.size}</TableCell>
-                      <TableCell>{item.color || "-"}</TableCell>
-                      <TableCell>{item.barcode || "-"}</TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
-                          className="w-20"
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">₹{item.unitPrice.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">{item.gstPercent}%</TableCell>
-                      <TableCell className="text-right">₹{item.lineTotal.toFixed(2)}</TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeItem(index)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                ))
+              )}
+            </TableBody>
+          </Table>
 
-            <div className="mt-6 flex justify-end">
-              <div className="w-64 space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Gross Amount:</span>
-                  <span className="font-medium">₹{totals.grossAmount.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total GST:</span>
-                  <span className="font-medium">₹{totals.gstAmount.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-lg font-bold border-t pt-2">
-                  <span>Net Amount:</span>
-                  <span>₹{totals.netAmount.toFixed(2)}</span>
-                </div>
+          {/* Totals */}
+          <div className="mt-5 flex justify-end">
+            <div className="w-72 bg-muted/30 rounded-xl border border-border overflow-hidden">
+              <div className="px-4 py-2.5 flex items-center justify-between border-b border-border">
+                <span className="text-sm text-muted-foreground">Gross Amount</span>
+                <span className="text-sm font-semibold text-foreground">₹{totals.grossAmount.toFixed(2)}</span>
+              </div>
+              <div className="px-4 py-2.5 flex items-center justify-between border-b border-border">
+                <span className="text-sm text-muted-foreground">Total GST</span>
+                <span className="text-sm font-semibold text-foreground">₹{totals.gstAmount.toFixed(2)}</span>
+              </div>
+              <div className="px-4 py-3 flex items-center justify-between bg-muted/50">
+                <span className="text-sm font-bold text-foreground">Net Amount</span>
+                <span className="text-lg font-extrabold text-green-600">₹{totals.netAmount.toFixed(2)}</span>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+      </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Additional Notes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Textarea
-              placeholder="Reason for return, notes..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-            />
-          </CardContent>
-        </Card>
+      {/* Notes */}
+      <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+        <div className="flex items-center gap-2 px-5 py-3 border-b border-border bg-muted/30">
+          <div className="w-1.5 h-5 bg-muted-foreground rounded-full" />
+          <h2 className="font-semibold text-sm text-foreground uppercase tracking-wide">Additional Notes</h2>
+        </div>
+        <div className="px-5 py-4">
+          <Textarea
+            placeholder="Reason for return, notes..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            className="text-sm"
+          />
+        </div>
+      </div>
 
-        <div className="flex justify-end gap-4">
-          <Button variant="outline" onClick={() => navigate("/sale-returns")}>
+      {/* Action Buttons */}
+      <div className="flex items-center justify-between rounded-xl border border-border bg-card px-5 py-4">
+        <p className="text-sm text-muted-foreground">
+          {returnItems.length === 0
+            ? 'No items added yet'
+            : `${returnItems.length} item(s) · Net Return: ₹${totals.netAmount.toFixed(2)}`}
+        </p>
+        <div className="flex gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/sale-returns')}
+            className="h-9 px-5 text-sm font-medium"
+          >
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Saving..." : isEditMode ? "Update Return" : "Save Return"}
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={saving || returnItems.length === 0}
+            className="h-9 px-6 text-sm font-semibold min-w-[130px]"
+          >
+            {saving ? (
+              <><span className="h-3.5 w-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin mr-2" />Saving...</>
+            ) : (
+              isEditMode ? 'Update Return' : 'Save Return'
+            )}
           </Button>
         </div>
       </div>
+    </div>
   );
 }
