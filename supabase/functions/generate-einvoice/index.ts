@@ -11,13 +11,15 @@ interface InvoiceRequest {
   testMode?: boolean;
 }
 
-interface WhiteBooksAuthResponse {
-  Status: number;
-  Data: {
+interface PeriOneAuthResponse {
+  status_cd: string;
+  status_desc: string;
+  data?: {
     AuthToken: string;
     TokenExpiry: string;
+    Sek: string;
   };
-  ErrorDetails: any;
+  ErrorDetails?: any;
 }
 
 interface EInvoicePayload {
