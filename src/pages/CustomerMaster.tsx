@@ -340,7 +340,7 @@ const CustomerMaster = () => {
       if (duplicate) throw new Error(`Customer with this phone already exists: ${duplicate.customer_name || duplicate.phone}`);
       
       const customerData: any = {
-        customer_name: data.customer_name.trim() || normalizedPhone,
+        customer_name: (data.customer_name.trim() || normalizedPhone).toUpperCase(),
         phone: normalizedPhone,
         email: data.email,
         address: data.address,
