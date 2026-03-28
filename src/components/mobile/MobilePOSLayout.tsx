@@ -224,6 +224,7 @@ export const MobilePOSLayout = ({
         onMixPayment={onMixPayment}
         onHold={onHoldBill}
         onSaleReturn={onSaleReturn}
+        onAdvanceBooking={onAdvanceBooking}
         isSaving={isSaving}
         hasItems={items.length > 0}
         finalAmount={finalAmount}

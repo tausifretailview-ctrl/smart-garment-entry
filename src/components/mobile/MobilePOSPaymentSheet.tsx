@@ -164,6 +164,20 @@ export const MobilePOSPaymentSheet = ({
               <span className="text-xs">Sale Return</span>
             </Button>
           )}
+
+          {onAdvanceBooking && (
+            <Button
+              onClick={() => {
+                onAdvanceBooking();
+                onOpenChange(false);
+              }}
+              variant="outline"
+              className="h-12 flex-col gap-1 text-purple-600"
+            >
+              <BookmarkPlus className="h-4 w-4" />
+              <span className="text-xs">Advance</span>
+            </Button>
+          )}
           
           {onPrint && (
             <Button
