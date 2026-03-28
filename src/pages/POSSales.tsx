@@ -500,6 +500,22 @@ export default function POSSales() {
 
         sonnerToast.success(`Invoice ${sale.sale_number} loaded for editing`);
       }
+
+      // Fetch financer/EMI details if available
+      const { data: financer } = await supabase
+        .from('sale_financer_details')
+        .select('*')
+        .eq('sale_id', saleId)
+        .maybeSingle();
+      if (financer) {
+        setFinancerDetails({
+          financer_name: financer.financer_name,
+          loan_number: financer.loan_number || '',
+          emi_amount: financer.emi_amount || 0,
+          tenure: financer.tenure || 0,
+          down_payment: financer.down_payment || 0,
+        });
+      }
     } catch (error: any) {
       console.error('Error loading sale:', error);
       toast({
