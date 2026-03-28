@@ -142,6 +142,7 @@ const POSDashboard = () => {
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [previewSale, setPreviewSale] = useState<Sale | null>(null);
   const [previewFinancerDetails, setPreviewFinancerDetails] = useState<any>(null);
+  const [previewCustomerData, setPreviewCustomerData] = useState<{ gst_number?: string; transport_details?: string } | null>(null);
   const [posBillFormat, setPosBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal' | null>(null);
   const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
 
@@ -594,13 +595,14 @@ const POSDashboard = () => {
     try {
       const saleDate = new Date(sale.sale_date);
 
-      // Fetch financer details for this sale
+      // Fetch financer details and customer GST in parallel
       let financerDetails = null;
-      const { data: finData } = await supabase
-        .from('sale_financer_details')
-        .select('*')
-        .eq('sale_id', sale.id)
-        .maybeSingle();
+      const [{ data: finData }, { data: customerData }] = await Promise.all([
+        supabase.from('sale_financer_details').select('*').eq('sale_id', sale.id).maybeSingle(),
+        sale.customer_id
+          ? supabase.from('customers').select('gst_number, transport_details').eq('id', sale.customer_id).maybeSingle()
+          : Promise.resolve({ data: null }),
+      ]);
       if (finData) {
         financerDetails = {
           financer_name: finData.financer_name,
@@ -617,17 +619,20 @@ const POSDashboard = () => {
         customerName: sale.customer_name,
         customerAddress: sale.customer_address || '',
         customerMobile: sale.customer_phone || '',
+        customerGSTIN: customerData?.gst_number || '',
+        customerTransportDetails: customerData?.transport_details || '',
         items: items.map((item, index) => ({
           sr: index + 1,
           particulars: item.product_name,
           size: item.size,
           barcode: item.barcode || '',
-          hsn: '',
+          hsn: item.hsn_code || '',
           sp: item.mrp,
           mrp: item.mrp,
           qty: item.quantity,
           rate: item.unit_price,
           total: item.line_total,
+          gstPercent: item.gst_percent || 0,
         })),
         subTotal: sale.gross_amount,
         discount: sale.discount_amount + sale.flat_discount_amount,
@@ -830,12 +835,13 @@ const POSDashboard = () => {
   const handlePreviewClick = async (sale: Sale, event: React.MouseEvent) => {
     event.stopPropagation();
     await fetchSaleItems(sale.id);
-    // Fetch financer details for preview
-    const { data: finData } = await supabase
-      .from('sale_financer_details')
-      .select('*')
-      .eq('sale_id', sale.id)
-      .maybeSingle();
+    // Fetch financer details and customer GST for preview
+    const [{ data: finData }, { data: custData }] = await Promise.all([
+      supabase.from('sale_financer_details').select('*').eq('sale_id', sale.id).maybeSingle(),
+      sale.customer_id
+        ? supabase.from('customers').select('gst_number, transport_details').eq('id', sale.customer_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
     setPreviewFinancerDetails(finData ? {
       financer_name: finData.financer_name,
       loan_number: finData.loan_number || undefined,
@@ -843,6 +849,7 @@ const POSDashboard = () => {
       tenure: finData.tenure || undefined,
       down_payment: finData.down_payment || undefined,
     } : null);
+    setPreviewCustomerData(custData);
     setPreviewSale(sale);
     setShowPreviewDialog(true);
   };
@@ -1963,6 +1970,8 @@ const POSDashboard = () => {
               customerName={previewSale.customer_name}
               customerAddress={previewSale.customer_address || ''}
               customerMobile={previewSale.customer_phone || ''}
+              customerGSTIN={previewCustomerData?.gst_number || ''}
+              customerTransportDetails={previewCustomerData?.transport_details || ''}
               template={posInvoiceTemplate}
               items={(saleItems[previewSale.id] || []).map((item, index) => ({
                 sr: index + 1,
@@ -2080,6 +2089,8 @@ const POSDashboard = () => {
             customerName={printData.customerName}
             customerAddress={printData.customerAddress}
             customerMobile={printData.customerMobile}
+            customerGSTIN={printData.customerGSTIN || ''}
+            customerTransportDetails={printData.customerTransportDetails || ''}
             items={printData.items}
             subTotal={printData.subTotal}
             discount={printData.discount}

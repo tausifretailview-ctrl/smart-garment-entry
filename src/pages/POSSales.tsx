@@ -3025,6 +3025,8 @@ export default function POSSales() {
             date={currentDateTime}
             customerName={savedInvoiceData?.customerName || customerName || "Walk in Customer"}
             customerMobile={savedInvoiceData?.customerPhone || customerPhone}
+            customerGSTIN={customers.find(c => c.id === customerId)?.gst_number || ""}
+            customerTransportDetails={(customers.find(c => c.id === customerId) as any)?.transport_details || ""}
             items={savedInvoiceData ? savedInvoiceData.items.map((item: any, index: number) => ({
               sr: index + 1,
               particulars: item.productName,
@@ -4406,6 +4408,8 @@ export default function POSSales() {
                 customerName={savedInvoiceData.customerName || "Walk-in Customer"}
                 customerAddress=""
                 customerMobile={savedInvoiceData.customerPhone || ""}
+                customerGSTIN={customers.find(c => c.id === (savedInvoiceData.customerId || customerId))?.gst_number || ""}
+                customerTransportDetails={(customers.find(c => c.id === (savedInvoiceData.customerId || customerId)) as any)?.transport_details || ""}
                 template={posInvoiceTemplate}
               items={savedInvoiceData.items.map((item: any, index: number) => ({
                 sr: index + 1,
@@ -4489,6 +4493,8 @@ export default function POSSales() {
                 customerName={savedInvoiceData?.customerName || customerName || "Walk-in Customer"}
                 customerAddress=""
                 customerMobile={savedInvoiceData?.customerPhone || customerPhone || ""}
+                customerGSTIN={customers.find(c => c.id === customerId)?.gst_number || ""}
+                customerTransportDetails={(customers.find(c => c.id === customerId) as any)?.transport_details || ""}
                 template={posInvoiceTemplate}
                 items={savedInvoiceData ? savedInvoiceData.items.map((item: any, index: number) => ({
                   sr: index + 1,
