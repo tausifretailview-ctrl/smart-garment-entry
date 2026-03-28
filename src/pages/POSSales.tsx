@@ -3072,6 +3072,7 @@ export default function POSSales() {
             previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
             roundOff={savedInvoiceData?.roundOff ?? roundOff}
             salesman={savedInvoiceData?.salesman || selectedSalesman || ''}
+            financerDetails={financerDetails}
           />
         </div>
       </>
