@@ -141,6 +141,7 @@ const POSDashboard = () => {
 
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [previewSale, setPreviewSale] = useState<Sale | null>(null);
+  const [previewFinancerDetails, setPreviewFinancerDetails] = useState<any>(null);
   const [posBillFormat, setPosBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal' | null>(null);
   const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
 
@@ -593,6 +594,23 @@ const POSDashboard = () => {
     try {
       const saleDate = new Date(sale.sale_date);
 
+      // Fetch financer details for this sale
+      let financerDetails = null;
+      const { data: finData } = await supabase
+        .from('sale_financer_details')
+        .select('*')
+        .eq('sale_id', sale.id)
+        .maybeSingle();
+      if (finData) {
+        financerDetails = {
+          financer_name: finData.financer_name,
+          loan_number: finData.loan_number || undefined,
+          emi_amount: finData.emi_amount || undefined,
+          tenure: finData.tenure || undefined,
+          down_payment: finData.down_payment || undefined,
+        };
+      }
+
       const invoiceData = {
         billNo: sale.sale_number,
         date: saleDate,
@@ -622,6 +640,8 @@ const POSDashboard = () => {
         upiAmount: sale.upi_amount,
         paidAmount: sale.paid_amount,
         salesman: sale.salesman || '',
+        notes: sale.notes || '',
+        financerDetails,
       };
 
       // Set print data first
@@ -810,6 +830,19 @@ const POSDashboard = () => {
   const handlePreviewClick = async (sale: Sale, event: React.MouseEvent) => {
     event.stopPropagation();
     await fetchSaleItems(sale.id);
+    // Fetch financer details for preview
+    const { data: finData } = await supabase
+      .from('sale_financer_details')
+      .select('*')
+      .eq('sale_id', sale.id)
+      .maybeSingle();
+    setPreviewFinancerDetails(finData ? {
+      financer_name: finData.financer_name,
+      loan_number: finData.loan_number || undefined,
+      emi_amount: finData.emi_amount || undefined,
+      tenure: finData.tenure || undefined,
+      down_payment: finData.down_payment || undefined,
+    } : null);
     setPreviewSale(sale);
     setShowPreviewDialog(true);
   };
@@ -1956,6 +1989,7 @@ const POSDashboard = () => {
               paidAmount={previewSale.paid_amount}
               salesman={previewSale.salesman || ''}
               notes={previewSale.notes || ''}
+              financerDetails={previewFinancerDetails}
             />
           )}
         />
@@ -2058,6 +2092,8 @@ const POSDashboard = () => {
             upiAmount={printData.upiAmount}
             paidAmount={printData.paidAmount}
             salesman={printData.salesman || ''}
+            notes={printData.notes || ''}
+            financerDetails={printData.financerDetails || null}
             format={posBillFormat}
             template={posInvoiceTemplate}
           />
