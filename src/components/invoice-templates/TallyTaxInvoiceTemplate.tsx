@@ -205,8 +205,8 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
             <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
               {logoUrl && <img src={logoUrl} alt="Logo" style={{ width: '50px', height: '50px', objectFit: 'contain' }} />}
               <div>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '2px' }}>{businessName}</div>
-                <div style={{ fontSize: '9px', whiteSpace: 'pre-line' }}>{address}</div>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '2px' }}>{businessName}</div>
+                <div style={{ fontSize: '11px', whiteSpace: 'pre-line' }}>{address}</div>
                 {gstNumber && <div style={{ fontSize: '10px', fontWeight: 'bold', marginTop: '2px' }}>GSTIN/UIN: {gstNumber}</div>}
                 {sellerState.name && <div style={{ fontSize: '9px' }}>State Name: {sellerState.name}, Code: {sellerState.code}</div>}
                 {mobile && <div style={{ fontSize: '9px' }}>Contact: {mobile}</div>}
