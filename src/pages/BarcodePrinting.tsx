@@ -585,8 +585,8 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
     const { active, over } = event;
     if (!over || active.id === over.id || !onConfigChange) return;
 
-    const activeKey = String(active.id).replace('preview-', '') as keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue'>;
-    const overKey = String(over.id).replace('preview-', '') as keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue'>;
+    const activeKey = String(active.id).replace('preview-', '') as FieldKey;
+    const overKey = String(over.id).replace('preview-', '') as FieldKey;
 
     onConfigChange(prev => {
       const oldIndex = prev.fieldOrder.indexOf(activeKey);
