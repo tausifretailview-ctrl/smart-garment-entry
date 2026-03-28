@@ -345,8 +345,8 @@ Deno.serve(async (req) => {
 
     // Determine API base URL based on test mode
     const baseUrl = testMode 
-      ? 'https://apisandbox.whitebooks.in' 
-      : 'https://api.whitebooks.in';
+      ? 'https://staging.perione.in' 
+      : 'https://api.perione.in';
 
     // Step 1: Authenticate with WhiteBooks API
     console.log('Authenticating with WhiteBooks API...');
