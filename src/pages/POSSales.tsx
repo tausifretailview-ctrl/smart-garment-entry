@@ -82,6 +82,7 @@ import { useDirectPrint } from "@/hooks/useDirectPrint";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { DcSaleTransferDialog } from "@/components/DcSaleTransferDialog";
 import { FinancerDetailsForm, FinancerDetails, saveFinancerDetails } from "@/components/FinancerDetailsForm";
+import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
 
 interface PendingPriceSelection {
   product: any;
