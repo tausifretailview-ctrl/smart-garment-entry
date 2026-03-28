@@ -331,7 +331,7 @@ const PurchaseBillDashboard = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [startDate, endDate, itemsPerPage]);
+  }, [startDate, endDate, itemsPerPage, paymentStatusFilter, dcFilter]);
 
   // Server-side paginated query for purchase bills
   const { data: billsQueryData, isLoading: billsQueryLoading, refetch: refetchBills } = useQuery({
