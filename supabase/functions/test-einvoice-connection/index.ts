@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     const clientSecret = einvoiceSettings?.api_client_secret || '';
     const username = einvoiceSettings?.api_username || '';
     const password = einvoiceSettings?.api_password || '';
-    const apiEmail = einvoiceSettings?.api_email || (username ? `${username}@whitebooks.in` : '');
+    const apiEmail = einvoiceSettings?.api_email || '';
     const sellerGstin = einvoiceSettings?.seller_gstin || settingsData?.gst_number || '';
     const testMode = einvoiceSettings?.test_mode ?? true;
 
