@@ -420,8 +420,45 @@ export function SizeGridDialog({
       return;
     }
     if (e.key === "Enter" && !e.shiftKey && !showAddCustom && !showAddColor) {
+      // In review mode, if focus is on a qty/price input, Tab to next input instead of confirming
+      if (reviewMode) {
+        const target = e.target as HTMLElement;
+        const isInput = target.tagName === 'INPUT';
+        if (isInput) {
+          // Find all tabbable inputs within the dialog
+          const dialog = target.closest('[role="dialog"]');
+          if (dialog) {
+            const inputs = Array.from(dialog.querySelectorAll<HTMLInputElement>('input[type="number"]:not([tabindex="-1"]):not([readonly])'));
+            const currentIndex = inputs.indexOf(target as HTMLInputElement);
+            if (currentIndex >= 0 && currentIndex < inputs.length - 1) {
+              // Move to next input
+              e.preventDefault();
+              inputs[currentIndex + 1].focus();
+              inputs[currentIndex + 1].select();
+              return;
+            }
+          }
+        }
+      }
       e.preventDefault();
       handleConfirm();
+    }
+    // In review mode, Tab from last qty field should go to price fields
+    if (reviewMode && e.key === "Tab" && !e.shiftKey) {
+      const target = e.target as HTMLElement;
+      const isInput = target.tagName === 'INPUT';
+      if (isInput) {
+        const dialog = target.closest('[role="dialog"]');
+        if (dialog) {
+          const inputs = Array.from(dialog.querySelectorAll<HTMLInputElement>('input[type="number"]:not([tabindex="-1"]):not([readonly])'));
+          const currentIndex = inputs.indexOf(target as HTMLInputElement);
+          if (currentIndex >= 0 && currentIndex < inputs.length - 1) {
+            e.preventDefault();
+            inputs[currentIndex + 1].focus();
+            inputs[currentIndex + 1].select();
+          }
+        }
+      }
     }
   };
 
@@ -931,7 +968,7 @@ export function SizeGridDialog({
                           <input
                             type="number"
                             min="0"
-                            tabIndex={-1}
+                            tabIndex={reviewMode ? 0 : -1}
                             className="w-16 text-center border rounded p-1 text-xs bg-background"
                             value={sizePrices[v.id] ?? (v.sale_price || "")}
                             onChange={(e) =>
@@ -945,7 +982,7 @@ export function SizeGridDialog({
                           <input
                             type="number"
                             min="0"
-                            tabIndex={-1}
+                            tabIndex={reviewMode ? 0 : -1}
                             className="w-16 text-center border rounded p-1 text-xs bg-background border-orange-300"
                             value={sizePurPrices[v.id] ?? (v.pur_price || "")}
                             onChange={(e) =>
