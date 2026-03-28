@@ -58,6 +58,10 @@ interface TallyTaxInvoiceTemplateProps {
     ifscCode?: string;
     accountHolder?: string;
     branch?: string;
+    bank_name?: string;
+    account_number?: string;
+    ifsc_code?: string;
+    account_holder?: string;
   };
   qrCodeUrl?: string;
   upiId?: string;
@@ -148,6 +152,15 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
   const buyerState = getStateFromGSTIN(customerGSTIN);
   const isInterState = gstNumber && customerGSTIN && gstNumber.substring(0, 2) !== customerGSTIN.substring(0, 2);
 
+  // Normalize bankDetails (support both snake_case and camelCase)
+  const normBank = bankDetails ? {
+    bankName: bankDetails.bankName || (bankDetails as any).bank_name || '',
+    accountNumber: bankDetails.accountNumber || (bankDetails as any).account_number || '',
+    ifscCode: bankDetails.ifscCode || (bankDetails as any).ifsc_code || '',
+    accountHolder: bankDetails.accountHolder || (bankDetails as any).account_holder || '',
+    branch: bankDetails.branch || '',
+  } : null;
+
   const hsnBreakup: Record<string, { hsn: string; taxableValue: number; rate: number; cgst: number; sgst: number; igst: number; total: number }> = {};
   items.forEach(item => {
     const gstPct = item.gstPercent || 0;
@@ -162,7 +175,8 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
   });
 
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
-  const colCount = showHSN ? 8 : 7;
+  // Column count: Sl No, Description, [HSN], Quantity, Rate(Incl), Rate, Amount = 6 or 7
+  const colCount = showHSN ? 7 : 6;
   const defaultDeclaration = `We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.\nWARRANTY TO CUSTOMER IS DIRECTLY FROM MANUFACTURER.\nDEALER IS NOT RESPONSIBLE. GOODS ONCE SOLD WILL NOT BE TAKEN BACK OR EXCHANGED.`;
 
   // Count actual content rows (product rows + tax summary rows + round off)
@@ -264,27 +278,62 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
           </div>
         </div>
 
-        {/* Buyer Details */}
+        {/* Consignee + Finance Details */}
         <div style={{ display: 'flex', borderBottom: b, flexShrink: 0 }}>
           <div style={{ flex: 1, padding: '4px 8px', borderRight: b }}>
             <div style={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '1px' }}>Consignee (Ship to)</div>
             <div style={{ fontSize: '11px', fontWeight: 'bold' }}>{customerName || 'Walk-in Customer'}</div>
             {customerAddress && <div style={{ fontSize: '9px', whiteSpace: 'pre-line' }}>{customerAddress}</div>}
-            <div style={{ fontSize: '10px', fontWeight: 'bold', marginTop: '3px', padding: '1px 3px', backgroundColor: customerGSTIN ? '#f0f7f0' : '#fff8f0', border: `0.5px solid ${customerGSTIN ? '#4a9e4a' : '#ccc'}`, display: 'inline-block', borderRadius: '2px' }}>
+            <div style={{
+              fontSize: '10px', fontWeight: 'bold', marginTop: '3px',
+              padding: '1px 4px', borderRadius: '2px', display: 'inline-block',
+              backgroundColor: customerGSTIN ? '#f0f7f0' : '#fff8f0',
+              border: `0.5px solid ${customerGSTIN ? '#4a9e4a' : '#ccc'}`
+            }}>
               GSTIN: {customerGSTIN || 'Not Provided'}
             </div>
             {buyerState.name && <div style={{ fontSize: '9px', marginTop: '2px' }}>State Name: {buyerState.name}, Code: {buyerState.code}</div>}
             {customerMobile && <div style={{ fontSize: '9px' }}>Contact: {customerMobile}</div>}
           </div>
           <div style={{ width: '42%', padding: '4px 8px' }}>
-            <div style={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '1px' }}>Buyer (Bill to)</div>
-            <div style={{ fontSize: '11px', fontWeight: 'bold' }}>{customerName || 'Walk-in Customer'}</div>
-            {customerAddress && <div style={{ fontSize: '9px', whiteSpace: 'pre-line' }}>{customerAddress}</div>}
-            <div style={{ fontSize: '10px', fontWeight: 'bold', marginTop: '3px', padding: '1px 3px', backgroundColor: customerGSTIN ? '#f0f7f0' : '#fff8f0', border: `0.5px solid ${customerGSTIN ? '#4a9e4a' : '#ccc'}`, display: 'inline-block', borderRadius: '2px' }}>
-              GSTIN: {customerGSTIN || 'Not Provided'}
-            </div>
-            {buyerState.name && <div style={{ fontSize: '9px', marginTop: '2px' }}>State Name: {buyerState.name}, Code: {buyerState.code}</div>}
-            {customerMobile && <div style={{ fontSize: '9px' }}>Contact: {customerMobile}</div>}
+            {financerDetails?.financer_name ? (
+              <>
+                <div style={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '3px', textDecoration: 'underline' }}>
+                  Finance / EMI Details
+                </div>
+                <div style={{ fontSize: '9.5px', lineHeight: '1.6' }}>
+                  <div><strong>Financer:</strong> {financerDetails.financer_name}</div>
+                  {financerDetails.loan_number && (
+                    <div><strong>Loan No:</strong> {financerDetails.loan_number}</div>
+                  )}
+                  {financerDetails.down_payment != null && financerDetails.down_payment > 0 && (
+                    <div><strong>Down Payment:</strong> ₹{fmt(financerDetails.down_payment)}</div>
+                  )}
+                  {financerDetails.emi_amount != null && financerDetails.emi_amount > 0 && (
+                    <div><strong>EMI Amount:</strong> ₹{fmt(financerDetails.emi_amount)}/month</div>
+                  )}
+                  {financerDetails.tenure != null && financerDetails.tenure > 0 && (
+                    <div><strong>Tenure:</strong> {financerDetails.tenure} months</div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '1px' }}>Buyer (Bill to)</div>
+                <div style={{ fontSize: '11px', fontWeight: 'bold' }}>{customerName || 'Walk-in Customer'}</div>
+                {customerAddress && <div style={{ fontSize: '9px', whiteSpace: 'pre-line' }}>{customerAddress}</div>}
+                <div style={{
+                  fontSize: '10px', fontWeight: 'bold', marginTop: '3px',
+                  padding: '1px 4px', borderRadius: '2px', display: 'inline-block',
+                  backgroundColor: customerGSTIN ? '#f0f7f0' : '#fff8f0',
+                  border: `0.5px solid ${customerGSTIN ? '#4a9e4a' : '#ccc'}`
+                }}>
+                  GSTIN: {customerGSTIN || 'Not Provided'}
+                </div>
+                {buyerState.name && <div style={{ fontSize: '9px', marginTop: '2px' }}>State Name: {buyerState.name}, Code: {buyerState.code}</div>}
+                {customerMobile && <div style={{ fontSize: '9px' }}>Contact: {customerMobile}</div>}
+              </>
+            )}
           </div>
         </div>
 
@@ -299,8 +348,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                 <th style={{ ...hCell, width: '58px' }}>Quantity</th>
                 <th style={{ ...hCell, width: '72px' }}>Rate (Incl. Tax)</th>
                 <th style={{ ...hCell, width: '68px' }}>Rate</th>
-                <th style={{ ...hCell, width: '28px' }}>per</th>
-                <th style={{ ...hCell, width: '75px' }}>Amount</th>
+                <th style={{ ...hCell, width: '90px' }}>Amount</th>
               </tr>
             </thead>
             <tbody>
@@ -310,15 +358,19 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                 const taxableAmt = item.total - gstAmt;
                 const rateInclTax = item.qty > 0 ? item.total / item.qty : 0;
                 const rateExclTax = item.qty > 0 ? taxableAmt / item.qty : 0;
-                const halfRate = gstPct / 2;
                 return (
                   <tr key={index}>
                     <td style={{ ...cellNoRowBorder, textAlign: 'center', verticalAlign: 'top', width: '42px', fontWeight: 'bold' }}>{index + 1}</td>
                     <td style={{ ...cellNoRowBorder, verticalAlign: 'top' }}>
                       <div style={{ fontWeight: 'bold', fontSize: '11px', lineHeight: '1.4' }}>{item.particulars}</div>
+                      {item.color && (
+                        <div style={{ fontSize: '9px', color: '#333', marginTop: '1px' }}>
+                          <strong>Color:</strong> {item.color}
+                        </div>
+                      )}
                       {item.barcode && (
-                        <div style={{ fontSize: '10px', color: '#000', fontWeight: '600', marginTop: '2px', fontFamily: 'monospace' }}>
-                          IMEI/Batch: {item.barcode}
+                        <div style={{ fontSize: '10px', fontWeight: '600', color: '#000', fontFamily: 'monospace', marginTop: '2px' }}>
+                          IMEI: {item.barcode}
                         </div>
                       )}
                     </td>
@@ -330,22 +382,21 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                     <td style={{ ...cellNoRowBorder, textAlign: 'center', verticalAlign: 'top', fontWeight: '600' }}>{item.qty} Pcs</td>
                     <td style={{ ...cellNoRowBorder, textAlign: 'right', verticalAlign: 'top', fontWeight: '600' }}>{fmt(rateInclTax)}</td>
                     <td style={{ ...cellNoRowBorder, textAlign: 'right', verticalAlign: 'top' }}>{fmt(rateExclTax)}</td>
-                    <td style={{ ...cellNoRowBorder, textAlign: 'center', verticalAlign: 'top' }}>Pcs</td>
                     <td style={{ ...cellNoRowBorder, textAlign: 'right', verticalAlign: 'top', fontWeight: '600' }}>{fmt(taxableAmt)}</td>
                   </tr>
                 );
               })}
-              {/* Blank filler rows — minimum 5 total content rows */}
+              {/* Blank filler rows */}
               {Array.from({ length: blankRowsNeeded }).map((_, i) => (
                 <tr key={`blank-${i}`} style={{ height: '22px' }}>
                   <td style={{ ...cellNoRowBorder, width: '42px' }}>&nbsp;</td>
                   <td style={cellNoRowBorder}></td>
                   {showHSN && <td style={cellNoRowBorder}></td>}
-                  <td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td>
+                  <td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td>
                   <td style={cellNoRowBorder}></td>
                 </tr>
               ))}
-              {/* CGST/SGST/IGST summary rows at bottom */}
+              {/* CGST/SGST summary rows */}
               {showGSTBreakdown && !isInterState && totalCgst > 0 && (
                 <>
                   <tr>
@@ -354,7 +405,6 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                     {showHSN && <td style={cellNoRowBorder}></td>}
                     <td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td>
                     <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{summaryGstRate / 2} %</td>
-                    <td style={cellNoRowBorder}></td>
                     <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{fmt(totalCgst)}</td>
                   </tr>
                   <tr>
@@ -363,7 +413,6 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                     {showHSN && <td style={cellNoRowBorder}></td>}
                     <td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td>
                     <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{summaryGstRate / 2} %</td>
-                    <td style={cellNoRowBorder}></td>
                     <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{fmt(totalSgst)}</td>
                   </tr>
                 </>
@@ -375,7 +424,6 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                   {showHSN && <td style={cellNoRowBorder}></td>}
                   <td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td>
                   <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{summaryGstRate} %</td>
-                  <td style={cellNoRowBorder}></td>
                   <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{fmt(totalIgst)}</td>
                 </tr>
               )}
@@ -385,7 +433,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                   <td style={cellNoRowBorder}></td>
                   <td style={{ ...cellNoRowBorder, paddingLeft: '16px', fontSize: '9px' }}>ROUND OFF</td>
                   {showHSN && <td style={cellNoRowBorder}></td>}
-                  <td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td>
+                  <td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td>
                   <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{roundOff >= 0 ? '' : '(-)'}{fmt(Math.abs(roundOff))}</td>
                 </tr>
               )}
@@ -395,7 +443,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                 <td style={{ ...cell, textAlign: 'right', fontWeight: 'bold' }}>Total</td>
                 {showHSN && <td style={cell}></td>}
                 <td style={{ ...cell, textAlign: 'center', fontWeight: 'bold' }}>{totalQty} Pcs</td>
-                <td style={cell}></td><td style={cell}></td><td style={cell}></td>
+                <td style={cell}></td><td style={cell}></td>
                 <td style={{ ...cell, textAlign: 'right', fontWeight: 'bold' }}>₹{fmt(grandTotal)}</td>
               </tr>
             </tbody>
@@ -420,8 +468,8 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
         {notes && notes.trim() && (
           <div style={{ borderTop: b, padding: '3px 8px', flexShrink: 0 }}>
             <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
-              <span style={{ fontSize: '9px', fontWeight: 'bold', whiteSpace: 'nowrap', minWidth: '40px' }}>Note:</span>
-              <span style={{ fontSize: '9px', lineHeight: '1.4', whiteSpace: 'pre-line' }}>{notes}</span>
+              <span style={{ fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap', minWidth: '40px' }}>Note:</span>
+              <span style={{ fontSize: '9.5px', lineHeight: '1.5', whiteSpace: 'pre-line' }}>{notes}</span>
             </div>
           </div>
         )}
@@ -429,10 +477,10 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
         {/* Terms & Conditions */}
         {termsConditions && termsConditions.length > 0 && (
           <div style={{ borderTop: b, padding: '3px 8px', flexShrink: 0 }}>
-            <div style={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '2px' }}>Terms & Conditions:</div>
-            <ol style={{ margin: 0, paddingLeft: '14px', fontSize: '8.5px', lineHeight: '1.5' }}>
+            <div style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '3px' }}>Terms & Conditions:</div>
+            <ol style={{ margin: 0, paddingLeft: '16px', fontSize: '9.5px', lineHeight: '1.7' }}>
               {termsConditions.map((term, idx) => (
-                <li key={idx} style={{ marginBottom: '1px' }}>{term}</li>
+                <li key={idx} style={{ marginBottom: '2px' }}>{term}</li>
               ))}
             </ol>
           </div>
@@ -509,10 +557,10 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
           </div>
         )}
 
-        {/* Declaration + Finance + Bank + QR/Signature */}
+        {/* Declaration + Bank + QR/Signature */}
         <div style={{ display: 'flex', borderTop: b, flexShrink: 0 }}>
 
-          {/* Left: Declaration + Bank Details + Finance */}
+          {/* Left: Declaration + Bank Details */}
           <div style={{ flex: 1, padding: '5px 8px', borderRight: b, fontSize: '9px' }}>
             {gstNumber && (
               <div style={{ marginBottom: '3px' }}>
@@ -525,35 +573,15 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
             </div>
 
             {/* Bank Details inside declaration column */}
-            {showBankDetails && bankDetails && (bankDetails.bankName || bankDetails.accountNumber) && (
+            {showBankDetails && normBank && (normBank.bankName || normBank.accountNumber) && (
               <div style={{ borderTop: '1px dashed #999', paddingTop: '3px', marginTop: '3px' }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>Company's Bank Details:</div>
-                {bankDetails.accountHolder && <div>A/c Holder: <strong>{bankDetails.accountHolder}</strong></div>}
-                {bankDetails.bankName && <div>Bank: <strong>{bankDetails.bankName}</strong></div>}
-                {bankDetails.accountNumber && <div>A/c No.: <strong>{bankDetails.accountNumber}</strong></div>}
-                {(bankDetails.branch || bankDetails.ifscCode) && (
-                  <div>Branch & IFSC: <strong>{[bankDetails.branch, bankDetails.ifscCode].filter(Boolean).join(' & ')}</strong></div>
+                {normBank.accountHolder && <div>A/c Holder: <strong>{normBank.accountHolder}</strong></div>}
+                {normBank.bankName && <div>Bank: <strong>{normBank.bankName}</strong></div>}
+                {normBank.accountNumber && <div>A/c No.: <strong>{normBank.accountNumber}</strong></div>}
+                {(normBank.branch || normBank.ifscCode) && (
+                  <div>Branch & IFSC: <strong>{[normBank.branch, normBank.ifscCode].filter(Boolean).join(' & ')}</strong></div>
                 )}
-              </div>
-            )}
-
-            {/* Finance / EMI Details inside declaration column */}
-            {financerDetails?.financer_name && (
-              <div style={{ borderTop: '1px dashed #999', paddingTop: '3px', marginTop: '3px' }}>
-                <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>Finance / EMI Details:</div>
-                <div style={{ lineHeight: '1.5' }}>
-                  <div><strong>Financer:</strong> {financerDetails.financer_name}</div>
-                  {financerDetails.loan_number && <div><strong>Loan No:</strong> {financerDetails.loan_number}</div>}
-                  {financerDetails.down_payment != null && financerDetails.down_payment > 0 && (
-                    <div><strong>Down Payment:</strong> ₹{fmt(financerDetails.down_payment)}</div>
-                  )}
-                  {financerDetails.emi_amount != null && financerDetails.emi_amount > 0 && (
-                    <div><strong>EMI:</strong> ₹{fmt(financerDetails.emi_amount)}/month</div>
-                  )}
-                  {financerDetails.tenure != null && financerDetails.tenure > 0 && (
-                    <div><strong>Tenure:</strong> {financerDetails.tenure} months</div>
-                  )}
-                </div>
               </div>
             )}
           </div>
