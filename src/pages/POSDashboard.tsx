@@ -1989,6 +1989,7 @@ const POSDashboard = () => {
               paidAmount={previewSale.paid_amount}
               salesman={previewSale.salesman || ''}
               notes={previewSale.notes || ''}
+              financerDetails={previewFinancerDetails}
             />
           )}
         />
