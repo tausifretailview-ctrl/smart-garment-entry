@@ -322,7 +322,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                 <>
                   <tr>
                     <td style={cellNoRowBorder}></td>
-                    <td style={{ ...cellNoRowBorder, paddingLeft: '16px', fontSize: '9px' }}>OUTPUT CGST@{summaryGstRate / 2}%</td>
+                    <td style={{ ...cellNoRowBorder, paddingLeft: '16px', fontSize: '10px' }}>OUTPUT CGST@{summaryGstRate / 2}%</td>
                     {showHSN && <td style={cellNoRowBorder}></td>}
                     <td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td>
                     <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{summaryGstRate / 2} %</td>
