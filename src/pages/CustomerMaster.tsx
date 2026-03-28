@@ -296,7 +296,7 @@ const CustomerMaster = () => {
       if (duplicate) throw new Error(`Customer with this phone already exists: ${duplicate.customer_name || duplicate.phone}`);
       
       const customerData: any = {
-        customer_name: data.customer_name.trim() || normalizedPhone,
+        customer_name: (data.customer_name.trim() || normalizedPhone).toUpperCase(),
         phone: normalizedPhone,
         email: data.email,
         address: data.address,
@@ -340,7 +340,7 @@ const CustomerMaster = () => {
       if (duplicate) throw new Error(`Customer with this phone already exists: ${duplicate.customer_name || duplicate.phone}`);
       
       const customerData: any = {
-        customer_name: data.customer_name.trim() || normalizedPhone,
+        customer_name: (data.customer_name.trim() || normalizedPhone).toUpperCase(),
         phone: normalizedPhone,
         email: data.email,
         address: data.address,
@@ -486,7 +486,7 @@ const CustomerMaster = () => {
         const phone = normalizePhoneNumber(row.phone);
         if (existingPhones.has(phone)) { skippedCount++; continue; }
         customersToInsert.push({
-          customer_name: row.customer_name?.toString().trim() || phone,
+          customer_name: (row.customer_name?.toString().trim() || phone).toUpperCase(),
           phone, email: row.email?.toString().trim() || '', address: row.address?.toString().trim() || '',
           gst_number: row.gst_number?.toString().trim() || '',
           opening_balance: row.opening_balance ? parseFloat(row.opening_balance) : 0,
@@ -559,7 +559,7 @@ const CustomerMaster = () => {
             setShowCustomerHistory(true);
           }}
         >
-          {row.original.customer_name}
+          {row.original.customer_name?.toUpperCase()}
         </span>
       ),
     },
@@ -710,7 +710,7 @@ const CustomerMaster = () => {
               >
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-sm text-foreground truncate">{c.customer_name}</p>
+                    <p className="font-semibold text-sm text-foreground truncate">{c.customer_name?.toUpperCase()}</p>
                     {c.phone && (
                       <a href={`tel:${c.phone}`} className="text-xs text-primary font-medium" onClick={(e) => e.stopPropagation()}>
                         {c.phone}
