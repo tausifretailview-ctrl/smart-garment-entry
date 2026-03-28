@@ -3684,11 +3684,12 @@ export default function POSSales() {
           <div className="max-w-[1800px] w-full flex-1 flex flex-col overflow-hidden">
           <Card className="flex-1 overflow-hidden flex flex-col border-border/60 shadow-sm">
             <div className="bg-slate-900 text-white overflow-x-auto">
-              <div className="min-w-[1200px] grid gap-2 px-4 py-3 text-[13px] font-semibold uppercase tracking-wider" style={{ gridTemplateColumns: '50px 130px 1fr 70px 65px 95px 65px 80px 75px 95px 120px' }}>
+              <div className="min-w-[1280px] grid gap-2 px-4 py-3 text-[13px] font-semibold uppercase tracking-wider" style={{ gridTemplateColumns: '50px 130px 1fr 70px 70px 65px 95px 65px 80px 75px 95px 120px' }}>
                 <div className="text-center">Sr No</div>
                 <div>Barcode</div>
                 <div>Product</div>
                 <div className="text-center">Size</div>
+                <div className="text-center">Color</div>
                 <div className="text-center">Qty</div>
                 <div className="text-right">MRP</div>
                 <div className="text-center">Tax%</div>
@@ -3729,10 +3730,11 @@ export default function POSSales() {
                 {items.length === 0 ? (
                   // Show 5 blank rows with serial numbers
                   Array.from({ length: 5 }).map((_, index) => (
-                    <div key={index} className={`min-w-[1200px] grid gap-2 px-4 py-3 border-b border-border/40 text-sm ${index % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: '50px 130px 1fr 70px 65px 95px 65px 80px 75px 95px 120px' }}>
+                   <div key={index} className={`min-w-[1280px] grid gap-2 px-4 py-3 border-b border-border/40 text-sm ${index % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: '50px 130px 1fr 70px 70px 65px 95px 65px 80px 75px 95px 120px' }}>
                       <div className="flex items-center justify-center text-muted-foreground/50 font-medium">{index + 1}</div>
                       <div className="flex items-center text-muted-foreground/30">—</div>
                       <div className="flex items-center text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-center text-muted-foreground/30">—</div>
                       <div className="flex items-center justify-center text-muted-foreground/30">—</div>
                       <div className="flex items-center justify-center text-muted-foreground/30">—</div>
                       <div className="flex items-center justify-end text-muted-foreground/30">—</div>
@@ -3745,7 +3747,7 @@ export default function POSSales() {
                   ))
                 ) : (
                   items.map((item, index) => (
-                    <div key={index} className={`min-w-[1200px] grid gap-2 px-4 py-2.5 border-b border-border/40 hover:bg-accent/30 text-sm transition-colors ${index % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: '50px 130px 1fr 70px 65px 95px 65px 80px 75px 95px 120px' }}>
+                    <div key={index} className={`min-w-[1280px] grid gap-2 px-4 py-2.5 border-b border-border/40 hover:bg-accent/30 text-sm transition-colors ${index % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: '50px 130px 1fr 70px 70px 65px 95px 65px 80px 75px 95px 120px' }}>
                       <div className="flex items-center justify-center font-semibold text-foreground/80">{index + 1}</div>
                       <div className="flex items-center text-sm font-mono text-foreground/80">{item.barcode}</div>
                       <div className="flex items-center font-medium text-sm truncate gap-1">
@@ -3755,6 +3757,7 @@ export default function POSSales() {
                         )}
                       </div>
                       <div className="flex items-center justify-center text-sm font-medium">{item.size}</div>
+                      <div className="flex items-center justify-center text-sm text-muted-foreground">{item.color || '-'}</div>
                       <div>
                         <Input
                           type="number"
@@ -3828,7 +3831,7 @@ export default function POSSales() {
                   ))
                 )}
                 {/* Notes Section - Always visible after items */}
-                <div className="min-w-[1200px] p-4 border-t bg-muted/30">
+                <div className="min-w-[1280px] p-4 border-t bg-muted/30">
                   <div className="flex items-center gap-3">
                     <Label className="text-sm font-medium whitespace-nowrap">
                       <FileText className="h-4 w-4 inline mr-1" />
@@ -3853,7 +3856,7 @@ export default function POSSales() {
                   if (!hasDiscountInfo && !showPointsSection) return null;
                   
                   return (
-                    <div className="min-w-[1200px] p-3 border-t bg-amber-50/50 dark:bg-amber-950/20 flex items-center gap-4">
+                    <div className="min-w-[1280px] p-3 border-t bg-amber-50/50 dark:bg-amber-950/20 flex items-center gap-4">
                       {/* Discount Indicator */}
                       {hasBrandDiscounts && brandDiscounts.length > 0 ? (
                         <div className="flex items-center gap-2 bg-primary/5 px-3 py-2 rounded-lg">
