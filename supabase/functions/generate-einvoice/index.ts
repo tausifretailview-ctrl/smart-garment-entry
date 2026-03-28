@@ -548,9 +548,9 @@ Deno.serve(async (req) => {
     });
 
     const generateData = await generateResponse.json();
-    console.log('Generate response status:', generateData.Status);
+    console.log('Generate response status:', generateData.status_cd);
 
-    if (generateData.Status !== 1) {
+    if (generateData.status_cd !== 'Success') {
       const errorMsg = generateData.ErrorDetails?.ErrorMessage || 
                        generateData.ErrorDetails?.[0]?.ErrorMessage ||
                        JSON.stringify(generateData.ErrorDetails) ||
