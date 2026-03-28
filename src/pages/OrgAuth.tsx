@@ -597,31 +597,32 @@ export default function OrgAuth() {
           </div>
 
           {/* Contact & Website Bar */}
-          <div className="flex items-center gap-4 rounded-lg px-4 py-2.5 mt-4"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.07)' }}>
+          <div className="flex items-center gap-4 rounded-lg px-4 py-3 mt-4"
+            style={{ background: 'rgba(108,92,231,0.28)', border: '1px solid rgba(108,92,231,0.55)' }}>
             {/* Phone */}
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: 'rgba(34,197,94,0.15)' }}>
-                <Phone className="w-3 h-3" style={{ color: '#22c55e' }} />
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-md flex items-center justify-center" style={{ background: 'rgba(34,197,94,0.15)' }}>
+                <Phone className="w-4 h-4" style={{ color: '#22c55e' }} />
               </div>
               <div>
-                <p style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.35)' }}>For Sales Contact</p>
-                <p className="text-white font-medium" style={{ fontSize: 11 }}>+91-7385432144</p>
+                <p className="font-medium uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 9.5, lineHeight: 1 }}>For Sales Contact</p>
+                <p className="font-extrabold mt-1" style={{ color: '#ffffff', fontSize: 15, lineHeight: 1, letterSpacing: '-0.2px' }}>+91-7385432144</p>
               </div>
             </div>
 
             {/* Divider */}
-            <div className="h-8 w-px" style={{ background: 'rgba(255,255,255,0.1)' }} />
+            <div className="h-8 w-px" style={{ background: 'rgba(255,255,255,0.15)' }} />
 
             {/* Website */}
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: 'rgba(99,102,241,0.15)' }}>
-                <Globe className="w-3 h-3" style={{ color: '#818cf8' }} />
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-md flex items-center justify-center" style={{ background: 'rgba(99,102,241,0.15)' }}>
+                <Globe className="w-4 h-4" style={{ color: '#818cf8' }} />
               </div>
               <div>
-                <p style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.35)' }}>Website</p>
+                <p className="font-medium uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 9.5, lineHeight: 1 }}>Website</p>
                 <a href="https://ezzyerp.in" target="_blank" rel="noopener noreferrer"
-                  className="text-white font-medium hover:underline" style={{ fontSize: 11 }}>
+                  className="font-extrabold mt-1 block hover:underline"
+                  style={{ color: '#ffffff', fontSize: 15, lineHeight: 1 }}>
                   ezzyerp.in
                 </a>
               </div>
