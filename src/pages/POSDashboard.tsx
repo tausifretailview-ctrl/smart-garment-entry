@@ -2057,6 +2057,7 @@ const POSDashboard = () => {
             cardAmount={printData.cardAmount}
             upiAmount={printData.upiAmount}
             paidAmount={printData.paidAmount}
+            salesman={printData.salesman || ''}
             format={posBillFormat}
             template={posInvoiceTemplate}
           />

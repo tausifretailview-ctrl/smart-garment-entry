@@ -2510,6 +2510,7 @@ export default function POSSales() {
       cashAmount: Number(sale.cash_amount) || 0,
       upiAmount: Number(sale.upi_amount) || 0,
       cardAmount: Number(sale.card_amount) || 0,
+      salesman: sale.salesman || null,
     });
 
     sonnerToast.success(`Invoice #${sale.sale_number} loaded successfully`);
