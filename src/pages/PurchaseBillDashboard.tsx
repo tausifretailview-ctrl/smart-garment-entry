@@ -135,6 +135,8 @@ const PurchaseBillDashboard = () => {
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isFixing, setIsFixing] = useState(false);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
+  const [dcFilter, setDcFilter] = useState<string>("all");
   
   // Payment recording states
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
