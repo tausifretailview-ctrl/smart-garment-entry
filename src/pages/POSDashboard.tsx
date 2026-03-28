@@ -593,6 +593,23 @@ const POSDashboard = () => {
     try {
       const saleDate = new Date(sale.sale_date);
 
+      // Fetch financer details for this sale
+      let financerDetails = null;
+      const { data: finData } = await supabase
+        .from('sale_financer_details')
+        .select('*')
+        .eq('sale_id', sale.id)
+        .maybeSingle();
+      if (finData) {
+        financerDetails = {
+          financer_name: finData.financer_name,
+          loan_number: finData.loan_number || undefined,
+          emi_amount: finData.emi_amount || undefined,
+          tenure: finData.tenure || undefined,
+          down_payment: finData.down_payment || undefined,
+        };
+      }
+
       const invoiceData = {
         billNo: sale.sale_number,
         date: saleDate,
@@ -622,6 +639,8 @@ const POSDashboard = () => {
         upiAmount: sale.upi_amount,
         paidAmount: sale.paid_amount,
         salesman: sale.salesman || '',
+        notes: sale.notes || '',
+        financerDetails,
       };
 
       // Set print data first
