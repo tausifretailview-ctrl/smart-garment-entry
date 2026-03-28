@@ -1,6 +1,6 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import JsBarcode from 'jsbarcode';
-import { LabelDesignConfig, LabelItem, FieldKey } from '@/types/labelTypes';
+import { LabelDesignConfig, LabelFieldConfig, LabelItem, FieldKey } from '@/types/labelTypes';
 
 const mmToPt = (mm: number): number => mm * 2.8346;
 
@@ -114,7 +114,7 @@ export const generateA4LabelPdf = async (
       );
 
       for (const key of fieldKeys) {
-        const field = labelConfig[key];
+        const field = labelConfig[key] as LabelFieldConfig;
         if (!field || !field.show) continue;
 
         const content = getFieldContent(key, item, labelConfig.customTextValue, businessName);

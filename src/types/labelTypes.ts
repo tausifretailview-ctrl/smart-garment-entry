@@ -16,6 +16,15 @@ export interface LabelFieldConfig {
   row?: number;
 }
 
+export interface LabelLineConfig {
+  show: boolean;
+  x: number;
+  y: number;
+  length: number;
+  thickness: number;
+  orientation: 'horizontal' | 'vertical';
+}
+
 export interface LabelDesignConfig {
   brand: LabelFieldConfig;
   businessName: LabelFieldConfig;
@@ -32,10 +41,11 @@ export interface LabelDesignConfig {
   billNumber: LabelFieldConfig;
   supplierCode: LabelFieldConfig;
   purchaseCode: LabelFieldConfig;
-  fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue'>>;
+  fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue' | 'lines'>>;
   barcodeHeight?: number;
   barcodeWidth?: number;
   customTextValue?: string;
+  lines?: LabelLineConfig[];
 }
 
 export interface LabelItem {
@@ -66,4 +76,4 @@ export interface LabelTemplate {
   labelHeight?: number; // Used for auto-scaling when loading on different sizes
 }
 
-export type FieldKey = keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue'>;
+export type FieldKey = keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue' | 'lines'>;
