@@ -81,6 +81,9 @@ interface MobilePOSLayoutProps {
   // Sale Return
   onSaleReturn?: () => void;
 
+  // Advance Booking
+  onAdvanceBooking?: () => void;
+
   // Product search results for mobile dropdown
   filteredProducts?: any[];
   onProductSelect?: (product: any, variant: any) => void;
