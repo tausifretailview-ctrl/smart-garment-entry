@@ -573,14 +573,14 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
             </div>
 
             {/* Bank Details inside declaration column */}
-            {showBankDetails && bankDetails && (bankDetails.bankName || bankDetails.accountNumber) && (
+            {showBankDetails && normBank && (normBank.bankName || normBank.accountNumber) && (
               <div style={{ borderTop: '1px dashed #999', paddingTop: '3px', marginTop: '3px' }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>Company's Bank Details:</div>
-                {bankDetails.accountHolder && <div>A/c Holder: <strong>{bankDetails.accountHolder}</strong></div>}
-                {bankDetails.bankName && <div>Bank: <strong>{bankDetails.bankName}</strong></div>}
-                {bankDetails.accountNumber && <div>A/c No.: <strong>{bankDetails.accountNumber}</strong></div>}
-                {(bankDetails.branch || bankDetails.ifscCode) && (
-                  <div>Branch & IFSC: <strong>{[bankDetails.branch, bankDetails.ifscCode].filter(Boolean).join(' & ')}</strong></div>
+                {normBank.accountHolder && <div>A/c Holder: <strong>{normBank.accountHolder}</strong></div>}
+                {normBank.bankName && <div>Bank: <strong>{normBank.bankName}</strong></div>}
+                {normBank.accountNumber && <div>A/c No.: <strong>{normBank.accountNumber}</strong></div>}
+                {(normBank.branch || normBank.ifscCode) && (
+                  <div>Branch & IFSC: <strong>{[normBank.branch, normBank.ifscCode].filter(Boolean).join(' & ')}</strong></div>
                 )}
               </div>
             )}
