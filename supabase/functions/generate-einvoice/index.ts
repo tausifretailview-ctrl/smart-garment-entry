@@ -297,7 +297,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'WhiteBooks Username not configured. Please add it in Settings → Sale → E-Invoice Settings',
+          error: 'PeriOne Username not configured. Please add it in Settings → Sale → E-Invoice Settings',
           code: 'MISSING_USERNAME'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
