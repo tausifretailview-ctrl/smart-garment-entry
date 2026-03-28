@@ -261,9 +261,9 @@ Deno.serve(async (req) => {
     
     console.log('Settings loaded - GST:', settingsData?.gst_number, 'Business:', settingsData?.business_name);
 
-    // Get WhiteBooks API credentials with priority:
+    // Get PeriOne API credentials with priority:
     // 1. Per-organization settings (from UI)
-    // 2. Global Supabase secrets (fallback)
+    // 2. Global secrets (fallback)
     const clientId = einvoiceSettings?.api_client_id || Deno.env.get('WHITEBOOKS_CLIENT_ID') || '';
     const clientSecret = einvoiceSettings?.api_client_secret || Deno.env.get('WHITEBOOKS_CLIENT_SECRET') || '';
     const username = einvoiceSettings?.api_username || Deno.env.get('WHITEBOOKS_USERNAME') || '';
