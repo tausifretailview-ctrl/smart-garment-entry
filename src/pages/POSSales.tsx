@@ -4409,7 +4409,7 @@ export default function POSSales() {
                 customerAddress=""
                 customerMobile={savedInvoiceData.customerPhone || ""}
                 customerGSTIN={customers.find(c => c.id === (savedInvoiceData.customerId || customerId))?.gst_number || ""}
-                customerTransportDetails={customers.find(c => c.id === (savedInvoiceData.customerId || customerId))?.transport_details || ""}
+                customerTransportDetails={(customers.find(c => c.id === (savedInvoiceData.customerId || customerId)) as any)?.transport_details || ""}
                 template={posInvoiceTemplate}
               items={savedInvoiceData.items.map((item: any, index: number) => ({
                 sr: index + 1,
