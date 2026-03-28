@@ -486,7 +486,7 @@ const CustomerMaster = () => {
         const phone = normalizePhoneNumber(row.phone);
         if (existingPhones.has(phone)) { skippedCount++; continue; }
         customersToInsert.push({
-          customer_name: row.customer_name?.toString().trim() || phone,
+          customer_name: (row.customer_name?.toString().trim() || phone).toUpperCase(),
           phone, email: row.email?.toString().trim() || '', address: row.address?.toString().trim() || '',
           gst_number: row.gst_number?.toString().trim() || '',
           opening_balance: row.opening_balance ? parseFloat(row.opening_balance) : 0,
