@@ -335,7 +335,7 @@ const PurchaseBillDashboard = () => {
 
   // Server-side paginated query for purchase bills
   const { data: billsQueryData, isLoading: billsQueryLoading, refetch: refetchBills } = useQuery({
-    queryKey: ["purchase-bills", currentOrganization?.id, debouncedSearch, startDate, endDate, sortOrder, currentPage, itemsPerPage],
+    queryKey: ["purchase-bills", currentOrganization?.id, debouncedSearch, startDate, endDate, sortOrder, currentPage, itemsPerPage, paymentStatusFilter, dcFilter],
     queryFn: async () => {
       if (!currentOrganization?.id) return { bills: [], totalCount: 0 };
 
