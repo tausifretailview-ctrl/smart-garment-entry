@@ -419,16 +419,16 @@ export default function AdvanceBookingDashboard() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Advance No</TableHead>
-              <TableHead>Customer</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead className="text-right">Used</TableHead>
-              <TableHead className="text-right">Available</TableHead>
-              <TableHead>Payment</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Actions</TableHead>
+              <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">Advance No</TableHead>
+              <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">Customer</TableHead>
+              <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">Phone</TableHead>
+              <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">Date</TableHead>
+              <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40 text-right">Amount</TableHead>
+              <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40 text-right">Used</TableHead>
+              <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40 text-right">Available</TableHead>
+              <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">Payment</TableHead>
+              <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">Status</TableHead>
+              <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
