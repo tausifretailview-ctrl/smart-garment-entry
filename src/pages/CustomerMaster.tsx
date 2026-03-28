@@ -559,7 +559,7 @@ const CustomerMaster = () => {
             setShowCustomerHistory(true);
           }}
         >
-          {row.original.customer_name}
+          {row.original.customer_name?.toUpperCase()}
         </span>
       ),
     },
