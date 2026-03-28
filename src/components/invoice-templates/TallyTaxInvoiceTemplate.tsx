@@ -343,7 +343,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
               {showGSTBreakdown && isInterState && totalIgst > 0 && (
                 <tr>
                   <td style={cellNoRowBorder}></td>
-                  <td style={{ ...cellNoRowBorder, paddingLeft: '16px', fontSize: '9px' }}>OUTPUT IGST@{summaryGstRate}%</td>
+                  <td style={{ ...cellNoRowBorder, paddingLeft: '16px', fontSize: '10px' }}>OUTPUT IGST@{summaryGstRate}%</td>
                   {showHSN && <td style={cellNoRowBorder}></td>}
                   <td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td>
                   <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{summaryGstRate} %</td>
