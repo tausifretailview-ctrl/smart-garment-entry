@@ -114,7 +114,7 @@ export const generateA4LabelPdf = async (
       );
 
       for (const key of fieldKeys) {
-        const field = labelConfig[key];
+        const field = labelConfig[key] as LabelFieldConfig;
         if (!field || !field.show) continue;
 
         const content = getFieldContent(key, item, labelConfig.customTextValue, businessName);
