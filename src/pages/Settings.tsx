@@ -3336,7 +3336,7 @@ export default function Settings() {
                               Test Mode (Sandbox)
                             </Label>
                             <p className="text-xs text-muted-foreground">
-                              Use WhiteBooks Sandbox environment for testing
+                              Use PeriOne Sandbox environment for testing
                             </p>
                           </div>
                         </div>
