@@ -4446,6 +4446,7 @@ export default function POSSales() {
                 previousBalance={savedInvoiceData.previousBalance ?? 0}
                 roundOff={savedInvoiceData.roundOff ?? 0}
                 salesman={savedInvoiceData?.salesman || ''}
+                financerDetails={financerDetails}
               />
             )}
             onPrint={handleClosePrintConfirmDialog}
