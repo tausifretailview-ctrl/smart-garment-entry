@@ -105,7 +105,12 @@ const numberToIndianWords = (num: number): string => {
 
 const fmt = (amount: number): string => amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const formatDate = (date: Date): string => date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
+const formatDate = (date: Date): string => {
+  const d = String(date.getDate()).padStart(2, '0');
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const y = date.getFullYear();
+  return `${d}-${m}-${y}`;
+};
 
 const getStateFromGSTIN = (gstin?: string): { name: string; code: string } => {
   if (!gstin || gstin.length < 2) return { name: '', code: '' };
@@ -218,7 +223,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                   ['Mode/Terms of Payment', paymentMethod || 'Cash'],
                   ['Buyer\'s Order No.', ''],
                   ['Dispatched through', customerTransportDetails || ''],
-                  ['Destination', ''],
+                  ['Destination', salesman || ''],
                 ].map(([label, value], i) => (
                   <tr key={i}>
                     <td style={{ borderBottom: b, borderRight: b, padding: '3px 6px', fontWeight: 'bold', width: '50%', fontSize: '9px', backgroundColor: '#f8f8f8' }}>{label}</td>
@@ -282,11 +287,18 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                     <td style={{ ...cellNoRowBorder, textAlign: 'center', verticalAlign: 'top', width: '42px', fontWeight: 'bold' }}>{index + 1}</td>
                     <td style={{ ...cellNoRowBorder, verticalAlign: 'top' }}>
                       <div style={{ fontWeight: 'bold', fontSize: '10px', lineHeight: '1.4' }}>{item.particulars}</div>
-                      {item.size && <div style={{ fontSize: '8.5px', color: '#333' }}>Size: {item.size}</div>}
                       {item.color && <div style={{ fontSize: '8.5px', color: '#444' }}>Color: {item.color}</div>}
-                      {item.barcode && <div style={{ fontSize: '8.5px', color: '#555', fontFamily: 'monospace' }}>{item.barcode}</div>}
+                      {item.barcode && (
+                        <div style={{ fontSize: '9px', color: '#333', fontFamily: 'monospace', marginTop: '1px' }}>
+                          IMEI: {item.barcode}
+                        </div>
+                      )}
                     </td>
-                    {showHSN && <td style={{ ...cellNoRowBorder, textAlign: 'center', verticalAlign: 'top' }}>{item.hsn}</td>}
+                    {showHSN && (
+                      <td style={{ ...cellNoRowBorder, textAlign: 'center', verticalAlign: 'top', fontSize: '10px' }}>
+                        {item.hsn}
+                      </td>
+                    )}
                     <td style={{ ...cellNoRowBorder, textAlign: 'center', verticalAlign: 'top' }}>{item.qty} Pcs</td>
                     <td style={{ ...cellNoRowBorder, textAlign: 'right', verticalAlign: 'top' }}>{fmt(rateInclTax)}</td>
                     <td style={{ ...cellNoRowBorder, textAlign: 'right', verticalAlign: 'top' }}>{fmt(rateExclTax)}</td>
@@ -310,7 +322,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                 <>
                   <tr>
                     <td style={cellNoRowBorder}></td>
-                    <td style={{ ...cellNoRowBorder, paddingLeft: '16px', fontSize: '9px' }}>OUTPUT CGST@{summaryGstRate / 2}%</td>
+                    <td style={{ ...cellNoRowBorder, paddingLeft: '16px', fontSize: '10px' }}>OUTPUT CGST@{summaryGstRate / 2}%</td>
                     {showHSN && <td style={cellNoRowBorder}></td>}
                     <td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td>
                     <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{summaryGstRate / 2} %</td>
@@ -319,7 +331,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                   </tr>
                   <tr>
                     <td style={cellNoRowBorder}></td>
-                    <td style={{ ...cellNoRowBorder, paddingLeft: '16px', fontSize: '9px' }}>OUTPUT SGST@{summaryGstRate / 2}%</td>
+                    <td style={{ ...cellNoRowBorder, paddingLeft: '16px', fontSize: '10px' }}>OUTPUT SGST@{summaryGstRate / 2}%</td>
                     {showHSN && <td style={cellNoRowBorder}></td>}
                     <td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td>
                     <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{summaryGstRate / 2} %</td>
@@ -331,7 +343,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
               {showGSTBreakdown && isInterState && totalIgst > 0 && (
                 <tr>
                   <td style={cellNoRowBorder}></td>
-                  <td style={{ ...cellNoRowBorder, paddingLeft: '16px', fontSize: '9px' }}>OUTPUT IGST@{summaryGstRate}%</td>
+                  <td style={{ ...cellNoRowBorder, paddingLeft: '16px', fontSize: '10px' }}>OUTPUT IGST@{summaryGstRate}%</td>
                   {showHSN && <td style={cellNoRowBorder}></td>}
                   <td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td>
                   <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{summaryGstRate} %</td>
