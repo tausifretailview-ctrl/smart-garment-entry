@@ -1034,7 +1034,7 @@ export const useSaveSale = () => {
           upi_amount: upiAmt,
           refund_amount: refundAmt,
           salesman: saleData.salesman || null,
-          notes: null, // Clear the held items data
+          notes: saleData.notes || null, // Clear held items JSON, use actual user notes
           updated_at: new Date().toISOString(),
         })
         .eq('id', heldSaleId)
