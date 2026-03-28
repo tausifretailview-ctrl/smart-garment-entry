@@ -2869,6 +2869,7 @@ export default function POSSales() {
           onFlatDiscountValueChange={setFlatDiscountValue}
           onFlatDiscountModeChange={setFlatDiscountMode}
           onSaleReturn={() => setShowFloatingSaleReturn(true)}
+          onAdvanceBooking={() => setShowAdvanceBooking(true)}
           filteredProducts={filteredProducts}
           onProductSelect={(product, variant) => addItemToCart(product, variant)}
           openProductSearch={openProductSearch}
