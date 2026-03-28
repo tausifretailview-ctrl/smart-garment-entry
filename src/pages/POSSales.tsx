@@ -234,7 +234,7 @@ export default function POSSales() {
   const [showFloatingCashierReport, setShowFloatingCashierReport] = useState(false);
   const [showFloatingStockReport, setShowFloatingStockReport] = useState(false);
   const [showFloatingSaleReturn, setShowFloatingSaleReturn] = useState(false);
-
+  const [showAdvanceBooking, setShowAdvanceBooking] = useState(false);
   // Quick service product dialog state
   const [showQuickServiceDialog, setShowQuickServiceDialog] = useState(false);
   const [quickServiceCode, setQuickServiceCode] = useState("");
