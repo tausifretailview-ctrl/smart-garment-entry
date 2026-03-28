@@ -81,6 +81,9 @@ interface MobilePOSLayoutProps {
   // Sale Return
   onSaleReturn?: () => void;
 
+  // Advance Booking
+  onAdvanceBooking?: () => void;
+
   // Product search results for mobile dropdown
   filteredProducts?: any[];
   onProductSelect?: (product: any, variant: any) => void;
@@ -122,6 +125,7 @@ export const MobilePOSLayout = ({
   onFlatDiscountValueChange,
   onFlatDiscountModeChange,
   onSaleReturn,
+  onAdvanceBooking,
   filteredProducts,
   onProductSelect,
   openProductSearch,
@@ -220,6 +224,7 @@ export const MobilePOSLayout = ({
         onMixPayment={onMixPayment}
         onHold={onHoldBill}
         onSaleReturn={onSaleReturn}
+        onAdvanceBooking={onAdvanceBooking}
         isSaving={isSaving}
         hasItems={items.length > 0}
         finalAmount={finalAmount}

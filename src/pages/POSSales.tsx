@@ -82,6 +82,7 @@ import { useDirectPrint } from "@/hooks/useDirectPrint";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { DcSaleTransferDialog } from "@/components/DcSaleTransferDialog";
 import { FinancerDetailsForm, FinancerDetails, saveFinancerDetails } from "@/components/FinancerDetailsForm";
+import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
 
 interface PendingPriceSelection {
   product: any;
@@ -234,7 +235,7 @@ export default function POSSales() {
   const [showFloatingCashierReport, setShowFloatingCashierReport] = useState(false);
   const [showFloatingStockReport, setShowFloatingStockReport] = useState(false);
   const [showFloatingSaleReturn, setShowFloatingSaleReturn] = useState(false);
-
+  const [showAdvanceBooking, setShowAdvanceBooking] = useState(false);
   // Quick service product dialog state
   const [showQuickServiceDialog, setShowQuickServiceDialog] = useState(false);
   const [quickServiceCode, setQuickServiceCode] = useState("");
@@ -2868,6 +2869,7 @@ export default function POSSales() {
           onFlatDiscountValueChange={setFlatDiscountValue}
           onFlatDiscountModeChange={setFlatDiscountMode}
           onSaleReturn={() => setShowFloatingSaleReturn(true)}
+          onAdvanceBooking={() => setShowAdvanceBooking(true)}
           filteredProducts={filteredProducts}
           onProductSelect={(product, variant) => addItemToCart(product, variant)}
           openProductSearch={openProductSearch}
@@ -2893,6 +2895,13 @@ export default function POSSales() {
             setSaleReturnAdjust(amount);
             toast({ title: "Sale Return Applied", description: `Return ${returnNumber} — ₹${Math.round(amount)} adjusted` });
           }}
+        />
+
+        {/* Advance Booking Dialog - Mobile */}
+        <AddAdvanceBookingDialog
+          open={showAdvanceBooking}
+          onOpenChange={setShowAdvanceBooking}
+          organizationId={currentOrganization?.id || ""}
         />
 
         {/* Add Customer Dialog */}
