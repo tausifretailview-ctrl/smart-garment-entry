@@ -491,15 +491,21 @@ export default function AdvanceBookingDashboard() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
             ) : advances.length === 0 ? (
-              <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">No advance bookings found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">No advance bookings found</TableCell></TableRow>
             ) : (
               advances.map((adv: any) => {
                 const available = (adv.amount || 0) - (adv.used_amount || 0);
                 const canRefund = adv.status === "active" || adv.status === "partially_used";
                 return (
-                  <TableRow key={adv.id}>
+                  <TableRow key={adv.id} className={selectedIds.has(adv.id) ? "bg-muted/50" : ""}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(adv.id)}
+                        onCheckedChange={() => toggleSelect(adv.id)}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium text-sm">{adv.advance_number}</TableCell>
                     <TableCell className="text-sm">
                       <button
