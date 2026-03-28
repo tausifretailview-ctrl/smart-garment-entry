@@ -332,42 +332,48 @@ export default function AdvanceBookingDashboard() {
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Coins className="h-7 w-7 text-primary" />
-          <h1 className="text-2xl font-bold">Advance Booking</h1>
-          <Badge variant="secondary" className="text-sm">{totalCount} records</Badge>
+        <div className="flex items-center gap-3">
+          <div className="w-1 h-8 bg-purple-500 rounded-full" />
+          <div className="flex items-center gap-2">
+            <Coins className="h-6 w-6 text-purple-500" />
+            <h1 className="text-2xl font-bold tracking-tight">Advance Booking</h1>
+            <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-xs font-semibold">
+              {totalCount} records
+            </Badge>
+          </div>
         </div>
-        <Button onClick={() => setAddDialogOpen(true)} size="sm">
-          <Plus className="h-4 w-4 mr-1" /> New Advance
+        <Button
+          onClick={() => setAddDialogOpen(true)}
+          className="h-9 px-4 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold gap-1.5"
+        >
+          <Plus className="h-4 w-4" /> New Advance
         </Button>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="border-l-4 border-l-blue-500">
-          <CardContent className="p-3">
-            <p className="text-sm text-muted-foreground">Total Advances</p>
-            <p className="text-2xl font-bold">{summary?.total || 0}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-green-500">
-          <CardContent className="p-3">
-            <p className="text-sm text-muted-foreground">Total Amount</p>
-            <p className="text-2xl font-bold flex items-center gap-1"><IndianRupee className="h-5 w-5" />{fmt(summary?.totalAmount || 0)}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-orange-500">
-          <CardContent className="p-3">
-            <p className="text-sm text-muted-foreground">Used Amount</p>
-            <p className="text-2xl font-bold flex items-center gap-1"><TrendingUp className="h-5 w-5" />{fmt(summary?.usedAmount || 0)}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-purple-500">
-          <CardContent className="p-3">
-            <p className="text-sm text-muted-foreground">Available Balance</p>
-            <p className="text-2xl font-bold flex items-center gap-1"><Wallet className="h-5 w-5" />{fmt(summary?.available || 0)}</p>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm border-l-4 border-l-blue-500">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Total Advances</p>
+          <p className="text-2xl font-extrabold text-blue-600 mt-1">{summary?.total || 0}</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm border-l-4 border-l-green-500">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Total Amount</p>
+          <p className="text-2xl font-extrabold text-green-600 mt-1 flex items-center gap-0.5">
+            <IndianRupee className="h-5 w-5" />{fmt(summary?.totalAmount || 0)}
+          </p>
+        </div>
+        <div className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm border-l-4 border-l-orange-500">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Used Amount</p>
+          <p className="text-2xl font-extrabold text-orange-600 mt-1 flex items-center gap-0.5">
+            <TrendingUp className="h-5 w-5" />{fmt(summary?.usedAmount || 0)}
+          </p>
+        </div>
+        <div className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm border-l-4 border-l-purple-500">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Available Balance</p>
+          <p className="text-2xl font-extrabold text-purple-600 mt-1 flex items-center gap-0.5">
+            <Wallet className="h-5 w-5" />{fmt(summary?.available || 0)}
+          </p>
+        </div>
       </div>
 
       {/* Filters */}
