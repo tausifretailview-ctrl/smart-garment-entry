@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const baseUrl = testMode ? 'https://apisandbox.whitebooks.in' : 'https://api.whitebooks.in';
+    const baseUrl = testMode ? 'https://staging.perione.in' : 'https://api.perione.in';
     const ipAddress = await getPublicIP();
 
     // Step 1: Authenticate
