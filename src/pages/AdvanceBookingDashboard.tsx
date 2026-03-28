@@ -469,8 +469,14 @@ export default function AdvanceBookingDashboard() {
       {/* Table */}
       <div className="rounded-md border overflow-auto">
         <Table>
-          <TableHeader>
+           <TableHeader>
             <TableRow>
+              <TableHead className="w-10 bg-muted/40">
+                <Checkbox
+                  checked={advances.length > 0 && selectedIds.size === advances.length}
+                  onCheckedChange={toggleSelectAll}
+                />
+              </TableHead>
               <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">Advance No</TableHead>
               <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">Customer</TableHead>
               <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">Phone</TableHead>
