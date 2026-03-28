@@ -810,7 +810,7 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig, fieldLabels 
             onClick={() => {
               setLabelConfig(prev => ({
                 ...prev,
-                [fieldKey]: { ...prev[fieldKey], bold: !prev[fieldKey].bold }
+                [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), bold: !(prev[fieldKey] as LabelFieldConfig).bold }
               }));
             }}
             className="h-8 px-2 text-xs font-bold"
