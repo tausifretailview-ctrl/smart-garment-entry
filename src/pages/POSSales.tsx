@@ -2897,6 +2897,15 @@ export default function POSSales() {
           }}
         />
 
+        {/* Advance Booking Dialog - Mobile */}
+        <AddAdvanceBookingDialog
+          open={showAdvanceBooking}
+          onOpenChange={setShowAdvanceBooking}
+          organizationId={currentOrganization?.id || ""}
+          preSelectedCustomerId={customerId || undefined}
+          preSelectedCustomerName={customerName || undefined}
+        />
+
         {/* Add Customer Dialog */}
         <Dialog open={showAddCustomerDialog} onOpenChange={setShowAddCustomerDialog}>
           <DialogContent className="sm:max-w-md">
