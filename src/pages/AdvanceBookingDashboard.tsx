@@ -59,6 +59,8 @@ export default function AdvanceBookingDashboard() {
    const [printDialogOpen, setPrintDialogOpen] = useState(false);
    const dashPrintRef = useRef<HTMLDivElement>(null);
    const { data: settings } = useSettings();
+   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
    const handleDashPrint = useReactToPrint({
      contentRef: dashPrintRef,
