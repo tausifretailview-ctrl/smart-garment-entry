@@ -3191,15 +3191,15 @@ export default function Settings() {
 
                   {settings.sale_settings?.einvoice_settings?.enabled && (
                     <div className="space-y-4 pl-6 border-l-2 border-primary/20">
-                      {/* WhiteBooks API Credentials Section */}
-                      <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
-                        <h4 className="font-medium flex items-center gap-2">
-                          <Shield className="h-4 w-4" />
-                          WhiteBooks API Credentials
-                        </h4>
-                        <p className="text-xs text-muted-foreground">
-                          Enter your WhiteBooks API credentials. These are stored securely per organization.
-                        </p>
+                       {/* PeriOne API Credentials Section */}
+                       <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
+                         <h4 className="font-medium flex items-center gap-2">
+                           <Shield className="h-4 w-4" />
+                           PeriOne API Credentials
+                         </h4>
+                         <p className="text-xs text-muted-foreground">
+                           Enter your PeriOne API credentials. These are stored securely per organization.
+                         </p>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-2">
