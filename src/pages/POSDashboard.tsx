@@ -835,12 +835,13 @@ const POSDashboard = () => {
   const handlePreviewClick = async (sale: Sale, event: React.MouseEvent) => {
     event.stopPropagation();
     await fetchSaleItems(sale.id);
-    // Fetch financer details for preview
-    const { data: finData } = await supabase
-      .from('sale_financer_details')
-      .select('*')
-      .eq('sale_id', sale.id)
-      .maybeSingle();
+    // Fetch financer details and customer GST for preview
+    const [{ data: finData }, { data: custData }] = await Promise.all([
+      supabase.from('sale_financer_details').select('*').eq('sale_id', sale.id).maybeSingle(),
+      sale.customer_id
+        ? supabase.from('customers').select('gst_number, transport_details').eq('id', sale.customer_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
     setPreviewFinancerDetails(finData ? {
       financer_name: finData.financer_name,
       loan_number: finData.loan_number || undefined,
@@ -848,6 +849,7 @@ const POSDashboard = () => {
       tenure: finData.tenure || undefined,
       down_payment: finData.down_payment || undefined,
     } : null);
+    setPreviewCustomerData(custData);
     setPreviewSale(sale);
     setShowPreviewDialog(true);
   };
