@@ -526,62 +526,20 @@ export default function OrgAuth() {
               <img src={ezzyerpLogo} alt="EzzyERP" className="w-6 h-6 rounded" />
             </div>
             <div>
-              <p className="text-white font-bold text-base tracking-tight">EzzyERP</p>
-              <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Easy Billing, Smart Business</p>
+              <p className="font-bold leading-tight" style={{ color: '#ffffff', fontSize: 18 }}>EzzyERP</p>
+              <p className="font-medium leading-tight" style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>Easy Billing, Smart Business</p>
             </div>
           </div>
 
           {/* Hero */}
           <div className="flex-1 flex flex-col justify-center -mt-4">
-            <h2 className="text-white font-bold leading-tight" style={{ fontSize: 26 }}>
+            <h2 className="font-extrabold leading-snug" style={{ color: '#ffffff', fontSize: 24, letterSpacing: '-0.5px' }}>
               Run your business smarter{'\n'}with{' '}
               <span style={{ color: '#a78bfa' }}>EzzyERP</span>
             </h2>
-            <p className="mt-2" style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', lineHeight: 1.6 }}>
+            <p className="mt-2 font-medium leading-relaxed" style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13 }}>
               Complete billing, inventory & accounting for Indian retail businesses.
             </p>
-
-            {/* 7 Features — 2-column grid */}
-            <div className="mt-6 grid grid-cols-2 gap-2">
-              {[
-                { color: 'rgba(108,92,231,0.22)', stroke: '#a78bfa', path: 'M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18', title: 'POS & Sales Billing', desc: 'Fast billing, GST invoices' },
-                { color: 'rgba(52,211,153,0.15)', stroke: '#34d399', path: 'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z', title: 'Inventory Management', desc: 'Size-wise stock control' },
-                { color: 'rgba(251,191,36,0.15)', stroke: '#fbbf24', path: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6', title: 'Accounts & Ledgers', desc: 'Payments & outstanding' },
-                { color: 'rgba(248,113,113,0.15)', stroke: '#f87171', path: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z', title: 'GST & Tally Export', desc: 'GSTR-1, e-invoice, XML' },
-                { color: 'rgba(56,189,248,0.15)', stroke: '#38bdf8', path: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10', title: 'Barcoding Management', desc: 'Label print, thermal, scan' },
-                { color: 'rgba(34,197,94,0.15)', stroke: '#22c55e', path: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z', title: 'WhatsApp Integration', desc: 'Auto invoices & reminders' },
-              ].map((f, i) => (
-                <div key={i} className="flex items-start gap-2 rounded-lg p-2"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.07)' }}>
-                  <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
-                    style={{ background: f.color }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={f.stroke} strokeWidth="2">
-                      <path d={f.path} />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-white font-medium" style={{ fontSize: 10.5 }}>{f.title}</p>
-                    <p className="mt-0.5" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.35)', lineHeight: 1.4 }}>{f.desc}</p>
-                  </div>
-                </div>
-              ))}
-              {/* Mobile App — full width */}
-              <div className="col-span-2 flex items-start gap-2 rounded-lg p-2"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.07)' }}>
-                <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
-                  style={{ background: 'rgba(244,114,182,0.15)' }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f472b6" strokeWidth="2">
-                    <rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18.01"/>
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-white font-medium" style={{ fontSize: 10.5 }}>Mobile Application</p>
-                  <p className="mt-0.5" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.35)', lineHeight: 1.4 }}>
-                    Owner dashboard, POS sales, stock & reports — anywhere, anytime
-                  </p>
-                </div>
-              </div>
-            </div>
 
             {/* POS Counter Image */}
             <div className="mt-5 flex justify-center">
@@ -594,34 +552,77 @@ export default function OrgAuth() {
                 />
               </div>
             </div>
+
+            {/* 7 Features — 2-column grid */}
+            <div className="mt-6 grid grid-cols-2 gap-2">
+              {[
+                { color: 'rgba(108,92,231,0.22)', stroke: '#a78bfa', path: 'M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18', title: 'POS & Sales Billing', desc: 'Fast billing, GST invoices' },
+                { color: 'rgba(52,211,153,0.15)', stroke: '#34d399', path: 'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z', title: 'Inventory Management', desc: 'Size-wise stock control' },
+                { color: 'rgba(251,191,36,0.15)', stroke: '#fbbf24', path: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6', title: 'Accounts & Ledgers', desc: 'Payments & outstanding' },
+                { color: 'rgba(248,113,113,0.15)', stroke: '#f87171', path: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z', title: 'GST & Tally Export', desc: 'GSTR-1, e-invoice, XML' },
+                { color: 'rgba(56,189,248,0.15)', stroke: '#38bdf8', path: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10', title: 'Barcoding Management', desc: 'Label print, thermal, scan' },
+                { color: 'rgba(34,197,94,0.15)', stroke: '#22c55e', path: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z', title: 'WhatsApp Integration', desc: 'Auto invoices & reminders' },
+              ].map((f, i) => (
+                <div key={i} className="flex items-start gap-2.5 rounded-lg p-2"
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.07)' }}>
+                  <div className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
+                    style={{ background: f.color }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={f.stroke} strokeWidth="2">
+                      <path d={f.path} />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-semibold" style={{ color: '#ffffff', fontSize: 12 }}>{f.title}</p>
+                    <p className="mt-0.5" style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10.5, lineHeight: 1.4 }}>{f.desc}</p>
+                  </div>
+                </div>
+              ))}
+              {/* Mobile App — full width */}
+              <div className="col-span-2 flex items-start gap-2.5 rounded-lg p-2"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.07)' }}>
+                <div className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
+                  style={{ background: 'rgba(244,114,182,0.15)' }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f472b6" strokeWidth="2">
+                    <rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18.01"/>
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-semibold" style={{ color: '#ffffff', fontSize: 12 }}>Mobile Application</p>
+                  <p className="mt-0.5" style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10.5, lineHeight: 1.4 }}>
+                    Owner dashboard, POS sales, stock & reports — anywhere, anytime
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Contact & Website Bar */}
-          <div className="flex items-center gap-4 rounded-lg px-4 py-2.5 mt-4"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.07)' }}>
+          <div className="flex items-center gap-4 rounded-lg px-4 py-3 mt-4"
+            style={{ background: 'rgba(108,92,231,0.28)', border: '1px solid rgba(108,92,231,0.55)' }}>
             {/* Phone */}
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: 'rgba(34,197,94,0.15)' }}>
-                <Phone className="w-3 h-3" style={{ color: '#22c55e' }} />
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-md flex items-center justify-center" style={{ background: 'rgba(34,197,94,0.15)' }}>
+                <Phone className="w-4 h-4" style={{ color: '#22c55e' }} />
               </div>
               <div>
-                <p style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.35)' }}>For Sales Contact</p>
-                <p className="text-white font-medium" style={{ fontSize: 11 }}>+91-7385432144</p>
+                <p className="font-medium uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 9.5, lineHeight: 1 }}>For Sales Contact</p>
+                <p className="font-extrabold mt-1" style={{ color: '#ffffff', fontSize: 15, lineHeight: 1, letterSpacing: '-0.2px' }}>+91-7385432144</p>
               </div>
             </div>
 
             {/* Divider */}
-            <div className="h-8 w-px" style={{ background: 'rgba(255,255,255,0.1)' }} />
+            <div className="h-8 w-px" style={{ background: 'rgba(255,255,255,0.15)' }} />
 
             {/* Website */}
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: 'rgba(99,102,241,0.15)' }}>
-                <Globe className="w-3 h-3" style={{ color: '#818cf8' }} />
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-md flex items-center justify-center" style={{ background: 'rgba(99,102,241,0.15)' }}>
+                <Globe className="w-4 h-4" style={{ color: '#818cf8' }} />
               </div>
               <div>
-                <p style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.35)' }}>Website</p>
+                <p className="font-medium uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 9.5, lineHeight: 1 }}>Website</p>
                 <a href="https://ezzyerp.in" target="_blank" rel="noopener noreferrer"
-                  className="text-white font-medium hover:underline" style={{ fontSize: 11 }}>
+                  className="font-extrabold mt-1 block hover:underline"
+                  style={{ color: '#ffffff', fontSize: 15, lineHeight: 1 }}>
                   ezzyerp.in
                 </a>
               </div>
@@ -632,8 +633,8 @@ export default function OrgAuth() {
           <div className="flex justify-around mt-3 mb-1">
             {[['500+', 'Businesses'], ['10L+', 'Invoices'], ['99.9%', 'Uptime']].map(([num, label]) => (
               <div key={label} className="text-center">
-                <p className="text-white font-bold" style={{ fontSize: 15 }}>{num}</p>
-                <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)' }}>{label}</p>
+                <p className="font-extrabold" style={{ color: '#a78bfa', fontSize: 20 }}>{num}</p>
+                <p className="mt-1 font-medium" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11 }}>{label}</p>
               </div>
             ))}
           </div>
