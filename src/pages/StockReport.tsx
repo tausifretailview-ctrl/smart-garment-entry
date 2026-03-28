@@ -1327,7 +1327,7 @@ export default function StockReport() {
                       <TableBody>
                         {paginatedStockItems.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={17} className="text-center text-muted-foreground py-8">
+                            <TableCell colSpan={19} className="text-center text-muted-foreground py-8">
                               No products found matching your search
                             </TableCell>
                           </TableRow>
