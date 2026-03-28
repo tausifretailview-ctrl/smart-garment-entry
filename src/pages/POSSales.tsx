@@ -2902,8 +2902,6 @@ export default function POSSales() {
           open={showAdvanceBooking}
           onOpenChange={setShowAdvanceBooking}
           organizationId={currentOrganization?.id || ""}
-          preSelectedCustomerId={customerId || undefined}
-          preSelectedCustomerName={customerName || undefined}
         />
 
         {/* Add Customer Dialog */}
