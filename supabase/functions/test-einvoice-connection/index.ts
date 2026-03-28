@@ -96,12 +96,12 @@ Deno.serve(async (req) => {
 
     const authData = await authResp.json();
 
-    if (authData.Status === 1 && authData.Data?.AuthToken) {
+    if (authData.status_cd === 'Success' && authData.data?.AuthToken) {
       return new Response(
         JSON.stringify({
           success: true,
-          message: `Connected successfully${testMode ? ' (Sandbox)' : ' (Production)'}`,
-          tokenExpiry: authData.Data.TokenExpiry,
+          message: `Connected successfully${testMode ? ' (Sandbox/PeriOne)' : ' (Production/PeriOne)'}`,
+          tokenExpiry: authData.data.TokenExpiry,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
