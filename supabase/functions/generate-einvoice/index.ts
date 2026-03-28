@@ -390,7 +390,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: `WhiteBooks authentication failed: ${errorMsg}`,
+          error: `PeriOne authentication failed: ${errorMsg}`,
           code: 'AUTH_FAILED'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
