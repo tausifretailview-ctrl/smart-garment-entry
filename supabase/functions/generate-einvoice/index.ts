@@ -287,7 +287,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'WhiteBooks Client Secret not configured. Please add it in Settings → Sale → E-Invoice Settings',
+          error: 'PeriOne Client Secret not configured. Please add it in Settings → Sale → E-Invoice Settings',
           code: 'MISSING_CLIENT_SECRET'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
