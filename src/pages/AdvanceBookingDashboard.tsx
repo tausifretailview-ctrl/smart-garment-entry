@@ -320,6 +320,44 @@ export default function AdvanceBookingDashboard() {
 
   const availableForRefund = selectedAdvance ? (selectedAdvance.amount - selectedAdvance.used_amount) : 0;
 
+  // Selection helpers
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === advances.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(advances.map((a: any) => a.id)));
+    }
+  };
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase
+        .from("customer_advances")
+        .delete()
+        .in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["advance-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["advance-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+      toast.success(`${selectedIds.size} advance(s) deleted`);
+      setSelectedIds(new Set());
+      setDeleteDialogOpen(false);
+    },
+    onError: (err: Error) => toast.error(`Delete failed: ${err.message}`),
+  });
+
   const getStatusBadge = (status: string | null) => {
     switch (status) {
       case "active": return <Badge className="bg-green-600 text-white">Active</Badge>;
