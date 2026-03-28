@@ -533,13 +533,25 @@ export default function OrgAuth() {
 
           {/* Hero */}
           <div className="flex-1 flex flex-col justify-center -mt-4">
-            <h2 className="text-white font-bold leading-tight" style={{ fontSize: 26 }}>
+            <h2 className="font-extrabold leading-snug" style={{ color: '#ffffff', fontSize: 24, letterSpacing: '-0.5px' }}>
               Run your business smarter{'\n'}with{' '}
               <span style={{ color: '#a78bfa' }}>EzzyERP</span>
             </h2>
-            <p className="mt-2" style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', lineHeight: 1.6 }}>
+            <p className="mt-2 font-medium leading-relaxed" style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13 }}>
               Complete billing, inventory & accounting for Indian retail businesses.
             </p>
+
+            {/* POS Counter Image */}
+            <div className="mt-5 flex justify-center">
+              <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)', maxWidth: '85%' }}>
+                <img
+                  src={posIllustration}
+                  alt="POS Counter"
+                  className="w-full h-auto object-cover"
+                  style={{ maxHeight: '22vh', filter: 'brightness(0.95) contrast(1.05)' }}
+                />
+              </div>
+            </div>
 
             {/* 7 Features — 2-column grid */}
             <div className="mt-6 grid grid-cols-2 gap-2">
@@ -551,47 +563,35 @@ export default function OrgAuth() {
                 { color: 'rgba(56,189,248,0.15)', stroke: '#38bdf8', path: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10', title: 'Barcoding Management', desc: 'Label print, thermal, scan' },
                 { color: 'rgba(34,197,94,0.15)', stroke: '#22c55e', path: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z', title: 'WhatsApp Integration', desc: 'Auto invoices & reminders' },
               ].map((f, i) => (
-                <div key={i} className="flex items-start gap-2 rounded-lg p-2"
+                <div key={i} className="flex items-start gap-2.5 rounded-lg p-2"
                   style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.07)' }}>
-                  <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
+                  <div className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
                     style={{ background: f.color }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={f.stroke} strokeWidth="2">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={f.stroke} strokeWidth="2">
                       <path d={f.path} />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-white font-medium" style={{ fontSize: 10.5 }}>{f.title}</p>
-                    <p className="mt-0.5" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.35)', lineHeight: 1.4 }}>{f.desc}</p>
+                    <p className="font-semibold" style={{ color: '#ffffff', fontSize: 12 }}>{f.title}</p>
+                    <p className="mt-0.5" style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10.5, lineHeight: 1.4 }}>{f.desc}</p>
                   </div>
                 </div>
               ))}
               {/* Mobile App — full width */}
-              <div className="col-span-2 flex items-start gap-2 rounded-lg p-2"
+              <div className="col-span-2 flex items-start gap-2.5 rounded-lg p-2"
                 style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.07)' }}>
-                <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
+                <div className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
                   style={{ background: 'rgba(244,114,182,0.15)' }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f472b6" strokeWidth="2">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f472b6" strokeWidth="2">
                     <rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18.01"/>
                   </svg>
                 </div>
                 <div>
-                  <p className="text-white font-medium" style={{ fontSize: 10.5 }}>Mobile Application</p>
-                  <p className="mt-0.5" style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.35)', lineHeight: 1.4 }}>
+                  <p className="font-semibold" style={{ color: '#ffffff', fontSize: 12 }}>Mobile Application</p>
+                  <p className="mt-0.5" style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10.5, lineHeight: 1.4 }}>
                     Owner dashboard, POS sales, stock & reports — anywhere, anytime
                   </p>
                 </div>
-              </div>
-            </div>
-
-            {/* POS Counter Image */}
-            <div className="mt-5 flex justify-center">
-              <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)', maxWidth: '85%' }}>
-                <img
-                  src={posIllustration}
-                  alt="POS Counter"
-                  className="w-full h-auto object-cover"
-                  style={{ maxHeight: '22vh', filter: 'brightness(0.95) contrast(1.05)' }}
-                />
               </div>
             </div>
           </div>
