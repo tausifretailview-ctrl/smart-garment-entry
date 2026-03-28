@@ -76,4 +76,4 @@ export interface LabelTemplate {
   labelHeight?: number; // Used for auto-scaling when loading on different sizes
 }
 
-export type FieldKey = keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue'>;
+export type FieldKey = keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue' | 'lines'>;
