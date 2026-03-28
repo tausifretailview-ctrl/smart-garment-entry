@@ -1309,6 +1309,8 @@ export default function StockReport() {
                           <TableHead>Product</TableHead>
                           <TableHead>Brand</TableHead>
                           <TableHead>Size</TableHead>
+                          <TableHead>Color</TableHead>
+                          <TableHead>Style</TableHead>
                           <TableHead>Barcode</TableHead>
                           <TableHead className="text-right bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-white">Opening Qty</TableHead>
                           <TableHead className="text-right bg-green-50 dark:bg-green-950 text-green-800 dark:text-white">Purchase Qty</TableHead>
@@ -1325,7 +1327,7 @@ export default function StockReport() {
                       <TableBody>
                         {paginatedStockItems.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={17} className="text-center text-muted-foreground py-8">
+                            <TableCell colSpan={19} className="text-center text-muted-foreground py-8">
                               No products found matching your search
                             </TableCell>
                           </TableRow>
@@ -1340,6 +1342,8 @@ export default function StockReport() {
                               <TableCell className="font-medium">{item.product_name}</TableCell>
                               <TableCell>{item.brand}</TableCell>
                               <TableCell>{item.size}</TableCell>
+                              <TableCell>{item.color || '—'}</TableCell>
+                              <TableCell>{item.department || '—'}</TableCell>
                               <TableCell className="font-mono text-sm">{item.barcode}</TableCell>
                               <TableCell className="text-right bg-blue-50 dark:bg-blue-950 font-medium">
                                 {item.opening_qty}
