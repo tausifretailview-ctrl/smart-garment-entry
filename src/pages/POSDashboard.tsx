@@ -141,6 +141,7 @@ const POSDashboard = () => {
 
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [previewSale, setPreviewSale] = useState<Sale | null>(null);
+  const [previewFinancerDetails, setPreviewFinancerDetails] = useState<any>(null);
   const [posBillFormat, setPosBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal' | null>(null);
   const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
 
