@@ -3048,6 +3048,7 @@ export default function SalesInvoiceDashboard() {
                 cardAmount={invoiceToPrint.card_amount || 0}
                 salesman={invoiceToPrint.salesman || ''}
                 notes={invoiceToPrint.notes || ''}
+                financerDetails={invoiceToPrint.financerDetails || null}
               />
               ) : null
             }
