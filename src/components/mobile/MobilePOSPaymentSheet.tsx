@@ -41,6 +41,7 @@ export const MobilePOSPaymentSheet = ({
   onPrint,
   onWhatsApp,
   onSaleReturn,
+  onAdvanceBooking,
   isSaving,
   hasItems,
   finalAmount,
