@@ -26,6 +26,7 @@ interface MobilePOSPaymentSheetProps {
   onPrint?: () => void;
   onWhatsApp?: () => void;
   onSaleReturn?: () => void;
+  onAdvanceBooking?: () => void;
   isSaving: boolean;
   hasItems: boolean;
   finalAmount: number;
