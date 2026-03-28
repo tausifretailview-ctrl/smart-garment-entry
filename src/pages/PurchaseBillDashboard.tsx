@@ -378,6 +378,22 @@ const PurchaseBillDashboard = () => {
         query = query.lte("bill_date", endDate);
       }
 
+      // Payment status filter
+      if (paymentStatusFilter && paymentStatusFilter !== "all") {
+        if (paymentStatusFilter === "not_paid") {
+          query = query.or("payment_status.is.null,payment_status.eq.pending");
+        } else {
+          query = query.eq("payment_status", paymentStatusFilter);
+        }
+      }
+
+      // DC filter
+      if (dcFilter === "dc") {
+        query = query.eq("is_dc_purchase", true);
+      } else if (dcFilter === "gst") {
+        query = query.or("is_dc_purchase.is.null,is_dc_purchase.eq.false");
+      }
+
       query = query.order("bill_date", { ascending: sortOrder === "asc" })
         .range(startIndex, endIndex);
 
