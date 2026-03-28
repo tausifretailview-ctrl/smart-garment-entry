@@ -294,7 +294,11 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                         </div>
                       )}
                     </td>
-                    {showHSN && <td style={{ ...cellNoRowBorder, textAlign: 'center', verticalAlign: 'top' }}>{item.hsn}</td>}
+                    {showHSN && (
+                      <td style={{ ...cellNoRowBorder, textAlign: 'center', verticalAlign: 'top', fontSize: '10px' }}>
+                        {item.hsn}
+                      </td>
+                    )}
                     <td style={{ ...cellNoRowBorder, textAlign: 'center', verticalAlign: 'top' }}>{item.qty} Pcs</td>
                     <td style={{ ...cellNoRowBorder, textAlign: 'right', verticalAlign: 'top' }}>{fmt(rateInclTax)}</td>
                     <td style={{ ...cellNoRowBorder, textAlign: 'right', verticalAlign: 'top' }}>{fmt(rateExclTax)}</td>
