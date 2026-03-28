@@ -4408,6 +4408,8 @@ export default function POSSales() {
                 customerName={savedInvoiceData.customerName || "Walk-in Customer"}
                 customerAddress=""
                 customerMobile={savedInvoiceData.customerPhone || ""}
+                customerGSTIN={customers.find(c => c.id === (savedInvoiceData.customerId || customerId))?.gst_number || ""}
+                customerTransportDetails={customers.find(c => c.id === (savedInvoiceData.customerId || customerId))?.transport_details || ""}
                 template={posInvoiceTemplate}
               items={savedInvoiceData.items.map((item: any, index: number) => ({
                 sr: index + 1,
