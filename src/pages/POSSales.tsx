@@ -1939,6 +1939,7 @@ export default function POSSales() {
         cashAmount: result.cash_amount || 0,
         upiAmount: result.upi_amount || 0,
         cardAmount: result.card_amount || 0,
+        salesman: selectedSalesman || null,
       };
       
       // Clear the form immediately after successful save (reset to new blank invoice)
@@ -2509,6 +2510,7 @@ export default function POSSales() {
       cashAmount: Number(sale.cash_amount) || 0,
       upiAmount: Number(sale.upi_amount) || 0,
       cardAmount: Number(sale.card_amount) || 0,
+      salesman: sale.salesman || null,
     });
 
     sonnerToast.success(`Invoice #${sale.sale_number} loaded successfully`);
@@ -3067,6 +3069,7 @@ export default function POSSales() {
             paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === 'pay_later' ? 0 : finalAmount)}
             previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
             roundOff={savedInvoiceData?.roundOff ?? roundOff}
+            salesman={savedInvoiceData?.salesman || selectedSalesman || ''}
           />
         </div>
       </>
@@ -4434,6 +4437,7 @@ export default function POSSales() {
                 paidAmount={savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount}
                 previousBalance={savedInvoiceData.previousBalance ?? 0}
                 roundOff={savedInvoiceData.roundOff ?? 0}
+                salesman={savedInvoiceData?.salesman || ''}
               />
             )}
             onPrint={handleClosePrintConfirmDialog}
@@ -4530,6 +4534,7 @@ export default function POSSales() {
                 paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === 'pay_later' ? 0 : finalAmount)}
                 previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
                 roundOff={savedInvoiceData?.roundOff ?? roundOff}
+                salesman={savedInvoiceData?.salesman || selectedSalesman || ''}
               />
             </div>
           )}

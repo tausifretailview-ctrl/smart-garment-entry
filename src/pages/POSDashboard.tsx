@@ -621,6 +621,7 @@ const POSDashboard = () => {
         cardAmount: sale.card_amount,
         upiAmount: sale.upi_amount,
         paidAmount: sale.paid_amount,
+        salesman: sale.salesman || '',
       };
 
       // Set print data first
@@ -2056,6 +2057,7 @@ const POSDashboard = () => {
             cardAmount={printData.cardAmount}
             upiAmount={printData.upiAmount}
             paidAmount={printData.paidAmount}
+            salesman={printData.salesman || ''}
             format={posBillFormat}
             template={posInvoiceTemplate}
           />
