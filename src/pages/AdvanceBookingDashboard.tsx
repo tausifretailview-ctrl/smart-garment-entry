@@ -384,12 +384,22 @@ export default function AdvanceBookingDashboard() {
             </Badge>
           </div>
         </div>
-        <Button
+         <Button
           onClick={() => setAddDialogOpen(true)}
           className="h-9 px-4 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold gap-1.5"
         >
           <Plus className="h-4 w-4" /> New Advance
         </Button>
+        {selectedIds.size > 0 && (
+          <Button
+            variant="destructive"
+            size="sm"
+            className="h-9 gap-1.5"
+            onClick={() => setDeleteDialogOpen(true)}
+          >
+            <Trash2 className="h-4 w-4" /> Delete ({selectedIds.size})
+          </Button>
+        )}
       </div>
 
       {/* Summary Cards */}
