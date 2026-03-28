@@ -366,14 +366,14 @@ Deno.serve(async (req) => {
       },
     });
 
-    const authData: WhiteBooksAuthResponse = await authResponse.json();
-    console.log('Auth response status:', authData.Status);
+    const authData: PeriOneAuthResponse = await authResponse.json();
+    console.log('Auth response status:', authData.status_cd);
     console.log('Auth response details:', JSON.stringify(authData));
 
-    if (authData.Status !== 1 || !authData.Data?.AuthToken) {
-      const errorMsg = authData.ErrorDetails?.ErrorMessage || 
+    if (authData.status_cd !== 'Success' || !authData.data?.AuthToken) {
+      const errorMsg = authData.status_desc || 
+                       authData.ErrorDetails?.ErrorMessage || 
                        authData.ErrorDetails?.message ||
-                       (typeof authData.ErrorDetails === 'string' ? authData.ErrorDetails : null) ||
                        'Authentication failed - check credentials';
       console.error('Authentication failed:', errorMsg);
       
