@@ -277,7 +277,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'WhiteBooks Client ID not configured. Please add it in Settings → Sale → E-Invoice Settings',
+          error: 'PeriOne Client ID not configured. Please add it in Settings → Sale → E-Invoice Settings',
           code: 'MISSING_CLIENT_ID'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
