@@ -4534,6 +4534,7 @@ export default function POSSales() {
                 paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === 'pay_later' ? 0 : finalAmount)}
                 previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
                 roundOff={savedInvoiceData?.roundOff ?? roundOff}
+                salesman={savedInvoiceData?.salesman || selectedSalesman || ''}
               />
             </div>
           )}
