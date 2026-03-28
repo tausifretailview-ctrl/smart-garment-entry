@@ -3364,7 +3364,7 @@ export default function Settings() {
                               className="font-mono"
                             />
                             <p className="text-xs text-muted-foreground">
-                              Use WhiteBooks sandbox GSTIN for testing. Leave empty to use your Business Details GSTIN.
+                              Use PeriOne sandbox GSTIN for testing. Leave empty to use your Business Details GSTIN.
                             </p>
                           </div>
                         )}
