@@ -3025,6 +3025,8 @@ export default function POSSales() {
             date={currentDateTime}
             customerName={savedInvoiceData?.customerName || customerName || "Walk in Customer"}
             customerMobile={savedInvoiceData?.customerPhone || customerPhone}
+            customerGSTIN={customers.find(c => c.id === customerId)?.gst_number || ""}
+            customerTransportDetails={customers.find(c => c.id === customerId)?.transport_details || ""}
             items={savedInvoiceData ? savedInvoiceData.items.map((item: any, index: number) => ({
               sr: index + 1,
               particulars: item.productName,
