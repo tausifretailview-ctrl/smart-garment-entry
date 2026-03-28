@@ -3156,10 +3156,10 @@ export default function Settings() {
                 <div className="space-y-4 pt-6 border-t">
                   <div className="flex items-center gap-2">
                     <Shield className="h-5 w-5 text-primary" />
-                    <h3 className="text-lg font-semibold">E-Invoice Settings (WhiteBooks API)</h3>
+                    <h3 className="text-lg font-semibold">E-Invoice Settings (PeriOne API)</h3>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Configure WhiteBooks e-Invoice integration for B2B invoices
+                    Configure PeriOne e-Invoice integration for B2B invoices
                   </p>
                   
                   <div className="flex items-center space-x-2">
@@ -3184,22 +3184,22 @@ export default function Settings() {
                         Enable E-Invoice Generation
                       </Label>
                       <p className="text-xs text-muted-foreground">
-                        When enabled, allows generating IRN for B2B invoices via WhiteBooks API
+                        When enabled, allows generating IRN for B2B invoices via PeriOne API
                       </p>
                     </div>
                   </div>
 
                   {settings.sale_settings?.einvoice_settings?.enabled && (
                     <div className="space-y-4 pl-6 border-l-2 border-primary/20">
-                      {/* WhiteBooks API Credentials Section */}
-                      <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
-                        <h4 className="font-medium flex items-center gap-2">
-                          <Shield className="h-4 w-4" />
-                          WhiteBooks API Credentials
-                        </h4>
-                        <p className="text-xs text-muted-foreground">
-                          Enter your WhiteBooks API credentials. These are stored securely per organization.
-                        </p>
+                       {/* PeriOne API Credentials Section */}
+                       <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
+                         <h4 className="font-medium flex items-center gap-2">
+                           <Shield className="h-4 w-4" />
+                           PeriOne API Credentials
+                         </h4>
+                         <p className="text-xs text-muted-foreground">
+                           Enter your PeriOne API credentials. These are stored securely per organization.
+                         </p>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-2">
@@ -3220,7 +3220,7 @@ export default function Settings() {
                                   },
                                 })
                               }
-                              placeholder="user@whitebooks.in"
+                              placeholder="tausifretailview@gmail.com"
                             />
                           </div>
                           
@@ -3336,7 +3336,7 @@ export default function Settings() {
                               Test Mode (Sandbox)
                             </Label>
                             <p className="text-xs text-muted-foreground">
-                              Use WhiteBooks Sandbox environment for testing
+                              Use PeriOne Sandbox environment for testing
                             </p>
                           </div>
                         </div>
@@ -3364,7 +3364,7 @@ export default function Settings() {
                               className="font-mono"
                             />
                             <p className="text-xs text-muted-foreground">
-                              Use WhiteBooks sandbox GSTIN for testing. Leave empty to use your Business Details GSTIN.
+                              Use PeriOne sandbox GSTIN for testing. Leave empty to use your Business Details GSTIN.
                             </p>
                           </div>
                         )}
@@ -3438,8 +3438,9 @@ export default function Settings() {
                           <li>API credentials are stored securely per organization</li>
                           <li>Ensure seller GSTIN is configured in Business Settings above</li>
                           <li>E-Invoice is mandatory for turnover {">"} ₹5 Crore</li>
-                          <li>Test in Sandbox mode before going live</li>
-                          <li>Customer must have a valid GSTIN for B2B e-Invoice</li>
+                           <li>Test in Sandbox mode (staging.perione.in) before going live</li>
+                           <li>Customer must have a valid GSTIN for B2B e-Invoice</li>
+                           <li>PeriOne contact: hello@perione.in | +91 9848799417</li>
                         </ul>
                       </div>
                     </div>

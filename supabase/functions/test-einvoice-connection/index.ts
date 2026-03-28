@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     const clientSecret = einvoiceSettings?.api_client_secret || '';
     const username = einvoiceSettings?.api_username || '';
     const password = einvoiceSettings?.api_password || '';
-    const apiEmail = einvoiceSettings?.api_email || (username ? `${username}@whitebooks.in` : '');
+    const apiEmail = einvoiceSettings?.api_email || '';
     const sellerGstin = einvoiceSettings?.seller_gstin || settingsData?.gst_number || '';
     const testMode = einvoiceSettings?.test_mode ?? true;
 
@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const baseUrl = testMode ? 'https://apisandbox.whitebooks.in' : 'https://api.whitebooks.in';
+    const baseUrl = testMode ? 'https://staging.perione.in' : 'https://api.perione.in';
     const ipAddress = await getPublicIP();
 
     const authUrl = `${baseUrl}/einvoice/authenticate?email=${encodeURIComponent(apiEmail)}`;
@@ -96,19 +96,19 @@ Deno.serve(async (req) => {
 
     const authData = await authResp.json();
 
-    if (authData.Status === 1 && authData.Data?.AuthToken) {
+    if (authData.status_cd === 'Success' && authData.data?.AuthToken) {
       return new Response(
         JSON.stringify({
           success: true,
-          message: `Connected successfully${testMode ? ' (Sandbox)' : ' (Production)'}`,
-          tokenExpiry: authData.Data.TokenExpiry,
+          message: `Connected successfully${testMode ? ' (Sandbox/PeriOne)' : ' (Production/PeriOne)'}`,
+          tokenExpiry: authData.data.TokenExpiry,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } else {
-      const errorMsg = authData.ErrorDetails?.ErrorMessage ||
+      const errorMsg = authData.status_desc ||
+        authData.ErrorDetails?.ErrorMessage ||
         authData.ErrorDetails?.message ||
-        (typeof authData.ErrorDetails === 'string' ? authData.ErrorDetails : null) ||
         'Authentication failed - check credentials';
       return new Response(
         JSON.stringify({ success: false, error: errorMsg }),

@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
     const clientSecret = einvoiceSettings?.api_client_secret || Deno.env.get('WHITEBOOKS_CLIENT_SECRET') || '';
     const username = einvoiceSettings?.api_username || Deno.env.get('WHITEBOOKS_USERNAME') || '';
     const password = einvoiceSettings?.api_password || Deno.env.get('WHITEBOOKS_PASSWORD') || '';
-    const apiEmail = einvoiceSettings?.api_email || (username ? `${username}@whitebooks.in` : '');
+    const apiEmail = einvoiceSettings?.api_email || '';
     const sellerGstin = einvoiceSettings?.seller_gstin || settingsData?.gst_number || '';
 
     if (!clientId || !clientSecret || !username || !password || !sellerGstin) {
@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const baseUrl = testMode ? 'https://apisandbox.whitebooks.in' : 'https://api.whitebooks.in';
+    const baseUrl = testMode ? 'https://staging.perione.in' : 'https://api.perione.in';
     const ipAddress = await getPublicIP();
 
     // Step 1: Authenticate
@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
     });
     const authData = await authResp.json();
 
-    if (authData.Status !== 1 || !authData.Data?.AuthToken) {
+    if (authData.status_cd !== 'Success' || !authData.data?.AuthToken) {
       const errorMsg = authData.ErrorDetails?.ErrorMessage || 'Authentication failed';
       return new Response(
         JSON.stringify({ success: false, error: `Auth failed: ${errorMsg}` }),
@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
         'client_id': clientId,
         'client_secret': clientSecret,
         'gstin': sellerGstin,
-        'auth-token': authData.Data.AuthToken,
+        'auth-token': authData.data!.AuthToken,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -188,7 +188,7 @@ Deno.serve(async (req) => {
     const cancelData = await cancelResponse.json();
     console.log('Cancel response:', JSON.stringify(cancelData));
 
-    if (cancelData.Status !== 1) {
+    if (cancelData.status_cd !== 'Success') {
       const errorMsg = cancelData.ErrorDetails?.ErrorMessage ||
         cancelData.ErrorDetails?.[0]?.ErrorMessage ||
         JSON.stringify(cancelData.ErrorDetails) ||

@@ -11,13 +11,15 @@ interface InvoiceRequest {
   testMode?: boolean;
 }
 
-interface WhiteBooksAuthResponse {
-  Status: number;
-  Data: {
+interface PeriOneAuthResponse {
+  status_cd: string;
+  status_desc: string;
+  data?: {
     AuthToken: string;
     TokenExpiry: string;
+    Sek: string;
   };
-  ErrorDetails: any;
+  ErrorDetails?: any;
 }
 
 interface EInvoicePayload {
@@ -259,14 +261,14 @@ Deno.serve(async (req) => {
     
     console.log('Settings loaded - GST:', settingsData?.gst_number, 'Business:', settingsData?.business_name);
 
-    // Get WhiteBooks API credentials with priority:
+    // Get PeriOne API credentials with priority:
     // 1. Per-organization settings (from UI)
-    // 2. Global Supabase secrets (fallback)
+    // 2. Global secrets (fallback)
     const clientId = einvoiceSettings?.api_client_id || Deno.env.get('WHITEBOOKS_CLIENT_ID') || '';
     const clientSecret = einvoiceSettings?.api_client_secret || Deno.env.get('WHITEBOOKS_CLIENT_SECRET') || '';
     const username = einvoiceSettings?.api_username || Deno.env.get('WHITEBOOKS_USERNAME') || '';
     const password = einvoiceSettings?.api_password || Deno.env.get('WHITEBOOKS_PASSWORD') || '';
-    const apiEmail = einvoiceSettings?.api_email || (username ? `${username}@whitebooks.in` : '');
+    const apiEmail = einvoiceSettings?.api_email || '';
 
     console.log('API credentials source:', einvoiceSettings?.api_username ? 'UI Settings' : 'Environment Secrets');
 
@@ -275,7 +277,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'WhiteBooks Client ID not configured. Please add it in Settings → Sale → E-Invoice Settings',
+          error: 'PeriOne Client ID not configured. Please add it in Settings → Sale → E-Invoice Settings',
           code: 'MISSING_CLIENT_ID'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -285,7 +287,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'WhiteBooks Client Secret not configured. Please add it in Settings → Sale → E-Invoice Settings',
+          error: 'PeriOne Client Secret not configured. Please add it in Settings → Sale → E-Invoice Settings',
           code: 'MISSING_CLIENT_SECRET'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -295,7 +297,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'WhiteBooks Username not configured. Please add it in Settings → Sale → E-Invoice Settings',
+          error: 'PeriOne Username not configured. Please add it in Settings → Sale → E-Invoice Settings',
           code: 'MISSING_USERNAME'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -305,7 +307,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'WhiteBooks Password not configured. Please add it in Settings → Sale → E-Invoice Settings',
+          error: 'PeriOne Password not configured. Please add it in Settings → Sale → E-Invoice Settings',
           code: 'MISSING_PASSWORD'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -343,11 +345,11 @@ Deno.serve(async (req) => {
 
     // Determine API base URL based on test mode
     const baseUrl = testMode 
-      ? 'https://apisandbox.whitebooks.in' 
-      : 'https://api.whitebooks.in';
+      ? 'https://staging.perione.in' 
+      : 'https://api.perione.in';
 
-    // Step 1: Authenticate with WhiteBooks API
-    console.log('Authenticating with WhiteBooks API...');
+    // Step 1: Authenticate with PeriOne API
+    console.log('Authenticating with PeriOne API...');
     console.log('Using email:', apiEmail, 'username:', username);
     const authUrl = `${baseUrl}/einvoice/authenticate?email=${encodeURIComponent(apiEmail)}`;
     
@@ -364,14 +366,14 @@ Deno.serve(async (req) => {
       },
     });
 
-    const authData: WhiteBooksAuthResponse = await authResponse.json();
-    console.log('Auth response status:', authData.Status);
+    const authData: PeriOneAuthResponse = await authResponse.json();
+    console.log('Auth response status:', authData.status_cd);
     console.log('Auth response details:', JSON.stringify(authData));
 
-    if (authData.Status !== 1 || !authData.Data?.AuthToken) {
-      const errorMsg = authData.ErrorDetails?.ErrorMessage || 
+    if (authData.status_cd !== 'Success' || !authData.data?.AuthToken) {
+      const errorMsg = authData.status_desc || 
+                       authData.ErrorDetails?.ErrorMessage || 
                        authData.ErrorDetails?.message ||
-                       (typeof authData.ErrorDetails === 'string' ? authData.ErrorDetails : null) ||
                        'Authentication failed - check credentials';
       console.error('Authentication failed:', errorMsg);
       
@@ -388,14 +390,14 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: `WhiteBooks authentication failed: ${errorMsg}`,
+          error: `PeriOne authentication failed: ${errorMsg}`,
           code: 'AUTH_FAILED'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const authToken = authData.Data.AuthToken;
+    const authToken = authData.data!.AuthToken;
     console.log('Authentication successful, token received');
 
     // Step 2: Build e-Invoice payload in NIC format
@@ -546,9 +548,9 @@ Deno.serve(async (req) => {
     });
 
     const generateData = await generateResponse.json();
-    console.log('Generate response status:', generateData.Status);
+    console.log('Generate response status:', generateData.status_cd);
 
-    if (generateData.Status !== 1) {
+    if (generateData.status_cd !== 'Success') {
       const errorMsg = generateData.ErrorDetails?.ErrorMessage || 
                        generateData.ErrorDetails?.[0]?.ErrorMessage ||
                        JSON.stringify(generateData.ErrorDetails) ||
@@ -571,7 +573,7 @@ Deno.serve(async (req) => {
     }
 
     // Step 4: Save e-Invoice data to sales table
-    const einvoiceData = generateData.Data;
+    const einvoiceData = generateData.data;
     const { error: updateError } = await supabase
       .from('sales')
       .update({
