@@ -1309,6 +1309,8 @@ export default function StockReport() {
                           <TableHead>Product</TableHead>
                           <TableHead>Brand</TableHead>
                           <TableHead>Size</TableHead>
+                          <TableHead>Color</TableHead>
+                          <TableHead>Style</TableHead>
                           <TableHead>Barcode</TableHead>
                           <TableHead className="text-right bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-white">Opening Qty</TableHead>
                           <TableHead className="text-right bg-green-50 dark:bg-green-950 text-green-800 dark:text-white">Purchase Qty</TableHead>
