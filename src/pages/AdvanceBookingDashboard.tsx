@@ -377,7 +377,7 @@ export default function AdvanceBookingDashboard() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-2 items-center">
+      <div className="flex flex-wrap gap-2 items-center bg-muted/30 px-3 py-2 rounded-xl border border-border">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
