@@ -2056,8 +2056,8 @@ Thank you for choosing us!`;
 
         if (itemsError) throw itemsError;
 
-        // Save financer details if provided (Mobile ERP)
-        if (mobileERP.enabled && mobileERP.financer_billing && financerDetails?.financer_name) {
+        // Save financer details if provided
+        if (financerDetails?.financer_name) {
           await supabase
             .from('sale_financer_details')
             .insert({

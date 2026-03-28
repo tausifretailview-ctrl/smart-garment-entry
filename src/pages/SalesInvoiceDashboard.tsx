@@ -975,6 +975,24 @@ export default function SalesInvoiceDashboard() {
         }
       }
       
+      // Fetch financer/EMI details if available
+      if (!updatedInvoice.financerDetails) {
+        const { data: financer } = await supabase
+          .from('sale_financer_details')
+          .select('*')
+          .eq('sale_id', invoice.id)
+          .maybeSingle();
+        if (financer) {
+          updatedInvoice.financerDetails = {
+            financer_name: financer.financer_name,
+            loan_number: financer.loan_number,
+            emi_amount: financer.emi_amount,
+            tenure: financer.tenure,
+            down_payment: financer.down_payment,
+          };
+        }
+      }
+      
       return updatedInvoice;
     } catch (err) {
       console.error('Error fetching sale items for print:', err);
@@ -2139,6 +2157,7 @@ export default function SalesInvoiceDashboard() {
               cardAmount={invoiceToPrint.card_amount || 0}
               salesman={invoiceToPrint.salesman || ''}
               notes={invoiceToPrint.notes || ''}
+              financerDetails={invoiceToPrint.financerDetails || null}
             />
           </div>
         )}
@@ -3029,6 +3048,7 @@ export default function SalesInvoiceDashboard() {
                 cardAmount={invoiceToPrint.card_amount || 0}
                 salesman={invoiceToPrint.salesman || ''}
                 notes={invoiceToPrint.notes || ''}
+                financerDetails={invoiceToPrint.financerDetails || null}
               />
               ) : null
             }
@@ -3093,6 +3113,7 @@ export default function SalesInvoiceDashboard() {
               cardAmount={invoiceToPrint.card_amount || 0}
               salesman={invoiceToPrint.salesman || ''}
               notes={invoiceToPrint.notes || ''}
+              financerDetails={invoiceToPrint.financerDetails || null}
             />
           </div>
         )}
