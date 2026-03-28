@@ -2084,6 +2084,8 @@ const POSDashboard = () => {
             customerName={printData.customerName}
             customerAddress={printData.customerAddress}
             customerMobile={printData.customerMobile}
+            customerGSTIN={printData.customerGSTIN || ''}
+            customerTransportDetails={printData.customerTransportDetails || ''}
             items={printData.items}
             subTotal={printData.subTotal}
             discount={printData.discount}
