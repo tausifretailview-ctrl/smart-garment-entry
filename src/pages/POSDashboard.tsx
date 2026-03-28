@@ -1499,6 +1499,7 @@ const POSDashboard = () => {
                       <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">Sale Number</TableHead>
                       <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">Customer</TableHead>
                       {columnSettings.phone && <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">Phone</TableHead>}
+                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">Salesman</TableHead>
                       <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">Date</TableHead>
                       <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">Qty</TableHead>
                       <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">Amount</TableHead>
@@ -1574,6 +1575,9 @@ const POSDashboard = () => {
                                 {sale.customer_phone || '-'}
                               </TableCell>
                             )}
+                            <TableCell className="px-2 py-1.5 text-sm" onClick={() => toggleExpanded(sale.id)}>
+                              {sale.salesman || '-'}
+                            </TableCell>
                             <TableCell className="px-2 py-1.5 text-sm" onClick={() => toggleExpanded(sale.id)}>
                               {sale.sale_date ? format(new Date(sale.sale_date), "dd/MM/yyyy") : '-'}
                             </TableCell>

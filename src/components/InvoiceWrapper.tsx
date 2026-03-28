@@ -423,6 +423,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             pointsRedeemed={props.pointsRedeemed}
             pointsRedemptionValue={props.pointsRedemptionValue}
             pointsBalance={props.pointsBalance}
+            salesman={props.salesman}
+            isDcInvoice={props.isDcInvoice}
           />
         );
       }
