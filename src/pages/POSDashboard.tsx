@@ -830,6 +830,19 @@ const POSDashboard = () => {
   const handlePreviewClick = async (sale: Sale, event: React.MouseEvent) => {
     event.stopPropagation();
     await fetchSaleItems(sale.id);
+    // Fetch financer details for preview
+    const { data: finData } = await supabase
+      .from('sale_financer_details')
+      .select('*')
+      .eq('sale_id', sale.id)
+      .maybeSingle();
+    setPreviewFinancerDetails(finData ? {
+      financer_name: finData.financer_name,
+      loan_number: finData.loan_number || undefined,
+      emi_amount: finData.emi_amount || undefined,
+      tenure: finData.tenure || undefined,
+      down_payment: finData.down_payment || undefined,
+    } : null);
     setPreviewSale(sale);
     setShowPreviewDialog(true);
   };
