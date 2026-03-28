@@ -633,8 +633,8 @@ export default function OrgAuth() {
           <div className="flex justify-around mt-3 mb-1">
             {[['500+', 'Businesses'], ['10L+', 'Invoices'], ['99.9%', 'Uptime']].map(([num, label]) => (
               <div key={label} className="text-center">
-                <p className="text-white font-bold" style={{ fontSize: 15 }}>{num}</p>
-                <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)' }}>{label}</p>
+                <p className="font-extrabold" style={{ color: '#a78bfa', fontSize: 20 }}>{num}</p>
+                <p className="mt-1 font-medium" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11 }}>{label}</p>
               </div>
             ))}
           </div>
