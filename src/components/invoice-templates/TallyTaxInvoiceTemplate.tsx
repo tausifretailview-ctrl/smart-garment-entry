@@ -105,7 +105,12 @@ const numberToIndianWords = (num: number): string => {
 
 const fmt = (amount: number): string => amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const formatDate = (date: Date): string => date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
+const formatDate = (date: Date): string => {
+  const d = String(date.getDate()).padStart(2, '0');
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const y = date.getFullYear();
+  return `${d}-${m}-${y}`;
+};
 
 const getStateFromGSTIN = (gstin?: string): { name: string; code: string } => {
   if (!gstin || gstin.length < 2) return { name: '', code: '' };
