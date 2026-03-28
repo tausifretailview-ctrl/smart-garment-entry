@@ -1342,6 +1342,8 @@ export default function StockReport() {
                               <TableCell className="font-medium">{item.product_name}</TableCell>
                               <TableCell>{item.brand}</TableCell>
                               <TableCell>{item.size}</TableCell>
+                              <TableCell>{item.color || '—'}</TableCell>
+                              <TableCell>{item.department || '—'}</TableCell>
                               <TableCell className="font-mono text-sm">{item.barcode}</TableCell>
                               <TableCell className="text-right bg-blue-50 dark:bg-blue-950 font-medium">
                                 {item.opening_qty}
