@@ -11,7 +11,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Coins, Plus, Search, RefreshCw, Undo2, IndianRupee, TrendingUp, Wallet, ChevronLeft, ChevronRight, Pencil, Printer } from "lucide-react";
+import { Coins, Plus, Search, RefreshCw, Undo2, IndianRupee, TrendingUp, Wallet, ChevronLeft, ChevronRight, Pencil, Printer, Trash2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format, startOfDay, startOfWeek, startOfMonth } from "date-fns";
 import { toast } from "sonner";
 import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
@@ -57,6 +59,8 @@ export default function AdvanceBookingDashboard() {
    const [printDialogOpen, setPrintDialogOpen] = useState(false);
    const dashPrintRef = useRef<HTMLDivElement>(null);
    const { data: settings } = useSettings();
+   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
    const handleDashPrint = useReactToPrint({
      contentRef: dashPrintRef,
@@ -316,6 +320,44 @@ export default function AdvanceBookingDashboard() {
 
   const availableForRefund = selectedAdvance ? (selectedAdvance.amount - selectedAdvance.used_amount) : 0;
 
+  // Selection helpers
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === advances.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(advances.map((a: any) => a.id)));
+    }
+  };
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase
+        .from("customer_advances")
+        .delete()
+        .in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["advance-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["advance-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+      toast.success(`${selectedIds.size} advance(s) deleted`);
+      setSelectedIds(new Set());
+      setDeleteDialogOpen(false);
+    },
+    onError: (err: Error) => toast.error(`Delete failed: ${err.message}`),
+  });
+
   const getStatusBadge = (status: string | null) => {
     switch (status) {
       case "active": return <Badge className="bg-green-600 text-white">Active</Badge>;
@@ -342,12 +384,22 @@ export default function AdvanceBookingDashboard() {
             </Badge>
           </div>
         </div>
-        <Button
+         <Button
           onClick={() => setAddDialogOpen(true)}
           className="h-9 px-4 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold gap-1.5"
         >
           <Plus className="h-4 w-4" /> New Advance
         </Button>
+        {selectedIds.size > 0 && (
+          <Button
+            variant="destructive"
+            size="sm"
+            className="h-9 gap-1.5"
+            onClick={() => setDeleteDialogOpen(true)}
+          >
+            <Trash2 className="h-4 w-4" /> Delete ({selectedIds.size})
+          </Button>
+        )}
       </div>
 
       {/* Summary Cards */}
@@ -417,8 +469,14 @@ export default function AdvanceBookingDashboard() {
       {/* Table */}
       <div className="rounded-md border overflow-auto">
         <Table>
-          <TableHeader>
+           <TableHeader>
             <TableRow>
+              <TableHead className="w-10 bg-muted/40">
+                <Checkbox
+                  checked={advances.length > 0 && selectedIds.size === advances.length}
+                  onCheckedChange={toggleSelectAll}
+                />
+              </TableHead>
               <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">Advance No</TableHead>
               <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">Customer</TableHead>
               <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">Phone</TableHead>
@@ -433,15 +491,21 @@ export default function AdvanceBookingDashboard() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
             ) : advances.length === 0 ? (
-              <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">No advance bookings found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">No advance bookings found</TableCell></TableRow>
             ) : (
               advances.map((adv: any) => {
                 const available = (adv.amount || 0) - (adv.used_amount || 0);
                 const canRefund = adv.status === "active" || adv.status === "partially_used";
                 return (
-                  <TableRow key={adv.id}>
+                  <TableRow key={adv.id} className={selectedIds.has(adv.id) ? "bg-muted/50" : ""}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(adv.id)}
+                        onCheckedChange={() => toggleSelect(adv.id)}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium text-sm">{adv.advance_number}</TableCell>
                     <TableCell className="text-sm">
                       <button
@@ -763,6 +827,28 @@ export default function AdvanceBookingDashboard() {
            paperSize={printPaperSize}
          />
        )}
-     </div>
+
+       {/* Delete Confirmation Dialog */}
+       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+         <AlertDialogContent>
+           <AlertDialogHeader>
+             <AlertDialogTitle>Delete {selectedIds.size} Advance Booking(s)?</AlertDialogTitle>
+             <AlertDialogDescription>
+               This action cannot be undone. The selected advance records will be permanently deleted.
+             </AlertDialogDescription>
+           </AlertDialogHeader>
+           <AlertDialogFooter>
+             <AlertDialogCancel>Cancel</AlertDialogCancel>
+             <AlertDialogAction
+               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+               onClick={() => deleteMutation.mutate(Array.from(selectedIds))}
+               disabled={deleteMutation.isPending}
+             >
+               {deleteMutation.isPending ? "Deleting..." : "Delete"}
+             </AlertDialogAction>
+           </AlertDialogFooter>
+         </AlertDialogContent>
+       </AlertDialog>
+      </div>
    );
 }
