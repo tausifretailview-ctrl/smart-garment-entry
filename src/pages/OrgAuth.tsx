@@ -526,8 +526,8 @@ export default function OrgAuth() {
               <img src={ezzyerpLogo} alt="EzzyERP" className="w-6 h-6 rounded" />
             </div>
             <div>
-              <p className="text-white font-bold text-base tracking-tight">EzzyERP</p>
-              <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Easy Billing, Smart Business</p>
+              <p className="font-bold leading-tight" style={{ color: '#ffffff', fontSize: 18 }}>EzzyERP</p>
+              <p className="font-medium leading-tight" style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>Easy Billing, Smart Business</p>
             </div>
           </div>
 
