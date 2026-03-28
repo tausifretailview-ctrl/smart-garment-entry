@@ -1967,6 +1967,8 @@ const POSDashboard = () => {
               customerName={previewSale.customer_name}
               customerAddress={previewSale.customer_address || ''}
               customerMobile={previewSale.customer_phone || ''}
+              customerGSTIN={previewSale.customerGSTIN || ''}
+              customerTransportDetails={previewSale.customerTransportDetails || ''}
               template={posInvoiceTemplate}
               items={(saleItems[previewSale.id] || []).map((item, index) => ({
                 sr: index + 1,
