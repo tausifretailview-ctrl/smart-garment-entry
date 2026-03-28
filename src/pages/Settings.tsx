@@ -3220,7 +3220,7 @@ export default function Settings() {
                                   },
                                 })
                               }
-                              placeholder="user@whitebooks.in"
+                              placeholder="tausifretailview@gmail.com"
                             />
                           </div>
                           
