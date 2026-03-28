@@ -197,6 +197,25 @@ export function PrecisionLabelPreview({
           />
         </div>
       )}
+
+      {/* Render lines */}
+      {config.lines?.map((line, idx) => {
+        if (!line.show) return null;
+        const isHorizontal = line.orientation === 'horizontal';
+        return (
+          <div
+            key={`line-${idx}`}
+            style={{
+              position: "absolute",
+              top: u(line.y ?? 0),
+              left: u(line.x ?? 0),
+              width: isHorizontal ? u(line.length ?? 10) : u(line.thickness ?? 0.3),
+              height: isHorizontal ? u(line.thickness ?? 0.3) : u(line.length ?? 10),
+              backgroundColor: "#000000",
+            }}
+          />
+        );
+      })}
     </div>
   );
 }
