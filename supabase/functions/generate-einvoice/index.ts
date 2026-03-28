@@ -348,8 +348,8 @@ Deno.serve(async (req) => {
       ? 'https://staging.perione.in' 
       : 'https://api.perione.in';
 
-    // Step 1: Authenticate with WhiteBooks API
-    console.log('Authenticating with WhiteBooks API...');
+    // Step 1: Authenticate with PeriOne API
+    console.log('Authenticating with PeriOne API...');
     console.log('Using email:', apiEmail, 'username:', username);
     const authUrl = `${baseUrl}/einvoice/authenticate?email=${encodeURIComponent(apiEmail)}`;
     
