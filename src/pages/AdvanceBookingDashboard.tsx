@@ -827,6 +827,28 @@ export default function AdvanceBookingDashboard() {
            paperSize={printPaperSize}
          />
        )}
-     </div>
+
+       {/* Delete Confirmation Dialog */}
+       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+         <AlertDialogContent>
+           <AlertDialogHeader>
+             <AlertDialogTitle>Delete {selectedIds.size} Advance Booking(s)?</AlertDialogTitle>
+             <AlertDialogDescription>
+               This action cannot be undone. The selected advance records will be permanently deleted.
+             </AlertDialogDescription>
+           </AlertDialogHeader>
+           <AlertDialogFooter>
+             <AlertDialogCancel>Cancel</AlertDialogCancel>
+             <AlertDialogAction
+               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+               onClick={() => deleteMutation.mutate(Array.from(selectedIds))}
+               disabled={deleteMutation.isPending}
+             >
+               {deleteMutation.isPending ? "Deleting..." : "Delete"}
+             </AlertDialogAction>
+           </AlertDialogFooter>
+         </AlertDialogContent>
+       </AlertDialog>
+      </div>
    );
 }
