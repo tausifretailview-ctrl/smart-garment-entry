@@ -573,7 +573,7 @@ Deno.serve(async (req) => {
     }
 
     // Step 4: Save e-Invoice data to sales table
-    const einvoiceData = generateData.Data;
+    const einvoiceData = generateData.data;
     const { error: updateError } = await supabase
       .from('sales')
       .update({

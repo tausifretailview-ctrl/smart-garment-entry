@@ -3438,8 +3438,9 @@ export default function Settings() {
                           <li>API credentials are stored securely per organization</li>
                           <li>Ensure seller GSTIN is configured in Business Settings above</li>
                           <li>E-Invoice is mandatory for turnover {">"} ₹5 Crore</li>
-                          <li>Test in Sandbox mode before going live</li>
-                          <li>Customer must have a valid GSTIN for B2B e-Invoice</li>
+                           <li>Test in Sandbox mode (staging.perione.in) before going live</li>
+                           <li>Customer must have a valid GSTIN for B2B e-Invoice</li>
+                           <li>PeriOne contact: hello@perione.in | +91 9848799417</li>
                         </ul>
                       </div>
                     </div>

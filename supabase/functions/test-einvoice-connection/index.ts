@@ -106,9 +106,9 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } else {
-      const errorMsg = authData.ErrorDetails?.ErrorMessage ||
+      const errorMsg = authData.status_desc ||
+        authData.ErrorDetails?.ErrorMessage ||
         authData.ErrorDetails?.message ||
-        (typeof authData.ErrorDetails === 'string' ? authData.ErrorDetails : null) ||
         'Authentication failed - check credentials';
       return new Response(
         JSON.stringify({ success: false, error: errorMsg }),

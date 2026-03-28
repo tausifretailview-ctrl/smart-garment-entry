@@ -188,7 +188,7 @@ Deno.serve(async (req) => {
     const cancelData = await cancelResponse.json();
     console.log('Cancel response:', JSON.stringify(cancelData));
 
-    if (cancelData.Status !== 1) {
+    if (cancelData.status_cd !== 'Success') {
       const errorMsg = cancelData.ErrorDetails?.ErrorMessage ||
         cancelData.ErrorDetails?.[0]?.ErrorMessage ||
         JSON.stringify(cancelData.ErrorDetails) ||
