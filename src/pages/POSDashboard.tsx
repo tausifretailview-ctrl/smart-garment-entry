@@ -1970,8 +1970,8 @@ const POSDashboard = () => {
               customerName={previewSale.customer_name}
               customerAddress={previewSale.customer_address || ''}
               customerMobile={previewSale.customer_phone || ''}
-              customerGSTIN={previewSale.customerGSTIN || ''}
-              customerTransportDetails={previewSale.customerTransportDetails || ''}
+              customerGSTIN={previewCustomerData?.gst_number || ''}
+              customerTransportDetails={previewCustomerData?.transport_details || ''}
               template={posInvoiceTemplate}
               items={(saleItems[previewSale.id] || []).map((item, index) => ({
                 sr: index + 1,
