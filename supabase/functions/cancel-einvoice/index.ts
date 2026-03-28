@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
         'client_id': clientId,
         'client_secret': clientSecret,
         'gstin': sellerGstin,
-        'auth-token': authData.Data.AuthToken,
+        'auth-token': authData.data!.AuthToken,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
