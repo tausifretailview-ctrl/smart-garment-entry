@@ -397,7 +397,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const authToken = authData.Data.AuthToken;
+    const authToken = authData.data!.AuthToken;
     console.log('Authentication successful, token received');
 
     // Step 2: Build e-Invoice payload in NIC format
