@@ -1939,6 +1939,7 @@ export default function POSSales() {
         cashAmount: result.cash_amount || 0,
         upiAmount: result.upi_amount || 0,
         cardAmount: result.card_amount || 0,
+        salesman: selectedSalesman || null,
       };
       
       // Clear the form immediately after successful save (reset to new blank invoice)
