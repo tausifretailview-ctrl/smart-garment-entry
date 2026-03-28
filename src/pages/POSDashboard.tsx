@@ -1576,6 +1576,9 @@ const POSDashboard = () => {
                               </TableCell>
                             )}
                             <TableCell className="px-2 py-1.5 text-sm" onClick={() => toggleExpanded(sale.id)}>
+                              {sale.salesman || '-'}
+                            </TableCell>
+                            <TableCell className="px-2 py-1.5 text-sm" onClick={() => toggleExpanded(sale.id)}>
                               {sale.sale_date ? format(new Date(sale.sale_date), "dd/MM/yyyy") : '-'}
                             </TableCell>
                             <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
