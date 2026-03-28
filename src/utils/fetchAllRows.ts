@@ -56,6 +56,7 @@ export async function fetchAllSalesSummary(organizationId: string) {
       .select("id, customer_id, net_amount, paid_amount, payment_status, sale_date, sale_number, customer_name, sale_return_adjust")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
+      .neq("payment_status", "hold")
       .order("sale_date", { ascending: false })
       .range(offset, offset + pageSize - 1);
 
