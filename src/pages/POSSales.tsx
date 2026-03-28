@@ -1888,8 +1888,8 @@ export default function POSSales() {
     }
     
     if (result) {
-      // Save financer details if provided (Mobile ERP)
-      if (mobileERP.enabled && mobileERP.financer_billing && financerDetails?.financer_name) {
+      // Save financer details if provided
+      if (financerDetails?.financer_name) {
         await saveFinancerDetails(result.id, currentOrganization?.id || '', financerDetails);
       }
       // Store invoice number and sale ID for printing
