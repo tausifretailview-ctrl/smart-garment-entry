@@ -7,8 +7,8 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Save, RotateCcw, ZoomIn, ZoomOut, Move } from "lucide-react";
-import { LabelDesignConfig, LabelFieldConfig, FieldKey, LabelItem } from "@/types/labelTypes";
+import { Save, RotateCcw, ZoomIn, ZoomOut, Move, Plus, Trash2, Minus } from "lucide-react";
+import { LabelDesignConfig, LabelFieldConfig, LabelLineConfig, FieldKey, LabelItem } from "@/types/labelTypes";
 import { DraggableLabelCanvas } from "./DraggableLabelCanvas";
 
 interface PrecisionLabelDesignerProps {
