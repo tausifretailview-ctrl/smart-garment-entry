@@ -2864,8 +2864,8 @@ export default function BarcodePrinting() {
 
     if (over && active.id !== over.id) {
       setLabelConfig((prev) => {
-        const oldIndex = prev.fieldOrder.indexOf(active.id as keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue'>);
-        const newIndex = prev.fieldOrder.indexOf(over.id as keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue'>);
+        const oldIndex = prev.fieldOrder.indexOf(active.id as FieldKey);
+        const newIndex = prev.fieldOrder.indexOf(over.id as FieldKey);
 
         return {
           ...prev,
