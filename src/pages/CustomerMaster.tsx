@@ -710,7 +710,7 @@ const CustomerMaster = () => {
               >
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-sm text-foreground truncate">{c.customer_name}</p>
+                    <p className="font-semibold text-sm text-foreground truncate">{c.customer_name?.toUpperCase()}</p>
                     {c.phone && (
                       <a href={`tel:${c.phone}`} className="text-xs text-primary font-medium" onClick={(e) => e.stopPropagation()}>
                         {c.phone}
