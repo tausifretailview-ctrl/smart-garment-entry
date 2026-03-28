@@ -296,6 +296,126 @@ export function PrecisionLabelDesigner({
             })}
           </div>
         </ScrollArea>
+
+        {/* Lines Section */}
+        <div className="space-y-2 pt-2 border-t">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-semibold flex items-center gap-1">
+              <Minus className="h-3 w-3" /> Lines / Separators
+            </h4>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 text-[10px] px-2"
+              onClick={() => {
+                const lines = [...(config.lines || [])];
+                lines.push({ show: true, x: 1, y: 12, length: labelWidth - 2, thickness: 0.3, orientation: 'horizontal' });
+                onConfigChange({ ...config, lines });
+              }}
+            >
+              <Plus className="h-3 w-3 mr-0.5" /> Add Line
+            </Button>
+          </div>
+          {(config.lines || []).map((line, idx) => (
+            <Card key={idx} className="border-border">
+              <CardContent className="p-2 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={line.show}
+                      onCheckedChange={(v) => {
+                        const lines = [...(config.lines || [])];
+                        lines[idx] = { ...lines[idx], show: v };
+                        onConfigChange({ ...config, lines });
+                      }}
+                      className="scale-75"
+                    />
+                    <span className="text-[10px] font-medium">Line {idx + 1}</span>
+                    <Select
+                      value={line.orientation}
+                      onValueChange={(v) => {
+                        const lines = [...(config.lines || [])];
+                        lines[idx] = { ...lines[idx], orientation: v as 'horizontal' | 'vertical' };
+                        onConfigChange({ ...config, lines });
+                      }}
+                    >
+                      <SelectTrigger className="h-6 text-[10px] w-[90px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="horizontal">Horizontal</SelectItem>
+                        <SelectItem value="vertical">Vertical</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 text-destructive hover:text-destructive"
+                    onClick={() => {
+                      const lines = (config.lines || []).filter((_, i) => i !== idx);
+                      onConfigChange({ ...config, lines });
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+                {line.show && (
+                  <div className="grid grid-cols-4 gap-1.5">
+                    <div className="space-y-0.5">
+                      <Label className="text-[10px]">X (mm)</Label>
+                      <Input
+                        type="number" step={0.5} value={line.x}
+                        onChange={(e) => {
+                          const lines = [...(config.lines || [])];
+                          lines[idx] = { ...lines[idx], x: parseFloat(e.target.value) || 0 };
+                          onConfigChange({ ...config, lines });
+                        }}
+                        className="h-7 text-xs px-1.5"
+                      />
+                    </div>
+                    <div className="space-y-0.5">
+                      <Label className="text-[10px]">Y (mm)</Label>
+                      <Input
+                        type="number" step={0.5} value={line.y}
+                        onChange={(e) => {
+                          const lines = [...(config.lines || [])];
+                          lines[idx] = { ...lines[idx], y: parseFloat(e.target.value) || 0 };
+                          onConfigChange({ ...config, lines });
+                        }}
+                        className="h-7 text-xs px-1.5"
+                      />
+                    </div>
+                    <div className="space-y-0.5">
+                      <Label className="text-[10px]">Length</Label>
+                      <Input
+                        type="number" step={0.5} min={1} value={line.length}
+                        onChange={(e) => {
+                          const lines = [...(config.lines || [])];
+                          lines[idx] = { ...lines[idx], length: parseFloat(e.target.value) || 10 };
+                          onConfigChange({ ...config, lines });
+                        }}
+                        className="h-7 text-xs px-1.5"
+                      />
+                    </div>
+                    <div className="space-y-0.5">
+                      <Label className="text-[10px]">Thick</Label>
+                      <Input
+                        type="number" step={0.1} min={0.1} max={3} value={line.thickness}
+                        onChange={(e) => {
+                          const lines = [...(config.lines || [])];
+                          lines[idx] = { ...lines[idx], thickness: parseFloat(e.target.value) || 0.3 };
+                          onConfigChange({ ...config, lines });
+                        }}
+                        className="h-7 text-xs px-1.5"
+                      />
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
 
       {/* Live Preview with Drag */}
