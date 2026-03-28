@@ -314,7 +314,13 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       upiId: (props.isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id)
         ? settings.bill_barcode_settings.dc_upi_id
         : settings?.bill_barcode_settings?.upi_id,
-      bankDetails: settings?.sale_settings?.bank_details,
+      bankDetails: settings?.sale_settings?.bank_details ? {
+        bankName: (settings.sale_settings.bank_details as any).bank_name || '',
+        accountNumber: (settings.sale_settings.bank_details as any).account_number || '',
+        ifscCode: (settings.sale_settings.bank_details as any).ifsc_code || '',
+        accountHolder: (settings.sale_settings.bank_details as any).account_holder || '',
+        branch: (settings.sale_settings.bank_details as any).branch || '',
+      } : undefined,
       declarationText,
       termsConditions,
       
