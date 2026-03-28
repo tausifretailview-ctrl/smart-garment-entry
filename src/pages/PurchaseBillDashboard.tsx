@@ -1528,6 +1528,29 @@ const PurchaseBillDashboard = () => {
                   <SelectItem value="desc">Newest First (DESC)</SelectItem>
                   <SelectItem value="asc">Oldest First (ASC)</SelectItem>
                 </SelectContent>
+                </Select>
+              <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
+                <SelectTrigger className="w-[150px] h-9 gap-2">
+                  <Wallet className="h-4 w-4" />
+                  <SelectValue placeholder="Payment" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="completed">Paid</SelectItem>
+                  <SelectItem value="partial">Partial</SelectItem>
+                  <SelectItem value="not_paid">Not Paid</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={dcFilter} onValueChange={setDcFilter}>
+                <SelectTrigger className="w-[130px] h-9 gap-2">
+                  <FileText className="h-4 w-4" />
+                  <SelectValue placeholder="Bill Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Bills</SelectItem>
+                  <SelectItem value="dc">DC Only</SelectItem>
+                  <SelectItem value="gst">GST Only</SelectItem>
+                </SelectContent>
               </Select>
               <div id="erp-toolbar-portal-purchase" className="flex items-center gap-2 ml-auto" />
             </div>
