@@ -4252,6 +4252,9 @@ export default function POSSales() {
                 paidAmount={paymentMethod === 'pay_later' ? 0 : finalAmount}
                 previousBalance={customerBalance || 0}
                 roundOff={roundOff}
+                salesman={selectedSalesman || ''}
+                financerDetails={financerDetails}
+                notes={saleNotes}
               />
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setShowPrintDialog(false)}>
