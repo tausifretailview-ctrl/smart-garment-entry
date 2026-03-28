@@ -1,6 +1,6 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import JsBarcode from 'jsbarcode';
-import { LabelDesignConfig, LabelItem, FieldKey } from '@/types/labelTypes';
+import { LabelDesignConfig, LabelFieldConfig, LabelItem, FieldKey } from '@/types/labelTypes';
 
 const mmToPt = (mm: number): number => mm * 2.8346;
 
