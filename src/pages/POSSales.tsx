@@ -4761,6 +4761,12 @@ export default function POSSales() {
             <Button variant="outline" size="sm" onClick={() => setShowFinancerDialog(false)}>
               Close
             </Button>
+            <Button size="sm" onClick={() => {
+              setShowFinancerDialog(false);
+              toast({ title: "Saved", description: "Financer / EMI details saved" });
+            }}>
+              Save
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
