@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
     });
     const authData = await authResp.json();
 
-    if (authData.Status !== 1 || !authData.Data?.AuthToken) {
+    if (authData.status_cd !== 'Success' || !authData.data?.AuthToken) {
       const errorMsg = authData.ErrorDetails?.ErrorMessage || 'Authentication failed';
       return new Response(
         JSON.stringify({ success: false, error: `Auth failed: ${errorMsg}` }),
