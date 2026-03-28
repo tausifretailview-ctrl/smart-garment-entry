@@ -3736,6 +3736,7 @@ export default function POSSales() {
                       <div className="flex items-center text-muted-foreground/30">—</div>
                       <div className="flex items-center justify-center text-muted-foreground/30">—</div>
                       <div className="flex items-center justify-center text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-center text-muted-foreground/30">—</div>
                       <div className="flex items-center justify-end text-muted-foreground/30">—</div>
                       <div className="flex items-center justify-center text-muted-foreground/30">—</div>
                       <div className="flex items-center justify-center text-muted-foreground/30">—</div>
