@@ -223,7 +223,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                   ['Mode/Terms of Payment', paymentMethod || 'Cash'],
                   ['Buyer\'s Order No.', ''],
                   ['Dispatched through', customerTransportDetails || ''],
-                  ['Destination', ''],
+                  ['Destination', salesman || ''],
                 ].map(([label, value], i) => (
                   <tr key={i}>
                     <td style={{ borderBottom: b, borderRight: b, padding: '3px 6px', fontWeight: 'bold', width: '50%', fontSize: '9px', backgroundColor: '#f8f8f8' }}>{label}</td>
