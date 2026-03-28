@@ -152,6 +152,15 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
   const buyerState = getStateFromGSTIN(customerGSTIN);
   const isInterState = gstNumber && customerGSTIN && gstNumber.substring(0, 2) !== customerGSTIN.substring(0, 2);
 
+  // Normalize bankDetails (support both snake_case and camelCase)
+  const normBank = bankDetails ? {
+    bankName: bankDetails.bankName || (bankDetails as any).bank_name || '',
+    accountNumber: bankDetails.accountNumber || (bankDetails as any).account_number || '',
+    ifscCode: bankDetails.ifscCode || (bankDetails as any).ifsc_code || '',
+    accountHolder: bankDetails.accountHolder || (bankDetails as any).account_holder || '',
+    branch: bankDetails.branch || '',
+  } : null;
+
   const hsnBreakup: Record<string, { hsn: string; taxableValue: number; rate: number; cgst: number; sgst: number; igst: number; total: number }> = {};
   items.forEach(item => {
     const gstPct = item.gstPercent || 0;
