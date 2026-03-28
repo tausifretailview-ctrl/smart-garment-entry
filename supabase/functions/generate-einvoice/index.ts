@@ -268,7 +268,7 @@ Deno.serve(async (req) => {
     const clientSecret = einvoiceSettings?.api_client_secret || Deno.env.get('WHITEBOOKS_CLIENT_SECRET') || '';
     const username = einvoiceSettings?.api_username || Deno.env.get('WHITEBOOKS_USERNAME') || '';
     const password = einvoiceSettings?.api_password || Deno.env.get('WHITEBOOKS_PASSWORD') || '';
-    const apiEmail = einvoiceSettings?.api_email || (username ? `${username}@whitebooks.in` : '');
+    const apiEmail = einvoiceSettings?.api_email || '';
 
     console.log('API credentials source:', einvoiceSettings?.api_username ? 'UI Settings' : 'Environment Secrets');
 
