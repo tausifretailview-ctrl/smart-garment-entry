@@ -2077,6 +2077,8 @@ const POSDashboard = () => {
             upiAmount={printData.upiAmount}
             paidAmount={printData.paidAmount}
             salesman={printData.salesman || ''}
+            notes={printData.notes || ''}
+            financerDetails={printData.financerDetails || null}
             format={posBillFormat}
             template={posInvoiceTemplate}
           />
