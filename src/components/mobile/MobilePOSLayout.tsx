@@ -125,6 +125,7 @@ export const MobilePOSLayout = ({
   onFlatDiscountValueChange,
   onFlatDiscountModeChange,
   onSaleReturn,
+  onAdvanceBooking,
   filteredProducts,
   onProductSelect,
   openProductSearch,
