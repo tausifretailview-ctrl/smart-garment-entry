@@ -58,6 +58,10 @@ interface TallyTaxInvoiceTemplateProps {
     ifscCode?: string;
     accountHolder?: string;
     branch?: string;
+    bank_name?: string;
+    account_number?: string;
+    ifsc_code?: string;
+    account_holder?: string;
   };
   qrCodeUrl?: string;
   upiId?: string;
