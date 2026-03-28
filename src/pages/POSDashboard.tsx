@@ -594,13 +594,14 @@ const POSDashboard = () => {
     try {
       const saleDate = new Date(sale.sale_date);
 
-      // Fetch financer details for this sale
+      // Fetch financer details and customer GST in parallel
       let financerDetails = null;
-      const { data: finData } = await supabase
-        .from('sale_financer_details')
-        .select('*')
-        .eq('sale_id', sale.id)
-        .maybeSingle();
+      const [{ data: finData }, { data: customerData }] = await Promise.all([
+        supabase.from('sale_financer_details').select('*').eq('sale_id', sale.id).maybeSingle(),
+        sale.customer_id
+          ? supabase.from('customers').select('gst_number, transport_details').eq('id', sale.customer_id).maybeSingle()
+          : Promise.resolve({ data: null }),
+      ]);
       if (finData) {
         financerDetails = {
           financer_name: finData.financer_name,
