@@ -463,16 +463,32 @@ export default function AdvanceBookingDashboard() {
                     <TableCell className="text-sm capitalize">{adv.payment_method?.replace("_", " ") || "-"}</TableCell>
                     <TableCell>{getStatusBadge(adv.status)}</TableCell>
                      <TableCell>
-                       <div className="flex items-center gap-1">
-                         <Button variant="outline" size="xs" onClick={() => openPrintDialog(adv)} title="Print Receipt">
-                           <Printer className="h-3 w-3" />
+                       <div className="flex items-center gap-1.5">
+                         <Button
+                           variant="ghost"
+                           size="icon"
+                           onClick={() => openPrintDialog(adv)}
+                           title="Print Receipt"
+                           className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                         >
+                           <Printer className="h-3.5 w-3.5" />
                          </Button>
                          {canRefund && (
                            <>
-                             <Button variant="outline" size="xs" onClick={() => openEdit(adv)} className="text-blue-600 hover:text-blue-700">
+                             <Button
+                               variant="outline"
+                               size="sm"
+                               onClick={() => openEdit(adv)}
+                               className="h-7 px-2 text-xs text-blue-600 border-blue-200 hover:bg-blue-50"
+                             >
                                <Pencil className="h-3 w-3 mr-1" /> Edit
                              </Button>
-                             <Button variant="destructive" size="xs" onClick={() => openRefund(adv)}>
+                             <Button
+                               variant="outline"
+                               size="sm"
+                               onClick={() => openRefund(adv)}
+                               className="h-7 px-2 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                             >
                                <Undo2 className="h-3 w-3 mr-1" /> Refund ₹{((adv.amount || 0) - (adv.used_amount || 0)).toLocaleString('en-IN')}
                              </Button>
                            </>
