@@ -3184,7 +3184,7 @@ export default function Settings() {
                         Enable E-Invoice Generation
                       </Label>
                       <p className="text-xs text-muted-foreground">
-                        When enabled, allows generating IRN for B2B invoices via WhiteBooks API
+                        When enabled, allows generating IRN for B2B invoices via PeriOne API
                       </p>
                     </div>
                   </div>
