@@ -307,7 +307,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'WhiteBooks Password not configured. Please add it in Settings → Sale → E-Invoice Settings',
+          error: 'PeriOne Password not configured. Please add it in Settings → Sale → E-Invoice Settings',
           code: 'MISSING_PASSWORD'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
