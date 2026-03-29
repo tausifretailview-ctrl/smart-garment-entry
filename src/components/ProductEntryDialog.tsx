@@ -1273,6 +1273,16 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </div>
               </div>
 
+              {formData.product_type === 'service' && (
+                <div className="flex items-start gap-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
+                  <span className="text-blue-500 text-sm mt-0.5">ℹ️</span>
+                  <div className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
+                    <strong>Service Product:</strong> No size/stock tracking. Sale price defaults to ₹1 — actual price is entered at sale/POS time.
+                    Barcode can be auto-generated or type a custom code (e.g. 501, 502, GARMENT1).
+                  </div>
+                </div>
+              )}
+
               {/* ── 📋 Product Details ────────────────────────── */}
               <div className="flex items-center gap-2 pt-1">
                 <span className="text-sm">📋</span>
