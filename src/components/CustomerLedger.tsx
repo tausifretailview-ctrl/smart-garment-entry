@@ -2728,18 +2728,19 @@ Please clear your dues at the earliest. Thank you!`;
                 }
                 setIsProcessingRefund(true);
                 try {
+                  const voucherNum = `REFUND-${Date.now()}`;
                   const { error } = await supabase
                     .from('voucher_entries')
                     .insert({
                       organization_id: organizationId,
                       voucher_type: 'payment',
+                      voucher_number: voucherNum,
                       voucher_date: new Date().toISOString().split('T')[0],
                       reference_type: 'customer',
                       reference_id: selectedCustomer.id,
-                      reference_name: selectedCustomer.customer_name,
                       total_amount: amount,
                       payment_method: overpaymentRefundMode,
-                      narration: overpaymentRefundNote || `Overpayment refund to ${selectedCustomer.customer_name}`,
+                      description: overpaymentRefundNote || `Overpayment refund to ${selectedCustomer.customer_name}`,
                     });
                   if (error) throw error;
                   setShowOverpaymentRefundDialog(false);
