@@ -330,7 +330,7 @@ const SalesmanCustomerAccount = () => {
       `Dear *${customer.customer_name}*,\n\n` +
       `Invoice *${invoice.sale_number}* dated ${format(new Date(invoice.sale_date), 'dd MMM yyyy')} ` +
       `is pending.\n\n` +
-      `Invoice Amount: ₹${invoice.net_amount.toLocaleString('en-IN')}\n` +
+      `Invoice Amount: ₹${Math.round(invoice.net_amount).toLocaleString('en-IN')}\n` +
       (invoice.paid_amount > 0
         ? `Paid: ₹${invoice.paid_amount.toLocaleString('en-IN')}\n`
         : '') +
