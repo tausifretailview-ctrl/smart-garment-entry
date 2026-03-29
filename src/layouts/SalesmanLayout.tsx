@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { Home, Users, ShoppingCart, ListOrdered, LogOut, Download, AlertCircle, Package } from "lucide-react";
+import { Home, Users, ShoppingCart, ListOrdered, LogOut, Download, AlertCircle, Package, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -81,7 +81,8 @@ const SalesmanLayout = () => {
     { icon: Home, label: "Home", path: "/salesman" },
     { icon: Users, label: "Customers", path: "/salesman/customers" },
     { icon: ShoppingCart, label: "New Order", path: "/salesman/order/new" },
-    { icon: ListOrdered, label: "My Orders", path: "/salesman/orders" },
+    { icon: ListOrdered, label: "Orders", path: "/salesman/orders" },
+    { icon: BookOpen, label: "Outstanding", path: "/salesman/outstanding" },
   ];
 
   const isActive = (path: string) => {
