@@ -359,7 +359,7 @@ const SalesmanCustomerAccount = () => {
       `You have *${pendingInvoices.length} pending invoice${pendingInvoices.length > 1 ? 's' : ''}*:\n\n` +
       `${invoiceLines}\n\n` +
       `────────────────\n` +
-      `*Total Outstanding: ₹${totalOutstanding.toLocaleString('en-IN')}*\n\n` +
+      `*Total Outstanding: ₹${Math.round(totalOutstanding).toLocaleString('en-IN')}*\n\n` +
       `Please clear your dues at the earliest.\n` +
       `Thank you for your business! 🙏`;
 
