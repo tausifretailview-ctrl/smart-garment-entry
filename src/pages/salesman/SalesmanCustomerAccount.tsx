@@ -348,7 +348,7 @@ const SalesmanCustomerAccount = () => {
     const invoiceLines = pendingInvoices
       .map(inv =>
         `• ${inv.sale_number} (${format(new Date(inv.sale_date), 'dd MMM')})` +
-        ` — ₹${inv.balance.toLocaleString('en-IN')}` +
+        ` — ₹${Math.round(inv.balance).toLocaleString('en-IN')}` +
         (inv.days_overdue > 0 ? ` — ${inv.days_overdue}d` : '')
       )
       .join('\n');
