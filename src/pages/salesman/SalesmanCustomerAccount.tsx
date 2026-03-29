@@ -242,7 +242,7 @@ const SalesmanCustomerAccount = () => {
         .map(sale => {
           const voucherPaid = voucherPaymentsBySaleId[sale.id] || 0;
           const effectivePaid = Math.max(sale.paid_amount || 0, voucherPaid);
-          const balance = Math.max(0, sale.net_amount - effectivePaid);
+          const balance = Math.max(0, Math.round(sale.net_amount - effectivePaid));
           const saleDate = new Date(sale.sale_date);
           const daysOverdue = Math.floor((Date.now() - saleDate.getTime()) / (1000 * 60 * 60 * 24));
           return {
