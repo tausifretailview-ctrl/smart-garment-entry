@@ -164,7 +164,7 @@ export const useWhatsAppTemplates = () => {
       .replace(/{website_link}/g, settings?.website_link || "")
       .replace(/{google_review_link}/g, settings?.google_review_link || "")
       .replace(/{payment_breakdown}/g, paymentBreakdown)
-      .replace(/{outstanding_amount}/g, `₹${Number(outstandingAmount).toLocaleString("en-IN")}`)
+      .replace(/{outstanding_amount}/g, `₹${Math.round(Number(outstandingAmount)).toLocaleString("en-IN")}`)
       .replace(/{points_earned}/g, invoice.points_earned?.toString() || "0")
       .replace(/{points_redeemed}/g, invoice.points_redeemed?.toString() || "0")
       .replace(/{points_discount}/g, `₹${Number(invoice.points_discount || 0).toLocaleString("en-IN")}`)
