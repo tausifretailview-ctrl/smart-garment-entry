@@ -93,7 +93,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
     queryFn: async () => {
       const { data, error } = await supabase
         .from("voucher_entries")
-        .select("id, voucher_number, voucher_date, voucher_type, total_amount, description, reference_type, category")
+        .select("id, voucher_number, voucher_date, voucher_type, total_amount, description, reference_type, category, payment_method")
         .eq("organization_id", orgId!)
         .is("deleted_at", null)
         .gte("voucher_date", dateStr)
