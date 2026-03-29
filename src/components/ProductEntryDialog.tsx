@@ -318,6 +318,25 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   // Recent products state
   const [recentProducts, setRecentProducts] = useState<any[]>([]);
 
+  // Auto-generate Standard variant for service products
+  useEffect(() => {
+    if (formData.product_type === 'service' && variants.length === 0 && open) {
+      setVariants([{
+        color: "",
+        size: "Standard",
+        pur_price: formData.default_pur_price ?? 1,
+        sale_price: formData.default_sale_price ?? 1,
+        mrp: null,
+        barcode: "",
+        active: true,
+        opening_qty: 0,
+        purchase_qty: 1,
+      }]);
+      setShowVariants(true);
+      if (isAutoBarcode) autoBarcodePending.current = true;
+    }
+  }, [formData.product_type]);
+
   // Fetch recent products when dialog opens
   useEffect(() => {
     if (open && currentOrganization?.id) {
