@@ -2664,6 +2664,102 @@ Please clear your dues at the earliest. Thank you!`;
           organizationId={organizationId}
         />
       )}
+
+      {/* Overpayment Refund Dialog */}
+      <Dialog open={showOverpaymentRefundDialog} onOpenChange={setShowOverpaymentRefundDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Refund Overpayment</DialogTitle>
+            <DialogDescription>
+              Record a cash/UPI refund to {selectedCustomer?.customer_name} for ₹{Math.abs(selectedCustomer?.balance || 0).toLocaleString('en-IN')} overpaid balance.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Refund Amount (₹)</Label>
+              <Input
+                type="number"
+                value={overpaymentRefundAmount}
+                onChange={(e) => setOverpaymentRefundAmount(e.target.value)}
+                placeholder={Math.abs(selectedCustomer?.balance || 0).toString()}
+                className="no-uppercase"
+              />
+              <p className="text-xs text-muted-foreground">
+                Max refundable: ₹{Math.abs(selectedCustomer?.balance || 0).toLocaleString('en-IN')}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Payment Mode</Label>
+              <Select value={overpaymentRefundMode} onValueChange={setOverpaymentRefundMode}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="upi">UPI</SelectItem>
+                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="cheque">Cheque</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Note (Optional)</Label>
+              <Textarea
+                value={overpaymentRefundNote}
+                onChange={(e) => setOverpaymentRefundNote(e.target.value)}
+                placeholder="Reason for refund..."
+                rows={2}
+                className="no-uppercase"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowOverpaymentRefundDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={isProcessingRefund || !overpaymentRefundAmount || parseFloat(overpaymentRefundAmount) <= 0}
+              onClick={async () => {
+                if (!selectedCustomer || !organizationId) return;
+                const amount = parseFloat(overpaymentRefundAmount);
+                const maxRefund = Math.abs(selectedCustomer.balance || 0);
+                if (amount > maxRefund) {
+                  return;
+                }
+                setIsProcessingRefund(true);
+                try {
+                  const { error } = await supabase
+                    .from('voucher_entries')
+                    .insert({
+                      organization_id: organizationId,
+                      voucher_type: 'payment',
+                      voucher_date: new Date().toISOString().split('T')[0],
+                      reference_type: 'customer',
+                      reference_id: selectedCustomer.id,
+                      reference_name: selectedCustomer.customer_name,
+                      total_amount: amount,
+                      payment_method: overpaymentRefundMode,
+                      narration: overpaymentRefundNote || `Overpayment refund to ${selectedCustomer.customer_name}`,
+                    });
+                  if (error) throw error;
+                  setShowOverpaymentRefundDialog(false);
+                  setOverpaymentRefundAmount('');
+                  setOverpaymentRefundNote('');
+                  queryClient.invalidateQueries({ queryKey: ['customer-ledger'] });
+                  queryClient.invalidateQueries({ queryKey: ['customer-balance'] });
+                } catch (err: any) {
+                  console.error('Refund error:', err);
+                } finally {
+                  setIsProcessingRefund(false);
+                }
+              }}
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+            >
+              {isProcessingRefund ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing...</> : 'Record Refund'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
