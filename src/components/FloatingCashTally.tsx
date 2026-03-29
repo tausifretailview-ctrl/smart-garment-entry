@@ -383,9 +383,9 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
   });
 
   const handleRefresh = useCallback(() => {
-    refetchSales(); refetchVouchers(); refetchAdvances(); refetchRefunds(); refetchSnapshot();
+    refetchSales(); refetchVouchers(); refetchAdvances(); refetchRefunds(); refetchAdvanceRefunds(); refetchSnapshot();
     toast.success("Data refreshed");
-  }, [refetchSales, refetchVouchers, refetchAdvances, refetchRefunds, refetchSnapshot]);
+  }, [refetchSales, refetchVouchers, refetchAdvances, refetchRefunds, refetchAdvanceRefunds, refetchSnapshot]);
 
   const handlePrint = useReactToPrint({ contentRef: printRef });
 

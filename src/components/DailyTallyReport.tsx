@@ -113,7 +113,9 @@ const DailyTallyReport = React.forwardRef<HTMLDivElement, DailyTallyReportProps>
             <TableRow label="Shop Expense" data={aggregated.expenses} />
             <TableRow label="Employee Salary" data={aggregated.employeeSalary} />
             <TableRow label="Sale Return Refund" data={aggregated.saleReturnRefunds} />
-            <TableRow label="Total Outward" data={totalOut} bold />
+            {aggregated.advanceRefunds && aggregated.advanceRefunds.total > 0 && (
+              <TableRow label="Advance Refunds" data={aggregated.advanceRefunds} />
+            )}
           </tbody>
         </table>
 
