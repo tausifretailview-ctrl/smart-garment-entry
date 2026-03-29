@@ -1125,12 +1125,22 @@ export default function POSSales() {
   }, [openProductSearch, searchInput, selectedProductType, currentOrganization?.id]);
 
   const searchAndAddProduct = useCallback(async (searchTerm: string) => {
-    // Quick service shortcodes (1-9) ALWAYS open the dialog, even if a product has that barcode
+    // Quick service shortcodes (1-9): check if a real product has this barcode first
     if (/^[1-9]$/.test(searchTerm)) {
-      setQuickServiceCode(searchTerm);
-      setShowQuickServiceDialog(true);
-      setSearchInput("");
-      return;
+      // Check local cache for exact barcode match
+      const hasRealProduct = productsData?.some(product =>
+        product.product_variants?.some((v: any) =>
+          v.barcode?.toLowerCase() === searchTerm.toLowerCase()
+        )
+      );
+      if (!hasRealProduct) {
+        // No real product — open quick service dialog
+        setQuickServiceCode(searchTerm);
+        setShowQuickServiceDialog(true);
+        setSearchInput("");
+        return;
+      }
+      // Has real product — fall through to normal search
     }
 
     // Mobile ERP IMEI enforcement: validate IMEI format before allowing scan
