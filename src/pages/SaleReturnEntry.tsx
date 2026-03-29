@@ -323,7 +323,7 @@ export default function SaleReturnEntry() {
     }
   };
 
-
+  const addProduct = async (productId: string, variantId: string) => {
     const product = products.find((p) => p.id === productId);
     const variant = variants.find((v) => v.id === variantId);
 
