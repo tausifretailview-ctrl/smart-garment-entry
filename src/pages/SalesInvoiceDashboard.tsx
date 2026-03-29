@@ -440,12 +440,12 @@ export default function SalesInvoiceDashboard() {
         const searchStr = debouncedSearch.trim();
 
         // Search sale_items for barcode or product name match
-        const { data: matchingItems } = await (supabase
+        const { data: matchingItems } = await (supabase as any)
           .from('sale_items')
           .select('sale_id')
           .eq('organization_id', currentOrganization.id)
           .or(`barcode.ilike.%${searchStr}%,product_name.ilike.%${searchStr}%`)
-          .limit(200) as any);
+          .limit(200);
 
         const matchingSaleIds = [...new Set((matchingItems || []).map((i: any) => i.sale_id).filter(Boolean))];
 
