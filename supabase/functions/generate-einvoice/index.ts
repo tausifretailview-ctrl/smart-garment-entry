@@ -264,10 +264,10 @@ Deno.serve(async (req) => {
     // Get PeriOne API credentials with priority:
     // 1. Per-organization settings (from UI)
     // 2. Global secrets (fallback)
-    const clientId = einvoiceSettings?.api_client_id || Deno.env.get('WHITEBOOKS_CLIENT_ID') || '';
-    const clientSecret = einvoiceSettings?.api_client_secret || Deno.env.get('WHITEBOOKS_CLIENT_SECRET') || '';
-    const username = einvoiceSettings?.api_username || Deno.env.get('WHITEBOOKS_USERNAME') || '';
-    const password = einvoiceSettings?.api_password || Deno.env.get('WHITEBOOKS_PASSWORD') || '';
+    const clientId = einvoiceSettings?.api_client_id || Deno.env.get('PERIONE_CLIENT_ID') || '';
+    const clientSecret = einvoiceSettings?.api_client_secret || Deno.env.get('PERIONE_CLIENT_SECRET') || '';
+    const username = einvoiceSettings?.api_username || Deno.env.get('PERIONE_USERNAME') || '';
+    const password = einvoiceSettings?.api_password || Deno.env.get('PERIONE_PASSWORD') || '';
     const apiEmail = einvoiceSettings?.api_email || '';
 
     console.log('API credentials source:', einvoiceSettings?.api_username ? 'UI Settings' : 'Environment Secrets');
