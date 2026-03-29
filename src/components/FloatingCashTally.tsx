@@ -27,12 +27,19 @@ import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2 }).format(n);
 
-const parsePaymentMode = (desc: string) => {
-  const d = (desc || "").toLowerCase();
-  if (d.includes("upi")) return "upi";
-  if (d.includes("card")) return "card";
-  if (d.includes("cheque") || d.includes("bank") || d.includes("transfer") || d.includes("neft") || d.includes("rtgs")) return "bank";
-  return "cash";
+// Use actual payment_method if available, fallback to parsing description
+const resolvePaymentMode = (paymentMethod: string | null, description: string): keyof Omit<PaymentBreakdown, 'total' | 'credit'> => {
+  const pm = (paymentMethod || '').toLowerCase().trim();
+  if (pm === 'upi') return 'upi';
+  if (pm === 'card') return 'card';
+  if (pm === 'bank' || pm === 'cheque' || pm === 'neft' || pm === 'rtgs' || pm === 'bank_transfer') return 'bank';
+  if (pm === 'cash') return 'cash';
+  // Fallback: parse description
+  const d = (description || '').toLowerCase();
+  if (d.includes('upi')) return 'upi';
+  if (d.includes('card')) return 'card';
+  if (d.includes('cheque') || d.includes('bank') || d.includes('neft') || d.includes('rtgs')) return 'bank';
+  return 'cash';
 };
 
 interface PaymentBreakdown {
