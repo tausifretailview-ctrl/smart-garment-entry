@@ -1748,29 +1748,44 @@ Please clear your dues at the earliest. Thank you!`;
               </Card>
             </div>
 
-            {/* Refund Advance shortcut - shows when customer has advance/overpaid balance */}
+            {/* Refund shortcut - shows when customer has credit balance */}
             {selectedCustomer.balance < 0 && (
               <div className="mt-3 mb-1 p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 flex items-center justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
-                    ₹{Math.abs(selectedCustomer.balance).toLocaleString("en-IN")} advance available for refund
+                    ₹{Math.abs(selectedCustomer.balance).toLocaleString("en-IN")} credit balance — refund to customer
                   </p>
                   <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
-                    Go to Advance Booking to process a refund to the customer
+                    {(selectedCustomer.unusedAdvanceTotal || 0) > 0
+                      ? `₹${(selectedCustomer.unusedAdvanceTotal || 0).toLocaleString('en-IN')} from unused advance bookings · remaining is overpayment`
+                      : 'Customer has overpaid — process a cash/UPI refund'}
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 border-amber-400 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/50"
-                  onClick={() => {
-                    const orgSlug = window.location.pathname.split('/')[1];
-                    window.location.href = `/${orgSlug}/advance-booking-dashboard?search=${encodeURIComponent(selectedCustomer.customer_name || '')}`;
-                  }}
-                >
-                  <Undo2 className="h-4 w-4 mr-1" />
-                  Refund Advance
-                </Button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {(selectedCustomer.unusedAdvanceTotal || 0) > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-amber-400 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+                      onClick={() => {
+                        const orgSlug = window.location.pathname.split('/')[1];
+                        window.location.href = `/${orgSlug}/advance-booking-dashboard?search=${encodeURIComponent(selectedCustomer.customer_name || '')}`;
+                      }}
+                    >
+                      <Undo2 className="h-4 w-4 mr-1" />
+                      Refund Advance
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-red-400 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/50"
+                    onClick={() => setShowOverpaymentRefundDialog(true)}
+                  >
+                    <IndianRupee className="h-4 w-4 mr-1" />
+                    Refund Overpayment
+                  </Button>
+                </div>
               </div>
             )}
 
