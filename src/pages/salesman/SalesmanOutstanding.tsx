@@ -182,7 +182,7 @@ const SalesmanOutstanding = () => {
             invoiceCount: (invoiceCountMap[c.id] || 0) + (openingBalance > 0 ? 1 : 0),
           };
         })
-        .filter(c => c.balance > 0)
+        .filter(c => c.balance >= 1)
         .sort((a, b) => b.balance - a.balance);
 
       setCustomers(outstandingCustomers);
