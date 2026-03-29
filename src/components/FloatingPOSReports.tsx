@@ -401,6 +401,92 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
                   </Table>
                 </CardContent>
               </Card>
+
+              {/* Other Money In */}
+              {(totals.advanceReceived > 0 || totals.receiptTotal > 0) && (
+                <Card className="mt-3">
+                  <CardHeader className="py-3">
+                    <CardTitle className="text-sm text-green-700 dark:text-green-400">💰 Other Money In</CardTitle>
+                  </CardHeader>
+                  <CardContent className="py-2">
+                    <Table>
+                      <TableBody>
+                        {totals.advanceReceived > 0 && (
+                          <TableRow>
+                            <TableCell>Advance Received</TableCell>
+                            <TableCell className="text-right text-green-600 font-medium">{formatCurrency(totals.advanceReceived)}</TableCell>
+                          </TableRow>
+                        )}
+                        {totals.receiptTotal > 0 && (
+                          <TableRow>
+                            <TableCell>Old Balance Received</TableCell>
+                            <TableCell className="text-right text-green-600 font-medium">{formatCurrency(totals.receiptTotal)}</TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Money Out */}
+              {(totals.supplierPaid > 0 || totals.expensePaid > 0 || totals.employeePaid > 0 || totals.advanceRefundTotal > 0) && (
+                <Card className="mt-3">
+                  <CardHeader className="py-3">
+                    <CardTitle className="text-sm text-red-700 dark:text-red-400">📤 Money Out</CardTitle>
+                  </CardHeader>
+                  <CardContent className="py-2">
+                    <Table>
+                      <TableBody>
+                        {totals.supplierPaid > 0 && (
+                          <TableRow>
+                            <TableCell>Supplier Payments</TableCell>
+                            <TableCell className="text-right text-red-600 font-medium">{formatCurrency(totals.supplierPaid)}</TableCell>
+                          </TableRow>
+                        )}
+                        {totals.expensePaid > 0 && (
+                          <TableRow>
+                            <TableCell>Shop Expenses</TableCell>
+                            <TableCell className="text-right text-red-600 font-medium">{formatCurrency(totals.expensePaid)}</TableCell>
+                          </TableRow>
+                        )}
+                        {totals.employeePaid > 0 && (
+                          <TableRow>
+                            <TableCell>Employee Salary</TableCell>
+                            <TableCell className="text-right text-red-600 font-medium">{formatCurrency(totals.employeePaid)}</TableCell>
+                          </TableRow>
+                        )}
+                        {totals.advanceRefundTotal > 0 && (
+                          <TableRow>
+                            <TableCell>Advance Refunds</TableCell>
+                            <TableCell className="text-right text-red-600 font-medium">{formatCurrency(totals.advanceRefundTotal)}</TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Net Cash Summary */}
+              <Card className="mt-3 bg-muted/30">
+                <CardContent className="py-3">
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Cash In</p>
+                      <p className="font-bold text-green-600">{formatCurrency(totals.totalCashIn)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Cash Out</p>
+                      <p className="font-bold text-red-600">{formatCurrency(totals.totalCashOut)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Net Cash</p>
+                      <p className={`font-bold ${totals.netCash >= 0 ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>{formatCurrency(totals.netCash)}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </>
           )}
         </div>
