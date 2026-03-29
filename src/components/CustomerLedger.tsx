@@ -42,6 +42,7 @@ interface Customer {
   totalSales: number;
   totalPaid: number;
   balance: number;
+  unusedAdvanceTotal?: number;
   // School-specific fields
   studentId?: string;
   admissionNumber?: string;
