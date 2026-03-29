@@ -1030,8 +1030,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           mrp: v.mrp,
           barcode: v.barcode,
           active: v.active,
-          opening_qty: v.opening_qty,
-          stock_qty: v.opening_qty,
+          opening_qty: formData.product_type === 'service' ? 0 : v.opening_qty,
+          // Service products have unlimited/virtual stock — no physical stock tracking
+          stock_qty: formData.product_type === 'service' ? 999999 : v.opening_qty,
         }));
 
         const { data: variantsData, error: variantsError } = await supabase
