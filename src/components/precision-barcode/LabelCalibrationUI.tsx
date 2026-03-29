@@ -190,6 +190,10 @@ export function LabelCalibrationUI({
 }: LabelCalibrationUIProps) {
   const [savePresetOpen, setSavePresetOpen] = useState(false);
   const [newPresetName, setNewPresetName] = useState("");
+  const [newPresetWidth, setNewPresetWidth] = useState<number>(values.labelWidth);
+  const [newPresetHeight, setNewPresetHeight] = useState<number>(values.labelHeight);
+  const [newPresetCols, setNewPresetCols] = useState<number>(1);
+  const [newPresetMode, setNewPresetMode] = useState<'thermal' | 'thermal2up' | 'a4'>(printMode || 'thermal');
   // Track the loaded DB preset name with a ref to persist across parent re-renders
   const [localActivePresetName, setLocalActivePresetName] = useState<string | null>(null);
   const loadedDbPresetRef = useRef<string | null>(null);
