@@ -1940,16 +1940,16 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                         });
                                       }}
                                       className={cn(
-                                        "text-xs font-bold flex items-center gap-0.5 cursor-pointer transition-colors",
+                                        "text-sm font-bold flex items-center gap-1 cursor-pointer transition-colors tracking-wide",
                                         isDisabled
                                           ? "text-muted-foreground/40 line-through"
                                           : qty > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"
                                       )}
                                     >
                                       {isDisabled ? (
-                                        <X className="h-3 w-3 text-muted-foreground/40" />
+                                        <X className="h-3.5 w-3.5 text-muted-foreground/40" />
                                       ) : (
-                                        <Check className="h-3 w-3 text-emerald-600" />
+                                        <Check className="h-3.5 w-3.5 text-emerald-600" />
                                       )}
                                       {size}
                                     </button>
