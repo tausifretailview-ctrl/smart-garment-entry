@@ -17,6 +17,7 @@ interface DailyTallyReportProps {
     expenses: PaymentBreakdown;
     employeeSalary: PaymentBreakdown;
     saleReturnRefunds: PaymentBreakdown;
+    advanceRefunds?: PaymentBreakdown;
   };
   totalIn: PaymentBreakdown;
   totalOut: PaymentBreakdown;
@@ -112,6 +113,9 @@ const DailyTallyReport = React.forwardRef<HTMLDivElement, DailyTallyReportProps>
             <TableRow label="Shop Expense" data={aggregated.expenses} />
             <TableRow label="Employee Salary" data={aggregated.employeeSalary} />
             <TableRow label="Sale Return Refund" data={aggregated.saleReturnRefunds} />
+            {aggregated.advanceRefunds && aggregated.advanceRefunds.total > 0 && (
+              <TableRow label="Advance Refunds" data={aggregated.advanceRefunds} />
+            )}
             <TableRow label="Total Outward" data={totalOut} bold />
           </tbody>
         </table>

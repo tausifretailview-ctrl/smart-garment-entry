@@ -27,12 +27,19 @@ import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2 }).format(n);
 
-const parsePaymentMode = (desc: string) => {
-  const d = (desc || "").toLowerCase();
-  if (d.includes("upi")) return "upi";
-  if (d.includes("card")) return "card";
-  if (d.includes("cheque") || d.includes("bank") || d.includes("transfer") || d.includes("neft") || d.includes("rtgs")) return "bank";
-  return "cash";
+// Use actual payment_method if available, fallback to parsing description
+const resolvePaymentMode = (paymentMethod: string | null, description: string): keyof Omit<PaymentBreakdown, 'total' | 'credit'> => {
+  const pm = (paymentMethod || '').toLowerCase().trim();
+  if (pm === 'upi') return 'upi';
+  if (pm === 'card') return 'card';
+  if (pm === 'bank' || pm === 'cheque' || pm === 'neft' || pm === 'rtgs' || pm === 'bank_transfer') return 'bank';
+  if (pm === 'cash') return 'cash';
+  // Fallback: parse description
+  const d = (description || '').toLowerCase();
+  if (d.includes('upi')) return 'upi';
+  if (d.includes('card')) return 'card';
+  if (d.includes('cheque') || d.includes('bank') || d.includes('neft') || d.includes('rtgs')) return 'bank';
+  return 'cash';
 };
 
 interface PaymentBreakdown {
@@ -86,7 +93,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
     queryFn: async () => {
       const { data, error } = await supabase
         .from("voucher_entries")
-        .select("id, voucher_number, voucher_date, voucher_type, total_amount, description, reference_type, category")
+        .select("id, voucher_number, voucher_date, voucher_type, total_amount, description, reference_type, category, payment_method")
         .eq("organization_id", orgId!)
         .is("deleted_at", null)
         .gte("voucher_date", dateStr)
@@ -121,6 +128,22 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
           .eq("organization_id", orgId!)
           .eq("return_date", dateStr)
           .is("deleted_at", null);
+        if (error) return [];
+        return data || [];
+      } catch { return []; }
+    },
+    enabled: !!orgId && open,
+  });
+
+  const { data: advanceRefundsData, refetch: refetchAdvanceRefunds } = useQuery({
+    queryKey: ["daily-tally-advance-refunds", orgId, dateStr],
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase
+          .from("advance_refunds")
+          .select("id, refund_amount, payment_method, refund_date")
+          .eq("organization_id", orgId!)
+          .eq("refund_date", dateStr);
         if (error) return [];
         return data || [];
       } catch { return []; }
@@ -228,6 +251,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
     const expenses = emptyBreakdown();
     const employeeSalary = emptyBreakdown();
     const saleReturnRefunds = emptyBreakdown();
+    const advanceRefunds = emptyBreakdown();
 
     (salesData || []).forEach((s: any) => {
       const net = Number(s.net_amount) || 0;
@@ -250,15 +274,26 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
 
     (vouchersData || []).forEach((v: any) => {
       const amt = Number(v.total_amount) || 0;
-      const mode = parsePaymentMode(v.description);
-      const addToMode = (b: PaymentBreakdown) => {
-        b[mode as keyof PaymentBreakdown] = (b[mode as keyof PaymentBreakdown] as number) + amt;
+      if (amt <= 0) return;
+      // Skip non-cash adjustments
+      const pm = (v.payment_method || '').toLowerCase();
+      if (pm === 'advance_adjustment' || pm === 'credit_note' || pm === 'advance') return;
+
+      const mode = resolvePaymentMode(v.payment_method, v.description);
+      const addToBreakdown = (b: PaymentBreakdown) => {
+        (b as any)[mode] += amt;
         b.total += amt;
       };
-      if (v.voucher_type === "receipt") addToMode(receipts);
-      else if (v.voucher_type === "payment" && v.reference_type === "supplier") addToMode(supplierPayments);
-      else if (v.voucher_type === "payment" && v.reference_type === "employee") addToMode(employeeSalary);
-      else if (v.voucher_type === "expense" || v.reference_type === "expense") addToMode(expenses);
+
+      if (v.voucher_type === 'receipt') {
+        addToBreakdown(receipts);
+      } else if (v.voucher_type === 'payment') {
+        if (v.reference_type === 'supplier') addToBreakdown(supplierPayments);
+        else if (v.reference_type === 'employee') addToBreakdown(employeeSalary);
+        else if (v.reference_type === 'customer') addToBreakdown(saleReturnRefunds);
+      } else if (v.voucher_type === 'expense' || v.category === 'expense') {
+        addToBreakdown(expenses);
+      }
     });
 
     (advancesData || []).forEach((a: any) => {
@@ -272,15 +307,27 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
     });
 
     (refundsData || []).forEach((r: any) => {
-      if ((r as any).refund_type === "cash_refund") {
+      const refundType = (r.refund_type || '').toLowerCase();
+      if (refundType === 'cash_refund' || refundType === 'upi_refund' || refundType === 'bank_refund' || refundType === 'card_refund') {
         const amt = Number(r.net_amount) || 0;
-        saleReturnRefunds.cash += amt;
+        if (refundType === 'upi_refund') saleReturnRefunds.upi += amt;
+        else if (refundType === 'bank_refund') saleReturnRefunds.bank += amt;
+        else if (refundType === 'card_refund') saleReturnRefunds.card += amt;
+        else saleReturnRefunds.cash += amt;
         saleReturnRefunds.total += amt;
       }
     });
 
-    return { posSales, invoiceSales, receipts, advances, supplierPayments, expenses, employeeSalary, saleReturnRefunds };
-  }, [salesData, vouchersData, advancesData, refundsData]);
+    (advanceRefundsData || []).forEach((r: any) => {
+      const amt = Number(r.refund_amount) || 0;
+      if (amt <= 0) return;
+      const mode = resolvePaymentMode(r.payment_method, '');
+      (advanceRefunds as any)[mode] += amt;
+      advanceRefunds.total += amt;
+    });
+
+    return { posSales, invoiceSales, receipts, advances, supplierPayments, expenses, employeeSalary, saleReturnRefunds, advanceRefunds };
+  }, [salesData, vouchersData, advancesData, refundsData, advanceRefundsData]);
 
   // ─── Totals ────────────────────────────────────────────────────────
   const totalIn = useMemo(() => {
@@ -293,7 +340,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
 
   const totalOut = useMemo(() => {
     const b = emptyBreakdown();
-    [aggregated.supplierPayments, aggregated.expenses, aggregated.employeeSalary, aggregated.saleReturnRefunds].forEach(s => {
+    [aggregated.supplierPayments, aggregated.expenses, aggregated.employeeSalary, aggregated.saleReturnRefunds, aggregated.advanceRefunds].forEach(s => {
       b.cash += s.cash; b.upi += s.upi; b.card += s.card; b.bank += s.bank; b.credit += s.credit; b.total += s.total;
     });
     return b;
@@ -336,9 +383,9 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
   });
 
   const handleRefresh = useCallback(() => {
-    refetchSales(); refetchVouchers(); refetchAdvances(); refetchRefunds(); refetchSnapshot();
+    refetchSales(); refetchVouchers(); refetchAdvances(); refetchRefunds(); refetchAdvanceRefunds(); refetchSnapshot();
     toast.success("Data refreshed");
-  }, [refetchSales, refetchVouchers, refetchAdvances, refetchRefunds, refetchSnapshot]);
+  }, [refetchSales, refetchVouchers, refetchAdvances, refetchRefunds, refetchAdvanceRefunds, refetchSnapshot]);
 
   const handlePrint = useReactToPrint({ contentRef: printRef });
 
