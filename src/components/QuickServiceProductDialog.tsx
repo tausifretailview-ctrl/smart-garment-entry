@@ -21,6 +21,7 @@ export const QuickServiceProductDialog = ({
   open,
   onOpenChange,
   serviceCode,
+  productName,
   onAdd,
 }: QuickServiceProductDialogProps) => {
   const [quantity, setQuantity] = useState(1);
