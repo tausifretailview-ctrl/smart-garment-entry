@@ -202,7 +202,7 @@ ${orgName ? `🏢 ${orgName} has generated the following invoice for your order.
 📅 Date: ${format(new Date(invoice.sale_date), "dd MMM yyyy")}
 💰 Invoice Amount: ₹${Number(invoice.net_amount).toLocaleString("en-IN")}
 ⏳ Payment Status: ${invoice.payment_status}
-📊 Outstanding Balance: ₹${Number(outstandingAmount).toLocaleString("en-IN")}
+📊 Outstanding Balance: ₹${Math.round(Number(outstandingAmount)).toLocaleString("en-IN")}
 ${invoiceLink ? `\n🔗 View / Download Invoice:\n${invoiceLink}\n` : ""}
 💳 Kindly arrange payment at your convenience.
 
