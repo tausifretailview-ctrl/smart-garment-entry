@@ -438,32 +438,86 @@ export function LabelCalibrationUI({
         {(onSavePreset || onPresetsChange) && (
           <Dialog open={savePresetOpen} onOpenChange={setSavePresetOpen}>
             <DialogTrigger asChild>
-              <Button type="button" variant="outline" size="xs" className="h-8">
+              <Button type="button" variant="outline" size="xs" className="h-8" onClick={() => {
+                setNewPresetWidth(values.labelWidth);
+                setNewPresetHeight(values.labelHeight);
+                setNewPresetCols(values.thermalCols || 1);
+                setNewPresetMode(printMode || 'thermal');
+              }}>
                 <Save className="h-3 w-3 mr-1" />
                 Save
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-sm">
               <DialogHeader>
-                <DialogTitle className="text-sm">Save Calibration Preset</DialogTitle>
+                <DialogTitle className="text-sm">Create New Label Preset</DialogTitle>
               </DialogHeader>
-              <div className="space-y-2">
-                <Label className="text-xs">Preset Name</Label>
-                <Input
-                  value={newPresetName}
-                  onChange={(e) => setNewPresetName(e.target.value)}
-                  placeholder="e.g. My Thermal 50x25"
-                  className="h-8 text-xs"
-                  onKeyDown={(e) => e.key === "Enter" && savePreset()}
-                />
-                <p className="text-[10px] text-muted-foreground">
-                  Saves: {values.labelWidth}×{values.labelHeight}mm, offset ({values.xOffset}, {values.yOffset}), gap {values.vGap}mm
-                  {labelConfig ? " + label design" : ""}
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Preset Name *</Label>
+                  <Input
+                    value={newPresetName}
+                    onChange={(e) => setNewPresetName(e.target.value)}
+                    placeholder="e.g. 38×38 Jewellery 2-Up"
+                    className="h-8 text-xs no-uppercase"
+                    onKeyDown={(e) => e.key === "Enter" && savePreset()}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Width (mm)</Label>
+                    <Input
+                      type="number"
+                      value={newPresetWidth}
+                      onChange={(e) => setNewPresetWidth(Number(e.target.value) || values.labelWidth)}
+                      className="h-8 text-xs"
+                      min={10} max={200}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Height (mm)</Label>
+                    <Input
+                      type="number"
+                      value={newPresetHeight}
+                      onChange={(e) => setNewPresetHeight(Number(e.target.value) || values.labelHeight)}
+                      className="h-8 text-xs"
+                      min={10} max={200}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Print Mode</Label>
+                  <Select value={newPresetMode} onValueChange={(v) => setNewPresetMode(v as any)}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="thermal" className="text-xs">🖨️ Thermal (1-Up)</SelectItem>
+                      <SelectItem value="thermal2up" className="text-xs">🖨️ Thermal (2-Up)</SelectItem>
+                      <SelectItem value="a4" className="text-xs">📄 A4 Sheet</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {newPresetMode === 'thermal2up' && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Labels Per Row (Columns)</Label>
+                    <Input
+                      type="number"
+                      value={newPresetCols}
+                      onChange={(e) => setNewPresetCols(Number(e.target.value) || 2)}
+                      className="h-8 text-xs"
+                      min={2} max={4}
+                    />
+                  </div>
+                )}
+                <p className="text-[10px] text-muted-foreground bg-muted/40 rounded px-2 py-1.5">
+                  Size: {newPresetWidth}×{newPresetHeight}mm · Mode: {newPresetMode === 'thermal2up' ? `Thermal ${newPresetCols}-Up` : newPresetMode === 'a4' ? 'A4 Sheet' : 'Thermal 1-Up'}
+                  {labelConfig ? " · Includes label design" : ""}
                 </p>
               </div>
               <DialogFooter>
                 <Button type="button" size="xs" onClick={savePreset} disabled={!newPresetName.trim() || saving}>
-                  {saving ? "Saving..." : "Save Preset"}
+                  {saving ? "Saving..." : "Create Preset"}
                 </Button>
               </DialogFooter>
             </DialogContent>

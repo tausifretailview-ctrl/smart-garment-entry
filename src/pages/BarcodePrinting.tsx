@@ -5231,7 +5231,17 @@ export default function BarcodePrinting() {
 
         <TabsContent value="designer" className="space-y-6">
           <div className="border rounded-lg p-4 space-y-4">
-            <h2 className="text-xl font-semibold">📐 Precision Pro Label Designer</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">📐 Precision Pro Label Designer</h2>
+              {activePrecisionTemplateName && (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800">
+                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-xs font-medium text-green-700 dark:text-green-400">
+                    Live · {activePrecisionTemplateName.replace('preset:', '')}
+                  </span>
+                </div>
+              )}
+            </div>
             
             {/* Template Selector for Designer */}
             <div className="flex items-center gap-2 flex-wrap">
