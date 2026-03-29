@@ -861,7 +861,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
     // Validate variants: purchase price and sale price are required
     // In purchase context, only validate variants with qty > 0
-    const variantsToValidate = hideOpeningQty
+    const variantsToValidate = (hideOpeningQty && formData.product_type !== 'service')
       ? variants.filter((v) => (v.purchase_qty || 0) > 0)
       : variants;
 
