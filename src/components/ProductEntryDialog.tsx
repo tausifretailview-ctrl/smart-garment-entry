@@ -2168,7 +2168,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         )}
                       </Label>
                       {isAutoBarcode && (
-                        <Button type="button" variant="outline" size="sm" onClick={handleAutoGenerateBarcodes} className="gap-1 h-6 text-[11px] border-violet-300 text-violet-700 hover:bg-violet-100/60 font-outfit">
+                        <Button type="button" variant="outline" size="sm" onClick={handleAutoGenerateBarcodes} className="gap-1.5 h-8 text-xs border-violet-300 text-violet-700 hover:bg-violet-100/60 font-outfit">
                           <Barcode className="h-3 w-3" /> 🔄 Regenerate Barcodes
                         </Button>
                       )}
