@@ -738,7 +738,10 @@ const PurchaseReturnEntry = () => {
         setStockAlertOpen(true);
         return;
       }
-      const lineTotal = 1 * variant.pur_price;
+      // Get price from specific bill if available, else most recent purchase
+      const fetchedPrice = await getPriceFromBill(variant.id, originalBillId || undefined);
+      const unitPrice = fetchedPrice ?? variant.pur_price;
+      const lineTotal = 1 * unitPrice;
       const newItem: LineItem = {
         temp_id: Date.now().toString() + Math.random(),
         product_id: variant.product_id,
@@ -747,7 +750,7 @@ const PurchaseReturnEntry = () => {
         size: variant.size,
         color: variant.color,
         qty: 1,
-        pur_price: variant.pur_price,
+        pur_price: unitPrice,
         gst_per: variant.gst_per,
         hsn_code: variant.hsn_code,
         barcode: variant.barcode,
