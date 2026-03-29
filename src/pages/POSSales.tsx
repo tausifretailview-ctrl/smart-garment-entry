@@ -4769,8 +4769,12 @@ export default function POSSales() {
         {/* Quick Service Product Dialog */}
         <QuickServiceProductDialog
           open={showQuickServiceDialog}
-          onOpenChange={setShowQuickServiceDialog}
+          onOpenChange={(open) => {
+            setShowQuickServiceDialog(open);
+            if (!open) setQuickServiceProductForAdd(null);
+          }}
           serviceCode={quickServiceCode}
+          productName={quickServiceProductForAdd?.product?.product_name}
           onAdd={handleQuickServiceAdd}
         />
 

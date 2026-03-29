@@ -56,7 +56,7 @@ export const QuickServiceProductDialog = ({
       <DialogContent className="max-w-xs p-5 gap-3">
         <DialogHeader className="pb-0">
           <DialogTitle className="text-base">
-            Quick Service Item #{serviceCode}
+            {productName ? productName : `Quick Service Item #${serviceCode}`}
           </DialogTitle>
         </DialogHeader>
 
