@@ -1208,7 +1208,16 @@ export default function BarcodePrinting() {
   const testPrintRef = useRef<HTMLDivElement>(null);
   const [testPrintActive, setTestPrintActive] = useState(false);
   const [activeBarTab, setActiveBarTab] = useState<string>("standard");
-  const [activePrecisionTemplateName, setActivePrecisionTemplateName] = useState<string | null>(null);
+  const [activePrecisionTemplateName, setActivePrecisionTemplateNameRaw] = useState<string | null>(() => {
+    try { return localStorage.getItem('precision_active_preset') || null; } catch { return null; }
+  });
+  const setActivePrecisionTemplateName = (name: string | null) => {
+    setActivePrecisionTemplateNameRaw(name);
+    try {
+      if (name) localStorage.setItem('precision_active_preset', name);
+      else localStorage.removeItem('precision_active_preset');
+    } catch {}
+  };
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Helper function to check if a template is the current default
   const getDefaultTemplateName = (): string | null => {
