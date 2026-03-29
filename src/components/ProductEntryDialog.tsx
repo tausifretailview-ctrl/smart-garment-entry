@@ -2193,7 +2193,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                             // Hide variants for disabled sizes, removed colors, or qty=0 in purchase context
                             if (disabledSizes.has(variant.size)) return null;
                             if (formData.colors.length > 0 && variant.color && !formData.colors.includes(variant.color)) return null;
-                            if (hideOpeningQty && (variant.purchase_qty || 0) <= 0) return null;
+                            if (hideOpeningQty && formData.product_type !== 'service' && (variant.purchase_qty || 0) <= 0) return null;
                             return (
                             <TableRow key={index} className="hover:bg-violet-50/30 transition-colors">
                               {formData.colors.length > 0 && (
