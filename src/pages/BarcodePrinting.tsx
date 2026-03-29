@@ -1208,7 +1208,16 @@ export default function BarcodePrinting() {
   const testPrintRef = useRef<HTMLDivElement>(null);
   const [testPrintActive, setTestPrintActive] = useState(false);
   const [activeBarTab, setActiveBarTab] = useState<string>("standard");
-  const [activePrecisionTemplateName, setActivePrecisionTemplateName] = useState<string | null>(null);
+  const [activePrecisionTemplateName, setActivePrecisionTemplateNameRaw] = useState<string | null>(() => {
+    try { return localStorage.getItem('precision_active_preset') || null; } catch { return null; }
+  });
+  const setActivePrecisionTemplateName = (name: string | null) => {
+    setActivePrecisionTemplateNameRaw(name);
+    try {
+      if (name) localStorage.setItem('precision_active_preset', name);
+      else localStorage.removeItem('precision_active_preset');
+    } catch {}
+  };
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Helper function to check if a template is the current default
   const getDefaultTemplateName = (): string | null => {
@@ -1403,7 +1412,7 @@ export default function BarcodePrinting() {
         precisionSettings.labelHeight,
         currentOrganization.id
       );
-    }, 1500);
+    }, 800);
     
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
@@ -1524,7 +1533,7 @@ export default function BarcodePrinting() {
 
           // Auto-load default preset always (not just from purchase)
           const defaultPreset = mapped.find((p: any) => p.isDefault);
-          if (defaultPreset) {
+          if (defaultPreset && !activePrecisionTemplateName) {
             setPrecisionSettings((prev) => ({
               ...prev,
               xOffset: defaultPreset.xOffset,
@@ -1569,6 +1578,7 @@ export default function BarcodePrinting() {
     if (error) { toast.error("Failed to set default"); return; }
     toast.success(`"${presetName}" set as default preset`);
     setDbPresets(prev => prev.map(p => ({ ...p, isDefault: p.id === presetId })));
+    try { localStorage.removeItem('precision_active_preset'); } catch {}
   };
 
   // Set a label template as default by saving it as a printer_preset with is_default
@@ -5221,7 +5231,17 @@ export default function BarcodePrinting() {
 
         <TabsContent value="designer" className="space-y-6">
           <div className="border rounded-lg p-4 space-y-4">
-            <h2 className="text-xl font-semibold">📐 Precision Pro Label Designer</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">📐 Precision Pro Label Designer</h2>
+              {activePrecisionTemplateName && (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800">
+                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-xs font-medium text-green-700 dark:text-green-400">
+                    Live · {activePrecisionTemplateName.replace('preset:', '')}
+                  </span>
+                </div>
+              )}
+            </div>
             
             {/* Template Selector for Designer */}
             <div className="flex items-center gap-2 flex-wrap">
