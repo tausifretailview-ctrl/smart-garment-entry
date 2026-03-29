@@ -17,6 +17,7 @@ interface DailyTallyReportProps {
     expenses: PaymentBreakdown;
     employeeSalary: PaymentBreakdown;
     saleReturnRefunds: PaymentBreakdown;
+    advanceRefunds?: PaymentBreakdown;
   };
   totalIn: PaymentBreakdown;
   totalOut: PaymentBreakdown;
