@@ -109,7 +109,26 @@ export default function SaleReturnDashboard() {
         .is("deleted_at", null);
 
       if (debouncedSearch) {
-        query = query.or(`return_number.ilike.%${debouncedSearch}%,customer_name.ilike.%${debouncedSearch}%,original_sale_number.ilike.%${debouncedSearch}%`);
+        const searchStr = debouncedSearch.trim();
+
+        // Search sale_return_items for barcode or product name match
+        const { data: matchingItems } = await supabase
+          .from('sale_return_items')
+          .select('return_id')
+          .or(`barcode.ilike.%${searchStr}%,product_name.ilike.%${searchStr}%`)
+          .limit(200);
+
+        const matchingReturnIds = [...new Set((matchingItems || []).map((i: any) => i.return_id).filter(Boolean))];
+
+        if (matchingReturnIds.length > 0) {
+          query = query.or(
+            `return_number.ilike.%${searchStr}%,customer_name.ilike.%${searchStr}%,original_sale_number.ilike.%${searchStr}%,id.in.(${matchingReturnIds.join(',')})`
+          );
+        } else {
+          query = query.or(
+            `return_number.ilike.%${searchStr}%,customer_name.ilike.%${searchStr}%,original_sale_number.ilike.%${searchStr}%`
+          );
+        }
       }
 
       query = query.order("return_date", { ascending: false }).range(startIndex, endIndex);
@@ -284,7 +303,7 @@ export default function SaleReturnDashboard() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by return number, customer, sale number, or date..."
+                  placeholder="Search return no, customer, product, barcode..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"

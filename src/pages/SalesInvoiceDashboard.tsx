@@ -437,7 +437,27 @@ export default function SalesInvoiceDashboard() {
         query = query.lte('sale_date', queryDateRange.end);
       }
       if (debouncedSearch) {
-        query = query.or(`sale_number.ilike.%${debouncedSearch}%,customer_name.ilike.%${debouncedSearch}%,customer_phone.ilike.%${debouncedSearch}%`);
+        const searchStr = debouncedSearch.trim();
+
+        // Search sale_items for barcode or product name match
+        const { data: matchingItems } = await (supabase as any)
+          .from('sale_items')
+          .select('sale_id')
+          .eq('organization_id', currentOrganization.id)
+          .or(`barcode.ilike.%${searchStr}%,product_name.ilike.%${searchStr}%`)
+          .limit(200);
+
+        const matchingSaleIds = [...new Set((matchingItems || []).map((i: any) => i.sale_id).filter(Boolean))];
+
+        if (matchingSaleIds.length > 0) {
+          query = query.or(
+            `sale_number.ilike.%${searchStr}%,customer_name.ilike.%${searchStr}%,customer_phone.ilike.%${searchStr}%,id.in.(${matchingSaleIds.join(',')})`
+          );
+        } else {
+          query = query.or(
+            `sale_number.ilike.%${searchStr}%,customer_name.ilike.%${searchStr}%,customer_phone.ilike.%${searchStr}%`
+          );
+        }
       }
 
       const { data, error, count } = await query;
@@ -1915,7 +1935,7 @@ export default function SalesInvoiceDashboard() {
         <div className="px-4 pt-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search invoices..." value={searchQuery}
+            <Input placeholder="Search invoice no, customer, phone, product, barcode..." value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-10 bg-card border-border/60 rounded-xl text-sm" />
           </div>
