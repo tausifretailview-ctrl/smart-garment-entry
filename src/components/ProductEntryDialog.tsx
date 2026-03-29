@@ -2012,12 +2012,44 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                         }}
                                         id={`size-qty-${size}`}
                                         className={cn(
-                                          "h-7 w-14 text-center text-sm font-semibold p-0.5 no-uppercase",
+                                          "h-9 w-16 text-center text-base font-bold p-1 no-uppercase",
                                           qty > 0 && "border-emerald-400 text-emerald-800"
                                         )}
                                       />
                                     ) : (
-                                      <span className="h-7 w-14 flex items-center justify-center text-muted-foreground/30 text-xs">—</span>
+                                      <span className="h-9 w-16 flex items-center justify-center text-muted-foreground/30 text-sm">—</span>
+                                    )}
+                                    {!isDisabled && (
+                                      <div className="flex flex-col items-center w-full">
+                                        <span className="text-[9px] text-muted-foreground font-medium mb-0.5 tracking-wide uppercase">Sale ₹</span>
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          step="1"
+                                          tabIndex={-1}
+                                          value={(() => {
+                                            const v = variants.find(vv => vv.size === size && vv.color === (formData.colors[0] || ""));
+                                            const sp = v?.sale_price;
+                                            return (sp !== undefined && sp !== null && sp > 0) ? sp : '';
+                                          })()}
+                                          placeholder={formData.default_sale_price ? String(formData.default_sale_price) : "0"}
+                                          onChange={(e) => {
+                                            const val = parseFloat(e.target.value) || 0;
+                                            setVariants(prev => prev.map(v =>
+                                              v.size === size && v.color === (formData.colors[0] || "")
+                                                ? { ...v, sale_price: val }
+                                                : v
+                                            ));
+                                          }}
+                                          className={cn(
+                                            "h-7 w-16 text-center text-xs font-semibold p-0.5 no-uppercase",
+                                            (() => {
+                                              const v = variants.find(vv => vv.size === size && vv.color === (formData.colors[0] || ""));
+                                              return v?.sale_price && v.sale_price > 0 ? "border-blue-300 text-blue-800" : "";
+                                            })()
+                                          )}
+                                        />
+                                      </div>
                                     )}
                                   </div>
                                 );
