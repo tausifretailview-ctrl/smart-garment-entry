@@ -318,6 +318,25 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   // Recent products state
   const [recentProducts, setRecentProducts] = useState<any[]>([]);
 
+  // Auto-generate Standard variant for service products
+  useEffect(() => {
+    if (formData.product_type === 'service' && variants.length === 0 && open) {
+      setVariants([{
+        color: "",
+        size: "Standard",
+        pur_price: formData.default_pur_price ?? 1,
+        sale_price: formData.default_sale_price ?? 1,
+        mrp: null,
+        barcode: "",
+        active: true,
+        opening_qty: 0,
+        purchase_qty: 1,
+      }]);
+      setShowVariants(true);
+      if (isAutoBarcode) autoBarcodePending.current = true;
+    }
+  }, [formData.product_type]);
+
   // Fetch recent products when dialog opens
   useEffect(() => {
     if (open && currentOrganization?.id) {
@@ -716,7 +735,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         barcode: "",   // User can type 501, 502, or leave blank for auto
         active: true,
         opening_qty: 0,
-        purchase_qty: 0,
+        purchase_qty: 1,  // Service needs qty=1 to pass purchase_qty>0 filters
       };
       // Only auto-generate if in auto mode AND barcode is blank
       if (isAutoBarcode) autoBarcodePending.current = true;
@@ -797,7 +816,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       // Generate barcodes only for variants that will actually be used (qty > 0 in purchase context)
       for (let i = 0; i < updatedVariants.length; i++) {
         const v = updatedVariants[i];
-        const shouldSkip = hideOpeningQty && (v.purchase_qty || 0) <= 0;
+        const shouldSkip = hideOpeningQty && formData.product_type !== 'service' && (v.purchase_qty || 0) <= 0;
         if (!v.barcode && !shouldSkip) {
           updatedVariants[i] = {
             ...updatedVariants[i],
@@ -861,7 +880,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
     // Validate variants: purchase price and sale price are required
     // In purchase context, only validate variants with qty > 0
-    const variantsToValidate = hideOpeningQty
+    const variantsToValidate = (hideOpeningQty && formData.product_type !== 'service')
       ? variants.filter((v) => (v.purchase_qty || 0) > 0)
       : variants;
 
@@ -899,7 +918,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       }
       
       // Check purchase price > sale price
-      if (variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price) {
+      if (formData.product_type !== 'service' && variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price) {
         toast({
           title: "Price Warning",
           description: `Purchase price (₹${variant.pur_price}) is greater than Sale price (₹${variant.sale_price}) for variant ${variant.size}${variant.color ? ` (${variant.color})` : ''}. Please correct the prices.`,
@@ -977,7 +996,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
       // Insert variants — in purchase context, only create variants with purchase_qty > 0
       let insertedVariants: any[] = [];
-      let variantsToCreate = hideOpeningQty
+      let variantsToCreate = (hideOpeningQty && formData.product_type !== 'service')
         ? variants.filter((v) => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size) && (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color))).map(v => ({ ...v }))
         : [...variants];
       if (variantsToCreate.length > 0) {
@@ -2193,7 +2212,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                             // Hide variants for disabled sizes, removed colors, or qty=0 in purchase context
                             if (disabledSizes.has(variant.size)) return null;
                             if (formData.colors.length > 0 && variant.color && !formData.colors.includes(variant.color)) return null;
-                            if (hideOpeningQty && (variant.purchase_qty || 0) <= 0) return null;
+                            if (hideOpeningQty && formData.product_type !== 'service' && (variant.purchase_qty || 0) <= 0) return null;
                             return (
                             <TableRow key={index} className="hover:bg-violet-50/30 transition-colors">
                               {formData.colors.length > 0 && (
