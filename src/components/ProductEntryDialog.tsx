@@ -1209,7 +1209,16 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     <button
                       key={pt.value}
                       type="button"
-                      onClick={() => setFormData({ ...formData, product_type: pt.value })}
+                      onClick={() => {
+                        const isService = pt.value === 'service';
+                        setFormData({
+                          ...formData,
+                          product_type: pt.value as ProductType,
+                          default_pur_price: isService ? 1 : formData.default_pur_price,
+                          default_sale_price: isService ? 1 : formData.default_sale_price,
+                          default_mrp: isService ? undefined : formData.default_mrp,
+                        });
+                      }}
                       className={`flex items-center gap-2 px-3 py-2 rounded-lg border-[1.5px] cursor-pointer transition-all duration-200 text-left ${
                         formData.product_type === pt.value
                           ? 'border-primary bg-primary/5'
