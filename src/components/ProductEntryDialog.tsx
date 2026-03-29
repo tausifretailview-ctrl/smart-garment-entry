@@ -1043,8 +1043,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         if (variantsError) throw variantsError;
         insertedVariants = variantsData || [];
 
-        // Create stock movements for opening quantities
-        if (insertedVariants.length > 0) {
+        // Create stock movements for opening quantities (skip for service products)
+        if (insertedVariants.length > 0 && formData.product_type !== 'service') {
           const stockMovements = insertedVariants
             .filter((v) => v.opening_qty > 0)
               .map((v) => ({
