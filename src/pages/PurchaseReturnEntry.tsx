@@ -88,6 +88,9 @@ const PurchaseReturnEntry = () => {
   const initialDraftCheckDone = useRef(false);
   const [stockAlertOpen, setStockAlertOpen] = useState(false);
   const [stockAlertMessage, setStockAlertMessage] = useState("");
+  const [loadingBill, setLoadingBill] = useState(false);
+  const [billLoaded, setBillLoaded] = useState(false);
+  const [originalBillId, setOriginalBillId] = useState('');
 
   const [returnData, setReturnData] = useState({
     supplier_id: "",
@@ -630,7 +633,88 @@ const PurchaseReturnEntry = () => {
     }
   };
 
-  const handleProductSelect = (variant: ProductVariant) => {
+  // Get price from a specific purchase bill's items for a given variant
+  const getPriceFromBill = async (skuId: string, specificBillId?: string): Promise<number | null> => {
+    try {
+      let query = supabase
+        .from('purchase_items')
+        .select('pur_price, line_total, qty')
+        .eq('sku_id', skuId)
+        .is('deleted_at', null);
+
+      if (specificBillId) {
+        query = query.eq('bill_id', specificBillId);
+      } else {
+        query = query.order('created_at', { ascending: false }).limit(1);
+      }
+
+      const { data } = await query.maybeSingle();
+      if (!data) return null;
+      if (data.pur_price && data.pur_price > 0) return data.pur_price;
+      if (data.line_total && data.qty) return data.line_total / data.qty;
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  // Load items from a specific purchase bill
+  const loadBillByNumber = async () => {
+    if (!returnData.original_bill_number.trim() || !currentOrganization) return;
+    setLoadingBill(true);
+    setBillLoaded(false);
+    setOriginalBillId('');
+    try {
+      const searchTerm = returnData.original_bill_number.trim();
+      const { data: bill, error } = await supabase
+        .from('purchase_bills')
+        .select(`id, supplier_id, supplier_name, purchase_items(id, sku_id, product_id, product_name, size, color, qty, pur_price, gst_per, hsn_code, barcode, line_total, brand, discount_percent, discount_amount)`)
+        .eq('organization_id', currentOrganization.id)
+        .or(`software_bill_no.eq.${searchTerm},supplier_invoice_no.eq.${searchTerm}`)
+        .is('deleted_at', null)
+        .single();
+
+      if (error || !bill) {
+        toast({ title: 'Not Found', description: `No purchase bill found with number "${searchTerm}"`, variant: 'destructive' });
+        return;
+      }
+
+      setOriginalBillId(bill.id);
+
+      // Auto-fill supplier if not already set
+      if (!returnData.supplier_id && bill.supplier_id) {
+        setReturnData(prev => ({ ...prev, supplier_id: bill.supplier_id, supplier_name: bill.supplier_name }));
+      }
+
+      const items: LineItem[] = ((bill as any).purchase_items || []).map((item: any) => ({
+        temp_id: Date.now().toString() + Math.random(),
+        product_id: item.product_id,
+        sku_id: item.sku_id,
+        product_name: item.product_name || '',
+        size: item.size || '',
+        color: item.color || '',
+        qty: item.qty || 1,
+        pur_price: item.pur_price || 0,
+        gst_per: item.gst_per || 0,
+        hsn_code: item.hsn_code || '',
+        barcode: item.barcode || '',
+        line_total: item.line_total || 0,
+        brand: item.brand || '',
+        discount_percent: item.discount_percent || 0,
+        discount_amount: item.discount_amount || 0,
+      }));
+
+      setLineItems(items);
+      setBillLoaded(true);
+      toast({ title: 'Bill Loaded', description: `${items.length} item(s) loaded from bill — edit quantities as needed` });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message || 'Failed to load bill', variant: 'destructive' });
+    } finally {
+      setLoadingBill(false);
+    }
+  };
+
+  const handleProductSelect = async (variant: ProductVariant) => {
     // Stock validation for purchase return
     const currentItems = lineItemsRef.current;
     const existingItem = currentItems.find(item => item.sku_id === variant.id);
@@ -654,7 +738,10 @@ const PurchaseReturnEntry = () => {
         setStockAlertOpen(true);
         return;
       }
-      const lineTotal = 1 * variant.pur_price;
+      // Get price from specific bill if available, else most recent purchase
+      const fetchedPrice = await getPriceFromBill(variant.id, originalBillId || undefined);
+      const unitPrice = fetchedPrice ?? variant.pur_price;
+      const lineTotal = 1 * unitPrice;
       const newItem: LineItem = {
         temp_id: Date.now().toString() + Math.random(),
         product_id: variant.product_id,
@@ -663,7 +750,7 @@ const PurchaseReturnEntry = () => {
         size: variant.size,
         color: variant.color,
         qty: 1,
-        pur_price: variant.pur_price,
+        pur_price: unitPrice,
         gst_per: variant.gst_per,
         hsn_code: variant.hsn_code,
         barcode: variant.barcode,
@@ -999,13 +1086,36 @@ const PurchaseReturnEntry = () => {
 
               <div className="space-y-2">
                 <Label>Original Bill Number</Label>
-                <Input
-                  placeholder="Enter original purchase bill number"
-                  value={returnData.original_bill_number}
-                  onChange={(e) =>
-                    setReturnData({ ...returnData, original_bill_number: e.target.value })
-                  }
-                />
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Enter bill no e.g. B032601 or supplier invoice no"
+                    value={returnData.original_bill_number}
+                    className="no-uppercase"
+                    onChange={(e) => {
+                      setReturnData({ ...returnData, original_bill_number: e.target.value });
+                      setBillLoaded(false);
+                      setOriginalBillId('');
+                    }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); loadBillByNumber(); } }}
+                  />
+                  <Button
+                    type="button"
+                    onClick={loadBillByNumber}
+                    disabled={loadingBill || !returnData.original_bill_number.trim()}
+                    className="h-10 px-4 flex items-center gap-2 flex-shrink-0"
+                  >
+                    {loadingBill ? (
+                      <><Loader2 className="h-4 w-4 animate-spin" />Loading...</>
+                    ) : (
+                      <><Search className="h-4 w-4" />Load Items</>
+                    )}
+                  </Button>
+                </div>
+                {billLoaded && (
+                  <p className="text-xs text-green-600 font-medium mt-1">
+                    ✅ Items loaded from bill — edit quantities as needed before saving.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
