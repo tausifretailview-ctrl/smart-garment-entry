@@ -315,6 +315,20 @@ export default function NetProfitAnalysis() {
 
       const variantMap = new Map(allVariants.map(v => [v.id, v]));
 
+      // Build weighted average purchase price map from actual purchase_items
+      const purchaseItems = await fetchAllPurchaseItems(variantIds);
+      const purPriceAccum: Record<string, { total: number; qty: number }> = {};
+      purchaseItems?.forEach((pi: any) => {
+        if (!pi.sku_id) return;
+        if (!purPriceAccum[pi.sku_id]) purPriceAccum[pi.sku_id] = { total: 0, qty: 0 };
+        purPriceAccum[pi.sku_id].total += (pi.pur_price || 0) * (pi.qty || 1);
+        purPriceAccum[pi.sku_id].qty += (pi.qty || 1);
+      });
+      const variantPurchasePriceMap = new Map<string, number>();
+      Object.entries(purPriceAccum).forEach(([skuId, acc]) => {
+        variantPurchasePriceMap.set(skuId, acc.qty > 0 ? acc.total / acc.qty : 0);
+      });
+
       const productIds = [...new Set(saleItems.map(si => si.product_id).filter(Boolean))];
 
       const { data: products } = await supabase
@@ -333,7 +347,7 @@ export default function NetProfitAnalysis() {
 
         const qty = item.quantity || 0;
         const lineTotal = item.line_total || 0;
-        const purPrice = variant?.pur_price || 0;
+        const purPrice = variantPurchasePriceMap.get(item.variant_id) || variant?.pur_price || 0;
         const cogs = qty * purPrice;
 
         if (!productProfitMap.has(productId)) {
