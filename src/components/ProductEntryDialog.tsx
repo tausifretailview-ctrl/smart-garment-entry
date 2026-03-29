@@ -1782,10 +1782,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       return (
                         <div className="space-y-2 mt-2">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold text-foreground">
+                            <span className="text-sm font-semibold text-foreground">
                               Size-wise Quantity
                             </span>
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-sm text-muted-foreground">
                               Total: {totalQty} pcs · {activeSizeCount} sizes
                             </span>
                           </div>
@@ -1910,7 +1910,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                             </div>
                           ) : (
                             /* ── Single color / no color: single-row grid with toggle ── */
-                            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5 p-3 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20">
+                            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 gap-2.5 p-4 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20">
                               {allSizes.map((size) => {
                                 const sIdx = allSizes.indexOf(size);
                                 const isDisabled = disabledSizes.has(size);
@@ -1921,12 +1921,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                   <div
                                     key={size}
                                     className={cn(
-                                      "flex flex-col items-center gap-1 p-1.5 rounded-md border transition-colors relative",
+                                      "flex flex-col items-center gap-2 p-3 rounded-lg border-[1.5px] transition-colors relative",
                                       isDisabled
                                         ? "bg-muted/50 border-border/50 opacity-50"
                                         : qty > 0
                                           ? "bg-emerald-50 border-emerald-300 dark:bg-emerald-950/30 dark:border-emerald-700"
-                                          : "bg-card border-border"
+                                          : "bg-card border-border hover:border-violet-300"
                                     )}
                                   >
                                     {/* Toggle button on size label */}
@@ -1940,16 +1940,16 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                         });
                                       }}
                                       className={cn(
-                                        "text-xs font-bold flex items-center gap-0.5 cursor-pointer transition-colors",
+                                        "text-sm font-bold flex items-center gap-1 cursor-pointer transition-colors tracking-wide",
                                         isDisabled
                                           ? "text-muted-foreground/40 line-through"
                                           : qty > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"
                                       )}
                                     >
                                       {isDisabled ? (
-                                        <X className="h-3 w-3 text-muted-foreground/40" />
+                                        <X className="h-3.5 w-3.5 text-muted-foreground/40" />
                                       ) : (
-                                        <Check className="h-3 w-3 text-emerald-600" />
+                                        <Check className="h-3.5 w-3.5 text-emerald-600" />
                                       )}
                                       {size}
                                     </button>
@@ -2012,12 +2012,44 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                         }}
                                         id={`size-qty-${size}`}
                                         className={cn(
-                                          "h-7 w-14 text-center text-sm font-semibold p-0.5 no-uppercase",
+                                          "h-9 w-16 text-center text-base font-bold p-1 no-uppercase",
                                           qty > 0 && "border-emerald-400 text-emerald-800"
                                         )}
                                       />
                                     ) : (
-                                      <span className="h-7 w-14 flex items-center justify-center text-muted-foreground/30 text-xs">—</span>
+                                      <span className="h-9 w-16 flex items-center justify-center text-muted-foreground/30 text-sm">—</span>
+                                    )}
+                                    {!isDisabled && (
+                                      <div className="flex flex-col items-center w-full">
+                                        <span className="text-[9px] text-muted-foreground font-medium mb-0.5 tracking-wide uppercase">Sale ₹</span>
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          step="1"
+                                          tabIndex={-1}
+                                          value={(() => {
+                                            const v = variants.find(vv => vv.size === size && vv.color === (formData.colors[0] || ""));
+                                            const sp = v?.sale_price;
+                                            return (sp !== undefined && sp !== null && sp > 0) ? sp : '';
+                                          })()}
+                                          placeholder={formData.default_sale_price ? String(formData.default_sale_price) : "0"}
+                                          onChange={(e) => {
+                                            const val = parseFloat(e.target.value) || 0;
+                                            setVariants(prev => prev.map(v =>
+                                              v.size === size && v.color === (formData.colors[0] || "")
+                                                ? { ...v, sale_price: val }
+                                                : v
+                                            ));
+                                          }}
+                                          className={cn(
+                                            "h-7 w-16 text-center text-xs font-semibold p-0.5 no-uppercase",
+                                            (() => {
+                                              const v = variants.find(vv => vv.size === size && vv.color === (formData.colors[0] || ""));
+                                              return v?.sale_price && v.sale_price > 0 ? "border-blue-300 text-blue-800" : "";
+                                            })()
+                                          )}
+                                        />
+                                      </div>
                                     )}
                                   </div>
                                 );
