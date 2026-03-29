@@ -977,7 +977,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
       // Insert variants — in purchase context, only create variants with purchase_qty > 0
       let insertedVariants: any[] = [];
-      let variantsToCreate = hideOpeningQty
+      let variantsToCreate = (hideOpeningQty && formData.product_type !== 'service')
         ? variants.filter((v) => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size) && (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color))).map(v => ({ ...v }))
         : [...variants];
       if (variantsToCreate.length > 0) {
