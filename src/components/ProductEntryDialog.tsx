@@ -716,7 +716,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         barcode: "",   // User can type 501, 502, or leave blank for auto
         active: true,
         opening_qty: 0,
-        purchase_qty: 0,
+        purchase_qty: 1,  // Service needs qty=1 to pass purchase_qty>0 filters
       };
       // Only auto-generate if in auto mode AND barcode is blank
       if (isAutoBarcode) autoBarcodePending.current = true;
