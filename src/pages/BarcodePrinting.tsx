@@ -1533,7 +1533,7 @@ export default function BarcodePrinting() {
 
           // Auto-load default preset always (not just from purchase)
           const defaultPreset = mapped.find((p: any) => p.isDefault);
-          if (defaultPreset) {
+          if (defaultPreset && !activePrecisionTemplateName) {
             setPrecisionSettings((prev) => ({
               ...prev,
               xOffset: defaultPreset.xOffset,
