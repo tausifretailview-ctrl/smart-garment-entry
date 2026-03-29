@@ -84,27 +84,73 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
     refetchInterval: open ? 30000 : false,
   });
 
-  const calculateTotals = () => {
-    if (!salesData || salesData.length === 0) {
-      return {
-        grossSale: 0,
-        totalDiscount: 0,
-        totalSale: 0,
-        cashSale: 0,
-        cardSale: 0,
-        upiSale: 0,
-        creditSale: 0,
-        totalRefund: 0,
-        totalSRAdjusted: 0,
-        totalBills: 0,
-      };
-    }
+  const { data: voucherData } = useQuery({
+    queryKey: ["cashier-report-vouchers", currentOrganization?.id, selectedDate],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const { data } = await supabase
+        .from("voucher_entries")
+        .select("id, voucher_type, total_amount, payment_method, reference_type, description, category")
+        .eq("organization_id", currentOrganization.id)
+        .eq("voucher_date", selectedDate)
+        .is("deleted_at", null);
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id && open,
+  });
 
+  const { data: advancesData } = useQuery({
+    queryKey: ["cashier-report-advances", currentOrganization?.id, selectedDate],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const { data } = await supabase
+        .from("customer_advances")
+        .select("id, amount, payment_method")
+        .eq("organization_id", currentOrganization.id)
+        .eq("advance_date", selectedDate);
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id && open,
+  });
+
+  const { data: advanceRefundsData } = useQuery({
+    queryKey: ["cashier-report-advance-refunds", currentOrganization?.id, selectedDate],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const { data } = await supabase
+        .from("advance_refunds")
+        .select("id, refund_amount, payment_method")
+        .eq("organization_id", currentOrganization.id)
+        .eq("refund_date", selectedDate);
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id && open,
+  });
+
+  const resolveMode = (paymentMethod: string | null, description: string): string | null => {
+    const pm = (paymentMethod || '').toLowerCase().trim();
+    if (pm === 'upi') return 'upi';
+    if (pm === 'card') return 'card';
+    if (pm === 'bank' || pm === 'cheque' || pm === 'neft' || pm === 'bank_transfer') return 'bank';
+    if (pm === 'advance_adjustment' || pm === 'credit_note') return null;
+    if (pm === 'cash') return 'cash';
+    const d = (description || '').toLowerCase();
+    if (d.includes('upi')) return 'upi';
+    if (d.includes('card')) return 'card';
+    if (d.includes('bank') || d.includes('neft') || d.includes('cheque')) return 'bank';
+    return 'cash';
+  };
+
+  const calculateTotals = () => {
     let grossSale = 0, totalDiscount = 0, totalSale = 0;
     let cashSale = 0, cardSale = 0, upiSale = 0, creditSale = 0;
     let totalRefund = 0, totalSRAdjusted = 0;
+    let advanceReceived = 0, advanceCash = 0, advanceUpi = 0, advanceCard = 0;
+    let receiptCash = 0, receiptUpi = 0, receiptCard = 0, receiptTotal = 0;
+    let supplierPaid = 0, expensePaid = 0, employeePaid = 0;
+    let advanceRefundTotal = 0, advanceRefundCash = 0;
 
-    salesData.forEach((sale) => {
+    (salesData || []).forEach((sale) => {
       grossSale += Number(sale.gross_amount) || 0;
       totalDiscount += (Number(sale.discount_amount) || 0) + (Number(sale.flat_discount_amount) || 0);
       totalSale += Number(sale.net_amount) || 0;
@@ -116,28 +162,74 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
         cardSale += Number(sale.card_amount) || 0;
         upiSale += Number(sale.upi_amount) || 0;
       } else {
-        const netAmount = Number(sale.net_amount) || 0;
+        const net = Number(sale.net_amount) || 0;
         switch (sale.payment_method) {
-          case "cash": cashSale += Number(sale.cash_amount) || netAmount; break;
-          case "card": cardSale += Number(sale.card_amount) || netAmount; break;
-          case "upi": upiSale += Number(sale.upi_amount) || netAmount; break;
-          case "pay_later": creditSale += netAmount; break;
-          default: cashSale += netAmount;
+          case "cash": cashSale += Number(sale.cash_amount) || net; break;
+          case "card": cardSale += Number(sale.card_amount) || net; break;
+          case "upi": upiSale += Number(sale.upi_amount) || net; break;
+          case "pay_later": creditSale += net; break;
+          default: cashSale += net;
         }
       }
     });
 
+    (advancesData || []).forEach((a: any) => {
+      const amt = Number(a.amount) || 0;
+      const pm = (a.payment_method || 'cash').toLowerCase();
+      advanceReceived += amt;
+      if (pm === 'upi') advanceUpi += amt;
+      else if (pm === 'card') advanceCard += amt;
+      else advanceCash += amt;
+    });
+
+    (voucherData || []).forEach((v: any) => {
+      const amt = Number(v.total_amount) || 0;
+      if (amt <= 0) return;
+      const m = resolveMode(v.payment_method, v.description);
+      if (!m) return; // skip advance_adjustment/credit_note
+      if (v.voucher_type === 'receipt') {
+        receiptTotal += amt;
+        if (m === 'upi') receiptUpi += amt;
+        else if (m === 'card') receiptCard += amt;
+        else receiptCash += amt;
+      } else if (v.voucher_type === 'payment') {
+        if (v.reference_type === 'supplier') supplierPaid += amt;
+        else if (v.reference_type === 'employee') employeePaid += amt;
+      } else if (v.voucher_type === 'expense' || v.category === 'expense') {
+        expensePaid += amt;
+      }
+    });
+
+    (advanceRefundsData || []).forEach((r: any) => {
+      const amt = Number(r.refund_amount) || 0;
+      advanceRefundTotal += amt;
+      const pm = (r.payment_method || 'cash').toLowerCase();
+      if (pm === 'cash') advanceRefundCash += amt;
+    });
+
+    const totalCashIn = cashSale + advanceCash + receiptCash;
+    const totalCashOut = supplierPaid + expensePaid + employeePaid + advanceRefundCash;
+
     return {
-      grossSale,
-      totalDiscount,
-      totalSale,
-      cashSale,
-      cardSale,
-      upiSale,
-      creditSale,
-      totalRefund,
-      totalSRAdjusted,
-      totalBills: salesData.length,
+      grossSale: Math.round(grossSale),
+      totalDiscount: Math.round(totalDiscount),
+      totalSale: Math.round(totalSale),
+      cashSale: Math.round(cashSale),
+      cardSale: Math.round(cardSale),
+      upiSale: Math.round(upiSale),
+      creditSale: Math.round(creditSale),
+      totalRefund: Math.round(totalRefund),
+      totalSRAdjusted: Math.round(totalSRAdjusted),
+      totalBills: (salesData || []).length,
+      advanceReceived: Math.round(advanceReceived),
+      receiptTotal: Math.round(receiptTotal),
+      supplierPaid: Math.round(supplierPaid),
+      expensePaid: Math.round(expensePaid),
+      employeePaid: Math.round(employeePaid),
+      advanceRefundTotal: Math.round(advanceRefundTotal),
+      totalCashIn: Math.round(totalCashIn),
+      totalCashOut: Math.round(totalCashOut),
+      netCash: Math.round(totalCashIn - totalCashOut),
     };
   };
 
