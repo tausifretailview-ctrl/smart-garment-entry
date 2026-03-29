@@ -3248,9 +3248,10 @@ export default function Settings() {
                           
                           <div className="space-y-2">
                             <Label htmlFor="api_password">Password</Label>
-                            <Input
+                             <Input
                               id="api_password"
                               type="password"
+                              className="no-uppercase"
                               value={settings.sale_settings?.einvoice_settings?.api_password || ''}
                               onChange={(e) =>
                                 setSettings({
