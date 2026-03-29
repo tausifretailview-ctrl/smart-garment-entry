@@ -303,23 +303,9 @@ export default function SaleReturnEntry() {
 
     if (!product || !variant) return;
 
-    const { data: saleItemData } = await supabase
-      .from("sale_items")
-      .select("per_qty_net_amount, net_after_discount, unit_price, line_total, quantity")
-      .eq("variant_id", variantId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    let unitPrice = variant.sale_price;
-    if (saleItemData) {
-      if (saleItemData.per_qty_net_amount && saleItemData.per_qty_net_amount > 0) {
-        unitPrice = saleItemData.per_qty_net_amount;
-      } else if (saleItemData.line_total && saleItemData.quantity) {
-        unitPrice = saleItemData.line_total / saleItemData.quantity;
-      }
-    }
+    // Get price from specific sale invoice if available, else most recent sale
+    const fetchedPrice = await getPriceFromSale(variantId, originalSaleId || undefined);
+    let unitPrice = fetchedPrice ?? variant.sale_price;
 
     const newItem: ReturnItem = {
       productId: product.id,
