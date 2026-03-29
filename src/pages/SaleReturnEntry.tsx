@@ -482,6 +482,7 @@ export default function SaleReturnEntry() {
         quantity: item.quantity || 1,
       }));
 
+      setOriginalSaleId(sale.id);
       setSaleItems(items);
       setSaleLoaded(true);
       toast({ title: 'Sale Loaded', description: `${items.length} item(s) found — select which to return` });
