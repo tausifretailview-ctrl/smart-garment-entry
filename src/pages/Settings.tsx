@@ -3274,6 +3274,7 @@ export default function Settings() {
                             <Label htmlFor="api_client_id">Client ID</Label>
                             <Input
                               id="api_client_id"
+                              className="no-uppercase"
                               value={settings.sale_settings?.einvoice_settings?.api_client_id || ''}
                               onChange={(e) =>
                                 setSettings({
