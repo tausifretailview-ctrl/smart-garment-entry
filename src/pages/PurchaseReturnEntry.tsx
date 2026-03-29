@@ -633,7 +633,88 @@ const PurchaseReturnEntry = () => {
     }
   };
 
-  const handleProductSelect = (variant: ProductVariant) => {
+  // Get price from a specific purchase bill's items for a given variant
+  const getPriceFromBill = async (skuId: string, specificBillId?: string): Promise<number | null> => {
+    try {
+      let query = supabase
+        .from('purchase_items')
+        .select('pur_price, line_total, qty')
+        .eq('sku_id', skuId)
+        .is('deleted_at', null);
+
+      if (specificBillId) {
+        query = query.eq('bill_id', specificBillId);
+      } else {
+        query = query.order('created_at', { ascending: false }).limit(1);
+      }
+
+      const { data } = await query.maybeSingle();
+      if (!data) return null;
+      if (data.pur_price && data.pur_price > 0) return data.pur_price;
+      if (data.line_total && data.qty) return data.line_total / data.qty;
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  // Load items from a specific purchase bill
+  const loadBillByNumber = async () => {
+    if (!returnData.original_bill_number.trim() || !currentOrganization) return;
+    setLoadingBill(true);
+    setBillLoaded(false);
+    setOriginalBillId('');
+    try {
+      const searchTerm = returnData.original_bill_number.trim();
+      const { data: bill, error } = await supabase
+        .from('purchase_bills')
+        .select(`id, supplier_id, supplier_name, purchase_items(id, sku_id, product_id, product_name, size, color, qty, pur_price, gst_per, hsn_code, barcode, line_total, brand, discount_percent, discount_amount)`)
+        .eq('organization_id', currentOrganization.id)
+        .or(`software_bill_no.eq.${searchTerm},supplier_invoice_no.eq.${searchTerm}`)
+        .is('deleted_at', null)
+        .single();
+
+      if (error || !bill) {
+        toast({ title: 'Not Found', description: `No purchase bill found with number "${searchTerm}"`, variant: 'destructive' });
+        return;
+      }
+
+      setOriginalBillId(bill.id);
+
+      // Auto-fill supplier if not already set
+      if (!returnData.supplier_id && bill.supplier_id) {
+        setReturnData(prev => ({ ...prev, supplier_id: bill.supplier_id, supplier_name: bill.supplier_name }));
+      }
+
+      const items: LineItem[] = ((bill as any).purchase_items || []).map((item: any) => ({
+        temp_id: Date.now().toString() + Math.random(),
+        product_id: item.product_id,
+        sku_id: item.sku_id,
+        product_name: item.product_name || '',
+        size: item.size || '',
+        color: item.color || '',
+        qty: item.qty || 1,
+        pur_price: item.pur_price || 0,
+        gst_per: item.gst_per || 0,
+        hsn_code: item.hsn_code || '',
+        barcode: item.barcode || '',
+        line_total: item.line_total || 0,
+        brand: item.brand || '',
+        discount_percent: item.discount_percent || 0,
+        discount_amount: item.discount_amount || 0,
+      }));
+
+      setLineItems(items);
+      setBillLoaded(true);
+      toast({ title: 'Bill Loaded', description: `${items.length} item(s) loaded from bill — edit quantities as needed` });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message || 'Failed to load bill', variant: 'destructive' });
+    } finally {
+      setLoadingBill(false);
+    }
+  };
+
+  const handleProductSelect = async (variant: ProductVariant) => {
     // Stock validation for purchase return
     const currentItems = lineItemsRef.current;
     const existingItem = currentItems.find(item => item.sku_id === variant.id);
