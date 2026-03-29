@@ -13,6 +13,7 @@ interface QuickServiceProductDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   serviceCode: string;
+  productName?: string;
   onAdd: (data: { code: string; quantity: number; mrp: number }) => void;
 }
 
