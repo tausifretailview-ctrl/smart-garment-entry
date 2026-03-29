@@ -1323,6 +1323,15 @@ export default function POSSales() {
     // Service products: NEVER merge - each scan is a unique item with manual price entry
     // This is essential for saree shops where each piece has different MRP
     const isServiceProduct = product.product_type === 'service';
+
+    // Service products: always ask for actual price before adding
+    if (isServiceProduct && !overridePrice) {
+      setQuickServiceCode(variant.barcode || product.product_name);
+      setQuickServiceProductForAdd({ product, variant });
+      setShowQuickServiceDialog(true);
+      setSearchInput("");
+      return;
+    }
     
     const existingItemIndex = isServiceProduct 
       ? -1  // Always treat as new item for service products
