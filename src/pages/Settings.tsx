@@ -3309,7 +3309,7 @@ export default function Settings() {
                                 })
                               }
                               placeholder="••••••••••••••••"
-                              className="font-mono"
+                              className="font-mono no-uppercase"
                             />
                           </div>
                         </div>
