@@ -82,6 +82,7 @@ export default function SaleReturnEntry() {
   const [saving, setSaving] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const [originalSaleId, setOriginalSaleId] = useState<string>('');
 
   // Store original item IDs for edit mode (to delete them on resave)
   const [originalItemIds, setOriginalItemIds] = useState<string[]>([]);
@@ -295,30 +296,42 @@ export default function SaleReturnEntry() {
       barcodeMatch
     );
   });
+  // Get unit price from a specific sale's items for a given variant
+  const getPriceFromSale = async (variantId: string, specificSaleId?: string): Promise<number | null> => {
+    try {
+      let query = supabase
+        .from('sale_items')
+        .select('unit_price, per_qty_net_amount, line_total, quantity')
+        .eq('variant_id', variantId)
+        .is('deleted_at', null);
 
-  const addProduct = async (productId: string, variantId: string) => {
+      if (specificSaleId) {
+        query = query.eq('sale_id', specificSaleId);
+      } else {
+        query = query.order('created_at', { ascending: false }).limit(1);
+      }
+
+      const { data } = await query.maybeSingle();
+      if (!data) return null;
+
+      if (data.unit_price && data.unit_price > 0) return data.unit_price;
+      if (data.per_qty_net_amount && data.per_qty_net_amount > 0) return data.per_qty_net_amount;
+      if (data.line_total && data.quantity) return data.line_total / data.quantity;
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+
     const product = products.find((p) => p.id === productId);
     const variant = variants.find((v) => v.id === variantId);
 
     if (!product || !variant) return;
 
-    const { data: saleItemData } = await supabase
-      .from("sale_items")
-      .select("per_qty_net_amount, net_after_discount, unit_price, line_total, quantity")
-      .eq("variant_id", variantId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    let unitPrice = variant.sale_price;
-    if (saleItemData) {
-      if (saleItemData.per_qty_net_amount && saleItemData.per_qty_net_amount > 0) {
-        unitPrice = saleItemData.per_qty_net_amount;
-      } else if (saleItemData.line_total && saleItemData.quantity) {
-        unitPrice = saleItemData.line_total / saleItemData.quantity;
-      }
-    }
+    // Get price from specific sale invoice if available, else most recent sale
+    const fetchedPrice = await getPriceFromSale(variantId, originalSaleId || undefined);
+    let unitPrice = fetchedPrice ?? variant.sale_price;
 
     const newItem: ReturnItem = {
       productId: product.id,
@@ -408,23 +421,9 @@ export default function SaleReturnEntry() {
         updated[existingIndex].quantity * updated[existingIndex].unitPrice;
       setReturnItems(updated);
     } else {
-      const { data: saleItemData } = await supabase
-        .from("sale_items")
-        .select("per_qty_net_amount, net_after_discount, unit_price, line_total, quantity")
-        .eq("variant_id", variant.id)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      let unitPrice = variant.sale_price;
-      if (saleItemData) {
-        if (saleItemData.per_qty_net_amount && saleItemData.per_qty_net_amount > 0) {
-          unitPrice = saleItemData.per_qty_net_amount;
-        } else if (saleItemData.line_total && saleItemData.quantity) {
-          unitPrice = saleItemData.line_total / saleItemData.quantity;
-        }
-      }
+      // Get price from specific sale invoice if available, else most recent sale
+      const fetchedPrice = await getPriceFromSale(variant.id, originalSaleId || undefined);
+      let unitPrice = fetchedPrice ?? variant.sale_price;
 
       const newItem: ReturnItem = {
         productId: product.id,
@@ -509,6 +508,7 @@ export default function SaleReturnEntry() {
         quantity: item.quantity || 1,
       }));
 
+      setOriginalSaleId(sale.id);
       setSaleItems(items);
       setSaleLoaded(true);
       toast({ title: 'Sale Loaded', description: `${items.length} item(s) found — select which to return` });
@@ -871,6 +871,7 @@ export default function SaleReturnEntry() {
                   value={originalSaleNumber}
                   onChange={(e) => {
                     setOriginalSaleNumber(e.target.value);
+                    setOriginalSaleId('');
                     setSaleLoaded(false);
                     setSaleItems([]);
                     setSelectedSaleItemIds(new Set());
