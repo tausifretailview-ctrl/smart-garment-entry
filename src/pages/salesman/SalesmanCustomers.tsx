@@ -202,7 +202,13 @@ const SalesmanCustomers = () => {
             <CardContent className="p-4">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-foreground truncate">{customer.customer_name}</h3>
+                  <button
+                    type="button"
+                    className="font-semibold text-left text-primary underline-offset-2 hover:underline truncate w-full text-base"
+                    onClick={() => navigate(`/salesman/customer/${customer.id}`)}
+                  >
+                    {customer.customer_name}
+                  </button>
                   {customer.phone && (
                     <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
                       <Phone className="h-3 w-3" />
