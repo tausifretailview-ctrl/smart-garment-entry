@@ -1412,7 +1412,7 @@ export default function BarcodePrinting() {
         precisionSettings.labelHeight,
         currentOrganization.id
       );
-    }, 1500);
+    }, 800);
     
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
