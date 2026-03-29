@@ -1910,7 +1910,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                             </div>
                           ) : (
                             /* ── Single color / no color: single-row grid with toggle ── */
-                            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5 p-3 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20">
+                            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 gap-2.5 p-4 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20">
                               {allSizes.map((size) => {
                                 const sIdx = allSizes.indexOf(size);
                                 const isDisabled = disabledSizes.has(size);
