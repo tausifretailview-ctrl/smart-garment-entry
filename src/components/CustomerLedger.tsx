@@ -84,6 +84,12 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
   const { isSchool } = useSchoolFeatures();
   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
   const [customerForHistory, setCustomerForHistory] = useState<{ id: string; name: string } | null>(null);
+  const [showOverpaymentRefundDialog, setShowOverpaymentRefundDialog] = useState(false);
+  const [overpaymentRefundAmount, setOverpaymentRefundAmount] = useState('');
+  const [overpaymentRefundMode, setOverpaymentRefundMode] = useState('cash');
+  const [overpaymentRefundNote, setOverpaymentRefundNote] = useState('');
+  const [isProcessingRefund, setIsProcessingRefund] = useState(false);
+  const queryClient = useQueryClient();
 
   const openHistory = (id: string, name: string) => {
     setCustomerForHistory({ id, name });
