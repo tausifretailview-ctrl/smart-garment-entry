@@ -2151,7 +2151,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 {showVariants && variants.length > 0 && (
                   <div ref={variantsSectionRef} className="space-y-2 pt-1">
                     <div className="flex items-center justify-between">
-                      <Label className="text-xs font-semibold text-violet-700 font-outfit flex items-center gap-2">
+                      <Label className="text-sm font-semibold text-violet-700 font-outfit flex items-center gap-2">
                         {(() => {
                           const visibleCount = variants.filter(v => {
                             if (disabledSizes.has(v.size)) return false;
