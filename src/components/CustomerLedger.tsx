@@ -363,6 +363,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           totalSales: Math.round(totalSales),
           totalPaid: Math.round(totalPaid),
           balance,
+          unusedAdvanceTotal: Math.round(effectiveUnusedAdvances),
         };
       });
 
