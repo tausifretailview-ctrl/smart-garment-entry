@@ -113,10 +113,10 @@ Deno.serve(async (req) => {
     const saleSettings = (settingsData?.sale_settings as Record<string, any>) || {};
     const einvoiceSettings = saleSettings?.einvoice_settings || {};
 
-    const clientId = einvoiceSettings?.api_client_id || Deno.env.get('WHITEBOOKS_CLIENT_ID') || '';
-    const clientSecret = einvoiceSettings?.api_client_secret || Deno.env.get('WHITEBOOKS_CLIENT_SECRET') || '';
-    const username = einvoiceSettings?.api_username || Deno.env.get('WHITEBOOKS_USERNAME') || '';
-    const password = einvoiceSettings?.api_password || Deno.env.get('WHITEBOOKS_PASSWORD') || '';
+    const clientId = einvoiceSettings?.api_client_id || Deno.env.get('PERIONE_CLIENT_ID') || '';
+    const clientSecret = einvoiceSettings?.api_client_secret || Deno.env.get('PERIONE_CLIENT_SECRET') || '';
+    const username = einvoiceSettings?.api_username || Deno.env.get('PERIONE_USERNAME') || '';
+    const password = einvoiceSettings?.api_password || Deno.env.get('PERIONE_PASSWORD') || '';
     const apiEmail = einvoiceSettings?.api_email || '';
     const sellerGstin = einvoiceSettings?.seller_gstin || settingsData?.gst_number || '';
 
