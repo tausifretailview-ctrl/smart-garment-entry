@@ -1578,6 +1578,7 @@ export default function BarcodePrinting() {
     if (error) { toast.error("Failed to set default"); return; }
     toast.success(`"${presetName}" set as default preset`);
     setDbPresets(prev => prev.map(p => ({ ...p, isDefault: p.id === presetId })));
+    try { localStorage.removeItem('precision_active_preset'); } catch {}
   };
 
   // Set a label template as default by saving it as a printer_preset with is_default
