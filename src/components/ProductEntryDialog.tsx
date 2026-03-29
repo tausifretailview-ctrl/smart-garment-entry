@@ -707,18 +707,20 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
   const handleGenerateSizeVariants = () => {
     if (formData.product_type === 'service') {
-      const newVariants: ProductVariant[] = [{
+      const newVariant: ProductVariant = {
         color: "",
         size: "Standard",
-        pur_price: formData.default_pur_price ?? 0,
-        sale_price: formData.default_sale_price ?? 0,
-        mrp: formData.default_mrp ?? null,
-        barcode: "",
+        pur_price: formData.default_pur_price ?? 1,
+        sale_price: formData.default_sale_price ?? 1,
+        mrp: null,
+        barcode: "",   // User can type 501, 502, or leave blank for auto
         active: true,
         opening_qty: 0,
-      }];
+        purchase_qty: 0,
+      };
+      // Only auto-generate if in auto mode AND barcode is blank
       if (isAutoBarcode) autoBarcodePending.current = true;
-      setVariants(newVariants);
+      setVariants([newVariant]);
       setShowVariants(true);
       return;
     }
