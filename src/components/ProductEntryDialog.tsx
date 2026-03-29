@@ -2173,7 +2173,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         </Button>
                       )}
                     </div>
-                    <div className="border border-violet-200/60 rounded-lg overflow-x-auto bg-white shadow-sm max-h-[260px] overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
+                    <div className="border border-violet-200/60 rounded-lg overflow-x-auto bg-white shadow-sm max-h-[360px] overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
                       <Table>
                         <TableHeader className="sticky top-0 z-10 bg-background">
                           <TableRow className="bg-gradient-to-r from-violet-100/80 to-purple-100/60 border-b border-violet-200/60">
