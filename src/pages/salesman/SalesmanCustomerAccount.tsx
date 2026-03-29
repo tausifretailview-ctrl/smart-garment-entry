@@ -459,7 +459,7 @@ const SalesmanCustomerAccount = () => {
                   <Icon className={cn("h-4 w-4", card.color)} />
                   <span className="text-xs text-muted-foreground">{card.label}</span>
                 </div>
-                <p className="font-semibold">₹{card.value.toLocaleString("en-IN")}</p>
+                <p className="font-semibold">₹{Math.round(card.value).toLocaleString("en-IN")}</p>
               </CardContent>
             </Card>
           );

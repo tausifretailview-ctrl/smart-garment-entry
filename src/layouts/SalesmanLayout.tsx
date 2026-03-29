@@ -81,7 +81,8 @@ const SalesmanLayout = () => {
     { icon: Home, label: "Home", path: "/salesman" },
     { icon: Users, label: "Customers", path: "/salesman/customers" },
     { icon: ShoppingCart, label: "New Order", path: "/salesman/order/new" },
-    { icon: ListOrdered, label: "My Orders", path: "/salesman/orders" },
+    { icon: ListOrdered, label: "Orders", path: "/salesman/orders" },
+    { icon: BookOpen, label: "Outstanding", path: "/salesman/outstanding" },
   ];
 
   const isActive = (path: string) => {

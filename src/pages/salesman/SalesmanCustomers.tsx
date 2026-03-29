@@ -56,84 +56,118 @@ const SalesmanCustomers = () => {
 
   const fetchCustomersWithBalance = async () => {
     try {
+      const orgId = currentOrganization!.id;
+
       // Fetch customers
       const { data: customersData, error: customersError } = await supabase
         .from("customers")
         .select("id, customer_name, phone, address, opening_balance")
-        .eq("organization_id", currentOrganization!.id)
+        .eq("organization_id", orgId)
         .is("deleted_at", null)
         .order("customer_name");
-
       if (customersError) throw customersError;
 
-      // Fetch all sales for balance calculation (include id for voucher matching)
-      const { data: salesData, error: salesError } = await supabase
+      // Fetch all sales
+      const { data: salesData } = await supabase
         .from("sales")
-        .select("id, customer_id, net_amount, paid_amount, sale_date")
-        .eq("organization_id", currentOrganization!.id)
+        .select("id, customer_id, net_amount, paid_amount, sale_date, sale_return_adjust")
+        .eq("organization_id", orgId)
         .is("deleted_at", null);
 
-      if (salesError) throw salesError;
+      // Fetch ALL receipt vouchers
+      const { data: receiptVouchers } = await supabase
+        .from("voucher_entries")
+        .select("reference_id, reference_type, total_amount")
+        .eq("organization_id", orgId)
+        .eq("voucher_type", "receipt")
+        .is("deleted_at", null);
 
-      // Fetch ALL voucher payments (both opening balance and invoice payments)
-      const { data: allVouchers, error: voucherError } = await supabase
-        .from('voucher_entries')
-        .select('reference_id, reference_type, total_amount')
-        .eq('organization_id', currentOrganization!.id)
-        .eq('voucher_type', 'receipt')
-        .is('deleted_at', null);
+      // Fetch refund payments (outgoing to customer)
+      const { data: refundVouchers } = await supabase
+        .from("voucher_entries")
+        .select("reference_id, total_amount")
+        .eq("organization_id", orgId)
+        .eq("voucher_type", "payment")
+        .eq("reference_type", "customer")
+        .is("deleted_at", null);
 
-      if (voucherError) throw voucherError;
+      // Fetch balance adjustments
+      const { data: adjustments } = await supabase
+        .from("customer_balance_adjustments")
+        .select("customer_id, outstanding_difference")
+        .eq("organization_id", orgId);
 
-      // Group sales by customer and track last order date
-      const customerSales: Record<string, { sales: typeof salesData; lastOrderDate: string | null }> = {};
-      
-      salesData?.forEach((sale) => {
+      // Fetch unused advances
+      const { data: advances } = await supabase
+        .from("customer_advances")
+        .select("customer_id, amount, used_amount")
+        .eq("organization_id", orgId)
+        .in("status", ["active", "partially_used"]);
+
+      // Build per-customer maps
+      const adjMap = new Map<string, number>();
+      (adjustments || []).forEach((a: any) => {
+        adjMap.set(a.customer_id, (adjMap.get(a.customer_id) || 0) + (a.outstanding_difference || 0));
+      });
+
+      const advanceMap = new Map<string, number>();
+      (advances || []).forEach((a: any) => {
+        const avail = Math.max(0, (a.amount || 0) - (a.used_amount || 0));
+        advanceMap.set(a.customer_id, (advanceMap.get(a.customer_id) || 0) + avail);
+      });
+
+      const refundMap = new Map<string, number>();
+      (refundVouchers || []).forEach((v: any) => {
+        if (v.reference_id) refundMap.set(v.reference_id, (refundMap.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
+      });
+
+      // Group sales and track last order date per customer
+      const customerSales: Record<string, { sales: any[]; lastOrderDate: string | null }> = {};
+      (salesData || []).forEach((sale: any) => {
         if (sale.customer_id) {
-          if (!customerSales[sale.customer_id]) {
-            customerSales[sale.customer_id] = { sales: [], lastOrderDate: null };
-          }
+          if (!customerSales[sale.customer_id]) customerSales[sale.customer_id] = { sales: [], lastOrderDate: null };
           customerSales[sale.customer_id].sales.push(sale);
-          if (!customerSales[sale.customer_id].lastOrderDate || 
-              sale.sale_date > customerSales[sale.customer_id].lastOrderDate!) {
+          if (!customerSales[sale.customer_id].lastOrderDate || sale.sale_date > customerSales[sale.customer_id].lastOrderDate!) {
             customerSales[sale.customer_id].lastOrderDate = sale.sale_date;
           }
         }
       });
 
-      const customersWithBalance: CustomerWithBalance[] = (customersData || []).map((c) => {
+      const customersWithBalance: CustomerWithBalance[] = (customersData || []).map((c: any) => {
         const customerData = customerSales[c.id] || { sales: [], lastOrderDate: null };
         const openingBalance = c.opening_balance || 0;
-        
-        // Build voucher payment maps for this customer's sales
-        const saleIds = customerData.sales.map(s => s.id);
+        const saleIds = customerData.sales.map((s: any) => s.id);
         const { invoiceVoucherPayments, openingBalancePayments } = buildVoucherPaymentMaps(
-          allVouchers || [],
+          receiptVouchers || [],
           saleIds,
           c.id
         );
-        
-        // Calculate balance using Math.max() logic
+
+        const adjustmentTotal = adjMap.get(c.id) || 0;
+        const unusedAdvanceTotal = advanceMap.get(c.id) || 0;
+        const refundsPaidTotal = refundMap.get(c.id) || 0;
+
         const balanceResult = calculateCustomerBalance(
           openingBalance,
           customerData.sales,
           invoiceVoucherPayments,
-          openingBalancePayments
+          openingBalancePayments,
+          adjustmentTotal,
+          unusedAdvanceTotal,
+          refundsPaidTotal
         );
-        
+
         return {
           ...c,
           opening_balance: openingBalance,
-          totalSales: balanceResult.totalSales,
-          totalPaid: balanceResult.totalPaid,
+          totalSales: Math.round(balanceResult.totalSales),
+          totalPaid: Math.round(balanceResult.totalPaid),
           balance: balanceResult.balance,
           lastOrderDate: customerData.lastOrderDate,
         };
       });
 
-      // Sort by balance (highest first)
       customersWithBalance.sort((a, b) => b.balance - a.balance);
-      
       setCustomers(customersWithBalance);
       setFilteredCustomers(customersWithBalance);
     } catch (error) {
