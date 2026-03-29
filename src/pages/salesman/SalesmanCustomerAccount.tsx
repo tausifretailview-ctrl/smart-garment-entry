@@ -255,7 +255,7 @@ const SalesmanCustomerAccount = () => {
             days_overdue: daysOverdue,
           };
         })
-        .filter(inv => inv.balance > 0)
+        .filter(inv => inv.balance >= 1)
         .sort((a, b) => a.days_overdue - b.days_overdue);
 
       setPendingInvoices(pendingList);
