@@ -1782,10 +1782,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       return (
                         <div className="space-y-2 mt-2">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold text-foreground">
+                            <span className="text-sm font-semibold text-foreground">
                               Size-wise Quantity
                             </span>
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-sm text-muted-foreground">
                               Total: {totalQty} pcs · {activeSizeCount} sizes
                             </span>
                           </div>
