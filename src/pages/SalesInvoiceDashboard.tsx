@@ -1935,7 +1935,7 @@ export default function SalesInvoiceDashboard() {
         <div className="px-4 pt-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search invoices..." value={searchQuery}
+            <Input placeholder="Search invoice no, customer, phone, product, barcode..." value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-10 bg-card border-border/60 rounded-xl text-sm" />
           </div>
