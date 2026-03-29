@@ -871,6 +871,7 @@ export default function SaleReturnEntry() {
                   value={originalSaleNumber}
                   onChange={(e) => {
                     setOriginalSaleNumber(e.target.value);
+                    setOriginalSaleId('');
                     setSaleLoaded(false);
                     setSaleItems([]);
                     setSelectedSaleItemIds(new Set());
