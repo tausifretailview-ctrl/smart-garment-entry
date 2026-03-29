@@ -2177,15 +2177,15 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       <Table>
                         <TableHeader className="sticky top-0 z-10 bg-background">
                           <TableRow className="bg-gradient-to-r from-violet-100/80 to-purple-100/60 border-b border-violet-200/60">
-                            {formData.colors.length > 0 && <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit">Color</TableHead>}
-                            <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit">Size</TableHead>
-                            <TableHead className="text-[11px] py-2 font-bold text-amber-700 font-outfit bg-amber-50/50">Pur Price<span className="text-destructive ml-0.5">*</span></TableHead>
-                            <TableHead className="text-[11px] py-2 font-bold text-emerald-700 font-outfit bg-emerald-50/50">Sale Price<span className="text-destructive ml-0.5">*</span></TableHead>
-                            {showMrp && <TableHead className="text-[11px] py-2 font-bold text-blue-700 font-outfit bg-blue-50/50">MRP<span className="text-destructive ml-0.5">*</span></TableHead>}
-                            <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit">{mobileERPMode?.enabled ? 'IMEI Number' : 'Barcode'}<span className="text-destructive ml-0.5">*</span></TableHead>
-                            {!hideOpeningQty && <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit">Qty</TableHead>}
-                            <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit text-center">Active</TableHead>
-                            <TableHead className="text-[11px] py-2 w-8"></TableHead>
+                            {formData.colors.length > 0 && <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit">Color</TableHead>}
+                            <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit">Size</TableHead>
+                            <TableHead className="text-[13px] py-3 font-bold text-amber-700 font-outfit bg-amber-50/50">Pur Price<span className="text-destructive ml-0.5">*</span></TableHead>
+                            <TableHead className="text-[13px] py-3 font-bold text-emerald-700 font-outfit bg-emerald-50/50">Sale Price<span className="text-destructive ml-0.5">*</span></TableHead>
+                            {showMrp && <TableHead className="text-[13px] py-3 font-bold text-blue-700 font-outfit bg-blue-50/50">MRP<span className="text-destructive ml-0.5">*</span></TableHead>}
+                            <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit">{mobileERPMode?.enabled ? 'IMEI Number' : 'Barcode'}<span className="text-destructive ml-0.5">*</span></TableHead>
+                            {!hideOpeningQty && <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit">Qty</TableHead>}
+                            <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit text-center">Active</TableHead>
+                            <TableHead className="text-[13px] py-3 w-8"></TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
