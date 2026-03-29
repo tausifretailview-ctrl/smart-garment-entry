@@ -437,7 +437,27 @@ export default function SalesInvoiceDashboard() {
         query = query.lte('sale_date', queryDateRange.end);
       }
       if (debouncedSearch) {
-        query = query.or(`sale_number.ilike.%${debouncedSearch}%,customer_name.ilike.%${debouncedSearch}%,customer_phone.ilike.%${debouncedSearch}%`);
+        const searchStr = debouncedSearch.trim();
+
+        // Search sale_items for barcode or product name match
+        const { data: matchingItems } = await supabase
+          .from('sale_items')
+          .select('sale_id')
+          .eq('organization_id', currentOrganization.id)
+          .or(`barcode.ilike.%${searchStr}%,product_name.ilike.%${searchStr}%`)
+          .limit(200);
+
+        const matchingSaleIds = [...new Set((matchingItems || []).map((i: any) => i.sale_id).filter(Boolean))];
+
+        if (matchingSaleIds.length > 0) {
+          query = query.or(
+            `sale_number.ilike.%${searchStr}%,customer_name.ilike.%${searchStr}%,customer_phone.ilike.%${searchStr}%,id.in.(${matchingSaleIds.join(',')})`
+          );
+        } else {
+          query = query.or(
+            `sale_number.ilike.%${searchStr}%,customer_name.ilike.%${searchStr}%,customer_phone.ilike.%${searchStr}%`
+          );
+        }
       }
 
       const { data, error, count } = await query;
