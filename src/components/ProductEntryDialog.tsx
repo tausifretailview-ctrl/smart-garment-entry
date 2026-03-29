@@ -2162,9 +2162,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                           return `${visibleCount} Variant${visibleCount !== 1 ? 's' : ''}`;
                         })()}
                         {isAutoBarcode ? (
-                          <span className="text-[10px] font-normal px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">Auto Barcode</span>
+                          <span className="text-xs font-medium px-2 py-0.5 bg-blue-100 text-blue-700 rounded">Auto Barcode</span>
                         ) : (
-                          <span className="text-[10px] font-normal px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded">Scan / Manual</span>
+                          <span className="text-xs font-medium px-2 py-0.5 bg-orange-100 text-orange-700 rounded">Scan / Manual</span>
                         )}
                       </Label>
                       {isAutoBarcode && (
