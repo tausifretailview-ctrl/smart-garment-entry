@@ -88,6 +88,9 @@ const PurchaseReturnEntry = () => {
   const initialDraftCheckDone = useRef(false);
   const [stockAlertOpen, setStockAlertOpen] = useState(false);
   const [stockAlertMessage, setStockAlertMessage] = useState("");
+  const [loadingBill, setLoadingBill] = useState(false);
+  const [billLoaded, setBillLoaded] = useState(false);
+  const [originalBillId, setOriginalBillId] = useState('');
 
   const [returnData, setReturnData] = useState({
     supplier_id: "",
