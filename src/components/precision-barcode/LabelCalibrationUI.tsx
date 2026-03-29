@@ -307,8 +307,10 @@ export function LabelCalibrationUI({
       xOffset: values.xOffset,
       yOffset: values.yOffset,
       vGap: values.vGap,
-      width: values.labelWidth,
-      height: values.labelHeight,
+      width: newPresetWidth,
+      height: newPresetHeight,
+      printMode: newPresetMode,
+      thermalCols: newPresetMode === 'thermal2up' ? newPresetCols : 1,
       labelConfig: labelConfig || null,
     };
 
