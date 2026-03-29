@@ -1086,13 +1086,36 @@ const PurchaseReturnEntry = () => {
 
               <div className="space-y-2">
                 <Label>Original Bill Number</Label>
-                <Input
-                  placeholder="Enter original purchase bill number"
-                  value={returnData.original_bill_number}
-                  onChange={(e) =>
-                    setReturnData({ ...returnData, original_bill_number: e.target.value })
-                  }
-                />
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Enter bill no e.g. B032601 or supplier invoice no"
+                    value={returnData.original_bill_number}
+                    className="no-uppercase"
+                    onChange={(e) => {
+                      setReturnData({ ...returnData, original_bill_number: e.target.value });
+                      setBillLoaded(false);
+                      setOriginalBillId('');
+                    }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); loadBillByNumber(); } }}
+                  />
+                  <Button
+                    type="button"
+                    onClick={loadBillByNumber}
+                    disabled={loadingBill || !returnData.original_bill_number.trim()}
+                    className="h-10 px-4 flex items-center gap-2 flex-shrink-0"
+                  >
+                    {loadingBill ? (
+                      <><Loader2 className="h-4 w-4 animate-spin" />Loading...</>
+                    ) : (
+                      <><Search className="h-4 w-4" />Load Items</>
+                    )}
+                  </Button>
+                </div>
+                {billLoaded && (
+                  <p className="text-xs text-green-600 font-medium mt-1">
+                    ✅ Items loaded from bill — edit quantities as needed before saving.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
