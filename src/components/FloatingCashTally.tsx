@@ -135,6 +135,22 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
     enabled: !!orgId && open,
   });
 
+  const { data: advanceRefundsData, refetch: refetchAdvanceRefunds } = useQuery({
+    queryKey: ["daily-tally-advance-refunds", orgId, dateStr],
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase
+          .from("advance_refunds")
+          .select("id, refund_amount, payment_method, refund_date")
+          .eq("organization_id", orgId!)
+          .eq("refund_date", dateStr);
+        if (error) return [];
+        return data || [];
+      } catch { return []; }
+    },
+    enabled: !!orgId && open,
+  });
+
   const { data: snapshot, refetch: refetchSnapshot } = useQuery({
     queryKey: ["daily-tally-snapshot", orgId, dateStr],
     queryFn: async () => {
