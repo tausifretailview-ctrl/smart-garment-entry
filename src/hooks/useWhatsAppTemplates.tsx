@@ -164,7 +164,7 @@ export const useWhatsAppTemplates = () => {
       .replace(/{website_link}/g, settings?.website_link || "")
       .replace(/{google_review_link}/g, settings?.google_review_link || "")
       .replace(/{payment_breakdown}/g, paymentBreakdown)
-      .replace(/{outstanding_amount}/g, `₹${Number(outstandingAmount).toLocaleString("en-IN")}`)
+      .replace(/{outstanding_amount}/g, `₹${Math.round(Number(outstandingAmount)).toLocaleString("en-IN")}`)
       .replace(/{points_earned}/g, invoice.points_earned?.toString() || "0")
       .replace(/{points_redeemed}/g, invoice.points_redeemed?.toString() || "0")
       .replace(/{points_discount}/g, `₹${Number(invoice.points_discount || 0).toLocaleString("en-IN")}`)
@@ -202,7 +202,7 @@ ${orgName ? `🏢 ${orgName} has generated the following invoice for your order.
 📅 Date: ${format(new Date(invoice.sale_date), "dd MMM yyyy")}
 💰 Invoice Amount: ₹${Number(invoice.net_amount).toLocaleString("en-IN")}
 ⏳ Payment Status: ${invoice.payment_status}
-📊 Outstanding Balance: ₹${Number(outstandingAmount).toLocaleString("en-IN")}
+📊 Outstanding Balance: ₹${Math.round(Number(outstandingAmount)).toLocaleString("en-IN")}
 ${invoiceLink ? `\n🔗 View / Download Invoice:\n${invoiceLink}\n` : ""}
 💳 Kindly arrange payment at your convenience.
 
@@ -224,7 +224,7 @@ ${invoiceLink ? `\n🔗 View / Download Invoice:\n${invoiceLink}\n` : ""}
       paymentInfo += `\nPayment: ${paymentBreakdown}`;
     }
     if (outstandingAmount > 0) {
-      paymentInfo += `\n💰 Outstanding Balance: ₹${Number(outstandingAmount).toLocaleString("en-IN")}`;
+      paymentInfo += `\n💰 Outstanding Balance: ₹${Math.round(Number(outstandingAmount)).toLocaleString("en-IN")}`;
     }
 
     return `Hello ${invoice.customer_name},

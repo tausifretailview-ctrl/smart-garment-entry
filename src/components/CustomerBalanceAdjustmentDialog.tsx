@@ -102,7 +102,7 @@ export function CustomerBalanceAdjustmentDialog({
         const salePaid = sale.paid_amount || 0;
         const voucherPaid = invoiceVoucherPayments.get(sale.id) || 0;
         const effectivePaid = Math.max(salePaid, voucherPaid);
-        const outstanding = Math.max(0, (sale.net_amount || 0) - effectivePaid);
+        const outstanding = Math.max(0, Math.round((sale.net_amount || 0) - effectivePaid));
         customerOutstanding.set(sale.customer_id, (customerOutstanding.get(sale.customer_id) || 0) + outstanding);
       });
 

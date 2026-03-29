@@ -423,7 +423,7 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
                 </Popover>
                 {referenceId && supplierBalance !== undefined && (
                   <div className="mt-2 p-3 bg-gradient-to-r from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900 border border-rose-200 dark:border-rose-800 rounded-md">
-                    <p className="text-sm font-medium text-rose-900 dark:text-rose-100">Total Outstanding: <span className="text-lg font-bold">₹{supplierBalance.toFixed(2)}</span></p>
+                    <p className="text-sm font-medium text-rose-900 dark:text-rose-100">Total Outstanding: <span className="text-lg font-bold">₹{Math.round(supplierBalance).toLocaleString('en-IN')}</span></p>
                   </div>
                 )}
               </div>

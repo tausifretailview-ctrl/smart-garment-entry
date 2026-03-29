@@ -109,9 +109,9 @@ export function OutstandingDashboardTab({ organizationId }: OutstandingDashboard
         const salePaid = sale.paid_amount || 0;
         const voucherPaid = invoiceVoucherPayments.get(sale.id) || 0;
         const effectivePaid = Math.max(salePaid, voucherPaid);
-        const outstanding = Math.max(0, netAmount - effectivePaid);
+        const outstanding = Math.max(0, Math.round(netAmount - effectivePaid));
 
-        if (outstanding <= 0) return;
+        if (outstanding < 1) return;
 
         const daysOld = differenceInDays(today, new Date(sale.sale_date));
         const customer = customerMap.get(sale.customer_id);
@@ -146,8 +146,8 @@ export function OutstandingDashboardTab({ organizationId }: OutstandingDashboard
       customersData.forEach((c: any) => {
         const ob = c.opening_balance || 0;
         const obPaid = openingBalancePayments.get(c.id) || 0;
-        const obOutstanding = Math.max(0, ob - obPaid);
-        if (obOutstanding <= 0) return;
+        const obOutstanding = Math.max(0, Math.round(ob - obPaid));
+        if (obOutstanding < 1) return;
 
         let entry = customerOutstandings.get(c.id);
         if (!entry) {

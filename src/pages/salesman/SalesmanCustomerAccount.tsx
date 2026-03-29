@@ -242,7 +242,7 @@ const SalesmanCustomerAccount = () => {
         .map(sale => {
           const voucherPaid = voucherPaymentsBySaleId[sale.id] || 0;
           const effectivePaid = Math.max(sale.paid_amount || 0, voucherPaid);
-          const balance = Math.max(0, sale.net_amount - effectivePaid);
+          const balance = Math.max(0, Math.round(sale.net_amount - effectivePaid));
           const saleDate = new Date(sale.sale_date);
           const daysOverdue = Math.floor((Date.now() - saleDate.getTime()) / (1000 * 60 * 60 * 24));
           return {
@@ -255,7 +255,7 @@ const SalesmanCustomerAccount = () => {
             days_overdue: daysOverdue,
           };
         })
-        .filter(inv => inv.balance > 0)
+        .filter(inv => inv.balance >= 1)
         .sort((a, b) => a.days_overdue - b.days_overdue);
 
       setPendingInvoices(pendingList);
@@ -330,11 +330,11 @@ const SalesmanCustomerAccount = () => {
       `Dear *${customer.customer_name}*,\n\n` +
       `Invoice *${invoice.sale_number}* dated ${format(new Date(invoice.sale_date), 'dd MMM yyyy')} ` +
       `is pending.\n\n` +
-      `Invoice Amount: ₹${invoice.net_amount.toLocaleString('en-IN')}\n` +
+      `Invoice Amount: ₹${Math.round(invoice.net_amount).toLocaleString('en-IN')}\n` +
       (invoice.paid_amount > 0
         ? `Paid: ₹${invoice.paid_amount.toLocaleString('en-IN')}\n`
         : '') +
-      `*Outstanding: ₹${invoice.balance.toLocaleString('en-IN')}*\n\n` +
+      `*Outstanding: ₹${Math.round(invoice.balance).toLocaleString('en-IN')}*\n\n` +
       `📄 View Invoice:\n${invoiceLink}\n\n` +
       `Please clear your dues at the earliest. Thank you! 🙏`;
 
@@ -348,7 +348,7 @@ const SalesmanCustomerAccount = () => {
     const invoiceLines = pendingInvoices
       .map(inv =>
         `• ${inv.sale_number} (${format(new Date(inv.sale_date), 'dd MMM')})` +
-        ` — ₹${inv.balance.toLocaleString('en-IN')}` +
+        ` — ₹${Math.round(inv.balance).toLocaleString('en-IN')}` +
         (inv.days_overdue > 0 ? ` — ${inv.days_overdue}d` : '')
       )
       .join('\n');
@@ -359,7 +359,7 @@ const SalesmanCustomerAccount = () => {
       `You have *${pendingInvoices.length} pending invoice${pendingInvoices.length > 1 ? 's' : ''}*:\n\n` +
       `${invoiceLines}\n\n` +
       `────────────────\n` +
-      `*Total Outstanding: ₹${totalOutstanding.toLocaleString('en-IN')}*\n\n` +
+      `*Total Outstanding: ₹${Math.round(totalOutstanding).toLocaleString('en-IN')}*\n\n` +
       `Please clear your dues at the earliest.\n` +
       `Thank you for your business! 🙏`;
 
@@ -550,7 +550,7 @@ const SalesmanCustomerAccount = () => {
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-red-600">
-                            ₹{invoice.balance.toLocaleString('en-IN')}
+                            ₹{Math.round(invoice.balance).toLocaleString('en-IN')}
                           </p>
                           {invoice.paid_amount > 0 && (
                             <p className="text-xs text-muted-foreground">
