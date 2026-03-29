@@ -82,6 +82,7 @@ export default function SaleReturnEntry() {
   const [saving, setSaving] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const [originalSaleId, setOriginalSaleId] = useState<string>('');
 
   // Store original item IDs for edit mode (to delete them on resave)
   const [originalItemIds, setOriginalItemIds] = useState<string[]>([]);
