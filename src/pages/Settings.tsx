@@ -3204,9 +3204,10 @@ export default function Settings() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor="api_email">API Email</Label>
-                            <Input
+                             <Input
                               id="api_email"
                               type="email"
+                              className="no-uppercase"
                               value={settings.sale_settings?.einvoice_settings?.api_email || ''}
                               onChange={(e) =>
                                 setSettings({
