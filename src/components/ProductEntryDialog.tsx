@@ -1921,12 +1921,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                   <div
                                     key={size}
                                     className={cn(
-                                      "flex flex-col items-center gap-1 p-1.5 rounded-md border transition-colors relative",
+                                      "flex flex-col items-center gap-2 p-3 rounded-lg border-[1.5px] transition-colors relative",
                                       isDisabled
                                         ? "bg-muted/50 border-border/50 opacity-50"
                                         : qty > 0
                                           ? "bg-emerald-50 border-emerald-300 dark:bg-emerald-950/30 dark:border-emerald-700"
-                                          : "bg-card border-border"
+                                          : "bg-card border-border hover:border-violet-300"
                                     )}
                                   >
                                     {/* Toggle button on size label */}
