@@ -899,7 +899,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       }
       
       // Check purchase price > sale price
-      if (variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price) {
+      if (formData.product_type !== 'service' && variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price) {
         toast({
           title: "Price Warning",
           description: `Purchase price (₹${variant.pur_price}) is greater than Sale price (₹${variant.sale_price}) for variant ${variant.size}${variant.color ? ` (${variant.color})` : ''}. Please correct the prices.`,
