@@ -3204,9 +3204,10 @@ export default function Settings() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor="api_email">API Email</Label>
-                            <Input
+                             <Input
                               id="api_email"
                               type="email"
+                              className="no-uppercase"
                               value={settings.sale_settings?.einvoice_settings?.api_email || ''}
                               onChange={(e) =>
                                 setSettings({
@@ -3228,6 +3229,7 @@ export default function Settings() {
                             <Label htmlFor="api_username">Username / User ID</Label>
                             <Input
                               id="api_username"
+                              className="no-uppercase"
                               value={settings.sale_settings?.einvoice_settings?.api_username || ''}
                               onChange={(e) =>
                                 setSettings({
@@ -3247,9 +3249,10 @@ export default function Settings() {
                           
                           <div className="space-y-2">
                             <Label htmlFor="api_password">Password</Label>
-                            <Input
+                             <Input
                               id="api_password"
                               type="password"
+                              className="no-uppercase"
                               value={settings.sale_settings?.einvoice_settings?.api_password || ''}
                               onChange={(e) =>
                                 setSettings({
@@ -3271,6 +3274,7 @@ export default function Settings() {
                             <Label htmlFor="api_client_id">Client ID</Label>
                             <Input
                               id="api_client_id"
+                              className="no-uppercase"
                               value={settings.sale_settings?.einvoice_settings?.api_client_id || ''}
                               onChange={(e) =>
                                 setSettings({
@@ -3307,7 +3311,7 @@ export default function Settings() {
                                 })
                               }
                               placeholder="••••••••••••••••"
-                              className="font-mono"
+                              className="font-mono no-uppercase"
                             />
                           </div>
                         </div>
