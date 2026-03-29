@@ -13,6 +13,7 @@ interface QuickServiceProductDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   serviceCode: string;
+  productName?: string;
   onAdd: (data: { code: string; quantity: number; mrp: number }) => void;
 }
 
@@ -20,6 +21,7 @@ export const QuickServiceProductDialog = ({
   open,
   onOpenChange,
   serviceCode,
+  productName,
   onAdd,
 }: QuickServiceProductDialogProps) => {
   const [quantity, setQuantity] = useState(1);
@@ -54,7 +56,7 @@ export const QuickServiceProductDialog = ({
       <DialogContent className="max-w-xs p-5 gap-3">
         <DialogHeader className="pb-0">
           <DialogTitle className="text-base">
-            Quick Service Item #{serviceCode}
+            {productName ? productName : `Quick Service Item #${serviceCode}`}
           </DialogTitle>
         </DialogHeader>
 

@@ -707,18 +707,20 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
   const handleGenerateSizeVariants = () => {
     if (formData.product_type === 'service') {
-      const newVariants: ProductVariant[] = [{
+      const newVariant: ProductVariant = {
         color: "",
         size: "Standard",
-        pur_price: formData.default_pur_price ?? 0,
-        sale_price: formData.default_sale_price ?? 0,
-        mrp: formData.default_mrp ?? null,
-        barcode: "",
+        pur_price: formData.default_pur_price ?? 1,
+        sale_price: formData.default_sale_price ?? 1,
+        mrp: null,
+        barcode: "",   // User can type 501, 502, or leave blank for auto
         active: true,
         opening_qty: 0,
-      }];
+        purchase_qty: 0,
+      };
+      // Only auto-generate if in auto mode AND barcode is blank
       if (isAutoBarcode) autoBarcodePending.current = true;
-      setVariants(newVariants);
+      setVariants([newVariant]);
       setShowVariants(true);
       return;
     }
@@ -1030,8 +1032,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           mrp: v.mrp,
           barcode: v.barcode,
           active: v.active,
-          opening_qty: v.opening_qty,
-          stock_qty: v.opening_qty,
+          opening_qty: formData.product_type === 'service' ? 0 : v.opening_qty,
+          // Service products have unlimited/virtual stock — no physical stock tracking
+          stock_qty: formData.product_type === 'service' ? 999999 : v.opening_qty,
         }));
 
         const { data: variantsData, error: variantsError } = await supabase
@@ -1042,8 +1045,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         if (variantsError) throw variantsError;
         insertedVariants = variantsData || [];
 
-        // Create stock movements for opening quantities
-        if (insertedVariants.length > 0) {
+        // Create stock movements for opening quantities (skip for service products)
+        if (insertedVariants.length > 0 && formData.product_type !== 'service') {
           const stockMovements = insertedVariants
             .filter((v) => v.opening_qty > 0)
               .map((v) => ({
@@ -1209,7 +1212,16 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     <button
                       key={pt.value}
                       type="button"
-                      onClick={() => setFormData({ ...formData, product_type: pt.value })}
+                      onClick={() => {
+                        const isService = pt.value === 'service';
+                        setFormData({
+                          ...formData,
+                          product_type: pt.value as ProductType,
+                          default_pur_price: isService ? 1 : formData.default_pur_price,
+                          default_sale_price: isService ? 1 : formData.default_sale_price,
+                          default_mrp: isService ? undefined : formData.default_mrp,
+                        });
+                      }}
                       className={`flex items-center gap-2 px-3 py-2 rounded-lg border-[1.5px] cursor-pointer transition-all duration-200 text-left ${
                         formData.product_type === pt.value
                           ? 'border-primary bg-primary/5'
@@ -1260,6 +1272,16 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                   )}
                 </div>
               </div>
+
+              {formData.product_type === 'service' && (
+                <div className="flex items-start gap-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
+                  <span className="text-blue-500 text-sm mt-0.5">ℹ️</span>
+                  <div className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
+                    <strong>Service Product:</strong> No size/stock tracking. Sale price defaults to ₹1 — actual price is entered at sale/POS time.
+                    Barcode can be auto-generated or type a custom code (e.g. 501, 502, GARMENT1).
+                  </div>
+                </div>
+              )}
 
               {/* ── 📋 Product Details ────────────────────────── */}
               <div className="flex items-center gap-2 pt-1">

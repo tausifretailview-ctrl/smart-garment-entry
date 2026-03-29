@@ -239,6 +239,7 @@ export default function POSSales() {
   // Quick service product dialog state
   const [showQuickServiceDialog, setShowQuickServiceDialog] = useState(false);
   const [quickServiceCode, setQuickServiceCode] = useState("");
+  const [quickServiceProductForAdd, setQuickServiceProductForAdd] = useState<{product: any; variant: any} | null>(null);
 
   // Financer / EMI details state (for Mobile ERP)
   const [financerDetails, setFinancerDetails] = useState<FinancerDetails | null>(null);
@@ -1124,12 +1125,22 @@ export default function POSSales() {
   }, [openProductSearch, searchInput, selectedProductType, currentOrganization?.id]);
 
   const searchAndAddProduct = useCallback(async (searchTerm: string) => {
-    // Quick service shortcodes (1-9) ALWAYS open the dialog, even if a product has that barcode
+    // Quick service shortcodes (1-9): check if a real product has this barcode first
     if (/^[1-9]$/.test(searchTerm)) {
-      setQuickServiceCode(searchTerm);
-      setShowQuickServiceDialog(true);
-      setSearchInput("");
-      return;
+      // Check local cache for exact barcode match
+      const hasRealProduct = productsData?.some(product =>
+        product.product_variants?.some((v: any) =>
+          v.barcode?.toLowerCase() === searchTerm.toLowerCase()
+        )
+      );
+      if (!hasRealProduct) {
+        // No real product — open quick service dialog
+        setQuickServiceCode(searchTerm);
+        setShowQuickServiceDialog(true);
+        setSearchInput("");
+        return;
+      }
+      // Has real product — fall through to normal search
     }
 
     // Mobile ERP IMEI enforcement: validate IMEI format before allowing scan
@@ -1252,7 +1263,38 @@ export default function POSSales() {
   }, [productsData, playErrorBeep, toast, currentOrganization?.id, mobileERP]);
 
   const handleQuickServiceAdd = useCallback(({ code, quantity, mrp }: { code: string; quantity: number; mrp: number }) => {
-    // Try to find actual product with matching barcode to get valid IDs
+    // If we have a pre-identified product (from barcode scan), use it directly
+    if (quickServiceProductForAdd) {
+      const { product, variant } = quickServiceProductForAdd;
+      const newItem: CartItem = {
+        id: `service-${variant.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        barcode: variant.barcode || code,
+        productName: product.product_name,
+        size: variant.size || '-',
+        color: variant.color || '',
+        quantity,
+        mrp,
+        originalMrp: null,
+        gstPer: product.gst_per || 0,
+        discountPercent: 0,
+        discountAmount: 0,
+        unitCost: mrp,
+        netAmount: quantity * mrp,
+        productId: product.id,
+        variantId: variant.id,
+        hsnCode: product.hsn_code || '',
+        productType: 'service',
+      };
+      setItems(prev => [...prev, newItem]);
+      playSuccessBeep();
+      setShowQuickServiceDialog(false);
+      setQuickServiceCode("");
+      setQuickServiceProductForAdd(null);
+      setTimeout(() => barcodeInputRef.current?.focus(), 100);
+      return;
+    }
+
+    // Existing shortcode logic (1-9) — find product by barcode
     let productName = `Service Item ${code}`;
     let productId = '';
     let variantId = '';
@@ -1306,12 +1348,21 @@ export default function POSSales() {
     setShowQuickServiceDialog(false);
     setQuickServiceCode("");
     setTimeout(() => barcodeInputRef.current?.focus(), 100);
-  }, [setItems, playSuccessBeep, productsData, toast]);
+  }, [setItems, playSuccessBeep, productsData, toast, quickServiceProductForAdd]);
 
   const addItemToCart = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }) => {
     // Service products: NEVER merge - each scan is a unique item with manual price entry
     // This is essential for saree shops where each piece has different MRP
     const isServiceProduct = product.product_type === 'service';
+
+    // Service products: always ask for actual price before adding
+    if (isServiceProduct && !overridePrice) {
+      setQuickServiceCode(variant.barcode || product.product_name);
+      setQuickServiceProductForAdd({ product, variant });
+      setShowQuickServiceDialog(true);
+      setSearchInput("");
+      return;
+    }
     
     const existingItemIndex = isServiceProduct 
       ? -1  // Always treat as new item for service products
@@ -4718,8 +4769,12 @@ export default function POSSales() {
         {/* Quick Service Product Dialog */}
         <QuickServiceProductDialog
           open={showQuickServiceDialog}
-          onOpenChange={setShowQuickServiceDialog}
+          onOpenChange={(open) => {
+            setShowQuickServiceDialog(open);
+            if (!open) setQuickServiceProductForAdd(null);
+          }}
           serviceCode={quickServiceCode}
+          productName={quickServiceProductForAdd?.product?.product_name}
           onAdd={handleQuickServiceAdd}
         />
 
