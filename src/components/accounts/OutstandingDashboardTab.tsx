@@ -146,8 +146,8 @@ export function OutstandingDashboardTab({ organizationId }: OutstandingDashboard
       customersData.forEach((c: any) => {
         const ob = c.opening_balance || 0;
         const obPaid = openingBalancePayments.get(c.id) || 0;
-        const obOutstanding = Math.max(0, ob - obPaid);
-        if (obOutstanding <= 0) return;
+        const obOutstanding = Math.max(0, Math.round(ob - obPaid));
+        if (obOutstanding < 1) return;
 
         let entry = customerOutstandings.get(c.id);
         if (!entry) {

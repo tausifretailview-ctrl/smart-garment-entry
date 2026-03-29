@@ -224,7 +224,7 @@ ${invoiceLink ? `\n🔗 View / Download Invoice:\n${invoiceLink}\n` : ""}
       paymentInfo += `\nPayment: ${paymentBreakdown}`;
     }
     if (outstandingAmount > 0) {
-      paymentInfo += `\n💰 Outstanding Balance: ₹${Number(outstandingAmount).toLocaleString("en-IN")}`;
+      paymentInfo += `\n💰 Outstanding Balance: ₹${Math.round(Number(outstandingAmount)).toLocaleString("en-IN")}`;
     }
 
     return `Hello ${invoice.customer_name},

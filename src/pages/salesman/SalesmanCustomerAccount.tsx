@@ -550,7 +550,7 @@ const SalesmanCustomerAccount = () => {
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-red-600">
-                            ₹{invoice.balance.toLocaleString('en-IN')}
+                            ₹{Math.round(invoice.balance).toLocaleString('en-IN')}
                           </p>
                           {invoice.paid_amount > 0 && (
                             <p className="text-xs text-muted-foreground">

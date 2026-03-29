@@ -206,7 +206,7 @@ const SalesmanOutstanding = () => {
 
     const message = `🔔 *Payment Reminder*\n\n` +
       `Dear ${customer.customer_name},\n\n` +
-      `This is a friendly reminder that you have an outstanding balance of *₹${customer.balance.toLocaleString("en-IN")}*.\n\n` +
+      `This is a friendly reminder that you have an outstanding balance of *₹${Math.round(customer.balance).toLocaleString("en-IN")}*.\n\n` +
       `Pending Invoices: ${customer.invoiceCount}\n\n` +
       `Please clear your dues at the earliest convenience.\n\n` +
       `Thank you for your business!`;

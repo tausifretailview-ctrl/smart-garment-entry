@@ -121,7 +121,7 @@ export function calculateCustomerBalance(
        const salePaidAmount = sale.paid_amount || 0;
        const voucherAmount = invoiceVoucherPayments.get(sale.id) || 0;
        const effectivePaid = Math.max(salePaidAmount, voucherAmount);
-       const outstanding = Math.max(0, (sale.net_amount || 0) - effectivePaid);
+       const outstanding = Math.max(0, Math.round((sale.net_amount || 0) - effectivePaid));
        
        customerBalances.set(
          sale.customer_id,
