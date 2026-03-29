@@ -334,7 +334,7 @@ const SalesmanCustomerAccount = () => {
       (invoice.paid_amount > 0
         ? `Paid: ₹${invoice.paid_amount.toLocaleString('en-IN')}\n`
         : '') +
-      `*Outstanding: ₹${invoice.balance.toLocaleString('en-IN')}*\n\n` +
+      `*Outstanding: ₹${Math.round(invoice.balance).toLocaleString('en-IN')}*\n\n` +
       `📄 View Invoice:\n${invoiceLink}\n\n` +
       `Please clear your dues at the earliest. Thank you! 🙏`;
 
