@@ -239,6 +239,7 @@ export default function POSSales() {
   // Quick service product dialog state
   const [showQuickServiceDialog, setShowQuickServiceDialog] = useState(false);
   const [quickServiceCode, setQuickServiceCode] = useState("");
+  const [quickServiceProductForAdd, setQuickServiceProductForAdd] = useState<{product: any; variant: any} | null>(null);
 
   // Financer / EMI details state (for Mobile ERP)
   const [financerDetails, setFinancerDetails] = useState<FinancerDetails | null>(null);
