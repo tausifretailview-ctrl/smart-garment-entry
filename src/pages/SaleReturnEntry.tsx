@@ -296,8 +296,34 @@ export default function SaleReturnEntry() {
       barcodeMatch
     );
   });
+  // Get unit price from a specific sale's items for a given variant
+  const getPriceFromSale = async (variantId: string, specificSaleId?: string): Promise<number | null> => {
+    try {
+      let query = supabase
+        .from('sale_items')
+        .select('unit_price, per_qty_net_amount, line_total, quantity')
+        .eq('variant_id', variantId)
+        .is('deleted_at', null);
 
-  const addProduct = async (productId: string, variantId: string) => {
+      if (specificSaleId) {
+        query = query.eq('sale_id', specificSaleId);
+      } else {
+        query = query.order('created_at', { ascending: false }).limit(1);
+      }
+
+      const { data } = await query.maybeSingle();
+      if (!data) return null;
+
+      if (data.unit_price && data.unit_price > 0) return data.unit_price;
+      if (data.per_qty_net_amount && data.per_qty_net_amount > 0) return data.per_qty_net_amount;
+      if (data.line_total && data.quantity) return data.line_total / data.quantity;
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+
     const product = products.find((p) => p.id === productId);
     const variant = variants.find((v) => v.id === variantId);
 
