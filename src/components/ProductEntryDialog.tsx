@@ -1167,7 +1167,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-5xl max-h-[85vh] p-0 font-outfit flex flex-col overflow-hidden">
+        <DialogContent className="max-w-6xl max-h-[92vh] p-0 font-outfit flex flex-col overflow-hidden">
           {/* Purchase Context Header */}
           <div className="mx-6 mt-6 mb-2 rounded-xl border-[1.5px] border-success/30 bg-gradient-to-br from-success/5 to-success/10 p-4">
             <div className="flex items-center gap-3">
@@ -2151,7 +2151,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 {showVariants && variants.length > 0 && (
                   <div ref={variantsSectionRef} className="space-y-2 pt-1">
                     <div className="flex items-center justify-between">
-                      <Label className="text-xs font-semibold text-violet-700 font-outfit flex items-center gap-2">
+                      <Label className="text-sm font-semibold text-violet-700 font-outfit flex items-center gap-2">
                         {(() => {
                           const visibleCount = variants.filter(v => {
                             if (disabledSizes.has(v.size)) return false;
@@ -2162,30 +2162,30 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                           return `${visibleCount} Variant${visibleCount !== 1 ? 's' : ''}`;
                         })()}
                         {isAutoBarcode ? (
-                          <span className="text-[10px] font-normal px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">Auto Barcode</span>
+                          <span className="text-xs font-medium px-2 py-0.5 bg-blue-100 text-blue-700 rounded">Auto Barcode</span>
                         ) : (
-                          <span className="text-[10px] font-normal px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded">Scan / Manual</span>
+                          <span className="text-xs font-medium px-2 py-0.5 bg-orange-100 text-orange-700 rounded">Scan / Manual</span>
                         )}
                       </Label>
                       {isAutoBarcode && (
-                        <Button type="button" variant="outline" size="sm" onClick={handleAutoGenerateBarcodes} className="gap-1 h-6 text-[11px] border-violet-300 text-violet-700 hover:bg-violet-100/60 font-outfit">
+                        <Button type="button" variant="outline" size="sm" onClick={handleAutoGenerateBarcodes} className="gap-1.5 h-8 text-xs border-violet-300 text-violet-700 hover:bg-violet-100/60 font-outfit">
                           <Barcode className="h-3 w-3" /> 🔄 Regenerate Barcodes
                         </Button>
                       )}
                     </div>
-                    <div className="border border-violet-200/60 rounded-lg overflow-x-auto bg-white shadow-sm max-h-[260px] overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
+                    <div className="border border-violet-200/60 rounded-lg overflow-x-auto bg-white shadow-sm max-h-[360px] overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
                       <Table>
                         <TableHeader className="sticky top-0 z-10 bg-background">
                           <TableRow className="bg-gradient-to-r from-violet-100/80 to-purple-100/60 border-b border-violet-200/60">
-                            {formData.colors.length > 0 && <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit">Color</TableHead>}
-                            <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit">Size</TableHead>
-                            <TableHead className="text-[11px] py-2 font-bold text-amber-700 font-outfit bg-amber-50/50">Pur Price<span className="text-destructive ml-0.5">*</span></TableHead>
-                            <TableHead className="text-[11px] py-2 font-bold text-emerald-700 font-outfit bg-emerald-50/50">Sale Price<span className="text-destructive ml-0.5">*</span></TableHead>
-                            {showMrp && <TableHead className="text-[11px] py-2 font-bold text-blue-700 font-outfit bg-blue-50/50">MRP<span className="text-destructive ml-0.5">*</span></TableHead>}
-                            <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit">{mobileERPMode?.enabled ? 'IMEI Number' : 'Barcode'}<span className="text-destructive ml-0.5">*</span></TableHead>
-                            {!hideOpeningQty && <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit">Qty</TableHead>}
-                            <TableHead className="text-[11px] py-2 font-bold text-violet-700 font-outfit text-center">Active</TableHead>
-                            <TableHead className="text-[11px] py-2 w-8"></TableHead>
+                            {formData.colors.length > 0 && <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit">Color</TableHead>}
+                            <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit">Size</TableHead>
+                            <TableHead className="text-[13px] py-3 font-bold text-amber-700 font-outfit bg-amber-50/50">Pur Price<span className="text-destructive ml-0.5">*</span></TableHead>
+                            <TableHead className="text-[13px] py-3 font-bold text-emerald-700 font-outfit bg-emerald-50/50">Sale Price<span className="text-destructive ml-0.5">*</span></TableHead>
+                            {showMrp && <TableHead className="text-[13px] py-3 font-bold text-blue-700 font-outfit bg-blue-50/50">MRP<span className="text-destructive ml-0.5">*</span></TableHead>}
+                            <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit">{mobileERPMode?.enabled ? 'IMEI Number' : 'Barcode'}<span className="text-destructive ml-0.5">*</span></TableHead>
+                            {!hideOpeningQty && <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit">Qty</TableHead>}
+                            <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit text-center">Active</TableHead>
+                            <TableHead className="text-[13px] py-3 w-8"></TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -2197,50 +2197,50 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                             return (
                             <TableRow key={index} className="hover:bg-violet-50/30 transition-colors">
                               {formData.colors.length > 0 && (
-                                <TableCell className="font-medium text-xs py-1.5">{variant.color || "-"}</TableCell>
+                                <TableCell className="font-medium text-xs py-2.5">{variant.color || "-"}</TableCell>
                               )}
-                              <TableCell className="py-1.5">
+                              <TableCell className="py-2.5">
                                 <span className={cn(
-                                  "inline-flex items-center justify-center min-w-[32px] px-2 py-0.5 rounded-md text-xs font-bold font-outfit",
+                                  "inline-flex items-center justify-center min-w-[40px] px-3 py-1 rounded-md text-sm font-bold font-outfit tracking-wide",
                                   mobileERPMode?.locked_size_qty ? "bg-purple-200 text-purple-900" : "bg-violet-100 text-violet-800"
                                 )}>
                                   {variant.size}
                                 </span>
                               </TableCell>
-                              <TableCell className="py-1.5 bg-amber-50/20">
+                              <TableCell className="py-2.5 bg-amber-50/20">
                                 <CalculatorInput
                                   value={variant.pur_price || ""}
                                   onChange={(val) => handleVariantChange(index, "pur_price", val)}
-                                  className={cn("w-24 h-7 text-xs border-amber-200", variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && "border-destructive bg-destructive/5")}
+                                  className={cn("w-28 h-9 text-sm border-amber-200", variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && "border-destructive bg-destructive/5")}
                                   placeholder="0"
                                 />
                                 {variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && (
-                                  <span className="text-[9px] text-destructive font-semibold mt-0.5 block">Pur &gt; Sale!</span>
+                                  <span className="text-[10px] text-destructive font-semibold mt-0.5 block">Pur &gt; Sale!</span>
                                 )}
                               </TableCell>
-                              <TableCell className="py-1.5 bg-emerald-50/20">
+                              <TableCell className="py-2.5 bg-emerald-50/20">
                                 <CalculatorInput
                                   value={variant.sale_price || ""}
                                   onChange={(val) => handleVariantChange(index, "sale_price", val)}
-                                  className={cn("w-24 h-7 text-xs border-emerald-200", variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && "border-destructive bg-destructive/5")}
+                                  className={cn("w-28 h-9 text-sm border-emerald-200", variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && "border-destructive bg-destructive/5")}
                                   placeholder="0"
                                 />
                               </TableCell>
                               {showMrp && (
-                                <TableCell className="py-1.5 bg-blue-50/20">
+                                <TableCell className="py-2.5 bg-blue-50/20">
                                   <CalculatorInput
                                     value={variant.mrp ?? ""}
                                     onChange={(val) => handleVariantChange(index, "mrp", val || null)}
-                                    className="w-24 h-7 text-xs border-blue-200"
+                                    className="w-28 h-9 text-sm border-blue-200"
                                   />
                                 </TableCell>
                               )}
-                              <TableCell className="py-1.5">
+                              <TableCell className="py-2.5">
                                 <Input
                                   value={variant.barcode}
                                   onChange={(e) => handleVariantChange(index, "barcode", e.target.value)}
                                   className={cn(
-                                    "w-32 h-7 text-xs font-mono border-violet-200",
+                                    "w-36 h-9 text-sm font-mono border-violet-200",
                                     mobileERPMode?.enabled && "tracking-wider"
                                   )}
                                   placeholder={mobileERPMode?.enabled ? "Scan IMEI..." : "Barcode"}
@@ -2249,30 +2249,30 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                   const cleaned = variant.barcode.replace(/\s/g, '');
                                   const isValid = /^\d+$/.test(cleaned) && cleaned.length >= (mobileERPMode.imei_min_length || 15) && cleaned.length <= (mobileERPMode.imei_max_length || 19);
                                   if (!isValid && cleaned.length > 0) {
-                                    return <span className="text-[9px] text-amber-600 font-semibold mt-0.5 block">Need {mobileERPMode.imei_min_length}-{mobileERPMode.imei_max_length} digits</span>;
+                                    return <span className="text-[10px] text-amber-600 font-semibold mt-0.5 block">Need {mobileERPMode.imei_min_length}-{mobileERPMode.imei_max_length} digits</span>;
                                   }
                                   return null;
                                 })()}
                               </TableCell>
                               {!hideOpeningQty && (
-                                <TableCell className="py-1.5">
+                                <TableCell className="py-2.5">
                                   <Input
                                     type="number"
                                     value={variant.opening_qty || ""}
                                     onChange={(e) => handleVariantChange(index, "opening_qty", e.target.value === "" ? 0 : Number(e.target.value))}
-                                    className="w-20 h-7 text-xs"
+                                    className="w-20 h-9 text-sm"
                                     placeholder="0"
                                   />
                                 </TableCell>
                               )}
-                              <TableCell className="text-center py-1.5">
+                              <TableCell className="text-center py-2.5">
                                 <Switch
                                   checked={variant.active}
                                   onCheckedChange={(checked) => handleVariantChange(index, "active", checked)}
                                   className="h-4 w-7"
                                 />
                               </TableCell>
-                              <TableCell className="py-1.5">
+                              <TableCell className="py-2.5">
                                 <Button
                                   type="button"
                                   variant="ghost"
