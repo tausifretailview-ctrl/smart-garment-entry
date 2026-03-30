@@ -1868,7 +1868,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                                           const firstEnabled = allSizes.find(s => !disabledSizes.has(s));
                                                           if (firstEnabled) document.getElementById(`size-qty-${nextColor}-${firstEnabled}`)?.focus();
                                                         } else {
-                                                          document.getElementById('btn-add-all-sizes')?.focus();
+                                                          const firstPur = document.getElementById('variant-pur-price-0');
+                                                          if (firstPur) {
+                                                            firstPur.focus();
+                                                          } else {
+                                                            document.getElementById('btn-add-all-sizes')?.focus();
+                                                          }
                                                         }
                                                       }
                                                     }
