@@ -662,8 +662,7 @@ const PurchaseEntry = () => {
           setOtherCharges(Number(existingBill.other_charges) || 0);
           setDiscountAmount(Number(existingBill.discount_amount) || 0);
           setIsDcPurchase(existingBill.is_dc_purchase === true);
-          
-          // Load bill items - get product details from purchase_items (denormalized data)
+          setIsBillLocked(existingBill.is_locked === true);
           const { data: itemsData, error: itemsError } = await supabase
             .from("purchase_items")
             .select("*")
