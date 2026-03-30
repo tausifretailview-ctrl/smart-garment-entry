@@ -589,20 +589,15 @@ export default function BulkProductUpdate() {
                     </p>
                   )}
 
-                  {(() => {
-                    const isEditMode = updateType === "update_prices" && priceConfig.updateMethod === "edit_individual";
-                    const changedCount = isEditMode 
-                      ? previewItems.filter(i => i.newValue !== i.currentValue).length 
-                      : previewItems.length;
-                    return (
-                      <Button 
-                        onClick={handleApply} 
-                        disabled={loading || changedCount === 0} 
-                        className="w-full mt-4"
-                        variant="default"
-                      >
-                        <Check className="h-4 w-4 mr-2" />
-                        Apply Changes to {changedCount} Items
+                  <Button 
+                    onClick={handleApply} 
+                    disabled={loading || previewItems.length === 0} 
+                    className="w-full mt-4"
+                    variant="default"
+                  >
+                    <Check className="h-4 w-4 mr-2" />
+                    Apply Changes to {previewItems.length} Items
+                  </Button>
                       </Button>
                     );
                   })()}
