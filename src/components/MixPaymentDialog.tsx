@@ -219,6 +219,24 @@ export function MixPaymentDialog({
                 />
               </div>
 
+              {/* Bank Transfer (Finance) */}
+              <div className="space-y-2">
+                <Label htmlFor="bank" className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4" />
+                  Bank Transfer (Finance/EMI)
+                </Label>
+                <Input
+                  id="bank"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={bankAmount || ""}
+                  onChange={(e) => setBankAmount(Number(e.target.value) || 0)}
+                  placeholder="₹ 0.00 — financer bank credit"
+                  className="text-right"
+                />
+              </div>
+
               {/* Credit (Balance) */}
               {creditBalance > 0 && (
                 <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/30 rounded-lg border border-amber-200 dark:border-amber-700">
