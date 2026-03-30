@@ -495,10 +495,15 @@ const ProductEditPanel = ({
 
               {/* SECTION D: Tax / GST */}
               <SectionBlock title="Tax / GST" color="border-l-amber-500" open={sections.tax} onToggle={() => toggleSection("tax")}>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs">GST Rate</Label>
-                    <Select value={String(form.gst_per)} onValueChange={(v) => updateField("gst_per", Number(v))}>
+                    <Label className="text-xs font-medium">GST Rate (Combined)</Label>
+                    <Select value={String(form.gst_per)} onValueChange={(v) => {
+                      const rate = Number(v);
+                      updateField("gst_per", rate);
+                      if (!form.purchase_gst_percent) updateField("purchase_gst_percent", rate);
+                      if (!form.sale_gst_percent) updateField("sale_gst_percent", rate);
+                    }}>
                       <SelectTrigger className={cn("h-9 text-sm", modifiedFields.has("gst_per") && "border-l-4 border-l-amber-500")}>
                         <SelectValue />
                       </SelectTrigger>
@@ -512,9 +517,47 @@ const ProductEditPanel = ({
                       <p className="text-[11px] text-muted-foreground italic">was: {original?.gst_per}%</p>
                     )}
                   </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-amber-700 dark:text-amber-400">Purchase GST %</Label>
+                    <Select
+                      value={String(form.purchase_gst_percent ?? form.gst_per)}
+                      onValueChange={(v) => updateField("purchase_gst_percent", Number(v))}
+                    >
+                      <SelectTrigger className={cn("h-9 text-sm", modifiedFields.has("purchase_gst_percent") && "border-l-4 border-l-amber-500")}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background z-[9999]">
+                        {GST_RATES.map(r => (
+                          <SelectItem key={r} value={String(r)}>{r}%</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {modifiedFields.has("purchase_gst_percent") && (
+                      <p className="text-[11px] text-muted-foreground italic">was: {original?.purchase_gst_percent ?? original?.gst_per}%</p>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-green-700 dark:text-green-400">Sale GST %</Label>
+                    <Select
+                      value={String(form.sale_gst_percent ?? form.gst_per)}
+                      onValueChange={(v) => updateField("sale_gst_percent", Number(v))}
+                    >
+                      <SelectTrigger className={cn("h-9 text-sm", modifiedFields.has("sale_gst_percent") && "border-l-4 border-l-amber-500")}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background z-[9999]">
+                        {GST_RATES.map(r => (
+                          <SelectItem key={r} value={String(r)}>{r}%</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {modifiedFields.has("sale_gst_percent") && (
+                      <p className="text-[11px] text-muted-foreground italic">was: {original?.sale_gst_percent ?? original?.gst_per}%</p>
+                    )}
+                  </div>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-2">
-                  Changes to GST rate will apply to future transactions only
+                  GST changes apply to future transactions only. Purchase GST affects purchase bills; Sale GST affects sales invoices.
                 </p>
               </SectionBlock>
 
