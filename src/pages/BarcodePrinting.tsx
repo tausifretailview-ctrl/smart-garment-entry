@@ -1493,8 +1493,9 @@ export default function BarcodePrinting() {
             a4Cols: bbs.precision_a4_cols ?? prev.a4Cols,
             a4Rows: bbs.precision_a4_rows ?? prev.a4Rows,
             printMode: bbs.precision_print_mode ?? prev.printMode,
-            // Only use settings labelConfig as fallback - preset labelConfig takes priority
-            labelConfig: prev.labelConfig || bbs.precision_label_config || null,
+            // Only use settings labelConfig as fallback when NO active preset is selected from localStorage
+            // If activePrecisionTemplateName is set, the preset's labelConfig will be loaded by fetchDbPresets
+            labelConfig: prev.labelConfig || (!activePrecisionTemplateName ? (bbs.precision_label_config || null) : prev.labelConfig),
           }));
           if (bbs.precision_pro_enabled === true) {
             setActiveBarTab("precision");
