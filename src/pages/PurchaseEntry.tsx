@@ -3128,6 +3128,28 @@ const PurchaseEntry = () => {
             )}
           </section>
 
+        {/* Locked Banner */}
+        {isBillLocked && (
+          <div className="flex items-center justify-between px-4 py-2.5 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg mx-4 mt-2">
+            <div className="flex items-center gap-2">
+              <Lock className="h-4 w-4 text-amber-600 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Bill is Locked</p>
+                <p className="text-xs text-amber-700 dark:text-amber-400">This purchase bill is locked. Unlock to make changes.</p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0 border-amber-400 text-amber-700 hover:bg-amber-100"
+              onClick={() => setShowUnlockConfirm(true)}
+            >
+              <LockOpen className="h-3.5 w-3.5 mr-1.5" />
+              Unlock Bill
+            </Button>
+          </div>
+        )}
+
         {/* Products Table Card */}
         <section className='bg-green-50/40 border-b border-green-100 px-6 py-3 flex-shrink-0'>
           <div className='flex items-center gap-3 flex-wrap mt-2'>
