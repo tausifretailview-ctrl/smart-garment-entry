@@ -16,7 +16,7 @@ interface PrecisionLabelPreviewProps {
 // Map field keys to item data
 const getFieldContent = (key: FieldKey, item: LabelItem, customTextValue?: string): string => {
   switch (key) {
-    case "productName": return item.product_name || "";
+    case "productName": return (item.product_name || "").toUpperCase();
     case "brand": return item.brand || "";
     case "category": return item.category || "";
     case "color": return item.color || "";
