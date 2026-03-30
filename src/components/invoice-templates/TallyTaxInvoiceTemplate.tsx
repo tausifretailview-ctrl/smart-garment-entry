@@ -394,35 +394,17 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                   <td style={cellNoRowBorder}></td>
                 </tr>
               ))}
-              {/* CGST/SGST summary rows */}
-              {showGSTBreakdown && !isInterState && totalCgst > 0 && (
-                <>
-                  <tr>
-                    <td style={cellNoRowBorder}></td>
-                    <td style={{ ...cellNoRowBorder, paddingLeft: '16px', fontSize: '10px' }}>OUTPUT CGST@{summaryGstRate / 2}%</td>
-                    {showHSN && <td style={cellNoRowBorder}></td>}
-                    <td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td>
-                    <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{summaryGstRate / 2} %</td>
-                    <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{fmt(totalCgst)}</td>
-                  </tr>
-                  <tr>
-                    <td style={cellNoRowBorder}></td>
-                    <td style={{ ...cellNoRowBorder, paddingLeft: '16px', fontSize: '10px' }}>OUTPUT SGST@{summaryGstRate / 2}%</td>
-                    {showHSN && <td style={cellNoRowBorder}></td>}
-                    <td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td>
-                    <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{summaryGstRate / 2} %</td>
-                    <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{fmt(totalSgst)}</td>
-                  </tr>
-                </>
-              )}
-              {showGSTBreakdown && isInterState && totalIgst > 0 && (
+              {/* GST Summary Row */}
+              {showGSTBreakdown && (totalCgst > 0 || totalSgst > 0 || totalIgst > 0) && (
                 <tr>
                   <td style={cellNoRowBorder}></td>
-                  <td style={{ ...cellNoRowBorder, paddingLeft: '16px', fontSize: '10px' }}>OUTPUT IGST@{summaryGstRate}%</td>
+                  <td style={{ ...cellNoRowBorder, paddingLeft: '16px', fontSize: '10px' }}>
+                    GST @{summaryGstRate}%
+                  </td>
                   {showHSN && <td style={cellNoRowBorder}></td>}
                   <td style={cellNoRowBorder}></td><td style={cellNoRowBorder}></td>
                   <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{summaryGstRate} %</td>
-                  <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{fmt(totalIgst)}</td>
+                  <td style={{ ...cellNoRowBorder, textAlign: 'right', fontSize: '9px' }}>{fmt(isInterState ? totalIgst : (totalCgst + totalSgst))}</td>
                 </tr>
               )}
               {/* Round Off */}
