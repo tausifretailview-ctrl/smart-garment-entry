@@ -211,7 +211,7 @@ const ProductEditPanel = ({
       const { error } = await supabase
         .from("products")
         .update({
-          product_name: form.product_name,
+          product_name: form.product_name?.toUpperCase(),
           brand: form.brand || null,
           category: form.category || null,
           style: form.style || null,
