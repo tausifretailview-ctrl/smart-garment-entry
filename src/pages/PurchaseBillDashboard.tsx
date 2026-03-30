@@ -1164,6 +1164,65 @@ const PurchaseBillDashboard = () => {
       minSize: 45,
     },
     {
+      id: "bill_image",
+      header: "Invoice",
+      cell: ({ row }) => {
+        const bill = row.original;
+        return (
+          <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+            {bill.bill_image_url ? (
+              <button
+                type="button"
+                onClick={() => { setViewImageUrl(bill.bill_image_url!); setShowImageViewer(true); }}
+                className="relative group"
+                title="View invoice image"
+              >
+                {bill.bill_image_url.endsWith('.pdf') ? (
+                  <div className="w-10 h-10 rounded border border-border bg-red-50 flex items-center justify-center hover:bg-red-100 transition-colors">
+                    <FileText className="h-5 w-5 text-red-500" />
+                  </div>
+                ) : (
+                  <div className="relative w-10 h-10 rounded border border-border overflow-hidden hover:border-primary transition-colors">
+                    <img
+                      src={bill.bill_image_url}
+                      alt="Bill"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                      <ZoomIn className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </div>
+                )}
+              </button>
+            ) : (
+              <label
+                className="w-10 h-10 rounded border-2 border-dashed border-muted-foreground/30 flex items-center justify-center cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors"
+                title="Upload supplier invoice image"
+              >
+                {uploadingImageForBill === bill.id ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : (
+                  <Camera className="h-4 w-4 text-muted-foreground/50" />
+                )}
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleUploadBillImage(bill.id, file);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+            )}
+          </div>
+        );
+      },
+      size: 60,
+      minSize: 55,
+    },
+    {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => {
@@ -1173,7 +1232,36 @@ const PurchaseBillDashboard = () => {
             <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950" onClick={(e) => handleOpenPaymentDialog(bill, e)} title="Record Payment">
               <Wallet className="h-3.5 w-3.5" />
             </Button>
-            <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950" onClick={(e) => { e.stopPropagation(); navigate("/purchase-entry", { state: { editBillId: bill.id } }); }} title="Edit">
+            <Button
+              size="icon"
+              variant="ghost"
+              className={`h-7 w-7 ${bill.is_locked ? 'hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950 text-amber-500' : 'hover:bg-slate-100 hover:text-slate-600'}`}
+              onClick={(e) => handleToggleLock(bill, e)}
+              disabled={togglingLock === bill.id}
+              title={bill.is_locked ? "Unlock bill to edit" : "Lock bill"}
+            >
+              {togglingLock === bill.id ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : bill.is_locked ? (
+                <Lock className="h-3.5 w-3.5" />
+              ) : (
+                <LockOpen className="h-3.5 w-3.5" />
+              )}
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className={`h-7 w-7 ${bill.is_locked ? 'opacity-40 cursor-not-allowed' : 'hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950'}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (bill.is_locked) {
+                  toast({ title: "Bill is locked", description: "Unlock the bill first to edit it.", variant: "destructive" });
+                  return;
+                }
+                navigate("/purchase-entry", { state: { editBillId: bill.id } });
+              }}
+              title={bill.is_locked ? "Unlock bill to edit" : "Edit bill"}
+            >
               <Edit className="h-3.5 w-3.5" />
             </Button>
             <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-950" onClick={(e) => handlePrintBarcodes(bill.id, e)} disabled={printingBill === bill.id} title="Print Barcodes">
@@ -1182,10 +1270,10 @@ const PurchaseBillDashboard = () => {
           </div>
         );
       },
-      size: 130,
-      minSize: 120,
+      size: 170,
+      minSize: 150,
     },
-  ], [selectedBills, paginatedBills, toggleSelectAll, toggleSelectBill, billItems, currentPage, itemsPerPage, printingBill, deletingBill]);
+  ], [selectedBills, paginatedBills, toggleSelectAll, toggleSelectBill, billItems, currentPage, itemsPerPage, printingBill, deletingBill, uploadingImageForBill, togglingLock]);
 
   // Render sub-row content for expanded bills
   const renderSubRow = useCallback((bill: PurchaseBill) => {
