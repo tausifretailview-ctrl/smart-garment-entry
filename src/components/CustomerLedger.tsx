@@ -614,7 +614,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         .select("*")
         .eq("reference_type", "customer")
         .eq("reference_id", selectedCustomer.id)
-        .eq("voucher_type", "receipt")
+        .in("voucher_type", ["receipt", "payment"])
         .is("deleted_at", null);
 
       if (startDate) {
