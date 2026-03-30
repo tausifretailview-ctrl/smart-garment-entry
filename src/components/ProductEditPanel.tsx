@@ -86,6 +86,12 @@ const ProductEditPanel = ({
   const [showUnsavedPrompt, setShowUnsavedPrompt] = useState(false);
   const [pendingNavIndex, setPendingNavIndex] = useState<number | null>(null);
   const focusRef = useRef<HTMLInputElement>(null);
+  const [currentVariant, setCurrentVariant] = useState<{
+    id: string; size: string; barcode: string;
+    pur_price: number; sale_price: number; mrp: number | null; active: boolean;
+  } | null>(null);
+  const [variantSize, setVariantSize] = useState("");
+  const [sizeModified, setSizeModified] = useState(false);
 
   // Section open states
   const [sections, setSections] = useState({
@@ -139,6 +145,23 @@ const ProductEditPanel = ({
         setModifiedFields(new Set());
         setHasUnsavedChanges(false);
         setSaved(false);
+        setCurrentVariant(null);
+        setVariantSize("");
+        setSizeModified(false);
+      }
+
+      // Fetch current variant for size editing
+      if (item?.sku_id) {
+        const { data: variantData } = await supabase
+          .from("product_variants")
+          .select("id, size, barcode, pur_price, sale_price, mrp, active")
+          .eq("id", item.sku_id)
+          .maybeSingle();
+        if (variantData) {
+          setCurrentVariant(variantData as any);
+          setVariantSize(variantData.size || "");
+          setSizeModified(false);
+        }
       }
     } catch (err) {
       console.error("Failed to load product", err);
@@ -357,7 +380,14 @@ const ProductEditPanel = ({
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="font-mono text-xs">{item.sku_id?.slice(0, 8)}</Badge>
-            <span className="text-sm font-medium truncate">{item.product_name}</span>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-sm font-medium truncate">{item.product_name}</span>
+              {item.size && (
+                <span className="shrink-0 text-xs px-2 py-0.5 rounded bg-violet-100 text-violet-700 font-mono font-bold dark:bg-violet-900/30 dark:text-violet-300">
+                  {item.size}
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex items-center justify-between">
             <Button variant="outline" size="sm" disabled={currentIndex === 0}
@@ -465,10 +495,15 @@ const ProductEditPanel = ({
 
               {/* SECTION D: Tax / GST */}
               <SectionBlock title="Tax / GST" color="border-l-amber-500" open={sections.tax} onToggle={() => toggleSection("tax")}>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs">GST Rate</Label>
-                    <Select value={String(form.gst_per)} onValueChange={(v) => updateField("gst_per", Number(v))}>
+                    <Label className="text-xs font-medium">GST Rate (Combined)</Label>
+                    <Select value={String(form.gst_per)} onValueChange={(v) => {
+                      const rate = Number(v);
+                      updateField("gst_per", rate);
+                      if (!form.purchase_gst_percent) updateField("purchase_gst_percent", rate);
+                      if (!form.sale_gst_percent) updateField("sale_gst_percent", rate);
+                    }}>
                       <SelectTrigger className={cn("h-9 text-sm", modifiedFields.has("gst_per") && "border-l-4 border-l-amber-500")}>
                         <SelectValue />
                       </SelectTrigger>
@@ -482,17 +517,129 @@ const ProductEditPanel = ({
                       <p className="text-[11px] text-muted-foreground italic">was: {original?.gst_per}%</p>
                     )}
                   </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-amber-700 dark:text-amber-400">Purchase GST %</Label>
+                    <Select
+                      value={String(form.purchase_gst_percent ?? form.gst_per)}
+                      onValueChange={(v) => updateField("purchase_gst_percent", Number(v))}
+                    >
+                      <SelectTrigger className={cn("h-9 text-sm", modifiedFields.has("purchase_gst_percent") && "border-l-4 border-l-amber-500")}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background z-[9999]">
+                        {GST_RATES.map(r => (
+                          <SelectItem key={r} value={String(r)}>{r}%</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {modifiedFields.has("purchase_gst_percent") && (
+                      <p className="text-[11px] text-muted-foreground italic">was: {original?.purchase_gst_percent ?? original?.gst_per}%</p>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-green-700 dark:text-green-400">Sale GST %</Label>
+                    <Select
+                      value={String(form.sale_gst_percent ?? form.gst_per)}
+                      onValueChange={(v) => updateField("sale_gst_percent", Number(v))}
+                    >
+                      <SelectTrigger className={cn("h-9 text-sm", modifiedFields.has("sale_gst_percent") && "border-l-4 border-l-amber-500")}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background z-[9999]">
+                        {GST_RATES.map(r => (
+                          <SelectItem key={r} value={String(r)}>{r}%</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {modifiedFields.has("sale_gst_percent") && (
+                      <p className="text-[11px] text-muted-foreground italic">was: {original?.sale_gst_percent ?? original?.gst_per}%</p>
+                    )}
+                  </div>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-2">
-                  Changes to GST rate will apply to future transactions only
+                  GST changes apply to future transactions only. Purchase GST affects purchase bills; Sale GST affects sales invoices.
                 </p>
               </SectionBlock>
 
-              {/* SECTION E: Stock (display only) */}
+              {/* SECTION E: Stock & Inventory — Size and barcode edit */}
               <SectionBlock title="Stock & Inventory" color="border-l-violet-500" open={sections.stock} onToggle={() => toggleSection("stock")}>
-                <p className="text-xs text-muted-foreground">
-                  Stock details are managed from the Product Master page.
-                </p>
+                {currentVariant ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs font-medium">
+                          Size
+                          {sizeModified && <span className="ml-1 text-[10px] text-amber-600 font-semibold">(modified)</span>}
+                        </Label>
+                        <Input
+                          value={variantSize}
+                          onChange={(e) => {
+                            setVariantSize(e.target.value.toUpperCase());
+                            setSizeModified(e.target.value.toUpperCase() !== (currentVariant?.size || ""));
+                          }}
+                          className={cn("h-9 text-sm font-mono", sizeModified && "border-l-4 border-l-amber-500")}
+                          placeholder="e.g. S, M, L, XL, 36"
+                        />
+                        {sizeModified && (
+                          <p className="text-[11px] text-amber-600 italic">was: {currentVariant.size}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs font-medium">Barcode</Label>
+                        <div className="h-9 flex items-center px-3 bg-muted/50 rounded-md border text-sm font-mono text-muted-foreground">
+                          {currentVariant.barcode || "—"}
+                        </div>
+                      </div>
+                    </div>
+                    {sizeModified && (
+                      <div className="flex items-center gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs gap-1 bg-amber-600 hover:bg-amber-700 text-white"
+                          onClick={async () => {
+                            if (!currentVariant?.id || !variantSize.trim()) return;
+                            try {
+                              const { error } = await supabase
+                                .from("product_variants")
+                                .update({ size: variantSize.trim() })
+                                .eq("id", currentVariant.id);
+                              if (error) throw error;
+                              setCurrentVariant(prev => prev ? { ...prev, size: variantSize.trim() } : prev);
+                              setSizeModified(false);
+                              onProductUpdated(item.temp_id, { size: variantSize.trim() });
+                              toast({ title: "Size Updated", description: `Size changed to ${variantSize.trim()}` });
+                            } catch (err: any) {
+                              toast({ title: "Error", description: err.message, variant: "destructive" });
+                            }
+                          }}
+                        >
+                          <Save className="h-3 w-3" /> Save Size Change
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs"
+                          onClick={() => { setVariantSize(currentVariant?.size || ""); setSizeModified(false); }}>
+                          Cancel
+                        </Button>
+                        <p className="text-[11px] text-amber-600">⚠️ Updates product master. Existing records unchanged.</p>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/50">
+                      <div className="text-center">
+                        <p className="text-[10px] text-muted-foreground">Pur Price</p>
+                        <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">₹{currentVariant.pur_price || 0}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[10px] text-muted-foreground">Sale Price</p>
+                        <p className="text-sm font-semibold text-green-700 dark:text-green-400">₹{currentVariant.sale_price || 0}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[10px] text-muted-foreground">MRP</p>
+                        <p className="text-sm font-semibold">₹{currentVariant.mrp || "—"}</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Loading variant details...</p>
+                )}
               </SectionBlock>
             </>
           )}
