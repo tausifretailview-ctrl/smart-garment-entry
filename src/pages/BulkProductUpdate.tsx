@@ -609,6 +609,8 @@ export default function BulkProductUpdate() {
                           );
                         })}
                       </TableBody>
+                    </Table>
+                  </div>
 
                   {previewItems.length > 200 && (
                     <p className="text-sm text-muted-foreground mt-2 text-center">
