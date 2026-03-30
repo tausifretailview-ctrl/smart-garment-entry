@@ -140,6 +140,12 @@ const PurchaseBillDashboard = () => {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
   const [dcFilter, setDcFilter] = useState<string>("all");
+
+  // Image upload and lock states
+  const [uploadingImageForBill, setUploadingImageForBill] = useState<string | null>(null);
+  const [viewImageUrl, setViewImageUrl] = useState<string | null>(null);
+  const [showImageViewer, setShowImageViewer] = useState(false);
+  const [togglingLock, setTogglingLock] = useState<string | null>(null);
   
   // Payment recording states
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
