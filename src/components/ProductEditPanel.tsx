@@ -86,6 +86,12 @@ const ProductEditPanel = ({
   const [showUnsavedPrompt, setShowUnsavedPrompt] = useState(false);
   const [pendingNavIndex, setPendingNavIndex] = useState<number | null>(null);
   const focusRef = useRef<HTMLInputElement>(null);
+  const [currentVariant, setCurrentVariant] = useState<{
+    id: string; size: string; barcode: string;
+    pur_price: number; sale_price: number; mrp: number | null; active: boolean;
+  } | null>(null);
+  const [variantSize, setVariantSize] = useState("");
+  const [sizeModified, setSizeModified] = useState(false);
 
   // Section open states
   const [sections, setSections] = useState({
