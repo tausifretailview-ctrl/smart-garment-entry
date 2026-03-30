@@ -36,7 +36,11 @@ export const FinancerDetailsForm = ({ value, onChange }: FinancerDetailsFormProp
   const [isOpen, setIsOpen] = useState(!!value?.financer_name);
 
   const handleChange = (field: keyof FinancerDetails, val: string | number) => {
-    const current = value || { financer_name: "", loan_number: "", emi_amount: 0, tenure: 0, down_payment: 0 };
+    const current = value || {
+      financer_name: "", loan_number: "", emi_amount: 0, tenure: 0,
+      down_payment: 0, down_payment_mode: 'cash' as const,
+      bank_transfer_amount: 0, finance_discount: 0,
+    };
     onChange({ ...current, [field]: val });
   };
 
