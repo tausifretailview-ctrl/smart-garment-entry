@@ -600,10 +600,15 @@ export default function POSSales() {
           handlePrintFromDialog();
         }
       }
-      // Ctrl+N - Add New Customer
-      else if (e.ctrlKey && e.key === 'n') {
+      // F10 - Add New Customer
+      else if (e.key === 'F10') {
         e.preventDefault();
         setShowAddCustomerDialog(true);
+      }
+      // F11 - Size-wise Stock Report
+      else if (e.key === 'F11') {
+        e.preventDefault();
+        setShowFloatingStockReport(true);
       }
     };
 
@@ -4262,6 +4267,8 @@ export default function POSSales() {
           {[
             { key: 'F8', label: 'Report' },
             { key: 'F9', label: 'Estimate' },
+            { key: 'F10', label: 'New Cust' },
+            { key: 'F11', label: 'Stock' },
           ].map(({ key, label }) => (
             <div key={key} className="flex flex-col items-center justify-center px-3 py-1 rounded-md hover:bg-blue-600/20 cursor-pointer transition-colors min-w-[60px]">
               <kbd className="text-[10px] font-mono text-blue-400/80 font-bold leading-tight">{key}</kbd>
