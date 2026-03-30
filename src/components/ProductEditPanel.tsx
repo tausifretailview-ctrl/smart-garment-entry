@@ -211,7 +211,7 @@ const ProductEditPanel = ({
       const { error } = await supabase
         .from("products")
         .update({
-          product_name: form.product_name,
+          product_name: form.product_name?.toUpperCase(),
           brand: form.brand || null,
           category: form.category || null,
           style: form.style || null,
@@ -256,6 +256,14 @@ const ProductEditPanel = ({
 
       if (Object.keys(lineUpdates).length > 0) {
         onProductUpdated(item.temp_id, lineUpdates);
+      }
+
+      // Sync product_name to all purchase_items for this product
+      if (modifiedFields.has("product_name")) {
+        await supabase
+          .from("purchase_items")
+          .update({ product_name: form.product_name })
+          .eq("product_id", item.product_id);
       }
 
       setOriginal({ ...form });
