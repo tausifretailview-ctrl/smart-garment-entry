@@ -600,6 +600,11 @@ export default function POSSales() {
           handlePrintFromDialog();
         }
       }
+      // Ctrl+N - Add New Customer
+      else if (e.ctrlKey && e.key === 'n') {
+        e.preventDefault();
+        setShowAddCustomerDialog(true);
+      }
     };
 
     window.addEventListener('keydown', handleKeyPress);
