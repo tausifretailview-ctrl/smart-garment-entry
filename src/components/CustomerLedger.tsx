@@ -1083,7 +1083,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       let vouchersQuery = supabase
         .from("voucher_entries")
         .select("*")
-        .eq("voucher_type", "receipt")
+        .in("voucher_type", ["receipt", "payment"])
         .is("deleted_at", null)
         .in("reference_id", saleIds.length > 0 ? saleIds : ['00000000-0000-0000-0000-000000000000']);
 
