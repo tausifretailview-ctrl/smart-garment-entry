@@ -299,7 +299,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                 <div style={{ fontSize: '9.5px', lineHeight: '1.6' }}>
                   <div><strong>Financer:</strong> {financerDetails.financer_name}</div>
                   {financerDetails.loan_number && (
-                    <div><strong>Loan No:</strong> {financerDetails.loan_number}</div>
+                    <div><strong>DSBS No:</strong> {financerDetails.loan_number}</div>
                   )}
                   {financerDetails.down_payment != null && financerDetails.down_payment > 0 && (
                     <div><strong>Down Payment:</strong> ₹{fmt(financerDetails.down_payment)} ({(financerDetails.down_payment_mode || 'cash').toUpperCase()})</div>
