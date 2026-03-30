@@ -84,6 +84,7 @@ export function MixPaymentDialog({
         cashAmount,
         cardAmount,
         upiAmount,
+        bankAmount,
         creditAmount: creditBalance,
         totalPaid,
         refundAmount: 0,

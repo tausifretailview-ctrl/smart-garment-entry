@@ -249,12 +249,15 @@ export const saveFinancerDetails = async (
       .insert({
         sale_id: saleId,
         organization_id: organizationId,
-        financer_name: details.financer_name,
-        loan_number: details.loan_number || null,
-        emi_amount: details.emi_amount || 0,
-        tenure: details.tenure || 0,
-        down_payment: details.down_payment || 0,
-      });
+    financer_name: details.financer_name,
+    loan_number: details.loan_number || null,
+    emi_amount: details.emi_amount || 0,
+    tenure: details.tenure || 0,
+    down_payment: details.down_payment || 0,
+    down_payment_mode: details.down_payment_mode || 'cash',
+    bank_transfer_amount: details.bank_transfer_amount || 0,
+    finance_discount: details.finance_discount || 0,
+  });
     if (error) {
       console.error("Error saving financer details:", error);
     }
