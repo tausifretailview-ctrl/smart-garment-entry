@@ -109,40 +109,52 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
         supplierCreditNotes.set(cn.reference_id, current + (Number(cn.total_amount) || 0));
       });
 
+      // Fetch purchase returns without linked credit note vouchers for balance correction
+      const { data: allPurchaseReturns } = await supabase
+        .from("purchase_returns" as any)
+        .select("supplier_id, net_amount, credit_note_id")
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null);
+
+      const allCreditNoteVoucherIds = new Set((creditNotes || []).map((cn: any) => cn.id));
+      const unreflectedReturnsBySupplier = new Map<string, number>();
+      (allPurchaseReturns || []).forEach((pr: any) => {
+        if (!pr.credit_note_id || !allCreditNoteVoucherIds.has(pr.credit_note_id)) {
+          const prev = unreflectedReturnsBySupplier.get(pr.supplier_id) || 0;
+          unreflectedReturnsBySupplier.set(pr.supplier_id, prev + (Number(pr.net_amount) || 0));
+        }
+      });
+
       // Calculate totals per supplier
       const supplierTotals = suppliersData.map((supplier: any) => {
         const supplierBills = purchaseBillsData?.filter((b: any) => b.supplier_id === supplier.id) || [];
         const totalPurchases = supplierBills.reduce((sum: number, b: any) => sum + (b.net_amount || 0), 0);
         const totalPaidOnBills = supplierBills.reduce((sum: number, b: any) => sum + (b.paid_amount || 0), 0);
         const voucherPaymentTotal = supplierVoucherPayments.get(supplier.id) || 0;
-        // Per-bill voucher logic: for each bill, use voucher total if available, else bill.paid_amount
         const supplierBillIds = supplierBills.map((b: any) => b.id);
-        // Build per-bill voucher payment map
         const perBillVoucherMap = new Map<string, number>();
         voucherPayments?.forEach((v: any) => {
           if (supplierBillIds.includes(v.reference_id)) {
             perBillVoucherMap.set(v.reference_id, (perBillVoucherMap.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
           }
         });
-        // For each bill: use voucher payments if any, else fall back to bill.paid_amount
         const totalPaidFromBills = supplierBills.reduce((sum: number, b: any) => {
           const voucherPaid = perBillVoucherMap.get(b.id) || 0;
           return sum + (voucherPaid > 0 ? voucherPaid : (b.paid_amount || 0));
         }, 0);
-        // Add supplier-level voucher payments (reference_id = supplier.id, not a bill id)
         const supplierLevelPayments = voucherPayments?.filter((v: any) => v.reference_id === supplier.id).reduce((sum: number, v: any) => sum + (Number(v.total_amount) || 0), 0) || 0;
         const totalPaid = totalPaidFromBills + supplierLevelPayments;
         const totalCreditNotes = supplierCreditNotes.get(supplier.id) || 0;
+        const unreflectedReturns = unreflectedReturnsBySupplier.get(supplier.id) || 0;
         const openingBalance = supplier.opening_balance || 0;
-        // Balance = Opening Balance + Total Purchases - Total Paid - Credit Notes
-        const balance = openingBalance + totalPurchases - totalPaid - totalCreditNotes;
+        const balance = openingBalance + totalPurchases - totalPaid - totalCreditNotes - unreflectedReturns;
 
         return {
           ...supplier,
           opening_balance: openingBalance,
           totalPurchases,
           totalPaid,
-          totalCreditNotes,
+          totalCreditNotes: totalCreditNotes + unreflectedReturns,
           balance,
         };
       });
