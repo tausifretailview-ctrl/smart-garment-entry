@@ -4024,6 +4024,31 @@ const PurchaseEntry = () => {
           focusField={editPanelFocusField}
         />
 
+      {/* Unlock Confirmation Dialog */}
+      <AlertDialog open={showUnlockConfirm} onOpenChange={setShowUnlockConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <LockOpen className="h-5 w-5 text-amber-600" />
+              Unlock Purchase Bill?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This bill is locked to prevent accidental changes. Unlocking will allow editing.
+              You can lock it again from the Purchase Bills dashboard.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-amber-600 hover:bg-amber-700"
+              onClick={handleUnlockBill}
+            >
+              <LockOpen className="h-4 w-4 mr-1.5" />
+              Unlock & Edit
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
