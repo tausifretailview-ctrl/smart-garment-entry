@@ -22,6 +22,9 @@ export interface FinancerDetails {
   emi_amount: number;
   tenure: number;
   down_payment: number;
+  down_payment_mode: 'cash' | 'upi' | 'card';
+  bank_transfer_amount: number;
+  finance_discount: number;
 }
 
 interface FinancerDetailsFormProps {
