@@ -217,7 +217,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         .from('voucher_entries')
         .select('reference_id, reference_type, total_amount')
         .eq('organization_id', organizationId)
-        .eq('voucher_type', 'receipt')
+        .in('voucher_type', ['receipt', 'payment'])
         .is('deleted_at', null);
 
       if (voucherError) {

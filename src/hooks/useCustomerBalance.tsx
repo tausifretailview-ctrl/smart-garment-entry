@@ -154,7 +154,9 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
 
       // Balance = Opening + Sales - Paid + Adjustments - (Unused Advances - Advance Refunds) - Sale Returns - Refunds
       const effectiveUnusedAdvances = Math.max(0, unusedAdvanceTotal - advanceRefundTotal);
-      const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - effectiveUnusedAdvances - saleReturnTotal - totalRefundsPaid);
+      // totalRefundsPaid: cash/UPI paid OUT to customer cancels the saleReturn credit
+      // + sign: adding back what we paid them reverses the credit liability
+      const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - effectiveUnusedAdvances - saleReturnTotal + totalRefundsPaid);
 
       return {
         balance,
