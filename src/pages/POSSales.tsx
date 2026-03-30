@@ -3289,6 +3289,16 @@ export default function POSSales() {
             <span>Print</span>
           </Button>
           
+          {/* Size Stock */}
+          <Button
+            onClick={() => window.open(`/${currentOrganization?.slug || 'demo'}/stock-report?tab=sizewise`, '_blank')}
+            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-cyan-500 hover:bg-cyan-600 active:scale-95 text-white shadow-sm transition-all duration-150"
+            title="Size-wise Stock Report"
+          >
+            <Grid3X3 className="h-4 w-4" />
+            <span>Size Stk</span>
+          </Button>
+
           {/* 10. Clear - matches Dashboard "With Refunds" rose-500 */}
           <Button
             onClick={handleClearAll}
