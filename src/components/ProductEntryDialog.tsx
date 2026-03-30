@@ -1868,7 +1868,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                                           const firstEnabled = allSizes.find(s => !disabledSizes.has(s));
                                                           if (firstEnabled) document.getElementById(`size-qty-${nextColor}-${firstEnabled}`)?.focus();
                                                         } else {
-                                                          document.getElementById('btn-add-all-sizes')?.focus();
+                                                          const firstPur = document.getElementById('variant-pur-price-0');
+                                                          if (firstPur) {
+                                                            firstPur.focus();
+                                                          } else {
+                                                            document.getElementById('btn-add-all-sizes')?.focus();
+                                                          }
                                                         }
                                                       }
                                                     }
@@ -2006,7 +2011,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                             if (nextSize) {
                                               document.getElementById(`size-qty-${nextSize}`)?.focus();
                                             } else {
-                                              document.getElementById('btn-add-all-sizes')?.focus();
+                                              // Focus first variant's pur_price for review, otherwise Add button
+                                              const firstPur = document.getElementById('variant-pur-price-0');
+                                              if (firstPur) {
+                                                firstPur.focus();
+                                              } else {
+                                                document.getElementById('btn-add-all-sizes')?.focus();
+                                              }
                                             }
                                           }
                                         }}
@@ -2260,6 +2271,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                               </TableCell>
                               <TableCell className="py-2.5 bg-amber-50/20">
                                 <CalculatorInput
+                                  id={`variant-pur-price-${index}`}
                                   value={variant.pur_price || ""}
                                   onChange={(val) => handleVariantChange(index, "pur_price", val)}
                                   className={cn("w-28 h-9 text-sm border-amber-200", variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && "border-destructive bg-destructive/5")}
