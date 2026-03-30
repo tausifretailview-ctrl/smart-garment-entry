@@ -1844,6 +1844,21 @@ const PurchaseEntry = () => {
     }
   };
 
+  const handleUnlockBill = async () => {
+    if (!editingBillId || !currentOrganization?.id) return;
+    const { error } = await supabase
+      .from('purchase_bills')
+      .update({ is_locked: false })
+      .eq('id', editingBillId);
+    if (error) {
+      toast({ title: "Error", description: "Failed to unlock bill", variant: "destructive" });
+      return;
+    }
+    setIsBillLocked(false);
+    setShowUnlockConfirm(false);
+    toast({ title: "Bill Unlocked", description: "You can now edit this bill." });
+  };
+
   const handleSave = async () => {
     // Prevent double-click saves
     if (loading) return;
