@@ -40,7 +40,7 @@ export interface GSTConfig {
 
 export interface PriceConfig {
   priceType: "pur_price" | "sale_price" | "mrp";
-  updateMethod: "set" | "increase" | "decrease";
+  updateMethod: "set" | "increase" | "decrease" | "edit_individual";
   value: number;
 }
 
