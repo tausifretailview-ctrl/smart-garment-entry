@@ -3252,6 +3252,7 @@ const PurchaseEntry = () => {
                   onClick={() => setShowProductDialog(true)}
                   variant="outline"
                   className="gap-2"
+                  disabled={isBillLocked}
                 >
                   <Plus className="h-4 w-4" />
                   Add New Product
