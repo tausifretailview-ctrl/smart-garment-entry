@@ -450,6 +450,7 @@ export const useBulkProductUpdate = () => {
   return {
     loading,
     previewItems,
+    setPreviewItems,
     fetchFilterOptions,
     fetchMatchingProducts,
     fetchMatchingVariants,
