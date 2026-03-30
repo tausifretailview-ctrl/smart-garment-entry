@@ -3837,9 +3837,12 @@ export type Database = {
       }
       sale_financer_details: {
         Row: {
+          bank_transfer_amount: number | null
           created_at: string | null
           down_payment: number | null
+          down_payment_mode: string | null
           emi_amount: number | null
+          finance_discount: number | null
           financer_name: string
           id: string
           loan_number: string | null
@@ -3849,9 +3852,12 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          bank_transfer_amount?: number | null
           created_at?: string | null
           down_payment?: number | null
+          down_payment_mode?: string | null
           emi_amount?: number | null
+          finance_discount?: number | null
           financer_name: string
           id?: string
           loan_number?: string | null
@@ -3861,9 +3867,12 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          bank_transfer_amount?: number | null
           created_at?: string | null
           down_payment?: number | null
+          down_payment_mode?: string | null
           emi_amount?: number | null
+          finance_discount?: number | null
           financer_name?: string
           id?: string
           loan_number?: string | null
