@@ -892,7 +892,7 @@ export default function StockReport() {
         doc.rect(startX, y - 4, pageWidth - 20, 6, "F");
       }
       
-      const productLabel = `${row.productName} ${row.brand ? `(${row.brand})` : ''}`.substring(0, 60);
+      const productLabel = `${row.productName} ${row.brand ? `(${row.brand})` : ''} ${row.department ? `[${row.department}]` : ''}`.substring(0, 70);
       doc.text(productLabel, startX + 2, y);
       sizes.forEach((size, i) => {
         const qty = row.sizeStocks[size] || 0;
