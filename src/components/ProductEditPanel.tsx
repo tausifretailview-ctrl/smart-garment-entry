@@ -258,6 +258,14 @@ const ProductEditPanel = ({
         onProductUpdated(item.temp_id, lineUpdates);
       }
 
+      // Sync product_name to all purchase_items for this product
+      if (modifiedFields.has("product_name")) {
+        await supabase
+          .from("purchase_items")
+          .update({ product_name: form.product_name })
+          .eq("product_id", item.product_id);
+      }
+
       setOriginal({ ...form });
       setModifiedFields(new Set());
       setHasUnsavedChanges(false);

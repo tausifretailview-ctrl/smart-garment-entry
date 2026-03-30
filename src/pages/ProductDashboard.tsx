@@ -892,7 +892,7 @@ const ProductDashboard = () => {
               setShowProductHistory(true);
             }}
           >
-            {row.original.product_name}
+            {row.original.product_name?.toUpperCase()}
           </span>
         ),
         size: 200,
