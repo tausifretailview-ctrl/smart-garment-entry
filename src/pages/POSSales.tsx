@@ -600,10 +600,15 @@ export default function POSSales() {
           handlePrintFromDialog();
         }
       }
-      // Ctrl+N - Add New Customer
-      else if (e.ctrlKey && e.key === 'n') {
+      // F10 - Add New Customer
+      else if (e.key === 'F10') {
         e.preventDefault();
         setShowAddCustomerDialog(true);
+      }
+      // F11 - Size-wise Stock Report
+      else if (e.key === 'F11') {
+        e.preventDefault();
+        setShowFloatingStockReport(true);
       }
     };
 
