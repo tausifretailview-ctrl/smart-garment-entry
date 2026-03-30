@@ -53,6 +53,7 @@ interface SizeWiseRow {
   brand: string;
   color: string;
   category: string;
+  department: string;
   sizeStocks: Record<string, number>;
   totalStock: number;
 }
@@ -749,6 +750,7 @@ export default function StockReport() {
           brand: item.brand,
           color: item.color,
           category: item.category,
+          department: item.department,
           sizeStocks: {},
           totalStock: 0
         });
@@ -816,18 +818,19 @@ export default function StockReport() {
 
   // Export Size-wise to Excel
   const exportSizeWiseToExcel = () => {
-    const headers = ["Product", "Brand", "Color", "Category", ...sizeWiseData.sizes, "Total Stock"];
+    const headers = ["Product", "Brand", "Color", "Category", "Style", ...sizeWiseData.sizes, "Total Stock"];
     const data = sizeWiseData.rows.map(row => [
       row.productName,
       row.brand,
       row.color,
       row.category,
+      row.department,
       ...sizeWiseData.sizes.map(size => row.sizeStocks[size] || 0),
       row.totalStock
     ]);
     
     data.push([
-      "TOTAL", "", "", "",
+      "TOTAL", "", "", "", "",
       ...sizeWiseData.sizes.map(size => sizeWiseTotals.sizeTotals[size] || 0),
       sizeWiseTotals.grandTotal
     ]);
@@ -835,6 +838,7 @@ export default function StockReport() {
     const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
     const colWidths = [
       { wch: 40 },
+      { wch: 15 },
       { wch: 15 },
       { wch: 15 },
       { wch: 15 },
@@ -888,7 +892,7 @@ export default function StockReport() {
         doc.rect(startX, y - 4, pageWidth - 20, 6, "F");
       }
       
-      const productLabel = `${row.productName} ${row.brand ? `(${row.brand})` : ''}`.substring(0, 60);
+      const productLabel = `${row.productName} ${row.brand ? `(${row.brand})` : ''} ${row.department ? `[${row.department}]` : ''}`.substring(0, 70);
       doc.text(productLabel, startX + 2, y);
       sizes.forEach((size, i) => {
         const qty = row.sizeStocks[size] || 0;
@@ -1573,13 +1577,13 @@ export default function StockReport() {
                               <TableRow key={row.productKey} className={index % 2 === 0 ? "bg-background" : "bg-muted/30"}>
                                 <TableCell className="font-medium sticky left-0 bg-inherit z-10 backdrop-blur-sm">
                                   <div className="flex flex-col">
-                                    <span className="text-sm md:text-base truncate max-w-[160px] md:max-w-none">{row.productName}</span>
+                                    <span className="text-sm md:text-base truncate max-w-[160px] md:max-w-none font-bold">{row.productName}</span>
                                     <span className="text-xs text-muted-foreground truncate max-w-[160px] md:max-w-none">
                                       {[row.brand, row.color].filter(Boolean).join(' - ')}
                                     </span>
-                                    {row.category && (
+                                    {(row.category || row.department) && (
                                       <span className="text-xs text-muted-foreground/70 truncate max-w-[160px] md:max-w-none">
-                                        {row.category}
+                                        {[row.category, row.department].filter(Boolean).join(' · ')}
                                       </span>
                                     )}
                                   </div>
