@@ -34,6 +34,7 @@ export default function BulkProductUpdate() {
   const {
     loading,
     previewItems,
+    setPreviewItems: setEditablePreview,
     fetchFilterOptions,
     generatePreview,
     applyUpdates,
