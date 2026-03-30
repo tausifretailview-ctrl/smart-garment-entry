@@ -408,6 +408,27 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
             credit: 0,
             balance: runningBalance,
           });
+        } else if (item.type === 'purchase_return') {
+          const pr = item.data as any;
+          const amount = Number(pr.net_amount) || 0;
+          runningBalance -= amount;
+
+          let description = `Purchase Return - ${pr.return_number}`;
+          if (pr.credit_status === 'adjusted_outstanding') description += ` (Adj. Outstanding)`;
+          else if (pr.credit_status === 'adjusted') description += ` (Adj. Against Bill)`;
+          else if (pr.credit_status === 'refunded') description += ` (Refunded)`;
+          else description += ` (Pending)`;
+
+          allTransactions.push({
+            id: `pr-${pr.id}`,
+            date: pr.return_date,
+            type: 'credit_note',
+            reference: pr.return_number,
+            description,
+            debit: amount,
+            credit: 0,
+            balance: runningBalance,
+          });
         } else {
           const voucher = item.data as any;
           runningBalance -= voucher.total_amount;
