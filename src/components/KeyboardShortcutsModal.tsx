@@ -47,6 +47,8 @@ const posShortcuts: ShortcutGroup[] = [
       { keys: ["F7"], description: "Hold Bill" },
       { keys: ["F8"], description: "Cashier Report" },
       { keys: ["F9"], description: "Print Estimate (no save)" },
+      { keys: ["F10"], description: "Add New Customer" },
+      { keys: ["F11"], description: "Size-wise Stock Report" },
       { keys: ["Esc"], description: "Clear Cart" },
       { keys: ["Enter"], description: "Add scanned item to cart" },
     ],
