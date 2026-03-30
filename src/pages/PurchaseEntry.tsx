@@ -3304,7 +3304,15 @@ const PurchaseEntry = () => {
                   </TableRow>
                 </TableHeader>
               </Table>
-              <div className="max-h-[50vh] overflow-y-auto isolate">
+              <div className={`relative max-h-[50vh] overflow-y-auto isolate ${isBillLocked ? 'pointer-events-none' : ''}`}>
+              {isBillLocked && (
+                <div className="absolute inset-0 bg-background/60 z-10 flex items-center justify-center rounded-lg backdrop-blur-[1px]">
+                  <div className="flex items-center gap-2 bg-amber-100 dark:bg-amber-900 border border-amber-300 rounded-lg px-4 py-2">
+                    <Lock className="h-4 w-4 text-amber-600" />
+                    <span className="text-sm font-medium text-amber-700 dark:text-amber-300">Locked — click Unlock to edit</span>
+                  </div>
+                </div>
+              )}
               <Table className="table-fixed min-w-[1460px]">
                 <TableBody>
                   {lineItems.map((item, index) => {
