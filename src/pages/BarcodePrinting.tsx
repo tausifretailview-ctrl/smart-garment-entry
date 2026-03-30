@@ -1583,11 +1583,10 @@ export default function BarcodePrinting() {
               enabled: true,
             }));
             setActiveBarTab("precision");
-            // Check if preset name matches a saved label template
-            const isLabelTemplate = savedLabelTemplates.some(t => t.name === presetToLoad.name);
+            // Set name without "preset:" prefix — Fix 1 in settings sync will correct if needed
             if (!localStoragePresetName) {
-              setActivePrecisionTemplateName(isLabelTemplate ? presetToLoad.name : `preset:${presetToLoad.name}`);
-              toast.success(`Auto-loaded default preset "${presetToLoad.name}" (${presetToLoad.width}×${presetToLoad.height}mm, ${presetToLoad.printMode === 'thermal2up' ? '2-Up' : presetToLoad.printMode === 'a4' ? 'A4' : '1-Up'})`);
+              setActivePrecisionTemplateName(presetToLoad.name);
+              toast.success(`Auto-loaded preset "${presetToLoad.name}" (${presetToLoad.width}×${presetToLoad.height}mm, ${presetToLoad.printMode === 'thermal2up' ? '2-Up' : presetToLoad.printMode === 'a4' ? 'A4' : '1-Up'})`);
             }
           }
         }
