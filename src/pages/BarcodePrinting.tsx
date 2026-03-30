@@ -1288,6 +1288,34 @@ export default function BarcodePrinting() {
     // Sync label templates (always keep in sync)
     setSavedLabelTemplates(dbLabelTemplates);
     
+    // Fix race condition: if activePrecisionTemplateName has "preset:" prefix
+    // but the name matches a real label template, correct it now that templates are loaded
+    if (activePrecisionTemplateName) {
+      const nameWithoutPrefix = activePrecisionTemplateName.startsWith("preset:") 
+        ? activePrecisionTemplateName.replace("preset:", "") : activePrecisionTemplateName;
+      const isActuallyLabelTemplate = dbLabelTemplates.some((t: LabelTemplate) => t.name === nameWithoutPrefix);
+      if (activePrecisionTemplateName.startsWith("preset:") && isActuallyLabelTemplate) {
+        setActivePrecisionTemplateName(nameWithoutPrefix);
+      }
+    }
+    
+    // After templates load, refresh labelConfig from barcode_label_settings source of truth
+    if (activePrecisionTemplateName) {
+      const templateName = activePrecisionTemplateName.startsWith("preset:")
+        ? activePrecisionTemplateName.replace("preset:", "")
+        : activePrecisionTemplateName;
+      const freshTemplate = dbLabelTemplates.find((t: LabelTemplate) => t.name === templateName);
+      if (freshTemplate?.config) {
+        const migratedConfig = ensureCompleteFieldOrder(freshTemplate.config);
+        setPrecisionSettings(prev => ({
+          ...prev,
+          labelConfig: migratedConfig,
+          ...(freshTemplate.labelWidth ? { labelWidth: freshTemplate.labelWidth } : {}),
+          ...(freshTemplate.labelHeight ? { labelHeight: freshTemplate.labelHeight } : {}),
+        }));
+      }
+    }
+    
     // Sync margin presets
     setSavedMarginPresets(dbMarginPresets);
     
@@ -1384,7 +1412,7 @@ export default function BarcodePrinting() {
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoadingSettings, dbLabelTemplates, dbMarginPresets, dbCustomPresets]);
+  }, [isLoadingSettings, dbLabelTemplates, dbMarginPresets, dbCustomPresets, activePrecisionTemplateName]);
 
   // Get organization context
   const { currentOrganization } = useOrganization();
@@ -1554,11 +1582,10 @@ export default function BarcodePrinting() {
               enabled: true,
             }));
             setActiveBarTab("precision");
-            // Check if preset name matches a saved label template
-            const isLabelTemplate = savedLabelTemplates.some(t => t.name === presetToLoad.name);
+            // Set name without "preset:" prefix — Fix 1 in settings sync will correct if needed
             if (!localStoragePresetName) {
-              setActivePrecisionTemplateName(isLabelTemplate ? presetToLoad.name : `preset:${presetToLoad.name}`);
-              toast.success(`Auto-loaded default preset "${presetToLoad.name}" (${presetToLoad.width}×${presetToLoad.height}mm, ${presetToLoad.printMode === 'thermal2up' ? '2-Up' : presetToLoad.printMode === 'a4' ? 'A4' : '1-Up'})`);
+              setActivePrecisionTemplateName(presetToLoad.name);
+              toast.success(`Auto-loaded preset "${presetToLoad.name}" (${presetToLoad.width}×${presetToLoad.height}mm, ${presetToLoad.printMode === 'thermal2up' ? '2-Up' : presetToLoad.printMode === 'a4' ? 'A4' : '1-Up'})`);
             }
           }
         }
