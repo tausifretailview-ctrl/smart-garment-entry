@@ -377,7 +377,7 @@ const ProductEditPanel = ({
 
   return (
     <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <SheetContent side="right" className="w-full sm:max-w-lg p-0 flex flex-col">
+      <SheetContent side="right" className="w-full sm:max-w-lg p-0 flex flex-col max-h-[100dvh] h-auto">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-card border-b px-4 py-3 space-y-2">
           <div className="flex items-center justify-between">
