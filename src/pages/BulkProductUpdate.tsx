@@ -34,7 +34,6 @@ export default function BulkProductUpdate() {
   const {
     loading,
     previewItems,
-    setPreviewItems: setEditablePreview,
     fetchFilterOptions,
     generatePreview,
     applyUpdates,
@@ -122,12 +121,7 @@ export default function BulkProductUpdate() {
         break;
     }
 
-    // For edit_individual, only apply items where price actually changed
-    const itemsToApply = (updateType === "update_prices" && priceConfig.updateMethod === "edit_individual")
-      ? previewItems.filter(i => i.newValue !== i.currentValue)
-      : previewItems;
-
-    const success = await applyUpdates(updateType, config, itemsToApply, filters);
+    const success = await applyUpdates(updateType, config, previewItems, filters);
     if (success) {
       loadFilterOptions();
       loadHistory();
@@ -145,7 +139,7 @@ export default function BulkProductUpdate() {
       case "update_gst":
         return `Update GST from ${gstConfig.currentGst ?? "any"}% to ${gstConfig.newGst}%`;
       case "update_prices":
-        if (priceConfig.updateMethod === "edit_individual") return `Edit individual ${priceConfig.priceType === "mrp" ? "MRP" : priceConfig.priceType === "sale_price" ? "Sale Price" : "Purchase Price"} from database`;
+        return `${priceConfig.updateMethod === "set" ? "Set" : priceConfig.updateMethod === "increase" ? "Increase" : "Decrease"} ${priceConfig.priceType} ${priceConfig.updateMethod !== "set" ? "by" : "to"} ${priceConfig.value}${priceConfig.updateMethod !== "set" ? "%" : ""}`;
         return `${priceConfig.updateMethod === "set" ? "Set" : priceConfig.updateMethod === "increase" ? "Increase" : "Decrease"} ${priceConfig.priceType} ${priceConfig.updateMethod !== "set" ? "by" : "to"} ${priceConfig.value}${priceConfig.updateMethod !== "set" ? "%" : ""}`;
     }
   };
@@ -490,28 +484,17 @@ export default function BulkProductUpdate() {
                         <RadioGroupItem value="decrease" id="method_dec" />
                         <Label htmlFor="method_dec">Decrease By %</Label>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="edit_individual" id="method_edit" />
-                        <Label htmlFor="method_edit">Edit Individual from Database</Label>
-                      </div>
                     </RadioGroup>
                   </div>
-                  {priceConfig.updateMethod !== "edit_individual" && (
-                    <div className="space-y-2">
-                      <Label>{priceConfig.updateMethod === "set" ? "Fixed Value (₹)" : "Percentage (%)"}</Label>
-                      <Input 
-                        type="number" 
-                        placeholder="Enter value..." 
-                        value={priceConfig.value || ""} 
-                        onChange={(e) => setPriceConfig({ ...priceConfig, value: Number(e.target.value) })}
-                      />
-                    </div>
-                  )}
-                  {priceConfig.updateMethod === "edit_individual" && (
-                    <p className="text-sm text-muted-foreground">
-                      Select a Brand/Category filter above, then click "Preview Changes" to fetch current prices. You can edit each price individually in the preview table.
-                    </p>
-                  )}
+                  <div className="space-y-2">
+                    <Label>{priceConfig.updateMethod === "set" ? "Fixed Value (₹)" : "Percentage (%)"}</Label>
+                    <Input 
+                      type="number" 
+                      placeholder="Enter value..." 
+                      value={priceConfig.value || ""} 
+                      onChange={(e) => setPriceConfig({ ...priceConfig, value: Number(e.target.value) })}
+                    />
+                  </div>
                 </>
               )}
 
@@ -569,11 +552,8 @@ export default function BulkProductUpdate() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {previewItems.slice(0, 200).map((item, idx) => {
-                          const isEditMode = updateType === "update_prices" && priceConfig.updateMethod === "edit_individual";
-                          const hasChanged = isEditMode ? item.newValue !== item.currentValue : true;
-                          return (
-                          <TableRow key={item.id} className={isEditMode && !hasChanged ? "opacity-60" : ""}>
+                        {previewItems.slice(0, 200).map((item) => (
+                          <TableRow key={item.id}>
                             <TableCell className="font-medium">
                               {item.productName}
                               {item.style && <span className="text-muted-foreground text-xs block">{item.style}</span>}
@@ -594,26 +574,10 @@ export default function BulkProductUpdate() {
                               <ArrowRight className="h-4 w-4 text-muted-foreground" />
                             </TableCell>
                             <TableCell>
-                              {isEditMode ? (
-                                <Input
-                                  type="number"
-                                  className="h-8 w-24 text-right"
-                                  value={item.newValue ?? ""}
-                                  onChange={(e) => {
-                                    const newItems = [...previewItems];
-                                    const realIdx = idx; // already sliced view but we need actual index
-                                    newItems[realIdx] = { ...newItems[realIdx], newValue: e.target.value === "" ? 0 : Number(e.target.value) };
-                                    // Directly mutate through the hook's state
-                                    setEditablePreview(newItems);
-                                  }}
-                                />
-                              ) : (
-                                <span className="text-primary font-medium">{item.newValue ?? "-"}</span>
-                              )}
+                              <span className="text-primary font-medium">{item.newValue ?? "-"}</span>
                             </TableCell>
                           </TableRow>
-                          );
-                        })}
+                        ))}
                       </TableBody>
                     </Table>
                   </div>
@@ -624,23 +588,15 @@ export default function BulkProductUpdate() {
                     </p>
                   )}
 
-                  {(() => {
-                    const isEditMode = updateType === "update_prices" && priceConfig.updateMethod === "edit_individual";
-                    const changedCount = isEditMode 
-                      ? previewItems.filter(i => i.newValue !== i.currentValue).length 
-                      : previewItems.length;
-                    return (
-                      <Button 
-                        onClick={handleApply} 
-                        disabled={loading || changedCount === 0} 
-                        className="w-full mt-4"
-                        variant="default"
-                      >
-                        <Check className="h-4 w-4 mr-2" />
-                        Apply Changes to {changedCount} Items
-                      </Button>
-                    );
-                  })()}
+                  <Button 
+                    onClick={handleApply} 
+                    disabled={loading || previewItems.length === 0} 
+                    className="w-full mt-4"
+                    variant="default"
+                  >
+                    <Check className="h-4 w-4 mr-2" />
+                    Apply Changes to {previewItems.length} Items
+                  </Button>
                 </>
               )}
             </CardContent>
