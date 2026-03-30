@@ -339,6 +339,11 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
           type: 'refund_received' as const,
           data: r,
         })),
+        ...(unreflectedReturns || []).map((pr: any) => ({
+          date: pr.return_date,
+          type: 'purchase_return' as const,
+          data: pr,
+        })),
       ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
       combined.forEach((item) => {
