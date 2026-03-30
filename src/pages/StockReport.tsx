@@ -818,18 +818,19 @@ export default function StockReport() {
 
   // Export Size-wise to Excel
   const exportSizeWiseToExcel = () => {
-    const headers = ["Product", "Brand", "Color", "Category", ...sizeWiseData.sizes, "Total Stock"];
+    const headers = ["Product", "Brand", "Color", "Category", "Style", ...sizeWiseData.sizes, "Total Stock"];
     const data = sizeWiseData.rows.map(row => [
       row.productName,
       row.brand,
       row.color,
       row.category,
+      row.department,
       ...sizeWiseData.sizes.map(size => row.sizeStocks[size] || 0),
       row.totalStock
     ]);
     
     data.push([
-      "TOTAL", "", "", "",
+      "TOTAL", "", "", "", "",
       ...sizeWiseData.sizes.map(size => sizeWiseTotals.sizeTotals[size] || 0),
       sizeWiseTotals.grandTotal
     ]);
@@ -837,6 +838,7 @@ export default function StockReport() {
     const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
     const colWidths = [
       { wch: 40 },
+      { wch: 15 },
       { wch: 15 },
       { wch: 15 },
       { wch: 15 },
