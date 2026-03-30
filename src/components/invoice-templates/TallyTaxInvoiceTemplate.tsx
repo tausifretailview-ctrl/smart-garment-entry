@@ -195,8 +195,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
       summaryGstRate = gstPct; // use last non-zero rate for label
     }
   });
-  if (showGSTBreakdown && (totalCgst > 0 || totalSgst > 0)) contentRows += 2;
-  if (showGSTBreakdown && totalIgst > 0) contentRows += 1;
+  if (showGSTBreakdown && (totalCgst > 0 || totalSgst > 0 || totalIgst > 0)) contentRows += 1;
   if (roundOff !== 0) contentRows++;
   const blankRowsNeeded = Math.max(0, MIN_ITEM_ROWS - contentRows);
 
