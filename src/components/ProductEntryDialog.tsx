@@ -2006,7 +2006,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                             if (nextSize) {
                                               document.getElementById(`size-qty-${nextSize}`)?.focus();
                                             } else {
-                                              document.getElementById('btn-add-all-sizes')?.focus();
+                                              // Focus first variant's pur_price for review, otherwise Add button
+                                              const firstPur = document.getElementById('variant-pur-price-0');
+                                              if (firstPur) {
+                                                firstPur.focus();
+                                              } else {
+                                                document.getElementById('btn-add-all-sizes')?.focus();
+                                              }
                                             }
                                           }
                                         }}
