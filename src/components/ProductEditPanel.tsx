@@ -687,7 +687,7 @@ const ProductEditPanel = ({
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-card border-t px-4 py-3 flex items-center justify-between gap-2">
+        <div className="sticky bottom-0 bg-card border-t px-4 py-2 flex items-center justify-between gap-2">
           <Button variant="ghost" size="sm" onClick={handleReset} disabled={modifiedFields.size === 0} className="text-xs gap-1">
             <RotateCcw className="h-3 w-3" /> Reset
           </Button>
