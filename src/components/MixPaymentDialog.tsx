@@ -38,11 +38,12 @@ export function MixPaymentDialog({
   const [cashAmount, setCashAmount] = useState(0);
   const [cardAmount, setCardAmount] = useState(0);
   const [upiAmount, setUpiAmount] = useState(0);
+  const [bankAmount, setBankAmount] = useState(0);
   const [refundAmount, setRefundAmount] = useState(0);
 
   const isRefundMode = billAmount < 0;
   const refundRequired = Math.abs(billAmount);
-  const totalPaid = cashAmount + cardAmount + upiAmount;
+  const totalPaid = cashAmount + cardAmount + upiAmount + bankAmount;
   const creditBalance = isRefundMode ? 0 : Math.max(0, billAmount - totalPaid);
   const balanceAmount = isRefundMode ? 0 : billAmount - totalPaid;
 
