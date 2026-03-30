@@ -693,6 +693,65 @@ const PurchaseBillDashboard = () => {
     setShowPaymentDialog(true);
   };
 
+  const handleUploadBillImage = async (billId: string, file: File) => {
+    if (!file) return;
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!validTypes.includes(file.type)) {
+      toast({ title: "Invalid file", description: "Please upload JPG, PNG, WEBP, or PDF", variant: "destructive" });
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Maximum file size is 10MB", variant: "destructive" });
+      return;
+    }
+    setUploadingImageForBill(billId);
+    try {
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const filePath = `${currentOrganization?.id}/${billId}-${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage
+        .from('supplier-bill-images')
+        .upload(filePath, file, { contentType: file.type, upsert: true });
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from('supplier-bill-images').getPublicUrl(filePath);
+      const imageUrl = data.publicUrl;
+      const { error: updateError } = await supabase
+        .from('purchase_bills')
+        .update({ bill_image_url: imageUrl })
+        .eq('id', billId);
+      if (updateError) throw updateError;
+      setBills(prev => prev.map(b => b.id === billId ? { ...b, bill_image_url: imageUrl } : b));
+      toast({ title: "Invoice image saved", description: "Supplier bill image uploaded successfully" });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    } finally {
+      setUploadingImageForBill(null);
+    }
+  };
+
+  const handleToggleLock = async (bill: PurchaseBill, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setTogglingLock(bill.id);
+    try {
+      const newLocked = !bill.is_locked;
+      const { error } = await supabase
+        .from('purchase_bills')
+        .update({ is_locked: newLocked })
+        .eq('id', bill.id);
+      if (error) throw error;
+      setBills(prev => prev.map(b => b.id === bill.id ? { ...b, is_locked: newLocked } : b));
+      toast({
+        title: newLocked ? "Bill Locked" : "Bill Unlocked",
+        description: newLocked
+          ? `${bill.software_bill_no} is now locked. Editing is disabled.`
+          : `${bill.software_bill_no} is now unlocked for editing.`,
+      });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setTogglingLock(null);
+    }
+  };
+
   const handleRecordPayment = async () => {
     if (!selectedBillForPayment || !currentOrganization) return;
 
