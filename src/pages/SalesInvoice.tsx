@@ -190,13 +190,7 @@ export default function SalesInvoice() {
   const [shippingInstructions, setShippingInstructions] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
   const mobileERP = useMobileERP();
-  const [financerDetails, setFinancerDetails] = useState<{
-    financer_name: string;
-    loan_number: string;
-    emi_amount: number;
-    tenure: number;
-    down_payment: number;
-  } | null>(null);
+  const [financerDetails, setFinancerDetails] = useState<FinancerDetails | null>(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
   const [originalItemsForEdit, setOriginalItemsForEdit] = useState<Array<{ variantId: string; quantity: number }>>([]);
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
