@@ -32,7 +32,7 @@ import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBeepSound } from "@/hooks/useBeepSound";
 import { useMobileERP } from "@/hooks/useMobileERP";
-import { FinancerDetailsForm } from "@/components/FinancerDetailsForm";
+import { FinancerDetailsForm, FinancerDetails } from "@/components/FinancerDetailsForm";
 
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { format } from "date-fns";
