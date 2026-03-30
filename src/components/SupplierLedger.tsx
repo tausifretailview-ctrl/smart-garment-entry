@@ -262,6 +262,21 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
 
       if (creditNotesError) throw creditNotesError;
 
+      // Fetch purchase returns (direct, as fallback/supplement to credit_note vouchers)
+      const { data: purchaseReturnsData } = await supabase
+        .from("purchase_returns" as any)
+        .select("id, return_number, return_date, net_amount, credit_status, credit_note_id, created_at")
+        .eq("supplier_id", selectedSupplier.id)
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null)
+        .order("return_date", { ascending: true });
+
+      // Only include purchase returns that have NO linked credit_note voucher
+      const creditNoteVoucherIds = new Set((creditNotesData || []).map((cn: any) => cn.id));
+      const unreflectedReturns = (purchaseReturnsData || []).filter((pr: any) =>
+        !pr.credit_note_id || !creditNoteVoucherIds.has(pr.credit_note_id)
+      );
+
       // Fetch refunds received from supplier (when CN is marked 'refunded')
       const { data: supplierRefunds } = await supabase
         .from('voucher_entries').select('*')
