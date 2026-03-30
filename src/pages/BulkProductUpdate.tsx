@@ -608,7 +608,7 @@ export default function BulkProductUpdate() {
                                   }}
                                 />
                               ) : (
-                                <span className="text-green-600 font-medium">{item.newValue ?? "-"}</span>
+                                <span className="text-primary font-medium">{item.newValue ?? "-"}</span>
                               )}
                             </TableCell>
                           </TableRow>
