@@ -515,6 +515,9 @@ export default function POSSales() {
           emi_amount: financer.emi_amount || 0,
           tenure: financer.tenure || 0,
           down_payment: financer.down_payment || 0,
+          down_payment_mode: (financer as any).down_payment_mode || 'cash',
+          bank_transfer_amount: (financer as any).bank_transfer_amount || 0,
+          finance_discount: (financer as any).finance_discount || 0,
         });
       }
     } catch (error: any) {

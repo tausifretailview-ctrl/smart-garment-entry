@@ -2062,6 +2062,9 @@ Thank you for choosing us!`;
               emi_amount: financerDetails.emi_amount || null,
               tenure: financerDetails.tenure || null,
               down_payment: financerDetails.down_payment || null,
+              down_payment_mode: financerDetails.down_payment_mode || 'cash',
+              bank_transfer_amount: financerDetails.bank_transfer_amount || 0,
+              finance_discount: financerDetails.finance_discount || 0,
             });
         }
 
