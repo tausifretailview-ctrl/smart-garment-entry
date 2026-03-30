@@ -3304,6 +3304,16 @@ export default function POSSales() {
             <span>Size Stk</span>
           </Button>
 
+          {/* Advance Booking */}
+          <Button
+            onClick={() => setShowAdvanceBooking(true)}
+            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold w-full rounded-lg bg-purple-500 hover:bg-purple-600 active:scale-95 text-white shadow-sm transition-all duration-150"
+            title="Advance Booking"
+          >
+            <BookmarkPlus className="h-4 w-4" />
+            <span>Advance</span>
+          </Button>
+
           {/* 10. Clear - matches Dashboard "With Refunds" rose-500 */}
           <Button
             onClick={handleClearAll}
