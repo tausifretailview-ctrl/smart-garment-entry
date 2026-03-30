@@ -1047,18 +1047,35 @@ const PurchaseBillDashboard = () => {
     {
       accessorKey: "software_bill_no",
       header: "Bill No.",
-      cell: ({ row }) => (
-        <div className="flex items-center gap-1.5">
-          <span className="font-mono text-sm font-semibold bg-primary/8 text-primary px-2 py-0.5 rounded-md">
-            {row.original.software_bill_no || "N/A"}
-          </span>
-          {row.original.is_dc_purchase && (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400 border border-orange-300 dark:border-orange-700">DC</span>
-          )}
-        </div>
-      ),
-      size: 90,
-      minSize: 70,
+      cell: ({ row }) => {
+        const bill = row.original;
+        return (
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono text-sm font-semibold bg-primary/8 text-primary px-2 py-0.5 rounded-md">
+              {bill.software_bill_no || "N/A"}
+            </span>
+            {bill.is_dc_purchase && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400 border border-orange-300 dark:border-orange-700">DC</span>
+            )}
+            <button
+              onClick={(e) => handleToggleLock(bill, e)}
+              disabled={togglingLock === bill.id}
+              title={bill.is_locked ? "Click to unlock" : "Click to lock"}
+              className="shrink-0"
+            >
+              {togglingLock === bill.id ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+              ) : bill.is_locked ? (
+                <Lock className="h-3.5 w-3.5 text-amber-500" />
+              ) : (
+                <LockOpen className="h-3.5 w-3.5 text-muted-foreground/40 hover:text-muted-foreground transition-colors" />
+              )}
+            </button>
+          </div>
+        );
+      },
+      size: 120,
+      minSize: 90,
     },
     {
       accessorKey: "bill_date",
@@ -1231,22 +1248,6 @@ const PurchaseBillDashboard = () => {
           <div className="flex items-center gap-0" onClick={(e) => e.stopPropagation()}>
             <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950" onClick={(e) => handleOpenPaymentDialog(bill, e)} title="Record Payment">
               <Wallet className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className={`h-7 w-7 ${bill.is_locked ? 'hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950 text-amber-500' : 'hover:bg-slate-100 hover:text-slate-600'}`}
-              onClick={(e) => handleToggleLock(bill, e)}
-              disabled={togglingLock === bill.id}
-              title={bill.is_locked ? "Unlock bill to edit" : "Lock bill"}
-            >
-              {togglingLock === bill.id ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : bill.is_locked ? (
-                <Lock className="h-3.5 w-3.5" />
-              ) : (
-                <LockOpen className="h-3.5 w-3.5" />
-              )}
             </Button>
             <Button
               size="icon"
