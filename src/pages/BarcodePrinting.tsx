@@ -1493,8 +1493,9 @@ export default function BarcodePrinting() {
             a4Cols: bbs.precision_a4_cols ?? prev.a4Cols,
             a4Rows: bbs.precision_a4_rows ?? prev.a4Rows,
             printMode: bbs.precision_print_mode ?? prev.printMode,
-            // Only use settings labelConfig as fallback - preset labelConfig takes priority
-            labelConfig: prev.labelConfig || bbs.precision_label_config || null,
+            // Only use settings labelConfig as fallback when NO active preset is selected from localStorage
+            // If activePrecisionTemplateName is set, the preset's labelConfig will be loaded by fetchDbPresets
+            labelConfig: prev.labelConfig || (!activePrecisionTemplateName ? (bbs.precision_label_config || null) : prev.labelConfig),
           }));
           if (bbs.precision_pro_enabled === true) {
             setActiveBarTab("precision");
@@ -1531,28 +1532,34 @@ export default function BarcodePrinting() {
           }));
           setDbPresets(mapped);
 
-          // Auto-load default preset always (not just from purchase)
-          const defaultPreset = mapped.find((p: any) => p.isDefault);
-          if (defaultPreset && !activePrecisionTemplateName) {
+          // Auto-load preset: either the one saved in localStorage or the default preset
+          const localStoragePresetName = activePrecisionTemplateName?.replace('preset:', '') || null;
+          const presetToLoad = localStoragePresetName 
+            ? mapped.find((p: any) => p.name === localStoragePresetName)
+            : mapped.find((p: any) => p.isDefault);
+          
+          if (presetToLoad) {
             setPrecisionSettings((prev) => ({
               ...prev,
-              xOffset: defaultPreset.xOffset,
-              yOffset: defaultPreset.yOffset,
-              vGap: defaultPreset.vGap,
-              labelWidth: defaultPreset.width,
-              labelHeight: defaultPreset.height,
-              ...(defaultPreset.a4Cols ? { a4Cols: defaultPreset.a4Cols } : {}),
-              ...(defaultPreset.a4Rows ? { a4Rows: defaultPreset.a4Rows } : {}),
-              printMode: defaultPreset.printMode || 'thermal',
-              ...(defaultPreset.labelConfig ? { labelConfig: defaultPreset.labelConfig } : {}),
-              thermalCols: defaultPreset.thermalCols || 1,
+              xOffset: presetToLoad.xOffset,
+              yOffset: presetToLoad.yOffset,
+              vGap: presetToLoad.vGap,
+              labelWidth: presetToLoad.width,
+              labelHeight: presetToLoad.height,
+              ...(presetToLoad.a4Cols ? { a4Cols: presetToLoad.a4Cols } : {}),
+              ...(presetToLoad.a4Rows ? { a4Rows: presetToLoad.a4Rows } : {}),
+              printMode: presetToLoad.printMode || 'thermal',
+              ...(presetToLoad.labelConfig ? { labelConfig: presetToLoad.labelConfig } : {}),
+              thermalCols: presetToLoad.thermalCols || 1,
               enabled: true,
             }));
             setActiveBarTab("precision");
-            // Check if default preset name matches a saved label template
-            const isLabelTemplate = savedLabelTemplates.some(t => t.name === defaultPreset.name);
-            setActivePrecisionTemplateName(isLabelTemplate ? defaultPreset.name : `preset:${defaultPreset.name}`);
-            toast.success(`Auto-loaded default preset "${defaultPreset.name}" (${defaultPreset.width}×${defaultPreset.height}mm, ${defaultPreset.printMode === 'thermal2up' ? '2-Up' : defaultPreset.printMode === 'a4' ? 'A4' : '1-Up'})`);
+            // Check if preset name matches a saved label template
+            const isLabelTemplate = savedLabelTemplates.some(t => t.name === presetToLoad.name);
+            if (!localStoragePresetName) {
+              setActivePrecisionTemplateName(isLabelTemplate ? presetToLoad.name : `preset:${presetToLoad.name}`);
+              toast.success(`Auto-loaded default preset "${presetToLoad.name}" (${presetToLoad.width}×${presetToLoad.height}mm, ${presetToLoad.printMode === 'thermal2up' ? '2-Up' : presetToLoad.printMode === 'a4' ? 'A4' : '1-Up'})`);
+            }
           }
         }
       } catch (error) {
