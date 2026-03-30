@@ -4770,9 +4770,19 @@ export default function POSSales() {
           organizationId={currentOrganization?.id || ""}
           customerId={customerId}
           customerName={customerName || undefined}
-          onReturnSaved={(amount, returnNumber) => {
-            setSaleReturnAdjust(amount);
-            toast({ title: "Sale Return Applied", description: `Return ${returnNumber} — ₹${Math.round(amount)} adjusted` });
+          onReturnSaved={(amount, returnNumber, refundType) => {
+            if (refundType === "exchange" || refundType === "credit_note") {
+              setSaleReturnAdjust(amount);
+              toast({
+                title: refundType === "exchange" ? "Exchange Applied" : "Credit Note Created",
+                description: `${returnNumber} — ₹${Math.round(amount)} ${refundType === "exchange" ? "deducted from new bill" : "credit note issued"}`,
+              });
+            } else {
+              toast({
+                title: "Cash Refund Processed",
+                description: `${returnNumber} — ₹${Math.round(amount)} cash refunded to customer`,
+              });
+            }
           }}
         />
 
