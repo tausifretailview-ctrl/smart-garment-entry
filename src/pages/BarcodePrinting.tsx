@@ -1288,6 +1288,35 @@ export default function BarcodePrinting() {
     // Sync label templates (always keep in sync)
     setSavedLabelTemplates(dbLabelTemplates);
     
+    // Fix race condition: if activePrecisionTemplateName has "preset:" prefix
+    // but the name matches a real label template, correct it now that templates are loaded
+    setActivePrecisionTemplateName(prev => {
+      if (!prev) return prev;
+      const nameWithoutPrefix = prev.startsWith("preset:") ? prev.replace("preset:", "") : prev;
+      const isActuallyLabelTemplate = dbLabelTemplates.some((t: LabelTemplate) => t.name === nameWithoutPrefix);
+      if (prev.startsWith("preset:") && isActuallyLabelTemplate) {
+        return nameWithoutPrefix;
+      }
+      return prev;
+    });
+    
+    // After templates load, refresh labelConfig from barcode_label_settings source of truth
+    if (activePrecisionTemplateName) {
+      const templateName = activePrecisionTemplateName.startsWith("preset:")
+        ? activePrecisionTemplateName.replace("preset:", "")
+        : activePrecisionTemplateName;
+      const freshTemplate = dbLabelTemplates.find((t: LabelTemplate) => t.name === templateName);
+      if (freshTemplate?.config) {
+        const migratedConfig = ensureCompleteFieldOrder(freshTemplate.config);
+        setPrecisionSettings(prev => ({
+          ...prev,
+          labelConfig: migratedConfig,
+          ...(freshTemplate.labelWidth ? { labelWidth: freshTemplate.labelWidth } : {}),
+          ...(freshTemplate.labelHeight ? { labelHeight: freshTemplate.labelHeight } : {}),
+        }));
+      }
+    }
+    
     // Sync margin presets
     setSavedMarginPresets(dbMarginPresets);
     
