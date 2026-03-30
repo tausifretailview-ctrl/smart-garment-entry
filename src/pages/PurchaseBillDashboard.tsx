@@ -21,7 +21,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee, FileText, X, RefreshCw, Barcode, Eye, CreditCard } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee, FileText, X, RefreshCw, Barcode, Eye, CreditCard, Camera, Lock, LockOpen, ZoomIn } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format, formatDistanceToNow } from "date-fns";
 import { ColumnDef } from "@tanstack/react-table";
 
@@ -108,6 +109,8 @@ interface PurchaseBill {
   paid_amount?: number;
   total_qty?: number;
   is_dc_purchase?: boolean;
+  bill_image_url?: string | null;
+  is_locked?: boolean;
   items?: PurchaseItem[];
 }
 
@@ -137,6 +140,12 @@ const PurchaseBillDashboard = () => {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
   const [dcFilter, setDcFilter] = useState<string>("all");
+
+  // Image upload and lock states
+  const [uploadingImageForBill, setUploadingImageForBill] = useState<string | null>(null);
+  const [viewImageUrl, setViewImageUrl] = useState<string | null>(null);
+  const [showImageViewer, setShowImageViewer] = useState(false);
+  const [togglingLock, setTogglingLock] = useState<string | null>(null);
   
   // Payment recording states
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
@@ -344,7 +353,7 @@ const PurchaseBillDashboard = () => {
 
       let query = supabase
         .from("purchase_bills")
-        .select("id, supplier_id, supplier_name, supplier_invoice_no, software_bill_no, bill_date, gross_amount, discount_amount, gst_amount, net_amount, notes, created_at, payment_status, paid_amount, total_qty, is_dc_purchase", { count: "exact" })
+        .select("id, supplier_id, supplier_name, supplier_invoice_no, software_bill_no, bill_date, gross_amount, discount_amount, gst_amount, net_amount, notes, created_at, payment_status, paid_amount, total_qty, is_dc_purchase, bill_image_url, is_locked", { count: "exact" })
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
 
@@ -682,6 +691,65 @@ const PurchaseBillDashboard = () => {
     setPaymentMethod("cash");
     setPaymentNotes("");
     setShowPaymentDialog(true);
+  };
+
+  const handleUploadBillImage = async (billId: string, file: File) => {
+    if (!file) return;
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!validTypes.includes(file.type)) {
+      toast({ title: "Invalid file", description: "Please upload JPG, PNG, WEBP, or PDF", variant: "destructive" });
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Maximum file size is 10MB", variant: "destructive" });
+      return;
+    }
+    setUploadingImageForBill(billId);
+    try {
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const filePath = `${currentOrganization?.id}/${billId}-${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage
+        .from('supplier-bill-images')
+        .upload(filePath, file, { contentType: file.type, upsert: true });
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from('supplier-bill-images').getPublicUrl(filePath);
+      const imageUrl = data.publicUrl;
+      const { error: updateError } = await supabase
+        .from('purchase_bills')
+        .update({ bill_image_url: imageUrl })
+        .eq('id', billId);
+      if (updateError) throw updateError;
+      setBills(prev => prev.map(b => b.id === billId ? { ...b, bill_image_url: imageUrl } : b));
+      toast({ title: "Invoice image saved", description: "Supplier bill image uploaded successfully" });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    } finally {
+      setUploadingImageForBill(null);
+    }
+  };
+
+  const handleToggleLock = async (bill: PurchaseBill, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setTogglingLock(bill.id);
+    try {
+      const newLocked = !bill.is_locked;
+      const { error } = await supabase
+        .from('purchase_bills')
+        .update({ is_locked: newLocked })
+        .eq('id', bill.id);
+      if (error) throw error;
+      setBills(prev => prev.map(b => b.id === bill.id ? { ...b, is_locked: newLocked } : b));
+      toast({
+        title: newLocked ? "Bill Locked" : "Bill Unlocked",
+        description: newLocked
+          ? `${bill.software_bill_no} is now locked. Editing is disabled.`
+          : `${bill.software_bill_no} is now unlocked for editing.`,
+      });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setTogglingLock(null);
+    }
   };
 
   const handleRecordPayment = async () => {
@@ -1096,6 +1164,65 @@ const PurchaseBillDashboard = () => {
       minSize: 45,
     },
     {
+      id: "bill_image",
+      header: "Invoice",
+      cell: ({ row }) => {
+        const bill = row.original;
+        return (
+          <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+            {bill.bill_image_url ? (
+              <button
+                type="button"
+                onClick={() => { setViewImageUrl(bill.bill_image_url!); setShowImageViewer(true); }}
+                className="relative group"
+                title="View invoice image"
+              >
+                {bill.bill_image_url.endsWith('.pdf') ? (
+                  <div className="w-10 h-10 rounded border border-border bg-red-50 flex items-center justify-center hover:bg-red-100 transition-colors">
+                    <FileText className="h-5 w-5 text-red-500" />
+                  </div>
+                ) : (
+                  <div className="relative w-10 h-10 rounded border border-border overflow-hidden hover:border-primary transition-colors">
+                    <img
+                      src={bill.bill_image_url}
+                      alt="Bill"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                      <ZoomIn className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                  </div>
+                )}
+              </button>
+            ) : (
+              <label
+                className="w-10 h-10 rounded border-2 border-dashed border-muted-foreground/30 flex items-center justify-center cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors"
+                title="Upload supplier invoice image"
+              >
+                {uploadingImageForBill === bill.id ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : (
+                  <Camera className="h-4 w-4 text-muted-foreground/50" />
+                )}
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleUploadBillImage(bill.id, file);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+            )}
+          </div>
+        );
+      },
+      size: 60,
+      minSize: 55,
+    },
+    {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => {
@@ -1105,7 +1232,36 @@ const PurchaseBillDashboard = () => {
             <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950" onClick={(e) => handleOpenPaymentDialog(bill, e)} title="Record Payment">
               <Wallet className="h-3.5 w-3.5" />
             </Button>
-            <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950" onClick={(e) => { e.stopPropagation(); navigate("/purchase-entry", { state: { editBillId: bill.id } }); }} title="Edit">
+            <Button
+              size="icon"
+              variant="ghost"
+              className={`h-7 w-7 ${bill.is_locked ? 'hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950 text-amber-500' : 'hover:bg-slate-100 hover:text-slate-600'}`}
+              onClick={(e) => handleToggleLock(bill, e)}
+              disabled={togglingLock === bill.id}
+              title={bill.is_locked ? "Unlock bill to edit" : "Lock bill"}
+            >
+              {togglingLock === bill.id ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : bill.is_locked ? (
+                <Lock className="h-3.5 w-3.5" />
+              ) : (
+                <LockOpen className="h-3.5 w-3.5" />
+              )}
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className={`h-7 w-7 ${bill.is_locked ? 'opacity-40 cursor-not-allowed' : 'hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950'}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (bill.is_locked) {
+                  toast({ title: "Bill is locked", description: "Unlock the bill first to edit it.", variant: "destructive" });
+                  return;
+                }
+                navigate("/purchase-entry", { state: { editBillId: bill.id } });
+              }}
+              title={bill.is_locked ? "Unlock bill to edit" : "Edit bill"}
+            >
               <Edit className="h-3.5 w-3.5" />
             </Button>
             <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-950" onClick={(e) => handlePrintBarcodes(bill.id, e)} disabled={printingBill === bill.id} title="Print Barcodes">
@@ -1114,10 +1270,10 @@ const PurchaseBillDashboard = () => {
           </div>
         );
       },
-      size: 130,
-      minSize: 120,
+      size: 170,
+      minSize: 150,
     },
-  ], [selectedBills, paginatedBills, toggleSelectAll, toggleSelectBill, billItems, currentPage, itemsPerPage, printingBill, deletingBill]);
+  ], [selectedBills, paginatedBills, toggleSelectAll, toggleSelectBill, billItems, currentPage, itemsPerPage, printingBill, deletingBill, uploadingImageForBill, togglingLock]);
 
   // Render sub-row content for expanded bills
   const renderSubRow = useCallback((bill: PurchaseBill) => {
@@ -1975,6 +2131,42 @@ const PurchaseBillDashboard = () => {
           />
         </>
       )}
+      {/* Bill Image Viewer */}
+      <Dialog open={showImageViewer} onOpenChange={setShowImageViewer}>
+        <DialogContent className="max-w-4xl max-h-[90vh] p-2 flex flex-col">
+          <DialogHeader className="px-2 py-1">
+            <DialogTitle className="text-sm">Supplier Invoice Image</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto flex items-center justify-center bg-muted/30 rounded-md min-h-[400px]">
+            {viewImageUrl && (
+              viewImageUrl.endsWith('.pdf') ? (
+                <iframe
+                  src={viewImageUrl}
+                  className="w-full h-[70vh]"
+                  title="Supplier Invoice PDF"
+                />
+              ) : (
+                <img
+                  src={viewImageUrl}
+                  alt="Supplier invoice"
+                  className="max-w-full max-h-[75vh] object-contain rounded"
+                />
+              )
+            )}
+          </div>
+          <div className="flex justify-between items-center px-2 py-1">
+            <a
+              href={viewImageUrl || '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-primary hover:underline"
+            >
+              Open in new tab ↗
+            </a>
+            <Button size="sm" variant="outline" onClick={() => setShowImageViewer(false)}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -3098,6 +3098,7 @@ export type Database = {
       purchase_bills: {
         Row: {
           bill_date: string
+          bill_image_url: string | null
           created_at: string
           deleted_at: string | null
           deleted_by: string | null
@@ -3106,6 +3107,7 @@ export type Database = {
           gst_amount: number
           id: string
           is_dc_purchase: boolean | null
+          is_locked: boolean
           net_amount: number
           notes: string | null
           organization_id: string
@@ -3122,6 +3124,7 @@ export type Database = {
         }
         Insert: {
           bill_date?: string
+          bill_image_url?: string | null
           created_at?: string
           deleted_at?: string | null
           deleted_by?: string | null
@@ -3130,6 +3133,7 @@ export type Database = {
           gst_amount?: number
           id?: string
           is_dc_purchase?: boolean | null
+          is_locked?: boolean
           net_amount?: number
           notes?: string | null
           organization_id: string
@@ -3146,6 +3150,7 @@ export type Database = {
         }
         Update: {
           bill_date?: string
+          bill_image_url?: string | null
           created_at?: string
           deleted_at?: string | null
           deleted_by?: string | null
@@ -3154,6 +3159,7 @@ export type Database = {
           gst_amount?: number
           id?: string
           is_dc_purchase?: boolean | null
+          is_locked?: boolean
           net_amount?: number
           notes?: string | null
           organization_id?: string

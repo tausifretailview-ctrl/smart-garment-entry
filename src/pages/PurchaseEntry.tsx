@@ -20,7 +20,17 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet, ChevronLeft, ChevronRight, Check, AlertTriangle, SkipBack, Search, Save, Trash2, Pencil } from "lucide-react";
+import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet, ChevronLeft, ChevronRight, Check, AlertTriangle, SkipBack, Search, Save, Trash2, Pencil, Lock, LockOpen } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -194,6 +204,10 @@ const PurchaseEntry = () => {
 
   // DC Purchase (Direct Cash / No GST) state
   const [isDcPurchase, setIsDcPurchase] = useState(false);
+
+  // Bill lock state
+  const [isBillLocked, setIsBillLocked] = useState(false);
+  const [showUnlockConfirm, setShowUnlockConfirm] = useState(false);
 
   // IMEI Scan Dialog state (Mobile ERP mode)
   const [showIMEIScanDialog, setShowIMEIScanDialog] = useState(false);
@@ -497,6 +511,7 @@ const PurchaseEntry = () => {
       setRoundOff(Number(existingBill.round_off) || 0);
       setOtherCharges(Number(existingBill.other_charges) || 0);
       setDiscountAmount(Number(existingBill.discount_amount) || 0);
+      setIsBillLocked(existingBill.is_locked === true);
 
       const { data: itemsData, error: itemsError } = await supabase
         .from('purchase_items')
@@ -648,8 +663,7 @@ const PurchaseEntry = () => {
           setOtherCharges(Number(existingBill.other_charges) || 0);
           setDiscountAmount(Number(existingBill.discount_amount) || 0);
           setIsDcPurchase(existingBill.is_dc_purchase === true);
-          
-          // Load bill items - get product details from purchase_items (denormalized data)
+          setIsBillLocked(existingBill.is_locked === true);
           const { data: itemsData, error: itemsError } = await supabase
             .from("purchase_items")
             .select("*")
@@ -1828,6 +1842,21 @@ const PurchaseEntry = () => {
       setPendingPrintAfterPriceUpdate(false);
       setShowPrintDialog(true);
     }
+  };
+
+  const handleUnlockBill = async () => {
+    if (!editingBillId || !currentOrganization?.id) return;
+    const { error } = await supabase
+      .from('purchase_bills')
+      .update({ is_locked: false })
+      .eq('id', editingBillId);
+    if (error) {
+      toast({ title: "Error", description: "Failed to unlock bill", variant: "destructive" });
+      return;
+    }
+    setIsBillLocked(false);
+    setShowUnlockConfirm(false);
+    toast({ title: "Bill Unlocked", description: "You can now edit this bill." });
   };
 
   const handleSave = async () => {
@@ -3099,6 +3128,28 @@ const PurchaseEntry = () => {
             )}
           </section>
 
+        {/* Locked Banner */}
+        {isBillLocked && (
+          <div className="flex items-center justify-between px-4 py-2.5 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg mx-4 mt-2">
+            <div className="flex items-center gap-2">
+              <Lock className="h-4 w-4 text-amber-600 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Bill is Locked</p>
+                <p className="text-xs text-amber-700 dark:text-amber-400">This purchase bill is locked. Unlock to make changes.</p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0 border-amber-400 text-amber-700 hover:bg-amber-100"
+              onClick={() => setShowUnlockConfirm(true)}
+            >
+              <LockOpen className="h-3.5 w-3.5 mr-1.5" />
+              Unlock Bill
+            </Button>
+          </div>
+        )}
+
         {/* Products Table Card */}
         <section className='bg-green-50/40 border-b border-green-100 px-6 py-3 flex-shrink-0'>
           <div className='flex items-center gap-3 flex-wrap mt-2'>
@@ -3114,6 +3165,7 @@ const PurchaseEntry = () => {
                     ref={searchInputRef}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    disabled={isBillLocked}
                     onKeyDown={(e) => {
                       if (searchResults.length === 0) return;
                       
@@ -3200,6 +3252,7 @@ const PurchaseEntry = () => {
                   onClick={() => setShowProductDialog(true)}
                   variant="outline"
                   className="gap-2"
+                  disabled={isBillLocked}
                 >
                   <Plus className="h-4 w-4" />
                   Add New Product
@@ -3251,7 +3304,15 @@ const PurchaseEntry = () => {
                   </TableRow>
                 </TableHeader>
               </Table>
-              <div className="max-h-[50vh] overflow-y-auto isolate">
+              <div className={`relative max-h-[50vh] overflow-y-auto isolate ${isBillLocked ? 'pointer-events-none' : ''}`}>
+              {isBillLocked && (
+                <div className="absolute inset-0 bg-background/60 z-10 flex items-center justify-center rounded-lg backdrop-blur-[1px]">
+                  <div className="flex items-center gap-2 bg-amber-100 dark:bg-amber-900 border border-amber-300 rounded-lg px-4 py-2">
+                    <Lock className="h-4 w-4 text-amber-600" />
+                    <span className="text-sm font-medium text-amber-700 dark:text-amber-300">Locked — click Unlock to edit</span>
+                  </div>
+                </div>
+              )}
               <Table className="table-fixed min-w-[1460px]">
                 <TableBody>
                   {lineItems.map((item, index) => {
@@ -3677,7 +3738,7 @@ const PurchaseEntry = () => {
             <Button
               size="sm"
               onClick={handleSave}
-              disabled={loading || lineItems.length === 0}
+              disabled={loading || lineItems.length === 0 || isBillLocked}
               className="h-8 px-5 text-xs bg-white text-teal-900 hover:bg-teal-100 font-bold gap-1.5 shadow-sm"
             >
               {loading ? (
@@ -3963,6 +4024,31 @@ const PurchaseEntry = () => {
           focusField={editPanelFocusField}
         />
 
+      {/* Unlock Confirmation Dialog */}
+      <AlertDialog open={showUnlockConfirm} onOpenChange={setShowUnlockConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <LockOpen className="h-5 w-5 text-amber-600" />
+              Unlock Purchase Bill?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This bill is locked to prevent accidental changes. Unlocking will allow editing.
+              You can lock it again from the Purchase Bills dashboard.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-amber-600 hover:bg-amber-700"
+              onClick={handleUnlockBill}
+            >
+              <LockOpen className="h-4 w-4 mr-1.5" />
+              Unlock & Edit
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
