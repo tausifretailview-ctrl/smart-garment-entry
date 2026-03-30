@@ -145,6 +145,23 @@ const ProductEditPanel = ({
         setModifiedFields(new Set());
         setHasUnsavedChanges(false);
         setSaved(false);
+        setCurrentVariant(null);
+        setVariantSize("");
+        setSizeModified(false);
+      }
+
+      // Fetch current variant for size editing
+      if (item?.sku_id) {
+        const { data: variantData } = await supabase
+          .from("product_variants")
+          .select("id, size, barcode, pur_price, sale_price, mrp, active")
+          .eq("id", item.sku_id)
+          .maybeSingle();
+        if (variantData) {
+          setCurrentVariant(variantData as any);
+          setVariantSize(variantData.size || "");
+          setSizeModified(false);
+        }
       }
     } catch (err) {
       console.error("Failed to load product", err);
