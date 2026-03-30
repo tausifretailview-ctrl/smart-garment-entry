@@ -109,6 +109,8 @@ interface PurchaseBill {
   paid_amount?: number;
   total_qty?: number;
   is_dc_purchase?: boolean;
+  bill_image_url?: string | null;
+  is_locked?: boolean;
   items?: PurchaseItem[];
 }
 
