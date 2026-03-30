@@ -20,6 +20,7 @@ interface MixPaymentDialogProps {
     cashAmount: number;
     cardAmount: number;
     upiAmount: number;
+    bankAmount: number;
     creditAmount: number;
     totalPaid: number;
     refundAmount: number;
@@ -37,11 +38,12 @@ export function MixPaymentDialog({
   const [cashAmount, setCashAmount] = useState(0);
   const [cardAmount, setCardAmount] = useState(0);
   const [upiAmount, setUpiAmount] = useState(0);
+  const [bankAmount, setBankAmount] = useState(0);
   const [refundAmount, setRefundAmount] = useState(0);
 
   const isRefundMode = billAmount < 0;
   const refundRequired = Math.abs(billAmount);
-  const totalPaid = cashAmount + cardAmount + upiAmount;
+  const totalPaid = cashAmount + cardAmount + upiAmount + bankAmount;
   const creditBalance = isRefundMode ? 0 : Math.max(0, billAmount - totalPaid);
   const balanceAmount = isRefundMode ? 0 : billAmount - totalPaid;
 
@@ -51,6 +53,7 @@ export function MixPaymentDialog({
       setCashAmount(0);
       setCardAmount(0);
       setUpiAmount(0);
+      setBankAmount(0);
       setRefundAmount(0);
     } else if (isRefundMode) {
       // Pre-fill refund amount in refund mode
@@ -67,6 +70,7 @@ export function MixPaymentDialog({
         cashAmount: 0,
         cardAmount: 0,
         upiAmount: 0,
+        bankAmount: 0,
         creditAmount: 0,
         totalPaid: 0,
         refundAmount,
@@ -80,6 +84,7 @@ export function MixPaymentDialog({
         cashAmount,
         cardAmount,
         upiAmount,
+        bankAmount,
         creditAmount: creditBalance,
         totalPaid,
         refundAmount: 0,
@@ -210,6 +215,24 @@ export function MixPaymentDialog({
                   value={upiAmount || ""}
                   onChange={(e) => setUpiAmount(Number(e.target.value) || 0)}
                   placeholder="₹ 0.00"
+                  className="text-right"
+                />
+              </div>
+
+              {/* Bank Transfer (Finance) */}
+              <div className="space-y-2">
+                <Label htmlFor="bank" className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4" />
+                  Bank Transfer (Finance/EMI)
+                </Label>
+                <Input
+                  id="bank"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={bankAmount || ""}
+                  onChange={(e) => setBankAmount(Number(e.target.value) || 0)}
+                  placeholder="₹ 0.00 — financer bank credit"
                   className="text-right"
                 />
               </div>

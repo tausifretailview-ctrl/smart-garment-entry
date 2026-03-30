@@ -32,7 +32,7 @@ import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBeepSound } from "@/hooks/useBeepSound";
 import { useMobileERP } from "@/hooks/useMobileERP";
-import { FinancerDetailsForm } from "@/components/FinancerDetailsForm";
+import { FinancerDetailsForm, FinancerDetails } from "@/components/FinancerDetailsForm";
 
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { format } from "date-fns";
@@ -190,13 +190,7 @@ export default function SalesInvoice() {
   const [shippingInstructions, setShippingInstructions] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
   const mobileERP = useMobileERP();
-  const [financerDetails, setFinancerDetails] = useState<{
-    financer_name: string;
-    loan_number: string;
-    emi_amount: number;
-    tenure: number;
-    down_payment: number;
-  } | null>(null);
+  const [financerDetails, setFinancerDetails] = useState<FinancerDetails | null>(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
   const [originalItemsForEdit, setOriginalItemsForEdit] = useState<Array<{ variantId: string; quantity: number }>>([]);
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
@@ -2068,6 +2062,9 @@ Thank you for choosing us!`;
               emi_amount: financerDetails.emi_amount || null,
               tenure: financerDetails.tenure || null,
               down_payment: financerDetails.down_payment || null,
+              down_payment_mode: financerDetails.down_payment_mode || 'cash',
+              bank_transfer_amount: financerDetails.bank_transfer_amount || 0,
+              finance_discount: financerDetails.finance_discount || 0,
             });
         }
 
