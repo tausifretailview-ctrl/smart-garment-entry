@@ -1252,22 +1252,6 @@ const PurchaseBillDashboard = () => {
             <Button
               size="icon"
               variant="ghost"
-              className={`h-7 w-7 ${bill.is_locked ? 'hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950 text-amber-500' : 'hover:bg-slate-100 hover:text-slate-600'}`}
-              onClick={(e) => handleToggleLock(bill, e)}
-              disabled={togglingLock === bill.id}
-              title={bill.is_locked ? "Unlock bill to edit" : "Lock bill"}
-            >
-              {togglingLock === bill.id ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : bill.is_locked ? (
-                <Lock className="h-3.5 w-3.5" />
-              ) : (
-                <LockOpen className="h-3.5 w-3.5" />
-              )}
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
               className={`h-7 w-7 ${bill.is_locked ? 'opacity-40 cursor-not-allowed' : 'hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950'}`}
               onClick={(e) => {
                 e.stopPropagation();
