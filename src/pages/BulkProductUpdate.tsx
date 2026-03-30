@@ -483,17 +483,28 @@ export default function BulkProductUpdate() {
                         <RadioGroupItem value="decrease" id="method_dec" />
                         <Label htmlFor="method_dec">Decrease By %</Label>
                       </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="edit_individual" id="method_edit" />
+                        <Label htmlFor="method_edit">Edit Individual from Database</Label>
+                      </div>
                     </RadioGroup>
                   </div>
-                  <div className="space-y-2">
-                    <Label>{priceConfig.updateMethod === "set" ? "Fixed Value (₹)" : "Percentage (%)"}</Label>
-                    <Input 
-                      type="number" 
-                      placeholder="Enter value..." 
-                      value={priceConfig.value || ""} 
-                      onChange={(e) => setPriceConfig({ ...priceConfig, value: Number(e.target.value) })}
-                    />
-                  </div>
+                  {priceConfig.updateMethod !== "edit_individual" && (
+                    <div className="space-y-2">
+                      <Label>{priceConfig.updateMethod === "set" ? "Fixed Value (₹)" : "Percentage (%)"}</Label>
+                      <Input 
+                        type="number" 
+                        placeholder="Enter value..." 
+                        value={priceConfig.value || ""} 
+                        onChange={(e) => setPriceConfig({ ...priceConfig, value: Number(e.target.value) })}
+                      />
+                    </div>
+                  )}
+                  {priceConfig.updateMethod === "edit_individual" && (
+                    <p className="text-sm text-muted-foreground">
+                      Select a Brand/Category filter above, then click "Preview Changes" to fetch current prices. You can edit each price individually in the preview table.
+                    </p>
+                  )}
                 </>
               )}
 
