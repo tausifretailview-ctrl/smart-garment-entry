@@ -35,7 +35,7 @@ interface Supplier {
 interface Transaction {
   id: string;
   date: string;
-  type: 'bill' | 'payment' | 'credit_note';
+  type: 'bill' | 'payment' | 'credit_note' | 'purchase_return';
   reference: string;
   description: string;
   debit: number;
