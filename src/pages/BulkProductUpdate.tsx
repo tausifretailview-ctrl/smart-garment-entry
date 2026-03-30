@@ -563,8 +563,11 @@ export default function BulkProductUpdate() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {previewItems.slice(0, 100).map((item) => (
-                          <TableRow key={item.id}>
+                        {previewItems.slice(0, 200).map((item, idx) => {
+                          const isEditMode = updateType === "update_prices" && priceConfig.updateMethod === "edit_individual";
+                          const hasChanged = isEditMode ? item.newValue !== item.currentValue : true;
+                          return (
+                          <TableRow key={item.id} className={isEditMode && !hasChanged ? "opacity-60" : ""}>
                             <TableCell className="font-medium">
                               {item.productName}
                               {item.style && <span className="text-muted-foreground text-xs block">{item.style}</span>}
@@ -585,17 +588,31 @@ export default function BulkProductUpdate() {
                               <ArrowRight className="h-4 w-4 text-muted-foreground" />
                             </TableCell>
                             <TableCell>
-                              <span className="text-green-600 font-medium">{item.newValue ?? "-"}</span>
+                              {isEditMode ? (
+                                <Input
+                                  type="number"
+                                  className="h-8 w-24 text-right"
+                                  value={item.newValue ?? ""}
+                                  onChange={(e) => {
+                                    const newItems = [...previewItems];
+                                    const realIdx = idx; // already sliced view but we need actual index
+                                    newItems[realIdx] = { ...newItems[realIdx], newValue: e.target.value === "" ? 0 : Number(e.target.value) };
+                                    // Directly mutate through the hook's state
+                                    setEditablePreview(newItems);
+                                  }}
+                                />
+                              ) : (
+                                <span className="text-green-600 font-medium">{item.newValue ?? "-"}</span>
+                              )}
                             </TableCell>
                           </TableRow>
-                        ))}
+                          );
+                        })}
                       </TableBody>
-                    </Table>
-                  </div>
 
-                  {previewItems.length > 100 && (
+                  {previewItems.length > 200 && (
                     <p className="text-sm text-muted-foreground mt-2 text-center">
-                      Showing first 100 of {previewItems.length} items
+                      Showing first 200 of {previewItems.length} items
                     </p>
                   )}
 
