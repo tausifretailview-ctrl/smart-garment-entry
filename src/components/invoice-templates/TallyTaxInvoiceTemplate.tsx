@@ -77,6 +77,9 @@ interface TallyTaxInvoiceTemplateProps {
     emi_amount?: number;
     tenure?: number;
     down_payment?: number;
+    down_payment_mode?: string;
+    bank_transfer_amount?: number;
+    finance_discount?: number;
   } | null;
   [key: string]: any;
 }
