@@ -377,9 +377,9 @@ const ProductEditPanel = ({
 
   return (
     <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <SheetContent side="right" className="w-full sm:max-w-lg p-0 flex flex-col">
+      <SheetContent side="right" className="w-full sm:max-w-lg p-0 flex flex-col max-h-[100dvh] h-auto">
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-card border-b px-4 py-3 space-y-2">
+        <div className="sticky top-0 z-10 bg-card border-b px-4 py-2 space-y-1.5">
           <div className="flex items-center justify-between">
             <SheetTitle className="text-base font-bold flex items-center gap-2">
               <Pencil className="h-4 w-4 text-primary" />
@@ -419,7 +419,7 @@ const ProductEditPanel = ({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+        <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
           {loading ? (
             <div className="flex items-center justify-center h-40 text-muted-foreground">Loading...</div>
           ) : (
@@ -687,7 +687,7 @@ const ProductEditPanel = ({
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-card border-t px-4 py-3 flex items-center justify-between gap-2">
+        <div className="sticky bottom-0 bg-card border-t px-4 py-2 flex items-center justify-between gap-2">
           <Button variant="ghost" size="sm" onClick={handleReset} disabled={modifiedFields.size === 0} className="text-xs gap-1">
             <RotateCcw className="h-3 w-3" /> Reset
           </Button>
