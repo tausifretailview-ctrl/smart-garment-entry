@@ -1532,28 +1532,34 @@ export default function BarcodePrinting() {
           }));
           setDbPresets(mapped);
 
-          // Auto-load default preset always (not just from purchase)
-          const defaultPreset = mapped.find((p: any) => p.isDefault);
-          if (defaultPreset && !activePrecisionTemplateName) {
+          // Auto-load preset: either the one saved in localStorage or the default preset
+          const localStoragePresetName = activePrecisionTemplateName?.replace('preset:', '') || null;
+          const presetToLoad = localStoragePresetName 
+            ? mapped.find((p: any) => p.name === localStoragePresetName)
+            : mapped.find((p: any) => p.isDefault);
+          
+          if (presetToLoad) {
             setPrecisionSettings((prev) => ({
               ...prev,
-              xOffset: defaultPreset.xOffset,
-              yOffset: defaultPreset.yOffset,
-              vGap: defaultPreset.vGap,
-              labelWidth: defaultPreset.width,
-              labelHeight: defaultPreset.height,
-              ...(defaultPreset.a4Cols ? { a4Cols: defaultPreset.a4Cols } : {}),
-              ...(defaultPreset.a4Rows ? { a4Rows: defaultPreset.a4Rows } : {}),
-              printMode: defaultPreset.printMode || 'thermal',
-              ...(defaultPreset.labelConfig ? { labelConfig: defaultPreset.labelConfig } : {}),
-              thermalCols: defaultPreset.thermalCols || 1,
+              xOffset: presetToLoad.xOffset,
+              yOffset: presetToLoad.yOffset,
+              vGap: presetToLoad.vGap,
+              labelWidth: presetToLoad.width,
+              labelHeight: presetToLoad.height,
+              ...(presetToLoad.a4Cols ? { a4Cols: presetToLoad.a4Cols } : {}),
+              ...(presetToLoad.a4Rows ? { a4Rows: presetToLoad.a4Rows } : {}),
+              printMode: presetToLoad.printMode || 'thermal',
+              ...(presetToLoad.labelConfig ? { labelConfig: presetToLoad.labelConfig } : {}),
+              thermalCols: presetToLoad.thermalCols || 1,
               enabled: true,
             }));
             setActiveBarTab("precision");
-            // Check if default preset name matches a saved label template
-            const isLabelTemplate = savedLabelTemplates.some(t => t.name === defaultPreset.name);
-            setActivePrecisionTemplateName(isLabelTemplate ? defaultPreset.name : `preset:${defaultPreset.name}`);
-            toast.success(`Auto-loaded default preset "${defaultPreset.name}" (${defaultPreset.width}×${defaultPreset.height}mm, ${defaultPreset.printMode === 'thermal2up' ? '2-Up' : defaultPreset.printMode === 'a4' ? 'A4' : '1-Up'})`);
+            // Check if preset name matches a saved label template
+            const isLabelTemplate = savedLabelTemplates.some(t => t.name === presetToLoad.name);
+            if (!localStoragePresetName) {
+              setActivePrecisionTemplateName(isLabelTemplate ? presetToLoad.name : `preset:${presetToLoad.name}`);
+              toast.success(`Auto-loaded default preset "${presetToLoad.name}" (${presetToLoad.width}×${presetToLoad.height}mm, ${presetToLoad.printMode === 'thermal2up' ? '2-Up' : presetToLoad.printMode === 'a4' ? 'A4' : '1-Up'})`);
+            }
           }
         }
       } catch (error) {
