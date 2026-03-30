@@ -553,11 +553,8 @@ export default function BulkProductUpdate() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {previewItems.slice(0, 200).map((item, idx) => {
-                          const isEditMode = updateType === "update_prices" && priceConfig.updateMethod === "edit_individual";
-                          const hasChanged = isEditMode ? item.newValue !== item.currentValue : true;
-                          return (
-                          <TableRow key={item.id} className={isEditMode && !hasChanged ? "opacity-60" : ""}>
+                        {previewItems.slice(0, 200).map((item) => (
+                          <TableRow key={item.id}>
                             <TableCell className="font-medium">
                               {item.productName}
                               {item.style && <span className="text-muted-foreground text-xs block">{item.style}</span>}
@@ -578,26 +575,10 @@ export default function BulkProductUpdate() {
                               <ArrowRight className="h-4 w-4 text-muted-foreground" />
                             </TableCell>
                             <TableCell>
-                              {isEditMode ? (
-                                <Input
-                                  type="number"
-                                  className="h-8 w-24 text-right"
-                                  value={item.newValue ?? ""}
-                                  onChange={(e) => {
-                                    const newItems = [...previewItems];
-                                    const realIdx = idx; // already sliced view but we need actual index
-                                    newItems[realIdx] = { ...newItems[realIdx], newValue: e.target.value === "" ? 0 : Number(e.target.value) };
-                                    // Directly mutate through the hook's state
-                                    setEditablePreview(newItems);
-                                  }}
-                                />
-                              ) : (
-                                <span className="text-primary font-medium">{item.newValue ?? "-"}</span>
-                              )}
+                              <span className="text-primary font-medium">{item.newValue ?? "-"}</span>
                             </TableCell>
                           </TableRow>
-                          );
-                        })}
+                        ))}
                       </TableBody>
                     </Table>
                   </div>
