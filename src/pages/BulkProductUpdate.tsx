@@ -140,7 +140,7 @@ export default function BulkProductUpdate() {
       case "update_gst":
         return `Update GST from ${gstConfig.currentGst ?? "any"}% to ${gstConfig.newGst}%`;
       case "update_prices":
-        if (priceConfig.updateMethod === "edit_individual") return `Edit individual ${priceConfig.priceType === "mrp" ? "MRP" : priceConfig.priceType === "sale_price" ? "Sale Price" : "Purchase Price"} from database`;
+        return `${priceConfig.updateMethod === "set" ? "Set" : priceConfig.updateMethod === "increase" ? "Increase" : "Decrease"} ${priceConfig.priceType} ${priceConfig.updateMethod !== "set" ? "by" : "to"} ${priceConfig.value}${priceConfig.updateMethod !== "set" ? "%" : ""}`;
         return `${priceConfig.updateMethod === "set" ? "Set" : priceConfig.updateMethod === "increase" ? "Increase" : "Decrease"} ${priceConfig.priceType} ${priceConfig.updateMethod !== "set" ? "by" : "to"} ${priceConfig.value}${priceConfig.updateMethod !== "set" ? "%" : ""}`;
     }
   };
