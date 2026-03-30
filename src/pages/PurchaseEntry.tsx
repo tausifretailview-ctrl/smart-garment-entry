@@ -511,6 +511,7 @@ const PurchaseEntry = () => {
       setRoundOff(Number(existingBill.round_off) || 0);
       setOtherCharges(Number(existingBill.other_charges) || 0);
       setDiscountAmount(Number(existingBill.discount_amount) || 0);
+      setIsBillLocked(existingBill.is_locked === true);
 
       const { data: itemsData, error: itemsError } = await supabase
         .from('purchase_items')
