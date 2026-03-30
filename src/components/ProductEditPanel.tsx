@@ -380,7 +380,14 @@ const ProductEditPanel = ({
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="font-mono text-xs">{item.sku_id?.slice(0, 8)}</Badge>
-            <span className="text-sm font-medium truncate">{item.product_name}</span>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-sm font-medium truncate">{item.product_name}</span>
+              {item.size && (
+                <span className="shrink-0 text-xs px-2 py-0.5 rounded bg-violet-100 text-violet-700 font-mono font-bold dark:bg-violet-900/30 dark:text-violet-300">
+                  {item.size}
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex items-center justify-between">
             <Button variant="outline" size="sm" disabled={currentIndex === 0}
