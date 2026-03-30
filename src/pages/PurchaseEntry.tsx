@@ -3165,6 +3165,7 @@ const PurchaseEntry = () => {
                     ref={searchInputRef}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    disabled={isBillLocked}
                     onKeyDown={(e) => {
                       if (searchResults.length === 0) return;
                       
