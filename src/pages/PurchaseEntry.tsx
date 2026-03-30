@@ -3944,6 +3944,11 @@ const PurchaseEntry = () => {
               title: "Supplier Selected",
               description: `${supplier.supplier_name} has been selected`,
             });
+            setTimeout(() => {
+              const invInput = document.querySelector<HTMLInputElement>('[data-field="supplier-invoice-no"]');
+              invInput?.focus();
+              invInput?.select();
+            }, 200);
           }}
         />
 
