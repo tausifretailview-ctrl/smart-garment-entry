@@ -122,7 +122,12 @@ export default function BulkProductUpdate() {
         break;
     }
 
-    const success = await applyUpdates(updateType, config, previewItems, filters);
+    // For edit_individual, only apply items where price actually changed
+    const itemsToApply = (updateType === "update_prices" && priceConfig.updateMethod === "edit_individual")
+      ? previewItems.filter(i => i.newValue !== i.currentValue)
+      : previewItems;
+
+    const success = await applyUpdates(updateType, config, itemsToApply, filters);
     if (success) {
       loadFilterOptions();
       loadHistory();
