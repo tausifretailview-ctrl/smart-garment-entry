@@ -3359,9 +3359,9 @@ export default function POSSales() {
           
           {/* Size Stock */}
           <Button
-            onClick={() => window.open(`/${currentOrganization?.slug || 'demo'}/stock-report?tab=sizewise`, '_blank')}
+            onClick={() => setShowFloatingStockReport(true)}
             className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-cyan-500 hover:bg-cyan-600 active:scale-95 text-white shadow-sm transition-all duration-150"
-            title="Size-wise Stock Report"
+            title="Size-wise Stock Report (F11)"
           >
             <Grid3X3 className="h-4 w-4" />
             <span>Size Stk</span>
