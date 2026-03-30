@@ -1575,13 +1575,13 @@ export default function StockReport() {
                               <TableRow key={row.productKey} className={index % 2 === 0 ? "bg-background" : "bg-muted/30"}>
                                 <TableCell className="font-medium sticky left-0 bg-inherit z-10 backdrop-blur-sm">
                                   <div className="flex flex-col">
-                                    <span className="text-sm md:text-base truncate max-w-[160px] md:max-w-none">{row.productName}</span>
+                                    <span className="text-sm md:text-base truncate max-w-[160px] md:max-w-none font-bold">{row.productName}</span>
                                     <span className="text-xs text-muted-foreground truncate max-w-[160px] md:max-w-none">
                                       {[row.brand, row.color].filter(Boolean).join(' - ')}
                                     </span>
-                                    {row.category && (
+                                    {(row.category || row.department) && (
                                       <span className="text-xs text-muted-foreground/70 truncate max-w-[160px] md:max-w-none">
-                                        {row.category}
+                                        {[row.category, row.department].filter(Boolean).join(' · ')}
                                       </span>
                                     )}
                                   </div>
