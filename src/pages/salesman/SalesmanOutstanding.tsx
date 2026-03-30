@@ -173,7 +173,7 @@ const SalesmanOutstanding = () => {
           const unusedAdvance = advMap.get(c.id) || 0;
           const saleReturn = srMap.get(c.id) || 0;
           const refunds = refundMap.get(c.id) || 0;
-          const totalBalance = Math.round(openingBalance + invoiceBalance - obPayments + adjustment - unusedAdvance - saleReturn - refunds);
+          const totalBalance = Math.round(openingBalance + invoiceBalance - obPayments + adjustment - unusedAdvance - saleReturn + refunds);
           return {
             id: c.id,
             customer_name: c.customer_name,

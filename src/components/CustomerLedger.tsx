@@ -217,7 +217,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         .from('voucher_entries')
         .select('reference_id, reference_type, total_amount')
         .eq('organization_id', organizationId)
-        .eq('voucher_type', 'receipt')
+        .in('voucher_type', ['receipt', 'payment'])
         .is('deleted_at', null);
 
       if (voucherError) {
@@ -590,7 +590,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       let vouchersQuery = supabase
         .from("voucher_entries")
         .select("*")
-        .eq("voucher_type", "receipt")
+        .in("voucher_type", ["receipt", "payment"])
         .is("deleted_at", null)
         .in("reference_id", allSaleIds.length > 0 ? allSaleIds : ['00000000-0000-0000-0000-000000000000']);
 
@@ -614,7 +614,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         .select("*")
         .eq("reference_type", "customer")
         .eq("reference_id", selectedCustomer.id)
-        .eq("voucher_type", "receipt")
+        .in("voucher_type", ["receipt", "payment"])
         .is("deleted_at", null);
 
       if (startDate) {
@@ -1083,7 +1083,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       let vouchersQuery = supabase
         .from("voucher_entries")
         .select("*")
-        .eq("voucher_type", "receipt")
+        .in("voucher_type", ["receipt", "payment"])
         .is("deleted_at", null)
         .in("reference_id", saleIds.length > 0 ? saleIds : ['00000000-0000-0000-0000-000000000000']);
 
@@ -1104,7 +1104,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         .select("*")
         .eq("reference_type", "customer")
         .eq("reference_id", selectedCustomer.id)
-        .eq("voucher_type", "receipt")
+        .in("voucher_type", ["receipt", "payment"])
         .is("deleted_at", null);
 
       if (startDate) {

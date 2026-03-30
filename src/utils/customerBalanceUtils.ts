@@ -65,7 +65,7 @@ export function calculateCustomerBalance(
   // adjustmentTotal: positive = increased outstanding, negative = decreased outstanding
   // unusedAdvanceTotal: money already received but not applied to invoices (credit)
   // refundsPaidTotal: cash/bank refunds paid out to customer (reduces what they owe)
-  const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - unusedAdvanceTotal - refundsPaidTotal);
+  const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - unusedAdvanceTotal + refundsPaidTotal);
 
   return {
     balance,
