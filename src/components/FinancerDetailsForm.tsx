@@ -102,7 +102,7 @@ export const FinancerDetailsForm = ({ value, onChange }: FinancerDetailsFormProp
             {/* Row 2: Loan Number + Tenure */}
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <Label className="text-xs">Loan / Ref No.</Label>
+                <Label className="text-xs">DSBS / Ref No.</Label>
                 <Input
                   value={value?.loan_number || ""}
                   onChange={(e) => handleChange("loan_number", e.target.value)}
