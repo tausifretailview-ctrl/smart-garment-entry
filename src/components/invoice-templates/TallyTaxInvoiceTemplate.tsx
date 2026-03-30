@@ -265,14 +265,6 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                   </td>
                 </tr>
                 <tr>
-                  <td style={{ borderBottom: b, borderRight: b, padding: '3px 6px', fontWeight: 'bold', width: '50%', fontSize: '9px', backgroundColor: '#f8f8f8' }}>Buyer's Order No.</td>
-                  <td style={{ borderBottom: b, padding: '3px 6px', fontSize: '10px' }}></td>
-                </tr>
-                <tr>
-                  <td style={{ borderBottom: b, borderRight: b, padding: '3px 6px', fontWeight: 'bold', width: '50%', fontSize: '9px', backgroundColor: '#f8f8f8' }}>Dispatched through</td>
-                  <td style={{ borderBottom: b, padding: '3px 6px', fontSize: '10px' }}>{customerTransportDetails || ''}</td>
-                </tr>
-                <tr>
                   <td style={{ borderBottom: b, borderRight: b, padding: '3px 6px', fontWeight: 'bold', width: '50%', fontSize: '9px', backgroundColor: '#f8f8f8' }}>Salesman</td>
                   <td style={{ borderBottom: b, padding: '3px 6px', fontSize: '10px' }}>{salesman || ''}</td>
                 </tr>
