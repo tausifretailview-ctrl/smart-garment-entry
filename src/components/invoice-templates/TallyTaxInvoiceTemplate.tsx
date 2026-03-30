@@ -380,7 +380,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                     <td style={{ ...cellNoRowBorder, textAlign: 'center', verticalAlign: 'top', fontWeight: '600' }}>{item.qty} Pcs</td>
                     <td style={{ ...cellNoRowBorder, textAlign: 'right', verticalAlign: 'top', fontWeight: '600' }}>{fmt(rateInclTax)}</td>
                     <td style={{ ...cellNoRowBorder, textAlign: 'right', verticalAlign: 'top' }}>{fmt(rateExclTax)}</td>
-                    <td style={{ ...cellNoRowBorder, textAlign: 'right', verticalAlign: 'top', fontWeight: '600' }}>{fmt(taxableAmt)}</td>
+                    <td style={{ ...cellNoRowBorder, textAlign: 'right', verticalAlign: 'top', fontWeight: '600' }}>{fmt(item.total)}</td>
                   </tr>
                 );
               })}
