@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trash2, Plus, Minus, Search, Loader2, Scan, FileText, Banknote, CreditCard } from "lucide-react";
+import { Trash2, Plus, Minus, Search, Loader2, Scan, FileText, Banknote, CreditCard, RotateCcw } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-type RefundType = "cash_refund" | "credit_note";
+type RefundType = "cash_refund" | "credit_note" | "exchange";
 
 interface ReturnItem {
   productId: string;
@@ -57,7 +57,7 @@ interface FloatingSaleReturnProps {
   organizationId: string;
   customerId?: string;
   customerName?: string;
-  onReturnSaved: (returnAmount: number, returnNumber: string) => void;
+  onReturnSaved: (returnAmount: number, returnNumber: string, refundType: RefundType) => void;
 }
 
 export const FloatingSaleReturn = ({
@@ -83,11 +83,11 @@ export const FloatingSaleReturn = ({
   const [billLookupLoading, setBillLookupLoading] = useState(false);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const [refundType, setRefundType] = useState<RefundType>("credit_note");
+
   // Load sold products when dialog opens
   useEffect(() => {
     if (open && organizationId) {
       loadSoldProducts();
-      // Auto-focus barcode input
       setTimeout(() => barcodeInputRef.current?.focus(), 200);
     }
     if (!open) {
@@ -223,7 +223,6 @@ export const FloatingSaleReturn = ({
   };
 
   const fetchUnitPrice = async (variantId: string, fallbackPrice: number): Promise<number> => {
-    // If bill number is specified, use exact price from that bill
     if (billSaleId && billItems.length > 0) {
       const billItem = billItems.find(bi => bi.variant_id === variantId);
       if (billItem && billItem.per_qty_net_amount && billItem.per_qty_net_amount > 0) {
@@ -234,7 +233,6 @@ export const FloatingSaleReturn = ({
       }
     }
 
-    // Fallback: most recent sale price
     const { data: saleItemData } = await supabase
       .from("sale_items")
       .select("per_qty_net_amount, line_total, quantity")
@@ -260,7 +258,6 @@ export const FloatingSaleReturn = ({
     const variant = variants.find(v => v.id === variantId);
     if (!product || !variant) return;
 
-    // If bill is specified, warn if item not in that bill
     if (billSaleId && billItems.length > 0) {
       const inBill = billItems.find(bi => bi.variant_id === variantId);
       if (!inBill) {
@@ -268,7 +265,6 @@ export const FloatingSaleReturn = ({
       }
     }
 
-    // Check if already added
     const existingIndex = returnItems.findIndex(item => item.variantId === variantId);
     if (existingIndex !== -1) {
       const updated = [...returnItems];
@@ -303,11 +299,9 @@ export const FloatingSaleReturn = ({
     if (!barcodeInput.trim()) return;
     const query = barcodeInput.trim();
 
-    // Try local barcode match
     let variant = variants.find(v => v.barcode === query);
     let product = variant ? products.find(p => p.id === variant!.product_id) : null;
 
-    // Try product name match
     if (!variant) {
       const matchedProduct = products.find(p =>
         p.product_name.toLowerCase().includes(query.toLowerCase())
@@ -318,7 +312,6 @@ export const FloatingSaleReturn = ({
       }
     }
 
-    // DB lookup fallback
     if (!variant || !product) {
       try {
         const { data: dbVariant } = await supabase
@@ -341,7 +334,6 @@ export const FloatingSaleReturn = ({
             product = { id: p.id, product_name: p.product_name, brand: p.brand, hsn_code: p.hsn_code };
             variant = { id: dbVariant.id, product_id: dbVariant.product_id, size: dbVariant.size, sale_price: dbVariant.sale_price || 0, barcode: dbVariant.barcode, gst_per: p.gst_per || 0 };
 
-            // Add to local cache
             if (!products.find(pp => pp.id === p.id)) setProducts(prev => [...prev, product!]);
             if (!variants.find(vv => vv.id === dbVariant.id)) setVariants(prev => [...prev, variant!]);
           }
@@ -357,7 +349,6 @@ export const FloatingSaleReturn = ({
       return;
     }
 
-    // Warn if bill specified but item not in that bill
     if (billSaleId && billItems.length > 0) {
       const inBill = billItems.find(bi => bi.variant_id === variant!.id);
       if (!inBill) {
@@ -365,7 +356,6 @@ export const FloatingSaleReturn = ({
       }
     }
 
-    // Check if already added
     const existingIndex = returnItems.findIndex(item => item.variantId === variant!.id);
     if (existingIndex !== -1) {
       const updated = [...returnItems];
@@ -423,6 +413,12 @@ export const FloatingSaleReturn = ({
         return sum + (item.lineTotal - (item.lineTotal / (1 + gstPer / 100)));
       }, 0);
 
+      // Determine credit_status based on refund type
+      const creditStatus =
+        refundType === "cash_refund" ? "refunded" :
+        refundType === "exchange" ? "adjusted" :
+        "pending";
+
       const { data: returnData, error: returnError } = await supabase
         .from("sale_returns")
         .insert({
@@ -434,7 +430,10 @@ export const FloatingSaleReturn = ({
           gross_amount: grossAmount,
           gst_amount: gstAmount,
           net_amount: grossAmount,
-          refund_type: refundType === "cash_refund" ? "cash_refund" : "credit_note",
+          refund_type: refundType,
+          credit_status: creditStatus,
+          linked_sale_id: billSaleId || null,
+          original_sale_number: billSaleId ? billNumber.trim() : null,
         } as any)
         .select()
         .single();
@@ -463,9 +462,54 @@ export const FloatingSaleReturn = ({
 
       if (itemsError) throw itemsError;
 
-      const refundLabel = refundType === "cash_refund" ? "Cash Refund" : "Credit Note";
+      // Add back stock for returned items
+      try {
+        for (const item of returnItems) {
+          const { data: variant } = await supabase
+            .from("product_variants")
+            .select("stock_qty, product_id, products(product_type)")
+            .eq("id", item.variantId)
+            .single();
+          const isService = (variant?.products as any)?.product_type === 'service';
+          if (!isService && variant) {
+            await supabase
+              .from("product_variants")
+              .update({ stock_qty: (variant.stock_qty || 0) + item.quantity })
+              .eq("id", item.variantId);
+          }
+        }
+      } catch (stockErr) {
+        console.error("Stock add-back failed (non-critical):", stockErr);
+      }
+
+      // For cash_refund: create payment voucher so ledger balance updates
+      if (refundType === "cash_refund" && customerId) {
+        try {
+          const { data: lastV } = await supabase
+            .from("voucher_entries")
+            .select("voucher_number")
+            .eq("organization_id", organizationId)
+            .eq("voucher_type", "payment")
+            .order("created_at", { ascending: false })
+            .limit(1);
+          const lastNum = lastV?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
+          await supabase.from("voucher_entries").insert({
+            organization_id: organizationId,
+            voucher_number: `PAY-${String(parseInt(lastNum) + 1).padStart(5, "0")}`,
+            voucher_type: "payment",
+            voucher_date: new Date().toISOString().split("T")[0],
+            reference_type: "customer",
+            reference_id: customerId,
+            description: `Cash Refund for Sale Return: ${returnNumber}`,
+            total_amount: grossAmount,
+            payment_method: "cash",
+          });
+        } catch (vErr) { console.error("Refund voucher failed:", vErr); }
+      }
+
+      const refundLabel = refundType === "cash_refund" ? "Cash Refund" : refundType === "exchange" ? "Exchange" : "Credit Note";
       toast({ title: "Return Saved", description: `Return ${returnNumber} — ₹${Math.round(grossAmount)} (${refundLabel})` });
-      onReturnSaved(grossAmount, returnNumber);
+      onReturnSaved(grossAmount, returnNumber, refundType);
       onOpenChange(false);
     } catch (error) {
       console.error("Error saving return:", error);
@@ -491,11 +535,22 @@ export const FloatingSaleReturn = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <RotateCcwIcon className="h-5 w-5" />
-            Sale Return
-            {customerName && <span className="text-sm font-normal text-muted-foreground">— {customerName}</span>}
-          </DialogTitle>
+          <div className="flex items-center justify-between w-full">
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcwIcon className="h-5 w-5" />
+              Sale Return
+              {customerName && <span className="text-sm font-normal text-muted-foreground">— {customerName}</span>}
+            </DialogTitle>
+            <a
+              href="/sale-returns"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-primary underline-offset-2 hover:underline mr-6 shrink-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              View S/R Dashboard ↗
+            </a>
+          </div>
         </DialogHeader>
 
         {/* Bill Number Lookup */}
@@ -517,10 +572,42 @@ export const FloatingSaleReturn = ({
           <Button type="button" size="sm" variant="outline" onClick={lookupBillNumber} disabled={billLookupLoading || !billNumber.trim()}>
             {billLookupLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Lookup"}
           </Button>
-          {billSaleId && (
-            <span className="text-xs text-green-600 font-medium whitespace-nowrap pb-1">✓ {billItems.length} items</span>
+          {billSaleId && billItems.length > 0 && (
+            <span className="text-xs text-green-600 font-medium whitespace-nowrap pb-1">✓ {billItems.length} items loaded</span>
           )}
         </div>
+
+        {/* Bill Items Quick-Select Panel */}
+        {billSaleId && billItems.length > 0 && (
+          <div className="border rounded-lg bg-muted/30 p-2 space-y-1 max-h-40 overflow-y-auto">
+            <p className="text-xs font-semibold text-muted-foreground px-1 mb-1">Tap item to add for return:</p>
+            {billItems.map((bi, idx) => {
+              const alreadyAdded = returnItems.some(r => r.variantId === bi.variant_id);
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  disabled={alreadyAdded}
+                  onClick={() => addProduct(bi.product_id, bi.variant_id)}
+                  className={cn(
+                    "w-full flex items-center justify-between px-3 py-1.5 rounded-md text-sm transition-colors text-left",
+                    alreadyAdded
+                      ? "bg-green-100 text-green-700 opacity-60 cursor-not-allowed dark:bg-green-900/30 dark:text-green-400"
+                      : "bg-background hover:bg-primary/10 border border-border"
+                  )}
+                >
+                  <span className="font-medium truncate">{bi.product_name}</span>
+                  <span className="flex items-center gap-3 shrink-0 ml-2">
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-mono dark:bg-violet-900/30 dark:text-violet-400">{bi.size}</span>
+                    <span className="text-xs text-muted-foreground">×{bi.quantity}</span>
+                    <span className="text-xs font-semibold">₹{Math.round(bi.per_qty_net_amount || (bi.line_total / bi.quantity) || 0)}</span>
+                    {alreadyAdded && <span className="text-[10px] text-green-600">✓ Added</span>}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Barcode Scanner */}
         <form onSubmit={handleBarcodeSubmit} className="flex gap-2">
@@ -646,7 +733,7 @@ export const FloatingSaleReturn = ({
         {/* Refund Type Selection */}
         <div className="pt-2 border-t">
           <Label className="text-xs font-semibold mb-2 block">Refund Type</Label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <button
               type="button"
               onClick={() => setRefundType("cash_refund")}
@@ -673,7 +760,25 @@ export const FloatingSaleReturn = ({
               <CreditCard className="h-4 w-4" />
               Credit Note
             </button>
+            <button
+              type="button"
+              onClick={() => setRefundType("exchange")}
+              className={cn(
+                "flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all",
+                refundType === "exchange"
+                  ? "border-orange-500 bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
+                  : "border-border bg-background text-muted-foreground hover:border-orange-300"
+              )}
+            >
+              <RotateCcw className="h-4 w-4" />
+              S/R Exchange
+            </button>
           </div>
+          {refundType === "exchange" && (
+            <div className="mt-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700 dark:bg-orange-900/20 dark:border-orange-800 dark:text-orange-400">
+              ✦ Exchange: Return amount (₹{Math.round(totalAmount).toLocaleString('en-IN')}) will be auto-deducted from the new bill in POS as S/R Adjust.
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -687,7 +792,9 @@ export const FloatingSaleReturn = ({
             </Button>
             <Button onClick={handleSaveReturn} disabled={saving || returnItems.length === 0}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {refundType === "cash_refund" ? "Save & Refund" : "Save Return"}
+              {refundType === "cash_refund" ? "Save & Cash Refund" :
+               refundType === "exchange" ? "Save & Exchange (S/R Adj)" :
+               "Save Return (Credit Note)"}
             </Button>
           </div>
         </div>
