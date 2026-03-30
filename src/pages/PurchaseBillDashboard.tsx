@@ -2131,6 +2131,42 @@ const PurchaseBillDashboard = () => {
           />
         </>
       )}
+      {/* Bill Image Viewer */}
+      <Dialog open={showImageViewer} onOpenChange={setShowImageViewer}>
+        <DialogContent className="max-w-4xl max-h-[90vh] p-2 flex flex-col">
+          <DialogHeader className="px-2 py-1">
+            <DialogTitle className="text-sm">Supplier Invoice Image</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto flex items-center justify-center bg-muted/30 rounded-md min-h-[400px]">
+            {viewImageUrl && (
+              viewImageUrl.endsWith('.pdf') ? (
+                <iframe
+                  src={viewImageUrl}
+                  className="w-full h-[70vh]"
+                  title="Supplier Invoice PDF"
+                />
+              ) : (
+                <img
+                  src={viewImageUrl}
+                  alt="Supplier invoice"
+                  className="max-w-full max-h-[75vh] object-contain rounded"
+                />
+              )
+            )}
+          </div>
+          <div className="flex justify-between items-center px-2 py-1">
+            <a
+              href={viewImageUrl || '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-primary hover:underline"
+            >
+              Open in new tab ↗
+            </a>
+            <Button size="sm" variant="outline" onClick={() => setShowImageViewer(false)}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
