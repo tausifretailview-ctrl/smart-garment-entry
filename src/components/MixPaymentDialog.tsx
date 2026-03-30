@@ -70,6 +70,7 @@ export function MixPaymentDialog({
         cashAmount: 0,
         cardAmount: 0,
         upiAmount: 0,
+        bankAmount: 0,
         creditAmount: 0,
         totalPaid: 0,
         refundAmount,
