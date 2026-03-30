@@ -561,11 +561,85 @@ const ProductEditPanel = ({
                 </p>
               </SectionBlock>
 
-              {/* SECTION E: Stock (display only) */}
+              {/* SECTION E: Stock & Inventory — Size and barcode edit */}
               <SectionBlock title="Stock & Inventory" color="border-l-violet-500" open={sections.stock} onToggle={() => toggleSection("stock")}>
-                <p className="text-xs text-muted-foreground">
-                  Stock details are managed from the Product Master page.
-                </p>
+                {currentVariant ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs font-medium">
+                          Size
+                          {sizeModified && <span className="ml-1 text-[10px] text-amber-600 font-semibold">(modified)</span>}
+                        </Label>
+                        <Input
+                          value={variantSize}
+                          onChange={(e) => {
+                            setVariantSize(e.target.value.toUpperCase());
+                            setSizeModified(e.target.value.toUpperCase() !== (currentVariant?.size || ""));
+                          }}
+                          className={cn("h-9 text-sm font-mono", sizeModified && "border-l-4 border-l-amber-500")}
+                          placeholder="e.g. S, M, L, XL, 36"
+                        />
+                        {sizeModified && (
+                          <p className="text-[11px] text-amber-600 italic">was: {currentVariant.size}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs font-medium">Barcode</Label>
+                        <div className="h-9 flex items-center px-3 bg-muted/50 rounded-md border text-sm font-mono text-muted-foreground">
+                          {currentVariant.barcode || "—"}
+                        </div>
+                      </div>
+                    </div>
+                    {sizeModified && (
+                      <div className="flex items-center gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs gap-1 bg-amber-600 hover:bg-amber-700 text-white"
+                          onClick={async () => {
+                            if (!currentVariant?.id || !variantSize.trim()) return;
+                            try {
+                              const { error } = await supabase
+                                .from("product_variants")
+                                .update({ size: variantSize.trim() })
+                                .eq("id", currentVariant.id);
+                              if (error) throw error;
+                              setCurrentVariant(prev => prev ? { ...prev, size: variantSize.trim() } : prev);
+                              setSizeModified(false);
+                              onProductUpdated(item.temp_id, { size: variantSize.trim() });
+                              toast({ title: "Size Updated", description: `Size changed to ${variantSize.trim()}` });
+                            } catch (err: any) {
+                              toast({ title: "Error", description: err.message, variant: "destructive" });
+                            }
+                          }}
+                        >
+                          <Save className="h-3 w-3" /> Save Size Change
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs"
+                          onClick={() => { setVariantSize(currentVariant?.size || ""); setSizeModified(false); }}>
+                          Cancel
+                        </Button>
+                        <p className="text-[11px] text-amber-600">⚠️ Updates product master. Existing records unchanged.</p>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/50">
+                      <div className="text-center">
+                        <p className="text-[10px] text-muted-foreground">Pur Price</p>
+                        <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">₹{currentVariant.pur_price || 0}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[10px] text-muted-foreground">Sale Price</p>
+                        <p className="text-sm font-semibold text-green-700 dark:text-green-400">₹{currentVariant.sale_price || 0}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[10px] text-muted-foreground">MRP</p>
+                        <p className="text-sm font-semibold">₹{currentVariant.mrp || "—"}</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Loading variant details...</p>
+                )}
               </SectionBlock>
             </>
           )}
