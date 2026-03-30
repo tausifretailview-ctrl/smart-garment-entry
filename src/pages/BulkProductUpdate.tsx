@@ -598,9 +598,6 @@ export default function BulkProductUpdate() {
                     <Check className="h-4 w-4 mr-2" />
                     Apply Changes to {previewItems.length} Items
                   </Button>
-                      </Button>
-                    );
-                  })()}
                 </>
               )}
             </CardContent>
