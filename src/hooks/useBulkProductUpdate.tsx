@@ -40,7 +40,7 @@ export interface GSTConfig {
 
 export interface PriceConfig {
   priceType: "pur_price" | "sale_price" | "mrp";
-  updateMethod: "set" | "increase" | "decrease";
+  updateMethod: "set" | "increase" | "decrease" | "edit_individual";
   value: number;
 }
 
@@ -242,7 +242,10 @@ export const useBulkProductUpdate = () => {
             const currentPrice = variant[priceConfig.priceType as keyof typeof variant] as number | null;
             let newPrice: number;
 
-            if (priceConfig.updateMethod === "set") {
+            if (priceConfig.updateMethod === "edit_individual") {
+              // For edit_individual, newValue starts as currentValue (user will edit in UI)
+              newPrice = currentPrice || 0;
+            } else if (priceConfig.updateMethod === "set") {
               newPrice = priceConfig.value;
             } else if (priceConfig.updateMethod === "increase") {
               newPrice = (currentPrice || 0) * (1 + priceConfig.value / 100);
@@ -447,6 +450,7 @@ export const useBulkProductUpdate = () => {
   return {
     loading,
     previewItems,
+    setPreviewItems,
     fetchFilterOptions,
     fetchMatchingProducts,
     fetchMatchingVariants,
