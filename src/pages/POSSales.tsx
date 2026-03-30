@@ -2193,6 +2193,23 @@ export default function POSSales() {
       // Save financer details if provided
       if (financerDetails?.financer_name) {
         await saveFinancerDetails(result.id, currentOrganization?.id || '', financerDetails);
+        if (financerDetails.finance_discount > 0 && currentOrganization?.id) {
+          try {
+            const { data: lastVoucher } = await supabase
+              .from("voucher_entries").select("voucher_number")
+              .eq("organization_id", currentOrganization.id).eq("voucher_type", "expense")
+              .order("created_at", { ascending: false }).limit(1);
+            const lastNum = (lastVoucher as any)?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
+            await supabase.from("voucher_entries").insert({
+              organization_id: currentOrganization.id,
+              voucher_number: `EXP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`,
+              voucher_type: "expense", voucher_date: new Date().toISOString().split("T")[0],
+              reference_type: "sale", reference_id: result.id,
+              description: `Finance Discount — ${financerDetails.financer_name} (${result.sale_number})`,
+              total_amount: financerDetails.finance_discount, category: "finance_discount", payment_method: "bank",
+            } as any);
+          } catch (vErr) { console.error("Finance discount voucher failed:", vErr); }
+        }
       }
       // Store invoice number and sale ID for printing
       setCurrentInvoiceNumber(result.sale_number);
