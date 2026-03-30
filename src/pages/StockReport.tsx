@@ -53,6 +53,7 @@ interface SizeWiseRow {
   brand: string;
   color: string;
   category: string;
+  department: string;
   sizeStocks: Record<string, number>;
   totalStock: number;
 }
