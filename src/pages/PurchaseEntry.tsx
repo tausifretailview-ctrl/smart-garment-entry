@@ -3738,7 +3738,7 @@ const PurchaseEntry = () => {
             <Button
               size="sm"
               onClick={handleSave}
-              disabled={loading || lineItems.length === 0}
+              disabled={loading || lineItems.length === 0 || isBillLocked}
               className="h-8 px-5 text-xs bg-white text-teal-900 hover:bg-teal-100 font-bold gap-1.5 shadow-sm"
             >
               {loading ? (
