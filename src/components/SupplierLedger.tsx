@@ -35,7 +35,7 @@ interface Supplier {
 interface Transaction {
   id: string;
   date: string;
-  type: 'bill' | 'payment' | 'credit_note';
+  type: 'bill' | 'payment' | 'credit_note' | 'purchase_return';
   reference: string;
   description: string;
   debit: number;
@@ -109,40 +109,52 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
         supplierCreditNotes.set(cn.reference_id, current + (Number(cn.total_amount) || 0));
       });
 
+      // Fetch purchase returns without linked credit note vouchers for balance correction
+      const { data: allPurchaseReturns } = await supabase
+        .from("purchase_returns" as any)
+        .select("supplier_id, net_amount, credit_note_id")
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null);
+
+      const allCreditNoteVoucherIds = new Set((creditNotes || []).map((cn: any) => cn.id));
+      const unreflectedReturnsBySupplier = new Map<string, number>();
+      (allPurchaseReturns || []).forEach((pr: any) => {
+        if (!pr.credit_note_id || !allCreditNoteVoucherIds.has(pr.credit_note_id)) {
+          const prev = unreflectedReturnsBySupplier.get(pr.supplier_id) || 0;
+          unreflectedReturnsBySupplier.set(pr.supplier_id, prev + (Number(pr.net_amount) || 0));
+        }
+      });
+
       // Calculate totals per supplier
       const supplierTotals = suppliersData.map((supplier: any) => {
         const supplierBills = purchaseBillsData?.filter((b: any) => b.supplier_id === supplier.id) || [];
         const totalPurchases = supplierBills.reduce((sum: number, b: any) => sum + (b.net_amount || 0), 0);
         const totalPaidOnBills = supplierBills.reduce((sum: number, b: any) => sum + (b.paid_amount || 0), 0);
         const voucherPaymentTotal = supplierVoucherPayments.get(supplier.id) || 0;
-        // Per-bill voucher logic: for each bill, use voucher total if available, else bill.paid_amount
         const supplierBillIds = supplierBills.map((b: any) => b.id);
-        // Build per-bill voucher payment map
         const perBillVoucherMap = new Map<string, number>();
         voucherPayments?.forEach((v: any) => {
           if (supplierBillIds.includes(v.reference_id)) {
             perBillVoucherMap.set(v.reference_id, (perBillVoucherMap.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
           }
         });
-        // For each bill: use voucher payments if any, else fall back to bill.paid_amount
         const totalPaidFromBills = supplierBills.reduce((sum: number, b: any) => {
           const voucherPaid = perBillVoucherMap.get(b.id) || 0;
           return sum + (voucherPaid > 0 ? voucherPaid : (b.paid_amount || 0));
         }, 0);
-        // Add supplier-level voucher payments (reference_id = supplier.id, not a bill id)
         const supplierLevelPayments = voucherPayments?.filter((v: any) => v.reference_id === supplier.id).reduce((sum: number, v: any) => sum + (Number(v.total_amount) || 0), 0) || 0;
         const totalPaid = totalPaidFromBills + supplierLevelPayments;
         const totalCreditNotes = supplierCreditNotes.get(supplier.id) || 0;
+        const unreflectedReturns = unreflectedReturnsBySupplier.get(supplier.id) || 0;
         const openingBalance = supplier.opening_balance || 0;
-        // Balance = Opening Balance + Total Purchases - Total Paid - Credit Notes
-        const balance = openingBalance + totalPurchases - totalPaid - totalCreditNotes;
+        const balance = openingBalance + totalPurchases - totalPaid - totalCreditNotes - unreflectedReturns;
 
         return {
           ...supplier,
           opening_balance: openingBalance,
           totalPurchases,
           totalPaid,
-          totalCreditNotes,
+          totalCreditNotes: totalCreditNotes + unreflectedReturns,
           balance,
         };
       });
@@ -250,6 +262,21 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
 
       if (creditNotesError) throw creditNotesError;
 
+      // Fetch purchase returns (direct, as fallback/supplement to credit_note vouchers)
+      const { data: purchaseReturnsData } = await supabase
+        .from("purchase_returns" as any)
+        .select("id, return_number, return_date, net_amount, credit_status, credit_note_id, created_at")
+        .eq("supplier_id", selectedSupplier.id)
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null)
+        .order("return_date", { ascending: true });
+
+      // Only include purchase returns that have NO linked credit_note voucher
+      const creditNoteVoucherIds = new Set((creditNotesData || []).map((cn: any) => cn.id));
+      const unreflectedReturns = (purchaseReturnsData || []).filter((pr: any) =>
+        !pr.credit_note_id || !creditNoteVoucherIds.has(pr.credit_note_id)
+      );
+
       // Fetch refunds received from supplier (when CN is marked 'refunded')
       const { data: supplierRefunds } = await supabase
         .from('voucher_entries').select('*')
@@ -312,6 +339,11 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
           type: 'refund_received' as const,
           data: r,
         })),
+        ...(unreflectedReturns || []).map((pr: any) => ({
+          date: pr.return_date,
+          type: 'purchase_return' as const,
+          data: pr,
+        })),
       ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
       combined.forEach((item) => {
@@ -373,6 +405,27 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
             reference: r.voucher_number,
             description: r.description || 'Refund Received from Supplier',
             debit: r.total_amount,
+            credit: 0,
+            balance: runningBalance,
+          });
+        } else if (item.type === 'purchase_return') {
+          const pr = item.data as any;
+          const amount = Number(pr.net_amount) || 0;
+          runningBalance -= amount;
+
+          let description = `Purchase Return - ${pr.return_number}`;
+          if (pr.credit_status === 'adjusted_outstanding') description += ` (Adj. Outstanding)`;
+          else if (pr.credit_status === 'adjusted') description += ` (Adj. Against Bill)`;
+          else if (pr.credit_status === 'refunded') description += ` (Refunded)`;
+          else description += ` (Pending)`;
+
+          allTransactions.push({
+            id: `pr-${pr.id}`,
+            date: pr.return_date,
+            type: 'credit_note',
+            reference: pr.return_number,
+            description,
+            debit: amount,
             credit: 0,
             balance: runningBalance,
           });

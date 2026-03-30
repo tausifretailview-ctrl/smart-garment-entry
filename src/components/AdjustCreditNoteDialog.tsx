@@ -112,16 +112,50 @@ export function AdjustCreditNoteDialog({
 
         if (returnError) throw returnError;
 
-        // Update the voucher entry description only if creditNoteId exists
         if (creditNoteId) {
-          const { error: voucherError } = await supabase
+          // Update existing credit note description
+          await supabase
             .from("voucher_entries")
             .update({
               description: `Credit Note adjusted against Bill: ${selectedBill.supplier_invoice_no || selectedBill.software_bill_no}`,
             })
             .eq("id", creditNoteId);
+        } else {
+          // Create credit_note voucher now (was not auto-created at return save time)
+          const today = format(new Date(), "yyyy-MM-dd");
+          const { data: lastVoucher } = await supabase
+            .from("voucher_entries")
+            .select("voucher_number")
+            .eq("organization_id", currentOrganization?.id)
+            .eq("voucher_type", "credit_note")
+            .order("created_at", { ascending: false })
+            .limit(1);
 
-          if (voucherError) throw voucherError;
+          const lastNum = lastVoucher?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
+          const newVoucherNumber = `SCN-${String(parseInt(lastNum) + 1).padStart(5, "0")}`;
+
+          const { data: newVoucher, error: vnError } = await supabase
+            .from("voucher_entries")
+            .insert({
+              organization_id: currentOrganization?.id,
+              voucher_number: newVoucherNumber,
+              voucher_type: "credit_note",
+              voucher_date: today,
+              reference_type: "supplier",
+              reference_id: supplierId,
+              description: `Credit Note adjusted against Bill: ${selectedBill.supplier_invoice_no || selectedBill.software_bill_no}`,
+              total_amount: creditAmount,
+            })
+            .select()
+            .single();
+
+          if (vnError) throw vnError;
+
+          // Link new voucher to purchase return
+          await supabase
+            .from("purchase_returns" as any)
+            .update({ credit_note_id: newVoucher.id })
+            .eq("id", purchaseReturnId);
         }
 
         toast({
@@ -176,28 +210,58 @@ export function AdjustCreditNoteDialog({
           description: `Credit note marked as refunded. Receipt voucher created.`,
         });
       } else if (adjustmentType === "outstanding") {
-        // Adjust in Outstanding Balance - update status only
-        // The SCN voucher already exists and reduces the supplier balance,
-        // so we do NOT create a second credit_note voucher (that caused double entries)
+        // Update purchase return credit status
         const { error: returnError } = await supabase
           .from("purchase_returns" as any)
-          .update({
-            credit_status: "adjusted_outstanding",
-          })
+          .update({ credit_status: "adjusted_outstanding" })
           .eq("id", purchaseReturnId);
 
         if (returnError) throw returnError;
 
-        // Update voucher description if creditNoteId exists
         if (creditNoteId) {
-          const { error: voucherError } = await supabase
+          // Existing credit_note voucher — just update description
+          await supabase
             .from("voucher_entries")
             .update({
               description: `Credit Note adjusted to Outstanding Balance: ${creditNoteNumber}`,
             })
             .eq("id", creditNoteId);
+        } else {
+          // No credit_note voucher was created at save time — create one now
+          const today = format(new Date(), "yyyy-MM-dd");
+          const { data: lastVoucher } = await supabase
+            .from("voucher_entries")
+            .select("voucher_number")
+            .eq("organization_id", currentOrganization?.id)
+            .eq("voucher_type", "credit_note")
+            .order("created_at", { ascending: false })
+            .limit(1);
 
-          if (voucherError) throw voucherError;
+          const lastNum = lastVoucher?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
+          const newVoucherNumber = `SCN-${String(parseInt(lastNum) + 1).padStart(5, "0")}`;
+
+          const { data: newVoucher, error: vnError } = await supabase
+            .from("voucher_entries")
+            .insert({
+              organization_id: currentOrganization?.id,
+              voucher_number: newVoucherNumber,
+              voucher_type: "credit_note",
+              voucher_date: today,
+              reference_type: "supplier",
+              reference_id: supplierId,
+              description: `Credit Note adjusted to Outstanding Balance: ${creditNoteNumber}`,
+              total_amount: creditAmount,
+            })
+            .select()
+            .single();
+
+          if (vnError) throw vnError;
+
+          // Link this new voucher back to the purchase return
+          await supabase
+            .from("purchase_returns" as any)
+            .update({ credit_note_id: newVoucher.id })
+            .eq("id", purchaseReturnId);
         }
 
         toast({
