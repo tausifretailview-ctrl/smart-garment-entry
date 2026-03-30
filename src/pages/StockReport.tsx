@@ -750,6 +750,7 @@ export default function StockReport() {
           brand: item.brand,
           color: item.color,
           category: item.category,
+          department: item.department,
           sizeStocks: {},
           totalStock: 0
         });
