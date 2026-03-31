@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
+import { Package, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Loader2, Printer } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -917,6 +917,117 @@ export default function StockReport() {
     
     doc.save(`SizeWise_Stock_Report_${format(new Date(), "yyyy-MM-dd")}.pdf`);
   };
+
+  // Export All Stock to Excel
+  const exportAllStockToExcel = () => {
+    const headers = ["Sr No", "Supplier", "Supplier Invoice", "Product", "Brand", "Size", "Color", "Style", "Barcode", "Opening Qty", "Purchase Qty", "Pur Return", "Sales Qty", "Sale Return", "Current Stock", "Pur Price", "Stock Value", "Sale Price", "Status"];
+    const data = filteredStockItems.map((item, index) => [
+      index + 1,
+      item.supplier_name || "",
+      item.supplier_invoice_no || "",
+      item.product_name,
+      item.brand,
+      item.size,
+      item.color || "",
+      item.department || "",
+      item.barcode,
+      item.opening_qty,
+      item.purchase_qty,
+      item.purchase_return_qty,
+      item.sales_qty,
+      item.sale_return_qty,
+      item.stock_qty,
+      item.pur_price || 0,
+      Math.round((item.pur_price || 0) * item.stock_qty),
+      item.sale_price,
+      item.stock_qty === 0 ? "Out of Stock" : item.stock_qty <= lowStockThreshold ? "Low Stock" : "In Stock",
+    ]);
+    // Totals row
+    data.push([
+      "", "", "", "TOTAL", "", "", "", "", "",
+      filteredStockItems.reduce((s, i) => s + i.opening_qty, 0),
+      filteredStockItems.reduce((s, i) => s + i.purchase_qty, 0),
+      filteredStockItems.reduce((s, i) => s + i.purchase_return_qty, 0),
+      filteredStockItems.reduce((s, i) => s + i.sales_qty, 0),
+      filteredStockItems.reduce((s, i) => s + i.sale_return_qty, 0),
+      filteredStockItems.reduce((s, i) => s + i.stock_qty, 0),
+      "",
+      Math.round(filteredStockItems.reduce((s, i) => s + (i.pur_price || 0) * i.stock_qty, 0)),
+      Math.round(filteredStockItems.reduce((s, i) => s + i.sale_price * i.stock_qty, 0)),
+      "",
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+    ws['!cols'] = [
+      { wch: 6 }, { wch: 18 }, { wch: 16 }, { wch: 30 }, { wch: 15 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 16 },
+      { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 12 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Stock Report");
+    XLSX.writeFile(wb, `Stock_Report_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+  };
+
+  // Print All Stock as A4
+  const printAllStock = () => {
+    const orgName = currentOrganization?.name || "Stock Report";
+    const dateStr = format(new Date(), "dd-MM-yyyy");
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    const rows = filteredStockItems.map((item, i) => `
+      <tr style="${i % 2 === 0 ? '' : 'background:#f9f9f9;'}">
+        <td style="text-align:center">${i + 1}</td>
+        <td>${item.product_name}</td>
+        <td>${item.brand}</td>
+        <td>${item.size}</td>
+        <td>${item.color || ''}</td>
+        <td>${item.barcode}</td>
+        <td style="text-align:right">${item.opening_qty}</td>
+        <td style="text-align:right">${item.purchase_qty}</td>
+        <td style="text-align:right">${item.purchase_return_qty}</td>
+        <td style="text-align:right">${item.sales_qty}</td>
+        <td style="text-align:right">${item.sale_return_qty}</td>
+        <td style="text-align:right;font-weight:bold">${item.stock_qty}</td>
+        <td style="text-align:right">${item.pur_price ? '₹' + item.pur_price : '-'}</td>
+        <td style="text-align:right">${item.sale_price ? '₹' + item.sale_price : '-'}</td>
+      </tr>`).join("");
+
+    const totalRow = `
+      <tr style="font-weight:bold;background:#eee;border-top:2px solid #333">
+        <td colspan="6" style="text-align:center">TOTAL</td>
+        <td style="text-align:right">${filteredStockItems.reduce((s, i) => s + i.opening_qty, 0)}</td>
+        <td style="text-align:right">${filteredStockItems.reduce((s, i) => s + i.purchase_qty, 0)}</td>
+        <td style="text-align:right">${filteredStockItems.reduce((s, i) => s + i.purchase_return_qty, 0)}</td>
+        <td style="text-align:right">${filteredStockItems.reduce((s, i) => s + i.sales_qty, 0)}</td>
+        <td style="text-align:right">${filteredStockItems.reduce((s, i) => s + i.sale_return_qty, 0)}</td>
+        <td style="text-align:right">${filteredStockItems.reduce((s, i) => s + i.stock_qty, 0)}</td>
+        <td style="text-align:right">₹${Math.round(filteredStockItems.reduce((s, i) => s + (i.pur_price || 0) * i.stock_qty, 0)).toLocaleString('en-IN')}</td>
+        <td style="text-align:right">₹${Math.round(filteredStockItems.reduce((s, i) => s + i.sale_price * i.stock_qty, 0)).toLocaleString('en-IN')}</td>
+      </tr>`;
+
+    printWindow.document.write(`<!DOCTYPE html><html><head><title>Stock Report</title>
+      <style>
+        @page { size: A4 landscape; margin: 10mm; }
+        body { font-family: Arial, sans-serif; font-size: 9px; margin: 0; padding: 8px; }
+        h2 { text-align: center; margin: 4px 0; font-size: 14px; }
+        .sub { text-align: center; font-size: 10px; color: #666; margin-bottom: 8px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ccc; padding: 3px 5px; }
+        th { background: #f0f0f0; font-size: 8px; text-transform: uppercase; }
+        @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+      </style></head><body>
+      <h2>${orgName} — Stock Report</h2>
+      <div class="sub">Generated: ${dateStr} | Items: ${filteredStockItems.length} | Total Stock: ${totalStock.toLocaleString('en-IN')}</div>
+      <table>
+        <thead><tr>
+          <th>Sr</th><th>Product</th><th>Brand</th><th>Size</th><th>Color</th><th>Barcode</th>
+          <th>Open</th><th>Pur</th><th>P.Ret</th><th>Sales</th><th>S.Ret</th><th>Stock</th><th>Pur ₹</th><th>Sale ₹</th>
+        </tr></thead>
+        <tbody>${rows}${totalRow}</tbody>
+      </table></body></html>`);
+    printWindow.document.close();
+    setTimeout(() => { printWindow.print(); }, 300);
+  };
+
   const isMobile = useIsMobile();
 
   if (isMobile) {
@@ -1297,8 +1408,18 @@ export default function StockReport() {
                         Stock breakdown: Opening Qty + Purchase Qty - Pur Return - Sales Qty + Sale Return = Current Stock Qty
                       </CardDescription>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      Showing {filteredStockItems.length > 0 ? ((currentPage - 1) * ITEMS_PER_PAGE) + 1 : 0} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredStockItems.length)} of {filteredStockItems.length} items
+                    <div className="flex items-center gap-4">
+                      <div className="text-sm text-muted-foreground">
+                        Showing {filteredStockItems.length > 0 ? ((currentPage - 1) * ITEMS_PER_PAGE) + 1 : 0} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredStockItems.length)} of {filteredStockItems.length} items
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={exportAllStockToExcel} disabled={filteredStockItems.length === 0}>
+                          <FileSpreadsheet className="h-4 w-4 mr-1" /> Excel
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={printAllStock} disabled={filteredStockItems.length === 0}>
+                          <Printer className="h-4 w-4 mr-1" /> Print
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </CardHeader>
