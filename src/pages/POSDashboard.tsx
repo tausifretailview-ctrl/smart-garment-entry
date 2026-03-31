@@ -43,6 +43,7 @@ import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { waitForPrintReady } from "@/utils/printReady";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 interface SaleItem {
   id: string;
