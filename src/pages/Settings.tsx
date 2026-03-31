@@ -2907,7 +2907,8 @@ export default function Settings() {
                     {(settings.sale_settings?.terms_list || [
                       'GOODS ONCE SOLD WILL NOT BE TAKEN BACK.',
                       'NO EXCHANGE WITHOUT BARCODE & BILL.',
-                      'EXCHANGE TIME: 01:00 TO 04:00 PM.'
+                      'EXCHANGE TIME: 01:00 TO 04:00 PM.',
+                      ''
                     ]).map((term, index) => (
                       <div key={index} className="flex gap-2">
                         <Input
