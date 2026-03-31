@@ -831,11 +831,12 @@ export const useSaveSale = () => {
       let saleNumber: string;
       const holdSaleSettings = settings?.sale_settings as Record<string, any> | null;
       
-      if (holdSaleSettings?.invoice_numbering_format) {
-        saleNumber = await generateInvoiceNumber(holdSaleSettings.invoice_numbering_format);
+      // Use POS series for hold bills (not INV series)
+      if (holdSaleSettings?.pos_numbering_format) {
+        saleNumber = await generateInvoiceNumber(holdSaleSettings.pos_numbering_format);
       } else {
         const { data: defaultNumber, error: numberError } = await supabase
-          .rpc('generate_sale_number', { p_organization_id: currentOrganization.id });
+          .rpc('generate_pos_number', { p_organization_id: currentOrganization.id });
         if (numberError) throw numberError;
         saleNumber = defaultNumber;
       }
