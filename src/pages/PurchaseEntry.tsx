@@ -3138,7 +3138,7 @@ const PurchaseEntry = () => {
               Supplier & Bill Details
             </span>
           </div>
-            <div className='grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 items-end'>
+            <div className='grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 items-end'>
               <div className="space-y-2">
                 <Label htmlFor="software_bill_no">Software Bill No</Label>
                 <Input
