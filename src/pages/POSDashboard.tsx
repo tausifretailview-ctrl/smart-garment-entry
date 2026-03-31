@@ -505,7 +505,7 @@ const POSDashboard = () => {
   };
 
   const handleBulkDelete = async () => {
-    if (selectedSales.size === 0) return;
+    if (selectedSales.size === 0 || !hasSpecialPermission('delete_records')) return;
 
     setIsDeleting(true);
     try {
