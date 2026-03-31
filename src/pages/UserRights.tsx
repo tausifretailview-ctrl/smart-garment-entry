@@ -123,10 +123,17 @@ const menuStructure = [
     name: "Settings",
     icon: Settings,
     submenus: [
+      { id: "profile_view", name: "Profile" },
       { id: "settings_view", name: "Settings" },
+      { id: "organization_management", name: "Organization" },
+      { id: "barcode_printing_settings", name: "Barcode Printing" },
+      { id: "whatsapp_logs", name: "WhatsApp Logs" },
+      { id: "whatsapp_inbox", name: "WhatsApp Inbox" },
       { id: "recycle_bin", name: "Recycle Bin" },
       { id: "user_rights", name: "User Rights" },
       { id: "stock_adjustment", name: "Stock Adjustment" },
+      { id: "stock_settlement", name: "Stock Settlement" },
+      { id: "bulk_product_update", name: "Bulk Product Update" },
     ],
   },
 ];
