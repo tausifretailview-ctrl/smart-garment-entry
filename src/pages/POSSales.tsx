@@ -3369,9 +3369,12 @@ export default function POSSales() {
 
           {/* Advance Booking */}
           <Button
-            onClick={() => setShowAdvanceBooking(true)}
+            onClick={() => {
+              const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
+              window.open(`/${orgSlug}/advance-booking-dashboard`, '_blank');
+            }}
             className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold w-full rounded-lg bg-purple-500 hover:bg-purple-600 active:scale-95 text-white shadow-sm transition-all duration-150"
-            title="Advance Booking"
+            title="Advance Booking Dashboard"
           >
             <BookmarkPlus className="h-4 w-4" />
             <span>Advance</span>
