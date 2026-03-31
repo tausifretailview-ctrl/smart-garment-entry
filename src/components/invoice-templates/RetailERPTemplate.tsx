@@ -317,7 +317,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                 </colgroup>
                 <thead>
                   <tr>
-                    <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5" }}>Sr.</th>
+                    <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5", width: "6%" }}>SR.</th>
                     <th style={{ ...cellL, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5" }}>Description</th>
                     <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5" }}>Barcode</th>
                     <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5" }}>Qty</th>
