@@ -314,7 +314,10 @@ const PurchaseEntry = () => {
           billDate: billDate.toISOString(),
           lineItems,
           roundOff,
+          otherCharges,
+          discountAmount,
           entryMode,
+          isDcPurchase,
           isEditMode,
           editingBillId,
           originalLineItems,
@@ -322,7 +325,7 @@ const PurchaseEntry = () => {
       }
       stopAutoSave();
     };
-  }, [startAutoSave, stopAutoSave, billData, softwareBillNo, billDate, lineItems, roundOff, entryMode, isEditMode, editingBillId, originalLineItems, saveDraft]);
+  }, [startAutoSave, stopAutoSave, billData, softwareBillNo, billDate, lineItems, roundOff, otherCharges, discountAmount, entryMode, isDcPurchase, isEditMode, editingBillId, originalLineItems, saveDraft]);
 
   // Barcode duplicate warning check — debounced 600ms after lineItems change
   useEffect(() => {
