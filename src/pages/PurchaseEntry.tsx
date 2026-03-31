@@ -2062,12 +2062,15 @@ const PurchaseEntry = () => {
 
         let insertedNewItems: LineItem[] = [];
         if (itemsToInsert.length > 0) {
-          const { data: insertedData, error: insertError } = await supabase
-            .from("purchase_items")
-            .insert(itemsToInsert)
-            .select();
-          
-          if (insertError) throw insertError;
+          // Insert in chunks of 100 to avoid statement timeout on large bills
+          const EDIT_CHUNK_SIZE = 100;
+          for (let ci = 0; ci < itemsToInsert.length; ci += EDIT_CHUNK_SIZE) {
+            const chunk = itemsToInsert.slice(ci, ci + EDIT_CHUNK_SIZE);
+            const { error: insertError } = await supabase
+              .from("purchase_items")
+              .insert(chunk);
+            if (insertError) throw insertError;
+          }
           console.log(`Inserted ${itemsToInsert.length} new items`);
           
           // Map inserted items back to LineItem format for barcode printing
@@ -2075,21 +2078,18 @@ const PurchaseEntry = () => {
         }
 
         // Store items for barcode printing (edit mode)
-        const editItemsWithDetails = await Promise.all(
-          lineItems.map(async (item) => {
-            const { data: product } = await supabase
-              .from("products")
-              .select("brand, color, style")
-              .eq("id", item.product_id)
-              .single();
-            return {
-              ...item,
-              brand: item.brand || product?.brand || "",
-              color: item.color || product?.color || "",
-              style: item.style || product?.style || "",
-            };
-          })
-        );
+        // Batch-fetch product details instead of N individual queries
+        const editUniqueProductIds = [...new Set(lineItems.map(i => i.product_id))];
+        const editProductMap = new Map<string, { brand: string; color: string; style: string }>();
+        for (let pi = 0; pi < editUniqueProductIds.length; pi += 200) {
+          const chunk = editUniqueProductIds.slice(pi, pi + 200);
+          const { data: prods } = await supabase.from("products").select("id, brand, color, style").in("id", chunk);
+          (prods || []).forEach(p => editProductMap.set(p.id, { brand: p.brand || "", color: p.color || "", style: p.style || "" }));
+        }
+        const editItemsWithDetails = lineItems.map(item => {
+          const pd = editProductMap.get(item.product_id) || { brand: "", color: "", style: "" };
+          return { ...item, brand: item.brand || pd.brand, color: item.color || pd.color, style: item.style || pd.style };
+        });
         setSavedPurchaseItems(editItemsWithDetails);
         setSavedBillId(editingBillId);
         setSavedSupplierId(billData.supplier_id || null);
@@ -2197,19 +2197,25 @@ const PurchaseEntry = () => {
           is_dc_item: isDcPurchase,
         }));
 
-        const { error: itemsError } = await supabase
-          .from("purchase_items")
-          .insert(itemsToInsert);
-
-        if (itemsError) throw itemsError;
+        // Insert purchase items in chunks of 100 to avoid statement timeout on large bills
+        const INSERT_CHUNK_SIZE = 100;
+        const isLargeBill = itemsToInsert.length > 50;
+        if (isLargeBill) {
+          toast({ title: "Saving large bill...", description: `Saving ${itemsToInsert.length} items. Please wait...` });
+        }
+        for (let ci = 0; ci < itemsToInsert.length; ci += INSERT_CHUNK_SIZE) {
+          const chunk = itemsToInsert.slice(ci, ci + INSERT_CHUNK_SIZE);
+          const { error: itemsError } = await supabase.from("purchase_items").insert(chunk);
+          if (itemsError) throw itemsError;
+        }
 
         // Flag product variants as DC products (or reset if non-DC purchase)
+        // Chunk variant updates to avoid IN clause timeout on large bills
         const variantIds = [...new Set(lineItems.map(i => i.sku_id))];
-        if (variantIds.length > 0) {
-          await supabase
-            .from("product_variants")
-            .update({ is_dc_product: isDcPurchase })
-            .in("id", variantIds);
+        const VARIANT_CHUNK = 200;
+        for (let vi = 0; vi < variantIds.length; vi += VARIANT_CHUNK) {
+          const chunk = variantIds.slice(vi, vi + VARIANT_CHUNK);
+          await supabase.from("product_variants").update({ is_dc_product: isDcPurchase }).in("id", chunk);
         }
 
         // Check for price changes and show dialog if any
@@ -2226,22 +2232,18 @@ const PurchaseEntry = () => {
         // Invalidate dashboard queries for immediate UI refresh
         invalidatePurchases();
         queryClient.invalidateQueries({ queryKey: ["next-supplier-inv-no"] });
-        const itemsWithDetails = await Promise.all(
-          lineItems.map(async (item) => {
-            const { data: product } = await supabase
-              .from("products")
-              .select("brand, color, style")
-              .eq("id", item.product_id)
-              .single();
-            
-            return {
-              ...item,
-              brand: item.brand || product?.brand || "",
-              color: item.color || product?.color || "",
-              style: item.style || product?.style || "",
-            };
-          })
-        );
+        // Batch-fetch product details instead of N individual queries
+        const uniqueProductIds = [...new Set(lineItems.map(i => i.product_id))];
+        const productDetailsMap = new Map<string, { brand: string; color: string; style: string }>();
+        for (let pi = 0; pi < uniqueProductIds.length; pi += 200) {
+          const chunk = uniqueProductIds.slice(pi, pi + 200);
+          const { data: prods } = await supabase.from("products").select("id, brand, color, style").in("id", chunk);
+          (prods || []).forEach(p => productDetailsMap.set(p.id, { brand: p.brand || "", color: p.color || "", style: p.style || "" }));
+        }
+        const itemsWithDetails = lineItems.map(item => {
+          const pd = productDetailsMap.get(item.product_id) || { brand: "", color: "", style: "" };
+          return { ...item, brand: item.brand || pd.brand, color: item.color || pd.color, style: item.style || pd.style };
+        });
 
         // Store items for barcode printing
         setSavedPurchaseItems(itemsWithDetails);
@@ -2567,6 +2569,20 @@ const PurchaseEntry = () => {
       }
     }
 
+    // Pre-generate barcodes in bulk for rows that need them
+    const rowsNeedingBarcode = validRows.filter(row => !row.barcode?.toString().trim());
+    const barcodePool: string[] = [];
+    if (rowsNeedingBarcode.length > 0) {
+      const { data: startBarcode } = await supabase.rpc('generate_next_barcode', { p_organization_id: currentOrganization.id });
+      if (startBarcode) {
+        const startNum = parseInt(startBarcode, 10);
+        for (let b = 0; b < rowsNeedingBarcode.length + 10; b++) {
+          barcodePool.push(String(startNum + b).padStart(String(startBarcode).length, '0'));
+        }
+      }
+    }
+    let barcodePoolIndex = 0;
+
     // Process in batches
     for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
       const batch = validRows.slice(i, i + BATCH_SIZE);
@@ -2623,14 +2639,10 @@ const PurchaseEntry = () => {
             skuId = variantInfo.id;
             barcode = variantInfo.barcode || row.barcode?.toString().trim() || '';
           } else {
-            // Generate barcode if not provided
+            // Generate barcode if not provided — use pre-generated pool
             barcode = row.barcode?.toString().trim() || '';
             if (!barcode) {
-              const { data: barcodeData } = await supabase.rpc(
-                'generate_next_barcode',
-                { p_organization_id: currentOrganization.id }
-              );
-              barcode = barcodeData || '';
+              barcode = barcodePool[barcodePoolIndex++] || `AUTO${Date.now()}${barcodePoolIndex}`;
             }
 
             // Check-then-insert pattern (expression-based index can't use ON CONFLICT)
