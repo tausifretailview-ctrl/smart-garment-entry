@@ -4881,7 +4881,13 @@ export default function POSSales() {
           }}
         />
 
-        {/* Quick Service Product Dialog */}
+        {/* Advance Booking Dialog - Desktop */}
+        <AddAdvanceBookingDialog
+          open={showAdvanceBooking}
+          onOpenChange={setShowAdvanceBooking}
+          organizationId={currentOrganization?.id || ""}
+        />
+
         <QuickServiceProductDialog
           open={showQuickServiceDialog}
           onOpenChange={(open) => {
