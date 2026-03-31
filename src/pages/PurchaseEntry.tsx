@@ -3138,18 +3138,16 @@ const PurchaseEntry = () => {
               Supplier & Bill Details
             </span>
           </div>
-            <div className='grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 items-end'>
-              <div className="space-y-2">
+            <div className='flex flex-wrap lg:flex-nowrap items-end gap-3'>
+              <div className="space-y-2 w-[160px] flex-shrink-0">
                 <Label htmlFor="software_bill_no">Software Bill No</Label>
                 <Input
                   id="software_bill_no"
                   value={isEditMode ? softwareBillNo : (() => {
-                    // Show preview of next bill number based on last bill
                     if (lastPurchaseBill?.software_bill_no) {
                       const match = lastPurchaseBill.software_bill_no.match(/^(PUR\/\d{2}-\d{2}\/)(\d+)$/);
                       if (match) return `${match[1]}${Number(match[2]) + 1}`;
                     }
-                    // Fallback: compute from current date
                     const now = billDate || new Date();
                     const m = now.getMonth() + 1;
                     const y = now.getFullYear() % 100;
@@ -3162,7 +3160,7 @@ const PurchaseEntry = () => {
                 />
               </div>
 
-              <div className="space-y-2 min-w-0">
+              <div className="space-y-2 w-[180px] flex-shrink-0 min-w-0">
                 <Label htmlFor="supplier_name">Supplier *</Label>
                 <div className="flex gap-1 min-w-0">
                   <Select
@@ -3176,7 +3174,7 @@ const PurchaseEntry = () => {
                       });
                     }}
                   >
-                    <SelectTrigger className="flex-1">
+                    <SelectTrigger className="flex-1 min-w-0">
                       <SelectValue placeholder="Select supplier" />
                     </SelectTrigger>
                     <SelectContent className="bg-background z-50">
@@ -3199,7 +3197,7 @@ const PurchaseEntry = () => {
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 w-[160px] flex-shrink-0">
                 <Label htmlFor="supplier_invoice_no">Supplier Invoice No *</Label>
                 <Input
                   id="supplier_invoice_no"
@@ -3211,7 +3209,7 @@ const PurchaseEntry = () => {
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 w-[170px] flex-shrink-0">
                 <Label htmlFor="bill_date">Bill Date</Label>
                 <Popover open={billDateOpen} onOpenChange={setBillDateOpen}>
                   <PopoverTrigger asChild>
@@ -3239,7 +3237,7 @@ const PurchaseEntry = () => {
               </div>
 
               {/* DC Purchase Checkbox */}
-              <div className="space-y-2 flex items-end">
+              <div className="flex items-end flex-shrink-0">
                 <label className="flex items-center gap-2 cursor-pointer h-10 px-3 border border-orange-300 bg-orange-50 dark:bg-orange-950/20 rounded-md">
                   <Checkbox
                     checked={isDcPurchase}
@@ -3251,8 +3249,8 @@ const PurchaseEntry = () => {
                 </label>
               </div>
 
-              {/* Live Total Qty */}
-              <div className="flex items-end">
+              {/* Live Total Qty — pinned right */}
+              <div className="flex items-end ml-auto flex-shrink-0">
                 <div className="flex items-center gap-2 h-10 px-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-300 dark:border-blue-700 rounded-md">
                   <ShoppingCart className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                   <span className="text-xs font-semibold text-blue-700 dark:text-blue-300 whitespace-nowrap">Total Qty:</span>
