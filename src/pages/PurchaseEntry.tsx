@@ -257,8 +257,10 @@ const PurchaseEntry = () => {
     setBillDate(data.billDate ? new Date(data.billDate) : new Date());
     setLineItems(data.lineItems || []);
     setOtherCharges(data.otherCharges || 0);
+    setDiscountAmount(data.discountAmount || 0);
     setRoundOff(data.roundOff || 0);
     setEntryMode(data.entryMode || "grid");
+    setIsDcPurchase(data.isDcPurchase || false);
     // Restore edit mode if draft was from an edit
     if (data.isEditMode && data.editingBillId) {
       setIsEditMode(true);
@@ -286,7 +288,10 @@ const PurchaseEntry = () => {
         billDate: billDate.toISOString(),
         lineItems,
         roundOff,
+        otherCharges,
+        discountAmount,
         entryMode,
+        isDcPurchase,
         isEditMode,
         editingBillId,
         originalLineItems,
@@ -295,7 +300,7 @@ const PurchaseEntry = () => {
       // Clear data when no items (prevents stale draft)
       updateCurrentData(null);
     }
-  }, [billData, softwareBillNo, billDate, lineItems, roundOff, entryMode, isEditMode, editingBillId, originalLineItems, updateCurrentData]);
+  }, [billData, softwareBillNo, billDate, lineItems, roundOff, otherCharges, discountAmount, entryMode, isDcPurchase, isEditMode, editingBillId, originalLineItems, updateCurrentData]);
 
   // Start auto-save (works for both new and edit mode)
   useEffect(() => {
@@ -309,7 +314,10 @@ const PurchaseEntry = () => {
           billDate: billDate.toISOString(),
           lineItems,
           roundOff,
+          otherCharges,
+          discountAmount,
           entryMode,
+          isDcPurchase,
           isEditMode,
           editingBillId,
           originalLineItems,
@@ -317,7 +325,7 @@ const PurchaseEntry = () => {
       }
       stopAutoSave();
     };
-  }, [startAutoSave, stopAutoSave, billData, softwareBillNo, billDate, lineItems, roundOff, entryMode, isEditMode, editingBillId, originalLineItems, saveDraft]);
+  }, [startAutoSave, stopAutoSave, billData, softwareBillNo, billDate, lineItems, roundOff, otherCharges, discountAmount, entryMode, isDcPurchase, isEditMode, editingBillId, originalLineItems, saveDraft]);
 
   // Barcode duplicate warning check — debounced 600ms after lineItems change
   useEffect(() => {
@@ -1898,6 +1906,28 @@ const PurchaseEntry = () => {
     }
 
     setLoading(true);
+    
+    // Force-save draft before attempting bill save (safety net against data loss)
+    try {
+      await saveDraft({
+        billData,
+        softwareBillNo,
+        billDate: billDate.toISOString(),
+        lineItems,
+        roundOff,
+        otherCharges,
+        discountAmount,
+        entryMode,
+        isDcPurchase,
+        isEditMode,
+        editingBillId,
+        originalLineItems,
+      }, false);
+      console.log('[PurchaseEntry] Draft safety-save completed before bill save');
+    } catch (draftErr) {
+      console.error('[PurchaseEntry] Draft safety-save failed:', draftErr);
+    }
+    
     try {
       // Calculate totals directly from lineItems to avoid stale state issues
       const calculatedGrossBeforeDiscount = lineItems.reduce((sum, r) => sum + (r.qty * r.pur_price), 0);
@@ -2253,10 +2283,21 @@ const PurchaseEntry = () => {
         setIsDcPurchase(false);
       }
     } catch (error: any) {
+      console.error('[PurchaseEntry] Bill save FAILED:', {
+        error,
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code,
+        supplierName: billData.supplier_name,
+        itemCount: lineItems.length,
+        isEdit: isEditMode,
+      });
       toast({
-        title: "Error",
-        description: error.message || "Failed to save purchase bill",
+        title: "Bill Save Failed — Draft Preserved",
+        description: `${error?.message || "Unknown error"}. Your data is safe in draft. Please try again.`,
         variant: "destructive",
+        duration: 10000,
       });
     } finally {
       setLoading(false);
