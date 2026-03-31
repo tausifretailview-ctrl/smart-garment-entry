@@ -308,16 +308,16 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               {/* ===== ITEMS TABLE ===== */}
               <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", flex: 1 }}>
                 <colgroup>
-                  <col style={{ width: "5%" }} />
-                  <col style={{ width: "35%" }} />
-                  <col style={{ width: "15%" }} />
-                  <col style={{ width: "10%" }} />
-                  <col style={{ width: "15%" }} />
+                  <col style={{ width: "6%" }} />
+                  <col style={{ width: "34%" }} />
+                  <col style={{ width: "16%" }} />
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "16%" }} />
                   <col style={{ width: "20%" }} />
                 </colgroup>
                 <thead>
                   <tr>
-                    <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5" }}>Sr.</th>
+                    <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5", width: "6%" }}>SR.</th>
                     <th style={{ ...cellL, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5" }}>Description</th>
                     <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5" }}>Barcode</th>
                     <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5" }}>Qty</th>
@@ -331,7 +331,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     const srNo = item ? pageStartSr + srCounter : null;
                     return (
                       <tr key={idx} style={{ height: rowH }}>
-                        <td style={cellC}>{srNo || "\u00A0"}</td>
+                        <td style={{ ...cellC, width: "6%" }}>{srNo || "\u00A0"}</td>
                         <td style={{ ...cellL, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {item ? (
                             <>
