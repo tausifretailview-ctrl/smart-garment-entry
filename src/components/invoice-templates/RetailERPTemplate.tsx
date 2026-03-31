@@ -458,7 +458,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         </div>
                       )}
                       {paymentParts.length <= 1 && (
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "28px", borderBottom: B, padding: "0 8px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: isA4 ? "28px" : "22px", borderBottom: B, padding: isA4 ? "0 8px" : "0 6px" }}>
                           <span>Received (Today)</span><span>₹{fmt(receivedToday)}</span>
                         </div>
                       )}
