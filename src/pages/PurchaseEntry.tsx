@@ -2625,14 +2625,10 @@ const PurchaseEntry = () => {
             skuId = variantInfo.id;
             barcode = variantInfo.barcode || row.barcode?.toString().trim() || '';
           } else {
-            // Generate barcode if not provided
+            // Generate barcode if not provided — use pre-generated pool
             barcode = row.barcode?.toString().trim() || '';
             if (!barcode) {
-              const { data: barcodeData } = await supabase.rpc(
-                'generate_next_barcode',
-                { p_organization_id: currentOrganization.id }
-              );
-              barcode = barcodeData || '';
+              barcode = barcodePool[barcodePoolIndex++] || `AUTO${Date.now()}${barcodePoolIndex}`;
             }
 
             // Check-then-insert pattern (expression-based index can't use ON CONFLICT)
