@@ -390,9 +390,16 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         </ul>
                       </div>
                     )}
-                    {notes && (
-                      <div style={{ marginTop: termsConditions.length > 0 ? "4px" : "0", paddingTop: termsConditions.length > 0 ? "4px" : "0", borderTop: termsConditions.length > 0 ? "1px dashed #999" : "none", fontSize: isA4 ? "13px" : "11px", fontStyle: "italic" }}>
-                        <strong style={{ fontStyle: "normal" }}>Note:</strong> {notes}
+                    {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
+                      <div style={{
+                        marginTop: termsConditions.length > 0 ? "4px" : "0",
+                        paddingTop: termsConditions.length > 0 ? "3px" : "0",
+                        borderTop: termsConditions.length > 0 ? "1px dashed #ccc" : "none",
+                        fontSize: isA4 ? "11px" : "8px",
+                        fontWeight: "400",
+                        lineHeight: 1.4,
+                      }}>
+                        <strong>Note:</strong> <span style={{ fontStyle: "italic" }}>{notes}</span>
                       </div>
                     )}
                     {qrCodeUrl && isLastPage && (
