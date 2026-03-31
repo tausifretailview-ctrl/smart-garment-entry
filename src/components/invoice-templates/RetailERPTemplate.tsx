@@ -139,6 +139,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 }) => {
   const isA4 = format === "a4";
   const MAX_ITEMS_PER_PAGE = isA4 ? 20 : 15;
+  const TARGET_ROWS = isA4 ? 14 : 10;
   const MIN_BLANK_ROWS = 2;
 
   const fmt = (amount: number) => {
@@ -159,7 +160,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   }
   if (itemPages.length > 0) {
     const lastPage = itemPages[itemPages.length - 1];
-    while (lastPage.length < Math.max(lastPage.length, MIN_BLANK_ROWS)) {
+    const minRows = Math.max(TARGET_ROWS, lastPage.length, MIN_BLANK_ROWS);
+    while (lastPage.length < minRows) {
       lastPage.push(null);
       if (lastPage.length >= MAX_ITEMS_PER_PAGE) break;
     }
@@ -199,16 +201,17 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const fsCustDetail = isA4 ? "13px" : "11px";
   const fsInvoiceNo = isA4 ? "14px" : "12px";
 
-  const rowH = isA4 ? "18px" : "16px";
+  const ROW_H = isA4 ? "26px" : "22px";
   const cellBase: React.CSSProperties = {
     borderLeft: B,
     borderBottom: B,
-    padding: isA4 ? "2px 6px" : "1px 4px",
+    padding: isA4 ? "3px 6px" : "2px 5px",
     fontSize: fsBody,
     verticalAlign: "middle",
-    lineHeight: "1.2",
-    height: rowH,
-    maxHeight: rowH,
+    lineHeight: "1.3",
+    height: ROW_H,
+    minHeight: ROW_H,
+    maxHeight: ROW_H,
     overflow: "hidden",
   };
   const cellR: React.CSSProperties = { ...cellBase, textAlign: "right" };
@@ -229,6 +232,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             style={{
               width: pageW,
               minHeight: pageH,
+              height: pageH,
               padding: pad,
               fontFamily: "Arial, Helvetica, sans-serif",
               fontSize: fsBody,
@@ -238,7 +242,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               position: "relative",
             }}
           >
-            <div style={{ border: B2, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            <div style={{ border: B2, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", justifyContent: "space-between" }}>
 
               {/* ===== HEADER ===== */}
               <div style={{ borderBottom: B2, padding: isA4 ? "8px 10px 6px" : "5px 8px 4px", position: "relative" }}>
@@ -306,7 +310,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               </div>
 
               {/* ===== ITEMS TABLE ===== */}
-              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", flex: 1 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
                 <colgroup>
                   <col style={{ width: "6%" }} />
                   <col style={{ width: "34%" }} />
@@ -330,7 +334,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     if (item) srCounter++;
                     const srNo = item ? pageStartSr + srCounter : null;
                     return (
-                      <tr key={idx} style={{ height: rowH }}>
+                      <tr key={idx} style={{ height: ROW_H }}>
                         <td style={{ ...cellC, width: "6%" }}>{srNo || "\u00A0"}</td>
                         <td style={{ ...cellL, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {item ? (
@@ -482,7 +486,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     </div>
                   )}
                   {/* Authorized Signatory */}
-                  <div style={{ flex: 1, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "8px 8px 4px", minHeight: "40px" }}>
+                  <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "8px 8px 4px", minHeight: "40px", marginTop: "auto" }}>
                     <div style={{ borderTop: B, paddingTop: "2px", textAlign: "center", fontSize: "9px", minWidth: "120px" }}>
                       Authorized Signatory
                     </div>
