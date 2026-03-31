@@ -3143,7 +3143,19 @@ const PurchaseEntry = () => {
                 <Label htmlFor="software_bill_no">Software Bill No</Label>
                 <Input
                   id="software_bill_no"
-                  value={isEditMode ? softwareBillNo : "(Auto-generated on save)"}
+                  value={isEditMode ? softwareBillNo : (() => {
+                    // Show preview of next bill number based on last bill
+                    if (lastPurchaseBill?.software_bill_no) {
+                      const match = lastPurchaseBill.software_bill_no.match(/^(PUR\/\d{2}-\d{2}\/)(\d+)$/);
+                      if (match) return `${match[1]}${Number(match[2]) + 1}`;
+                    }
+                    // Fallback: compute from current date
+                    const now = billDate || new Date();
+                    const m = now.getMonth() + 1;
+                    const y = now.getFullYear() % 100;
+                    const fy = m >= 4 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
+                    return `PUR/${fy}/1`;
+                  })()}
                   readOnly
                   className="bg-muted"
                   placeholder="Auto-generated"
