@@ -43,6 +43,7 @@ import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { waitForPrintReady } from "@/utils/printReady";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 interface SaleItem {
   id: string;
@@ -113,6 +114,7 @@ const POSDashboard = () => {
   const { formatMessage } = useWhatsAppTemplates();
   const { sendWhatsApp, copyInvoiceLink } = useWhatsAppSend();
   const { settings: whatsAppAPISettings, sendMessageAsync, isSending: isSendingWhatsAppAPI } = useWhatsAppAPI();
+  const { hasSpecialPermission } = useUserPermissions();
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1181,7 +1183,7 @@ const POSDashboard = () => {
               <Plus className="h-4 w-4" />
               New Sale
             </Button>
-            {selectedSales.size > 0 && (
+            {selectedSales.size > 0 && hasSpecialPermission('delete_records') && (
               <Button
                 onClick={() => setShowBulkDeleteDialog(true)}
                 disabled={isDeleting}
@@ -1797,16 +1799,16 @@ const POSDashboard = () => {
                                     <Printer className="h-3.5 w-3.5" />
                                   </Button>
                                 )}
-                                {columnSettings.modify && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7"
-                                    onClick={(e) => handleEditSale(sale.id, e)}
-                                  >
-                                    <Edit className="h-3.5 w-3.5" />
-                                  </Button>
-                                )}
+                                {columnSettings.modify && hasSpecialPermission('modify_records') && (
+                                   <Button
+                                     variant="ghost"
+                                     size="icon"
+                                     className="h-7 w-7"
+                                     onClick={(e) => handleEditSale(sale.id, e)}
+                                   >
+                                     <Edit className="h-3.5 w-3.5" />
+                                   </Button>
+                                 )}
                               </div>
                             </TableCell>
                           </TableRow>
