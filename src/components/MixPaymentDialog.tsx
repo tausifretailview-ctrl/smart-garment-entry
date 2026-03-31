@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Banknote, CreditCard, Smartphone } from "lucide-react";
+import { Banknote, CreditCard, Smartphone, Percent } from "lucide-react";
 
 interface MixPaymentDialogProps {
   open: boolean;
