@@ -814,6 +814,122 @@ const ProductDashboard = () => {
     }
   };
 
+  // === Stock Import Functions ===
+  const handleExportStockTemplate = () => {
+    const exportData = productRows.flatMap(product =>
+      product.variants.map(variant => ({
+        "Barcode": variant.barcode,
+        "Product Name": product.product_name,
+        "Size": variant.size,
+        "Color": product.color || "",
+        "Current Stock Qty": variant.stock_qty,
+        "New Stock Qty": variant.stock_qty,
+      }))
+    );
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    ws['!cols'] = [{ wch: 15 }, { wch: 30 }, { wch: 10 }, { wch: 12 }, { wch: 16 }, { wch: 16 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Stock Update");
+    XLSX.writeFile(wb, `Stock_Update_Template_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast({ title: "Template exported", description: "Fill 'New Stock Qty' column and import back." });
+  };
+
+  const handleStockImportFile = async (file: File) => {
+    setStockImportFile(file);
+    try {
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+      const barcodeMap = new Map<string, { variant_id: string; product_name: string; size: string; current_qty: number }>();
+      productRows.forEach(p => {
+        p.variants.forEach(v => {
+          if (v.barcode) {
+            barcodeMap.set(v.barcode.toString().trim(), {
+              variant_id: v.variant_id,
+              product_name: p.product_name,
+              size: v.size,
+              current_qty: v.stock_qty,
+            });
+          }
+        });
+      });
+
+      const preview: typeof stockImportPreview = [];
+      for (const row of rows) {
+        const barcode = row["Barcode"]?.toString().trim();
+        const newQty = Number(row["New Stock Qty"]);
+        if (!barcode || isNaN(newQty) || newQty < 0) continue;
+        const info = barcodeMap.get(barcode);
+        if (!info) continue;
+        if (newQty === info.current_qty) continue;
+        preview.push({
+          barcode,
+          product_name: info.product_name,
+          size: info.size,
+          current_qty: info.current_qty,
+          new_qty: Math.round(newQty),
+          variant_id: info.variant_id,
+        });
+      }
+
+      setStockImportPreview(preview);
+      if (preview.length === 0) {
+        toast({ title: "No changes found", description: "All stock quantities match current values or barcodes not found." });
+      }
+    } catch (err: any) {
+      toast({ title: "Parse error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleApplyStockImport = async () => {
+    if (stockImportPreview.length === 0 || !currentOrganization?.id) return;
+    setStockImporting(true);
+    setStockImportProgress({ done: 0, total: stockImportPreview.length });
+
+    const CHUNK = 50;
+    let done = 0;
+    let errors = 0;
+
+    try {
+      for (let i = 0; i < stockImportPreview.length; i += CHUNK) {
+        const chunk = stockImportPreview.slice(i, i + CHUNK);
+        await Promise.all(chunk.map(async item => {
+          const { error } = await supabase
+            .from("product_variants")
+            .update({ stock_qty: item.new_qty, opening_qty: item.new_qty })
+            .eq("id", item.variant_id)
+            .eq("organization_id", currentOrganization.id);
+          if (error) { errors++; return; }
+          await supabase.from("stock_movements").insert({
+            variant_id: item.variant_id,
+            quantity: item.new_qty - item.current_qty,
+            movement_type: "reconciliation",
+            notes: `Closing stock import — set to ${item.new_qty} (was ${item.current_qty})`,
+            organization_id: currentOrganization.id,
+          });
+          done++;
+        }));
+        setStockImportProgress({ done: Math.min(i + CHUNK, stockImportPreview.length), total: stockImportPreview.length });
+      }
+
+      toast({
+        title: "Stock updated",
+        description: `${done} variants updated${errors > 0 ? `, ${errors} errors` : ""}.`,
+      });
+
+      setShowStockImportDialog(false);
+      setStockImportPreview([]);
+      setStockImportFile(null);
+      window.location.reload();
+    } catch (err: any) {
+      toast({ title: "Import failed", description: err.message, variant: "destructive" });
+    } finally {
+      setStockImporting(false);
+    }
+  };
+
   const hasActiveFilters =
     selectedCategory !== "all" || 
     selectedProductType !== "all" ||
