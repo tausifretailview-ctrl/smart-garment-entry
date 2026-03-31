@@ -276,7 +276,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               </div>
 
               {/* ===== TAX INVOICE ===== */}
-              <div style={{ textAlign: "center", fontWeight: "bold", fontSize: titleFs, borderBottom: B, padding: "1px 0", lineHeight: 1.2 }}>
+              <div style={{ textAlign: "center", fontWeight: "bold", fontSize: titleFs, borderBottom: B, padding: "0px 0", lineHeight: "1.1", margin: 0 }}>
                 {itemPages.length > 1
                   ? `TAX INVOICE${pageIndex > 0 ? ` (Page ${pageIndex + 1} of ${itemPages.length})` : ''}`
                   : 'TAX INVOICE'}
