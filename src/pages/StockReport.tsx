@@ -1421,6 +1421,8 @@ export default function StockReport() {
                         </Button>
                       </div>
                     </div>
+                  </div>
+                </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
                       <Table>
