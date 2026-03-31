@@ -2722,8 +2722,8 @@ Please clear your dues at the earliest. Thank you!`;
               onClick={async () => {
                 if (!selectedCustomer || !organizationId) return;
                 const amount = parseFloat(overpaymentRefundAmount);
-                const maxRefund = Math.abs(selectedCustomer.balance || 0);
-                if (amount > maxRefund) {
+                if (!amount || amount <= 0) {
+                  toast.error("Please enter a valid refund amount");
                   return;
                 }
                 setIsProcessingRefund(true);
@@ -2743,6 +2743,7 @@ Please clear your dues at the earliest. Thank you!`;
                       description: overpaymentRefundNote || `Overpayment refund to ${selectedCustomer.customer_name}`,
                     });
                   if (error) throw error;
+                  toast.success(`Refund of ₹${amount.toLocaleString('en-IN')} recorded successfully`);
                   setShowOverpaymentRefundDialog(false);
                   setOverpaymentRefundAmount('');
                   setOverpaymentRefundNote('');
@@ -2750,6 +2751,7 @@ Please clear your dues at the earliest. Thank you!`;
                   queryClient.invalidateQueries({ queryKey: ['customer-balance'] });
                 } catch (err: any) {
                   console.error('Refund error:', err);
+                  toast.error(`Refund failed: ${err.message || 'Unknown error'}`);
                 } finally {
                   setIsProcessingRefund(false);
                 }
