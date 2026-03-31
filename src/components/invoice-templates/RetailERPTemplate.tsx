@@ -291,7 +291,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   {customerMobile && <div style={{ fontSize: fsCustDetail }}>Ph: {customerMobile}</div>}
                   {customerGSTIN && <div style={{ fontSize: fsCustDetail }}>GSTIN: {customerGSTIN}</div>}
                 </div>
-                <div style={{ width: "40%", padding: isA4 ? "4px 8px" : "3px 6px" }}>
+                <div style={{ width: "40%", padding: isA4 ? "2px 8px" : "2px 6px" }}>
                   <div style={{ fontSize: fsInvoiceNo, fontWeight: "bold" }}>Invoice No: {invoiceNumber}</div>
                   <div style={{ fontSize: fsCustDetail }}>
                     <strong>Date:</strong> {invoiceDate.toLocaleDateString("en-IN")}
