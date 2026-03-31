@@ -25,6 +25,7 @@ interface MixPaymentDialogProps {
     totalPaid: number;
     refundAmount: number;
     issueCreditNote?: boolean;
+    financeDiscount?: number;
   }) => void;
 }
 
