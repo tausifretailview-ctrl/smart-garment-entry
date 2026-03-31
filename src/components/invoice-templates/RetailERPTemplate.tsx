@@ -486,7 +486,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     </div>
                   )}
                   {/* Authorized Signatory */}
-                  <div style={{ flex: 1, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "8px 8px 4px", minHeight: "40px" }}>
+                  <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "8px 8px 4px", minHeight: "40px", marginTop: "auto" }}>
                     <div style={{ borderTop: B, paddingTop: "2px", textAlign: "center", fontSize: "9px", minWidth: "120px" }}>
                       Authorized Signatory
                     </div>
