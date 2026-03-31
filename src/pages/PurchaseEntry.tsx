@@ -3239,6 +3239,15 @@ const PurchaseEntry = () => {
                 </label>
               </div>
 
+              {/* Live Total Qty */}
+              <div className="flex items-end">
+                <div className="flex items-center gap-2 h-10 px-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-300 dark:border-blue-700 rounded-md">
+                  <ShoppingCart className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <span className="text-xs font-semibold text-blue-700 dark:text-blue-300 whitespace-nowrap">Total Qty:</span>
+                  <span className="text-sm font-bold text-blue-900 dark:text-blue-100 font-mono">{lineItems.reduce((s, i) => s + (i.qty || 0), 0)}</span>
+                </div>
+              </div>
+
             </div>
 
             {/* DC Warning */}
