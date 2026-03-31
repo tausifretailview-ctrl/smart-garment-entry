@@ -354,16 +354,16 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
                   {/* Totals row */}
                   <tr style={{ borderTop: B2 }}>
-                    <td colSpan={3} style={{ ...cellL, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: "28px" }}>
+                    <td colSpan={3} style={{ ...cellL, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: isA4 ? "28px" : "22px" }}>
                       {isLastPage ? `Total Qty: ${totalQty}` : `Page ${pageIndex + 1} — Continued...`}
                     </td>
-                    <td style={{ ...cellR, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: "28px" }}>
+                    <td style={{ ...cellR, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: isA4 ? "28px" : "22px" }}>
                       {isLastPage ? totalQty : pageItems.filter(Boolean).reduce((s, i) => s + (i?.qty || 0), 0)}
                     </td>
-                    <td style={{ ...cellR, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: "28px" }}>
+                    <td style={{ ...cellR, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: isA4 ? "28px" : "22px" }}>
                       {isLastPage ? "Sub Total" : "Page Sub"}
                     </td>
-                    <td style={{ ...cellR, fontWeight: "bold", borderRight: "none", borderTop: B2, fontSize: fsTotals, height: "28px" }}>
+                    <td style={{ ...cellR, fontWeight: "bold", borderRight: "none", borderTop: B2, fontSize: fsTotals, height: isA4 ? "28px" : "22px" }}>
                       {isLastPage
                         ? `₹${fmt(subTotalBeforeDiscount)}`
                         : `₹${fmt(pageItems.filter(Boolean).reduce((s, i) => s + (i?.total || 0), 0))}`}
