@@ -3405,7 +3405,21 @@ const PurchaseEntry = () => {
                   </TableRow>
                 </TableHeader>
               </Table>
-              <div className={`relative max-h-[50vh] overflow-y-auto isolate ${isBillLocked ? 'pointer-events-none' : ''}`}>
+              {lineItems.length > 100 && (
+                <div className="flex items-center justify-between px-3 py-1.5 bg-muted/50 border-b text-xs text-muted-foreground">
+                  <span className="font-medium">📦 Large bill: {lineItems.length} items</span>
+                  <span>Showing {Math.min(visibleItemCount, lineItems.length)} rows — scroll to load more</span>
+                </div>
+              )}
+              <div className={`relative max-h-[50vh] overflow-y-auto isolate ${isBillLocked ? 'pointer-events-none' : ''}`}
+                onScroll={(e) => {
+                  const el = e.currentTarget;
+                  const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 300;
+                  if (nearBottom && visibleItemCount < lineItems.length) {
+                    setVisibleItemCount(prev => Math.min(prev + ITEMS_PER_PAGE, lineItems.length));
+                  }
+                }}
+              >
               {isBillLocked && (
                 <div className="absolute inset-0 bg-background/60 z-10 flex items-center justify-center rounded-lg backdrop-blur-[1px]">
                   <div className="flex items-center gap-2 bg-amber-100 dark:bg-amber-900 border border-amber-300 rounded-lg px-4 py-2">
@@ -3416,7 +3430,7 @@ const PurchaseEntry = () => {
               )}
               <Table className="table-fixed min-w-[1460px]">
                 <TableBody>
-                  {lineItems.map((item, index) => {
+                  {lineItems.slice(0, visibleItemCount).map((item, index) => {
                     const subTotal = item.qty * item.pur_price;
                     const total = item.line_total;
                     const gstAmount = (total * item.gst_per) / 100;
