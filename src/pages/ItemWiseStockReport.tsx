@@ -64,7 +64,7 @@ export default function ItemWiseStockReport() {
 
   // Fetch stock data with server-side pagination - only when filter is active
   const { data: stockData = [], isLoading } = useQuery({
-    queryKey: ["item-wise-stock", currentOrganization?.id, brandFilter, categoryFilter, departmentFilter, searchQuery, currentPage],
+    queryKey: ["item-wise-stock", currentOrganization?.id, brandFilter, categoryFilter, departmentFilter, searchQuery],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
