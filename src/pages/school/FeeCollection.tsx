@@ -263,7 +263,7 @@ const FeeCollection = () => {
         const effectiveExpected = hasStructures ? totalExpected : importedBalance;
         const effectiveStatus = totalDue === 0 ? "paid" : totalPaid > 0 ? "partial" : effectiveExpected === 0 ? "no-structure" : "pending";
 
-        return { ...student, totalExpected: effectiveExpected, totalPaid, totalDue, feeStatus: effectiveStatus };
+        return { ...student, totalExpected: effectiveExpected, totalPaid, totalDue, feeStatus: effectiveStatus, importedBalance };
       });
     },
     enabled: !!currentOrganization?.id,
