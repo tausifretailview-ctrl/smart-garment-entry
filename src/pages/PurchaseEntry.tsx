@@ -288,7 +288,10 @@ const PurchaseEntry = () => {
         billDate: billDate.toISOString(),
         lineItems,
         roundOff,
+        otherCharges,
+        discountAmount,
         entryMode,
+        isDcPurchase,
         isEditMode,
         editingBillId,
         originalLineItems,
@@ -297,7 +300,7 @@ const PurchaseEntry = () => {
       // Clear data when no items (prevents stale draft)
       updateCurrentData(null);
     }
-  }, [billData, softwareBillNo, billDate, lineItems, roundOff, entryMode, isEditMode, editingBillId, originalLineItems, updateCurrentData]);
+  }, [billData, softwareBillNo, billDate, lineItems, roundOff, otherCharges, discountAmount, entryMode, isDcPurchase, isEditMode, editingBillId, originalLineItems, updateCurrentData]);
 
   // Start auto-save (works for both new and edit mode)
   useEffect(() => {
