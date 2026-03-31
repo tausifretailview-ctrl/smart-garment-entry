@@ -2210,12 +2210,12 @@ const PurchaseEntry = () => {
         }
 
         // Flag product variants as DC products (or reset if non-DC purchase)
+        // Chunk variant updates to avoid IN clause timeout on large bills
         const variantIds = [...new Set(lineItems.map(i => i.sku_id))];
-        if (variantIds.length > 0) {
-          await supabase
-            .from("product_variants")
-            .update({ is_dc_product: isDcPurchase })
-            .in("id", variantIds);
+        const VARIANT_CHUNK = 200;
+        for (let vi = 0; vi < variantIds.length; vi += VARIANT_CHUNK) {
+          const chunk = variantIds.slice(vi, vi + VARIANT_CHUNK);
+          await supabase.from("product_variants").update({ is_dc_product: isDcPurchase }).in("id", chunk);
         }
 
         // Check for price changes and show dialog if any
