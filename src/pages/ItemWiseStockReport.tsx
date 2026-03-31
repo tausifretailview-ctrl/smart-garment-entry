@@ -64,7 +64,7 @@ export default function ItemWiseStockReport() {
 
   // Fetch stock data with server-side pagination - only when filter is active
   const { data: stockData = [], isLoading } = useQuery({
-    queryKey: ["item-wise-stock", currentOrganization?.id, brandFilter, categoryFilter, departmentFilter, searchQuery, currentPage],
+    queryKey: ["item-wise-stock", currentOrganization?.id, brandFilter, categoryFilter, departmentFilter, searchQuery],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
@@ -72,9 +72,8 @@ export default function ItemWiseStockReport() {
       const batchSize = 1000;
       let from = 0;
       let hasMore = true;
-      const maxRows = currentPage * PAGE_SIZE;
 
-      while (hasMore && allVariants.length < maxRows) {
+      while (hasMore) {
         let query = supabase
           .from("product_variants")
           .select(`
