@@ -199,15 +199,16 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const fsCustDetail = isA4 ? "13px" : "11px";
   const fsInvoiceNo = isA4 ? "14px" : "12px";
 
+  const rowH = isA4 ? "18px" : "16px";
   const cellBase: React.CSSProperties = {
     borderLeft: B,
     borderBottom: B,
-    padding: "2px 6px",
+    padding: isA4 ? "2px 6px" : "1px 4px",
     fontSize: fsBody,
     verticalAlign: "middle",
-    lineHeight: "1.3",
-    height: "18px",
-    maxHeight: "18px",
+    lineHeight: "1.2",
+    height: rowH,
+    maxHeight: rowH,
     overflow: "hidden",
   };
   const cellR: React.CSSProperties = { ...cellBase, textAlign: "right" };
