@@ -599,13 +599,24 @@ const POSDashboard = () => {
     try {
       const saleDate = new Date(sale.sale_date);
 
-      // Fetch financer details and customer GST in parallel
+      // Fetch financer details, customer GST, and previous balance in parallel
       let financerDetails = null;
-      const [{ data: finData }, { data: customerData }] = await Promise.all([
+      const [{ data: finData }, { data: customerData }, previousBalance] = await Promise.all([
         supabase.from('sale_financer_details').select('*').eq('sale_id', sale.id).maybeSingle(),
         sale.customer_id
           ? supabase.from('customers').select('gst_number, transport_details').eq('id', sale.customer_id).maybeSingle()
           : Promise.resolve({ data: null }),
+        (async () => {
+          if (!sale.customer_id) return 0;
+          const { data: allSales } = await supabase
+            .from('sales')
+            .select('id, net_amount, paid_amount')
+            .eq('customer_id', sale.customer_id)
+            .eq('organization_id', currentOrganization!.id)
+            .is('deleted_at', null);
+          if (!allSales) return 0;
+          return allSales.reduce((sum, s) => sum + ((s.net_amount || 0) - (s.paid_amount || 0)), 0);
+        })(),
       ]);
       if (finData) {
         financerDetails = {
@@ -640,14 +651,18 @@ const POSDashboard = () => {
         })),
         subTotal: sale.gross_amount,
         discount: sale.discount_amount + sale.flat_discount_amount,
+        saleReturnAdjust: sale.sale_return_adjust || 0,
         grandTotal: sale.net_amount,
+        roundOff: sale.round_off || 0,
         cashPaid: sale.payment_method === 'cash' ? sale.net_amount : 0,
         upiPaid: sale.payment_method === 'upi' ? sale.net_amount : 0,
         paymentMethod: sale.payment_method,
         cashAmount: sale.cash_amount,
         cardAmount: sale.card_amount,
         upiAmount: sale.upi_amount,
+        creditAmount: sale.credit_amount,
         paidAmount: sale.paid_amount,
+        previousBalance: previousBalance || 0,
         salesman: sale.salesman || '',
         notes: sale.notes || '',
         financerDetails,
