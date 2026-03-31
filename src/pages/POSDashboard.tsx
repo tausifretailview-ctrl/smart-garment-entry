@@ -2007,13 +2007,16 @@ const POSDashboard = () => {
               }))}
               subTotal={previewSale.gross_amount}
               discount={previewSale.discount_amount + previewSale.flat_discount_amount}
+              saleReturnAdjust={previewSale.sale_return_adjust || 0}
               grandTotal={previewSale.net_amount}
+              roundOff={previewSale.round_off || 0}
               cashPaid={previewSale.payment_method === 'cash' ? previewSale.net_amount : 0}
               upiPaid={previewSale.payment_method === 'upi' ? previewSale.net_amount : 0}
               paymentMethod={previewSale.payment_method}
               cashAmount={previewSale.cash_amount}
               cardAmount={previewSale.card_amount}
               upiAmount={previewSale.upi_amount}
+              creditAmount={previewSale.credit_amount}
               paidAmount={previewSale.paid_amount}
               salesman={previewSale.salesman || ''}
               notes={previewSale.notes || ''}
