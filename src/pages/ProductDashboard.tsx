@@ -140,6 +140,14 @@ const ProductDashboard = () => {
   const [galleryRefreshKey, setGalleryRefreshKey] = useState(0);
   const [showMergeDialog, setShowMergeDialog] = useState(false);
 
+  // Stock import states
+  const [showStockImportDialog, setShowStockImportDialog] = useState(false);
+  const [stockImportFile, setStockImportFile] = useState<File | null>(null);
+  const [stockImportPreview, setStockImportPreview] = useState<Array<{barcode: string; product_name: string; size: string; current_qty: number; new_qty: number; variant_id: string}>>([]);
+  const [stockImporting, setStockImporting] = useState(false);
+  const [stockImportProgress, setStockImportProgress] = useState({ done: 0, total: 0 });
+  const stockImportFileRef = useRef<HTMLInputElement>(null);
+
   // Context menu for desktop right-click
   const isDesktop = useIsDesktop();
   const rowContextMenu = useContextMenu<ProductRow>();
