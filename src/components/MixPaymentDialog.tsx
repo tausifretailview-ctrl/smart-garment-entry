@@ -241,6 +241,29 @@ export function MixPaymentDialog({
                 />
               </div>
 
+              {/* Finance Discount */}
+              <div className="space-y-2">
+                <Label htmlFor="financeDiscount" className="flex items-center gap-2">
+                  <Percent className="h-4 w-4" />
+                  Finance Discount
+                </Label>
+                <Input
+                  id="financeDiscount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={financeDiscount || ""}
+                  onChange={(e) => setFinanceDiscount(Number(e.target.value) || 0)}
+                  placeholder="₹ 0.00 — financer commission"
+                  className="text-right"
+                />
+                {financeDiscount > 0 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Recorded as expense only — does not reduce bill amount
+                  </p>
+                )}
+              </div>
+
               {/* Credit (Balance) */}
               {creditBalance > 0 && (
                 <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/30 rounded-lg border border-amber-200 dark:border-amber-700">
