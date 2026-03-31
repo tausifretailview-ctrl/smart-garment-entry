@@ -242,7 +242,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               position: "relative",
             }}
           >
-            <div style={{ border: B2, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            <div style={{ border: B2, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", justifyContent: "space-between" }}>
 
               {/* ===== HEADER ===== */}
               <div style={{ borderBottom: B2, padding: isA4 ? "8px 10px 6px" : "5px 8px 4px", position: "relative" }}>
