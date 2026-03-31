@@ -2275,10 +2275,21 @@ const PurchaseEntry = () => {
         setIsDcPurchase(false);
       }
     } catch (error: any) {
+      console.error('[PurchaseEntry] Bill save FAILED:', {
+        error,
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code,
+        supplierName: billData.supplier_name,
+        itemCount: lineItems.length,
+        isEdit: isEditMode,
+      });
       toast({
-        title: "Error",
-        description: error.message || "Failed to save purchase bill",
+        title: "Bill Save Failed — Draft Preserved",
+        description: `${error?.message || "Unknown error"}. Your data is safe in draft. Please try again.`,
         variant: "destructive",
+        duration: 10000,
       });
     } finally {
       setLoading(false);
