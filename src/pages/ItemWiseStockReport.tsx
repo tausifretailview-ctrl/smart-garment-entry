@@ -72,9 +72,8 @@ export default function ItemWiseStockReport() {
       const batchSize = 1000;
       let from = 0;
       let hasMore = true;
-      const maxRows = currentPage * PAGE_SIZE;
 
-      while (hasMore && allVariants.length < maxRows) {
+      while (hasMore) {
         let query = supabase
           .from("product_variants")
           .select(`
