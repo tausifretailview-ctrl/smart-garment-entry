@@ -12,7 +12,7 @@ interface UseDraftSaveOptions {
 }
 
 export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions = {}) => {
-  const { autoSaveInterval = 15000, onDraftLoaded } = options; // 15 seconds for more frequent saves
+  const { autoSaveInterval = 30000, onDraftLoaded } = options; // 30 seconds default — reduces network overhead for large bills
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
   const [hasDraft, setHasDraft] = useState(false);

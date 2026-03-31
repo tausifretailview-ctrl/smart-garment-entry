@@ -3439,7 +3439,7 @@ const PurchaseEntry = () => {
                       <TableRow key={item.temp_id} className={`hover:bg-green-50/40 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}>
                         <TableCell className="w-[40px]">
                           <Checkbox
-                            checked={selectedForPrint.has(item.temp_id)}
+                            checked={!!selectedForPrintObj[item.temp_id]}
                             onCheckedChange={() => toggleItemSelection(item.temp_id)}
                             aria-label={`Select ${item.product_name} for printing`}
                           />
