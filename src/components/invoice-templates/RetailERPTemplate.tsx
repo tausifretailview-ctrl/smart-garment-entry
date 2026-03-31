@@ -421,7 +421,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   {isLastPage ? (
                     <>
                       {saleReturnAdjust > 0 && (
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "28px", borderBottom: B, padding: "0 8px", color: "#b45309" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: isA4 ? "28px" : "22px", borderBottom: B, padding: isA4 ? "0 8px" : "0 6px", color: "#b45309" }}>
                           <span>S/R Adjust</span>
                           <span>- ₹{fmt(saleReturnAdjust)}</span>
                         </div>
