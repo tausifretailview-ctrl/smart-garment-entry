@@ -83,9 +83,11 @@ interface Sale {
   cash_amount?: number;
   card_amount?: number;
   upi_amount?: number;
+  credit_amount?: number;
   refund_amount?: number;
   credit_note_id?: string | null;
   credit_note_amount?: number;
+  sale_return_adjust?: number | null;
   salesman?: string | null;
   notes?: string | null;
   created_at: string;
@@ -597,13 +599,24 @@ const POSDashboard = () => {
     try {
       const saleDate = new Date(sale.sale_date);
 
-      // Fetch financer details and customer GST in parallel
+      // Fetch financer details, customer GST, and previous balance in parallel
       let financerDetails = null;
-      const [{ data: finData }, { data: customerData }] = await Promise.all([
+      const [{ data: finData }, { data: customerData }, previousBalance] = await Promise.all([
         supabase.from('sale_financer_details').select('*').eq('sale_id', sale.id).maybeSingle(),
         sale.customer_id
           ? supabase.from('customers').select('gst_number, transport_details').eq('id', sale.customer_id).maybeSingle()
           : Promise.resolve({ data: null }),
+        (async () => {
+          if (!sale.customer_id) return 0;
+          const { data: allSales } = await supabase
+            .from('sales')
+            .select('id, net_amount, paid_amount')
+            .eq('customer_id', sale.customer_id)
+            .eq('organization_id', currentOrganization!.id)
+            .is('deleted_at', null);
+          if (!allSales) return 0;
+          return allSales.reduce((sum, s) => sum + ((s.net_amount || 0) - (s.paid_amount || 0)), 0);
+        })(),
       ]);
       if (finData) {
         financerDetails = {
@@ -638,14 +651,18 @@ const POSDashboard = () => {
         })),
         subTotal: sale.gross_amount,
         discount: sale.discount_amount + sale.flat_discount_amount,
+        saleReturnAdjust: sale.sale_return_adjust || 0,
         grandTotal: sale.net_amount,
+        roundOff: sale.round_off || 0,
         cashPaid: sale.payment_method === 'cash' ? sale.net_amount : 0,
         upiPaid: sale.payment_method === 'upi' ? sale.net_amount : 0,
         paymentMethod: sale.payment_method,
         cashAmount: sale.cash_amount,
         cardAmount: sale.card_amount,
         upiAmount: sale.upi_amount,
+        creditAmount: sale.credit_amount,
         paidAmount: sale.paid_amount,
+        previousBalance: previousBalance || 0,
         salesman: sale.salesman || '',
         notes: sale.notes || '',
         financerDetails,
@@ -1990,13 +2007,16 @@ const POSDashboard = () => {
               }))}
               subTotal={previewSale.gross_amount}
               discount={previewSale.discount_amount + previewSale.flat_discount_amount}
+              saleReturnAdjust={previewSale.sale_return_adjust || 0}
               grandTotal={previewSale.net_amount}
+              roundOff={previewSale.round_off || 0}
               cashPaid={previewSale.payment_method === 'cash' ? previewSale.net_amount : 0}
               upiPaid={previewSale.payment_method === 'upi' ? previewSale.net_amount : 0}
               paymentMethod={previewSale.payment_method}
               cashAmount={previewSale.cash_amount}
               cardAmount={previewSale.card_amount}
               upiAmount={previewSale.upi_amount}
+              creditAmount={previewSale.credit_amount}
               paidAmount={previewSale.paid_amount}
               salesman={previewSale.salesman || ''}
               notes={previewSale.notes || ''}
@@ -2090,14 +2110,18 @@ const POSDashboard = () => {
             items={printData.items}
             subTotal={printData.subTotal}
             discount={printData.discount}
+            saleReturnAdjust={printData.saleReturnAdjust}
             grandTotal={printData.grandTotal}
+            roundOff={printData.roundOff}
             cashPaid={printData.cashPaid}
             upiPaid={printData.upiPaid}
             paymentMethod={printData.paymentMethod}
             cashAmount={printData.cashAmount}
             cardAmount={printData.cardAmount}
             upiAmount={printData.upiAmount}
+            creditAmount={printData.creditAmount}
             paidAmount={printData.paidAmount}
+            previousBalance={printData.previousBalance}
             salesman={printData.salesman || ''}
             notes={printData.notes || ''}
             financerDetails={printData.financerDetails || null}
