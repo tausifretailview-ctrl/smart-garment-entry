@@ -176,9 +176,10 @@ export const parseExcelFile = (file: File): Promise<ParsedExcelData> => {
         // Find the actual header row
         const headerRowIdx = findHeaderRow(worksheet);
         
-        // Parse with the detected header row
+        // Parse with raw:false to get string values, defval for blank cells
         const jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { 
           defval: '',
+          raw: false,
           range: headerRowIdx // Start from detected header row
         });
         
@@ -187,33 +188,54 @@ export const parseExcelFile = (file: File): Promise<ParsedExcelData> => {
           return;
         }
 
-        // Filter out headers that start with _EMPTY or are just whitespace
+        // Normalize headers: trim whitespace, collapse spaces
+        // and filter out empty/invalid headers
         const allHeaders = Object.keys(jsonData[0]);
-        const validHeaders = allHeaders.filter(h => 
-          !h.startsWith('__EMPTY') && 
-          h.trim() !== '' &&
-          !h.match(/^_+$/)
-        );
+        const headerNormMap = new Map<string, string>(); // original -> normalized
+        const validHeaders: string[] = [];
+        
+        allHeaders.forEach(h => {
+          const trimmed = h.trim().replace(/\s+/g, ' ');
+          if (
+            trimmed !== '' &&
+            !trimmed.startsWith('__EMPTY') &&
+            !trimmed.match(/^_+$/)
+          ) {
+            headerNormMap.set(h, trimmed);
+            validHeaders.push(trimmed);
+          }
+        });
         
         const sampleValues: Record<string, string> = {};
         
         validHeaders.forEach(header => {
-          const firstNonEmpty = jsonData.find(row => 
-            row[header] !== '' && 
-            row[header] !== null && 
-            row[header] !== undefined
-          );
-          sampleValues[header] = firstNonEmpty ? String(firstNonEmpty[header]) : '';
+          // Find original key for this normalized header
+          const originalKey = [...headerNormMap.entries()].find(([, v]) => v === header)?.[0] || header;
+          const firstNonEmpty = jsonData.find(row => {
+            const val = row[originalKey];
+            return val !== '' && val !== null && val !== undefined;
+          });
+          sampleValues[header] = firstNonEmpty ? String(firstNonEmpty[originalKey]).trim() : '';
         });
 
-        // Clean up rows to only include valid headers
-        const cleanedRows = jsonData.map(row => {
-          const cleanRow: Record<string, any> = {};
-          validHeaders.forEach(header => {
-            cleanRow[header] = row[header];
+        // Clean up rows: normalize headers, trim string values, skip blank/empty rows
+        const cleanedRows = jsonData
+          .map(row => {
+            const cleanRow: Record<string, any> = {};
+            for (const [originalKey, normalizedKey] of headerNormMap.entries()) {
+              let val = row[originalKey];
+              if (typeof val === 'string') {
+                val = val.trim();
+              }
+              cleanRow[normalizedKey] = val;
+            }
+            return cleanRow;
+          })
+          .filter(row => {
+            // Filter out completely empty rows
+            const vals = Object.values(row);
+            return vals.some(v => v !== '' && v !== null && v !== undefined);
           });
-          return cleanRow;
-        });
 
         resolve({
           headers: validHeaders,
