@@ -232,6 +232,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             style={{
               width: pageW,
               minHeight: pageH,
+              height: pageH,
               padding: pad,
               fontFamily: "Arial, Helvetica, sans-serif",
               fontSize: fsBody,
