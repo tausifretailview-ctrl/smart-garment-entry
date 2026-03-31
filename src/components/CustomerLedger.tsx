@@ -2719,9 +2719,15 @@ Please clear your dues at the earliest. Thank you!`;
               Cancel
             </Button>
             <Button
+              type="button"
               disabled={isProcessingRefund || !overpaymentRefundAmount || parseFloat(overpaymentRefundAmount) <= 0}
-              onClick={async () => {
-                if (!selectedCustomer || !organizationId) return;
+              onClick={async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!selectedCustomer || !organizationId) {
+                  toast.error("No customer selected");
+                  return;
+                }
                 const amount = parseFloat(overpaymentRefundAmount);
                 if (!amount || amount <= 0) {
                   toast.error("Please enter a valid refund amount");
@@ -2729,6 +2735,7 @@ Please clear your dues at the earliest. Thank you!`;
                 }
                 setIsProcessingRefund(true);
                 try {
+                  const { data: { user } } = await supabase.auth.getUser();
                   const voucherNum = `REFUND-${Date.now()}`;
                   const { error } = await supabase
                     .from('voucher_entries')
@@ -2742,6 +2749,7 @@ Please clear your dues at the earliest. Thank you!`;
                       total_amount: amount,
                       payment_method: overpaymentRefundMode,
                       description: overpaymentRefundNote || `Overpayment refund to ${selectedCustomer.customer_name}`,
+                      created_by: user?.id || null,
                     });
                   if (error) throw error;
                   toast.success(`Refund of ₹${amount.toLocaleString('en-IN')} recorded successfully`);
@@ -2750,6 +2758,8 @@ Please clear your dues at the earliest. Thank you!`;
                   setOverpaymentRefundNote('');
                   queryClient.invalidateQueries({ queryKey: ['customer-ledger'] });
                   queryClient.invalidateQueries({ queryKey: ['customer-balance'] });
+                  queryClient.invalidateQueries({ queryKey: ['customer-transactions'] });
+                  queryClient.invalidateQueries({ queryKey: ['customers-with-balance'] });
                 } catch (err: any) {
                   console.error('Refund error:', err);
                   toast.error(`Refund failed: ${err.message || 'Unknown error'}`);
