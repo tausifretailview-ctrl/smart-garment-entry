@@ -92,6 +92,7 @@ export function MixPaymentDialog({
         totalPaid,
         refundAmount: 0,
         issueCreditNote: false,
+        financeDiscount,
       });
     }
 
