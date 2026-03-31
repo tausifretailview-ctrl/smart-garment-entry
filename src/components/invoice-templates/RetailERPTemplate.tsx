@@ -160,7 +160,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   }
   if (itemPages.length > 0) {
     const lastPage = itemPages[itemPages.length - 1];
-    while (lastPage.length < Math.max(lastPage.length, MIN_BLANK_ROWS)) {
+    const minRows = Math.max(TARGET_ROWS, lastPage.length, MIN_BLANK_ROWS);
+    while (lastPage.length < minRows) {
       lastPage.push(null);
       if (lastPage.length >= MAX_ITEMS_PER_PAGE) break;
     }
