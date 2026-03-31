@@ -310,28 +310,45 @@ const PurchaseEntry = () => {
     }
   }, [location.state?.loadDraft, hasDraft, draftData, loadDraftData, deleteDraft]);
 
-  // Update current data for auto-save whenever form data changes (works in both new and edit mode)
+  // Debounced auto-save — prevents JSON serializing 1000+ items on every keystroke
+  const autoSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (lineItems.length > 0) {
-      updateCurrentData({
-        billData,
-        softwareBillNo,
-        billDate: billDate.toISOString(),
-        lineItems,
-        roundOff,
-        otherCharges,
-        discountAmount,
-        entryMode,
-        isDcPurchase,
-        isEditMode,
-        editingBillId,
-        originalLineItems,
-      });
-    } else {
-      // Clear data when no items (prevents stale draft)
-      updateCurrentData(null);
-    }
+    if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current);
+    autoSaveDebounceRef.current = setTimeout(() => {
+      if (lineItems.length > 0) {
+        updateCurrentData({
+          billData,
+          softwareBillNo,
+          billDate: billDate.toISOString(),
+          lineItems,
+          roundOff,
+          otherCharges,
+          discountAmount,
+          entryMode,
+          isDcPurchase,
+          isEditMode,
+          editingBillId,
+          originalLineItems,
+        });
+      } else {
+        updateCurrentData(null);
+      }
+    }, lineItems.length > 200 ? 3000 : 1000);
+    return () => {
+      if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current);
+    };
   }, [billData, softwareBillNo, billDate, lineItems, roundOff, otherCharges, discountAmount, entryMode, isDcPurchase, isEditMode, editingBillId, originalLineItems, updateCurrentData]);
+  
+  // Memoize selectedForPrint as object for O(1) lookup without triggering re-renders
+  const selectedForPrintObj = useMemo(
+    () => Object.fromEntries([...selectedForPrint].map(id => [id, true])),
+    [selectedForPrint]
+  );
+  
+  // Reset visible items when lineItems changes drastically
+  useEffect(() => {
+    setVisibleItemCount(100);
+  }, [lineItems.length > 0 ? Math.ceil(lineItems.length / 500) : 0]);
 
   // Start auto-save (works for both new and edit mode)
   useEffect(() => {
