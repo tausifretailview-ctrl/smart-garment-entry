@@ -83,9 +83,11 @@ interface Sale {
   cash_amount?: number;
   card_amount?: number;
   upi_amount?: number;
+  credit_amount?: number;
   refund_amount?: number;
   credit_note_id?: string | null;
   credit_note_amount?: number;
+  sale_return_adjust?: number | null;
   salesman?: string | null;
   notes?: string | null;
   created_at: string;
