@@ -56,6 +56,7 @@ export function MixPaymentDialog({
       setCardAmount(0);
       setUpiAmount(0);
       setBankAmount(0);
+      setFinanceDiscount(0);
       setRefundAmount(0);
     } else if (isRefundMode) {
       // Pre-fill refund amount in refund mode
