@@ -139,6 +139,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 }) => {
   const isA4 = format === "a4";
   const MAX_ITEMS_PER_PAGE = isA4 ? 20 : 15;
+  const TARGET_ROWS = isA4 ? 14 : 10;
   const MIN_BLANK_ROWS = 2;
 
   const fmt = (amount: number) => {
