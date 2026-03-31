@@ -2078,21 +2078,18 @@ const PurchaseEntry = () => {
         }
 
         // Store items for barcode printing (edit mode)
-        const editItemsWithDetails = await Promise.all(
-          lineItems.map(async (item) => {
-            const { data: product } = await supabase
-              .from("products")
-              .select("brand, color, style")
-              .eq("id", item.product_id)
-              .single();
-            return {
-              ...item,
-              brand: item.brand || product?.brand || "",
-              color: item.color || product?.color || "",
-              style: item.style || product?.style || "",
-            };
-          })
-        );
+        // Batch-fetch product details instead of N individual queries
+        const editUniqueProductIds = [...new Set(lineItems.map(i => i.product_id))];
+        const editProductMap = new Map<string, { brand: string; color: string; style: string }>();
+        for (let pi = 0; pi < editUniqueProductIds.length; pi += 200) {
+          const chunk = editUniqueProductIds.slice(pi, pi + 200);
+          const { data: prods } = await supabase.from("products").select("id, brand, color, style").in("id", chunk);
+          (prods || []).forEach(p => editProductMap.set(p.id, { brand: p.brand || "", color: p.color || "", style: p.style || "" }));
+        }
+        const editItemsWithDetails = lineItems.map(item => {
+          const pd = editProductMap.get(item.product_id) || { brand: "", color: "", style: "" };
+          return { ...item, brand: item.brand || pd.brand, color: item.color || pd.color, style: item.style || pd.style };
+        });
         setSavedPurchaseItems(editItemsWithDetails);
         setSavedBillId(editingBillId);
         setSavedSupplierId(billData.supplier_id || null);
