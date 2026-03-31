@@ -258,25 +258,48 @@ const PurchaseEntry = () => {
   }, []);
 
   // Load draft data callback
-  const loadDraftData = useCallback((data: any) => {
+  const loadDraftData = useCallback(async (data: any) => {
     if (!data) return;
+    const items = data.lineItems || [];
+    
+    // Set bill metadata immediately
     setBillData(data.billData || { supplier_id: "", supplier_name: "", supplier_invoice_no: "" });
     setSoftwareBillNo(data.softwareBillNo || "");
     setBillDate(data.billDate ? new Date(data.billDate) : new Date());
-    setLineItems(data.lineItems || []);
     setOtherCharges(data.otherCharges || 0);
     setDiscountAmount(data.discountAmount || 0);
     setRoundOff(data.roundOff || 0);
     setEntryMode(data.entryMode || "grid");
     setIsDcPurchase(data.isDcPurchase || false);
+    
+    if (items.length > 200) {
+      // Load in chunks with progress for large bills
+      setDraftLoading(true);
+      setDraftLoadProgress({ loaded: 0, total: items.length });
+      setLineItems([]);
+      const CHUNK = 200;
+      for (let i = 0; i < items.length; i += CHUNK) {
+        await new Promise<void>(resolve => {
+          setTimeout(() => {
+            setLineItems(prev => [...prev, ...items.slice(i, i + CHUNK)]);
+            setDraftLoadProgress({ loaded: Math.min(i + CHUNK, items.length), total: items.length });
+            resolve();
+          }, 0);
+        });
+      }
+      setDraftLoading(false);
+      setVisibleItemCount(100);
+    } else {
+      setLineItems(items);
+    }
+    
     // Restore edit mode if draft was from an edit
     if (data.isEditMode && data.editingBillId) {
       setIsEditMode(true);
       setEditingBillId(data.editingBillId);
       setOriginalLineItems(data.originalLineItems || []);
     }
-    // Silent restore - no toast to avoid disturbing user
-  }, [toast]);
+  }, []);
 
   // Load draft automatically if navigated from dashboard with loadDraft flag
   useEffect(() => {
