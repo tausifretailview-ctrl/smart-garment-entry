@@ -2062,12 +2062,15 @@ const PurchaseEntry = () => {
 
         let insertedNewItems: LineItem[] = [];
         if (itemsToInsert.length > 0) {
-          const { data: insertedData, error: insertError } = await supabase
-            .from("purchase_items")
-            .insert(itemsToInsert)
-            .select();
-          
-          if (insertError) throw insertError;
+          // Insert in chunks of 100 to avoid statement timeout on large bills
+          const EDIT_CHUNK_SIZE = 100;
+          for (let ci = 0; ci < itemsToInsert.length; ci += EDIT_CHUNK_SIZE) {
+            const chunk = itemsToInsert.slice(ci, ci + EDIT_CHUNK_SIZE);
+            const { error: insertError } = await supabase
+              .from("purchase_items")
+              .insert(chunk);
+            if (insertError) throw insertError;
+          }
           console.log(`Inserted ${itemsToInsert.length} new items`);
           
           // Map inserted items back to LineItem format for barcode printing
