@@ -2999,6 +2999,29 @@ const PurchaseEntry = () => {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-slate-100">
+      {/* Draft loading overlay for large bills */}
+      {draftLoading && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-card border rounded-xl shadow-xl p-6 w-80 space-y-4">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <div>
+                <p className="font-semibold text-sm">Loading Draft Bill...</p>
+                <p className="text-xs text-muted-foreground">Large bill with {draftLoadProgress.total} items</p>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Loading items</span>
+                <span>{draftLoadProgress.loaded} / {draftLoadProgress.total}</span>
+              </div>
+              <div className="w-full bg-muted rounded-full h-2">
+                <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${draftLoadProgress.total > 0 ? (draftLoadProgress.loaded / draftLoadProgress.total) * 100 : 0}%` }} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <header className="bg-gradient-to-r from-slate-900 to-slate-800 h-14 flex items-center px-5 gap-3 shrink-0 shadow-[0_2px_12px_rgba(0,0,0,.35)] relative z-50 border-b-2 border-green-500/60">
         {/* Back button */}
         <Button variant="ghost" size="sm" onClick={() => navigate('/purchase-bills')}
