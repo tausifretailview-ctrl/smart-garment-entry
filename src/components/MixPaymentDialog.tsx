@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Banknote, CreditCard, Smartphone } from "lucide-react";
+import { Banknote, CreditCard, Smartphone, Percent } from "lucide-react";
 
 interface MixPaymentDialogProps {
   open: boolean;
@@ -25,6 +25,7 @@ interface MixPaymentDialogProps {
     totalPaid: number;
     refundAmount: number;
     issueCreditNote?: boolean;
+    financeDiscount?: number;
   }) => void;
 }
 
@@ -39,6 +40,7 @@ export function MixPaymentDialog({
   const [cardAmount, setCardAmount] = useState(0);
   const [upiAmount, setUpiAmount] = useState(0);
   const [bankAmount, setBankAmount] = useState(0);
+  const [financeDiscount, setFinanceDiscount] = useState(0);
   const [refundAmount, setRefundAmount] = useState(0);
 
   const isRefundMode = billAmount < 0;
@@ -54,6 +56,7 @@ export function MixPaymentDialog({
       setCardAmount(0);
       setUpiAmount(0);
       setBankAmount(0);
+      setFinanceDiscount(0);
       setRefundAmount(0);
     } else if (isRefundMode) {
       // Pre-fill refund amount in refund mode
@@ -89,6 +92,7 @@ export function MixPaymentDialog({
         totalPaid,
         refundAmount: 0,
         issueCreditNote: false,
+        financeDiscount,
       });
     }
 
@@ -235,6 +239,29 @@ export function MixPaymentDialog({
                   placeholder="₹ 0.00 — financer bank credit"
                   className="text-right"
                 />
+              </div>
+
+              {/* Finance Discount */}
+              <div className="space-y-2">
+                <Label htmlFor="financeDiscount" className="flex items-center gap-2">
+                  <Percent className="h-4 w-4" />
+                  Finance Discount
+                </Label>
+                <Input
+                  id="financeDiscount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={financeDiscount || ""}
+                  onChange={(e) => setFinanceDiscount(Number(e.target.value) || 0)}
+                  placeholder="₹ 0.00 — financer commission"
+                  className="text-right"
+                />
+                {financeDiscount > 0 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Recorded as expense only — does not reduce bill amount
+                  </p>
+                )}
               </div>
 
               {/* Credit (Balance) */}
