@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -138,6 +139,14 @@ const ProductDashboard = () => {
   }>({ productId: "", productName: "", images: [] });
   const [galleryRefreshKey, setGalleryRefreshKey] = useState(0);
   const [showMergeDialog, setShowMergeDialog] = useState(false);
+
+  // Stock import states
+  const [showStockImportDialog, setShowStockImportDialog] = useState(false);
+  const [stockImportFile, setStockImportFile] = useState<File | null>(null);
+  const [stockImportPreview, setStockImportPreview] = useState<Array<{barcode: string; product_name: string; size: string; current_qty: number; new_qty: number; variant_id: string}>>([]);
+  const [stockImporting, setStockImporting] = useState(false);
+  const [stockImportProgress, setStockImportProgress] = useState({ done: 0, total: 0 });
+  const stockImportFileRef = useRef<HTMLInputElement>(null);
 
   // Context menu for desktop right-click
   const isDesktop = useIsDesktop();
@@ -813,6 +822,122 @@ const ProductDashboard = () => {
     }
   };
 
+  // === Stock Import Functions ===
+  const handleExportStockTemplate = () => {
+    const exportData = productRows.flatMap(product =>
+      product.variants.map(variant => ({
+        "Barcode": variant.barcode,
+        "Product Name": product.product_name,
+        "Size": variant.size,
+        "Color": product.color || "",
+        "Current Stock Qty": variant.stock_qty,
+        "New Stock Qty": variant.stock_qty,
+      }))
+    );
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    ws['!cols'] = [{ wch: 15 }, { wch: 30 }, { wch: 10 }, { wch: 12 }, { wch: 16 }, { wch: 16 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Stock Update");
+    XLSX.writeFile(wb, `Stock_Update_Template_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast({ title: "Template exported", description: "Fill 'New Stock Qty' column and import back." });
+  };
+
+  const handleStockImportFile = async (file: File) => {
+    setStockImportFile(file);
+    try {
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+      const barcodeMap = new Map<string, { variant_id: string; product_name: string; size: string; current_qty: number }>();
+      productRows.forEach(p => {
+        p.variants.forEach(v => {
+          if (v.barcode) {
+            barcodeMap.set(v.barcode.toString().trim(), {
+              variant_id: v.variant_id,
+              product_name: p.product_name,
+              size: v.size,
+              current_qty: v.stock_qty,
+            });
+          }
+        });
+      });
+
+      const preview: typeof stockImportPreview = [];
+      for (const row of rows) {
+        const barcode = row["Barcode"]?.toString().trim();
+        const newQty = Number(row["New Stock Qty"]);
+        if (!barcode || isNaN(newQty) || newQty < 0) continue;
+        const info = barcodeMap.get(barcode);
+        if (!info) continue;
+        if (newQty === info.current_qty) continue;
+        preview.push({
+          barcode,
+          product_name: info.product_name,
+          size: info.size,
+          current_qty: info.current_qty,
+          new_qty: Math.round(newQty),
+          variant_id: info.variant_id,
+        });
+      }
+
+      setStockImportPreview(preview);
+      if (preview.length === 0) {
+        toast({ title: "No changes found", description: "All stock quantities match current values or barcodes not found." });
+      }
+    } catch (err: any) {
+      toast({ title: "Parse error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleApplyStockImport = async () => {
+    if (stockImportPreview.length === 0 || !currentOrganization?.id) return;
+    setStockImporting(true);
+    setStockImportProgress({ done: 0, total: stockImportPreview.length });
+
+    const CHUNK = 50;
+    let done = 0;
+    let errors = 0;
+
+    try {
+      for (let i = 0; i < stockImportPreview.length; i += CHUNK) {
+        const chunk = stockImportPreview.slice(i, i + CHUNK);
+        await Promise.all(chunk.map(async item => {
+          const { error } = await supabase
+            .from("product_variants")
+            .update({ stock_qty: item.new_qty, opening_qty: item.new_qty })
+            .eq("id", item.variant_id)
+            .eq("organization_id", currentOrganization.id);
+          if (error) { errors++; return; }
+          await supabase.from("stock_movements").insert({
+            variant_id: item.variant_id,
+            quantity: item.new_qty - item.current_qty,
+            movement_type: "reconciliation",
+            notes: `Closing stock import — set to ${item.new_qty} (was ${item.current_qty})`,
+            organization_id: currentOrganization.id,
+          });
+          done++;
+        }));
+        setStockImportProgress({ done: Math.min(i + CHUNK, stockImportPreview.length), total: stockImportPreview.length });
+      }
+
+      toast({
+        title: "Stock updated",
+        description: `${done} variants updated${errors > 0 ? `, ${errors} errors` : ""}.`,
+      });
+
+      setShowStockImportDialog(false);
+      setStockImportPreview([]);
+      setStockImportFile(null);
+      window.location.reload();
+    } catch (err: any) {
+      toast({ title: "Import failed", description: err.message, variant: "destructive" });
+    } finally {
+      setStockImporting(false);
+    }
+  };
+
   const hasActiveFilters =
     selectedCategory !== "all" || 
     selectedProductType !== "all" ||
@@ -1132,6 +1257,16 @@ const ProductDashboard = () => {
                 >
                   <Download className="h-4 w-4" />
                   Export
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                  onClick={() => setShowStockImportDialog(true)}
+                  disabled={productRows.length === 0}
+                >
+                  <Upload className="h-4 w-4" />
+                  Import Stock
                 </Button>
               </div>
 
@@ -1620,6 +1755,134 @@ const ProductDashboard = () => {
           fetchProductVariants();
         }}
       />
+
+      {/* Stock Import Dialog */}
+      <Dialog open={showStockImportDialog} onOpenChange={(o) => {
+        setShowStockImportDialog(o);
+        if (!o) { setStockImportPreview([]); setStockImportFile(null); }
+      }}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5 text-emerald-600" />
+              Import Closing Stock
+            </DialogTitle>
+            <DialogDescription>
+              Export the stock template, fill in the "New Stock Qty" column, then import.
+              Only rows with changed quantities will be updated.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 flex-1 overflow-y-auto py-2">
+            <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200">
+              <div className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold shrink-0">1</div>
+              <div className="flex-1">
+                <p className="text-sm font-medium">Download Stock Template</p>
+                <p className="text-xs text-muted-foreground">Get Excel with all products. Edit "New Stock Qty" column only.</p>
+              </div>
+              <Button size="sm" variant="outline" className="shrink-0 gap-1.5" onClick={handleExportStockTemplate}>
+                <Download className="h-3.5 w-3.5" /> Download
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200">
+              <div className="w-7 h-7 rounded-full bg-amber-600 text-white flex items-center justify-center text-sm font-bold shrink-0">2</div>
+              <div className="flex-1">
+                <p className="text-sm font-medium">Upload Filled Template</p>
+                <p className="text-xs text-muted-foreground">
+                  {stockImportFile ? `📄 ${stockImportFile.name}` : "Upload the Excel file after filling stock quantities."}
+                </p>
+              </div>
+              <Button size="sm" variant="outline" className="shrink-0 gap-1.5" onClick={() => stockImportFileRef.current?.click()}>
+                <Upload className="h-3.5 w-3.5" /> Choose File
+              </Button>
+              <input
+                ref={stockImportFileRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleStockImportFile(f); e.target.value = ''; }}
+              />
+            </div>
+
+            {stockImportPreview.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-emerald-700">{stockImportPreview.length} variants to update</p>
+                  <p className="text-xs text-muted-foreground">Only changed quantities shown</p>
+                </div>
+                <div className="border rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-background">
+                      <TableRow>
+                        <TableHead className="text-xs">Barcode</TableHead>
+                        <TableHead className="text-xs">Product</TableHead>
+                        <TableHead className="text-xs text-center">Size</TableHead>
+                        <TableHead className="text-xs text-right">Current</TableHead>
+                        <TableHead className="text-xs text-right text-emerald-700">New Qty</TableHead>
+                        <TableHead className="text-xs text-right">Change</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {stockImportPreview.slice(0, 200).map((item, i) => {
+                        const diff = item.new_qty - item.current_qty;
+                        return (
+                          <TableRow key={i}>
+                            <TableCell className="text-xs font-mono">{item.barcode}</TableCell>
+                            <TableCell className="text-xs font-medium truncate max-w-[150px]">{item.product_name}</TableCell>
+                            <TableCell className="text-xs text-center">{item.size}</TableCell>
+                            <TableCell className="text-xs text-right text-muted-foreground">{item.current_qty}</TableCell>
+                            <TableCell className="text-xs text-right font-bold text-emerald-700">{item.new_qty}</TableCell>
+                            <TableCell className={`text-xs text-right font-semibold ${diff > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {diff > 0 ? '+' : ''}{diff}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+                {stockImportPreview.length > 200 && (
+                  <p className="text-xs text-muted-foreground text-center">Showing first 200 of {stockImportPreview.length}</p>
+                )}
+              </div>
+            )}
+
+            {stockImporting && (
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Updating stock...</span>
+                  <span>{stockImportProgress.done} / {stockImportProgress.total}</span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div
+                    className="bg-emerald-600 h-2 rounded-full transition-all"
+                    style={{ width: `${stockImportProgress.total > 0 ? (stockImportProgress.done / stockImportProgress.total) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-between items-center pt-3 border-t">
+            <p className="text-xs text-muted-foreground">
+              ⚠️ This sets closing/opening stock. Stock movements will be recorded for audit.
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowStockImportDialog(false)}>Cancel</Button>
+              <Button
+                size="sm"
+                className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                disabled={stockImportPreview.length === 0 || stockImporting}
+                onClick={handleApplyStockImport}
+              >
+                {stockImporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                Apply {stockImportPreview.length > 0 ? `(${stockImportPreview.length})` : ''} Updates
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
