@@ -40,6 +40,7 @@ export function MixPaymentDialog({
   const [cardAmount, setCardAmount] = useState(0);
   const [upiAmount, setUpiAmount] = useState(0);
   const [bankAmount, setBankAmount] = useState(0);
+  const [financeDiscount, setFinanceDiscount] = useState(0);
   const [refundAmount, setRefundAmount] = useState(0);
 
   const isRefundMode = billAmount < 0;
