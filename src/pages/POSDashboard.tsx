@@ -478,7 +478,7 @@ const POSDashboard = () => {
   };
 
   const handleDeleteSale = async () => {
-    if (!saleToDelete) return;
+    if (!saleToDelete || !hasSpecialPermission('delete_records')) return;
 
     setIsDeleting(true);
     try {
