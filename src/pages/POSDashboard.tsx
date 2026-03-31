@@ -2072,16 +2072,10 @@ const POSDashboard = () => {
         width: posBillFormat === 'a4' ? '210mm' : 
                posBillFormat === 'a5-horizontal' ? '210mm' : 
                posBillFormat === 'thermal' ? '80mm' : '148mm',
-        minHeight: posBillFormat === 'a4' ? '297mm' : 
-                   posBillFormat === 'a5-horizontal' ? '148mm' : 
-                   posBillFormat === 'thermal' ? 'auto' : '210mm',
-        maxHeight: posBillFormat === 'thermal' ? 'none' : 
-                   posBillFormat === 'a4' ? '297mm' : 
-                   posBillFormat === 'a5-horizontal' ? '148mm' : '210mm',
         opacity: 0, 
         pointerEvents: 'none',
         zIndex: -1,
-        overflow: 'hidden'
+        overflow: 'visible'
       }}>
         {printData && (
           <InvoiceWrapper
