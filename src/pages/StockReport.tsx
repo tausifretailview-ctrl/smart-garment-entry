@@ -1112,15 +1112,27 @@ export default function StockReport() {
   return (
     <div className="w-full px-6 py-6 pb-24 lg:pb-6 space-y-6">
       <BackToDashboard />
-      <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-          <Package className="h-5 w-5 text-primary" />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Package className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Stock Report</h1>
+            <p className="text-sm text-muted-foreground">
+              Search · filter · export — all stock, size-wise, and valuations
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Stock Report</h1>
-          <p className="text-sm text-muted-foreground">
-            Search · filter · export — all stock, size-wise, and valuations
-          </p>
+        <div className="flex items-center gap-2 print:hidden">
+          <Button variant="outline" size="sm" onClick={() => window.print()} disabled={!hasSearched || filteredStockItems.length === 0}>
+            <Printer className="h-4 w-4 mr-2" />
+            Print
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => activeTab === "sizewise" ? exportSizeWiseToExcel() : exportAllStockToExcel()} disabled={!hasSearched || (activeTab === "sizewise" ? sizeWiseData.rows.length === 0 : filteredStockItems.length === 0)}>
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Excel
+          </Button>
         </div>
       </div>
 
