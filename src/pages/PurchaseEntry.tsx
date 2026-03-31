@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -183,6 +183,14 @@ const PurchaseEntry = () => {
   const [selectedForPrint, setSelectedForPrint] = useState<Set<string>>(new Set());
   const [pendingSaveItems, setPendingSaveItems] = useState<LineItem[]>([]);
   
+  // Pagination for large bills
+  const [visibleItemCount, setVisibleItemCount] = useState(100);
+  const ITEMS_PER_PAGE = 100;
+  
+  // Draft loading state
+  const [draftLoading, setDraftLoading] = useState(false);
+  const [draftLoadProgress, setDraftLoadProgress] = useState({ loaded: 0, total: 0 });
+  
   // State for tracking newly added items for smart barcode printing
   const [newlyAddedItems, setNewlyAddedItems] = useState<LineItem[]>([]);
   const [savedBillId, setSavedBillId] = useState<string | null>(null);
@@ -250,25 +258,48 @@ const PurchaseEntry = () => {
   }, []);
 
   // Load draft data callback
-  const loadDraftData = useCallback((data: any) => {
+  const loadDraftData = useCallback(async (data: any) => {
     if (!data) return;
+    const items = data.lineItems || [];
+    
+    // Set bill metadata immediately
     setBillData(data.billData || { supplier_id: "", supplier_name: "", supplier_invoice_no: "" });
     setSoftwareBillNo(data.softwareBillNo || "");
     setBillDate(data.billDate ? new Date(data.billDate) : new Date());
-    setLineItems(data.lineItems || []);
     setOtherCharges(data.otherCharges || 0);
     setDiscountAmount(data.discountAmount || 0);
     setRoundOff(data.roundOff || 0);
     setEntryMode(data.entryMode || "grid");
     setIsDcPurchase(data.isDcPurchase || false);
+    
+    if (items.length > 200) {
+      // Load in chunks with progress for large bills
+      setDraftLoading(true);
+      setDraftLoadProgress({ loaded: 0, total: items.length });
+      setLineItems([]);
+      const CHUNK = 200;
+      for (let i = 0; i < items.length; i += CHUNK) {
+        await new Promise<void>(resolve => {
+          setTimeout(() => {
+            setLineItems(prev => [...prev, ...items.slice(i, i + CHUNK)]);
+            setDraftLoadProgress({ loaded: Math.min(i + CHUNK, items.length), total: items.length });
+            resolve();
+          }, 0);
+        });
+      }
+      setDraftLoading(false);
+      setVisibleItemCount(100);
+    } else {
+      setLineItems(items);
+    }
+    
     // Restore edit mode if draft was from an edit
     if (data.isEditMode && data.editingBillId) {
       setIsEditMode(true);
       setEditingBillId(data.editingBillId);
       setOriginalLineItems(data.originalLineItems || []);
     }
-    // Silent restore - no toast to avoid disturbing user
-  }, [toast]);
+  }, []);
 
   // Load draft automatically if navigated from dashboard with loadDraft flag
   useEffect(() => {
@@ -279,28 +310,45 @@ const PurchaseEntry = () => {
     }
   }, [location.state?.loadDraft, hasDraft, draftData, loadDraftData, deleteDraft]);
 
-  // Update current data for auto-save whenever form data changes (works in both new and edit mode)
+  // Debounced auto-save — prevents JSON serializing 1000+ items on every keystroke
+  const autoSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (lineItems.length > 0) {
-      updateCurrentData({
-        billData,
-        softwareBillNo,
-        billDate: billDate.toISOString(),
-        lineItems,
-        roundOff,
-        otherCharges,
-        discountAmount,
-        entryMode,
-        isDcPurchase,
-        isEditMode,
-        editingBillId,
-        originalLineItems,
-      });
-    } else {
-      // Clear data when no items (prevents stale draft)
-      updateCurrentData(null);
-    }
+    if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current);
+    autoSaveDebounceRef.current = setTimeout(() => {
+      if (lineItems.length > 0) {
+        updateCurrentData({
+          billData,
+          softwareBillNo,
+          billDate: billDate.toISOString(),
+          lineItems,
+          roundOff,
+          otherCharges,
+          discountAmount,
+          entryMode,
+          isDcPurchase,
+          isEditMode,
+          editingBillId,
+          originalLineItems,
+        });
+      } else {
+        updateCurrentData(null);
+      }
+    }, lineItems.length > 200 ? 3000 : 1000);
+    return () => {
+      if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current);
+    };
   }, [billData, softwareBillNo, billDate, lineItems, roundOff, otherCharges, discountAmount, entryMode, isDcPurchase, isEditMode, editingBillId, originalLineItems, updateCurrentData]);
+  
+  // Memoize selectedForPrint as object for O(1) lookup without triggering re-renders
+  const selectedForPrintObj = useMemo(
+    () => Object.fromEntries([...selectedForPrint].map(id => [id, true])),
+    [selectedForPrint]
+  );
+  
+  // Reset visible items when lineItems changes drastically
+  useEffect(() => {
+    setVisibleItemCount(100);
+  }, [lineItems.length > 0 ? Math.ceil(lineItems.length / 500) : 0]);
 
   // Start auto-save (works for both new and edit mode)
   useEffect(() => {
@@ -2951,6 +2999,29 @@ const PurchaseEntry = () => {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-slate-100">
+      {/* Draft loading overlay for large bills */}
+      {draftLoading && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-card border rounded-xl shadow-xl p-6 w-80 space-y-4">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <div>
+                <p className="font-semibold text-sm">Loading Draft Bill...</p>
+                <p className="text-xs text-muted-foreground">Large bill with {draftLoadProgress.total} items</p>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Loading items</span>
+                <span>{draftLoadProgress.loaded} / {draftLoadProgress.total}</span>
+              </div>
+              <div className="w-full bg-muted rounded-full h-2">
+                <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${draftLoadProgress.total > 0 ? (draftLoadProgress.loaded / draftLoadProgress.total) * 100 : 0}%` }} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <header className="bg-gradient-to-r from-slate-900 to-slate-800 h-14 flex items-center px-5 gap-3 shrink-0 shadow-[0_2px_12px_rgba(0,0,0,.35)] relative z-50 border-b-2 border-green-500/60">
         {/* Back button */}
         <Button variant="ghost" size="sm" onClick={() => navigate('/purchase-bills')}
@@ -3357,7 +3428,21 @@ const PurchaseEntry = () => {
                   </TableRow>
                 </TableHeader>
               </Table>
-              <div className={`relative max-h-[50vh] overflow-y-auto isolate ${isBillLocked ? 'pointer-events-none' : ''}`}>
+              {lineItems.length > 100 && (
+                <div className="flex items-center justify-between px-3 py-1.5 bg-muted/50 border-b text-xs text-muted-foreground">
+                  <span className="font-medium">📦 Large bill: {lineItems.length} items</span>
+                  <span>Showing {Math.min(visibleItemCount, lineItems.length)} rows — scroll to load more</span>
+                </div>
+              )}
+              <div className={`relative max-h-[50vh] overflow-y-auto isolate ${isBillLocked ? 'pointer-events-none' : ''}`}
+                onScroll={(e) => {
+                  const el = e.currentTarget;
+                  const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 300;
+                  if (nearBottom && visibleItemCount < lineItems.length) {
+                    setVisibleItemCount(prev => Math.min(prev + ITEMS_PER_PAGE, lineItems.length));
+                  }
+                }}
+              >
               {isBillLocked && (
                 <div className="absolute inset-0 bg-background/60 z-10 flex items-center justify-center rounded-lg backdrop-blur-[1px]">
                   <div className="flex items-center gap-2 bg-amber-100 dark:bg-amber-900 border border-amber-300 rounded-lg px-4 py-2">
@@ -3368,7 +3453,7 @@ const PurchaseEntry = () => {
               )}
               <Table className="table-fixed min-w-[1460px]">
                 <TableBody>
-                  {lineItems.map((item, index) => {
+                  {lineItems.slice(0, visibleItemCount).map((item, index) => {
                     const subTotal = item.qty * item.pur_price;
                     const total = item.line_total;
                     const gstAmount = (total * item.gst_per) / 100;
@@ -3377,7 +3462,7 @@ const PurchaseEntry = () => {
                       <TableRow key={item.temp_id} className={`hover:bg-green-50/40 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}>
                         <TableCell className="w-[40px]">
                           <Checkbox
-                            checked={selectedForPrint.has(item.temp_id)}
+                            checked={!!selectedForPrintObj[item.temp_id]}
                             onCheckedChange={() => toggleItemSelection(item.temp_id)}
                             aria-label={`Select ${item.product_name} for printing`}
                           />
