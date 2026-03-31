@@ -199,15 +199,16 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const fsCustDetail = isA4 ? "13px" : "11px";
   const fsInvoiceNo = isA4 ? "14px" : "12px";
 
+  const rowH = isA4 ? "18px" : "16px";
   const cellBase: React.CSSProperties = {
     borderLeft: B,
     borderBottom: B,
-    padding: "2px 6px",
+    padding: isA4 ? "2px 6px" : "1px 4px",
     fontSize: fsBody,
     verticalAlign: "middle",
-    lineHeight: "1.3",
-    height: "18px",
-    maxHeight: "18px",
+    lineHeight: "1.2",
+    height: rowH,
+    maxHeight: rowH,
     overflow: "hidden",
   };
   const cellR: React.CSSProperties = { ...cellBase, textAlign: "right" };
@@ -240,7 +241,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             <div style={{ border: B2, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
               {/* ===== HEADER ===== */}
-              <div style={{ borderBottom: B2, padding: "8px 10px 6px", position: "relative" }}>
+              <div style={{ borderBottom: B2, padding: isA4 ? "8px 10px 6px" : "5px 8px 4px", position: "relative" }}>
                 {logoUrl && (
                   <img
                     src={logoUrl}
@@ -279,14 +280,14 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
               {/* ===== BILL TO + INVOICE INFO ===== */}
               <div style={{ display: "flex", borderBottom: B, fontSize: fsHeader, lineHeight: 1.5 }}>
-                <div style={{ flex: 1, padding: "4px 8px", borderRight: B }}>
+                <div style={{ flex: 1, padding: isA4 ? "4px 8px" : "3px 6px", borderRight: B }}>
                   <div style={{ fontWeight: "bold" }}>BILL TO:</div>
                   <div style={{ fontWeight: "bold", fontSize: fsCustName }}>{customerName || "Walk-in Customer"}</div>
                   {customerAddress && <div style={{ fontSize: fsCustDetail }}>{customerAddress}</div>}
                   {customerMobile && <div style={{ fontSize: fsCustDetail }}>Ph: {customerMobile}</div>}
                   {customerGSTIN && <div style={{ fontSize: fsCustDetail }}>GSTIN: {customerGSTIN}</div>}
                 </div>
-                <div style={{ width: "40%", padding: "4px 8px" }}>
+                <div style={{ width: "40%", padding: isA4 ? "4px 8px" : "3px 6px" }}>
                   <div style={{ fontSize: fsInvoiceNo, fontWeight: "bold" }}>Invoice No: {invoiceNumber}</div>
                   <div style={{ fontSize: fsCustDetail }}>
                     <strong>Date:</strong> {invoiceDate.toLocaleDateString("en-IN")}
@@ -329,7 +330,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     if (item) srCounter++;
                     const srNo = item ? pageStartSr + srCounter : null;
                     return (
-                      <tr key={idx} style={{ height: "18px" }}>
+                      <tr key={idx} style={{ height: rowH }}>
                         <td style={cellC}>{srNo || "\u00A0"}</td>
                         <td style={{ ...cellL, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {item ? (
@@ -353,16 +354,16 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
                   {/* Totals row */}
                   <tr style={{ borderTop: B2 }}>
-                    <td colSpan={3} style={{ ...cellL, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: "28px" }}>
+                    <td colSpan={3} style={{ ...cellL, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: isA4 ? "28px" : "22px" }}>
                       {isLastPage ? `Total Qty: ${totalQty}` : `Page ${pageIndex + 1} — Continued...`}
                     </td>
-                    <td style={{ ...cellR, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: "28px" }}>
+                    <td style={{ ...cellR, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: isA4 ? "28px" : "22px" }}>
                       {isLastPage ? totalQty : pageItems.filter(Boolean).reduce((s, i) => s + (i?.qty || 0), 0)}
                     </td>
-                    <td style={{ ...cellR, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: "28px" }}>
+                    <td style={{ ...cellR, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: isA4 ? "28px" : "22px" }}>
                       {isLastPage ? "Sub Total" : "Page Sub"}
                     </td>
-                    <td style={{ ...cellR, fontWeight: "bold", borderRight: "none", borderTop: B2, fontSize: fsTotals, height: "28px" }}>
+                    <td style={{ ...cellR, fontWeight: "bold", borderRight: "none", borderTop: B2, fontSize: fsTotals, height: isA4 ? "28px" : "22px" }}>
                       {isLastPage
                         ? `₹${fmt(subTotalBeforeDiscount)}`
                         : `₹${fmt(pageItems.filter(Boolean).reduce((s, i) => s + (i?.total || 0), 0))}`}
@@ -377,7 +378,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                 style={{ display: "grid", gridTemplateColumns: "60% 40%", borderTop: B2, fontSize: fsBody }}
               >
                 {/* Left Column */}
-                <div style={{ borderRight: B, padding: "6px 8px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                <div style={{ borderRight: B, padding: isA4 ? "6px 8px" : "4px 6px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                   <div>
                     {termsConditions.length > 0 && (
                       <div>
@@ -389,14 +390,21 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         </ul>
                       </div>
                     )}
-                    {notes && (
-                      <div style={{ marginTop: termsConditions.length > 0 ? "4px" : "0", paddingTop: termsConditions.length > 0 ? "4px" : "0", borderTop: termsConditions.length > 0 ? "1px dashed #999" : "none", fontSize: isA4 ? "13px" : "11px", fontStyle: "italic" }}>
-                        <strong style={{ fontStyle: "normal" }}>Note:</strong> {notes}
+                    {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
+                      <div style={{
+                        marginTop: termsConditions.length > 0 ? "4px" : "0",
+                        paddingTop: termsConditions.length > 0 ? "3px" : "0",
+                        borderTop: termsConditions.length > 0 ? "1px dashed #ccc" : "none",
+                        fontSize: isA4 ? "11px" : "8px",
+                        fontWeight: "400",
+                        lineHeight: 1.4,
+                      }}>
+                        <strong>Note:</strong> <span style={{ fontStyle: "italic" }}>{notes}</span>
                       </div>
                     )}
                     {qrCodeUrl && isLastPage && (
                       <div style={{ marginTop: "6px" }}>
-                        <img src={qrCodeUrl} alt="QR Code" style={{ width: isA4 ? "160px" : "110px", height: isA4 ? "160px" : "110px", border: "1px solid #ccc" }} />
+                        <img src={qrCodeUrl} alt="QR Code" style={{ width: isA4 ? "140px" : "75px", height: isA4 ? "140px" : "75px", border: "1px solid #ccc" }} />
                       </div>
                     )}
                     <div style={{ marginTop: "4px", fontSize: isA4 ? "10px" : "8px" }}>E. & O.E.</div>
@@ -413,18 +421,18 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   {isLastPage ? (
                     <>
                       {saleReturnAdjust > 0 && (
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "28px", borderBottom: B, padding: "0 8px", color: "#b45309" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: isA4 ? "28px" : "22px", borderBottom: B, padding: isA4 ? "0 8px" : "0 6px", color: "#b45309" }}>
                           <span>S/R Adjust</span>
                           <span>- ₹{fmt(saleReturnAdjust)}</span>
                         </div>
                       )}
                       {totalDiscount > 0 && (
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "28px", borderBottom: B, padding: "0 8px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: isA4 ? "28px" : "22px", borderBottom: B, padding: isA4 ? "0 8px" : "0 6px" }}>
                           <span>Discount</span>
                           <span>- ₹{fmt(totalDiscount)}</span>
                         </div>
                       )}
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "34px", borderBottom: B, borderTop: B2, padding: "0 8px", fontWeight: "900", fontSize: isA4 ? "16px" : "13px", backgroundColor: "#d9d9d9" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: isA4 ? "34px" : "26px", borderBottom: B, borderTop: B2, padding: isA4 ? "0 8px" : "0 6px", fontWeight: "900", fontSize: isA4 ? "16px" : "13px", backgroundColor: "#d9d9d9" }}>
                         <span>Bill Total</span>
                         <span>₹{fmt(billTotal)}</span>
                       </div>
@@ -450,19 +458,19 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         </div>
                       )}
                       {paymentParts.length <= 1 && (
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "28px", borderBottom: B, padding: "0 8px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: isA4 ? "28px" : "22px", borderBottom: B, padding: isA4 ? "0 8px" : "0 6px" }}>
                           <span>Received (Today)</span><span>₹{fmt(receivedToday)}</span>
                         </div>
                       )}
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "28px", borderBottom: B, padding: "0 8px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: isA4 ? "28px" : "22px", borderBottom: B, padding: isA4 ? "0 8px" : "0 6px" }}>
                         <span>Current Balance</span>
                         <span style={{ color: currentBalance > 0 ? "#dc2626" : "#16a34a" }}>₹{fmt(currentBalance)}</span>
                       </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "28px", borderBottom: B, padding: "0 8px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: isA4 ? "28px" : "22px", borderBottom: B, padding: isA4 ? "0 8px" : "0 6px" }}>
                         <span>Previous Balance</span>
                         <span>₹{fmt(previousBalance)}</span>
                       </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "28px", borderBottom: B, padding: "0 8px", fontWeight: "bold", fontSize: fsGrand, color: totalDue > 0 ? "#dc2626" : "#16a34a" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: isA4 ? "28px" : "22px", borderBottom: B, padding: isA4 ? "0 8px" : "0 6px", fontWeight: "bold", fontSize: fsGrand, color: totalDue > 0 ? "#dc2626" : "#16a34a" }}>
                         <span>TOTAL DUE</span>
                         <span>₹{fmt(totalDue)}</span>
                       </div>
