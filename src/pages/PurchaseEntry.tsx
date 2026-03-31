@@ -1898,6 +1898,28 @@ const PurchaseEntry = () => {
     }
 
     setLoading(true);
+    
+    // Force-save draft before attempting bill save (safety net against data loss)
+    try {
+      await saveDraft({
+        billData,
+        softwareBillNo,
+        billDate: billDate.toISOString(),
+        lineItems,
+        roundOff,
+        otherCharges,
+        discountAmount,
+        entryMode,
+        isDcPurchase,
+        isEditMode,
+        editingBillId,
+        originalLineItems,
+      }, false);
+      console.log('[PurchaseEntry] Draft safety-save completed before bill save');
+    } catch (draftErr) {
+      console.error('[PurchaseEntry] Draft safety-save failed:', draftErr);
+    }
+    
     try {
       // Calculate totals directly from lineItems to avoid stale state issues
       const calculatedGrossBeforeDiscount = lineItems.reduce((sum, r) => sum + (r.qty * r.pur_price), 0);
