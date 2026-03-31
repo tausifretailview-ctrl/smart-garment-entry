@@ -2197,11 +2197,17 @@ const PurchaseEntry = () => {
           is_dc_item: isDcPurchase,
         }));
 
-        const { error: itemsError } = await supabase
-          .from("purchase_items")
-          .insert(itemsToInsert);
-
-        if (itemsError) throw itemsError;
+        // Insert purchase items in chunks of 100 to avoid statement timeout on large bills
+        const INSERT_CHUNK_SIZE = 100;
+        const isLargeBill = itemsToInsert.length > 50;
+        if (isLargeBill) {
+          toast({ title: "Saving large bill...", description: `Saving ${itemsToInsert.length} items. Please wait...` });
+        }
+        for (let ci = 0; ci < itemsToInsert.length; ci += INSERT_CHUNK_SIZE) {
+          const chunk = itemsToInsert.slice(ci, ci + INSERT_CHUNK_SIZE);
+          const { error: itemsError } = await supabase.from("purchase_items").insert(chunk);
+          if (itemsError) throw itemsError;
+        }
 
         // Flag product variants as DC products (or reset if non-DC purchase)
         const variantIds = [...new Set(lineItems.map(i => i.sku_id))];
