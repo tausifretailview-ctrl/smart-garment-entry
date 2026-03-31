@@ -223,7 +223,7 @@ export function MixPaymentDialog({
               <div className="space-y-2">
                 <Label htmlFor="bank" className="flex items-center gap-2">
                   <CreditCard className="h-4 w-4" />
-                  Bank Transfer (Finance/EMI)
+                  Bank Transfer
                 </Label>
                 <Input
                   id="bank"
