@@ -245,7 +245,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             <div style={{ border: B2, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", justifyContent: "space-between" }}>
 
               {/* ===== HEADER ===== */}
-              <div style={{ borderBottom: B2, padding: isA4 ? "8px 10px 6px" : "5px 8px 4px", position: "relative" }}>
+              <div style={{ borderBottom: B2, padding: isA4 ? "5px 10px 4px" : "3px 8px 3px", position: "relative" }}>
                 {logoUrl && (
                   <img
                     src={logoUrl}
@@ -276,7 +276,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               </div>
 
               {/* ===== TAX INVOICE ===== */}
-              <div style={{ textAlign: "center", fontWeight: "bold", fontSize: titleFs, borderBottom: B, padding: "1px 0", lineHeight: 1.2 }}>
+              <div style={{ textAlign: "center", fontWeight: "bold", fontSize: titleFs, borderBottom: B, padding: "0px 0", lineHeight: "1.1", margin: 0 }}>
                 {itemPages.length > 1
                   ? `TAX INVOICE${pageIndex > 0 ? ` (Page ${pageIndex + 1} of ${itemPages.length})` : ''}`
                   : 'TAX INVOICE'}
@@ -320,13 +320,13 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   <col style={{ width: "20%" }} />
                 </colgroup>
                 <thead>
-                  <tr>
-                    <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5", width: "6%" }}>SR.</th>
-                    <th style={{ ...cellL, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5" }}>Description</th>
-                    <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5" }}>Barcode</th>
-                    <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5" }}>Qty</th>
-                    <th style={{ ...cellR, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5" }}>Rate</th>
-                    <th style={{ ...cellR, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, borderRight: "none", backgroundColor: "#f5f5f5" }}>Amount</th>
+                  <tr style={{ height: isA4 ? "22px" : "18px" }}>
+                    <th style={{ ...cellC, borderTop: "none", borderBottom: B2, fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f0f0f0", padding: "2px 4px", width: "6%" }}>SR.</th>
+                    <th style={{ ...cellL, borderTop: "none", borderBottom: B2, fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f0f0f0", padding: "2px 4px" }}>Description</th>
+                    <th style={{ ...cellC, borderTop: "none", borderBottom: B2, fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f0f0f0", padding: "2px 4px" }}>Barcode</th>
+                    <th style={{ ...cellC, borderTop: "none", borderBottom: B2, fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f0f0f0", padding: "2px 4px" }}>Qty</th>
+                    <th style={{ ...cellR, borderTop: "none", borderBottom: B2, fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f0f0f0", padding: "2px 4px" }}>Rate</th>
+                    <th style={{ ...cellR, borderTop: "none", borderBottom: B2, fontWeight: "bold", fontSize: fsHeading, borderRight: "none", backgroundColor: "#f0f0f0", padding: "2px 4px" }}>Amount</th>
                   </tr>
                 </thead>
                 <tbody>
