@@ -257,8 +257,10 @@ const PurchaseEntry = () => {
     setBillDate(data.billDate ? new Date(data.billDate) : new Date());
     setLineItems(data.lineItems || []);
     setOtherCharges(data.otherCharges || 0);
+    setDiscountAmount(data.discountAmount || 0);
     setRoundOff(data.roundOff || 0);
     setEntryMode(data.entryMode || "grid");
+    setIsDcPurchase(data.isDcPurchase || false);
     // Restore edit mode if draft was from an edit
     if (data.isEditMode && data.editingBillId) {
       setIsEditMode(true);
