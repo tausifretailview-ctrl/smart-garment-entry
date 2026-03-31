@@ -1798,16 +1798,16 @@ const POSDashboard = () => {
                                     <Printer className="h-3.5 w-3.5" />
                                   </Button>
                                 )}
-                                {columnSettings.modify && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7"
-                                    onClick={(e) => handleEditSale(sale.id, e)}
-                                  >
-                                    <Edit className="h-3.5 w-3.5" />
-                                  </Button>
-                                )}
+                                {columnSettings.modify && hasSpecialPermission('modify_records') && (
+                                   <Button
+                                     variant="ghost"
+                                     size="icon"
+                                     className="h-7 w-7"
+                                     onClick={(e) => handleEditSale(sale.id, e)}
+                                   >
+                                     <Edit className="h-3.5 w-3.5" />
+                                   </Button>
+                                 )}
                               </div>
                             </TableCell>
                           </TableRow>
