@@ -839,7 +839,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
         </div>
       </div>
 
-      {notes && (
+      {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
         <div style={{ 
           border: `1px solid ${colors.primary}`, 
           padding: '5px', 

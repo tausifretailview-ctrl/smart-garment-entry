@@ -371,7 +371,7 @@ export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
       )}
 
       {/* Notes Section */}
-      {notes && (
+      {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
         <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#fff9e6', borderLeft: `3px solid ${colors.primary}`, borderRadius: '4px' }}>
           <strong style={{ color: colors.primary }}>Note:</strong> <span style={{ fontStyle: 'italic', fontSize: '9pt' }}>{notes}</span>
         </div>

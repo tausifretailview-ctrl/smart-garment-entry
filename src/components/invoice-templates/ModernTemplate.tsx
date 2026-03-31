@@ -534,7 +534,7 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
         </div>
 
         {/* Notes Section */}
-        {notes && (
+        {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
           <div style={{ 
             borderTop: '1px solid #000',
             padding: '6px 8px',
