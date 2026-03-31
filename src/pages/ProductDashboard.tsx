@@ -1250,6 +1250,16 @@ const ProductDashboard = () => {
                   <Download className="h-4 w-4" />
                   Export
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                  onClick={() => setShowStockImportDialog(true)}
+                  disabled={productRows.length === 0}
+                >
+                  <Upload className="h-4 w-4" />
+                  Import Stock
+                </Button>
               </div>
 
               <div className="flex items-center gap-2 flex-1">
