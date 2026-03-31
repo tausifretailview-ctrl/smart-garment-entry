@@ -1182,7 +1182,7 @@ const POSDashboard = () => {
               <Plus className="h-4 w-4" />
               New Sale
             </Button>
-            {selectedSales.size > 0 && (
+            {selectedSales.size > 0 && hasSpecialPermission('delete_records') && (
               <Button
                 onClick={() => setShowBulkDeleteDialog(true)}
                 disabled={isDeleting}
