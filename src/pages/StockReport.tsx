@@ -1408,11 +1408,19 @@ export default function StockReport() {
                         Stock breakdown: Opening Qty + Purchase Qty - Pur Return - Sales Qty + Sale Return = Current Stock Qty
                       </CardDescription>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      Showing {filteredStockItems.length > 0 ? ((currentPage - 1) * ITEMS_PER_PAGE) + 1 : 0} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredStockItems.length)} of {filteredStockItems.length} items
+                    <div className="flex items-center gap-4">
+                      <div className="text-sm text-muted-foreground">
+                        Showing {filteredStockItems.length > 0 ? ((currentPage - 1) * ITEMS_PER_PAGE) + 1 : 0} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredStockItems.length)} of {filteredStockItems.length} items
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={exportAllStockToExcel} disabled={filteredStockItems.length === 0}>
+                          <FileSpreadsheet className="h-4 w-4 mr-1" /> Excel
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={printAllStock} disabled={filteredStockItems.length === 0}>
+                          <Printer className="h-4 w-4 mr-1" /> Print
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
                       <Table>
