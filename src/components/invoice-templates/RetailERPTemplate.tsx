@@ -334,7 +334,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     if (item) srCounter++;
                     const srNo = item ? pageStartSr + srCounter : null;
                     return (
-                      <tr key={idx} style={{ height: rowH }}>
+                      <tr key={idx} style={{ height: ROW_H }}>
                         <td style={{ ...cellC, width: "6%" }}>{srNo || "\u00A0"}</td>
                         <td style={{ ...cellL, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {item ? (
