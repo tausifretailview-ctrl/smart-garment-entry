@@ -867,7 +867,14 @@ const FeeCollection = () => {
                     {paginatedCollected.map((fee: any, index: number) => (
                       <TableRow key={fee.id}>
                         <TableCell className="text-muted-foreground">{(collectedPage - 1) * pageSize + index + 1}</TableCell>
-                        <TableCell>{fee.paid_date ? format(new Date(fee.paid_date), "dd/MM/yyyy") : "-"}</TableCell>
+                        <TableCell>
+                          {fee.paid_date ? format(new Date(fee.paid_date), "dd/MM/yyyy") : "-"}
+                          {fee.created_at && (
+                            <span className="block text-[10px] text-muted-foreground">
+                              {format(new Date(fee.created_at), "hh:mm a")}
+                            </span>
+                          )}
+                        </TableCell>
                         <TableCell className="font-medium">{fee.payment_receipt_id || "-"}</TableCell>
                         <TableCell>
                           <button
