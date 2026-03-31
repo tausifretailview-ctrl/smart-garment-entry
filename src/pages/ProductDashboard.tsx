@@ -1499,27 +1499,37 @@ const ProductDashboard = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      // Get all variants from selected products
+                    onClick={async () => {
+                      // Get all variants from selected products, fetching if not loaded
                       const selectedProductData = productRows.filter(p => selectedProducts.has(p.product_id));
-                      const barcodeItems = selectedProductData.flatMap(product => 
-                        product.variants.map(variant => ({
-                          sku_id: variant.variant_id,
-                          product_name: product.product_name,
-                          brand: product.brand || "",
-                          category: product.category || "",
-                          color: variant.color || product.color || "",
-                          style: product.style || "",
-                          size: variant.size,
-                          sale_price: variant.sale_price,
-                          mrp: variant.mrp,
-                          pur_price: variant.pur_price,
-                          barcode: variant.barcode,
-                          qty: variant.stock_qty,
-                          bill_number: "",
-                          supplier_code: "",
-                        }))
+                      const allVariants = await Promise.all(
+                        selectedProductData.map(async (product) => {
+                          const variants = product.variants.length > 0 
+                            ? product.variants 
+                            : await fetchVariantsForProduct(product.product_id);
+                          return variants.map(variant => ({
+                            sku_id: variant.variant_id,
+                            product_name: product.product_name,
+                            brand: product.brand || "",
+                            category: product.category || "",
+                            color: variant.color || product.color || "",
+                            style: product.style || "",
+                            size: variant.size,
+                            sale_price: variant.sale_price,
+                            mrp: variant.mrp,
+                            pur_price: variant.pur_price,
+                            barcode: variant.barcode,
+                            qty: variant.stock_qty,
+                            bill_number: "",
+                            supplier_code: "",
+                          }));
+                        })
                       );
+                      const barcodeItems = allVariants.flat();
+                      if (barcodeItems.length === 0) {
+                        toast({ title: "No variants found for selected products", variant: "destructive" });
+                        return;
+                      }
                       navigate("/barcode-printing", { state: { purchaseItems: barcodeItems } });
                     }}
                     className="gap-2"
