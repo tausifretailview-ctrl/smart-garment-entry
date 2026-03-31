@@ -2569,6 +2569,20 @@ const PurchaseEntry = () => {
       }
     }
 
+    // Pre-generate barcodes in bulk for rows that need them
+    const rowsNeedingBarcode = validRows.filter(row => !row.barcode?.toString().trim());
+    const barcodePool: string[] = [];
+    if (rowsNeedingBarcode.length > 0) {
+      const { data: startBarcode } = await supabase.rpc('generate_next_barcode', { p_organization_id: currentOrganization.id });
+      if (startBarcode) {
+        const startNum = parseInt(startBarcode, 10);
+        for (let b = 0; b < rowsNeedingBarcode.length + 10; b++) {
+          barcodePool.push(String(startNum + b).padStart(String(startBarcode).length, '0'));
+        }
+      }
+    }
+    let barcodePoolIndex = 0;
+
     // Process in batches
     for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
       const batch = validRows.slice(i, i + BATCH_SIZE);
