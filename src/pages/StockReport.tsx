@@ -1532,7 +1532,7 @@ export default function StockReport() {
                         {/* Totals Row */}
                         {filteredStockItems.length > 0 && (
                           <TableRow className="bg-muted/50 font-bold border-t-2">
-                            <TableCell className="text-center" colSpan={7}>TOTAL</TableCell>
+                            <TableCell className="text-center" colSpan={9}>TOTAL</TableCell>
                             <TableCell className="text-right bg-blue-50 dark:bg-blue-950">
                               {filteredStockItems.reduce((s, i) => s + i.opening_qty, 0).toLocaleString('en-IN')}
                             </TableCell>
