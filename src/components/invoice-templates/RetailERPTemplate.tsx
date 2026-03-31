@@ -470,7 +470,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         <span>Previous Balance</span>
                         <span>₹{fmt(previousBalance)}</span>
                       </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "28px", borderBottom: B, padding: "0 8px", fontWeight: "bold", fontSize: fsGrand, color: totalDue > 0 ? "#dc2626" : "#16a34a" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: isA4 ? "28px" : "22px", borderBottom: B, padding: isA4 ? "0 8px" : "0 6px", fontWeight: "bold", fontSize: fsGrand, color: totalDue > 0 ? "#dc2626" : "#16a34a" }}>
                         <span>TOTAL DUE</span>
                         <span>₹{fmt(totalDue)}</span>
                       </div>
