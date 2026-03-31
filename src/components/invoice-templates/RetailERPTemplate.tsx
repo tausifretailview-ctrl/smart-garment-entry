@@ -320,13 +320,13 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   <col style={{ width: "20%" }} />
                 </colgroup>
                 <thead>
-                  <tr>
-                    <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5", width: "6%" }}>SR.</th>
-                    <th style={{ ...cellL, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5" }}>Description</th>
-                    <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5" }}>Barcode</th>
-                    <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5" }}>Qty</th>
-                    <th style={{ ...cellR, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5" }}>Rate</th>
-                    <th style={{ ...cellR, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, borderRight: "none", backgroundColor: "#f5f5f5" }}>Amount</th>
+                  <tr style={{ height: isA4 ? "22px" : "18px" }}>
+                    <th style={{ ...cellC, borderTop: "none", borderBottom: B2, fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f0f0f0", padding: "2px 4px", width: "6%" }}>SR.</th>
+                    <th style={{ ...cellL, borderTop: "none", borderBottom: B2, fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f0f0f0", padding: "2px 4px" }}>Description</th>
+                    <th style={{ ...cellC, borderTop: "none", borderBottom: B2, fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f0f0f0", padding: "2px 4px" }}>Barcode</th>
+                    <th style={{ ...cellC, borderTop: "none", borderBottom: B2, fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f0f0f0", padding: "2px 4px" }}>Qty</th>
+                    <th style={{ ...cellR, borderTop: "none", borderBottom: B2, fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f0f0f0", padding: "2px 4px" }}>Rate</th>
+                    <th style={{ ...cellR, borderTop: "none", borderBottom: B2, fontWeight: "bold", fontSize: fsHeading, borderRight: "none", backgroundColor: "#f0f0f0", padding: "2px 4px" }}>Amount</th>
                   </tr>
                 </thead>
                 <tbody>
