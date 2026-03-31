@@ -24,11 +24,13 @@ interface StudentHistoryDialogProps {
     totalExpected?: number;
     totalPaid?: number;
     totalDue?: number;
+    importedBalance?: number;
   } | null;
 }
 
 export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHistoryDialogProps) {
   const { currentOrganization } = useOrganization();
+  const [activeTab, setActiveTab] = useState<'summary' | 'heads' | 'ledger'>('summary');
 
   // Get current academic year
   const { data: currentYear } = useQuery({
@@ -45,7 +47,7 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
     enabled: !!currentOrganization?.id && open,
   });
 
-  // Fetch all fee payments for this student
+  // Fetch all fee payments for this student (include balance_adjustment entries)
   const { data: feePayments, isLoading: paymentsLoading } = useQuery({
     queryKey: ["student-fee-payments-history", student?.id, currentOrganization?.id, currentYear?.id],
     queryFn: async () => {
@@ -96,15 +98,17 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
 
   // Mirror fee collection logic: use structures OR imported balance, not both
   const totalExpected = hasStructures ? structureTotal : importedBalance;
-  // Calculate totalPaid from actual fetched fee payments (source of truth)
-  const totalPaid = (feePayments || []).reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
+  
+  // Separate real payments from balance adjustments
+  const realPayments = (feePayments || []).filter((p: any) => p.status !== "balance_adjustment");
+  const totalPaid = realPayments.reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
   const totalDue = Math.max(0, totalExpected - totalPaid);
 
   // Head-wise summary
   const headSummary = (feeStructures || []).map((fs: any) => {
     const mult = fs.frequency === "monthly" ? 12 : fs.frequency === "quarterly" ? 4 : 1;
     const structureTotal = fs.amount * mult;
-    const paid = (feePayments || [])
+    const paid = realPayments
       .filter((p: any) => p.fee_head_id === fs.fee_head_id)
       .reduce((s: number, p: any) => s + (p.paid_amount || 0), 0);
     return {
@@ -114,6 +118,23 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
       balance: Math.max(0, structureTotal - paid),
     };
   });
+
+  // Build ledger entries chronologically (oldest first) for running balance
+  const sortedPayments = [...(feePayments || [])].sort((a: any, b: any) =>
+    new Date(a.paid_date || a.created_at).getTime() - new Date(b.paid_date || b.created_at).getTime()
+  );
+
+  let runningBalance = totalExpected;
+  const ledgerEntries = sortedPayments.map((p: any) => {
+    if (p.status === "balance_adjustment") {
+      // Balance adjustments set the opening amount as debit
+      return { ...p, balanceAfter: runningBalance };
+    }
+    runningBalance -= (p.paid_amount || 0);
+    return { ...p, balanceAfter: Math.max(0, runningBalance) };
+  });
+
+  const fmtINR = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2 });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -134,35 +155,27 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
             <Card className="border-l-4 border-l-blue-500">
               <CardContent className="p-2 sm:p-3">
                 <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Fees</p>
-                <p className="text-sm sm:text-base font-bold text-blue-600 truncate">
-                  ₹{totalExpected.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                </p>
+                <p className="text-sm sm:text-base font-bold text-blue-600 truncate">₹{fmtINR(totalExpected)}</p>
               </CardContent>
             </Card>
           ) : (
             <Card className="border-l-4 border-l-orange-500">
               <CardContent className="p-2 sm:p-3">
                 <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Opening Balance</p>
-                <p className="text-sm sm:text-base font-bold text-orange-600 truncate">
-                  ₹{importedBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                </p>
+                <p className="text-sm sm:text-base font-bold text-orange-600 truncate">₹{fmtINR(importedBalance)}</p>
               </CardContent>
             </Card>
           )}
           <Card className="border-l-4 border-l-green-500">
             <CardContent className="p-2 sm:p-3">
               <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Paid</p>
-              <p className="text-sm sm:text-base font-bold text-green-600 truncate">
-                ₹{totalPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-              </p>
+              <p className="text-sm sm:text-base font-bold text-green-600 truncate">₹{fmtINR(totalPaid)}</p>
             </CardContent>
           </Card>
           <Card className="border-l-4 border-l-red-500">
             <CardContent className="p-2 sm:p-3">
               <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Pending Due</p>
-              <p className="text-sm sm:text-base font-bold text-red-600 truncate">
-                ₹{totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-              </p>
+              <p className="text-sm sm:text-base font-bold text-red-600 truncate">₹{fmtINR(totalDue)}</p>
             </CardContent>
           </Card>
           <Card className="border-l-4 border-l-blue-400">
@@ -175,91 +188,241 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
           </Card>
         </div>
 
-        {/* Head-wise Breakdown */}
-        {headSummary.length > 0 && (
-          <div className="mb-3">
-            <h3 className="text-sm font-semibold mb-2 text-muted-foreground">Fee Head Breakdown</h3>
-            <div className="border rounded-md overflow-hidden">
+        {/* Tabs */}
+        <div className="flex gap-2 border-b mb-3">
+          {(['summary', 'heads', 'ledger'] as const).map(tab => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`px-3 py-1.5 text-sm font-medium border-b-2 transition-colors capitalize ${
+                activeTab === tab
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {tab === 'heads' ? 'Fee Heads' : tab === 'ledger' ? 'Full Ledger' : 'Payment History'}
+            </button>
+          ))}
+        </div>
+
+        {/* Summary Tab - Payment History */}
+        {activeTab === 'summary' && (
+          <>
+            <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+              <Receipt className="h-4 w-4" />
+              Payment History ({realPayments.length})
+            </h3>
+            <ScrollArea className="flex-1 h-[40vh]">
+              {paymentsLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : realPayments.length > 0 ? (
+                <Table>
+                  <TableHeader className="bg-background">
+                    <TableRow className="border-b-2 border-border">
+                      <TableHead className="text-foreground font-bold">Receipt #</TableHead>
+                      <TableHead className="text-foreground font-bold">Date</TableHead>
+                      <TableHead className="text-foreground font-bold">Fee Head</TableHead>
+                      <TableHead className="text-foreground font-bold">Method</TableHead>
+                      <TableHead className="text-right text-foreground font-bold">Amount</TableHead>
+                      <TableHead className="text-center text-foreground font-bold">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {realPayments.map((payment: any) => (
+                      <TableRow key={payment.id}>
+                        <TableCell className="font-medium text-sm">{payment.payment_receipt_id || "-"}</TableCell>
+                        <TableCell className="text-sm">
+                          {payment.paid_date ? format(new Date(payment.paid_date), "dd/MM/yyyy") : "-"}
+                        </TableCell>
+                        <TableCell className="text-sm">{payment.fee_heads?.head_name || "Yearly Fees 2025-26"}</TableCell>
+                        <TableCell className="text-sm">
+                          <Badge variant="outline">{payment.payment_method || "-"}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-medium tabular-nums text-sm">
+                          ₹{fmtINR(payment.paid_amount || 0)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant={payment.status === "paid" ? "default" : "secondary"}>
+                            {payment.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <IndianRupee className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">No fee payments recorded yet.</p>
+                </div>
+              )}
+            </ScrollArea>
+          </>
+        )}
+
+        {/* Fee Heads Tab */}
+        {activeTab === 'heads' && (
+          <>
+            {headSummary.length > 0 ? (
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold mb-2 text-muted-foreground">Fee Head Breakdown</h3>
+                <div className="border rounded-md overflow-hidden">
+                  <Table>
+                    <TableHeader className="bg-background">
+                      <TableRow className="border-b-2 border-border">
+                        <TableHead className="text-foreground font-bold">Fee Head</TableHead>
+                        <TableHead className="text-right text-foreground font-bold">Total</TableHead>
+                        <TableHead className="text-right text-foreground font-bold">Paid</TableHead>
+                        <TableHead className="text-right text-foreground font-bold">Balance</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {headSummary.map((h, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-medium">{h.headName}</TableCell>
+                          <TableCell className="text-right tabular-nums">₹{fmtINR(h.total)}</TableCell>
+                          <TableCell className="text-right tabular-nums text-green-600">₹{fmtINR(h.paid)}</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            <span className={h.balance > 0 ? "text-red-600 font-medium" : "text-green-600"}>
+                              ₹{fmtINR(h.balance)}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <p className="text-sm">No fee structures defined for this student's class.</p>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Full Ledger Tab */}
+        {activeTab === 'ledger' && (
+          <ScrollArea className="flex-1 h-[40vh]">
+            {paymentsLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : (
               <Table>
-                <TableHeader className="bg-background">
-                  <TableRow className="border-b-2 border-border">
-                    <TableHead className="text-foreground font-bold">Fee Head</TableHead>
-                    <TableHead className="text-right text-foreground font-bold">Total</TableHead>
-                    <TableHead className="text-right text-foreground font-bold">Paid</TableHead>
-                    <TableHead className="text-right text-foreground font-bold">Balance</TableHead>
+                <TableHeader className="bg-background sticky top-0">
+                  <TableRow className="border-b-2">
+                    <TableHead className="font-bold">Date</TableHead>
+                    <TableHead className="font-bold">Receipt #</TableHead>
+                    <TableHead className="font-bold">Description</TableHead>
+                    <TableHead className="font-bold">Method</TableHead>
+                    <TableHead className="text-right font-bold text-red-600">Debit (Due)</TableHead>
+                    <TableHead className="text-right font-bold text-green-600">Credit (Paid)</TableHead>
+                    <TableHead className="text-right font-bold">Balance</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {headSummary.map((h, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="font-medium">{h.headName}</TableCell>
-                      <TableCell className="text-right tabular-nums">₹{h.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
-                      <TableCell className="text-right tabular-nums text-green-600">₹{h.paid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        <span className={h.balance > 0 ? "text-red-600 font-medium" : "text-green-600"}>
-                          ₹{h.balance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  {/* Opening balance row */}
+                  {hasStructures && (
+                    <TableRow className="bg-blue-50/50 dark:bg-blue-950/20">
+                      <TableCell className="text-xs text-muted-foreground">Opening</TableCell>
+                      <TableCell>—</TableCell>
+                      <TableCell className="font-medium text-sm">Fee Structure (Annual Due)</TableCell>
+                      <TableCell>—</TableCell>
+                      <TableCell className="text-right font-bold text-red-600">₹{fmtINR(totalExpected)}</TableCell>
+                      <TableCell className="text-right">—</TableCell>
+                      <TableCell className="text-right font-bold">₹{fmtINR(totalExpected)}</TableCell>
+                    </TableRow>
+                  )}
+                  {!hasStructures && importedBalance > 0 && (
+                    <TableRow className="bg-orange-50/50 dark:bg-orange-950/20">
+                      <TableCell className="text-xs text-muted-foreground">Opening</TableCell>
+                      <TableCell>—</TableCell>
+                      <TableCell className="font-medium text-sm">Closing Balance (Previous Year)</TableCell>
+                      <TableCell>—</TableCell>
+                      <TableCell className="text-right font-bold text-orange-600">₹{fmtINR(importedBalance)}</TableCell>
+                      <TableCell className="text-right">—</TableCell>
+                      <TableCell className="text-right font-bold text-orange-600">₹{fmtINR(importedBalance)}</TableCell>
+                    </TableRow>
+                  )}
+                  {/* Payment / adjustment rows */}
+                  {ledgerEntries.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-6 text-muted-foreground text-sm">
+                        No payments recorded yet
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    ledgerEntries.map((entry: any) =>
+                      entry.status === 'balance_adjustment' ? (
+                        <TableRow key={entry.id} className="bg-amber-50/30 dark:bg-amber-950/10">
+                          <TableCell className="text-sm">
+                            {entry.paid_date ? format(new Date(entry.paid_date), 'dd/MM/yyyy') : '—'}
+                          </TableCell>
+                          <TableCell className="text-xs text-amber-600">{entry.payment_receipt_id}</TableCell>
+                          <TableCell className="text-sm text-amber-700 font-medium">
+                            ⚙ Balance Adjustment
+                            {entry.notes && <span className="text-xs block text-muted-foreground">{entry.notes}</span>}
+                          </TableCell>
+                          <TableCell>—</TableCell>
+                          <TableCell className="text-right text-amber-600 font-semibold">
+                            ₹{fmtINR(entry.amount || 0)}
+                          </TableCell>
+                          <TableCell className="text-right">—</TableCell>
+                          <TableCell className="text-right font-bold text-amber-600">
+                            ₹{fmtINR(entry.balanceAfter)}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        <TableRow key={entry.id}>
+                          <TableCell className="text-sm">
+                            {entry.paid_date ? format(new Date(entry.paid_date), 'dd/MM/yyyy') : '—'}
+                          </TableCell>
+                          <TableCell className="text-sm font-medium text-primary">
+                            {entry.payment_receipt_id || '—'}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {entry.fee_heads?.head_name || 'Fees Paid'}
+                            {entry.notes && <span className="text-xs text-muted-foreground ml-1">({entry.notes})</span>}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">{entry.payment_method || '—'}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right text-sm text-muted-foreground">—</TableCell>
+                          <TableCell className="text-right font-semibold text-sm text-green-600">
+                            ₹{fmtINR(entry.paid_amount || 0)}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-sm">
+                            <span className={entry.balanceAfter > 0 ? 'text-red-600' : 'text-green-600'}>
+                              ₹{fmtINR(entry.balanceAfter)}
+                              {entry.balanceAfter === 0 && ' ✓'}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    )
+                  )}
+                  {/* Totals row */}
+                  {ledgerEntries.filter((e: any) => e.status !== 'balance_adjustment').length > 0 && (
+                    <TableRow className="bg-muted/30 font-bold border-t-2">
+                      <TableCell colSpan={5} className="text-right text-sm">TOTALS</TableCell>
+                      <TableCell className="text-right text-green-600">₹{fmtINR(totalPaid)}</TableCell>
+                      <TableCell className="text-right">
+                        <span className={totalDue > 0 ? 'text-red-600' : 'text-green-600'}>
+                          ₹{fmtINR(totalDue)}
+                          {totalDue === 0 ? ' (Settled)' : ' (Pending)'}
                         </span>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )}
                 </TableBody>
               </Table>
-            </div>
-          </div>
+            )}
+          </ScrollArea>
         )}
-
-        {/* Payment History */}
-        <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
-          <Receipt className="h-4 w-4" />
-          Payment History ({feePayments?.length || 0})
-        </h3>
-        <ScrollArea className="flex-1 h-[40vh]">
-          {paymentsLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
-          ) : feePayments && feePayments.length > 0 ? (
-            <Table>
-              <TableHeader className="bg-background">
-                <TableRow className="border-b-2 border-border">
-                  <TableHead className="text-foreground font-bold">Receipt #</TableHead>
-                  <TableHead className="text-foreground font-bold">Date</TableHead>
-                  <TableHead className="text-foreground font-bold">Fee Head</TableHead>
-                  <TableHead className="text-foreground font-bold">Method</TableHead>
-                  <TableHead className="text-right text-foreground font-bold">Amount</TableHead>
-                  <TableHead className="text-center text-foreground font-bold">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {feePayments.map((payment: any) => (
-                  <TableRow key={payment.id}>
-                    <TableCell className="font-medium text-sm">{payment.payment_receipt_id || "-"}</TableCell>
-                    <TableCell className="text-sm">
-                      {payment.paid_date ? format(new Date(payment.paid_date), "dd/MM/yyyy") : "-"}
-                    </TableCell>
-                    <TableCell className="text-sm">{payment.fee_heads?.head_name || "Yearly Fees 2025-26"}</TableCell>
-                    <TableCell className="text-sm">
-                      <Badge variant="outline">{payment.payment_method || "-"}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-medium tabular-nums text-sm">
-                      ₹{(payment.paid_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={payment.status === "paid" ? "default" : "secondary"}>
-                        {payment.status}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <IndianRupee className="h-10 w-10 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">No fee payments recorded yet.</p>
-            </div>
-          )}
-        </ScrollArea>
       </DialogContent>
     </Dialog>
   );
