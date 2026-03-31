@@ -183,6 +183,14 @@ const PurchaseEntry = () => {
   const [selectedForPrint, setSelectedForPrint] = useState<Set<string>>(new Set());
   const [pendingSaveItems, setPendingSaveItems] = useState<LineItem[]>([]);
   
+  // Pagination for large bills
+  const [visibleItemCount, setVisibleItemCount] = useState(100);
+  const ITEMS_PER_PAGE = 100;
+  
+  // Draft loading state
+  const [draftLoading, setDraftLoading] = useState(false);
+  const [draftLoadProgress, setDraftLoadProgress] = useState({ loaded: 0, total: 0 });
+  
   // State for tracking newly added items for smart barcode printing
   const [newlyAddedItems, setNewlyAddedItems] = useState<LineItem[]>([]);
   const [savedBillId, setSavedBillId] = useState<string | null>(null);
