@@ -3150,9 +3150,9 @@ const PurchaseEntry = () => {
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 min-w-0">
                 <Label htmlFor="supplier_name">Supplier *</Label>
-                <div className="flex gap-2">
+                <div className="flex gap-1 min-w-0">
                   <Select
                     value={billData.supplier_id}
                     onValueChange={(value) => {
