@@ -145,8 +145,8 @@ const POSDashboard = () => {
   const [previewSale, setPreviewSale] = useState<Sale | null>(null);
   const [previewFinancerDetails, setPreviewFinancerDetails] = useState<any>(null);
   const [previewCustomerData, setPreviewCustomerData] = useState<{ gst_number?: string; transport_details?: string } | null>(null);
-  const [posBillFormat, setPosBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal' | null>(null);
-  const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
+  const [posBillFormat, setPosBillFormat] = useState<string | null>(null);
+  const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<string>('professional');
 
   // Handle period filter changes
   const handlePeriodChange = (period: string) => {
@@ -2072,16 +2072,10 @@ const POSDashboard = () => {
         width: posBillFormat === 'a4' ? '210mm' : 
                posBillFormat === 'a5-horizontal' ? '210mm' : 
                posBillFormat === 'thermal' ? '80mm' : '148mm',
-        minHeight: posBillFormat === 'a4' ? '297mm' : 
-                   posBillFormat === 'a5-horizontal' ? '148mm' : 
-                   posBillFormat === 'thermal' ? 'auto' : '210mm',
-        maxHeight: posBillFormat === 'thermal' ? 'none' : 
-                   posBillFormat === 'a4' ? '297mm' : 
-                   posBillFormat === 'a5-horizontal' ? '148mm' : '210mm',
         opacity: 0, 
         pointerEvents: 'none',
         zIndex: -1,
-        overflow: 'hidden'
+        overflow: 'visible'
       }}>
         {printData && (
           <InvoiceWrapper

@@ -15,8 +15,8 @@ import { Printer, X } from 'lucide-react';
 interface PrintPreviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  renderInvoice: (format: 'a4' | 'a5' | 'a5-horizontal' | 'thermal') => React.ReactNode;
-  defaultFormat?: 'a4' | 'a5' | 'a5-horizontal' | 'thermal';
+  renderInvoice: (format: string) => React.ReactNode;
+  defaultFormat?: string;
   onPrint?: () => void;
 }
 
@@ -27,7 +27,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
   defaultFormat = 'a4',
   onPrint,
 }) => {
-  const [selectedFormat, setSelectedFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal'>(defaultFormat);
+  const [selectedFormat, setSelectedFormat] = useState<string>(defaultFormat);
   const [isLoading, setIsLoading] = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
 
