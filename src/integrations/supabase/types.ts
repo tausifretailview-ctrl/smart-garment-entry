@@ -6525,6 +6525,10 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: string
       }
+      generate_delivery_challan_number: {
+        Args: { p_organization_id: string }
+        Returns: string
+      }
       generate_fee_receipt_number: {
         Args: { p_organization_id: string }
         Returns: string
@@ -6552,6 +6556,10 @@ export type Database = {
         Returns: string
       }
       generate_quotation_number: {
+        Args: { p_organization_id: string }
+        Returns: string
+      }
+      generate_receipt_number: {
         Args: { p_organization_id: string }
         Returns: string
       }
