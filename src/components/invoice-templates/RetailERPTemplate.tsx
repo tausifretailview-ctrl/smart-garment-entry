@@ -245,7 +245,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             <div style={{ border: B2, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", justifyContent: "space-between" }}>
 
               {/* ===== HEADER ===== */}
-              <div style={{ borderBottom: B2, padding: isA4 ? "8px 10px 6px" : "5px 8px 4px", position: "relative" }}>
+              <div style={{ borderBottom: B2, padding: isA4 ? "5px 10px 4px" : "3px 8px 3px", position: "relative" }}>
                 {logoUrl && (
                   <img
                     src={logoUrl}
