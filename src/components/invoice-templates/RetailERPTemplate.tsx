@@ -283,8 +283,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               </div>
 
               {/* ===== BILL TO + INVOICE INFO ===== */}
-              <div style={{ display: "flex", borderBottom: B, fontSize: fsHeader, lineHeight: 1.5 }}>
-                <div style={{ flex: 1, padding: isA4 ? "4px 8px" : "3px 6px", borderRight: B }}>
+              <div style={{ display: "flex", borderBottom: B, fontSize: fsHeader, lineHeight: 1.3 }}>
+                <div style={{ flex: 1, padding: isA4 ? "2px 8px" : "2px 6px", borderRight: B }}>
                   <div style={{ fontWeight: "bold" }}>BILL TO:</div>
                   <div style={{ fontWeight: "bold", fontSize: fsCustName }}>{customerName || "Walk-in Customer"}</div>
                   {customerAddress && <div style={{ fontSize: fsCustDetail }}>{customerAddress}</div>}
