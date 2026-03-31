@@ -378,7 +378,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                 style={{ display: "grid", gridTemplateColumns: "60% 40%", borderTop: B2, fontSize: fsBody }}
               >
                 {/* Left Column */}
-                <div style={{ borderRight: B, padding: "6px 8px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                <div style={{ borderRight: B, padding: isA4 ? "6px 8px" : "4px 6px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                   <div>
                     {termsConditions.length > 0 && (
                       <div>
