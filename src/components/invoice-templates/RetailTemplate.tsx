@@ -388,7 +388,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                         </ul>
                       </div>
                     )}
-                    {notes && (
+                    {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
                       <div style={{ marginTop: termsConditions.length > 0 ? "4px" : "0", paddingTop: termsConditions.length > 0 ? "4px" : "0", borderTop: termsConditions.length > 0 ? "1px dashed #999" : "none", fontSize: isA4 ? "10px" : "8px", fontStyle: "italic" }}>
                         <strong style={{ fontStyle: "normal" }}>Note:</strong> {notes}
                       </div>

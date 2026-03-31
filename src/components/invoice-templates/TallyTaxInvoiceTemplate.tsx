@@ -444,7 +444,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
         </div>
 
         {/* Notes Section */}
-        {notes && notes.trim() && (
+        {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
           <div style={{ borderTop: b, padding: '3px 8px', flexShrink: 0 }}>
             <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
               <span style={{ fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap', minWidth: '40px' }}>Note:</span>

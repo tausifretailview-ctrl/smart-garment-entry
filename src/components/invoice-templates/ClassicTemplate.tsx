@@ -424,7 +424,7 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
         )}
 
         {/* Notes Section */}
-        {notes && (
+        {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
           <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#fff9e6', borderLeft: `4px solid ${colors.primary}`, borderRadius: '4px' }}>
             <strong style={{ color: colors.primary }}>Note:</strong> <span style={{ fontStyle: 'italic' }}>{notes}</span>
           </div>
