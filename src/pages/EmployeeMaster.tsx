@@ -65,6 +65,7 @@ const EmployeeMaster = () => {
     status: "active",
     field_sales_access: false,
     user_id: "" as string,
+    commission_percent: 1,
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
