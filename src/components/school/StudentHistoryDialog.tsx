@@ -96,7 +96,11 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
   const totalExpected = hasStructures ? structureTotal : importedBalance;
   
   // Separate real payments from balance adjustments
-  const realPayments = (feePayments || []).filter((p: any) => p.status !== "balance_adjustment");
+  const allRealPayments = (feePayments || []).filter((p: any) => p.status !== "balance_adjustment");
+  // For structure-based: only count current year payments; for imported balance: count all
+  const realPayments = hasStructures && currentYear?.id
+    ? allRealPayments.filter((p: any) => p.academic_year_id === currentYear.id)
+    : allRealPayments;
   const totalPaid = realPayments.reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
   const totalDue = Math.max(0, totalExpected - totalPaid);
 
