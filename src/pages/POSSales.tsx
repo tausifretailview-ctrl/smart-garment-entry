@@ -2963,10 +2963,11 @@ export default function POSSales() {
       setIsHeldSale(false);
       setSaleNotes("");
       
-      // Refetch today's sales and dashboard data
+      // Refetch today's sales, dashboard data, and held bills
       await queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
       await queryClient.invalidateQueries({ queryKey: ['pos-dashboard'] });
       await queryClient.refetchQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
+      await refetchHeldBills();
     }
   };
 
