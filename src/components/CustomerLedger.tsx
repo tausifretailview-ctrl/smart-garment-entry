@@ -152,19 +152,22 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           });
         }
 
-        // Fetch fee payment totals per student (only paid_amount matters)
-        const feesQuery: any = supabase
+        // Fetch ALL fee payments (no year filter) so we can scope per student type
+        const { data: feeTotals } = await supabase
           .from('student_fees')
-          .select('student_id, paid_amount')
+          .select('student_id, paid_amount, academic_year_id, status')
           .eq('organization_id', organizationId);
-        if (currentYear?.id) {
-          feesQuery.eq('academic_year_id', currentYear.id);
-        }
-        const { data: feeTotals } = await feesQuery;
 
-        const studentPaidTotals = new Map<string, number>();
+        // Build two maps: year-scoped (for structure students) and all-time (for imported balance students)
+        const studentPaidInYear = new Map<string, number>();
+        const studentPaidAll = new Map<string, number>();
         feeTotals?.forEach((f: any) => {
-          studentPaidTotals.set(f.student_id, (studentPaidTotals.get(f.student_id) || 0) + (f.paid_amount || 0));
+          if (f.status === 'balance_adjustment') return; // exclude manual adjustments
+          const amt = f.paid_amount || 0;
+          studentPaidAll.set(f.student_id, (studentPaidAll.get(f.student_id) || 0) + amt);
+          if (currentYear?.id && f.academic_year_id === currentYear.id) {
+            studentPaidInYear.set(f.student_id, (studentPaidInYear.get(f.student_id) || 0) + amt);
+          }
         });
 
         // Build school customer totals — mirror fee collection logic:
@@ -176,7 +179,10 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             const structureTotal = classExpectedMap.get(student.class_id) || 0;
             const hasStructures = structureTotal > 0;
             const importedBalance = student.closing_fees_balance || 0;
-            const totalPaid = studentPaidTotals.get(student.id) || 0;
+            // Structure students: count only current year payments; imported balance: count ALL payments
+            const totalPaid = hasStructures
+              ? (studentPaidInYear.get(student.id) || 0)
+              : (studentPaidAll.get(student.id) || 0);
 
             // Match fee collection logic: structures OR imported balance, never both
             const expectedTotal = hasStructures ? structureTotal : importedBalance;

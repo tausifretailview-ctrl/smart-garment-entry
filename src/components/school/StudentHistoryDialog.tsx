@@ -48,22 +48,18 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
   });
 
   // Fetch all fee payments for this student (include balance_adjustment entries)
+  // Fetch ALL payments — year scoping is handled downstream based on structures vs imported balance
   const { data: feePayments, isLoading: paymentsLoading } = useQuery({
-    queryKey: ["student-fee-payments-history", student?.id, currentOrganization?.id, currentYear?.id],
+    queryKey: ["student-fee-payments-history", student?.id, currentOrganization?.id],
     queryFn: async () => {
       if (!student?.id || !currentOrganization?.id) return [];
-      let query = supabase
+      const { data, error } = await supabase
         .from("student_fees")
         .select("*, fee_heads(head_name)")
         .eq("student_id", student.id)
         .eq("organization_id", currentOrganization.id)
         .order("paid_date", { ascending: false });
 
-      if (currentYear?.id) {
-        query = query.eq("academic_year_id", currentYear.id);
-      }
-
-      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
@@ -100,7 +96,11 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
   const totalExpected = hasStructures ? structureTotal : importedBalance;
   
   // Separate real payments from balance adjustments
-  const realPayments = (feePayments || []).filter((p: any) => p.status !== "balance_adjustment");
+  const allRealPayments = (feePayments || []).filter((p: any) => p.status !== "balance_adjustment");
+  // For structure-based: only count current year payments; for imported balance: count all
+  const realPayments = hasStructures && currentYear?.id
+    ? allRealPayments.filter((p: any) => p.academic_year_id === currentYear.id)
+    : allRealPayments;
   const totalPaid = realPayments.reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
   const totalDue = Math.max(0, totalExpected - totalPaid);
 
@@ -120,7 +120,9 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
   });
 
   // Build ledger entries chronologically (oldest first) for running balance
-  const sortedPayments = [...(feePayments || [])].sort((a: any, b: any) =>
+  // Use ALL payments (not year-filtered) for full ledger visibility
+  const ledgerPayments = (feePayments || []).filter((p: any) => p.status !== "balance_adjustment" || true);
+  const sortedPayments = [...ledgerPayments].sort((a: any, b: any) =>
     new Date(a.paid_date || a.created_at).getTime() - new Date(b.paid_date || b.created_at).getTime()
   );
 
@@ -131,7 +133,7 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
       return { ...p, balanceAfter: runningBalance };
     }
     runningBalance -= (p.paid_amount || 0);
-    return { ...p, balanceAfter: Math.max(0, runningBalance) };
+    return { ...p, balanceAfter: runningBalance };
   });
 
   const fmtINR = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2 });
