@@ -1108,7 +1108,7 @@ const POSDashboard = () => {
 
   const handleExportExcel = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    const exportData = paginatedSales.map((sale: Sale) => ({
+    const exportData = filteredSales.map((sale: Sale) => ({
       'Bill No': sale.sale_number || '',
       'Date': sale.sale_date ? format(new Date(sale.sale_date), 'dd/MM/yyyy') : '',
       'Customer': sale.customer_name || '',
@@ -1129,9 +1129,9 @@ const POSDashboard = () => {
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'POS Sales');
-    XLSX.writeFile(wb, `POS_Sales_Page${currentPage}_${format(new Date(), 'dd-MM-yyyy')}.xlsx`);
+    XLSX.writeFile(wb, `POS_Sales_All_${format(new Date(), 'dd-MM-yyyy')}.xlsx`);
     toast({ title: "Exported", description: `${exportData.length} records exported to Excel` });
-  }, [paginatedSales, currentPage, saleItems, toast]);
+  }, [filteredSales, saleItems, toast]);
 
   // Memoized event handlers (defined after filteredSales/paginatedSales)
   const toggleSelectAll = useCallback(() => {
