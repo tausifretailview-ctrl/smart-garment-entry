@@ -809,6 +809,29 @@ export default function POSSales() {
     refetchOnWindowFocus: false,
   });
 
+  // Held bills query (all-time, not just today)
+  const { data: heldBills = [], refetch: refetchHeldBills } = useQuery({
+    queryKey: ['held-bills', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const { data, error } = await (supabase as any)
+        .from('sales')
+        .select('id, sale_number, sale_date, net_amount, customer_name, customer_phone, notes, created_at, payment_status')
+        .eq('organization_id', currentOrganization.id)
+        .eq('sale_type', 'pos')
+        .eq('payment_status', 'hold')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id,
+    refetchInterval: 30000,
+  });
+
+  const [showHoldPanel, setShowHoldPanel] = useState(false);
+  const [holdSearchQuery, setHoldSearchQuery] = useState('');
+
   // Fetch employees for salesman dropdown
   const { data: employees } = useQuery({
     queryKey: ['pos-employees', currentOrganization?.id],
