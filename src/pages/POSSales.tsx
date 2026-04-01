@@ -2862,7 +2862,64 @@ export default function POSSales() {
     }, 100);
   };
 
-  // Handle putting bill on hold
+  // Filtered held bills + item count helper
+  const filteredHeldBills = heldBills.filter((bill: any) => {
+    if (!holdSearchQuery.trim()) return true;
+    const q = holdSearchQuery.toLowerCase();
+    return (
+      bill.customer_name?.toLowerCase().includes(q) ||
+      bill.sale_number?.toLowerCase().includes(q) ||
+      bill.customer_phone?.includes(q)
+    );
+  });
+
+  const getHoldItemCount = (bill: any) => {
+    try {
+      const d = JSON.parse(bill.notes || '{}');
+      return d.items?.length || 0;
+    } catch { return 0; }
+  };
+
+  // Resume a held bill (auto-saves current cart first if needed)
+  const handleResumeHeldBill = async (bill: any) => {
+    if (items.length > 0 && !isHeldSale) {
+      const holdData = {
+        customerId: customerId || null,
+        customerName: customerName || 'Walk in Customer',
+        customerPhone: customerPhone || null,
+        items,
+        grossAmount: totals.mrp,
+        discountAmount: totals.discount,
+        flatDiscountPercent,
+        flatDiscountAmount,
+        saleReturnAdjust,
+        roundOff,
+        netAmount: finalAmount,
+        notes: saleNotes || null,
+      };
+      await holdSale(holdData);
+    }
+    setShowHoldPanel(false);
+    setHoldSearchQuery('');
+    await loadSaleForEdit(bill.id);
+    await refetchHeldBills();
+  };
+
+  // Delete a held bill (soft delete)
+  const handleDeleteHeldBill = async (billId: string) => {
+    if (!confirm('Delete this held bill permanently?')) return;
+    try {
+      await supabase
+        .from('sales')
+        .update({ deleted_at: new Date().toISOString() } as any)
+        .eq('id', billId);
+      await refetchHeldBills();
+      toast({ title: 'Held bill deleted' });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    }
+  };
+
   const handleHoldBill = async () => {
     if (items.length === 0) {
       toast({
