@@ -338,6 +338,16 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
+                        {(isAdminPermissions || hasMenuAccess("employee_master")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/salesman-commission")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/salesman-commission" className="flex items-center gap-3 group">
+                                <Coins className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Commission</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
                       </SidebarMenuSub>
                     </SidebarMenuItem>
                   </SidebarMenu>
