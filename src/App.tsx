@@ -121,6 +121,7 @@ const PortalCatalogue = lazy(() => import("./pages/portal/PortalCatalogue"));
 const PortalOrders = lazy(() => import("./pages/portal/PortalOrders"));
 const PortalInvoices = lazy(() => import("./pages/portal/PortalInvoices"));
 const PortalAccount = lazy(() => import("./pages/portal/PortalAccount"));
+const SalesmanCommission = lazy(() => import("./pages/SalesmanCommission"));
 
 const LazyFallback = () => (
   <div className="min-h-screen flex items-center justify-center">
