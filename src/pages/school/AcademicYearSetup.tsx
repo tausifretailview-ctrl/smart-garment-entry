@@ -34,11 +34,22 @@ import { Plus, Calendar, Star, Edit, Trash2, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { useSettings } from "@/hooks/useSettings";
 
+const MONTH_NAMES = [
+  { value: "1", label: "January" }, { value: "2", label: "February" },
+  { value: "3", label: "March" }, { value: "4", label: "April (Default)" },
+  { value: "5", label: "May" }, { value: "6", label: "June" },
+  { value: "7", label: "July" }, { value: "8", label: "August" },
+  { value: "9", label: "September" }, { value: "10", label: "October" },
+  { value: "11", label: "November" }, { value: "12", label: "December" },
+];
+
 const AcademicYearSetup = () => {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
+  const { data: settings } = useSettings();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingYear, setEditingYear] = useState<any>(null);
+  const [fyStartMonth, setFyStartMonth] = useState("4");
   const [formData, setFormData] = useState({
     year_name: "",
     start_date: "",
