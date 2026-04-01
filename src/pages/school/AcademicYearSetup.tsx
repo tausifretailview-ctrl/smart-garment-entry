@@ -335,6 +335,36 @@ const AcademicYearSetup = () => {
           </Table>
         </CardContent>
       </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Fee Receipt Financial Year Start Month</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-3">
+            Receipt numbers (RCT/YY-YY/N) reset based on this month. Default is April.
+            Change to June if your fee cycle starts in June.
+          </p>
+          <div className="flex items-center gap-3">
+            <Select
+              value={fyStartMonth}
+              onValueChange={(v) => {
+                setFyStartMonth(v);
+                saveFyMonthMutation.mutate(v);
+              }}
+            >
+              <SelectTrigger className="w-[220px]">
+                <SelectValue placeholder="Select month" />
+              </SelectTrigger>
+              <SelectContent>
+                {MONTH_NAMES.map((m) => (
+                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {saveFyMonthMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
