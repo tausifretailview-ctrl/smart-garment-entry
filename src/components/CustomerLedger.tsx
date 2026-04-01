@@ -179,7 +179,10 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             const structureTotal = classExpectedMap.get(student.class_id) || 0;
             const hasStructures = structureTotal > 0;
             const importedBalance = student.closing_fees_balance || 0;
-            const totalPaid = studentPaidTotals.get(student.id) || 0;
+            // Structure students: count only current year payments; imported balance: count ALL payments
+            const totalPaid = hasStructures
+              ? (studentPaidInYear.get(student.id) || 0)
+              : (studentPaidAll.get(student.id) || 0);
 
             // Match fee collection logic: structures OR imported balance, never both
             const expectedTotal = hasStructures ? structureTotal : importedBalance;
