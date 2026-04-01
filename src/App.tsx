@@ -819,6 +819,18 @@ const App = () => {
                       </RoleProtectedRoute>
                     </ProtectedRoute>
                   }
+                  />
+                <Route
+                  path="salesman-commission"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <FullScreenLayout>
+                          <SalesmanCommission />
+                        </FullScreenLayout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
                 />
 
                 {/* Reports */}
