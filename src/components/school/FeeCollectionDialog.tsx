@@ -169,7 +169,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           .from("fee_structures")
           .select("*, fee_heads!inner(head_name)")
           .eq("organization_id", currentOrganization!.id)
-          .eq("academic_year_id", currentYear.id)
+        .eq("academic_year_id", usedYear!.id)
           .eq("class_id", student.class_id);
         structures = data || [];
       }
