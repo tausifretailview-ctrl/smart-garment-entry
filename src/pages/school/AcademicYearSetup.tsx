@@ -56,6 +56,30 @@ const AcademicYearSetup = () => {
     end_date: "",
   });
 
+  // Load saved FY start month from settings
+  useEffect(() => {
+    const saved = (settings as any)?.sale_settings?.fee_fy_start_month;
+    if (saved) setFyStartMonth(String(saved));
+  }, [settings]);
+
+  const saveFyMonthMutation = useMutation({
+    mutationFn: async (month: string) => {
+      if (!currentOrganization?.id) throw new Error("No organization");
+      const currentSettings = (settings as any)?.sale_settings || {};
+      const updated = { ...currentSettings, fee_fy_start_month: parseInt(month) };
+      const { error } = await supabase
+        .from("settings")
+        .update({ sale_settings: updated } as any)
+        .eq("organization_id", currentOrganization.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["org-settings"] });
+      toast.success("Fee FY start month updated — new receipts will follow this cycle");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const { data: academicYears = [], isLoading } = useQuery({
     queryKey: ["academic-years", currentOrganization?.id],
     queryFn: async () => {
