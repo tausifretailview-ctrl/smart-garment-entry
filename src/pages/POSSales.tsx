@@ -4013,6 +4013,42 @@ export default function POSSales() {
                     </>
                   );
                 })()}
+                {/* Notes Section - Always visible after items */}
+                <div className="min-w-[1280px] p-4 border-t bg-muted/30">
+                  <div className="flex items-center gap-3">
+                    <Label className="text-sm font-medium whitespace-nowrap">
+                      <FileText className="h-4 w-4 inline mr-1" />
+                      Note:
+                    </Label>
+                    <Input
+                      placeholder="Add note (e.g., Pico Fall Details, Alterations, etc.)"
+                      value={saleNotes}
+                      onChange={(e) => setSaleNotes(e.target.value)}
+                      className="flex-1 h-8 text-sm bg-background"
+                    />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Bottom Bar */}
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-gradient-to-r from-slate-800 via-slate-900 to-slate-800 shadow-2xl border-t-2 border-primary/30">
+            <div className="flex items-end w-full px-4 py-2 gap-2 max-w-[100vw] overflow-x-auto">
+              {/* Total Items & Qty */}
+              <div className="text-center px-3">
+                <div className="text-sm font-bold leading-tight text-white">{items.length} / {totals.totalQty}</div>
+                <div className="text-[9px] text-white/60 uppercase font-medium">Items/Qty</div>
+              </div>
+
+              <div className="w-px h-8 bg-white/20 shrink-0" />
+
+              {/* Gross */}
+              <div className="text-center px-3">
+                <div className="text-sm font-bold leading-tight text-white">₹{Math.round(totals.gross).toLocaleString('en-IN')}</div>
+                <div className="text-[9px] text-white/60 uppercase font-medium">Gross</div>
+              </div>
+
             <div className="w-px h-8 bg-white/20 shrink-0" />
             
             {/* Charges */}
