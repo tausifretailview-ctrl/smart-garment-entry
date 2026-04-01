@@ -648,6 +648,70 @@ export type Database = {
           },
         ]
       }
+      commission_rules: {
+        Row: {
+          commission_percent: number
+          created_at: string | null
+          employee_id: string
+          employee_name: string
+          id: string
+          is_active: boolean | null
+          notes: string | null
+          organization_id: string
+          rule_type: string
+          rule_value: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          commission_percent?: number
+          created_at?: string | null
+          employee_id: string
+          employee_name: string
+          id?: string
+          is_active?: boolean | null
+          notes?: string | null
+          organization_id: string
+          rule_type?: string
+          rule_value?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          commission_percent?: number
+          created_at?: string | null
+          employee_id?: string
+          employee_name?: string
+          id?: string
+          is_active?: boolean | null
+          notes?: string | null
+          organization_id?: string
+          rule_type?: string
+          rule_value?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_rules_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       credit_notes: {
         Row: {
           created_at: string | null
@@ -1663,6 +1727,7 @@ export type Database = {
       employees: {
         Row: {
           address: string | null
+          commission_percent: number
           created_at: string | null
           deleted_at: string | null
           deleted_by: string | null
@@ -1680,6 +1745,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          commission_percent?: number
           created_at?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
@@ -1697,6 +1763,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          commission_percent?: number
           created_at?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
@@ -4584,6 +4651,120 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_dashboard_counts"
             referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      salesman_commissions: {
+        Row: {
+          brand: string | null
+          category: string | null
+          commission_amount: number
+          commission_percent: number
+          created_at: string | null
+          customer_name: string | null
+          employee_id: string | null
+          employee_name: string
+          id: string
+          notes: string | null
+          organization_id: string
+          paid_date: string | null
+          paid_voucher_id: string | null
+          payment_status: string | null
+          product_id: string | null
+          product_name: string | null
+          rule_type: string | null
+          sale_amount: number
+          sale_date: string
+          sale_id: string | null
+          sale_number: string
+          style: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          brand?: string | null
+          category?: string | null
+          commission_amount?: number
+          commission_percent?: number
+          created_at?: string | null
+          customer_name?: string | null
+          employee_id?: string | null
+          employee_name: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+          paid_date?: string | null
+          paid_voucher_id?: string | null
+          payment_status?: string | null
+          product_id?: string | null
+          product_name?: string | null
+          rule_type?: string | null
+          sale_amount?: number
+          sale_date: string
+          sale_id?: string | null
+          sale_number: string
+          style?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          brand?: string | null
+          category?: string | null
+          commission_amount?: number
+          commission_percent?: number
+          created_at?: string | null
+          customer_name?: string | null
+          employee_id?: string | null
+          employee_name?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          paid_date?: string | null
+          paid_voucher_id?: string | null
+          payment_status?: string | null
+          product_id?: string | null
+          product_name?: string | null
+          rule_type?: string | null
+          sale_amount?: number
+          sale_date?: string
+          sale_id?: string | null
+          sale_number?: string
+          style?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "salesman_commissions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "salesman_commissions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "salesman_commissions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "salesman_commissions_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "salesman_commissions_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales_with_customer"
+            referencedColumns: ["id"]
           },
         ]
       }

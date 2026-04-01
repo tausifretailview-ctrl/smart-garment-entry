@@ -42,6 +42,7 @@ interface Employee {
   created_at: string;
   field_sales_access: boolean;
   user_id: string | null;
+  commission_percent: number;
 }
 
 interface OrgUser {
@@ -64,6 +65,7 @@ const EmployeeMaster = () => {
     status: "active",
     field_sales_access: false,
     user_id: "" as string,
+    commission_percent: 1,
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -146,7 +148,7 @@ const EmployeeMaster = () => {
   });
 
   const resetForm = () => {
-    setFormData({ employee_name: "", phone: "", email: "", address: "", designation: "", joining_date: "", status: "active", field_sales_access: false, user_id: "" });
+    setFormData({ employee_name: "", phone: "", email: "", address: "", designation: "", joining_date: "", status: "active", field_sales_access: false, user_id: "", commission_percent: 1 });
     setEditingEmployee(null);
   };
 
@@ -162,6 +164,7 @@ const EmployeeMaster = () => {
       employee_name: employee.employee_name, phone: employee.phone || "", email: employee.email || "",
       address: employee.address || "", designation: employee.designation || "", joining_date: employee.joining_date || "",
       status: employee.status, field_sales_access: employee.field_sales_access || false, user_id: employee.user_id || "",
+      commission_percent: employee.commission_percent ?? 1,
     });
     setIsDialogOpen(true);
   };
@@ -180,6 +183,11 @@ const EmployeeMaster = () => {
   const tableColumns = useMemo<ColumnDef<Employee, any>[]>(() => [
     { accessorKey: "employee_name", header: "Employee Name", cell: ({ row }) => <span className="font-medium">{row.original.employee_name}</span>, size: 200 },
     { accessorKey: "designation", header: "Designation", cell: ({ row }) => row.original.designation || "-", size: 150 },
+    {
+      accessorKey: "commission_percent", header: "Commission %",
+      cell: ({ row }) => <span className="font-semibold text-emerald-700 dark:text-emerald-400 text-center block">{(row.original.commission_percent ?? 1).toFixed(1)}%</span>,
+      size: 110,
+    },
     { accessorKey: "phone", header: "Phone", cell: ({ row }) => row.original.phone || "-", size: 130 },
     { accessorKey: "email", header: "Email", cell: ({ row }) => row.original.email || "-", size: 180 },
     {
@@ -259,6 +267,15 @@ const EmployeeMaster = () => {
                 <div>
                   <Label htmlFor="designation">Designation</Label>
                   <Input id="designation" value={formData.designation} onChange={(e) => setFormData({ ...formData, designation: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="commission_percent">
+                    Commission % <span className="text-xs text-muted-foreground ml-2 font-normal">default 1% = ₹1 per ₹100 sale</span>
+                  </Label>
+                  <div className="flex items-center gap-3">
+                    <Input id="commission_percent" type="number" min="0" max="100" step="0.1" value={formData.commission_percent} onChange={(e) => setFormData({ ...formData, commission_percent: parseFloat(e.target.value) || 0 })} className="w-28" placeholder="1.0" />
+                    <span className="text-sm text-muted-foreground">= ₹{(formData.commission_percent || 0).toFixed(2)} earned per ₹100 sale</span>
+                  </div>
                 </div>
                 <div>
                   <Label htmlFor="phone">Phone</Label>
