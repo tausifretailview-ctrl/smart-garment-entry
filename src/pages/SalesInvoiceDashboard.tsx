@@ -824,29 +824,71 @@ export default function SalesInvoiceDashboard() {
     undeliveredAmount: 0,
   };
 
-  const handleExportExcel = useCallback((e: React.MouseEvent) => {
+  const handleExportExcel = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const exportData = filteredInvoices.map((inv: any) => ({
-      'Invoice No': inv.sale_number || '',
-      'Date': inv.sale_date ? format(new Date(inv.sale_date), 'dd/MM/yyyy') : '',
-      'Customer': inv.customer_name || '',
-      'Phone': inv.customer_phone || '',
-      'Qty': inv.total_qty || 0,
-      'Gross Amount': inv.gross_amount || 0,
-      'Discount': (inv.discount_amount || 0) + (inv.flat_discount_amount || 0),
-      'Net Amount': inv.net_amount || 0,
-      'Paid Amount': inv.paid_amount || 0,
-      'Balance': (inv.net_amount || 0) - (inv.paid_amount || 0),
-      'Payment Status': inv.payment_status || '',
-      'Delivery Status': inv.delivery_status || '',
-      'Salesman': inv.salesman || '',
-    }));
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Sales Invoices');
-    XLSX.writeFile(wb, `Sales_Invoices_All_${format(new Date(), 'dd-MM-yyyy')}.xlsx`);
-    toast({ title: "Exported", description: `${exportData.length} records exported to Excel` });
-  }, [filteredInvoices, toast]);
+    try {
+      toast({ title: "Exporting...", description: "Fetching all records for export" });
+
+      // Fetch ALL matching invoices (no pagination) with same filters
+      const allRows: any[] = [];
+      let offset = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        let query = supabase
+          .from('sales')
+          .select('sale_number, sale_date, customer_name, customer_phone, total_qty, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, payment_status, delivery_status, salesman')
+          .eq('organization_id', currentOrganization!.id)
+          .eq('sale_type', 'invoice')
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .range(offset, offset + pageSize - 1);
+
+        if (deliveryFilter !== 'all') query = query.eq('delivery_status', deliveryFilter);
+        if (paymentStatusFilter !== 'all') query = query.eq('payment_status', paymentStatusFilter);
+        if (queryDateRange.start) query = query.gte('sale_date', queryDateRange.start);
+        if (queryDateRange.end) query = query.lte('sale_date', queryDateRange.end);
+        if (debouncedSearch) {
+          const s = debouncedSearch.trim();
+          query = query.or(`sale_number.ilike.%${s}%,customer_name.ilike.%${s}%,customer_phone.ilike.%${s}%`);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allRows.push(...data);
+          offset += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const exportData = allRows.map((inv: any) => ({
+        'Invoice No': inv.sale_number || '',
+        'Date': inv.sale_date ? format(new Date(inv.sale_date), 'dd/MM/yyyy') : '',
+        'Customer': inv.customer_name || '',
+        'Phone': inv.customer_phone || '',
+        'Qty': inv.total_qty || 0,
+        'Gross Amount': inv.gross_amount || 0,
+        'Discount': (inv.discount_amount || 0) + (inv.flat_discount_amount || 0),
+        'Net Amount': inv.net_amount || 0,
+        'Paid Amount': inv.paid_amount || 0,
+        'Balance': (inv.net_amount || 0) - (inv.paid_amount || 0),
+        'Payment Status': inv.payment_status || '',
+        'Delivery Status': inv.delivery_status || '',
+        'Salesman': inv.salesman || '',
+      }));
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Sales Invoices');
+      XLSX.writeFile(wb, `Sales_Invoices_All_${format(new Date(), 'dd-MM-yyyy')}.xlsx`);
+      toast({ title: "Exported", description: `${exportData.length} records exported to Excel` });
+    } catch (err: any) {
+      toast({ title: "Export Failed", description: err.message, variant: "destructive" });
+    }
+  }, [currentOrganization?.id, deliveryFilter, paymentStatusFilter, queryDateRange, debouncedSearch, toast]);
 
   // Memoized event handlers
   const toggleSelectAll = useCallback(() => {
