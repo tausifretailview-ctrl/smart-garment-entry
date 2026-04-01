@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -21,20 +21,63 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Plus, Calendar, Star, Edit, Trash2, Loader2 } from "lucide-react";
 import { format } from "date-fns";
+import { useSettings } from "@/hooks/useSettings";
+
+const MONTH_NAMES = [
+  { value: "1", label: "January" }, { value: "2", label: "February" },
+  { value: "3", label: "March" }, { value: "4", label: "April (Default)" },
+  { value: "5", label: "May" }, { value: "6", label: "June" },
+  { value: "7", label: "July" }, { value: "8", label: "August" },
+  { value: "9", label: "September" }, { value: "10", label: "October" },
+  { value: "11", label: "November" }, { value: "12", label: "December" },
+];
 
 const AcademicYearSetup = () => {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
+  const { data: settings } = useSettings();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingYear, setEditingYear] = useState<any>(null);
+  const [fyStartMonth, setFyStartMonth] = useState("4");
   const [formData, setFormData] = useState({
     year_name: "",
     start_date: "",
     end_date: "",
+  });
+
+  // Load saved FY start month from settings
+  useEffect(() => {
+    const saved = (settings as any)?.sale_settings?.fee_fy_start_month;
+    if (saved) setFyStartMonth(String(saved));
+  }, [settings]);
+
+  const saveFyMonthMutation = useMutation({
+    mutationFn: async (month: string) => {
+      if (!currentOrganization?.id) throw new Error("No organization");
+      const currentSettings = (settings as any)?.sale_settings || {};
+      const updated = { ...currentSettings, fee_fy_start_month: parseInt(month) };
+      const { error } = await supabase
+        .from("settings")
+        .update({ sale_settings: updated } as any)
+        .eq("organization_id", currentOrganization.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["org-settings"] });
+      toast.success("Fee FY start month updated — new receipts will follow this cycle");
+    },
+    onError: (e: any) => toast.error(e.message),
   });
 
   const { data: academicYears = [], isLoading } = useQuery({
@@ -290,6 +333,36 @@ const AcademicYearSetup = () => {
               )}
             </TableBody>
           </Table>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Fee Receipt Financial Year Start Month</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-3">
+            Receipt numbers (RCT/YY-YY/N) reset based on this month. Default is April.
+            Change to June if your fee cycle starts in June.
+          </p>
+          <div className="flex items-center gap-3">
+            <Select
+              value={fyStartMonth}
+              onValueChange={(v) => {
+                setFyStartMonth(v);
+                saveFyMonthMutation.mutate(v);
+              }}
+            >
+              <SelectTrigger className="w-[220px]">
+                <SelectValue placeholder="Select month" />
+              </SelectTrigger>
+              <SelectContent>
+                {MONTH_NAMES.map((m) => (
+                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {saveFyMonthMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+          </div>
         </CardContent>
       </Card>
     </div>
