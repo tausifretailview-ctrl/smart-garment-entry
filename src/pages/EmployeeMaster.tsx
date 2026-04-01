@@ -183,6 +183,11 @@ const EmployeeMaster = () => {
   const tableColumns = useMemo<ColumnDef<Employee, any>[]>(() => [
     { accessorKey: "employee_name", header: "Employee Name", cell: ({ row }) => <span className="font-medium">{row.original.employee_name}</span>, size: 200 },
     { accessorKey: "designation", header: "Designation", cell: ({ row }) => row.original.designation || "-", size: 150 },
+    {
+      accessorKey: "commission_percent", header: "Commission %",
+      cell: ({ row }) => <span className="font-semibold text-emerald-700 dark:text-emerald-400 text-center block">{(row.original.commission_percent ?? 1).toFixed(1)}%</span>,
+      size: 110,
+    },
     { accessorKey: "phone", header: "Phone", cell: ({ row }) => row.original.phone || "-", size: 130 },
     { accessorKey: "email", header: "Email", cell: ({ row }) => row.original.email || "-", size: 180 },
     {
