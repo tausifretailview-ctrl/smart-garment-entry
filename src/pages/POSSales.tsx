@@ -2162,6 +2162,11 @@ export default function POSSales() {
         salesman: selectedSalesman || null,
       };
       
+      // Auto-record salesman commission
+      if (selectedSalesman && !wasEditing) {
+        createCommissionRecords(result.id, result.sale_number, result.sale_date || new Date().toISOString().split('T')[0], selectedSalesman, result.net_amount);
+      }
+
       // Clear the form immediately after successful save (reset to new blank invoice)
       setItems([]);
       setCustomerId("");
