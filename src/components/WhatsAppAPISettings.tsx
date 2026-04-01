@@ -1073,6 +1073,23 @@ export const WhatsAppAPISettings = () => {
                     <span className="text-green-700 dark:text-green-400 font-medium"> ✓ Bypasses 24-hour window restriction!</span>
                   </p>
 
+                  {/* Step by step guide */}
+                  <div className="mt-3 ml-6 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800 space-y-2">
+                    <p className="text-xs font-semibold text-blue-800 dark:text-blue-300">How to create a DOCUMENT template in Meta:</p>
+                    <ol className="text-xs text-blue-700 dark:text-blue-400 space-y-1 list-decimal list-inside">
+                      <li>Go to <strong>Meta Business Manager → WhatsApp Manager → Message Templates</strong></li>
+                      <li>Click <strong>Create Template</strong></li>
+                      <li>Category: Select <strong>UTILITY</strong> (for transactional invoices)</li>
+                      <li>Header Type: Select <strong>Document</strong> (this is key)</li>
+                      <li>Body: Add your message e.g. <em>"Dear {"{{"}1{"}}"}, your invoice {"{{"}2{"}}"} for ₹{"{{"}3{"}}"} is attached."</em></li>
+                      <li>Submit for review — Meta approves in 24–72 hours</li>
+                      <li>Once approved, come back here and select it below</li>
+                    </ol>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                      <strong>Alternative:</strong> Use "Standard Attachment" mode — it sends the text template first, then the PDF as a separate message. Works immediately without approval but requires customer to have interacted within 24 hours.
+                    </p>
+                  </div>
+
                   {formData.use_document_header_template && (
                     <div className="space-y-3 mt-3 ml-6">
                       <Label className="text-sm">Document Header Template</Label>
