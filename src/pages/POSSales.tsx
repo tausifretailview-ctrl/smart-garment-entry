@@ -843,13 +843,27 @@ export default function POSSales() {
       if (!currentOrganization?.id) return [];
       const { data, error } = await supabase
         .from('employees')
-        .select('id, employee_name, designation')
+        .select('id, employee_name, designation, commission_percent')
         .eq('organization_id', currentOrganization.id)
         .is('deleted_at', null)
         .eq('status', 'active')
         .order('employee_name');
       
       if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  // Fetch commission rules for salesman commission calculation
+  const { data: commissionRules = [] } = useQuery({
+    queryKey: ['commission-rules', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const { data } = await (supabase.from('commission_rules' as any) as any)
+        .select('*')
+        .eq('organization_id', currentOrganization.id)
+        .eq('is_active', true);
       return data || [];
     },
     enabled: !!currentOrganization?.id,
