@@ -3378,12 +3378,23 @@ export default function POSSales() {
           
           {/* 7. Hold F7 */}
           <Button
-            onClick={handleHoldBill}
-            disabled={items.length === 0 || isSaving || isHeldSale}
+            onClick={() => {
+              if (items.length === 0 || isHeldSale) {
+                setShowHoldPanel(true);
+              } else {
+                handleHoldBill();
+              }
+            }}
+            disabled={isSaving}
             className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-amber-500 hover:bg-amber-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Hold Bill (F7)"
           >
             <Badge className="absolute top-0.5 right-0.5 h-[14px] px-1 text-[8px] leading-[14px] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F7</Badge>
+            {heldBills.length > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center z-10">
+                {heldBills.length > 9 ? '9+' : heldBills.length}
+              </span>
+            )}
             <Pause className="h-4 w-4" />
             <span>Hold</span>
           </Button>
