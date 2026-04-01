@@ -164,6 +164,7 @@ const EmployeeMaster = () => {
       employee_name: employee.employee_name, phone: employee.phone || "", email: employee.email || "",
       address: employee.address || "", designation: employee.designation || "", joining_date: employee.joining_date || "",
       status: employee.status, field_sales_access: employee.field_sales_access || false, user_id: employee.user_id || "",
+      commission_percent: employee.commission_percent ?? 1,
     });
     setIsDialogOpen(true);
   };
