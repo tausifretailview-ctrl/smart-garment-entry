@@ -257,7 +257,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           student_id: student.id,
           fee_head_id: isImported ? null : item.fee_head_id,
           fee_structure_id: isImported ? null : item.fee_structure_id,
-          academic_year_id: currentYear.id,
+          academic_year_id: usedYear!.id,
           amount: item.structure_amount,
           paid_amount: item.paying,
           paid_date: paidDate,
