@@ -3904,115 +3904,109 @@ export default function POSSales() {
                 </Button>
               )}
               <div className="overflow-x-auto">
-                {(() => {
-                  const MIN_DISPLAY_ROWS = 5;
-                  const blankRowsNeeded = Math.max(0, MIN_DISPLAY_ROWS - items.length);
-                  const ROW_COLS = '50px 130px 1fr 70px 70px 65px 95px 65px 80px 75px 95px 120px';
-                  const blankRow = (index: number) => (
-                    <div key={`blank-${index}`} className={`min-w-[1280px] grid gap-2 px-4 py-3 border-b border-border/40 text-sm ${(items.length + index) % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: ROW_COLS }}>
-                      <div className="flex items-center justify-center text-muted-foreground/30 font-medium">{items.length + index + 1}</div>
-                      <div className="flex items-center text-muted-foreground/20">—</div>
-                      <div className="flex items-center text-muted-foreground/20">—</div>
-                      <div className="flex items-center justify-center text-muted-foreground/20">—</div>
-                      <div className="flex items-center justify-center text-muted-foreground/20">—</div>
-                      <div className="flex items-center justify-center text-muted-foreground/20">—</div>
-                      <div className="flex items-center justify-end text-muted-foreground/20">—</div>
-                      <div className="flex items-center justify-center text-muted-foreground/20">—</div>
-                      <div className="flex items-center justify-center text-muted-foreground/20">—</div>
-                      <div className="flex items-center justify-end text-muted-foreground/20">—</div>
-                      <div className="flex items-center justify-end text-muted-foreground/20">—</div>
-                      <div className="flex items-center justify-end text-muted-foreground/20">—</div>
+                {items.length === 0 ? (
+                  // Show 5 blank rows with serial numbers
+                  Array.from({ length: 5 }).map((_, index) => (
+                   <div key={index} className={`min-w-[1280px] grid gap-2 px-4 py-3 border-b border-border/40 text-sm ${index % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: '50px 130px 1fr 70px 70px 65px 95px 65px 80px 75px 95px 120px' }}>
+                      <div className="flex items-center justify-center text-muted-foreground/50 font-medium">{index + 1}</div>
+                      <div className="flex items-center text-muted-foreground/30">—</div>
+                      <div className="flex items-center text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-center text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-center text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-center text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-end text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-center text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-center text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-end text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-end text-muted-foreground/30">—</div>
+                      <div className="flex items-center justify-end text-muted-foreground/30">—</div>
                     </div>
-                  );
-                  return (
-                    <>
-                      {items.map((item, index) => (
-                        <div key={index} className={`min-w-[1280px] grid gap-2 px-4 py-2.5 border-b border-border/40 hover:bg-accent/30 text-sm transition-colors ${index % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: ROW_COLS }}>
-                          <div className="flex items-center justify-center font-semibold text-foreground/80">{index + 1}</div>
-                          <div className="flex items-center text-sm font-mono text-foreground/80">{item.barcode}</div>
-                          <div className="flex items-center font-medium text-sm truncate gap-1">
-                            {item.productName}
-                            {item.isDcProduct && (
-                              <span className="px-1 py-0.5 text-[9px] font-bold bg-orange-100 text-orange-700 border border-orange-300 rounded flex-shrink-0">DC</span>
-                            )}
-                          </div>
-                          <div className="flex items-center justify-center text-sm font-medium">{item.size}</div>
-                          <div className="flex items-center justify-center text-sm text-muted-foreground">{item.color || '-'}</div>
-                          <div>
-                            <Input
-                              type="number"
-                              value={item.quantity || ""}
-                              onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
-                              placeholder="1"
-                              className="h-8 text-sm w-full text-center bg-muted/30 border-border/60"
-                              min="1"
-                            />
-                          </div>
-                          <div>
-                            <Input
-                              type="number"
-                              value={item.mrp || ""}
-                              onChange={(e) => updateMrp(index, parseFloat(e.target.value) || 0)}
-                              placeholder="0"
-                              className="h-8 text-sm w-full text-right bg-muted/30 border-border/60"
-                              min="0"
-                              step="0.01"
-                            />
-                          </div>
-                          <div>
-                            <select
-                              value={item.gstPer}
-                              onChange={(e) => updateGstPer(index, parseInt(e.target.value))}
-                              className="h-8 w-full rounded-md border border-border/60 bg-muted/30 px-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-ring"
-                            >
-                              <option value="0">0%</option>
-                              <option value="5">5%</option>
-                              <option value="12">12%</option>
-                              <option value="18">18%</option>
-                              <option value="28">28%</option>
-                            </select>
-                          </div>
-                          <div>
-                            <Input
-                              type="number"
-                              value={item.discountPercent || ""}
-                              onChange={(e) => updateDiscountPercent(index, parseFloat(e.target.value) || 0)}
-                              placeholder="0"
-                              className="h-8 text-sm w-full text-center bg-muted/30 border-border/60"
-                              min="0"
-                              max="100"
-                              step="0.01"
-                            />
-                          </div>
-                          <div>
-                            <Input
-                              type="number"
-                              value={item.discountAmount || ""}
-                              onChange={(e) => updateDiscountAmount(index, parseFloat(e.target.value) || 0)}
-                              placeholder="0"
-                              className="h-8 text-sm w-full text-right bg-muted/30 border-border/60"
-                              min="0"
-                              step="0.01"
-                            />
-                          </div>
-                          <div className="flex items-center justify-end text-sm text-muted-foreground">₹{Math.round(item.unitCost).toLocaleString('en-IN')}</div>
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-sm">₹{Math.round(item.netAmount).toLocaleString('en-IN')}</span>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => removeItem(index)}
-                              className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                      {Array.from({ length: blankRowsNeeded }).map((_, i) => blankRow(i))}
-                    </>
-                  );
-                })()}
+                  ))
+                ) : (
+                  items.map((item, index) => (
+                    <div key={index} className={`min-w-[1280px] grid gap-2 px-4 py-2.5 border-b border-border/40 hover:bg-accent/30 text-sm transition-colors ${index % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: '50px 130px 1fr 70px 70px 65px 95px 65px 80px 75px 95px 120px' }}>
+                      <div className="flex items-center justify-center font-semibold text-foreground/80">{index + 1}</div>
+                      <div className="flex items-center text-sm font-mono text-foreground/80">{item.barcode}</div>
+                      <div className="flex items-center font-medium text-sm truncate gap-1">
+                        {item.productName}
+                        {item.isDcProduct && (
+                          <span className="px-1 py-0.5 text-[9px] font-bold bg-orange-100 text-orange-700 border border-orange-300 rounded flex-shrink-0">DC</span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-center text-sm font-medium">{item.size}</div>
+                      <div className="flex items-center justify-center text-sm text-muted-foreground">{item.color || '-'}</div>
+                      <div>
+                        <Input
+                          type="number"
+                          value={item.quantity || ""}
+                          onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
+                          placeholder="1"
+                          className="h-8 text-sm w-full text-center bg-muted/30 border-border/60"
+                          min="1"
+                        />
+                      </div>
+                      <div>
+                        <Input
+                          type="number"
+                          value={item.mrp || ""}
+                          onChange={(e) => updateMrp(index, parseFloat(e.target.value) || 0)}
+                          placeholder="0"
+                          className="h-8 text-sm w-full text-right bg-muted/30 border-border/60"
+                          min="0"
+                          step="0.01"
+                        />
+                      </div>
+                      <div>
+                        <select
+                          value={item.gstPer}
+                          onChange={(e) => updateGstPer(index, parseInt(e.target.value))}
+                          className="h-8 w-full rounded-md border border-border/60 bg-muted/30 px-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-ring"
+                        >
+                          <option value="0">0%</option>
+                          <option value="5">5%</option>
+                          <option value="12">12%</option>
+                          <option value="18">18%</option>
+                          <option value="28">28%</option>
+                        </select>
+                      </div>
+                      <div>
+                        <Input
+                          type="number"
+                          value={item.discountPercent || ""}
+                          onChange={(e) => updateDiscountPercent(index, parseFloat(e.target.value) || 0)}
+                          placeholder="0"
+                          className="h-8 text-sm w-full text-center bg-muted/30 border-border/60"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                        />
+                      </div>
+                      <div>
+                        <Input
+                          type="number"
+                          value={item.discountAmount || ""}
+                          onChange={(e) => updateDiscountAmount(index, parseFloat(e.target.value) || 0)}
+                          placeholder="0"
+                          className="h-8 text-sm w-full text-right bg-muted/30 border-border/60"
+                          min="0"
+                          step="0.01"
+                        />
+                      </div>
+                      <div className="flex items-center justify-end text-sm text-muted-foreground">₹{Math.round(item.unitCost).toLocaleString('en-IN')}</div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-sm">₹{Math.round(item.netAmount).toLocaleString('en-IN')}</span>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => removeItem(index)}
+                          className="h-7 w-7 text-destructive/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
                 {/* Notes Section - Always visible after items */}
                 <div className="min-w-[1280px] p-4 border-t bg-muted/30">
                   <div className="flex items-center gap-3">
@@ -4024,32 +4018,124 @@ export default function POSSales() {
                       placeholder="Add note (e.g., Pico Fall Details, Alterations, etc.)"
                       value={saleNotes}
                       onChange={(e) => setSaleNotes(e.target.value)}
-                      className="flex-1 h-8 text-sm bg-background"
+                      className="flex-1 h-9"
                     />
                   </div>
                 </div>
+                
+                {/* Customer Discount & Points Section - After Notes */}
+                {customerId && (() => {
+                  const customer = customers?.find((c: any) => c.id === customerId);
+                  const customerMasterDiscount = customer?.discount_percent || 0;
+                  const hasDiscountInfo = (hasBrandDiscounts && brandDiscounts.length > 0) || customerMasterDiscount > 0;
+                  const showPointsSection = isPointsEnabled;
+                  
+                  if (!hasDiscountInfo && !showPointsSection) return null;
+                  
+                  return (
+                    <div className="min-w-[1280px] p-3 border-t bg-amber-50/50 dark:bg-amber-950/20 flex items-center gap-4">
+                      {/* Discount Indicator */}
+                      {hasBrandDiscounts && brandDiscounts.length > 0 ? (
+                        <div className="flex items-center gap-2 bg-primary/5 px-3 py-2 rounded-lg">
+                          <span className="text-sm text-muted-foreground font-medium">Brand Discounts:</span>
+                          {brandDiscounts.slice(0, 5).map((bd, idx) => (
+                            <span 
+                              key={idx} 
+                              className="text-sm bg-primary/10 text-primary px-2 py-1 rounded font-semibold"
+                            >
+                              {bd.brand}: {bd.discount_percent}%
+                            </span>
+                          ))}
+                          {brandDiscounts.length > 5 && (
+                            <span className="text-sm text-muted-foreground">+{brandDiscounts.length - 5} more</span>
+                          )}
+                        </div>
+                      ) : customerMasterDiscount > 0 ? (
+                        <div className="flex items-center gap-2 bg-green-500/10 px-3 py-2 rounded-lg">
+                          <span className="text-sm text-muted-foreground font-medium">Master Discount:</span>
+                          <span className="text-sm bg-green-500/20 text-green-600 px-2 py-1 rounded font-semibold">
+                            {customerMasterDiscount}%
+                          </span>
+                        </div>
+                      ) : null}
+                      
+                      {/* Points Display & Redeem */}
+                      {showPointsSection && (
+                        <div className="flex items-center gap-3 ml-auto">
+                          <div className="flex items-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg">
+                            <Coins className="h-4 w-4" />
+                            <span className="font-bold">{customerPointsData?.balance || 0} pts</span>
+                            {items.length > 0 && (
+                              <span className="text-amber-100 text-sm">+{calculatePoints(items.reduce((sum, item) => sum + item.netAmount, 0))}</span>
+                            )}
+                          </div>
+                          
+                          {/* Redeem Section */}
+                          {isRedemptionEnabled && (customerPointsData?.balance || 0) >= (pointsSettings?.min_points_for_redemption || 10) && (
+                            <div className="flex items-center bg-green-600 px-3 py-2 gap-2 rounded-lg">
+                              <span className="text-white text-sm font-medium">Redeem:</span>
+                              <Input 
+                                type="number"
+                                className="w-16 h-8 bg-white text-green-700 text-center text-sm font-semibold rounded border-0" 
+                                value={pointsToRedeem || ""}
+                                placeholder="0"
+                                onChange={(e) => {
+                                  const value = parseInt(e.target.value) || 0;
+                                  const maxPoints = calculateMaxRedeemablePoints(totals.subtotal - flatDiscountAmount, customerPointsData?.balance || 0);
+                                  setPointsToRedeem(Math.min(Math.max(0, value), maxPoints));
+                                }}
+                                min={0}
+                                max={calculateMaxRedeemablePoints(totals.subtotal - flatDiscountAmount, customerPointsData?.balance || 0)}
+                                disabled={!customerId}
+                              />
+                              <span className="text-white text-sm font-medium whitespace-nowrap">
+                                pts = ₹{calculateRedemptionValue(pointsToRedeem).toFixed(0)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
-            </CardContent>
+            </div>
           </Card>
+          </div>
+        </div>
 
-          {/* Bottom Bar */}
-          <div className="fixed bottom-0 left-0 right-0 z-50 bg-gradient-to-r from-slate-800 via-slate-900 to-slate-800 shadow-2xl border-t-2 border-primary/30">
-            <div className="flex items-end w-full px-4 py-2 gap-2 max-w-[100vw] overflow-x-auto">
-              {/* Total Items & Qty */}
-              <div className="text-center px-3">
-                <div className="text-sm font-bold leading-tight text-white">{items.length} / {totals.totalQty}</div>
-                <div className="text-[9px] text-white/60 uppercase font-medium">Items/Qty</div>
-              </div>
-
-              <div className="w-px h-8 bg-white/20 shrink-0" />
-
-              {/* Gross */}
-              <div className="text-center px-3">
-                <div className="text-sm font-bold leading-tight text-white">₹{Math.round(totals.gross).toLocaleString('en-IN')}</div>
-                <div className="text-[9px] text-white/60 uppercase font-medium">Gross</div>
-              </div>
-
-              <div className="w-px h-8 bg-white/20 shrink-0" />
+        {/* Totals Section - Fixed at Bottom, above keyboard shortcut bar */}
+        <div className="fixed bottom-0 md:bottom-[52px] left-[72px] right-0 bg-gradient-to-r from-cyan-600 to-teal-600 text-white shadow-[0_-4px_20px_rgba(0,0,0,0.15)] z-20">
+          {/* Top Info Bar — Qty, Savings, Charges, Discount with vertical dividers */}
+          <div className="flex items-center px-4 py-1.5 gap-0 border-b border-white/10">
+            {/* Qty */}
+            <div className="text-center px-3">
+              <div className="text-lg font-bold leading-tight">{totals.quantity}</div>
+              <div className="text-[9px] text-white/60 uppercase tracking-wider font-medium">Qty</div>
+            </div>
+            
+            <div className="w-px h-8 bg-white/20 shrink-0" />
+            
+            {/* MRP Total */}
+            <div className="text-center px-3">
+              <div className="text-sm font-bold leading-tight">₹{Math.round(totals.mrp).toLocaleString('en-IN')}</div>
+              <div className="text-[9px] text-white/60 uppercase font-medium">MRP Total</div>
+            </div>
+            
+            {/* Savings */}
+            {(totals.mrp > totals.subtotal || totals.savings > 0) && (
+              <>
+                <div className="w-px h-8 bg-white/20 shrink-0" />
+                <div className="text-center bg-green-500/90 rounded-md py-1 px-3 mx-2 shrink-0">
+                  <div className="text-sm font-bold leading-tight">
+                    ₹{Math.round(totals.mrp - totals.subtotal > 0 ? totals.mrp - totals.subtotal : totals.savings).toLocaleString('en-IN')} · Saves {totals.mrp > 0 ? `${(((totals.mrp - totals.subtotal) / totals.mrp) * 100).toFixed(0)}%` : ''}
+                  </div>
+                  <div className="text-[9px] font-medium uppercase">Savings</div>
+                </div>
+              </>
+            )}
+            
+            <div className="w-px h-8 bg-white/20 shrink-0" />
             
             {/* Charges */}
             <div className="text-center px-3">
