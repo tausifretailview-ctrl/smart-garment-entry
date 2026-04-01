@@ -3877,6 +3877,7 @@ export default function POSSales() {
               </div>
             </div>
             
+            <CardContent className="flex-1 overflow-hidden p-0">
             <div 
               ref={itemsContainerRef} 
               className="flex-1 overflow-y-auto relative"
