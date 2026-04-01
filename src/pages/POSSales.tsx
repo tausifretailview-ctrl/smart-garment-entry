@@ -4049,7 +4049,7 @@ export default function POSSales() {
                 <div className="text-[9px] text-white/60 uppercase font-medium">Gross</div>
               </div>
 
-            <div className="w-px h-8 bg-white/20 shrink-0" />
+              <div className="w-px h-8 bg-white/20 shrink-0" />
             
             {/* Charges */}
             <div className="text-center px-3">
