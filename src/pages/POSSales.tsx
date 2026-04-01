@@ -577,7 +577,11 @@ export default function POSSales() {
       // F7 - Hold Bill
       else if (e.key === 'F7') {
         e.preventDefault();
-        handleHoldBill();
+        if (items.length === 0 || isHeldSale) {
+          setShowHoldPanel(prev => !prev);
+        } else {
+          handleHoldBill();
+        }
       }
       // F8 - Cashier Report
       else if (e.key === 'F8') {
