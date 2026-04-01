@@ -2169,6 +2169,21 @@ export default function POSSales() {
         createCommissionRecords(result.id, result.sale_number, result.sale_date || new Date().toISOString().split('T')[0], selectedSalesman, result.net_amount);
       }
 
+      // Auto-send WhatsApp invoice (non-blocking, uses saved data before form clear)
+      if (waSettings?.is_active && customerPhone && !wasEditing) {
+        const _phone = customerPhone;
+        const _name = customerName || 'Customer';
+        const _salesman = selectedSalesman || '';
+        setTimeout(async () => {
+          await sendWhatsAppInvoice(
+            result.id, result.sale_number,
+            result.sale_date || new Date().toISOString().split('T')[0],
+            result.net_amount, result.gross_amount || totals.mrp,
+            result.discount_amount || (totals.discount + flatDiscountAmount),
+            _phone, _name, _salesman
+          );
+        }, 800);
+      }
       // Clear the form immediately after successful save (reset to new blank invoice)
       setItems([]);
       setCustomerId("");
