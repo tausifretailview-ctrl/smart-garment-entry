@@ -48,8 +48,10 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
   });
 
   // Fetch all fee payments for this student (include balance_adjustment entries)
+  // For no-structure students (imported balance), fetch ALL payments across years
+  const hasStudentStructures = student?.class_id ? true : false;
   const { data: feePayments, isLoading: paymentsLoading } = useQuery({
-    queryKey: ["student-fee-payments-history", student?.id, currentOrganization?.id, currentYear?.id],
+    queryKey: ["student-fee-payments-history", student?.id, currentOrganization?.id, currentYear?.id, hasStudentStructures],
     queryFn: async () => {
       if (!student?.id || !currentOrganization?.id) return [];
       let query = supabase
@@ -59,7 +61,9 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
         .eq("organization_id", currentOrganization.id)
         .order("paid_date", { ascending: false });
 
-      if (currentYear?.id) {
+      // Only filter by year for structure-based students
+      // For imported balance students, show all payments across years
+      if (currentYear?.id && hasStudentStructures) {
         query = query.eq("academic_year_id", currentYear.id);
       }
 
