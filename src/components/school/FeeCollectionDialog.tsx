@@ -154,11 +154,13 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
     enabled: !!currentOrganization?.id && open,
   });
 
+  const usedYear = activeYear || currentYear;
+
   // Fetch fee structures for this student's class + existing payments
   const { isLoading } = useQuery({
-    queryKey: ["student-fee-details", student?.id, student?.class_id, currentYear?.id],
+    queryKey: ["student-fee-details", student?.id, student?.class_id, usedYear?.id],
     queryFn: async () => {
-      if (!currentYear?.id) return [];
+      if (!usedYear?.id) return [];
 
       // Get fee structures for this class (if class assigned)
       let structures: any[] = [];
