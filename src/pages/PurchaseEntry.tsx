@@ -3139,7 +3139,7 @@ const PurchaseEntry = () => {
             </span>
           </div>
             <div className='flex flex-wrap lg:flex-nowrap items-end gap-3'>
-              <div className="space-y-2 w-[160px] flex-shrink-0">
+              <div className="space-y-2 flex-1 min-w-[140px]">
                 <Label htmlFor="software_bill_no">Software Bill No</Label>
                 <Input
                   id="software_bill_no"
@@ -3160,7 +3160,7 @@ const PurchaseEntry = () => {
                 />
               </div>
 
-              <div className="space-y-2 w-[180px] flex-shrink-0 min-w-0">
+              <div className="space-y-2 flex-[1.5] min-w-[160px]">
                 <Label htmlFor="supplier_name">Supplier *</Label>
                 <div className="flex gap-1 min-w-0">
                   <Select
@@ -3191,13 +3191,14 @@ const PurchaseEntry = () => {
                     size="icon"
                     onClick={() => setShowAddSupplierDialog(true)}
                     title="Add New Supplier"
+                    className="flex-shrink-0"
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
 
-              <div className="space-y-2 w-[160px] flex-shrink-0">
+              <div className="space-y-2 flex-1 min-w-[140px]">
                 <Label htmlFor="supplier_invoice_no">Supplier Invoice No *</Label>
                 <Input
                   id="supplier_invoice_no"
@@ -3209,7 +3210,7 @@ const PurchaseEntry = () => {
                 />
               </div>
 
-              <div className="space-y-2 w-[170px] flex-shrink-0">
+              <div className="space-y-2 flex-1 min-w-[160px]">
                 <Label htmlFor="bill_date">Bill Date</Label>
                 <Popover open={billDateOpen} onOpenChange={setBillDateOpen}>
                   <PopoverTrigger asChild>
