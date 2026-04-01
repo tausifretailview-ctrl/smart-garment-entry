@@ -75,7 +75,8 @@ import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { MixPaymentDialog } from "@/components/MixPaymentDialog";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
 import { QuickServiceProductDialog } from "@/components/QuickServiceProductDialog";
-import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly, printA5BillFormat } from "@/utils/pdfGenerator";
+import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly, printA5BillFormat, generateInvoiceBase64 } from "@/utils/pdfGenerator";
+import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { format } from "date-fns";
 import { useReactToPrint } from "react-to-print";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
@@ -119,6 +120,7 @@ export default function POSSales() {
   const { saveSale, updateSale, holdSale, resumeHeldSale, isSaving } = useSaveSale();
   const { createCreditNote, getAvailableCreditBalance, applyCredit, isCreating: isCreatingCreditNote, isApplying: isApplyingCredit } = useCreditNotes();
   const isMobile = useIsMobile();
+  const { settings: waSettings, sendMessageAsync } = useWhatsAppAPI();
   const [isHeldSale, setIsHeldSale] = useState(false);
   const [availableCreditBalance, setAvailableCreditBalance] = useState(0);
   const [creditApplied, setCreditApplied] = useState(0);
@@ -2167,6 +2169,21 @@ export default function POSSales() {
         createCommissionRecords(result.id, result.sale_number, result.sale_date || new Date().toISOString().split('T')[0], selectedSalesman, result.net_amount);
       }
 
+      // Auto-send WhatsApp invoice (non-blocking, uses saved data before form clear)
+      if (waSettings?.is_active && customerPhone && !wasEditing) {
+        const _phone = customerPhone;
+        const _name = customerName || 'Customer';
+        const _salesman = selectedSalesman || '';
+        setTimeout(async () => {
+          await sendWhatsAppInvoice(
+            result.id, result.sale_number,
+            result.sale_date || new Date().toISOString().split('T')[0],
+            result.net_amount, result.gross_amount || totals.mrp,
+            result.discount_amount || (totals.discount + flatDiscountAmount),
+            _phone, _name, _salesman
+          );
+        }, 800);
+      }
       // Clear the form immediately after successful save (reset to new blank invoice)
       setItems([]);
       setCustomerId("");
@@ -2393,7 +2410,22 @@ export default function POSSales() {
         createCommissionRecords(result.id, result.sale_number, result.sale_date || new Date().toISOString().split('T')[0], selectedSalesman, result.net_amount);
       }
 
-      // Clear the form immediately after successful save (reset to new blank invoice)
+      // Auto-send WhatsApp invoice (non-blocking, uses saved data before form clear)
+      if (waSettings?.is_active && customerPhone && !isCreditNote && !currentSaleId) {
+        const _phone = customerPhone;
+        const _name = customerName || 'Customer';
+        const _salesman = selectedSalesman || '';
+        setTimeout(async () => {
+          await sendWhatsAppInvoice(
+            result.id, result.sale_number,
+            result.sale_date || new Date().toISOString().split('T')[0],
+            result.net_amount, result.gross_amount || totals.mrp,
+            result.discount_amount || (totals.discount + flatDiscountAmount),
+            _phone, _name, _salesman
+          );
+        }, 800);
+      }
+
       setItems([]);
       setCustomerId("");
       setCustomerName("");
@@ -3069,6 +3101,113 @@ export default function POSSales() {
       await queryClient.invalidateQueries({ queryKey: ['pos-dashboard'] });
       await queryClient.refetchQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
       await refetchHeldBills();
+    }
+  };
+
+  // ── WhatsApp Invoice Auto-Send ──
+  const sendWhatsAppInvoice = async (
+    saleId: string,
+    saleNumber: string,
+    saleDate: string,
+    netAmount: number,
+    grossAmount: number,
+    discountAmount: number,
+    phone: string,
+    custName: string,
+    salesmanName: string
+  ) => {
+    if (!waSettings?.is_active) return;
+    if (!phone || phone.trim().length < 8) return;
+
+    try {
+      const orgSlug = currentOrganization?.slug || '';
+      const saleData = {
+        sale_id: saleId,
+        org_slug: orgSlug,
+        sale_number: saleNumber,
+        customer_name: custName,
+        customer_phone: phone,
+        sale_date: saleDate,
+        net_amount: netAmount,
+        gross_amount: grossAmount,
+        discount_amount: discountAmount,
+        payment_status: 'paid',
+        salesman: salesmanName,
+        items_count: items.reduce((s, i) => s + i.quantity, 0),
+        organization_name: currentOrganization?.name,
+        organization_id: currentOrganization?.id,
+      };
+
+      // If send_invoice_pdf is OFF — just send text template
+      if (!waSettings.send_invoice_pdf) {
+        if (!waSettings.auto_send_invoice || !waSettings.invoice_template_name) return;
+        await sendMessageAsync({
+          phone,
+          message: '',
+          templateType: 'sales_invoice',
+          templateName: waSettings.invoice_template_name,
+          referenceId: saleId,
+          referenceType: 'sale',
+          saleData,
+        });
+        return;
+      }
+
+      // PDF mode
+      const invoiceDom = invoicePrintRef.current;
+
+      if (waSettings.use_document_header_template && waSettings.invoice_document_template_name) {
+        // DOCUMENT HEADER TEMPLATE (bypasses 24h window)
+        let pdfBase64: string | null = null;
+        if (invoiceDom) {
+          await new Promise(r => setTimeout(r, 500));
+          pdfBase64 = await generateInvoiceBase64(invoiceDom);
+        }
+        await sendMessageAsync({
+          phone,
+          message: '',
+          templateType: 'sales_invoice',
+          templateName: waSettings.invoice_document_template_name,
+          referenceId: saleId,
+          referenceType: 'sale',
+          saleData,
+          useDocumentHeaderTemplate: true,
+          documentHeaderTemplateName: waSettings.invoice_document_template_name,
+          pdfBlob: pdfBase64 || undefined,
+        });
+      } else {
+        // STANDARD ATTACHMENT — text template + separate PDF message
+        if (waSettings.invoice_template_name) {
+          await sendMessageAsync({
+            phone,
+            message: '',
+            templateType: 'sales_invoice',
+            templateName: waSettings.invoice_template_name,
+            referenceId: saleId,
+            referenceType: 'sale',
+            saleData,
+          });
+        }
+        if (invoiceDom) {
+          await new Promise(r => setTimeout(r, 300));
+          const pdfBase64 = await generateInvoiceBase64(invoiceDom);
+          if (pdfBase64) {
+            await sendMessageAsync({
+              phone,
+              message: `📄 Invoice ${saleNumber} — ₹${Math.round(netAmount).toLocaleString('en-IN')}`,
+              templateType: 'invoice_pdf',
+              referenceId: saleId,
+              referenceType: 'sale',
+              documentFilename: `Invoice_${saleNumber.replace(/\//g, '-')}.pdf`,
+              documentCaption: `Invoice ${saleNumber} — ${custName}`,
+              pdfBlob: pdfBase64,
+            });
+          }
+        }
+      }
+    } catch (err: any) {
+      // Non-blocking — log but don't fail the sale
+      console.error('WhatsApp invoice send failed:', err);
     }
   };
 
