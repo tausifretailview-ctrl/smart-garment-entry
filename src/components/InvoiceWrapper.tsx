@@ -318,7 +318,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
         : settings?.bill_barcode_settings?.upi_id,
       bankDetails: settings?.sale_settings?.bank_details,
       declarationText,
-      termsConditions,
+      termsConditions: filteredTerms,
       
       showHSN,
       showBarcode,
