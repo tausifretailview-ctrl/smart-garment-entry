@@ -237,7 +237,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
 
   const collectMutation = useMutation({
     mutationFn: async () => {
-      if (!student || !currentYear || !currentOrganization) throw new Error("Missing data");
+      if (!student || !usedYear || !currentOrganization) throw new Error("Missing data");
 
       const selectedItems = feeItems.filter(i => i.selected && i.paying > 0);
       if (selectedItems.length === 0) throw new Error("No fees selected");
