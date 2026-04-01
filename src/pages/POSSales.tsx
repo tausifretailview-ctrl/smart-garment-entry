@@ -5057,6 +5057,111 @@ export default function POSSales() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Hold Bills Panel */}
+      {showHoldPanel && (
+        <div
+          className="fixed inset-0 z-50 flex justify-end"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowHoldPanel(false); }}
+        >
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="relative w-full max-w-sm bg-background border-l border-border shadow-2xl flex flex-col h-full z-10">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 bg-amber-600 shrink-0">
+              <div className="flex items-center gap-2">
+                <Pause className="h-4 w-4 text-white" />
+                <span className="text-white font-semibold text-base">On Hold</span>
+                <span className="bg-amber-900 text-amber-200 text-xs font-bold px-2 py-0.5 rounded-full">
+                  {heldBills.length} bill{heldBills.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <button
+                onClick={() => setShowHoldPanel(false)}
+                className="text-white/70 hover:text-white text-2xl leading-none"
+              >×</button>
+            </div>
+
+            {/* Search */}
+            <div className="px-3 py-2 border-b border-border shrink-0">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search customer / bill no..."
+                  value={holdSearchQuery}
+                  onChange={(e) => setHoldSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            {/* Bills list */}
+            <div className="flex-1 overflow-y-auto py-2 px-3 space-y-2">
+              {filteredHeldBills.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+                  <Pause className="h-12 w-12 opacity-20" />
+                  <p className="text-sm">
+                    {holdSearchQuery ? 'No bills match your search' : 'No bills on hold'}
+                  </p>
+                </div>
+              ) : (
+                filteredHeldBills.map((bill: any) => {
+                  const itemCount = getHoldItemCount(bill);
+                  const timeStr = new Date(bill.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+                  return (
+                    <div key={bill.id} className="border border-border rounded-lg overflow-hidden bg-card">
+                      <div className="p-3">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-mono text-muted-foreground">{bill.sale_number}</span>
+                            <span className="bg-amber-100 text-amber-800 text-[10px] font-semibold px-1.5 py-0.5 rounded-full">ON HOLD</span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">{timeStr}</span>
+                        </div>
+                        <p className="font-semibold text-sm text-foreground mb-1">{bill.customer_name || 'Walk-in Customer'}</p>
+                        <div className="flex items-center justify-between mb-2.5">
+                          <span className="text-xs text-muted-foreground">
+                            {itemCount} item{itemCount !== 1 ? 's' : ''}
+                            {bill.customer_phone && ` · ${bill.customer_phone}`}
+                          </span>
+                          <span className="text-sm font-bold text-foreground">₹{Math.round(bill.net_amount || 0).toLocaleString('en-IN')}</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="flex-1 h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1.5"
+                            onClick={() => handleResumeHeldBill(bill)}
+                          >
+                            <Play className="h-3 w-3" />
+                            Resume Bill
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs gap-1 text-destructive border-destructive/30 hover:bg-destructive/10"
+                            onClick={() => handleDeleteHeldBill(bill.id)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-4 py-2.5 border-t border-border bg-muted/40 shrink-0">
+              <p className="text-[11px] text-muted-foreground text-center">
+                Resume saves current cart to hold first if not empty
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
