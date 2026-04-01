@@ -268,6 +268,15 @@ const EmployeeMaster = () => {
                   <Label htmlFor="designation">Designation</Label>
                   <Input id="designation" value={formData.designation} onChange={(e) => setFormData({ ...formData, designation: e.target.value })} />
                 </div>
+                <div className="space-y-1">
+                  <Label htmlFor="commission_percent">
+                    Commission % <span className="text-xs text-muted-foreground ml-2 font-normal">default 1% = ₹1 per ₹100 sale</span>
+                  </Label>
+                  <div className="flex items-center gap-3">
+                    <Input id="commission_percent" type="number" min="0" max="100" step="0.1" value={formData.commission_percent} onChange={(e) => setFormData({ ...formData, commission_percent: parseFloat(e.target.value) || 0 })} className="w-28" placeholder="1.0" />
+                    <span className="text-sm text-muted-foreground">= ₹{(formData.commission_percent || 0).toFixed(2)} earned per ₹100 sale</span>
+                  </div>
+                </div>
                 <div>
                   <Label htmlFor="phone">Phone</Label>
                   <Input id="phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
