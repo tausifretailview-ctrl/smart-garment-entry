@@ -135,6 +135,15 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         {/* ═══ HEADER ═══ */}
         <div style={dblLine} />
         <div style={{ ...center, marginBottom: '4px' }}>
+          {settings?.bill_barcode_settings?.logo_url && (
+            <div style={{ textAlign: 'center', marginBottom: '4px' }}>
+              <img
+                src={settings.bill_barcode_settings.logo_url}
+                alt="Logo"
+                style={{ maxHeight: '50px', maxWidth: '60mm', margin: '0 auto', display: 'block', objectFit: 'contain' }}
+              />
+            </div>
+          )}
           <div style={{ fontWeight: 900, fontSize: '18px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px' }}>
             {settings?.business_name || 'STORE NAME'}
           </div>
