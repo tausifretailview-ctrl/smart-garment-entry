@@ -4030,6 +4030,7 @@ export default function POSSales() {
                   </div>
                 </div>
               </div>
+            </div>
             </CardContent>
           </Card>
 
