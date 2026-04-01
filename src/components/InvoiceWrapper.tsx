@@ -237,11 +237,13 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const logoPlacement = props.logoPlacement ?? settings?.sale_settings?.logo_placement ?? 'left';
     const fontFamily = props.fontFamily ?? settings?.sale_settings?.font_family ?? 'inter';
     const declarationText = props.declarationText ?? settings?.sale_settings?.declaration_text ?? 'Certified that the particulars given above are true and correct';
-    const termsConditions = props.termsConditions ?? settings?.sale_settings?.terms_list ?? [
+    const rawTerms = props.termsConditions ?? settings?.sale_settings?.terms_list ?? [
       'Goods once sold will not be taken back',
       'No exchange without bill',
       'Subject to jurisdiction'
     ];
+    // Filter blank terms so empty slots don't render as blank lines/bullets
+    const filteredTerms = rawTerms?.filter((t: string) => t && t.trim()) ?? [];
     
     // Calculate tax amounts - GST is INCLUSIVE in item totals
     // For each item: GST amount = (item.total * gstPercent) / (100 + gstPercent)

@@ -2903,31 +2903,46 @@ export default function Settings() {
 
                 <div className="space-y-2">
                   <Label>Invoice Terms & Conditions</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Up to 6 terms shown on invoice & thermal receipt. Leave blank to hide.
+                  </p>
                   <div className="space-y-2">
-                    {(settings.sale_settings?.terms_list || [
-                      'GOODS ONCE SOLD WILL NOT BE TAKEN BACK.',
-                      'NO EXCHANGE WITHOUT BARCODE & BILL.',
-                      'EXCHANGE TIME: 01:00 TO 04:00 PM.',
-                      ''
-                    ]).map((term, index) => (
-                      <div key={index} className="flex gap-2">
-                        <Input
-                          value={term}
-                          onChange={(e) => {
-                            const newTerms = [...(settings.sale_settings?.terms_list || [])];
-                            newTerms[index] = e.target.value;
-                            setSettings({
-                              ...settings,
-                              sale_settings: {
-                                ...settings.sale_settings,
-                                terms_list: newTerms,
-                              },
-                            });
-                          }}
-                          placeholder={`Term ${index + 1}`}
-                        />
-                      </div>
-                    ))}
+                    {(() => {
+                      const MAX_TERMS = 6;
+                      const existing = settings.sale_settings?.terms_list || [
+                        'GOODS ONCE SOLD WILL NOT BE TAKEN BACK.',
+                        'NO EXCHANGE WITHOUT BARCODE & BILL.',
+                        'EXCHANGE TIME: 01:00 TO 04:00 PM.',
+                        '', '', '',
+                      ];
+                      const padded = [...existing];
+                      while (padded.length < MAX_TERMS) padded.push('');
+                      const display = padded.slice(0, MAX_TERMS);
+
+                      return display.map((term, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground w-5 text-right shrink-0 font-medium">
+                            {index + 1}.
+                          </span>
+                          <Input
+                            value={term}
+                            onChange={(e) => {
+                              const newTerms = [...display];
+                              newTerms[index] = e.target.value;
+                              setSettings({
+                                ...settings,
+                                sale_settings: {
+                                  ...settings.sale_settings,
+                                  terms_list: newTerms,
+                                },
+                              });
+                            }}
+                            placeholder={`Term ${index + 1} (leave blank to hide)`}
+                            className="flex-1"
+                          />
+                        </div>
+                      ));
+                    })()}
                   </div>
                 </div>
 
