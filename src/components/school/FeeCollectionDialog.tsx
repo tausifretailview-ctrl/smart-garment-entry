@@ -310,7 +310,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         transactionId,
         totalPaying,
         remainingBalance,
-        academicYear: currentYear.year_name,
+        academicYear: usedYear?.year_name || "",
       };
     },
     onSuccess: async (data) => {
