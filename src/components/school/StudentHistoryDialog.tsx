@@ -120,7 +120,9 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
   });
 
   // Build ledger entries chronologically (oldest first) for running balance
-  const sortedPayments = [...(feePayments || [])].sort((a: any, b: any) =>
+  // Use ALL payments (not year-filtered) for full ledger visibility
+  const ledgerPayments = (feePayments || []).filter((p: any) => p.status !== "balance_adjustment" || true);
+  const sortedPayments = [...ledgerPayments].sort((a: any, b: any) =>
     new Date(a.paid_date || a.created_at).getTime() - new Date(b.paid_date || b.created_at).getTime()
   );
 
@@ -131,7 +133,7 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
       return { ...p, balanceAfter: runningBalance };
     }
     runningBalance -= (p.paid_amount || 0);
-    return { ...p, balanceAfter: Math.max(0, runningBalance) };
+    return { ...p, balanceAfter: runningBalance };
   });
 
   const fmtINR = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2 });
