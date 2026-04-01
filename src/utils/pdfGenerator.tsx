@@ -782,3 +782,52 @@ export const printA5BillFormat = async (data: InvoiceData): Promise<void> => {
     throw error;
   }
 };
+
+/**
+ * Generate invoice as base64 PDF string for WhatsApp attachment.
+ * Reads from an already-rendered DOM element (e.g. printRef.current).
+ * Returns base64 string WITHOUT the data:url prefix, or null on failure.
+ */
+export const generateInvoiceBase64 = async (
+  invoiceElement: HTMLElement
+): Promise<string | null> => {
+  try {
+    const canvas = await html2canvas(invoiceElement, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+      allowTaint: true,
+    });
+
+    const imgData = canvas.toDataURL('image/png');
+    const imgWidth = canvas.width;
+    const imgHeight = canvas.height;
+
+    // Determine format from aspect ratio
+    const isA4 = imgHeight / imgWidth > 1.3;
+    const fmt = isA4 ? 'a4' : 'a5';
+    const pdfWidth = isA4 ? 210 : 148;
+    const pdfHeight = isA4 ? 297 : 210;
+
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: fmt,
+    });
+
+    const ratio = Math.min(pdfWidth / (imgWidth * 0.264583), pdfHeight / (imgHeight * 0.264583));
+    const scaledW = imgWidth * 0.264583 * ratio;
+    const scaledH = imgHeight * 0.264583 * ratio;
+    const xOff = (pdfWidth - scaledW) / 2;
+
+    pdf.addImage(imgData, 'PNG', xOff, 0, scaledW, scaledH);
+
+    // Return base64 string WITHOUT the data:url prefix
+    const pdfBase64 = pdf.output('datauristring');
+    return pdfBase64.split(',')[1];
+  } catch (err) {
+    console.error('PDF base64 generation failed:', err);
+    return null;
+  }
+};
