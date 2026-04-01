@@ -107,6 +107,20 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
     contentRef: receiptRef,
   });
 
+  // Get all academic years for selection
+  const { data: allAcademicYears = [] } = useQuery({
+    queryKey: ["all-academic-years", currentOrganization?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("academic_years")
+        .select("*")
+        .eq("organization_id", currentOrganization!.id)
+        .order("start_date", { ascending: false });
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
   // Get current academic year
   const { data: currentYear } = useQuery({
     queryKey: ["current-academic-year", currentOrganization?.id],
@@ -120,6 +134,24 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
       return data;
     },
     enabled: !!currentOrganization?.id,
+  });
+
+  // Set default selected year to current year
+  const activeYear = allAcademicYears.find((y: any) => y.id === selectedYearId) || currentYear;
+  if (currentYear && !selectedYearId) {
+    // Use effect-free default
+  }
+
+  // Preview next receipt number
+  const { data: nextReceiptNo } = useQuery({
+    queryKey: ["next-receipt-number", currentOrganization?.id],
+    queryFn: async () => {
+      const { data } = await supabase.rpc("generate_fee_receipt_number", {
+        p_organization_id: currentOrganization!.id,
+      });
+      return data as string;
+    },
+    enabled: !!currentOrganization?.id && open,
   });
 
   // Fetch fee structures for this student's class + existing payments
