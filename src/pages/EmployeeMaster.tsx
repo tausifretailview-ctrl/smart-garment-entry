@@ -42,6 +42,7 @@ interface Employee {
   created_at: string;
   field_sales_access: boolean;
   user_id: string | null;
+  commission_percent: number;
 }
 
 interface OrgUser {
