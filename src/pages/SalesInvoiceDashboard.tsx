@@ -826,7 +826,7 @@ export default function SalesInvoiceDashboard() {
 
   const handleExportExcel = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    const exportData = paginatedInvoices.map((inv: any) => ({
+    const exportData = filteredInvoices.map((inv: any) => ({
       'Invoice No': inv.sale_number || '',
       'Date': inv.sale_date ? format(new Date(inv.sale_date), 'dd/MM/yyyy') : '',
       'Customer': inv.customer_name || '',
@@ -844,9 +844,9 @@ export default function SalesInvoiceDashboard() {
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Sales Invoices');
-    XLSX.writeFile(wb, `Sales_Invoices_Page${currentPage}_${format(new Date(), 'dd-MM-yyyy')}.xlsx`);
+    XLSX.writeFile(wb, `Sales_Invoices_All_${format(new Date(), 'dd-MM-yyyy')}.xlsx`);
     toast({ title: "Exported", description: `${exportData.length} records exported to Excel` });
-  }, [paginatedInvoices, currentPage, toast]);
+  }, [filteredInvoices, toast]);
 
   // Memoized event handlers
   const toggleSelectAll = useCallback(() => {
