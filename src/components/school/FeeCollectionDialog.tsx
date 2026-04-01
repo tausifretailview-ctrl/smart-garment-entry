@@ -66,6 +66,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
   const { settings: whatsAppSettings, sendMessageAsync } = useWhatsAppAPI();
   const [studentSearch, setStudentSearch] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(initialStudent);
+  const [selectedYearId, setSelectedYearId] = useState<string>("");
 
   // Fetch organization logo URL for WhatsApp messages
   const { data: orgLogoSettings } = useQuery({
