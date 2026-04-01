@@ -1961,6 +1961,74 @@ export default function POSSales() {
     }
   };
 
+  // Auto-create commission records after sale save
+  const createCommissionRecords = async (
+    saleId: string, saleNumber: string, saleDate: string, salesmanName: string, totalNetAmount: number
+  ) => {
+    if (!salesmanName || !currentOrganization?.id) return;
+    try {
+      const employee = (employees || []).find((e: any) => e.employee_name === salesmanName);
+      if (!employee) return;
+      const defaultRate = (employee as any).commission_percent ?? 1.0;
+      const employeeRules = (commissionRules || []).filter((r: any) => r.employee_id === employee.id);
+
+      // Fetch saved sale_items for item-level detail
+      const { data: saleItems } = await supabase.from('sale_items').select('product_id, product_name, quantity, line_total, size').eq('sale_id', saleId);
+
+      // Fetch product details for brand/category/style
+      const productIds = [...new Set((saleItems || []).map((i: any) => i.product_id).filter(Boolean))];
+      let productMap: Record<string, any> = {};
+      if (productIds.length > 0) {
+        const { data: prods } = await supabase.from('products').select('id, brand, category, style').in('id', productIds);
+        (prods || []).forEach((p: any) => { productMap[p.id] = p; });
+      }
+
+      const getRate = (item: any): { rate: number; ruleType: string } => {
+        const prod = productMap[item.product_id] || {};
+        const productRule = employeeRules.find((r: any) => r.rule_type === 'product' && r.rule_value === item.product_id);
+        if (productRule) return { rate: productRule.commission_percent, ruleType: 'product' };
+        const styleRule = employeeRules.find((r: any) => r.rule_type === 'style' && r.rule_value?.toLowerCase() === prod.style?.toLowerCase());
+        if (styleRule) return { rate: styleRule.commission_percent, ruleType: 'style' };
+        const brandRule = employeeRules.find((r: any) => r.rule_type === 'brand' && r.rule_value?.toLowerCase() === prod.brand?.toLowerCase());
+        if (brandRule) return { rate: brandRule.commission_percent, ruleType: 'brand' };
+        const catRule = employeeRules.find((r: any) => r.rule_type === 'category' && r.rule_value?.toLowerCase() === prod.category?.toLowerCase());
+        if (catRule) return { rate: catRule.commission_percent, ruleType: 'category' };
+        const defRule = employeeRules.find((r: any) => r.rule_type === 'default');
+        return { rate: defRule?.commission_percent ?? defaultRate, ruleType: 'default' };
+      };
+
+      if (saleItems && saleItems.length > 0) {
+        const records = saleItems.map((item: any) => {
+          const prod = productMap[item.product_id] || {};
+          const { rate, ruleType } = getRate(item);
+          const amount = Math.round(((item.line_total || 0) * rate / 100) * 100) / 100;
+          return {
+            organization_id: currentOrganization.id,
+            employee_id: employee.id, employee_name: salesmanName,
+            sale_id: saleId, sale_number: saleNumber, sale_date: saleDate,
+            customer_name: customerName || 'Walk-in Customer',
+            product_id: item.product_id, product_name: item.product_name,
+            brand: prod.brand || null, category: prod.category || null, style: prod.style || null,
+            sale_amount: item.line_total || 0, commission_percent: rate,
+            commission_amount: amount, rule_type: ruleType, payment_status: 'pending',
+          };
+        });
+        await (supabase.from('salesman_commissions' as any) as any).insert(records);
+      } else {
+        const { rate, ruleType } = getRate({});
+        const amount = Math.round((totalNetAmount * rate / 100) * 100) / 100;
+        await (supabase.from('salesman_commissions' as any) as any).insert({
+          organization_id: currentOrganization.id,
+          employee_id: employee.id, employee_name: salesmanName,
+          sale_id: saleId, sale_number: saleNumber, sale_date: saleDate,
+          customer_name: customerName || 'Walk-in Customer',
+          sale_amount: totalNetAmount, commission_percent: rate,
+          commission_amount: amount, rule_type: ruleType, payment_status: 'pending',
+        });
+      }
+    } catch (err) { console.error('Commission record failed (non-blocking):', err); }
+  };
+
   const handlePaymentMethodChange = (method: 'cash' | 'card' | 'upi') => {
     setPaymentMethod(method);
     toast({
