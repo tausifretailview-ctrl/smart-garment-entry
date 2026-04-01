@@ -2388,6 +2388,11 @@ export default function POSSales() {
         creditAmount: paymentData.creditAmount || 0,
       } : null;
       
+      // Auto-record salesman commission
+      if (selectedSalesman && !currentSaleId) {
+        createCommissionRecords(result.id, result.sale_number, result.sale_date || new Date().toISOString().split('T')[0], selectedSalesman, result.net_amount);
+      }
+
       // Clear the form immediately after successful save (reset to new blank invoice)
       setItems([]);
       setCustomerId("");
