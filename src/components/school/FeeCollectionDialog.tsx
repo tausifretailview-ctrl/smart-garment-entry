@@ -66,6 +66,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
   const { settings: whatsAppSettings, sendMessageAsync } = useWhatsAppAPI();
   const [studentSearch, setStudentSearch] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(initialStudent);
+  const [selectedYearId, setSelectedYearId] = useState<string>("");
 
   // Fetch organization logo URL for WhatsApp messages
   const { data: orgLogoSettings } = useQuery({
@@ -106,6 +107,20 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
     contentRef: receiptRef,
   });
 
+  // Get all academic years for selection
+  const { data: allAcademicYears = [] } = useQuery({
+    queryKey: ["all-academic-years", currentOrganization?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("academic_years")
+        .select("*")
+        .eq("organization_id", currentOrganization!.id)
+        .order("start_date", { ascending: false });
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
   // Get current academic year
   const { data: currentYear } = useQuery({
     queryKey: ["current-academic-year", currentOrganization?.id],
@@ -121,11 +136,31 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
     enabled: !!currentOrganization?.id,
   });
 
+  // Set default selected year to current year
+  const activeYear = allAcademicYears.find((y: any) => y.id === selectedYearId) || currentYear;
+  if (currentYear && !selectedYearId) {
+    // Use effect-free default
+  }
+
+  // Preview next receipt number
+  const { data: nextReceiptNo } = useQuery({
+    queryKey: ["next-receipt-number", currentOrganization?.id],
+    queryFn: async () => {
+      const { data } = await supabase.rpc("generate_fee_receipt_number", {
+        p_organization_id: currentOrganization!.id,
+      });
+      return data as string;
+    },
+    enabled: !!currentOrganization?.id && open,
+  });
+
+  const usedYear = activeYear || currentYear;
+
   // Fetch fee structures for this student's class + existing payments
   const { isLoading } = useQuery({
-    queryKey: ["student-fee-details", student?.id, student?.class_id, currentYear?.id],
+    queryKey: ["student-fee-details", student?.id, student?.class_id, usedYear?.id],
     queryFn: async () => {
-      if (!currentYear?.id) return [];
+      if (!usedYear?.id) return [];
 
       // Get fee structures for this class (if class assigned)
       let structures: any[] = [];
@@ -134,7 +169,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           .from("fee_structures")
           .select("*, fee_heads!inner(head_name)")
           .eq("organization_id", currentOrganization!.id)
-          .eq("academic_year_id", currentYear.id)
+        .eq("academic_year_id", usedYear!.id)
           .eq("class_id", student.class_id);
         structures = data || [];
       }
@@ -144,7 +179,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         .from("student_fees")
         .select("*")
         .eq("student_id", student.id)
-        .eq("academic_year_id", currentYear.id)
+        .eq("academic_year_id", usedYear!.id)
         .eq("organization_id", currentOrganization!.id)
         .in("status", ["paid", "partial"]);
 
@@ -193,7 +228,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
       setFeeItems(items);
       return items;
     },
-    enabled: !!student?.id && !!currentYear?.id && open,
+    enabled: !!student?.id && !!usedYear?.id && open,
   });
 
   const totalPaying = feeItems
@@ -202,7 +237,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
 
   const collectMutation = useMutation({
     mutationFn: async () => {
-      if (!student || !currentYear || !currentOrganization) throw new Error("Missing data");
+      if (!student || !usedYear || !currentOrganization) throw new Error("Missing data");
 
       const selectedItems = feeItems.filter(i => i.selected && i.paying > 0);
       if (selectedItems.length === 0) throw new Error("No fees selected");
@@ -222,7 +257,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           student_id: student.id,
           fee_head_id: isImported ? null : item.fee_head_id,
           fee_structure_id: isImported ? null : item.fee_structure_id,
-          academic_year_id: currentYear.id,
+          academic_year_id: usedYear!.id,
           amount: item.structure_amount,
           paid_amount: item.paying,
           paid_date: paidDate,
@@ -275,7 +310,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         transactionId,
         totalPaying,
         remainingBalance,
-        academicYear: currentYear.year_name,
+        academicYear: usedYear?.year_name || "",
       };
     },
     onSuccess: async (data) => {
@@ -285,6 +320,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
       queryClient.invalidateQueries({ queryKey: ["students-fee-collection"] });
       queryClient.invalidateQueries({ queryKey: ["student-fee-details"] });
       queryClient.invalidateQueries({ queryKey: ["fee-collection-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["next-receipt-number"] });
 
       // Auto-send WhatsApp receipt via API if configured
       const autoSend = (whatsAppSettings as any)?.auto_send_fee_receipt;
@@ -402,6 +438,37 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
             {student ? `Collect Fee — ${student.student_name} (${student.admission_number})` : "Add Fee Collection"}
           </DialogTitle>
         </DialogHeader>
+
+        {/* Receipt preview & Academic Year selector */}
+        {student && (
+          <div className="flex flex-wrap items-center gap-4 pb-2 border-b">
+            <div className="flex items-center gap-2">
+              <Receipt className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Next Receipt:</span>
+              <Badge variant="outline" className="font-mono text-sm">
+                {nextReceiptNo || "Loading..."}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-sm font-medium">Academic Year:</span>
+              <Select
+                value={selectedYearId || currentYear?.id || ""}
+                onValueChange={(v) => setSelectedYearId(v)}
+              >
+                <SelectTrigger className="w-[150px] h-8 text-sm">
+                  <SelectValue placeholder="Select Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allAcademicYears.map((y: any) => (
+                    <SelectItem key={y.id} value={y.id}>
+                      {y.year_name} {y.is_current ? "(Current)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
 
         {/* Student search when no student pre-selected */}
         {!student && (
