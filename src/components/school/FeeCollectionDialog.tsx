@@ -228,7 +228,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
       setFeeItems(items);
       return items;
     },
-    enabled: !!student?.id && !!currentYear?.id && open,
+    enabled: !!student?.id && !!usedYear?.id && open,
   });
 
   const totalPaying = feeItems
