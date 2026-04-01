@@ -438,6 +438,37 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           </DialogTitle>
         </DialogHeader>
 
+        {/* Receipt preview & Academic Year selector */}
+        {student && (
+          <div className="flex flex-wrap items-center gap-4 pb-2 border-b">
+            <div className="flex items-center gap-2">
+              <Receipt className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Next Receipt:</span>
+              <Badge variant="outline" className="font-mono text-sm">
+                {nextReceiptNo || "Loading..."}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-sm font-medium">Academic Year:</span>
+              <Select
+                value={selectedYearId || currentYear?.id || ""}
+                onValueChange={(v) => setSelectedYearId(v)}
+              >
+                <SelectTrigger className="w-[150px] h-8 text-sm">
+                  <SelectValue placeholder="Select Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allAcademicYears.map((y: any) => (
+                    <SelectItem key={y.id} value={y.id}>
+                      {y.year_name} {y.is_current ? "(Current)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+
         {/* Student search when no student pre-selected */}
         {!student && (
           <div className="space-y-3">
