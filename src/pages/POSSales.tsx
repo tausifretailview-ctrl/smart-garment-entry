@@ -3074,7 +3074,114 @@ export default function POSSales() {
     }
   };
 
-  const createCustomer = useMutation({
+  // ── WhatsApp Invoice Auto-Send ──
+  const sendWhatsAppInvoice = async (
+    saleId: string,
+    saleNumber: string,
+    saleDate: string,
+    netAmount: number,
+    grossAmount: number,
+    discountAmount: number,
+    phone: string,
+    custName: string,
+    salesmanName: string
+  ) => {
+    if (!waSettings?.is_active) return;
+    if (!phone || phone.trim().length < 8) return;
+
+    try {
+      const orgSlug = currentOrganization?.slug || '';
+      const saleData = {
+        sale_id: saleId,
+        org_slug: orgSlug,
+        sale_number: saleNumber,
+        customer_name: custName,
+        customer_phone: phone,
+        sale_date: saleDate,
+        net_amount: netAmount,
+        gross_amount: grossAmount,
+        discount_amount: discountAmount,
+        payment_status: 'paid',
+        salesman: salesmanName,
+        items_count: items.reduce((s, i) => s + i.quantity, 0),
+        organization_name: currentOrganization?.name,
+        organization_id: currentOrganization?.id,
+      };
+
+      // If send_invoice_pdf is OFF — just send text template
+      if (!waSettings.send_invoice_pdf) {
+        if (!waSettings.auto_send_invoice || !waSettings.invoice_template_name) return;
+        await sendMessageAsync({
+          phone,
+          message: '',
+          templateType: 'sales_invoice',
+          templateName: waSettings.invoice_template_name,
+          referenceId: saleId,
+          referenceType: 'sale',
+          saleData,
+        });
+        return;
+      }
+
+      // PDF mode
+      const invoiceDom = invoicePrintRef.current;
+
+      if (waSettings.use_document_header_template && waSettings.invoice_document_template_name) {
+        // DOCUMENT HEADER TEMPLATE (bypasses 24h window)
+        let pdfBase64: string | null = null;
+        if (invoiceDom) {
+          await new Promise(r => setTimeout(r, 500));
+          pdfBase64 = await generateInvoiceBase64(invoiceDom);
+        }
+        await sendMessageAsync({
+          phone,
+          message: '',
+          templateType: 'sales_invoice',
+          templateName: waSettings.invoice_document_template_name,
+          referenceId: saleId,
+          referenceType: 'sale',
+          saleData,
+          useDocumentHeaderTemplate: true,
+          documentHeaderTemplateName: waSettings.invoice_document_template_name,
+          pdfBlob: pdfBase64 || undefined,
+        });
+      } else {
+        // STANDARD ATTACHMENT — text template + separate PDF message
+        if (waSettings.invoice_template_name) {
+          await sendMessageAsync({
+            phone,
+            message: '',
+            templateType: 'sales_invoice',
+            templateName: waSettings.invoice_template_name,
+            referenceId: saleId,
+            referenceType: 'sale',
+            saleData,
+          });
+        }
+        if (invoiceDom) {
+          await new Promise(r => setTimeout(r, 300));
+          const pdfBase64 = await generateInvoiceBase64(invoiceDom);
+          if (pdfBase64) {
+            await sendMessageAsync({
+              phone,
+              message: `📄 Invoice ${saleNumber} — ₹${Math.round(netAmount).toLocaleString('en-IN')}`,
+              templateType: 'invoice_pdf',
+              referenceId: saleId,
+              referenceType: 'sale',
+              documentFilename: `Invoice_${saleNumber.replace(/\//g, '-')}.pdf`,
+              documentCaption: `Invoice ${saleNumber} — ${custName}`,
+              pdfBlob: pdfBase64,
+            });
+          }
+        }
+      }
+    } catch (err: any) {
+      // Non-blocking — log but don't fail the sale
+      console.error('WhatsApp invoice send failed:', err);
+    }
+  };
+
+
     mutationFn: async (data: typeof newCustomerForm) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
       
