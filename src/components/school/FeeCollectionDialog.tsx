@@ -142,13 +142,30 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
     // Use effect-free default
   }
 
-  // Preview next receipt number
+  // Helper: extract FY start/end full years from academic year name like "2025-26" or "2025-2026"
+  const getFYYears = (yearName?: string) => {
+    if (!yearName) return { start: null, end: null };
+    const match = yearName.match(/(\d{4})\s*[-–]\s*(\d{2,4})/);
+    if (!match) return { start: null, end: null };
+    const startYear = parseInt(match[1]);
+    const endPart = match[2];
+    const endYear = endPart.length === 2 ? parseInt(match[1].substring(0, 2) + endPart) : parseInt(endPart);
+    return { start: startYear, end: endYear };
+  };
+
+  const usedYearForReceipt = activeYear || currentYear;
+  const fyYears = getFYYears(usedYearForReceipt?.year_name);
+
+  // Preview next receipt number — changes with selected academic year
   const { data: nextReceiptNo } = useQuery({
-    queryKey: ["next-receipt-number", currentOrganization?.id],
+    queryKey: ["next-receipt-number", currentOrganization?.id, fyYears.start, fyYears.end],
     queryFn: async () => {
-      const { data } = await supabase.rpc("generate_fee_receipt_number", {
-        p_organization_id: currentOrganization!.id,
-      });
+      const params: any = { p_organization_id: currentOrganization!.id };
+      if (fyYears.start && fyYears.end) {
+        params.p_fy_start_year = fyYears.start;
+        params.p_fy_end_year = fyYears.end;
+      }
+      const { data } = await supabase.rpc("generate_fee_receipt_number", params);
       return data as string;
     },
     enabled: !!currentOrganization?.id && open,
@@ -243,8 +260,14 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
       if (selectedItems.length === 0) throw new Error("No fees selected");
 
       // Generate financial year based receipt number via DB function
+      const saveFY = getFYYears(usedYear?.year_name);
+      const rpcParams: any = { p_organization_id: currentOrganization.id };
+      if (saveFY.start && saveFY.end) {
+        rpcParams.p_fy_start_year = saveFY.start;
+        rpcParams.p_fy_end_year = saveFY.end;
+      }
       const { data: receiptResult, error: receiptError } = await supabase
-        .rpc("generate_fee_receipt_number", { p_organization_id: currentOrganization.id });
+        .rpc("generate_fee_receipt_number", rpcParams);
       if (receiptError) throw receiptError;
       const receiptNumber = receiptResult as string;
       const paidDate = new Date().toISOString();
