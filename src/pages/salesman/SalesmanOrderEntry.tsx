@@ -574,9 +574,10 @@ const SalesmanOrderEntry = () => {
       toast.success("Order saved successfully!");
 
       if (shareAfter && selectedCustomer.phone) {
-        const itemsList = orderItems.map(i => 
-          `• ${i.product.product_name} (${i.variant.size}) x ${i.quantity} = ₹${i.line_total.toLocaleString("en-IN")}`
-        ).join("\n");
+        const itemsList = orderItems.map(i => {
+          const colorPart = i.variant.color ? ` - ${i.variant.color}` : '';
+          return `• ${i.product.product_name}${colorPart} (${i.variant.size}) x ${i.quantity} = ₹${i.line_total.toLocaleString("en-IN")}`;
+        }).join("\n");
 
         const message = `🛒 *Sales Order Confirmation*\n\n` +
           `Order No: ${freshOrderNumber}\n` +
