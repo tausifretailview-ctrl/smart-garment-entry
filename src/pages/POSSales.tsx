@@ -120,6 +120,7 @@ export default function POSSales() {
   const { saveSale, updateSale, holdSale, resumeHeldSale, isSaving } = useSaveSale();
   const { createCreditNote, getAvailableCreditBalance, applyCredit, isCreating: isCreatingCreditNote, isApplying: isApplyingCredit } = useCreditNotes();
   const isMobile = useIsMobile();
+  const { settings: waSettings, sendMessageAsync } = useWhatsAppAPI();
   const [isHeldSale, setIsHeldSale] = useState(false);
   const [availableCreditBalance, setAvailableCreditBalance] = useState(0);
   const [creditApplied, setCreditApplied] = useState(0);
