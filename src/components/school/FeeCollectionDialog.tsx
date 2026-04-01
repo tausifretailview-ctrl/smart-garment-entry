@@ -260,8 +260,14 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
       if (selectedItems.length === 0) throw new Error("No fees selected");
 
       // Generate financial year based receipt number via DB function
+      const saveFY = getFYYears(usedYear?.year_name);
+      const rpcParams: any = { p_organization_id: currentOrganization.id };
+      if (saveFY.start && saveFY.end) {
+        rpcParams.p_fy_start_year = saveFY.start;
+        rpcParams.p_fy_end_year = saveFY.end;
+      }
       const { data: receiptResult, error: receiptError } = await supabase
-        .rpc("generate_fee_receipt_number", { p_organization_id: currentOrganization.id });
+        .rpc("generate_fee_receipt_number", rpcParams);
       if (receiptError) throw receiptError;
       const receiptNumber = receiptResult as string;
       const paidDate = new Date().toISOString();
