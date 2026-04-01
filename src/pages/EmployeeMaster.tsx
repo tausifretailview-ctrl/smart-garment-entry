@@ -148,7 +148,7 @@ const EmployeeMaster = () => {
   });
 
   const resetForm = () => {
-    setFormData({ employee_name: "", phone: "", email: "", address: "", designation: "", joining_date: "", status: "active", field_sales_access: false, user_id: "" });
+    setFormData({ employee_name: "", phone: "", email: "", address: "", designation: "", joining_date: "", status: "active", field_sales_access: false, user_id: "", commission_percent: 1 });
     setEditingEmployee(null);
   };
 
