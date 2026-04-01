@@ -1941,6 +1941,11 @@ export default function POSSales() {
         }
       }
       
+      // Auto-record salesman commission
+      if (selectedSalesman && !currentSaleId) {
+        createCommissionRecords(result.id, result.sale_number, result.sale_date || new Date().toISOString().split('T')[0], selectedSalesman, result.net_amount);
+      }
+
       // Clear cart on success
       setItems([]);
       setCustomerId("");
