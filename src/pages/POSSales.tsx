@@ -3181,7 +3181,7 @@ export default function POSSales() {
     }
   };
 
-
+  const createCustomer = useMutation({
     mutationFn: async (data: typeof newCustomerForm) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
       
