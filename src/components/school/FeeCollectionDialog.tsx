@@ -254,22 +254,42 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
 
   const collectMutation = useMutation({
     mutationFn: async () => {
-      if (!student || !usedYear || !currentOrganization) throw new Error("Missing data");
+      if (!student || !currentOrganization) throw new Error("Student data missing");
+      if (!usedYear) throw new Error(
+        "No active academic year found. Please go to School Settings → Academic Year Setup and mark the current year as active."
+      );
 
       const selectedItems = feeItems.filter(i => i.selected && i.paying > 0);
       if (selectedItems.length === 0) throw new Error("No fees selected");
 
-      // Generate financial year based receipt number via DB function
+      // Generate financial year based receipt number via DB function (with fallback)
+      let receiptNumber: string;
       const saveFY = getFYYears(usedYear?.year_name);
       const rpcParams: any = { p_organization_id: currentOrganization.id };
       if (saveFY.start && saveFY.end) {
         rpcParams.p_fy_start_year = saveFY.start;
         rpcParams.p_fy_end_year = saveFY.end;
       }
-      const { data: receiptResult, error: receiptError } = await supabase
-        .rpc("generate_fee_receipt_number", rpcParams);
-      if (receiptError) throw receiptError;
-      const receiptNumber = receiptResult as string;
+      try {
+        const { data: receiptResult, error: receiptError } = await supabase
+          .rpc("generate_fee_receipt_number", rpcParams);
+        if (receiptError) {
+          console.warn("Receipt RPC failed, using fallback:", receiptError.message);
+          const now = new Date();
+          const fy = now.getMonth() >= 3
+            ? `${now.getFullYear()}-${String(now.getFullYear() + 1).slice(2)}`
+            : `${now.getFullYear() - 1}-${String(now.getFullYear()).slice(2)}`;
+          receiptNumber = `RCT/${fy}/${Date.now().toString().slice(-6)}`;
+        } else {
+          receiptNumber = receiptResult as string;
+        }
+      } catch (rpcErr: any) {
+        const now = new Date();
+        const fy = now.getMonth() >= 3
+          ? `${now.getFullYear()}-${String(now.getFullYear() + 1).slice(2)}`
+          : `${now.getFullYear() - 1}-${String(now.getFullYear()).slice(2)}`;
+        receiptNumber = `RCT/${fy}/${Date.now().toString().slice(-6)}`;
+      }
       const paidDate = new Date().toISOString();
 
       for (const item of selectedItems) {
