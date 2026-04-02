@@ -561,6 +561,15 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
 
         {student && (
           <>
+            {!currentYear && !isLoading && (
+              <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-800 dark:text-amber-300">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-semibold">No active academic year</p>
+                  <p className="text-xs mt-0.5">Go to School Settings → Academic Year Setup and mark the current year as active before collecting fees.</p>
+                </div>
+              </div>
+            )}
             {isLoading ? (
               <div className="flex items-center justify-center h-32">
                 <Loader2 className="h-6 w-6 animate-spin" />
