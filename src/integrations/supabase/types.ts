@@ -6304,6 +6304,7 @@ export type Database = {
           created_at: string
           delivered_at: string | null
           direction: string
+          error_message: string | null
           id: string
           media_url: string | null
           message_text: string | null
@@ -6319,6 +6320,7 @@ export type Database = {
           created_at?: string
           delivered_at?: string | null
           direction: string
+          error_message?: string | null
           id?: string
           media_url?: string | null
           message_text?: string | null
@@ -6334,6 +6336,7 @@ export type Database = {
           created_at?: string
           delivered_at?: string | null
           direction?: string
+          error_message?: string | null
           id?: string
           media_url?: string | null
           message_text?: string | null
