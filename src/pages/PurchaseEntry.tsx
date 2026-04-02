@@ -385,7 +385,29 @@ const PurchaseEntry = () => {
     barcodeCheckTimerRef.current = setTimeout(async () => {
       const warnings = new Map<string, string>();
       const barcodesToCheck = lineItems.filter(item => item.barcode && item.barcode.length > 6);
+
+      // Collect all sku_ids in this bill to suppress cross-row false warnings
+      const allBillSkuIds = new Set(lineItems.map(i => i.sku_id).filter(Boolean));
+
+      // Detect in-bill duplicates (same barcode on different line items)
+      const billBarcodeMap = new Map<string, string>(); // barcode → temp_id of first occurrence
+      const inBillDuplicates = new Set<string>();
+      for (const item of lineItems) {
+        if (!item.barcode) continue;
+        if (billBarcodeMap.has(item.barcode)) {
+          inBillDuplicates.add(item.temp_id);
+        } else {
+          billBarcodeMap.set(item.barcode, item.temp_id);
+        }
+      }
+
       for (const item of barcodesToCheck) {
+        // In-bill duplicate: same barcode on two different items
+        if (inBillDuplicates.has(item.temp_id)) {
+          warnings.set(item.temp_id, `⚠️ Duplicate barcode in this bill — same barcode assigned to multiple items`);
+          continue;
+        }
+
         try {
           const { data } = await supabase.rpc('check_barcode_duplicate', {
             p_barcode: item.barcode,
@@ -393,8 +415,12 @@ const PurchaseEntry = () => {
             p_exclude_variant_id: item.sku_id || null
           });
           if (data && data.length > 0) {
-            const existing = data[0];
-            warnings.set(item.temp_id, `⚠️ Barcode already used: "${existing.product_name}" ${existing.size}${existing.color ? ' / ' + existing.color : ''} (Stock: ${existing.stock_qty})`);
+            // Filter out variants that belong to THIS bill (not real duplicates)
+            const realConflicts = (data as any[]).filter((d: any) => !allBillSkuIds.has(d.variant_id));
+            if (realConflicts.length > 0) {
+              const existing = realConflicts[0];
+              warnings.set(item.temp_id, `⚠️ Barcode already used: "${existing.product_name}" ${existing.size}${existing.color ? ' / ' + existing.color : ''} (Stock: ${existing.stock_qty})`);
+            }
           }
         } catch { /* ignore */ }
       }
