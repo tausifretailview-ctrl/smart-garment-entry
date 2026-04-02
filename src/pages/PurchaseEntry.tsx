@@ -3526,12 +3526,21 @@ const PurchaseEntry = () => {
                           <Badge variant="outline" className={cn("text-xs", isMobileERPMode ? "font-mono tracking-wider" : "font-mono")}>
                             {item.barcode || "—"}
                           </Badge>
-                          {barcodeWarnings.has(item.temp_id) && (
-                            <div className="flex items-start gap-1.5 mt-1 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded px-2 py-1.5">
-                              <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                              <span>{barcodeWarnings.get(item.temp_id)}</span>
-                            </div>
-                          )}
+                          {barcodeWarnings.has(item.temp_id) && (() => {
+                            const msg = barcodeWarnings.get(item.temp_id) || '';
+                            const isInBill = msg.includes('Duplicate barcode in this bill');
+                            return (
+                              <div className={cn(
+                                "flex items-start gap-1.5 mt-1 text-xs rounded px-2 py-1.5",
+                                isInBill
+                                  ? "text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800"
+                                  : "text-destructive bg-destructive/10 border border-destructive/30"
+                              )}>
+                                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                <span>{msg}</span>
+                              </div>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell className="w-[80px]">
                           <Input
