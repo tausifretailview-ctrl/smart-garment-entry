@@ -37,6 +37,7 @@ export function ModifyFeeReceiptDialog({ open, onOpenChange, fee }: ModifyFeeRec
   const [paidDate, setPaidDate] = useState("");
   const [showReceipt, setShowReceipt] = useState(false);
   const [updatedBalance, setUpdatedBalance] = useState(0);
+  const [updatedRemainingBalance, setUpdatedRemainingBalance] = useState(0);
 
   useEffect(() => {
     if (fee && open) {
