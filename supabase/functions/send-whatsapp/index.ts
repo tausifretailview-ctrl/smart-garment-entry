@@ -744,6 +744,46 @@ serve(async (req) => {
           // Save outbound message to inbox tables
           await saveOutboundToInbox(supabase, organizationId, formattedPhone, saleData, message || `Document template: ${docTemplateName}`, docResult.messageId || null, isTextMessage ? 'text' : 'template');
           
+          // Mark pending follow-up for button click (Order Details / Feedback)
+          if (templateType === 'sales_invoice' && orgSettings?.send_followup_on_button_click && logEntry) {
+            try {
+              const saleId = saleData?.sale_id || referenceId;
+              let orgSlug = saleData?.org_slug;
+              if (!orgSlug && organizationId) {
+                const { data: org } = await supabase
+                  .from('organizations')
+                  .select('slug')
+                  .eq('id', organizationId)
+                  .single();
+                orgSlug = org?.slug;
+              }
+              if (saleId && orgSlug) {
+                const invoiceLink = `https://app.inventoryshop.in/${orgSlug}/invoice/view/${saleId}`;
+                const whatsappLink = `https://wa.me/${orgSettings.phone_number_id?.replace(/\D/g, '')}`;
+                await supabase
+                  .from('whatsapp_logs')
+                  .update({
+                    pending_followup: true,
+                    followup_data: {
+                      invoice_link: invoiceLink,
+                      customer_name: String(saleData?.customer_name || ''),
+                      sale_number: String(saleData?.sale_number || ''),
+                      website: String(saleData?.website || orgSettings.social_links?.website || ''),
+                      instagram: String(saleData?.instagram || orgSettings.social_links?.instagram || ''),
+                      facebook: String(saleData?.facebook || orgSettings.social_links?.facebook || ''),
+                      google_review: String(orgSettings.social_links?.google_review || ''),
+                      whatsapp_link: whatsappLink,
+                      message_template: orgSettings.button_followup_message || '📄 Thank you for viewing your invoice!\n\nHere are your links:\n🌐 Website: {website}\n📷 Instagram: {instagram}\n\nRate us: ⭐⭐⭐⭐⭐',
+                    }
+                  })
+                  .eq('id', logEntry.id);
+                console.log('Pending follow-up marked (doc header path) with invoice link:', invoiceLink);
+              }
+            } catch (e) {
+              console.error('Failed to mark pending follow-up (doc header path):', e);
+            }
+          }
+          
           return new Response(
             JSON.stringify({ 
               success: true, 
