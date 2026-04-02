@@ -668,7 +668,7 @@ const FeeCollection = () => {
                               variant="ghost"
                               className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
                               onClick={() => { setBalanceEditStudent(student); setBalanceEditOpen(true); }}
-                              title="Edit closing fees balance"
+                              title="Adjust Fees Balance (Audited)"
                             >
                               <Pencil className="h-3 w-3" />
                             </Button>
