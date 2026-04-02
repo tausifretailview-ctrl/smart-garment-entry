@@ -138,20 +138,24 @@ const FeeCollection = () => {
 
       const { data: todayData } = await supabase
         .from("student_fees")
-        .select("paid_amount")
+        .select("paid_amount, status")
         .eq("organization_id", currentOrganization!.id)
         .eq("academic_year_id", activeYear.id)
         .gte("paid_date", today + "T00:00:00")
-        .lte("paid_date", today + "T23:59:59");
+        .lte("paid_date", today + "T23:59:59")
+        .in("status", ["paid", "partial"])
+        .gt("paid_amount", 0);
 
       const todayTotal = (todayData || []).reduce((s: number, r: any) => s + (r.paid_amount || 0), 0);
 
       const { data: monthData } = await supabase
         .from("student_fees")
-        .select("paid_amount")
+        .select("paid_amount, status")
         .eq("organization_id", currentOrganization!.id)
         .eq("academic_year_id", activeYear.id)
-        .gte("paid_date", monthStart + "T00:00:00");
+        .gte("paid_date", monthStart + "T00:00:00")
+        .in("status", ["paid", "partial"])
+        .gt("paid_amount", 0);
 
       const monthTotal = (monthData || []).reduce((s: number, r: any) => s + (r.paid_amount || 0), 0);
 
@@ -170,9 +174,11 @@ const FeeCollection = () => {
 
       const { data: allPayments } = await supabase
         .from("student_fees")
-        .select("paid_amount")
+        .select("paid_amount, status")
         .eq("organization_id", currentOrganization!.id)
-        .eq("academic_year_id", activeYear.id);
+        .eq("academic_year_id", activeYear.id)
+        .in("status", ["paid", "partial"])
+        .gt("paid_amount", 0);
 
       const totalPaid = (allPayments || []).reduce((s: number, r: any) => s + (r.paid_amount || 0), 0);
 
