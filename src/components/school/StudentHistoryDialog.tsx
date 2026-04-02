@@ -353,27 +353,7 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
                       </TableCell>
                     </TableRow>
                   ) : (
-                    ledgerEntries.map((entry: any) =>
-                      entry.status === 'balance_adjustment' ? (
-                        <TableRow key={entry.id} className="bg-amber-50/30 dark:bg-amber-950/10">
-                          <TableCell className="text-sm">
-                            {entry.paid_date ? format(new Date(entry.paid_date), 'dd/MM/yyyy') : '—'}
-                          </TableCell>
-                          <TableCell className="text-xs text-amber-600">{entry.payment_receipt_id}</TableCell>
-                          <TableCell className="text-sm text-amber-700 font-medium">
-                            ⚙ Balance Adjustment
-                            {entry.notes && <span className="text-xs block text-muted-foreground">{entry.notes}</span>}
-                          </TableCell>
-                          <TableCell>—</TableCell>
-                          <TableCell className="text-right text-amber-600 font-semibold">
-                            ₹{fmtINR(entry.amount || 0)}
-                          </TableCell>
-                          <TableCell className="text-right">—</TableCell>
-                          <TableCell className="text-right font-bold text-amber-600">
-                            ₹{fmtINR(entry.balanceAfter)}
-                          </TableCell>
-                        </TableRow>
-                      ) : (
+                    ledgerEntries.map((entry: any) => (
                         <TableRow key={entry.id}>
                           <TableCell className="text-sm">
                             {entry.paid_date ? format(new Date(entry.paid_date), 'dd/MM/yyyy') : '—'}
@@ -398,6 +378,8 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
                               {entry.balanceAfter === 0 && ' ✓'}
                             </span>
                           </TableCell>
+                        </TableRow>
+                    ))
                         </TableRow>
                       )
                     )
