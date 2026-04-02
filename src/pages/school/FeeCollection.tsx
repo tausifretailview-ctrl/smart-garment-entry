@@ -240,7 +240,7 @@ const FeeCollection = () => {
           ? supabase.from("fee_structures").select("*").eq("organization_id", currentOrganization.id).eq("academic_year_id", activeYear.id).in("class_id", classIds)
           : { data: [] },
         // Fetch payments for the active academic year (for structure-based dues)
-        supabase.from("student_fees").select("student_id, paid_amount, fee_head_id, academic_year_id").eq("organization_id", currentOrganization.id).in("student_id", studentIds),
+        supabase.from("student_fees").select("student_id, paid_amount, fee_head_id, academic_year_id, status").eq("organization_id", currentOrganization.id).in("student_id", studentIds).in("status", ["paid", "partial"]).gt("paid_amount", 0),
       ]);
 
       const structures = structuresRes.data || [];
