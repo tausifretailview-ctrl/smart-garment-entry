@@ -121,18 +121,12 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
   });
 
   // Build ledger entries chronologically (oldest first) for running balance
-  // Use ALL payments (not year-filtered) for full ledger visibility
-  const ledgerPayments = (feePayments || []).filter((p: any) => p.status !== "balance_adjustment" || true);
-  const sortedPayments = [...ledgerPayments].sort((a: any, b: any) =>
+  const sortedPayments = [...allRealPayments].sort((a: any, b: any) =>
     new Date(a.paid_date || a.created_at).getTime() - new Date(b.paid_date || b.created_at).getTime()
   );
 
   let runningBalance = totalExpected;
   const ledgerEntries = sortedPayments.map((p: any) => {
-    if (p.status === "balance_adjustment") {
-      // Balance adjustments set the opening amount as debit
-      return { ...p, balanceAfter: runningBalance };
-    }
     runningBalance -= (p.paid_amount || 0);
     return { ...p, balanceAfter: runningBalance };
   });

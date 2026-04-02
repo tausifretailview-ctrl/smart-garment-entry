@@ -327,6 +327,8 @@ const FeeCollection = () => {
         .eq("academic_year_id", activeYear.id)
         .gte("paid_date", dateRange.from)
         .lte("paid_date", dateRange.to)
+        .in("status", ["paid", "partial"])
+        .gt("paid_amount", 0)
         .order("paid_date", { ascending: false });
 
       const { data, error } = await query;

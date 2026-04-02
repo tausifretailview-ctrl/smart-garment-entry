@@ -264,7 +264,7 @@ export function ModifyFeeReceiptDialog({ open, onOpenChange, fee }: ModifyFeeRec
                   paying: paidAmount,
                 }]}
                 totalPaying={paidAmount}
-                remainingBalance={updatedBalance}
+                remainingBalance={updatedRemainingBalance}
               />
             </div>
             <div className="flex justify-end gap-2">
