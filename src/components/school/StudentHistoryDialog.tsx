@@ -83,6 +83,20 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
     enabled: open && !!student?.class_id && !!currentYear?.id && !!currentOrganization?.id,
   });
 
+  // Fetch balance adjustment audit log
+  const { data: adjustmentLog = [] } = useQuery({
+    queryKey: ["student-balance-audit", student?.id, currentOrganization?.id],
+    queryFn: async () => {
+      const { data } = await (supabase.from("student_balance_audit" as any) as any)
+        .select("*")
+        .eq("student_id", student!.id)
+        .eq("organization_id", currentOrganization!.id)
+        .order("created_at", { ascending: false });
+      return data || [];
+    },
+    enabled: open && !!student?.id && !!currentOrganization?.id,
+  });
+
   if (!student) return null;
 
   // Calculate structure-based expected total
