@@ -83,6 +83,20 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
     enabled: open && !!student?.class_id && !!currentYear?.id && !!currentOrganization?.id,
   });
 
+  // Fetch balance adjustment audit log
+  const { data: adjustmentLog = [] } = useQuery({
+    queryKey: ["student-balance-audit", student?.id, currentOrganization?.id],
+    queryFn: async () => {
+      const { data } = await (supabase.from("student_balance_audit" as any) as any)
+        .select("*")
+        .eq("student_id", student!.id)
+        .eq("organization_id", currentOrganization!.id)
+        .order("created_at", { ascending: false });
+      return data || [];
+    },
+    enabled: open && !!student?.id && !!currentOrganization?.id,
+  });
+
   if (!student) return null;
 
   // Calculate structure-based expected total
@@ -381,6 +395,42 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
                         </TableRow>
                     ))
                   )}
+                  {/* Balance Adjustment entries from audit log */}
+                  {adjustmentLog.map((adj: any) => (
+                    <TableRow key={`adj-${adj.id}`} className="bg-amber-50/30 dark:bg-amber-950/10">
+                      <TableCell className="text-sm">
+                        {adj.created_at ? format(new Date(adj.created_at), "dd/MM/yyyy") : "—"}
+                      </TableCell>
+                      <TableCell className="text-xs text-amber-600 font-mono">{adj.voucher_number}</TableCell>
+                      <TableCell className="text-sm">
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-700">
+                            ⚙ Adjustment
+                          </Badge>
+                          <span>{adj.adjustment_type === "credit" ? "Balance Added" : adj.adjustment_type === "debit" ? "Balance Reduced" : "Balance Set"}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {adj.reason_code_label || adj.reason_code}
+                          {adj.reason_detail && ` — ${adj.reason_detail}`}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">By: {adj.adjusted_by_name || "—"}</div>
+                      </TableCell>
+                      <TableCell>—</TableCell>
+                      <TableCell className="text-right">
+                        {adj.adjustment_type === "credit" && (
+                          <span className="text-red-600 font-semibold">₹{fmtINR(adj.change_amount || 0)}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {adj.adjustment_type === "debit" && (
+                          <span className="text-green-600 font-semibold">₹{fmtINR(adj.change_amount || 0)}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-bold text-amber-700 dark:text-amber-400">
+                        ₹{fmtINR(adj.new_balance || 0)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
                   {/* Totals row */}
                   {ledgerEntries.length > 0 && (
                     <TableRow className="bg-muted/30 font-bold border-t-2">
