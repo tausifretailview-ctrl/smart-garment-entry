@@ -309,9 +309,6 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                   {financerDetails.emi_amount != null && financerDetails.emi_amount > 0 && (
                     <div><strong>EMI Amount:</strong> ₹{fmt(financerDetails.emi_amount)}/month</div>
                   )}
-                  {financerDetails.tenure != null && financerDetails.tenure > 0 && (
-                    <div><strong>Tenure:</strong> {financerDetails.tenure} months</div>
-                  )}
                 </div>
               </>
             ) : (
