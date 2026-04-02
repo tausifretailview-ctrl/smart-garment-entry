@@ -1646,7 +1646,7 @@ const POSDashboard = () => {
                             </TableCell>
                             <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums font-semibold text-primary" onClick={() => toggleExpanded(sale.id)}>
                               <div className="flex items-center justify-end gap-1">
-                                {sale.sale_return_adjust && sale.sale_return_adjust > 0 && (
+                                {(sale.sale_return_adjust || 0) > 0 && (
                                   <Badge variant="outline" className="text-[9px] px-1 py-0 font-semibold border-orange-300 text-orange-600 bg-orange-50 dark:bg-orange-950 dark:border-orange-700 dark:text-orange-400 whitespace-nowrap">
                                     S/R Adj
                                   </Badge>
