@@ -37,6 +37,7 @@ export function ModifyFeeReceiptDialog({ open, onOpenChange, fee }: ModifyFeeRec
   const [paidDate, setPaidDate] = useState("");
   const [showReceipt, setShowReceipt] = useState(false);
   const [updatedBalance, setUpdatedBalance] = useState(0);
+  const [updatedRemainingBalance, setUpdatedRemainingBalance] = useState(0);
 
   useEffect(() => {
     if (fee && open) {
@@ -75,12 +76,12 @@ export function ModifyFeeReceiptDialog({ open, onOpenChange, fee }: ModifyFeeRec
 
       if (error) throw error;
 
-      // Also update the matching voucher_entry if exists
+      // Update the matching voucher_entry (fix: use total_amount not amount)
       if (fee.payment_receipt_id) {
         await supabase
           .from("voucher_entries")
           .update({
-            amount: paidAmount,
+            total_amount: paidAmount,
             payment_method: paymentMethod,
             transaction_id: transactionId || null,
             voucher_date: paidDate,
@@ -88,6 +89,64 @@ export function ModifyFeeReceiptDialog({ open, onOpenChange, fee }: ModifyFeeRec
           .eq("voucher_number", fee.payment_receipt_id)
           .eq("organization_id", currentOrganization.id);
       }
+
+      // Recalculate status for this student_fees record
+      const structureAmount = fee.amount || 0;
+      const newStatus = structureAmount > 0 && paidAmount >= structureAmount ? "paid" : "partial";
+      await supabase
+        .from("student_fees")
+        .update({ status: newStatus })
+        .eq("id", fee.id)
+        .eq("organization_id", currentOrganization.id);
+
+      // Calculate updated remaining balance for this student
+      const { data: allFees } = await supabase
+        .from("student_fees")
+        .select("paid_amount, status")
+        .eq("student_id", fee.student_id)
+        .eq("organization_id", currentOrganization!.id)
+        .in("status", ["paid", "partial"])
+        .gt("paid_amount", 0);
+
+      // Subtract old amount and add new to get accurate total
+      const totalPaidAfterEdit = (allFees || []).reduce((s: number, f: any) => s + (f.paid_amount || 0), 0) - (fee.paid_amount || 0) + paidAmount;
+
+      // Fetch student's closing_fees_balance to compute remaining
+      const { data: studentData } = await supabase
+        .from("students")
+        .select("closing_fees_balance, class_id")
+        .eq("id", fee.student_id)
+        .single();
+
+      let expectedTotal = studentData?.closing_fees_balance || 0;
+
+      // Check fee structures for more accurate expected
+      if (studentData?.class_id && currentOrganization?.id) {
+        const { data: yearData } = await supabase
+          .from("academic_years")
+          .select("id")
+          .eq("organization_id", currentOrganization.id)
+          .eq("is_current", true)
+          .single();
+
+        if (yearData?.id) {
+          const { data: structures } = await supabase
+            .from("fee_structures")
+            .select("amount, frequency")
+            .eq("organization_id", currentOrganization.id)
+            .eq("academic_year_id", yearData.id)
+            .eq("class_id", studentData.class_id);
+
+          const structureTotal = (structures || []).reduce((sum: number, s: any) => {
+            const mult = s.frequency === "monthly" ? 12 : s.frequency === "quarterly" ? 4 : 1;
+            return sum + s.amount * mult;
+          }, 0);
+
+          if (structureTotal > 0) expectedTotal = structureTotal;
+        }
+      }
+
+      setUpdatedRemainingBalance(Math.max(0, expectedTotal - totalPaidAfterEdit));
     },
     onSuccess: async () => {
       toast.success("Receipt updated successfully");
@@ -96,59 +155,6 @@ export function ModifyFeeReceiptDialog({ open, onOpenChange, fee }: ModifyFeeRec
       queryClient.invalidateQueries({ queryKey: ["students-fee-collection"] });
       queryClient.invalidateQueries({ queryKey: ["student-fee-details"] });
       queryClient.invalidateQueries({ queryKey: ["student-fee-payments-history"] });
-
-      // Recalculate remaining balance for receipt
-      if (fee?.student_id && currentOrganization?.id) {
-        try {
-          const { data: allPayments } = await supabase
-            .from("student_fees")
-            .select("paid_amount, status")
-            .eq("student_id", fee.student_id)
-            .eq("organization_id", currentOrganization.id)
-            .neq("status", "balance_adjustment");
-
-          const newTotalPaid = (allPayments || []).reduce((s: number, r: any) => s + (r.paid_amount || 0), 0);
-
-          // Get student's fee structures to calculate total expected
-          const { data: studentData } = await supabase
-            .from("students")
-            .select("class_id, closing_fees_balance")
-            .eq("id", fee.student_id)
-            .single();
-
-          let totalExpected = studentData?.closing_fees_balance || 0;
-
-          if (studentData?.class_id) {
-            const { data: yearData } = await supabase
-              .from("academic_years")
-              .select("id")
-              .eq("organization_id", currentOrganization.id)
-              .eq("is_current", true)
-              .single();
-
-            if (yearData?.id) {
-              const { data: structures } = await supabase
-                .from("fee_structures")
-                .select("amount, frequency")
-                .eq("organization_id", currentOrganization.id)
-                .eq("academic_year_id", yearData.id)
-                .eq("class_id", studentData.class_id);
-
-              const structureTotal = (structures || []).reduce((sum: number, s: any) => {
-                const mult = s.frequency === "monthly" ? 12 : s.frequency === "quarterly" ? 4 : 1;
-                return sum + s.amount * mult;
-              }, 0);
-
-              if (structureTotal > 0) totalExpected = structureTotal;
-            }
-          }
-
-          setUpdatedBalance(Math.max(0, totalExpected - newTotalPaid));
-        } catch (err) {
-          console.error("Balance calc failed:", err);
-          setUpdatedBalance(0);
-        }
-      }
 
       setShowReceipt(true);
     },
@@ -258,7 +264,7 @@ export function ModifyFeeReceiptDialog({ open, onOpenChange, fee }: ModifyFeeRec
                   paying: paidAmount,
                 }]}
                 totalPaying={paidAmount}
-                remainingBalance={updatedBalance}
+                remainingBalance={updatedRemainingBalance}
               />
             </div>
             <div className="flex justify-end gap-2">

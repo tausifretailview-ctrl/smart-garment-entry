@@ -138,20 +138,24 @@ const FeeCollection = () => {
 
       const { data: todayData } = await supabase
         .from("student_fees")
-        .select("paid_amount")
+        .select("paid_amount, status")
         .eq("organization_id", currentOrganization!.id)
         .eq("academic_year_id", activeYear.id)
         .gte("paid_date", today + "T00:00:00")
-        .lte("paid_date", today + "T23:59:59");
+        .lte("paid_date", today + "T23:59:59")
+        .in("status", ["paid", "partial"])
+        .gt("paid_amount", 0);
 
       const todayTotal = (todayData || []).reduce((s: number, r: any) => s + (r.paid_amount || 0), 0);
 
       const { data: monthData } = await supabase
         .from("student_fees")
-        .select("paid_amount")
+        .select("paid_amount, status")
         .eq("organization_id", currentOrganization!.id)
         .eq("academic_year_id", activeYear.id)
-        .gte("paid_date", monthStart + "T00:00:00");
+        .gte("paid_date", monthStart + "T00:00:00")
+        .in("status", ["paid", "partial"])
+        .gt("paid_amount", 0);
 
       const monthTotal = (monthData || []).reduce((s: number, r: any) => s + (r.paid_amount || 0), 0);
 
@@ -170,9 +174,11 @@ const FeeCollection = () => {
 
       const { data: allPayments } = await supabase
         .from("student_fees")
-        .select("paid_amount")
+        .select("paid_amount, status")
         .eq("organization_id", currentOrganization!.id)
-        .eq("academic_year_id", activeYear.id);
+        .eq("academic_year_id", activeYear.id)
+        .in("status", ["paid", "partial"])
+        .gt("paid_amount", 0);
 
       const totalPaid = (allPayments || []).reduce((s: number, r: any) => s + (r.paid_amount || 0), 0);
 
@@ -234,7 +240,7 @@ const FeeCollection = () => {
           ? supabase.from("fee_structures").select("*").eq("organization_id", currentOrganization.id).eq("academic_year_id", activeYear.id).in("class_id", classIds)
           : { data: [] },
         // Fetch payments for the active academic year (for structure-based dues)
-        supabase.from("student_fees").select("student_id, paid_amount, fee_head_id, academic_year_id").eq("organization_id", currentOrganization.id).in("student_id", studentIds),
+        supabase.from("student_fees").select("student_id, paid_amount, fee_head_id, academic_year_id, status").eq("organization_id", currentOrganization.id).in("student_id", studentIds).in("status", ["paid", "partial"]).gt("paid_amount", 0),
       ]);
 
       const structures = structuresRes.data || [];
@@ -248,11 +254,10 @@ const FeeCollection = () => {
         }, 0);
 
         const studentPayments = allPayments.filter((p: any) => p.student_id === student.id);
-        // For structure-based dues: only count payments in the active year
+        // Already filtered to paid/partial with paid_amount > 0 in the query
         const paidInYear = studentPayments
           .filter((p: any) => p.academic_year_id === activeYear.id)
           .reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
-        // For imported balance (closing_fees_balance): count ALL payments across years
         const paidTotal = studentPayments
           .reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
 
@@ -322,6 +327,8 @@ const FeeCollection = () => {
         .eq("academic_year_id", activeYear.id)
         .gte("paid_date", dateRange.from)
         .lte("paid_date", dateRange.to)
+        .in("status", ["paid", "partial"])
+        .gt("paid_amount", 0)
         .order("paid_date", { ascending: false });
 
       const { data, error } = await query;

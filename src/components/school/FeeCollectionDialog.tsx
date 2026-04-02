@@ -320,10 +320,13 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
       }
 
       // Calculate remaining balance after this payment
-      const totalStructureBalance = feeItems
-        .filter(i => i.balance > 0)
-        .reduce((sum, i) => sum + i.balance, 0);
-      const remainingBalance = Math.max(0, totalStructureBalance - totalPaying);
+      const remainingBalance = feeItems.reduce((sum, i) => {
+        if (i.balance <= 0) return sum;
+        if (i.selected && i.paying > 0) {
+          return sum + Math.max(0, i.balance - i.paying);
+        }
+        return sum + i.balance;
+      }, 0);
 
       return {
         receiptNumber,

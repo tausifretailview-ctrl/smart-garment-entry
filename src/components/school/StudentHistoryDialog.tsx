@@ -47,8 +47,7 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
     enabled: !!currentOrganization?.id && open,
   });
 
-  // Fetch all fee payments for this student (include balance_adjustment entries)
-  // Fetch ALL payments — year scoping is handled downstream based on structures vs imported balance
+  // Fetch all real fee payments for this student (exclude balance_adjustment ghost records)
   const { data: feePayments, isLoading: paymentsLoading } = useQuery({
     queryKey: ["student-fee-payments-history", student?.id, currentOrganization?.id],
     queryFn: async () => {
@@ -58,6 +57,8 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
         .select("*, fee_heads(head_name)")
         .eq("student_id", student.id)
         .eq("organization_id", currentOrganization.id)
+        .in("status", ["paid", "partial"])
+        .gt("paid_amount", 0)
         .order("paid_date", { ascending: false });
 
       if (error) throw error;
@@ -120,18 +121,12 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
   });
 
   // Build ledger entries chronologically (oldest first) for running balance
-  // Use ALL payments (not year-filtered) for full ledger visibility
-  const ledgerPayments = (feePayments || []).filter((p: any) => p.status !== "balance_adjustment" || true);
-  const sortedPayments = [...ledgerPayments].sort((a: any, b: any) =>
+  const sortedPayments = [...allRealPayments].sort((a: any, b: any) =>
     new Date(a.paid_date || a.created_at).getTime() - new Date(b.paid_date || b.created_at).getTime()
   );
 
   let runningBalance = totalExpected;
   const ledgerEntries = sortedPayments.map((p: any) => {
-    if (p.status === "balance_adjustment") {
-      // Balance adjustments set the opening amount as debit
-      return { ...p, balanceAfter: runningBalance };
-    }
     runningBalance -= (p.paid_amount || 0);
     return { ...p, balanceAfter: runningBalance };
   });
@@ -358,27 +353,7 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
                       </TableCell>
                     </TableRow>
                   ) : (
-                    ledgerEntries.map((entry: any) =>
-                      entry.status === 'balance_adjustment' ? (
-                        <TableRow key={entry.id} className="bg-amber-50/30 dark:bg-amber-950/10">
-                          <TableCell className="text-sm">
-                            {entry.paid_date ? format(new Date(entry.paid_date), 'dd/MM/yyyy') : '—'}
-                          </TableCell>
-                          <TableCell className="text-xs text-amber-600">{entry.payment_receipt_id}</TableCell>
-                          <TableCell className="text-sm text-amber-700 font-medium">
-                            ⚙ Balance Adjustment
-                            {entry.notes && <span className="text-xs block text-muted-foreground">{entry.notes}</span>}
-                          </TableCell>
-                          <TableCell>—</TableCell>
-                          <TableCell className="text-right text-amber-600 font-semibold">
-                            ₹{fmtINR(entry.amount || 0)}
-                          </TableCell>
-                          <TableCell className="text-right">—</TableCell>
-                          <TableCell className="text-right font-bold text-amber-600">
-                            ₹{fmtINR(entry.balanceAfter)}
-                          </TableCell>
-                        </TableRow>
-                      ) : (
+                    ledgerEntries.map((entry: any) => (
                         <TableRow key={entry.id}>
                           <TableCell className="text-sm">
                             {entry.paid_date ? format(new Date(entry.paid_date), 'dd/MM/yyyy') : '—'}
@@ -404,11 +379,10 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
                             </span>
                           </TableCell>
                         </TableRow>
-                      )
-                    )
+                    ))
                   )}
                   {/* Totals row */}
-                  {ledgerEntries.filter((e: any) => e.status !== 'balance_adjustment').length > 0 && (
+                  {ledgerEntries.length > 0 && (
                     <TableRow className="bg-muted/30 font-bold border-t-2">
                       <TableCell colSpan={5} className="text-right text-sm">TOTALS</TableCell>
                       <TableCell className="text-right text-green-600">₹{fmtINR(totalPaid)}</TableCell>
