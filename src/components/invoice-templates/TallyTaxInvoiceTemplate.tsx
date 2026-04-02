@@ -470,6 +470,14 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                   <th style={{ ...hCell, textAlign: 'left' }}>HSN/SAC</th>
                   <th style={{ ...hCell, textAlign: 'right' }}>Taxable Value</th>
                   <th style={{ ...hCell, textAlign: 'center' }}>GST %</th>
+                  {isInterState ? (
+                    <th style={{ ...hCell, textAlign: 'right' }}>IGST Amount</th>
+                  ) : (
+                    <>
+                      <th style={{ ...hCell, textAlign: 'right' }}>CGST Amount</th>
+                      <th style={{ ...hCell, textAlign: 'right' }}>SGST Amount</th>
+                    </>
+                  )}
                   <th style={{ ...hCell, textAlign: 'right' }}>GST Amount</th>
                 </tr>
               </thead>
@@ -479,6 +487,14 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                     <td style={cell}>{row.hsn}</td>
                     <td style={{ ...cell, textAlign: 'right' }}>{fmt(row.taxableValue)}</td>
                     <td style={{ ...cell, textAlign: 'center' }}>{row.rate}%</td>
+                    {isInterState ? (
+                      <td style={{ ...cell, textAlign: 'right' }}>{fmt(row.igst)}</td>
+                    ) : (
+                      <>
+                        <td style={{ ...cell, textAlign: 'right' }}>{fmt(row.cgst)}</td>
+                        <td style={{ ...cell, textAlign: 'right' }}>{fmt(row.sgst)}</td>
+                      </>
+                    )}
                     <td style={{ ...cell, textAlign: 'right' }}>{fmt(row.total)}</td>
                   </tr>
                 ))}
@@ -486,6 +502,14 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                   <td style={{ ...cell, fontWeight: 'bold' }}>Total</td>
                   <td style={{ ...cell, textAlign: 'right', fontWeight: 'bold' }}>{fmt(taxableAmount)}</td>
                   <td style={cell}></td>
+                  {isInterState ? (
+                    <td style={{ ...cell, textAlign: 'right', fontWeight: 'bold' }}>{fmt(totalIgst)}</td>
+                  ) : (
+                    <>
+                      <td style={{ ...cell, textAlign: 'right', fontWeight: 'bold' }}>{fmt(totalCgst)}</td>
+                      <td style={{ ...cell, textAlign: 'right', fontWeight: 'bold' }}>{fmt(totalSgst)}</td>
+                    </>
+                  )}
                   <td style={{ ...cell, textAlign: 'right', fontWeight: 'bold' }}>{fmt(totalTax)}</td>
                 </tr>
               </tbody>
