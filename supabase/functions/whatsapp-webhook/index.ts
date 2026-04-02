@@ -490,9 +490,10 @@ async function handleOwnerCommand(
         (expLines || '✅ No expenses today');
 
     } else if (['week', 'weekly', '7 days'].includes(cmd)) {
-      const weekAgo = new Date(today);
+      const weekAgo = new Date(nowIST);
       weekAgo.setDate(weekAgo.getDate() - 6);
-      const weekAgoStr = weekAgo.toISOString().split('T')[0] + 'T00:00:00';
+      const weekAgoIST = weekAgo.toISOString().split('T')[0];
+      const weekAgoStr = new Date(weekAgoIST + 'T00:00:00+05:30').toISOString();
 
       const { data: weekSales } = await supabase
         .from('sales')
