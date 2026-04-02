@@ -385,7 +385,29 @@ const PurchaseEntry = () => {
     barcodeCheckTimerRef.current = setTimeout(async () => {
       const warnings = new Map<string, string>();
       const barcodesToCheck = lineItems.filter(item => item.barcode && item.barcode.length > 6);
+
+      // Collect all sku_ids in this bill to suppress cross-row false warnings
+      const allBillSkuIds = new Set(lineItems.map(i => i.sku_id).filter(Boolean));
+
+      // Detect in-bill duplicates (same barcode on different line items)
+      const billBarcodeMap = new Map<string, string>(); // barcode → temp_id of first occurrence
+      const inBillDuplicates = new Set<string>();
+      for (const item of lineItems) {
+        if (!item.barcode) continue;
+        if (billBarcodeMap.has(item.barcode)) {
+          inBillDuplicates.add(item.temp_id);
+        } else {
+          billBarcodeMap.set(item.barcode, item.temp_id);
+        }
+      }
+
       for (const item of barcodesToCheck) {
+        // In-bill duplicate: same barcode on two different items
+        if (inBillDuplicates.has(item.temp_id)) {
+          warnings.set(item.temp_id, `⚠️ Duplicate barcode in this bill — same barcode assigned to multiple items`);
+          continue;
+        }
+
         try {
           const { data } = await supabase.rpc('check_barcode_duplicate', {
             p_barcode: item.barcode,
@@ -393,8 +415,12 @@ const PurchaseEntry = () => {
             p_exclude_variant_id: item.sku_id || null
           });
           if (data && data.length > 0) {
-            const existing = data[0];
-            warnings.set(item.temp_id, `⚠️ Barcode already used: "${existing.product_name}" ${existing.size}${existing.color ? ' / ' + existing.color : ''} (Stock: ${existing.stock_qty})`);
+            // Filter out variants that belong to THIS bill (not real duplicates)
+            const realConflicts = (data as any[]).filter((d: any) => !allBillSkuIds.has(d.variant_id));
+            if (realConflicts.length > 0) {
+              const existing = realConflicts[0];
+              warnings.set(item.temp_id, `⚠️ Barcode already used: "${existing.product_name}" ${existing.size}${existing.color ? ' / ' + existing.color : ''} (Stock: ${existing.stock_qty})`);
+            }
           }
         } catch { /* ignore */ }
       }
@@ -2617,15 +2643,18 @@ const PurchaseEntry = () => {
       }
     }
 
-    // Pre-generate barcodes in bulk for rows that need them
+    // Pre-generate barcodes sequentially from DB to guarantee unique numbers
+    // Each RPC call atomically reserves a barcode number — no race conditions
     const rowsNeedingBarcode = validRows.filter(row => !row.barcode?.toString().trim());
     const barcodePool: string[] = [];
     if (rowsNeedingBarcode.length > 0) {
-      const { data: startBarcode } = await supabase.rpc('generate_next_barcode', { p_organization_id: currentOrganization.id });
-      if (startBarcode) {
-        const startNum = parseInt(startBarcode, 10);
-        for (let b = 0; b < rowsNeedingBarcode.length + 10; b++) {
-          barcodePool.push(String(startNum + b).padStart(String(startBarcode).length, '0'));
+      for (let b = 0; b < rowsNeedingBarcode.length; b++) {
+        try {
+          const { data } = await supabase.rpc('generate_next_barcode', { p_organization_id: currentOrganization.id });
+          if (data) barcodePool.push(data);
+        } catch (e) {
+          // Fallback unique barcode
+          barcodePool.push(`B${Date.now()}${b}`);
         }
       }
     }
@@ -3497,12 +3526,21 @@ const PurchaseEntry = () => {
                           <Badge variant="outline" className={cn("text-xs", isMobileERPMode ? "font-mono tracking-wider" : "font-mono")}>
                             {item.barcode || "—"}
                           </Badge>
-                          {barcodeWarnings.has(item.temp_id) && (
-                            <div className="flex items-start gap-1.5 mt-1 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded px-2 py-1.5">
-                              <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                              <span>{barcodeWarnings.get(item.temp_id)}</span>
-                            </div>
-                          )}
+                          {barcodeWarnings.has(item.temp_id) && (() => {
+                            const msg = barcodeWarnings.get(item.temp_id) || '';
+                            const isInBill = msg.includes('Duplicate barcode in this bill');
+                            return (
+                              <div className={cn(
+                                "flex items-start gap-1.5 mt-1 text-xs rounded px-2 py-1.5",
+                                isInBill
+                                  ? "text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800"
+                                  : "text-destructive bg-destructive/10 border border-destructive/30"
+                              )}>
+                                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                <span>{msg}</span>
+                              </div>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell className="w-[80px]">
                           <Input
