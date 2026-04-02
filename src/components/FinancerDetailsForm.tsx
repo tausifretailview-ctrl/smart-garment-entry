@@ -128,84 +128,16 @@ export const FinancerDetailsForm = ({ value, onChange }: FinancerDetailsFormProp
             </div>
 
             {/* Down Payment */}
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label className="text-xs font-medium text-green-700 dark:text-green-400">Down Payment (₹)</Label>
-                <Input
-                  type="number" min="0"
-                  value={value?.down_payment || ""}
-                  onChange={(e) => handleChange("down_payment", parseFloat(e.target.value) || 0)}
-                  placeholder="₹ 0"
-                  className="h-8 text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Down Payment Mode</Label>
-                <select
-                  value={value?.down_payment_mode || "cash"}
-                  onChange={(e) => handleChange("down_payment_mode", e.target.value)}
-                  className="w-full h-8 text-sm border border-input rounded-md px-2 bg-background"
-                >
-                  <option value="cash">Cash</option>
-                  <option value="upi">UPI</option>
-                  <option value="card">Card</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Finance Bank Transfer */}
             <div className="space-y-1">
-              <Label className="text-xs font-medium text-blue-700 dark:text-blue-400">Financer Bank Transfer (₹)</Label>
+              <Label className="text-xs font-medium text-green-700 dark:text-green-400">Down Payment (₹)</Label>
               <Input
                 type="number" min="0"
-                value={value?.bank_transfer_amount || ""}
-                onChange={(e) => handleChange("bank_transfer_amount", parseFloat(e.target.value) || 0)}
-                placeholder="₹ 0 — amount financer credited to your bank"
+                value={value?.down_payment || ""}
+                onChange={(e) => handleChange("down_payment", parseFloat(e.target.value) || 0)}
+                placeholder="₹ 0"
                 className="h-8 text-sm"
               />
             </div>
-
-            {/* Finance Discount */}
-            <div className="space-y-1">
-              <Label className="text-xs font-medium text-amber-700 dark:text-amber-400">
-                Finance Discount (₹)
-                <span className="ml-1 font-normal text-muted-foreground">— internal, not on bill</span>
-              </Label>
-              <Input
-                type="number" min="0"
-                value={value?.finance_discount || ""}
-                onChange={(e) => handleChange("finance_discount", parseFloat(e.target.value) || 0)}
-                placeholder="₹ 0 — discount given to financer"
-                className="h-8 text-sm"
-              />
-            </div>
-
-            {/* Accounting Summary */}
-            {value?.financer_name && (value?.down_payment > 0 || value?.bank_transfer_amount > 0) && (
-              <div className="bg-muted/50 rounded-lg p-3 space-y-1 border border-border/50">
-                <p className="text-xs font-semibold text-muted-foreground mb-1">Accounting Summary</p>
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Down Payment ({(value.down_payment_mode || 'cash').toUpperCase()})</span>
-                  <span className="font-semibold text-green-700 dark:text-green-400">₹{(value.down_payment || 0).toLocaleString('en-IN')}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Bank Transfer (Finance)</span>
-                  <span className="font-semibold text-blue-700 dark:text-blue-400">₹{(value.bank_transfer_amount || 0).toLocaleString('en-IN')}</span>
-                </div>
-                {(value.finance_discount || 0) > 0 && (
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Finance Discount</span>
-                    <span className="font-semibold text-amber-700 dark:text-amber-400">−₹{(value.finance_discount || 0).toLocaleString('en-IN')}</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-xs border-t border-border/50 pt-1 mt-1">
-                  <span className="font-semibold">Net Received</span>
-                  <span className="font-bold">
-                    ₹{((value.down_payment || 0) + (value.bank_transfer_amount || 0) - (value.finance_discount || 0)).toLocaleString('en-IN')}
-                  </span>
-                </div>
-              </div>
-            )}
 
             {/* EMI Amount */}
             <div className="space-y-1">
