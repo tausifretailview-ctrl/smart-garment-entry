@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -21,21 +21,6 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
   const [balance, setBalance] = useState("");
   const [reason, setReason] = useState("");
 
-  // Get current academic year for audit trail
-  const { data: currentYear } = useQuery({
-    queryKey: ["current-academic-year", currentOrganization?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("academic_years")
-        .select("id")
-        .eq("organization_id", currentOrganization!.id)
-        .eq("is_current", true)
-        .single();
-      return data;
-    },
-    enabled: !!currentOrganization?.id && open,
-  });
-
   const handleOpenChange = (val: boolean) => {
     if (val && student) {
       setBalance(student.closing_fees_balance != null ? String(student.closing_fees_balance) : "");
@@ -50,31 +35,27 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
       const oldBalance = student.closing_fees_balance || 0;
       const orgId = currentOrganization?.id || student.organization_id;
 
-      // Update students.closing_fees_balance
+      // Update students.closing_fees_balance ONLY — no student_fees ghost records
       const { error } = await supabase
         .from("students")
         .update({ closing_fees_balance: balance ? parseFloat(balance) : null })
         .eq("id", student.id);
       if (error) throw error;
 
-      // Log the change as a student_fees entry for ledger visibility
-      if (newBalance !== oldBalance) {
+      // Log the change as a voucher_entry note (NOT as student_fees — avoids ghost records)
+      if (newBalance !== oldBalance && orgId) {
         try {
-          const yearId = currentYear?.id || student.academic_year_id;
-          if (yearId && orgId) {
-            await supabase.from("student_fees").insert({
-              organization_id: orgId,
-              student_id: student.id,
-              academic_year_id: yearId,
-              fee_head_id: null,
-              amount: newBalance,
-              paid_amount: 0,
-              status: "balance_adjustment",
-              notes: `Closing balance set to ₹${newBalance.toLocaleString('en-IN')} (was ₹${oldBalance.toLocaleString('en-IN')})${reason ? ` — ${reason}` : ''}`,
-              paid_date: new Date().toISOString().split('T')[0],
-              payment_receipt_id: `BAL-ADJ-${Date.now()}`,
-            });
-          }
+          await supabase.from("voucher_entries").insert({
+            organization_id: orgId,
+            voucher_type: "note",
+            voucher_number: `BAL-ADJ-${Date.now()}`,
+            voucher_date: new Date().toISOString().split("T")[0],
+            total_amount: newBalance,
+            description: `Opening balance set to ₹${newBalance.toLocaleString("en-IN")} (was ₹${oldBalance.toLocaleString("en-IN")})${reason ? ` — ${reason}` : ""}`,
+            reference_type: "student_balance_adjustment",
+            reference_id: student.id,
+            payment_method: "cash",
+          });
         } catch (auditErr) {
           console.error("Audit log failed (non-blocking):", auditErr);
         }
