@@ -47,8 +47,7 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
     enabled: !!currentOrganization?.id && open,
   });
 
-  // Fetch all fee payments for this student (include balance_adjustment entries)
-  // Fetch ALL payments — year scoping is handled downstream based on structures vs imported balance
+  // Fetch all real fee payments for this student (exclude balance_adjustment ghost records)
   const { data: feePayments, isLoading: paymentsLoading } = useQuery({
     queryKey: ["student-fee-payments-history", student?.id, currentOrganization?.id],
     queryFn: async () => {
@@ -58,6 +57,8 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
         .select("*, fee_heads(head_name)")
         .eq("student_id", student.id)
         .eq("organization_id", currentOrganization.id)
+        .in("status", ["paid", "partial"])
+        .gt("paid_amount", 0)
         .order("paid_date", { ascending: false });
 
       if (error) throw error;
