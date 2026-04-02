@@ -380,12 +380,9 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
                           </TableCell>
                         </TableRow>
                     ))
-                        </TableRow>
-                      )
-                    )
                   )}
                   {/* Totals row */}
-                  {ledgerEntries.filter((e: any) => e.status !== 'balance_adjustment').length > 0 && (
+                  {ledgerEntries.length > 0 && (
                     <TableRow className="bg-muted/30 font-bold border-t-2">
                       <TableCell colSpan={5} className="text-right text-sm">TOTALS</TableCell>
                       <TableCell className="text-right text-green-600">₹{fmtINR(totalPaid)}</TableCell>
