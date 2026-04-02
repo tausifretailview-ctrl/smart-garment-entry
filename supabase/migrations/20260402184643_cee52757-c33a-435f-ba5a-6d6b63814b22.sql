@@ -1,0 +1,1 @@
+UPDATE fee_receipt_sequence SET next_sequence = 160, updated_at = now() WHERE organization_id = '316740b9-e571-465c-af8f-41c581ed067a' AND financial_year = '2025-26';
