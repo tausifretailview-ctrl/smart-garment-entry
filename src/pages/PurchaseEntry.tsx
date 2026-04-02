@@ -2716,17 +2716,11 @@ const PurchaseEntry = () => {
             skuId = variantInfo.id;
             barcode = variantInfo.barcode || row.barcode?.toString().trim() || '';
           } else {
-            // Generate barcode if not provided — use pre-generated pool
-            barcode = row.barcode?.toString().trim() || '';
-            if (!barcode) {
-              barcode = barcodePool[barcodePoolIndex++] || `AUTO${Date.now()}${barcodePoolIndex}`;
-            }
-
-            // Check-then-insert pattern (expression-based index can't use ON CONFLICT)
+            // Check if variant already exists FIRST — before generating any barcode
             const colorFilter = color ? `color.eq.${color}` : 'color.is.null';
             const { data: existingVariant } = await supabase
               .from('product_variants')
-              .select('id')
+              .select('id, barcode')
               .eq('product_id', productId)
               .eq('size', size || '')
               .or(colorFilter)
@@ -2738,8 +2732,16 @@ const PurchaseEntry = () => {
             let variantError: any = null;
 
             if (existingVariant) {
+              // Variant exists — reuse its ID AND its existing barcode
               newVariantId = existingVariant.id;
+              barcode = row.barcode?.toString().trim() || existingVariant.barcode || '';
             } else {
+              // Variant does NOT exist — now generate a new barcode
+              barcode = row.barcode?.toString().trim() || '';
+              if (!barcode) {
+                barcode = barcodePool[barcodePoolIndex++] || `AUTO${Date.now()}${barcodePoolIndex}`;
+              }
+
               // Check for duplicate barcode before inserting new variant
               if (barcode) {
                 const { exists, productName: conflictProduct } = await checkBarcodeExists(barcode, currentOrganization.id);
