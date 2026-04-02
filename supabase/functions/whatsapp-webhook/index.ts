@@ -1334,6 +1334,20 @@ Deno.serve(async (req) => {
                     }
                   }
 
+                  // ─── Owner Command Handler (runs before chatbot) ──────────────
+                  const isOwnerMessage = await handleOwnerCommand(
+                    supabase,
+                    settings,
+                    organizationId,
+                    senderPhone,
+                    messageText
+                  );
+
+                  if (isOwnerMessage) {
+                    continue; // Owner command handled — skip chatbot and customer flows
+                  }
+                  // ─── End Owner Command Handler ─────────────────────────────────
+
                   // AI Chatbot Response
                   if (settings.chatbot_enabled && settings.is_active && messageText) {
                     console.log('AI Chatbot is enabled, generating response...');
