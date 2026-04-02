@@ -1892,6 +1892,30 @@ export type Database = {
           },
         ]
       }
+      fee_receipt_sequence: {
+        Row: {
+          financial_year: string
+          id: number
+          next_sequence: number
+          organization_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          financial_year: string
+          id?: number
+          next_sequence?: number
+          organization_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          financial_year?: string
+          id?: number
+          next_sequence?: number
+          organization_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       fee_schedules: {
         Row: {
           academic_year_id: string
