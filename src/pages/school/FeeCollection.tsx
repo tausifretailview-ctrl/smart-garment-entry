@@ -254,11 +254,10 @@ const FeeCollection = () => {
         }, 0);
 
         const studentPayments = allPayments.filter((p: any) => p.student_id === student.id);
-        // For structure-based dues: only count payments in the active year
+        // Already filtered to paid/partial with paid_amount > 0 in the query
         const paidInYear = studentPayments
           .filter((p: any) => p.academic_year_id === activeYear.id)
           .reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
-        // For imported balance (closing_fees_balance): count ALL payments across years
         const paidTotal = studentPayments
           .reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
 
