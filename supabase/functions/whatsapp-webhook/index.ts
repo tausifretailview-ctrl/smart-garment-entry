@@ -296,6 +296,282 @@ Guidelines:
   }
 }
 
+// ─── Owner Command Handler ─────────────────────────────────────────────────
+async function handleOwnerCommand(
+  supabase: any,
+  settings: any,
+  organizationId: string,
+  senderPhone: string,
+  messageText: string
+): Promise<boolean> {
+  const { data: orgSettings } = await supabase
+    .from('settings')
+    .select('owner_phone, business_name')
+    .eq('organization_id', organizationId)
+    .maybeSingle();
+
+  if (!orgSettings?.owner_phone) return false;
+
+  const normalizePhone = (p: string) => p?.replace(/\D/g, '').slice(-10) || '';
+  const ownerPhoneNorm = normalizePhone(orgSettings.owner_phone);
+  const senderNorm = normalizePhone(senderPhone);
+
+  if (ownerPhoneNorm !== senderNorm) return false;
+
+  const cmd = messageText.trim().toLowerCase();
+  const businessName = orgSettings.business_name || 'Store';
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const todayDisplay = today.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const startOfDay = todayStr + 'T00:00:00';
+  const endOfDay = todayStr + 'T23:59:59';
+  const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
+
+  let replyMessage = '';
+
+  try {
+    if (['help', 'menu', 'commands', '?'].includes(cmd)) {
+      replyMessage =
+        `🏪 *${businessName} — Owner Commands*\n\n` +
+        `📊 *report* or *hi* — Today's full tally\n` +
+        `💰 *sales* — Today's sales summary\n` +
+        `📦 *stock* — Low stock items\n` +
+        `💳 *credit* — Outstanding credit sales\n` +
+        `💸 *expenses* — Today's expenses\n` +
+        `📈 *week* — Last 7 days summary\n` +
+        `👥 *staff* — Sales by salesman today\n\n` +
+        `Reply with any command above.`;
+
+    } else if (['report', 'hi', 'hello', 'tally', 'summary', 'daily', 'cashier', ''].includes(cmd)) {
+      const { data: sales } = await supabase
+        .from('sales')
+        .select('net_amount, paid_amount, payment_method, cash_amount, upi_amount, card_amount, is_cancelled, payment_status')
+        .eq('organization_id', organizationId)
+        .gte('created_at', startOfDay)
+        .lte('created_at', endOfDay)
+        .is('deleted_at', null)
+        .neq('payment_status', 'hold');
+
+      const activeSales = (sales || []).filter((s: any) => !s.is_cancelled);
+      const totalSales = activeSales.reduce((sum: number, s: any) => sum + (s.net_amount || 0), 0);
+      const totalCash = activeSales.reduce((sum: number, s: any) => sum + (s.cash_amount || 0), 0);
+      const totalUpi = activeSales.reduce((sum: number, s: any) => sum + (s.upi_amount || 0), 0);
+      const totalCard = activeSales.reduce((sum: number, s: any) => sum + (s.card_amount || 0), 0);
+      const totalCredit = activeSales
+        .filter((s: any) => s.payment_status === 'credit' || s.payment_status === 'partial')
+        .reduce((sum: number, s: any) => sum + Math.max(0, (s.net_amount || 0) - (s.paid_amount || 0)), 0);
+      const billCount = activeSales.length;
+
+      const { data: expenses } = await supabase
+        .from('voucher_entries')
+        .select('total_amount')
+        .eq('organization_id', organizationId)
+        .eq('voucher_type', 'expense')
+        .gte('created_at', startOfDay)
+        .lte('created_at', endOfDay)
+        .is('deleted_at', null);
+      const totalExpenses = (expenses || []).reduce((sum: number, e: any) => sum + (e.total_amount || 0), 0);
+      const cancelledToday = (sales || []).filter((s: any) => s.is_cancelled).length;
+
+      replyMessage =
+        `📊 *${businessName}*\n` +
+        `📅 *${todayDisplay}*\n` +
+        `━━━━━━━━━━━━━━━━\n\n` +
+        `🧾 *Bills Today:* ${billCount}\n` +
+        `💰 *Total Sales:* ${fmt(totalSales)}\n\n` +
+        `*Payment Breakdown:*\n` +
+        `  💵 Cash: ${fmt(totalCash)}\n` +
+        `  📱 UPI: ${fmt(totalUpi)}\n` +
+        `  💳 Card: ${fmt(totalCard)}\n` +
+        (totalCredit > 0 ? `  📝 Credit Due: ${fmt(totalCredit)}\n` : '') +
+        `\n💸 *Expenses:* ${fmt(totalExpenses)}\n` +
+        `📊 *Net:* ${fmt(totalSales - totalExpenses)}\n` +
+        (cancelledToday > 0 ? `\n⚠️ Cancelled Bills: ${cancelledToday}` : '') +
+        `\n\nReply *help* for all commands`;
+
+    } else if (['sales', 'sale', 'invoices'].includes(cmd)) {
+      const { data: sales } = await supabase
+        .from('sales')
+        .select('sale_number, net_amount, customer_name, payment_method, created_at, is_cancelled, payment_status')
+        .eq('organization_id', organizationId)
+        .gte('created_at', startOfDay)
+        .lte('created_at', endOfDay)
+        .is('deleted_at', null)
+        .neq('payment_status', 'hold')
+        .order('created_at', { ascending: false })
+        .limit(15);
+
+      const activeSales = (sales || []).filter((s: any) => !s.is_cancelled);
+      const totalSales = activeSales.reduce((sum: number, s: any) => sum + (s.net_amount || 0), 0);
+
+      const salesLines = activeSales.slice(0, 10).map((s: any) => {
+        const time = new Date(s.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        return `${time} | ${s.sale_number} | ${s.customer_name?.slice(0, 12) || 'Walk-in'} | ${fmt(s.net_amount)}`;
+      }).join('\n');
+
+      replyMessage =
+        `💰 *Sales Today — ${todayDisplay}*\n` +
+        `━━━━━━━━━━━━━━━━\n` +
+        `Total: ${fmt(totalSales)} (${activeSales.length} bills)\n\n` +
+        (salesLines || 'No sales today') +
+        (activeSales.length > 10 ? `\n...and ${activeSales.length - 10} more` : '');
+
+    } else if (['stock', 'inventory', 'low stock'].includes(cmd)) {
+      const { data: lowStock } = await supabase
+        .from('product_variants')
+        .select('barcode, size, color, stock_qty, products!inner(product_name)')
+        .eq('organization_id', organizationId)
+        .lte('stock_qty', 5)
+        .gte('stock_qty', 0)
+        .is('deleted_at', null)
+        .order('stock_qty', { ascending: true })
+        .limit(20);
+
+      const stockLines = (lowStock || []).map((v: any) =>
+        `${v.products?.product_name?.slice(0, 18)} | ${v.size} | Qty: ${v.stock_qty}`
+      ).join('\n');
+
+      replyMessage =
+        `📦 *Low Stock Alert*\n` +
+        `━━━━━━━━━━━━━━━━\n` +
+        `Items with stock ≤ 5:\n\n` +
+        (stockLines || '✅ No low stock items') +
+        (lowStock && lowStock.length >= 20 ? '\n...and more' : '');
+
+    } else if (['credit', 'outstanding', 'due', 'pending'].includes(cmd)) {
+      const { data: creditSales } = await supabase
+        .from('sales')
+        .select('sale_number, customer_name, net_amount, paid_amount, sale_date')
+        .eq('organization_id', organizationId)
+        .in('payment_status', ['credit', 'partial'])
+        .is('deleted_at', null)
+        .is('is_cancelled', false)
+        .order('sale_date', { ascending: false })
+        .limit(15);
+
+      const totalDue = (creditSales || []).reduce((sum: number, s: any) =>
+        sum + Math.max(0, (s.net_amount || 0) - (s.paid_amount || 0)), 0);
+
+      const creditLines = (creditSales || []).slice(0, 10).map((s: any) => {
+        const due = Math.max(0, (s.net_amount || 0) - (s.paid_amount || 0));
+        return `${s.sale_number} | ${s.customer_name?.slice(0, 12)} | Due: ${fmt(due)}`;
+      }).join('\n');
+
+      replyMessage =
+        `💳 *Outstanding Credit*\n` +
+        `━━━━━━━━━━━━━━━━\n` +
+        `Total Due: ${fmt(totalDue)} (${creditSales?.length || 0} bills)\n\n` +
+        (creditLines || '✅ No outstanding credit') +
+        (creditSales && creditSales.length > 10 ? `\n...and ${creditSales.length - 10} more` : '');
+
+    } else if (['expenses', 'expense', 'exp'].includes(cmd)) {
+      const { data: expenses } = await supabase
+        .from('voucher_entries')
+        .select('total_amount, description, category, payment_method')
+        .eq('organization_id', organizationId)
+        .eq('voucher_type', 'expense')
+        .gte('created_at', startOfDay)
+        .lte('created_at', endOfDay)
+        .is('deleted_at', null);
+
+      const total = (expenses || []).reduce((sum: number, e: any) => sum + (e.total_amount || 0), 0);
+      const expLines = (expenses || []).map((e: any) =>
+        `${e.description?.slice(0, 20) || e.category || 'Expense'} | ${fmt(e.total_amount)}`
+      ).join('\n');
+
+      replyMessage =
+        `💸 *Expenses Today*\n` +
+        `━━━━━━━━━━━━━━━━\n` +
+        `Total: ${fmt(total)}\n\n` +
+        (expLines || '✅ No expenses today');
+
+    } else if (['week', 'weekly', '7 days'].includes(cmd)) {
+      const weekAgo = new Date(today);
+      weekAgo.setDate(weekAgo.getDate() - 6);
+      const weekAgoStr = weekAgo.toISOString().split('T')[0] + 'T00:00:00';
+
+      const { data: weekSales } = await supabase
+        .from('sales')
+        .select('net_amount, sale_date, created_at, is_cancelled, payment_status')
+        .eq('organization_id', organizationId)
+        .gte('created_at', weekAgoStr)
+        .is('deleted_at', null)
+        .neq('payment_status', 'hold');
+
+      const activeSales = (weekSales || []).filter((s: any) => !s.is_cancelled);
+      const weekTotal = activeSales.reduce((sum: number, s: any) => sum + (s.net_amount || 0), 0);
+      const avgPerDay = weekTotal / 7;
+
+      const byDate: Record<string, number> = {};
+      activeSales.forEach((s: any) => {
+        const d = s.sale_date || s.created_at?.split('T')[0];
+        byDate[d] = (byDate[d] || 0) + (s.net_amount || 0);
+      });
+
+      const dayLines = Object.entries(byDate)
+        .sort(([a], [b]) => b.localeCompare(a))
+        .slice(0, 7)
+        .map(([date, amt]) => {
+          const d = new Date(date).toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' });
+          return `${d}: ${fmt(amt as number)}`;
+        }).join('\n');
+
+      replyMessage =
+        `📈 *Last 7 Days*\n` +
+        `━━━━━━━━━━━━━━━━\n` +
+        `Total: ${fmt(weekTotal)}\n` +
+        `Daily Avg: ${fmt(avgPerDay)}\n` +
+        `Bills: ${activeSales.length}\n\n` +
+        (dayLines || 'No data');
+
+    } else if (['staff', 'salesman', 'team'].includes(cmd)) {
+      const { data: sales } = await supabase
+        .from('sales')
+        .select('salesman, net_amount, is_cancelled')
+        .eq('organization_id', organizationId)
+        .gte('created_at', startOfDay)
+        .lte('created_at', endOfDay)
+        .is('deleted_at', null);
+
+      const activeSales = (sales || []).filter((s: any) => !s.is_cancelled);
+      const byStaff: Record<string, { total: number; count: number }> = {};
+      activeSales.forEach((s: any) => {
+        const name = s.salesman || 'Unassigned';
+        if (!byStaff[name]) byStaff[name] = { total: 0, count: 0 };
+        byStaff[name].total += s.net_amount || 0;
+        byStaff[name].count++;
+      });
+
+      const staffLines = Object.entries(byStaff)
+        .sort(([, a], [, b]) => (b as any).total - (a as any).total)
+        .map(([name, data]) => `${name}: ${fmt((data as any).total)} (${(data as any).count} bills)`)
+        .join('\n');
+
+      replyMessage =
+        `👥 *Staff Performance — ${todayDisplay}*\n` +
+        `━━━━━━━━━━━━━━━━\n` +
+        (staffLines || '✅ No sales assigned to staff today');
+
+    } else {
+      replyMessage =
+        `👋 Hello Owner!\n\n` +
+        `I didn't understand "*${messageText}*"\n\n` +
+        `Reply *help* to see all available commands.\n\n` +
+        `Quick commands: *report*, *sales*, *stock*, *credit*, *expenses*, *week*, *staff*`;
+    }
+
+    if (replyMessage) {
+      await sendWhatsAppMessage(settings, senderPhone, replyMessage);
+      console.log(`Owner command "${cmd}" handled for org ${organizationId}`);
+    }
+  } catch (err) {
+    console.error('Owner command error:', err);
+    await sendWhatsAppMessage(settings, senderPhone, '⚠️ Error fetching report. Please try again.');
+  }
+
+  return true;
+}
+
 // Send WhatsApp message
 async function sendWhatsAppMessage(
   settings: any,
