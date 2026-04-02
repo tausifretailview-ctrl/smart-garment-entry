@@ -403,7 +403,14 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
       }
     },
     onError: (err: any) => {
-      toast.error("Collection failed: " + err.message);
+      const msg = err.message || "Unknown error";
+      if (msg.includes("academic year") || msg.includes("Student data")) {
+        toast.error(msg);
+      } else if (msg.includes("invalid input syntax") || msg.includes("CAST")) {
+        toast.error("Receipt number generation failed. Please contact support or try again.");
+      } else {
+        toast.error("Collection failed: " + msg);
+      }
     },
   });
 
