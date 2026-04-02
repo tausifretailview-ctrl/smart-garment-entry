@@ -5153,6 +5153,89 @@ export type Database = {
           },
         ]
       }
+      student_balance_audit: {
+        Row: {
+          academic_year_id: string | null
+          adjusted_by: string | null
+          adjusted_by_name: string | null
+          adjustment_type: string
+          change_amount: number
+          created_at: string | null
+          id: string
+          new_balance: number
+          old_balance: number
+          organization_id: string
+          reason_code: string
+          reason_code_label: string | null
+          reason_detail: string | null
+          student_id: string
+          voucher_number: string
+        }
+        Insert: {
+          academic_year_id?: string | null
+          adjusted_by?: string | null
+          adjusted_by_name?: string | null
+          adjustment_type: string
+          change_amount?: number
+          created_at?: string | null
+          id?: string
+          new_balance?: number
+          old_balance?: number
+          organization_id: string
+          reason_code: string
+          reason_code_label?: string | null
+          reason_detail?: string | null
+          student_id: string
+          voucher_number: string
+        }
+        Update: {
+          academic_year_id?: string | null
+          adjusted_by?: string | null
+          adjusted_by_name?: string | null
+          adjustment_type?: string
+          change_amount?: number
+          created_at?: string | null
+          id?: string
+          new_balance?: number
+          old_balance?: number
+          organization_id?: string
+          reason_code?: string
+          reason_code_label?: string | null
+          reason_detail?: string | null
+          student_id?: string
+          voucher_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_balance_audit_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "academic_years"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_balance_audit_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_balance_audit_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "student_balance_audit_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       student_fees: {
         Row: {
           academic_year_id: string
