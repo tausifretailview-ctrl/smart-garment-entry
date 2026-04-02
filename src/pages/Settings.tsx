@@ -1031,7 +1031,12 @@ export default function Settings() {
                       }
                       placeholder="e.g. 9876543210"
                     />
-                    <p className="text-xs text-muted-foreground">Used for sending daily Cash Tally reports via WhatsApp</p>
+                    <p className="text-xs text-muted-foreground">
+                      Owner can message this WhatsApp number with commands:
+                      <strong className="text-foreground"> report, sales, stock, credit, expenses, week, staff, help</strong>
+                      <br />
+                      Type <em>"hi"</em> or <em>"report"</em> to get today's full tally instantly.
+                    </p>
                   </div>
                 </div>
                 <div className="space-y-2">
