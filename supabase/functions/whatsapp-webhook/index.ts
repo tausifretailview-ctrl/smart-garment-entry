@@ -320,11 +320,15 @@ async function handleOwnerCommand(
 
   const cmd = messageText.trim().toLowerCase();
   const businessName = orgSettings.business_name || 'Store';
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-  const todayDisplay = today.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-  const startOfDay = todayStr + 'T00:00:00';
-  const endOfDay = todayStr + 'T23:59:59';
+  // Use IST (UTC+5:30) for date boundaries
+  const nowUtc = new Date();
+  const istOffsetMs = 5.5 * 60 * 60 * 1000;
+  const nowIST = new Date(nowUtc.getTime() + istOffsetMs);
+  const todayStr = nowIST.toISOString().split('T')[0]; // IST date as YYYY-MM-DD
+  const todayDisplay = nowIST.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  // IST midnight in UTC = subtract 5:30
+  const startOfDay = new Date(todayStr + 'T00:00:00+05:30').toISOString();
+  const endOfDay = new Date(todayStr + 'T23:59:59.999+05:30').toISOString();
   const fmt = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 
   let replyMessage = '';
