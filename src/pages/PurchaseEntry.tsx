@@ -2617,15 +2617,18 @@ const PurchaseEntry = () => {
       }
     }
 
-    // Pre-generate barcodes in bulk for rows that need them
+    // Pre-generate barcodes sequentially from DB to guarantee unique numbers
+    // Each RPC call atomically reserves a barcode number — no race conditions
     const rowsNeedingBarcode = validRows.filter(row => !row.barcode?.toString().trim());
     const barcodePool: string[] = [];
     if (rowsNeedingBarcode.length > 0) {
-      const { data: startBarcode } = await supabase.rpc('generate_next_barcode', { p_organization_id: currentOrganization.id });
-      if (startBarcode) {
-        const startNum = parseInt(startBarcode, 10);
-        for (let b = 0; b < rowsNeedingBarcode.length + 10; b++) {
-          barcodePool.push(String(startNum + b).padStart(String(startBarcode).length, '0'));
+      for (let b = 0; b < rowsNeedingBarcode.length; b++) {
+        try {
+          const { data } = await supabase.rpc('generate_next_barcode', { p_organization_id: currentOrganization.id });
+          if (data) barcodePool.push(data);
+        } catch (e) {
+          // Fallback unique barcode
+          barcodePool.push(`B${Date.now()}${b}`);
         }
       }
     }
