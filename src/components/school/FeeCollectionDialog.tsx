@@ -275,11 +275,25 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           .rpc("generate_fee_receipt_number", rpcParams);
         if (receiptError) {
           console.warn("Receipt RPC failed, using fallback:", receiptError.message);
+          // Fallback: query max receipt number from student_fees
           const now = new Date();
           const fy = now.getMonth() >= 3
             ? `${now.getFullYear()}-${String(now.getFullYear() + 1).slice(2)}`
             : `${now.getFullYear() - 1}-${String(now.getFullYear()).slice(2)}`;
-          receiptNumber = `RCT/${fy}/${Date.now().toString().slice(-6)}`;
+          const prefix = `RCT/${fy}/`;
+          const { data: maxReceipts } = await supabase
+            .from("student_fees")
+            .select("payment_receipt_id")
+            .eq("organization_id", currentOrganization.id)
+            .like("payment_receipt_id", `${prefix}%`)
+            .order("payment_receipt_id", { ascending: false })
+            .limit(50);
+          let maxSeq = 0;
+          (maxReceipts || []).forEach((r: any) => {
+            const num = parseInt(r.payment_receipt_id?.replace(prefix, "") || "0");
+            if (!isNaN(num) && num > maxSeq) maxSeq = num;
+          });
+          receiptNumber = `${prefix}${maxSeq + 1}`;
         } else {
           receiptNumber = receiptResult as string;
         }
@@ -288,7 +302,20 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         const fy = now.getMonth() >= 3
           ? `${now.getFullYear()}-${String(now.getFullYear() + 1).slice(2)}`
           : `${now.getFullYear() - 1}-${String(now.getFullYear()).slice(2)}`;
-        receiptNumber = `RCT/${fy}/${Date.now().toString().slice(-6)}`;
+        const prefix = `RCT/${fy}/`;
+        const { data: maxReceipts } = await supabase
+          .from("student_fees")
+          .select("payment_receipt_id")
+          .eq("organization_id", currentOrganization.id)
+          .like("payment_receipt_id", `${prefix}%`)
+          .order("payment_receipt_id", { ascending: false })
+          .limit(50);
+        let maxSeq = 0;
+        (maxReceipts || []).forEach((r: any) => {
+          const num = parseInt(r.payment_receipt_id?.replace(prefix, "") || "0");
+          if (!isNaN(num) && num > maxSeq) maxSeq = num;
+        });
+        receiptNumber = `${prefix}${maxSeq + 1}`;
       }
       const paidDate = new Date().toISOString();
 
