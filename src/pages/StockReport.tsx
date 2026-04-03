@@ -1245,7 +1245,7 @@ export default function StockReport() {
               handleSearch();
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Search by barcode, product name, brand, size..."
+            placeholder="Search name, brand, barcode, size... (multi-word AND)"
             className="flex-1"
           />
           <Button onClick={handleSearch} disabled={loading || !hasActiveFilters} className="shadow-sm font-semibold px-6">
