@@ -65,6 +65,7 @@ export default function StockReport() {
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [excelExporting, setExcelExporting] = useState(false);
   
   // Global totals for default cards (loaded on mount)
   const [globalTotals, setGlobalTotals] = useState({
