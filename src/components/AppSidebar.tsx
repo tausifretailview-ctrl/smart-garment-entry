@@ -280,6 +280,7 @@ export function AppSidebar() {
                               <span className="dark:text-white">Student Ledger</span>
                             </NavLink>
                           </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/student-promotion")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
                             <NavLink to="/student-promotion" className="flex items-center gap-3 group">
