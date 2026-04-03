@@ -631,7 +631,7 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
       case 'color': return 'Color: Blue';
       case 'style': return 'Style: Classic';
       case 'price': return 'Rs.999';
-      case 'mrp': return 'MRP Rs.1299';
+      case 'mrp': return 'MRP: 1299';
       case 'customText': return labelConfig.customTextValue || 'Custom Text';
       case 'barcodeText': return '12345678';
       case 'billNumber': return 'Bill: BILL001';
