@@ -258,17 +258,10 @@ export default function ItemWiseSalesReport() {
       data = data.filter(item => item.color === selectedDepartment);
     }
 
-    // Apply search query
+    // Apply search query — multi-token AND logic
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      data = data.filter(
-        (item) =>
-          item.product_name?.toLowerCase().includes(query) ||
-          item.barcode?.toLowerCase().includes(query) ||
-          item.brand?.toLowerCase().includes(query) ||
-          item.category?.toLowerCase().includes(query) ||
-          item.color?.toLowerCase().includes(query) ||
-          item.size?.toLowerCase().includes(query)
+      data = data.filter(item =>
+        multiTokenMatch(searchQuery, item.product_name, item.barcode, item.brand, item.category, item.color, item.size, item.hsn_code)
       );
     }
 
