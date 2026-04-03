@@ -18,6 +18,7 @@ import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfQuarter,
 import { CalendarIcon, Search, Package, IndianRupee, TrendingUp, Printer, FileSpreadsheet, FileText, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
+import { multiTokenMatch } from "@/utils/multiTokenSearch";
 
 type PeriodType = "daily" | "monthly" | "quarterly" | "yearly" | "all" | "custom";
 
