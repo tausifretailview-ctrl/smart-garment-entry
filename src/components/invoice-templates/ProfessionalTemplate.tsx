@@ -178,6 +178,9 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
   pointsRedeemed = 0,
   pointsRedemptionValue = 0,
   pointsBalance = 0,
+  stampImageBase64,
+  stampPosition = 'bottom-right',
+  stampSize = 'medium',
 }) => {
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
