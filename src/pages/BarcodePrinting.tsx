@@ -5220,7 +5220,7 @@ export default function BarcodePrinting() {
                 if (preset.a4Rows) setPrecisionSettings((prev) => ({ ...prev, a4Rows: preset.a4Rows! }));
                 setPrecisionSettings((prev) => ({ ...prev, thermalCols: preset.thermalCols || 1 }));
                 // Auto-detect print mode from preset
-                const mode = preset.printMode || (preset.a4Cols && preset.a4Rows ? 'a4' : 'thermal');
+                const mode = preset.printMode || (preset.a4Cols && preset.a4Rows ? 'a4' : (preset.thermalCols && preset.thermalCols > 1) ? 'thermal2up' : 'thermal');
                 setPrecisionSettings((prev) => ({ ...prev, printMode: mode }));
                 // Track active template for auto-save (only for saved label templates, not built-in presets)
                 const isLabelTemplate = savedLabelTemplates.some(t => t.name === preset.name);
