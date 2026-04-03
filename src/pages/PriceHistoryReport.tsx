@@ -401,8 +401,7 @@ const PriceHistoryReport = () => {
   const filteredPriceEdits = useMemo(() => {
     return priceEdits.filter(item => {
       if (searchTerm) {
-        const search = searchTerm.toLowerCase();
-        if (!item.barcode?.toLowerCase().includes(search)) return false;
+        if (!multiTokenMatch(searchTerm, item.barcode)) return false;
       }
 
       const editDate = item.created_at?.split("T")[0] || "";
