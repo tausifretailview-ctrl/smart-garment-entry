@@ -967,6 +967,106 @@ export default function StockReport() {
     XLSX.writeFile(wb, `Stock_Report_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
   };
 
+  // Export ALL stock to Excel (without search - fetches everything)
+  const exportFullStockToExcel = async () => {
+    if (!currentOrganization?.id) return;
+    setExcelExporting(true);
+    try {
+      const allVariants: any[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("product_variants")
+          .select(`
+            id, size, color, stock_qty, opening_qty, sale_price, pur_price, barcode,
+            products!inner (product_name, brand, category, style, product_type, deleted_at)
+          `)
+          .eq("organization_id", currentOrganization.id)
+          .eq("active", true)
+          .is("deleted_at", null)
+          .is("products.deleted_at", null)
+          .neq("products.product_type", "service")
+          .order("stock_qty", { ascending: true })
+          .range(offset, offset + PAGE_SIZE - 1);
+
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allVariants.push(...data);
+          offset += PAGE_SIZE;
+          hasMore = data.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const items = allVariants.map((v: any) => ({
+        product_name: v.products?.product_name || "",
+        brand: v.products?.brand || "",
+        size: v.size || "",
+        color: v.color || "",
+        department: v.products?.style || "",
+        category: v.products?.category || "",
+        barcode: v.barcode || "",
+        stock_qty: v.stock_qty || 0,
+        opening_qty: v.opening_qty || 0,
+        pur_price: v.pur_price || 0,
+        sale_price: v.sale_price || 0,
+      }));
+
+      const headers = ["Sr No", "Product", "Brand", "Size", "Color", "Style", "Category", "Barcode", "Opening Qty", "Current Stock", "Pur Price", "Stock Value", "Sale Price", "Sale Value", "Status"];
+      const data = items.map((item, index) => [
+        index + 1,
+        item.product_name,
+        item.brand,
+        item.size,
+        item.color,
+        item.department,
+        item.category,
+        item.barcode,
+        item.opening_qty,
+        item.stock_qty,
+        item.pur_price,
+        Math.round(item.pur_price * item.stock_qty),
+        item.sale_price,
+        Math.round(item.sale_price * item.stock_qty),
+        item.stock_qty === 0 ? "Out of Stock" : item.stock_qty <= lowStockThreshold ? "Low Stock" : "In Stock",
+      ]);
+
+      // Grand Total row
+      const totalOpeningQty = items.reduce((s, i) => s + i.opening_qty, 0);
+      const totalCurrentStock = items.reduce((s, i) => s + i.stock_qty, 0);
+      const totalStockVal = Math.round(items.reduce((s, i) => s + i.pur_price * i.stock_qty, 0));
+      const totalSaleVal = Math.round(items.reduce((s, i) => s + i.sale_price * i.stock_qty, 0));
+
+      data.push([
+        "", "GRAND TOTAL", "", "", "", "", "", "",
+        totalOpeningQty,
+        totalCurrentStock,
+        "",
+        totalStockVal,
+        "",
+        totalSaleVal,
+        `${items.length} variants`,
+      ]);
+
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+      ws['!cols'] = [
+        { wch: 6 }, { wch: 30 }, { wch: 15 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 16 },
+        { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "All Stock");
+      XLSX.writeFile(wb, `Full_Stock_Report_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    } catch (error) {
+      console.error("Error exporting full stock:", error);
+    } finally {
+      setExcelExporting(false);
+    }
+  };
+
   // Print All Stock as A4
   const printAllStock = () => {
     const orgName = currentOrganization?.name || "Stock Report";
