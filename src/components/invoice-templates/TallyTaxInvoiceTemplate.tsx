@@ -150,6 +150,8 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
   declarationText, termsConditions, bankDetails, qrCodeUrl, upiId,
   showHSN = true, showGSTBreakdown = true, showBankDetails = true, notes,
   financerDetails,
+  stampImageBase64,
+  stampSize = 'medium',
 }) => {
   const sellerState = getStateFromGSTIN(gstNumber);
   const buyerState = getStateFromGSTIN(customerGSTIN);
@@ -559,7 +561,13 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
             )}
             <div style={{ marginTop: 'auto', paddingTop: '6px', width: '100%' }}>
               <div style={{ fontSize: '9px', marginBottom: '1px' }}>for {businessName}</div>
-              <div style={{ borderBottom: b, width: '80%', margin: '18px auto 3px' }}></div>
+              {stampImageBase64 && (
+                <img src={stampImageBase64} alt="Stamp" style={{
+                  width: stampSize === 'small' ? '80px' : stampSize === 'large' ? '160px' : '120px',
+                  maxHeight: '80px', objectFit: 'contain', margin: '2px auto',
+                }} />
+              )}
+              {!stampImageBase64 && <div style={{ borderBottom: b, width: '80%', margin: '18px auto 3px' }}></div>}
               <div style={{ fontSize: '9px', fontWeight: 'bold' }}>Authorised Signatory</div>
             </div>
           </div>

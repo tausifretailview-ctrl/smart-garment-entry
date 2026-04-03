@@ -70,6 +70,9 @@ interface ModernWholesaleTemplateProps {
   format?: 'a5-vertical' | 'a5-horizontal' | 'a4';
   termsConditions?: string[];
   declarationText?: string;
+  stampImageBase64?: string;
+  stampSize?: 'small' | 'medium' | 'large';
+  [key: string]: any;
 }
 
 const colorSchemes: Record<string, { primary: string; light: string; gradient: string }> = {
@@ -121,6 +124,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   format = 'a4',
   termsConditions,
   declarationText,
+  stampImageBase64,
+  stampSize = 'medium',
 }) => {
   const colors = colorSchemes[colorScheme] || colorSchemes.blue;
   const font = fontFamilyMap[fontFamily] || fontFamilyMap.inter;
@@ -603,9 +608,15 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           )}
         </div>
         <div style={{ textAlign: "center", width: isA5 ? "150px" : "200px" }}>
-          <div style={{ fontSize: isA5 ? "6pt" : "8pt", marginBottom: isA5 ? "12px" : "30px" }}>
+          <div style={{ fontSize: isA5 ? "6pt" : "8pt", marginBottom: stampImageBase64 ? '4px' : (isA5 ? "12px" : "30px") }}>
             For <strong>{businessName}</strong>
           </div>
+          {stampImageBase64 && (
+            <img src={stampImageBase64} alt="Stamp" style={{
+              width: stampSize === 'small' ? '80px' : stampSize === 'large' ? '160px' : '120px',
+              maxHeight: '80px', objectFit: 'contain', margin: '2px auto',
+            }} />
+          )}
           <div style={{ borderTop: "1px solid #000", fontSize: isA5 ? "6pt" : "8pt" }}>Authorised Signatory</div>
         </div>
       </div>

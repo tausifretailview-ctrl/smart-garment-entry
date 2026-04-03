@@ -64,6 +64,9 @@ interface ModernTemplateProps {
     show_style?: boolean;
     show_hsn_code?: boolean;
   };
+  stampImageBase64?: string;
+  stampPosition?: 'bottom-right' | 'bottom-left';
+  stampSize?: 'small' | 'medium' | 'large';
 }
 
 export const ModernTemplate: React.FC<ModernTemplateProps> = ({
@@ -97,6 +100,8 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
   customHeaderText,
   qrCodeUrl,
   bankDetails,
+  stampImageBase64,
+  stampSize = 'medium',
 }) => {
   // Calculate GST details per item
   const calculateItemGST = (item: any) => {
@@ -526,7 +531,13 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
             <div style={{ fontWeight: 'bold' }}>
               FOR {businessName.toUpperCase()}
             </div>
-            <div style={{ flex: 1, minHeight: '30px' }}></div>
+            {stampImageBase64 && (
+              <img src={stampImageBase64} alt="Stamp" style={{
+                width: stampSize === 'small' ? '80px' : stampSize === 'large' ? '160px' : '120px',
+                maxHeight: '90px', objectFit: 'contain', margin: '4px 0',
+              }} />
+            )}
+            {!stampImageBase64 && <div style={{ flex: 1, minHeight: '30px' }}></div>}
             <div style={{ borderTop: '1px solid #000', paddingTop: '3px' }}>
               AUTHORISED SIGNATORY
             </div>

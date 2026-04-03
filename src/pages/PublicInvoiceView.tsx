@@ -161,6 +161,11 @@ export default function PublicInvoiceView() {
     customFooterText: settings?.invoice_footer_text || "",
     declarationText: settings?.declaration_text || "",
     fontFamily: settings?.font_family || "inter",
+    stampImageBase64: settings?.bill_barcode_settings?.stamp_show_sale !== false
+      ? settings?.bill_barcode_settings?.stamp_image_base64 || undefined
+      : undefined,
+    stampPosition: settings?.bill_barcode_settings?.stamp_position || 'bottom-right',
+    stampSize: settings?.bill_barcode_settings?.stamp_size || 'medium',
   };
 
   const renderTemplate = () => {
