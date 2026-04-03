@@ -143,7 +143,7 @@ export function AppSidebar() {
   const reportsPaths = ["/stock-report", "/stock-analysis", "/stock-ageing", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/daily-tally", "/item-wise-sales", "/item-wise-stock", "/price-history", "/gst-reports", "/gst-register", "/tally-export", "/sales-analytics", "/accounting-reports", "/customer-ledger-report", "/daily-sale-analysis", "/einvoice-report"];
   const accountsPaths = ["/accounts", "/payments-dashboard"];
   const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
-  const schoolPaths = ["/students", "/student-entry", "/teachers", "/fee-collection", "/fee-heads", "/fee-structures", "/academic-years", "/classes", "/student-reports", "/student-promotion"];
+  const schoolPaths = ["/students", "/student-entry", "/teachers", "/fee-collection", "/fee-heads", "/fee-structures", "/academic-years", "/classes", "/student-reports", "/student-promotion", "/student-ledger"];
 
   return (
     <Sidebar

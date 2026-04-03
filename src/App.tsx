@@ -630,6 +630,18 @@ const App = () => {
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="student-ledger"
+                  element={
+                    <ProtectedRoute>
+                      <SchoolFeatureGate>
+                        <Layout>
+                          <StudentLedger />
+                        </Layout>
+                      </SchoolFeatureGate>
+                    </ProtectedRoute>
+                  }
+                />
 
                 <Route
                   path="pos-sales"
