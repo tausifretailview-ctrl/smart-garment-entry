@@ -3312,7 +3312,7 @@ export default function BarcodePrinting() {
         if (!printArea) return;
 
         const labelHTML = printArea.innerHTML;
-        const cols = precisionSettings.thermalCols || 1;
+        const cols = precisionSettings.printMode === 'thermal2up' ? Math.max(2, precisionSettings.thermalCols || 2) : (precisionSettings.thermalCols || 1);
         const horizontalGap = cols > 1 ? getThermal2UpGap() : 0;
         const w = precisionSettings.labelWidth * cols + horizontalGap * Math.max(0, cols - 1);
         const h = precisionSettings.labelHeight + (precisionSettings.vGap || 0);
