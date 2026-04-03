@@ -1217,60 +1217,61 @@ const PurchaseReturnEntry = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-1.5">
-            <div className="relative flex-1">
-              {isSearching ? (
-                <Loader2 className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
-              ) : (
-                <Barcode className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              )}
-              <Input
-                ref={searchInputRef}
-                placeholder="Scan barcode or search products..."
-                value={searchQuery}
-                onChange={(e) => {
-                  barcodeScanner.recordKeystroke();
-                  const newValue = e.target.value;
-                  setSearchQuery(newValue);
-                }}
-                onFocus={() => {
-                  if (searchResults.length > 0) setShowSearch(true);
-                }}
-                onBlur={() => {
-                  setTimeout(() => {
-                    setShowSearch(false);
-                    setSearchResults([]);
-                    barcodeScanner.reset();
-                  }, 400);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    const value = searchQuery.trim();
-                    if (value.length >= 4) {
-                      processBarcodeInput(value);
-                    } else if (searchResults.length > 0) {
-                      handleProductSelect(searchResults[0]);
+          <div className="relative">
+            <div className="flex gap-1.5">
+              <div className="relative flex-1">
+                {isSearching ? (
+                  <Loader2 className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
+                ) : (
+                  <Barcode className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                )}
+                <Input
+                  ref={searchInputRef}
+                  placeholder="Scan barcode or search products..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    barcodeScanner.recordKeystroke();
+                    const newValue = e.target.value;
+                    setSearchQuery(newValue);
+                  }}
+                  onFocus={() => {
+                    if (searchResults.length > 0) setShowSearch(true);
+                  }}
+                  onBlur={() => {
+                    setTimeout(() => {
+                      setShowSearch(false);
+                      setSearchResults([]);
+                      barcodeScanner.reset();
+                    }, 400);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      const value = searchQuery.trim();
+                      if (value.length >= 4) {
+                        processBarcodeInput(value);
+                      } else if (searchResults.length > 0) {
+                        handleProductSelect(searchResults[0]);
+                      }
                     }
-                  }
-                  if (e.key === "Escape") {
-                    setShowSearch(false);
-                    setSearchResults([]);
-                    setSearchQuery("");
-                    barcodeScanner.reset();
-                  }
+                    if (e.key === "Escape") {
+                      setShowSearch(false);
+                      setSearchResults([]);
+                      setSearchQuery("");
+                      barcodeScanner.reset();
+                    }
+                  }}
+                  className="pl-10"
+                  autoComplete="off"
+                />
+              </div>
+              <CameraScanButton
+                onBarcodeScanned={(barcode) => {
+                  processBarcodeInput(barcode);
                 }}
-                className="pl-10"
-                autoComplete="off"
+                className="h-10"
               />
             </div>
-            <CameraScanButton
-              onBarcodeScanned={(barcode) => {
-                processBarcodeInput(barcode);
-              }}
-              className="h-10"
-            />
-          </div>
             {showSearch && searchResults.length > 0 && (
               <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto">
                 {searchResults.map((variant, idx) => (
