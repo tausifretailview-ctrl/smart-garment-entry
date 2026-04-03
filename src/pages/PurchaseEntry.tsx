@@ -1231,6 +1231,7 @@ const PurchaseEntry = () => {
       const { data: matchingProducts } = await supabase
         .from("products")
         .select("id, size_group_id")
+        .eq("organization_id", currentOrganization?.id)
         .is("deleted_at", null)
         .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%`);
 
