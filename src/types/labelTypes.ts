@@ -2,6 +2,7 @@ export interface LabelFieldConfig {
   show: boolean;
   fontSize: number;
   bold: boolean;
+  strikethrough?: boolean;
   fontFamily?: string;
   textAlign?: 'left' | 'center' | 'right';
   paddingTop?: number;
