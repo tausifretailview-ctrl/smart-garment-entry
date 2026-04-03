@@ -384,12 +384,7 @@ const PriceHistoryReport = () => {
   const filteredSalesData = useMemo(() => {
     return salesHistory.filter(item => {
       if (searchTerm) {
-        const search = searchTerm.toLowerCase();
-        const matchesSearch = 
-          item.barcode?.toLowerCase().includes(search) ||
-          item.product_name?.toLowerCase().includes(search) ||
-          item.sale_number?.toLowerCase().includes(search);
-        if (!matchesSearch) return false;
+        if (!multiTokenMatch(searchTerm, item.barcode, item.product_name, item.sale_number)) return false;
       }
 
       if (selectedCustomer !== "all" && item.customer_name !== selectedCustomer) return false;
