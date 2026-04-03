@@ -268,6 +268,33 @@ export function PrecisionLabelDesigner({
                           />
                           <Label className="text-[10px]">Strikethrough</Label>
                         </div>
+                        {field.strikethrough && (
+                          <>
+                            <div>
+                              <Label className="text-[10px]">Line Width %</Label>
+                              <Input
+                                type="number"
+                                min={10}
+                                max={200}
+                                value={field.strikethroughWidth ?? 100}
+                                onChange={(e) => updateField(key, { strikethroughWidth: Number(e.target.value) })}
+                                className="h-7 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-[10px]">Line Thickness</Label>
+                              <Input
+                                type="number"
+                                min={0.5}
+                                max={10}
+                                step={0.5}
+                                value={field.strikethroughThickness ?? 1}
+                                onChange={(e) => updateField(key, { strikethroughThickness: Number(e.target.value) })}
+                                className="h-7 text-xs"
+                              />
+                            </div>
+                          </>
+                        )}
                         <div className="col-span-2">
                           <Select
                             value={field.textAlign || "left"}

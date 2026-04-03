@@ -3,6 +3,8 @@ export interface LabelFieldConfig {
   fontSize: number;
   bold: boolean;
   strikethrough?: boolean;
+  strikethroughWidth?: number;  // percentage of field width (default 100)
+  strikethroughThickness?: number;  // in px (default 1)
   fontFamily?: string;
   textAlign?: 'left' | 'center' | 'right';
   paddingTop?: number;

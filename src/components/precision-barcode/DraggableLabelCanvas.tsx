@@ -188,12 +188,24 @@ export function DraggableLabelCanvas({
                 transition: "outline 0.15s, background-color 0.15s",
                 fontFamily: "Arial, Helvetica, sans-serif",
                 color: "#000000",
-                textDecoration: field.strikethrough ? "line-through" : "none",
+                textDecoration: "none",
                 userSelect: "none",
               }}
               title={`${key}: drag to reposition`}
             >
               {content}
+              {field.strikethrough && (
+                <span style={{
+                  position: "absolute",
+                  left: `${(100 - (field.strikethroughWidth ?? 100)) / 2}%`,
+                  width: `${field.strikethroughWidth ?? 100}%`,
+                  top: "50%",
+                  height: `${field.strikethroughThickness ?? 1}px`,
+                  backgroundColor: "#000",
+                  transform: "translateY(-50%)",
+                  pointerEvents: "none",
+                }} />
+              )}
             </div>
           );
         })}
