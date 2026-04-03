@@ -3038,16 +3038,31 @@ Thank you for choosing us!`;
             )}
 
             {/* Barcode Scan Input */}
-            <div className="relative w-[200px] shrink-0">
-              <Scan className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                ref={barcodeInputRef}
-                placeholder="Scan barcode..."
-                value={searchInput}
-                onChange={handleBarcodeInputChange}
-                onKeyDown={handleBarcodeSearch}
-                className="pl-10 pr-4 h-10 font-mono bg-card border-border"
-                autoFocus
+            <div className="flex gap-1 w-[250px] shrink-0">
+              <div className="relative flex-1">
+                <Scan className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  ref={barcodeInputRef}
+                  placeholder="Scan barcode..."
+                  value={searchInput}
+                  onChange={handleBarcodeInputChange}
+                  onKeyDown={handleBarcodeSearch}
+                  className="pl-10 pr-4 h-10 font-mono bg-card border-border"
+                  autoFocus
+                />
+              </div>
+              <CameraScanButton
+                onBarcodeScanned={(barcode) => {
+                  setSearchInput(barcode);
+                  setTimeout(() => {
+                    if (barcodeInputRef.current) {
+                      barcodeInputRef.current.focus();
+                      const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
+                      barcodeInputRef.current.dispatchEvent(enterEvent);
+                    }
+                  }, 100);
+                }}
+                className="h-10 w-10 shrink-0"
               />
             </div>
 
