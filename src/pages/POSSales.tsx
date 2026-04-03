@@ -22,6 +22,7 @@ import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, Chevr
 import { MobilePOSLayout } from "@/components/mobile/MobilePOSLayout";
 import { FloatingPOSReports } from "@/components/FloatingPOSReports";
 import { FloatingSaleReturn } from "@/components/FloatingSaleReturn";
+import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
