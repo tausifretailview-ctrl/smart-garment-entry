@@ -364,14 +364,7 @@ const PriceHistoryReport = () => {
   const filteredPurchaseData = useMemo(() => {
     return purchaseHistory.filter(item => {
       if (searchTerm) {
-        const search = searchTerm.toLowerCase();
-        const matchesSearch = 
-          item.barcode?.toLowerCase().includes(search) ||
-          item.product_name?.toLowerCase().includes(search) ||
-          item.brand?.toLowerCase().includes(search) ||
-          item.bill_number?.toLowerCase().includes(search) ||
-          item.software_bill_no?.toLowerCase().includes(search);
-        if (!matchesSearch) return false;
+        if (!multiTokenMatch(searchTerm, item.barcode, item.product_name, item.brand, item.bill_number, item.software_bill_no)) return false;
       }
 
       if (selectedSupplier !== "all" && item.supplier_name !== selectedSupplier) return false;
