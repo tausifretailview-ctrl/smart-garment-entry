@@ -385,7 +385,7 @@ const FeeCollection = () => {
   const handleSendReminder = async (student: any) => {
     const phone = student.parent_phone;
     if (!phone) {
-      toast.error("No phone number found for this student");
+      toast.error("No phone number found for this student. Please add parent phone in student entry.");
       return;
     }
     if (student.totalDue <= 0) {
@@ -409,36 +409,51 @@ const FeeCollection = () => {
       paymentLink = `upi://pay?${upiParams.toString()}`;
     }
 
-    if (whatsAppSettings?.is_active && templateName) {
+    const amountStr = `Rs.${student.totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+    const reminderMsg = `Fees Reminder\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\nPending Fees: ${amountStr}\n\nDue Date: Please pay at the earliest.\n\nKindly clear the pending fees to avoid inconvenience.${upiId ? `\n\n*Pay Online*\nUPI ID: ${upiId}\nAmount: ${amountStr}\n\nClick to pay: ${paymentLink}` : ""}\n\nThank you for your cooperation.\n\n${currentOrganization?.name || "School"}`;
+
+    if (whatsAppSettings?.is_active) {
       setSendingReminder(student.id);
       try {
-        await sendMessageAsync({
-          phone,
-          message: `Fees Reminder\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\nPending Fees: Rs.${student.totalDue.toLocaleString("en-IN")}\n\nDue Date: Please pay at the earliest.\n\nKindly clear the pending fees to avoid inconvenience.\n\nThank you for your cooperation.\n\n${currentOrganization?.name || "School"}`,
-          templateType: "fee_reminder",
-          templateName,
-          imageUrl: logoUrl || undefined,
-          imageCaption: currentOrganization?.name || "",
-          saleData: {
-            student_name: student.student_name,
-            admission_number: student.admission_number,
-            class_name: student.school_classes?.class_name || "",
-            amount: student.totalDue,
-            organization_name: currentOrganization?.name || "",
-            payment_link: paymentLink || "Please pay at the school office",
-            upi_id: upiId,
-          },
-        });
+        if (templateName) {
+          // Send via Meta template
+          await sendMessageAsync({
+            phone,
+            message: reminderMsg,
+            templateType: "fee_reminder",
+            templateName,
+            imageUrl: logoUrl || undefined,
+            imageCaption: currentOrganization?.name || "",
+            saleData: {
+              student_name: student.student_name,
+              admission_number: student.admission_number,
+              class_name: student.school_classes?.class_name || "",
+              amount: student.totalDue,
+              organization_name: currentOrganization?.name || "",
+              payment_link: paymentLink || "Please pay at the school office",
+              upi_id: upiId,
+            },
+          });
+        } else {
+          // No template configured — send as plain text via API
+          await sendMessageAsync({
+            phone,
+            message: reminderMsg,
+            templateType: "fee_reminder",
+          } as any);
+        }
         toast.success("Fee reminder sent via WhatsApp!");
       } catch (err: any) {
-        toast.error("Failed: " + (err.message || "Unknown error"));
+        console.error("WhatsApp reminder error:", err);
+        toast.error("WhatsApp API failed: " + (err.message || "Unknown error") + ". Check WhatsApp settings.");
+        // Fallback to wa.me link
+        sendWhatsApp(phone, reminderMsg);
       } finally {
         setSendingReminder(null);
       }
     } else {
-      const amountStr = `Rs.${student.totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
-      const msg = `Fees Reminder\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\nPending Fees: ${amountStr}\n\nDue Date: Please pay at the earliest.\n\nKindly clear the pending fees to avoid inconvenience.${upiId ? `\n\n*Pay Online*\nUPI ID: ${upiId}\nAmount: ${amountStr}\n\nClick to pay: ${paymentLink}` : ""}\n\nThank you for your cooperation.\n\n${currentOrganization?.name || "School"}`;
-      sendWhatsApp(phone, msg);
+      // WhatsApp API not active — open wa.me link
+      sendWhatsApp(phone, reminderMsg);
     }
   };
 
