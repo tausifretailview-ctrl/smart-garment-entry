@@ -495,8 +495,12 @@ export function PrecisionLabelDesigner({
           config={config}
           zoom={zoom}
           activeField={activeField}
+          activeLineIndex={activeLineIndex}
           onFieldSelect={setActiveField}
           onFieldDrag={handleFieldDrag}
+          onLineSelect={setActiveLineIndex}
+          onLineDrag={handleLineDrag}
+          onLineDelete={handleLineDelete}
         />
 
         <div className="text-xs text-muted-foreground text-center">
