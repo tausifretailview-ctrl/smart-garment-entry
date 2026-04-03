@@ -1289,6 +1289,7 @@ const PurchaseEntry = () => {
             purchase_discount_value
           )
         `)
+        .eq("organization_id", currentOrganization?.id)
         .eq("active", true)
         .is("deleted_at", null);
 
