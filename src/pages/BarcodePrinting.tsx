@@ -1576,7 +1576,7 @@ export default function BarcodePrinting() {
               labelHeight: presetToLoad.height,
               ...(presetToLoad.a4Cols ? { a4Cols: presetToLoad.a4Cols } : {}),
               ...(presetToLoad.a4Rows ? { a4Rows: presetToLoad.a4Rows } : {}),
-              printMode: presetToLoad.printMode || 'thermal',
+              printMode: presetToLoad.printMode || (presetToLoad.a4Cols && presetToLoad.a4Rows ? 'a4' : (presetToLoad.thermalCols && presetToLoad.thermalCols > 1) ? 'thermal2up' : 'thermal'),
               ...(presetToLoad.labelConfig ? { labelConfig: presetToLoad.labelConfig } : {}),
               thermalCols: presetToLoad.thermalCols || 1,
               enabled: true,
@@ -5078,7 +5078,8 @@ export default function BarcodePrinting() {
                   }
                   if (preset.a4Cols) setPrecisionSettings((prev) => ({ ...prev, a4Cols: preset.a4Cols! }));
                   if (preset.a4Rows) setPrecisionSettings((prev) => ({ ...prev, a4Rows: preset.a4Rows! }));
-                  const mode = preset.printMode || (preset.a4Cols && preset.a4Rows ? 'a4' : 'thermal');
+                  setPrecisionSettings((prev) => ({ ...prev, thermalCols: preset.thermalCols || 1 }));
+                  const mode = preset.printMode || (preset.a4Cols && preset.a4Rows ? 'a4' : (preset.thermalCols && preset.thermalCols > 1) ? 'thermal2up' : 'thermal');
                   setPrecisionSettings((prev) => ({ ...prev, printMode: mode }));
                   const isLabelTemplate = savedLabelTemplates.some(t => t.name === preset.name);
                   setActivePrecisionTemplateName(isLabelTemplate ? preset.name : null);
@@ -5219,7 +5220,7 @@ export default function BarcodePrinting() {
                 if (preset.a4Rows) setPrecisionSettings((prev) => ({ ...prev, a4Rows: preset.a4Rows! }));
                 setPrecisionSettings((prev) => ({ ...prev, thermalCols: preset.thermalCols || 1 }));
                 // Auto-detect print mode from preset
-                const mode = preset.printMode || (preset.a4Cols && preset.a4Rows ? 'a4' : 'thermal');
+                const mode = preset.printMode || (preset.a4Cols && preset.a4Rows ? 'a4' : (preset.thermalCols && preset.thermalCols > 1) ? 'thermal2up' : 'thermal');
                 setPrecisionSettings((prev) => ({ ...prev, printMode: mode }));
                 // Track active template for auto-save (only for saved label templates, not built-in presets)
                 const isLabelTemplate = savedLabelTemplates.some(t => t.name === preset.name);
