@@ -164,11 +164,24 @@ export function PrecisionLabelPreview({
               textOverflow: "ellipsis",
               color: "#000000",
               letterSpacing: "0.2px",
-              textDecoration: field.strikethrough ? "line-through" : "none",
+              textDecoration: "none",
               WebkitTextStroke: field.bold ? "0.3px #000" : "none",
+              position: "relative" as const,
             }}
           >
             {content}
+            {field.strikethrough && (
+              <span style={{
+                position: "absolute",
+                left: `${(100 - (field.strikethroughWidth ?? 100)) / 2}%`,
+                width: `${field.strikethroughWidth ?? 100}%`,
+                top: "50%",
+                height: `${field.strikethroughThickness ?? 1}px`,
+                backgroundColor: "#000",
+                transform: "translateY(-50%)",
+                pointerEvents: "none",
+              }} />
+            )}
           </div>
         );
       })}
