@@ -100,6 +100,8 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
   customHeaderText,
   qrCodeUrl,
   bankDetails,
+  stampImageBase64,
+  stampSize = 'medium',
 }) => {
   // Calculate GST details per item
   const calculateItemGST = (item: any) => {
