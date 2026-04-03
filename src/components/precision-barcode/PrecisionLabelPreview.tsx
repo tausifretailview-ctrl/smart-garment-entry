@@ -166,7 +166,6 @@ export function PrecisionLabelPreview({
               letterSpacing: "0.2px",
               textDecoration: "none",
               WebkitTextStroke: field.bold ? "0.3px #000" : "none",
-              position: "relative" as const,
             }}
           >
             {content}
