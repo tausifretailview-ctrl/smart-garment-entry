@@ -531,13 +531,13 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
             <div style={{ fontWeight: 'bold' }}>
               FOR {businessName.toUpperCase()}
             </div>
-            {(props as any).stampImageBase64 && (
-              <img src={(props as any).stampImageBase64} alt="Stamp" style={{
-                width: (props as any).stampSize === 'small' ? '80px' : (props as any).stampSize === 'large' ? '160px' : '120px',
+            {stampImageBase64 && (
+              <img src={stampImageBase64} alt="Stamp" style={{
+                width: stampSize === 'small' ? '80px' : stampSize === 'large' ? '160px' : '120px',
                 maxHeight: '90px', objectFit: 'contain', margin: '4px 0',
               }} />
             )}
-            {!(props as any).stampImageBase64 && <div style={{ flex: 1, minHeight: '30px' }}></div>}
+            {!stampImageBase64 && <div style={{ flex: 1, minHeight: '30px' }}></div>}
             <div style={{ borderTop: '1px solid #000', paddingTop: '3px' }}>
               AUTHORISED SIGNATORY
             </div>
