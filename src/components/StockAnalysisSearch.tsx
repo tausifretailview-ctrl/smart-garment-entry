@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 
 interface ProductResult {
   id: string;
