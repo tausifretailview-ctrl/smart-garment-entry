@@ -40,7 +40,7 @@ export function IMEIScanDialog({
 
   const updateIMEI = useCallback((index: number, value: string) => {
     // Only allow digits
-    const cleaned = value.replace(/\D/g, "").slice(0, maxLength);
+    const cleaned = value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, maxLength);
     setImeiValues(prev => {
       const updated = [...prev];
       updated[index] = cleaned;
