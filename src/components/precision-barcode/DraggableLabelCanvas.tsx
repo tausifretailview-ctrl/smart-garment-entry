@@ -9,8 +9,12 @@ interface DraggableLabelCanvasProps {
   config: LabelDesignConfig;
   zoom: number;
   activeField: FieldKey | null;
+  activeLineIndex: number | null;
   onFieldSelect: (key: FieldKey | null) => void;
   onFieldDrag: (key: FieldKey, x: number, y: number) => void;
+  onLineSelect: (index: number | null) => void;
+  onLineDrag: (index: number, x: number, y: number) => void;
+  onLineDelete?: (index: number) => void;
 }
 
 const getFieldContent = (key: FieldKey, item: LabelItem, customTextValue?: string): string => {
@@ -43,12 +47,16 @@ export function DraggableLabelCanvas({
   config,
   zoom,
   activeField,
+  activeLineIndex,
   onFieldSelect,
   onFieldDrag,
+  onLineSelect,
+  onLineDrag,
+  onLineDelete,
 }: DraggableLabelCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const barcodeRef = useRef<SVGSVGElement>(null);
-  const [dragging, setDragging] = useState<{ key: FieldKey; startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const [dragging, setDragging] = useState<{ type: 'field' | 'line'; key?: FieldKey; lineIndex?: number; startX: number; startY: number; origX: number; origY: number } | null>(null);
 
   const barcodeHeight = config.barcodeHeight ?? 30;
   const barcodeLineWidth = config.barcodeWidth ?? 1.5;
@@ -72,20 +80,39 @@ export function DraggableLabelCanvas({
   const pxWidth = width * MM_TO_PX;
   const pxHeight = height * MM_TO_PX;
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, key: FieldKey) => {
+  const handleFieldMouseDown = useCallback((e: React.MouseEvent, key: FieldKey) => {
     e.stopPropagation();
     e.preventDefault();
     onFieldSelect(key);
+    onLineSelect(null);
     const field = config[key] as LabelFieldConfig;
     if (!field) return;
     setDragging({
+      type: 'field',
       key,
       startX: e.clientX,
       startY: e.clientY,
       origX: field.x ?? 0,
       origY: field.y ?? 0,
     });
-  }, [config, onFieldSelect]);
+  }, [config, onFieldSelect, onLineSelect]);
+
+  const handleLineMouseDown = useCallback((e: React.MouseEvent, index: number) => {
+    e.stopPropagation();
+    e.preventDefault();
+    onLineSelect(index);
+    onFieldSelect(null);
+    const line = config.lines?.[index];
+    if (!line) return;
+    setDragging({
+      type: 'line',
+      lineIndex: index,
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: line.x ?? 0,
+      origY: line.y ?? 0,
+    });
+  }, [config.lines, onLineSelect, onFieldSelect]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!dragging) return;
@@ -93,12 +120,26 @@ export function DraggableLabelCanvas({
     const dy = (e.clientY - dragging.startY) / zoom / MM_TO_PX;
     const newX = Math.max(0, Math.min(width, dragging.origX + dx));
     const newY = Math.max(0, Math.min(height, dragging.origY + dy));
-    onFieldDrag(dragging.key, newX, newY);
-  }, [dragging, zoom, width, height, onFieldDrag]);
+
+    if (dragging.type === 'field' && dragging.key) {
+      onFieldDrag(dragging.key, newX, newY);
+    } else if (dragging.type === 'line' && dragging.lineIndex !== undefined) {
+      onLineDrag(dragging.lineIndex, newX, newY);
+    }
+  }, [dragging, zoom, width, height, onFieldDrag, onLineDrag]);
 
   const handleMouseUp = useCallback(() => {
     setDragging(null);
   }, []);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (activeLineIndex !== null && onLineDelete) {
+        e.preventDefault();
+        onLineDelete(activeLineIndex);
+      }
+    }
+  }, [activeLineIndex, onLineDelete]);
 
   const fieldKeys: FieldKey[] = (config.fieldOrder || []).filter(
     (k) => k !== "barcode" && config[k]?.show
@@ -110,13 +151,20 @@ export function DraggableLabelCanvas({
     <div
       className="border rounded-lg overflow-auto bg-muted/20 p-4 flex items-center justify-center"
       style={{ minHeight: 160 }}
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
     >
       <div
         ref={containerRef}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
-        onClick={() => !dragging && onFieldSelect(null)}
+        onClick={() => {
+          if (!dragging) {
+            onFieldSelect(null);
+            onLineSelect(null);
+          }
+        }}
         style={{
           width: pxWidth * zoom,
           height: pxHeight * zoom,
@@ -131,7 +179,6 @@ export function DraggableLabelCanvas({
         <svg
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
         >
-          {/* 5mm grid */}
           {Array.from({ length: Math.floor(width / 5) }, (_, i) => (
             <line
               key={`vg${i}`}
@@ -167,7 +214,7 @@ export function DraggableLabelCanvas({
           return (
             <div
               key={key}
-              onMouseDown={(e) => handleMouseDown(e, key)}
+              onMouseDown={(e) => handleFieldMouseDown(e, key)}
               style={{
                 position: "absolute",
                 top: (field.y ?? 0) * MM_TO_PX * zoom,
@@ -210,29 +257,44 @@ export function DraggableLabelCanvas({
           );
         })}
 
-        {/* Render lines/separators */}
+        {/* Render lines/separators - now selectable & draggable */}
         {config.lines?.map((line, idx) => {
           if (!line.show) return null;
           const isHorizontal = line.orientation === 'horizontal';
+          const isSelected = activeLineIndex === idx;
           return (
             <div
               key={`line-${idx}`}
+              onMouseDown={(e) => handleLineMouseDown(e, idx)}
               style={{
                 position: "absolute",
                 top: (line.y ?? 0) * MM_TO_PX * zoom,
                 left: (line.x ?? 0) * MM_TO_PX * zoom,
-                width: isHorizontal ? (line.length ?? 10) * MM_TO_PX * zoom : (line.thickness ?? 0.3) * MM_TO_PX * zoom,
-                height: isHorizontal ? (line.thickness ?? 0.3) * MM_TO_PX * zoom : (line.length ?? 10) * MM_TO_PX * zoom,
-                backgroundColor: "#000000",
+                width: isHorizontal ? (line.length ?? 10) * MM_TO_PX * zoom : Math.max((line.thickness ?? 0.3) * MM_TO_PX * zoom, 6),
+                height: isHorizontal ? Math.max((line.thickness ?? 0.3) * MM_TO_PX * zoom, 6) : (line.length ?? 10) * MM_TO_PX * zoom,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "grab",
+                outline: isSelected ? "2px solid hsl(var(--primary))" : "none",
+                outlineOffset: 2,
+                borderRadius: 1,
               }}
-            />
+              title={`Line ${idx + 1}: drag to reposition (Delete key to remove)`}
+            >
+              <div style={{
+                width: isHorizontal ? "100%" : (line.thickness ?? 0.3) * MM_TO_PX * zoom,
+                height: isHorizontal ? (line.thickness ?? 0.3) * MM_TO_PX * zoom : "100%",
+                backgroundColor: "#000000",
+              }} />
+            </div>
           );
         })}
 
         {/* Barcode */}
         {showBarcode && (
           <div
-            onMouseDown={(e) => handleMouseDown(e, "barcode")}
+            onMouseDown={(e) => handleFieldMouseDown(e, "barcode")}
             style={{
               position: "absolute",
               top: (barcodeConfig.y ?? height * 0.35) * MM_TO_PX * zoom,

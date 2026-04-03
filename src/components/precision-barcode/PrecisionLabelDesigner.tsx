@@ -86,6 +86,7 @@ export function PrecisionLabelDesigner({
   sampleItem,
 }: PrecisionLabelDesignerProps) {
   const [activeField, setActiveField] = useState<FieldKey | null>(null);
+  const [activeLineIndex, setActiveLineIndex] = useState<number | null>(null);
   const [zoom, setZoom] = useState(3);
 
   const updateField = useCallback(
@@ -103,6 +104,24 @@ export function PrecisionLabelDesigner({
       updateField(key, { x: Math.round(x * 2) / 2, y: Math.round(y * 2) / 2 });
     },
     [updateField]
+  );
+
+  const handleLineDrag = useCallback(
+    (index: number, x: number, y: number) => {
+      const lines = [...(config.lines || [])];
+      lines[index] = { ...lines[index], x: Math.round(x * 2) / 2, y: Math.round(y * 2) / 2 };
+      onConfigChange({ ...config, lines });
+    },
+    [config, onConfigChange]
+  );
+
+  const handleLineDelete = useCallback(
+    (index: number) => {
+      const lines = (config.lines || []).filter((_, i) => i !== index);
+      onConfigChange({ ...config, lines });
+      setActiveLineIndex(null);
+    },
+    [config, onConfigChange]
   );
 
   const resetToDefault = () => {
