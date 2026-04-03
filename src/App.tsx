@@ -115,6 +115,7 @@ const FeeStructureSetup = lazy(() => import("./pages/school/FeeStructureSetup"))
 const TeacherMaster = lazy(() => import("./pages/school/TeacherMaster"));
 const StudentReports = lazy(() => import("./pages/school/StudentReports"));
 const StudentPromotion = lazy(() => import("./pages/school/StudentPromotion"));
+const StudentLedger = lazy(() => import("./pages/school/StudentLedger"));
 const PortalLogin = lazy(() => import("./pages/portal/PortalLogin"));
 const PortalHome = lazy(() => import("./pages/portal/PortalHome"));
 const PortalCatalogue = lazy(() => import("./pages/portal/PortalCatalogue"));
@@ -624,6 +625,18 @@ const App = () => {
                       <SchoolFeatureGate>
                         <Layout>
                           <StudentPromotion />
+                        </Layout>
+                      </SchoolFeatureGate>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="student-ledger"
+                  element={
+                    <ProtectedRoute>
+                      <SchoolFeatureGate>
+                        <Layout>
+                          <StudentLedger />
                         </Layout>
                       </SchoolFeatureGate>
                     </ProtectedRoute>
