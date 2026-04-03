@@ -1200,7 +1200,8 @@ export default function POSSales() {
     }
 
     // Mobile ERP IMEI enforcement: validate IMEI format before allowing scan
-    if (mobileERP.enabled && mobileERP.imei_scan_enforcement) {
+    // Skip validation for service shortcodes (1-9) so service products can be sold
+    if (mobileERP.enabled && mobileERP.imei_scan_enforcement && !/^[1-9]$/.test(searchTerm)) {
       if (!validateIMEI(searchTerm, mobileERP.imei_min_length, mobileERP.imei_max_length)) {
         toast({
           title: "Invalid IMEI",
