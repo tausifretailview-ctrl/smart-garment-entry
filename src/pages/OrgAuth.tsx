@@ -750,7 +750,7 @@ export default function OrgAuth() {
                       onChange={(e) => setEmail(e.target.value)}
                       disabled={loading}
                       required
-                      className="h-10 rounded-md"
+                      className="h-10 rounded-md no-uppercase"
                     />
                   </div>
                   
