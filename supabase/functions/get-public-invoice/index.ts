@@ -73,14 +73,30 @@ Deno.serve(async (req) => {
       .eq('id', sale.organization_id)
       .single()
 
-    // Sanitize settings - only return logo from sale_settings
+    // Sanitize settings - return logo + invoice display settings from sale_settings
+    const saleSettings = settings?.sale_settings as any || {};
     const sanitizedSettings = settings ? {
       business_name: settings.business_name,
       address: settings.address,
       mobile_number: settings.mobile_number,
       email_id: settings.email_id,
       gst_number: settings.gst_number,
-      invoiceLogo: (settings.sale_settings as any)?.invoiceLogo || '',
+      invoiceLogo: saleSettings?.invoiceLogo || '',
+      invoice_template: saleSettings?.invoice_template || 'professional',
+      invoice_color_scheme: saleSettings?.invoice_color_scheme || 'blue',
+      logo_placement: saleSettings?.logo_placement || 'left',
+      show_hsn_column: saleSettings?.show_hsn_code ?? true,
+      show_barcode: saleSettings?.show_barcode ?? true,
+      show_gst_breakdown: saleSettings?.show_gst_breakdown ?? true,
+      show_mrp_column: saleSettings?.show_mrp_column ?? false,
+      show_total_quantity: saleSettings?.show_total_quantity ?? true,
+      invoice_header_text: saleSettings?.invoice_header_text || '',
+      invoice_footer_text: saleSettings?.invoice_footer_text || '',
+      declaration_text: saleSettings?.declaration_text || '',
+      terms_list: saleSettings?.terms_list || [],
+      font_family: saleSettings?.font_family || 'inter',
+      bank_details: saleSettings?.bank_details || null,
+      show_bank_details: saleSettings?.show_bank_details ?? false,
     } : null
 
     // Return sanitized data (no customer_phone, customer_email, customer_address, payment details)
