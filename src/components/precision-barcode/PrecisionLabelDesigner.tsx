@@ -86,6 +86,7 @@ export function PrecisionLabelDesigner({
   sampleItem,
 }: PrecisionLabelDesignerProps) {
   const [activeField, setActiveField] = useState<FieldKey | null>(null);
+  const [activeLineIndex, setActiveLineIndex] = useState<number | null>(null);
   const [zoom, setZoom] = useState(3);
 
   const updateField = useCallback(
@@ -103,6 +104,24 @@ export function PrecisionLabelDesigner({
       updateField(key, { x: Math.round(x * 2) / 2, y: Math.round(y * 2) / 2 });
     },
     [updateField]
+  );
+
+  const handleLineDrag = useCallback(
+    (index: number, x: number, y: number) => {
+      const lines = [...(config.lines || [])];
+      lines[index] = { ...lines[index], x: Math.round(x * 2) / 2, y: Math.round(y * 2) / 2 };
+      onConfigChange({ ...config, lines });
+    },
+    [config, onConfigChange]
+  );
+
+  const handleLineDelete = useCallback(
+    (index: number) => {
+      const lines = (config.lines || []).filter((_, i) => i !== index);
+      onConfigChange({ ...config, lines });
+      setActiveLineIndex(null);
+    },
+    [config, onConfigChange]
   );
 
   const resetToDefault = () => {
@@ -351,7 +370,7 @@ export function PrecisionLabelDesigner({
             </Button>
           </div>
           {(config.lines || []).map((line, idx) => (
-            <Card key={idx} className="border-border">
+            <Card key={idx} className={`transition-colors ${activeLineIndex === idx ? "border-primary" : "border-border"}`}>
               <CardContent className="p-2 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -476,12 +495,16 @@ export function PrecisionLabelDesigner({
           config={config}
           zoom={zoom}
           activeField={activeField}
+          activeLineIndex={activeLineIndex}
           onFieldSelect={setActiveField}
           onFieldDrag={handleFieldDrag}
+          onLineSelect={setActiveLineIndex}
+          onLineDrag={handleLineDrag}
+          onLineDelete={handleLineDelete}
         />
 
         <div className="text-xs text-muted-foreground text-center">
-          Actual size: {labelWidth}mm × {labelHeight}mm • Click a field to select, drag to move
+          Actual size: {labelWidth}mm × {labelHeight}mm • Click to select, drag to move • Delete key removes selected line
         </div>
       </div>
     </div>
