@@ -1230,9 +1230,15 @@ export default function StockReport() {
             <Printer className="h-4 w-4 mr-2" />
             Print
           </Button>
-          <Button variant="outline" size="sm" onClick={() => activeTab === "sizewise" ? exportSizeWiseToExcel() : exportAllStockToExcel()} disabled={!hasSearched || (activeTab === "sizewise" ? sizeWiseData.rows.length === 0 : filteredStockItems.length === 0)}>
-            <FileSpreadsheet className="h-4 w-4 mr-2" />
-            Excel
+          <Button variant="outline" size="sm" onClick={() => {
+            if (hasSearched && filteredStockItems.length > 0) {
+              activeTab === "sizewise" ? exportSizeWiseToExcel() : exportAllStockToExcel();
+            } else {
+              exportFullStockToExcel();
+            }
+          }} disabled={excelExporting}>
+            {excelExporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 mr-2" />}
+            {excelExporting ? "Exporting..." : "Excel"}
           </Button>
         </div>
       </div>
