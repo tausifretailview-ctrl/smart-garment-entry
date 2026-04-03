@@ -15,9 +15,10 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
-import { CalendarIcon, Search, Package, IndianRupee, TrendingUp, Printer, FileSpreadsheet, FileText, Filter } from "lucide-react";
+import { CalendarIcon, Search, Package, IndianRupee, TrendingUp, Printer, FileSpreadsheet, FileText, Filter, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
+import { multiTokenMatch } from "@/utils/multiTokenSearch";
 
 type PeriodType = "daily" | "monthly" | "quarterly" | "yearly" | "all" | "custom";
 
@@ -258,17 +259,10 @@ export default function ItemWiseSalesReport() {
       data = data.filter(item => item.color === selectedDepartment);
     }
 
-    // Apply search query
+    // Apply search query — multi-token AND logic
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      data = data.filter(
-        (item) =>
-          item.product_name?.toLowerCase().includes(query) ||
-          item.barcode?.toLowerCase().includes(query) ||
-          item.brand?.toLowerCase().includes(query) ||
-          item.category?.toLowerCase().includes(query) ||
-          item.color?.toLowerCase().includes(query) ||
-          item.size?.toLowerCase().includes(query)
+      data = data.filter(item =>
+        multiTokenMatch(searchQuery, item.product_name, item.barcode, item.brand, item.category, item.color, item.size)
       );
     }
 
@@ -288,13 +282,7 @@ export default function ItemWiseSalesReport() {
       if (selectedCategory !== "all" && item.products?.category !== selectedCategory) return;
       if (selectedDepartment !== "all" && item.products?.color !== selectedDepartment) return;
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchesSearch =
-          item.product_name?.toLowerCase().includes(q) ||
-          item.barcode?.toLowerCase().includes(q) ||
-          brand.toLowerCase().includes(q) ||
-          item.products?.category?.toLowerCase().includes(q);
-        if (!matchesSearch) return;
+        if (!multiTokenMatch(searchQuery, item.product_name, item.barcode, brand, item.products?.category, item.products?.color)) return;
       }
 
       const key = `${customerName}|||${brand}`;
@@ -524,12 +512,25 @@ export default function ItemWiseSalesReport() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search by product, barcode, brand, category..."
+                    placeholder="Search name, brand, barcode, color... (multi-word AND)"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
+                    className="pl-9 pr-8 no-uppercase"
                   />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-muted transition-colors"
+                    >
+                      <X className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                  )}
                 </div>
+                {searchQuery && (
+                  <span className="text-xs text-muted-foreground mt-1 block">
+                    Showing {filteredData.length.toLocaleString('en-IN')} of {aggregatedData.length.toLocaleString('en-IN')} items
+                  </span>
+                )}
               </div>
 
               {/* Filter Toggle Button */}

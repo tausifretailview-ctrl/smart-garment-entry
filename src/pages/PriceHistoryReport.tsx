@@ -34,6 +34,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { multiTokenMatch } from "@/utils/multiTokenSearch";
 
 interface PurchaseHistoryItem {
   id: string;
@@ -364,14 +365,7 @@ const PriceHistoryReport = () => {
   const filteredPurchaseData = useMemo(() => {
     return purchaseHistory.filter(item => {
       if (searchTerm) {
-        const search = searchTerm.toLowerCase();
-        const matchesSearch = 
-          item.barcode?.toLowerCase().includes(search) ||
-          item.product_name?.toLowerCase().includes(search) ||
-          item.brand?.toLowerCase().includes(search) ||
-          item.bill_number?.toLowerCase().includes(search) ||
-          item.software_bill_no?.toLowerCase().includes(search);
-        if (!matchesSearch) return false;
+        if (!multiTokenMatch(searchTerm, item.barcode, item.product_name, item.brand, item.bill_number, item.software_bill_no)) return false;
       }
 
       if (selectedSupplier !== "all" && item.supplier_name !== selectedSupplier) return false;
@@ -391,12 +385,7 @@ const PriceHistoryReport = () => {
   const filteredSalesData = useMemo(() => {
     return salesHistory.filter(item => {
       if (searchTerm) {
-        const search = searchTerm.toLowerCase();
-        const matchesSearch = 
-          item.barcode?.toLowerCase().includes(search) ||
-          item.product_name?.toLowerCase().includes(search) ||
-          item.sale_number?.toLowerCase().includes(search);
-        if (!matchesSearch) return false;
+        if (!multiTokenMatch(searchTerm, item.barcode, item.product_name, item.sale_number)) return false;
       }
 
       if (selectedCustomer !== "all" && item.customer_name !== selectedCustomer) return false;
@@ -413,8 +402,7 @@ const PriceHistoryReport = () => {
   const filteredPriceEdits = useMemo(() => {
     return priceEdits.filter(item => {
       if (searchTerm) {
-        const search = searchTerm.toLowerCase();
-        if (!item.barcode?.toLowerCase().includes(search)) return false;
+        if (!multiTokenMatch(searchTerm, item.barcode)) return false;
       }
 
       const editDate = item.created_at?.split("T")[0] || "";
@@ -429,13 +417,7 @@ const PriceHistoryReport = () => {
   const filteredStockMovements = useMemo(() => {
     return stockMovements.filter(item => {
       if (searchTerm) {
-        const search = searchTerm.toLowerCase();
-        const matchesSearch = 
-          item.barcode?.toLowerCase().includes(search) ||
-          item.product_name?.toLowerCase().includes(search) ||
-          item.bill_number?.toLowerCase().includes(search) ||
-          item.notes?.toLowerCase().includes(search);
-        if (!matchesSearch) return false;
+        if (!multiTokenMatch(searchTerm, item.barcode, item.product_name, item.bill_number, item.notes)) return false;
       }
 
       if (movementTypeFilter !== "all" && item.movement_type !== movementTypeFilter) return false;
@@ -452,11 +434,7 @@ const PriceHistoryReport = () => {
   const filteredProductChanges = useMemo(() => {
     return productChanges.filter(item => {
       if (searchTerm) {
-        const search = searchTerm.toLowerCase();
-        const matchesSearch = 
-          item.product_name?.toLowerCase().includes(search) ||
-          item.brand?.toLowerCase().includes(search);
-        if (!matchesSearch) return false;
+        if (!multiTokenMatch(searchTerm, item.product_name, item.brand)) return false;
       }
 
       const changeDate = item.created_at?.split("T")[0] || "";
@@ -967,10 +945,10 @@ const PriceHistoryReport = () => {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Barcode, product, bill no..."
+                  placeholder="Search name, barcode, bill... (multi-word AND)"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9"
+                  className="pl-9 no-uppercase"
                 />
               </div>
             </div>

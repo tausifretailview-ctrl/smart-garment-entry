@@ -16,7 +16,7 @@ import { format, addDays } from "date-fns";
 import {
   Search, Package, IndianRupee, TrendingUp, FileSpreadsheet, AlertTriangle,
   ChevronDown, ChevronUp, Phone, MessageSquare, ShoppingCart, RefreshCw, Loader2,
-  ClipboardList
+  ClipboardList, X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -26,6 +26,7 @@ import { MetricCardSkeleton, TableSkeleton } from "@/components/ui/skeletons";
 import { sortSizes } from "@/utils/sizeSort";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
+import { multiTokenMatch } from "@/utils/multiTokenSearch";
 
 type QuickPeriod = "today" | "yesterday" | "last7" | "last30" | "thisMonth";
 
@@ -376,12 +377,8 @@ export default function DailySaleAnalysis() {
   const filteredItems = useMemo(() => {
     let result = items;
     if (searchQuery) {
-      const q = searchQuery.toLowerCase();
       result = result.filter(i =>
-        i.itemDescription.toLowerCase().includes(q) ||
-        i.barcode.toLowerCase().includes(q) ||
-        i.supplierName.toLowerCase().includes(q) ||
-        i.brand.toLowerCase().includes(q)
+        multiTokenMatch(searchQuery, i.itemDescription, i.barcode, i.supplierName, i.brand, i.category, i.color, i.size, i.hsnCode)
       );
     }
     if (categoryFilter !== "all") result = result.filter(i => i.category === categoryFilter);
@@ -595,7 +592,7 @@ export default function DailySaleAnalysis() {
               </button>
             ))}
           </div>
-          <Input placeholder="Search item, barcode..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="h-9 text-sm" />
+          <Input placeholder="Search name, barcode... (multi-word AND)" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="h-9 text-sm no-uppercase" />
 
           {/* Mobile summary */}
           <div className="grid grid-cols-3 gap-2">
@@ -699,9 +696,22 @@ export default function DailySaleAnalysis() {
         <div className="flex flex-wrap gap-3">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search item name, barcode, supplier..." value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)} className="pl-9 h-9" />
+            <Input placeholder="Search name, barcode, supplier... (multi-word AND)" value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)} className="pl-9 pr-8 h-9 no-uppercase" />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-muted transition-colors"
+              >
+                <X className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+            )}
           </div>
+          {searchQuery && (
+            <span className="text-xs text-muted-foreground whitespace-nowrap">
+              Showing {filteredItems.length.toLocaleString('en-IN')} of {items.length.toLocaleString('en-IN')}
+            </span>
+          )}
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
             <SelectTrigger className="w-[140px] h-9"><SelectValue placeholder="Category" /></SelectTrigger>
             <SelectContent>

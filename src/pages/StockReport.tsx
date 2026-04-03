@@ -24,6 +24,7 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 import { sortSizes } from "@/utils/sizeSort";
+import { multiTokenMatch } from "@/utils/multiTokenSearch";
 
 interface StockItem {
   id: string;
@@ -689,20 +690,10 @@ export default function StockReport() {
         if (!item.product_name.toLowerCase().includes(nameSearch)) return false;
       }
       
-      // General search filter
+      // General search filter — multi-token AND
       if (searchTerm) {
-        const search = searchTerm.toLowerCase();
-        const matchesSearch = (
-          item.product_name.toLowerCase().includes(search) ||
-          item.brand.toLowerCase().includes(search) ||
-          item.color.toLowerCase().includes(search) ||
-          item.size.toLowerCase().includes(search) ||
-          item.barcode.toLowerCase().includes(search) ||
-          item.supplier_name.toLowerCase().includes(search) ||
-          item.supplier_invoice_no.toLowerCase().includes(search) ||
-          variantIdsFromOldBarcodes.has(item.id)
-        );
-        if (!matchesSearch) return false;
+        const matchesOldBarcode = variantIdsFromOldBarcodes.has(item.id);
+        if (!matchesOldBarcode && !multiTokenMatch(searchTerm, item.product_name, item.brand, item.color, item.size, item.barcode, item.supplier_name, item.supplier_invoice_no, (item as any).category, (item as any).hsn_code)) return false;
       }
       
       // Brand filter
@@ -1140,7 +1131,7 @@ export default function StockReport() {
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search by barcode, product, brand..."
+              <Input placeholder="Search name, brand, barcode, color... (multi-word AND)"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -1254,7 +1245,7 @@ export default function StockReport() {
               handleSearch();
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Search by barcode, product name, brand, size..."
+            placeholder="Search name, brand, barcode, size... (multi-word AND)"
             className="flex-1"
           />
           <Button onClick={handleSearch} disabled={loading || !hasActiveFilters} className="shadow-sm font-semibold px-6">
