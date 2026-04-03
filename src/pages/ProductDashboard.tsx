@@ -1274,12 +1274,25 @@ const ProductDashboard = () => {
                 <div className="relative flex-1 max-w-sm">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search by name, brand, barcode..."
+                    placeholder="Search name, brand, barcode, HSN... (multi-word AND)"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
+                    className="pl-9 pr-8 no-uppercase"
                   />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-muted transition-colors"
+                    >
+                      <X className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                  )}
                 </div>
+                {searchQuery && (
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    Showing {totalCount.toLocaleString('en-IN')} results
+                  </span>
+                )}
                 <div id="erp-toolbar-portal-product" className="flex items-center gap-2" />
                 <div className="ml-auto">
                   <Button
