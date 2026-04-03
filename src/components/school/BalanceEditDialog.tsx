@@ -113,7 +113,8 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
   const [savedVoucher, setSavedVoucher] = useState<any>(null);
   const [showVoucher, setShowVoucher] = useState(false);
 
-  const oldBalance = student?.closing_fees_balance || 0;
+  // Use computed totalDue (from fee structures - payments) if available, else fall back to closing_fees_balance
+  const oldBalance = student?.totalDue != null ? student.totalDue : (student?.closing_fees_balance || 0);
   const amountNum = parseFloat(amount) || 0;
   const newBalance =
     adjustmentType === "credit" ? oldBalance + amountNum :
