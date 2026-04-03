@@ -158,6 +158,18 @@ export const generateA4LabelPdf = async (
             x: drawX, y: pdfY,
             size: fsPt, font: f, color: rgb(0, 0, 0),
           });
+
+          // Draw strikethrough line if enabled
+          if (field.strikethrough) {
+            const textW = f.widthOfTextAtSize(displayText, fsPt);
+            const lineY = pdfY + fsPt * 0.35;
+            page.drawLine({
+              start: { x: drawX, y: lineY },
+              end: { x: drawX + textW, y: lineY },
+              thickness: Math.max(0.5, fsPt * 0.06),
+              color: rgb(0, 0, 0),
+            });
+          }
         } catch { /* skip invalid chars */ }
       }
 

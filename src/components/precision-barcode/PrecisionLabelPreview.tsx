@@ -164,6 +164,7 @@ export function PrecisionLabelPreview({
               textOverflow: "ellipsis",
               color: "#000000",
               letterSpacing: "0.2px",
+              textDecoration: field.strikethrough ? "line-through" : "none",
               WebkitTextStroke: field.bold ? "0.3px #000" : "none",
             }}
           >

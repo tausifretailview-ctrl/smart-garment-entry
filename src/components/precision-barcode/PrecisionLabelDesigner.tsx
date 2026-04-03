@@ -252,13 +252,21 @@ export function PrecisionLabelDesigner({
                             className="h-7 text-xs px-1.5"
                           />
                         </div>
-                        <div className="flex items-center gap-1.5 col-span-2">
+                        <div className="flex items-center gap-1.5">
                           <Switch
                             checked={field.bold}
                             onCheckedChange={(v) => updateField(key, { bold: v })}
                             className="scale-75"
                           />
                           <Label className="text-[10px]">Bold</Label>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Switch
+                            checked={field.strikethrough || false}
+                            onCheckedChange={(v) => updateField(key, { strikethrough: v })}
+                            className="scale-75"
+                          />
+                          <Label className="text-[10px]">Strikethrough</Label>
                         </div>
                         <div className="col-span-2">
                           <Select

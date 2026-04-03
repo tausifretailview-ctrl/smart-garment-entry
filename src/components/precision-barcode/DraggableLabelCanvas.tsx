@@ -188,6 +188,7 @@ export function DraggableLabelCanvas({
                 transition: "outline 0.15s, background-color 0.15s",
                 fontFamily: "Arial, Helvetica, sans-serif",
                 color: "#000000",
+                textDecoration: field.strikethrough ? "line-through" : "none",
                 userSelect: "none",
               }}
               title={`${key}: drag to reposition`}
