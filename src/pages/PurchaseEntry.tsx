@@ -2878,16 +2878,24 @@ const PurchaseEntry = () => {
           {/* Product search */}
           <div className="bg-background rounded-2xl p-3.5 border border-border/40 shadow-sm space-y-2">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Add Products</p>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                ref={searchInputRef}
-                placeholder="Scan barcode or search…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 h-11 text-base rounded-xl"
-                autoComplete="off"
-                autoCapitalize="off"
+            <div className="flex gap-1.5">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  ref={searchInputRef}
+                  placeholder="Scan barcode or search…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 h-11 text-base rounded-xl"
+                  autoComplete="off"
+                  autoCapitalize="off"
+                />
+              </div>
+              <CameraScanButton
+                onBarcodeScanned={(barcode) => {
+                  setSearchQuery(barcode);
+                }}
+                className="h-11 w-11 rounded-xl shrink-0"
               />
             </div>
             {/* Mobile Search Results Dropdown */}

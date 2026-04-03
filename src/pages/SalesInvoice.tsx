@@ -2379,26 +2379,41 @@ Thank you for choosing us!`;
           {/* Barcode / Product Search */}
           <div className="bg-background rounded-2xl p-3.5 border border-border/40 shadow-sm space-y-2">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Add Items</p>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                ref={barcodeInputRef}
-                placeholder="Scan barcode or search product…"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && searchInput.trim()) {
-                    e.preventDefault();
-                    handleBarcodeSearch(e as any);
-                  }
+            <div className="flex gap-1.5">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  ref={barcodeInputRef}
+                  placeholder="Scan barcode or search product…"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && searchInput.trim()) {
+                      e.preventDefault();
+                      handleBarcodeSearch(e as any);
+                    }
+                  }}
+                  className="pl-10 h-11 text-base rounded-xl"
+                  autoComplete="off"
+                  autoCapitalize="off"
+                />
+                {isSearching && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                )}
+              </div>
+              <CameraScanButton
+                onBarcodeScanned={(barcode) => {
+                  setSearchInput(barcode);
+                  setTimeout(() => {
+                    if (barcodeInputRef.current) {
+                      barcodeInputRef.current.focus();
+                      const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
+                      barcodeInputRef.current.dispatchEvent(enterEvent);
+                    }
+                  }, 100);
                 }}
-                className="pl-10 h-11 text-base rounded-xl"
-                autoComplete="off"
-                autoCapitalize="off"
+                className="h-11 w-11 rounded-xl shrink-0"
               />
-              {isSearching && (
-                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
-              )}
             </div>
             {/* Mobile Search Results Dropdown */}
             {productSearchResults.length > 0 && searchInput.length >= 1 && (

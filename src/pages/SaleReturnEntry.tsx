@@ -745,6 +745,19 @@ export default function SaleReturnEntry() {
               autoFocus
             />
           </div>
+          <CameraScanButton
+            onBarcodeScanned={(barcode) => {
+              setBarcodeInput(barcode);
+              setTimeout(() => {
+                if (barcodeInputRef.current) {
+                  barcodeInputRef.current.focus();
+                  const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
+                  barcodeInputRef.current.dispatchEvent(enterEvent);
+                }
+              }, 100);
+            }}
+            className="h-10"
+          />
           <Button type="submit" className="h-10 px-5 text-sm font-semibold">
             Add
           </Button>

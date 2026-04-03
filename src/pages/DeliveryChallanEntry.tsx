@@ -830,16 +830,31 @@ export default function DeliveryChallanEntry() {
         <Card className="mb-4 p-3">
           <div className="flex items-center gap-4 flex-wrap">
             {/* Barcode Scan Input - Direct scan like POS */}
-            <div className="relative w-[200px]">
-              <Scan className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                ref={barcodeInputRef}
-                placeholder="Scan barcode..."
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                onKeyDown={handleBarcodeSearch}
-                className="pl-10 pr-4 h-10"
-                autoFocus
+            <div className="flex gap-1 w-[250px]">
+              <div className="relative flex-1">
+                <Scan className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  ref={barcodeInputRef}
+                  placeholder="Scan barcode..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={handleBarcodeSearch}
+                  className="pl-10 pr-4 h-10"
+                  autoFocus
+                />
+              </div>
+              <CameraScanButton
+                onBarcodeScanned={(barcode) => {
+                  setSearchInput(barcode);
+                  setTimeout(() => {
+                    if (barcodeInputRef.current) {
+                      barcodeInputRef.current.focus();
+                      const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
+                      barcodeInputRef.current.dispatchEvent(enterEvent);
+                    }
+                  }, 100);
+                }}
+                className="h-10 w-10 shrink-0"
               />
             </div>
 
