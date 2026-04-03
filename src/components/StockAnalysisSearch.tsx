@@ -375,34 +375,42 @@ export function StockAnalysisSearch({
 
   return (
     <div className={cn("relative", className)}>
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          ref={inputRef}
-          value={searchInput}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          onFocus={() => {
-            if (results.length > 0 && !selectedProduct) {
-              updatePosition();
-              setShowDropdown(true);
-            }
+      <div className="flex gap-1.5">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            ref={inputRef}
+            value={searchInput}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            onFocus={() => {
+              if (results.length > 0 && !selectedProduct) {
+                updatePosition();
+                setShowDropdown(true);
+              }
+            }}
+            placeholder="Type product name or scan barcode..."
+            className="pl-10 pr-16 h-10"
+            disabled={disabled}
+          />
+          {loading && (
+            <Loader2 className="absolute right-10 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+          )}
+          {(searchInput || selectedProduct) && !loading && (
+            <button
+              onClick={handleClear}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 rounded-full bg-muted hover:bg-muted-foreground/20 flex items-center justify-center transition-colors"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+        <CameraScanButton
+          onBarcodeScanned={(barcode) => {
+            handleBarcodeScan(barcode);
           }}
-          placeholder="Type product name or scan barcode..."
-          className="pl-10 pr-16 h-10"
-          disabled={disabled}
+          className="h-10"
         />
-        {loading && (
-          <Loader2 className="absolute right-10 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
-        )}
-        {(searchInput || selectedProduct) && !loading && (
-          <button
-            onClick={handleClear}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 rounded-full bg-muted hover:bg-muted-foreground/20 flex items-center justify-center transition-colors"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        )}
       </div>
       
       {/* Helper text when no product selected */}
