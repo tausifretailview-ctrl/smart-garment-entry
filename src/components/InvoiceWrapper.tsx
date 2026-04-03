@@ -361,6 +361,13 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       
       // Financer details
       financerDetails: props.financerDetails || null,
+      
+      // Stamp / Signature
+      stampImageBase64: (settings?.bill_barcode_settings as any)?.stamp_show_sale !== false
+        ? (settings?.bill_barcode_settings as any)?.stamp_image_base64 || undefined
+        : undefined,
+      stampPosition: (settings?.bill_barcode_settings as any)?.stamp_position || 'bottom-right',
+      stampSize: (settings?.bill_barcode_settings as any)?.stamp_size || 'medium',
     };
 
     // Select template component based on settings

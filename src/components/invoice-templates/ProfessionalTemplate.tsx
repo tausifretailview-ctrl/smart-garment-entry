@@ -105,6 +105,9 @@ interface ProfessionalTemplateProps {
   pointsRedeemed?: number;
   pointsRedemptionValue?: number;
   pointsBalance?: number;
+  stampImageBase64?: string;
+  stampPosition?: 'bottom-right' | 'bottom-left';
+  stampSize?: 'small' | 'medium' | 'large';
 }
 
 export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
