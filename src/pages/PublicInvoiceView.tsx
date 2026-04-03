@@ -7,6 +7,16 @@ import { format } from "date-fns";
 import { useRef, useEffect } from "react";
 import { useReactToPrint } from "react-to-print";
 import { ProfessionalTemplate } from "@/components/invoice-templates/ProfessionalTemplate";
+import { ClassicTemplate } from "@/components/invoice-templates/ClassicTemplate";
+import { ModernTemplate } from "@/components/invoice-templates/ModernTemplate";
+import { ModernWholesaleTemplate } from "@/components/invoice-templates/ModernWholesaleTemplate";
+import { MinimalTemplate } from "@/components/invoice-templates/MinimalTemplate";
+import { CompactTemplate } from "@/components/invoice-templates/CompactTemplate";
+import { DetailedTemplate } from "@/components/invoice-templates/DetailedTemplate";
+import { TaxInvoiceTemplate } from "@/components/invoice-templates/TaxInvoiceTemplate";
+import { TallyTaxInvoiceTemplate } from "@/components/invoice-templates/TallyTaxInvoiceTemplate";
+import { RetailTemplate } from "@/components/invoice-templates/RetailTemplate";
+import { RetailERPTemplate } from "@/components/invoice-templates/RetailERPTemplate";
 
 // Update document meta tags for link previews
 const updateMetaTags = (businessName: string, invoiceNumber: string, orgSlug?: string, logoUrl?: string) => {
@@ -95,6 +105,91 @@ export default function PublicInvoiceView() {
   }
 
   const saleItems = sale.sale_items || [];
+  const template = settings?.invoice_template || 'professional';
+
+  const templateProps = {
+    businessName: settings?.business_name || "Business",
+    address: settings?.address || "",
+    mobile: settings?.mobile_number || "",
+    email: settings?.email_id || "",
+    gstNumber: settings?.gst_number || "",
+    logoUrl: settings?.invoiceLogo || "",
+    logoPlacement: settings?.logo_placement || "left",
+    invoiceNumber: sale.sale_number,
+    invoiceDate: new Date(sale.sale_date),
+    customerName: sale.customer_name,
+    customerAddress: "",
+    customerMobile: "",
+    customerGSTIN: "",
+    items: saleItems.map((item: any, index: number) => ({
+      sr: index + 1,
+      barcode: item.barcode || "",
+      particulars: item.product_name,
+      size: item.size,
+      hsn: "",
+      sp: item.mrp,
+      qty: item.quantity,
+      rate: item.unit_price,
+      total: item.line_total,
+      brand: "",
+      category: "",
+      color: "",
+      style: "",
+    })),
+    subtotal: sale.gross_amount,
+    discount: sale.discount_amount + sale.flat_discount_amount,
+    taxableAmount: sale.gross_amount - sale.discount_amount - sale.flat_discount_amount,
+    cgstAmount: 0,
+    sgstAmount: 0,
+    igstAmount: 0,
+    totalTax: 0,
+    roundOff: sale.round_off,
+    grandTotal: sale.net_amount,
+    paymentMethod: sale.payment_method,
+    termsConditions: settings?.terms_list?.length > 0
+      ? settings.terms_list.filter((t: string) => t && t.trim())
+      : sale.terms_conditions ? [sale.terms_conditions] : [],
+    showTotalQuantity: settings?.show_total_quantity ?? true,
+    showHSN: settings?.show_hsn_column ?? true,
+    showBarcode: settings?.show_barcode ?? true,
+    showGSTBreakdown: settings?.show_gst_breakdown ?? true,
+    showMRP: settings?.show_mrp_column ?? false,
+    showBankDetails: settings?.show_bank_details ?? false,
+    bankDetails: settings?.bank_details || null,
+    colorScheme: settings?.invoice_color_scheme || "blue",
+    customHeaderText: settings?.invoice_header_text || "",
+    customFooterText: settings?.invoice_footer_text || "",
+    declarationText: settings?.declaration_text || "",
+    fontFamily: settings?.font_family || "inter",
+  };
+
+  const renderTemplate = () => {
+    switch (template) {
+      case 'classic':
+        return <ClassicTemplate {...templateProps} />;
+      case 'modern':
+        return <ModernTemplate {...templateProps} />;
+      case 'modern-wholesale':
+        return <ModernWholesaleTemplate {...templateProps} />;
+      case 'minimal':
+        return <MinimalTemplate {...templateProps} />;
+      case 'compact':
+        return <CompactTemplate {...templateProps} />;
+      case 'detailed':
+        return <DetailedTemplate {...templateProps} />;
+      case 'tax-invoice':
+        return <TaxInvoiceTemplate {...templateProps} />;
+      case 'tally-tax-invoice':
+        return <TallyTaxInvoiceTemplate {...templateProps} />;
+      case 'retail':
+        return <RetailTemplate {...templateProps} />;
+      case 'retail-erp':
+        return <RetailERPTemplate {...templateProps} />;
+      case 'professional':
+      default:
+        return <ProfessionalTemplate {...templateProps} />;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 md:p-8">
@@ -125,45 +220,7 @@ export default function PublicInvoiceView() {
           }
         `}</style>
         <div ref={printRef} className="public-invoice-print-wrap bg-white rounded-lg shadow-lg" style={{ overflow: 'visible' }}>
-          <ProfessionalTemplate
-            businessName={settings?.business_name || "Business"}
-            address={settings?.address || ""}
-            mobile={settings?.mobile_number || ""}
-            email={settings?.email_id || ""}
-            gstNumber={settings?.gst_number || ""}
-            logoUrl={settings?.invoiceLogo || ""}
-            logoPlacement="left"
-            invoiceNumber={sale.sale_number}
-            invoiceDate={new Date(sale.sale_date)}
-            customerName={sale.customer_name}
-            customerAddress=""
-            customerMobile=""
-            customerGSTIN=""
-            items={saleItems.map((item: any, index: number) => ({
-              sr: index + 1,
-              barcode: item.barcode || "",
-              particulars: item.product_name,
-              size: item.size,
-              hsn: "",
-              sp: item.mrp,
-              qty: item.quantity,
-              rate: item.unit_price,
-              total: item.line_total,
-              brand: "",
-              category: "",
-              color: "",
-              style: "",
-            }))}
-            subtotal={sale.gross_amount}
-            discount={sale.discount_amount + sale.flat_discount_amount}
-            taxableAmount={sale.gross_amount - sale.discount_amount - sale.flat_discount_amount}
-            totalTax={0}
-            roundOff={sale.round_off}
-            grandTotal={sale.net_amount}
-            paymentMethod={sale.payment_method}
-            termsConditions={sale.terms_conditions ? [sale.terms_conditions] : []}
-            showTotalQuantity={true}
-          />
+          {renderTemplate()}
         </div>
 
         {/* Footer */}
