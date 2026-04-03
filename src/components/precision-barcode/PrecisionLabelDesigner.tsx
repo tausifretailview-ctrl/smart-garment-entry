@@ -177,7 +177,7 @@ export function PrecisionLabelDesigner({
           </div>
         </div>
 
-        <ScrollArea className="h-[400px] pr-2">
+        <ScrollArea className="h-[500px] pr-2">
           <div className="space-y-2">
             {allFieldKeys.map((key) => {
               const field = config[key] as LabelFieldConfig;
@@ -303,11 +303,9 @@ export function PrecisionLabelDesigner({
                 </Card>
               );
             })}
-          </div>
-        </ScrollArea>
 
-        {/* Lines Section */}
-        <div className="space-y-2 pt-2 border-t">
+            {/* Lines Section */}
+            <div className="space-y-2 pt-2 border-t mt-2">
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-semibold flex items-center gap-1">
               <Minus className="h-3 w-3" /> Lines / Separators
@@ -424,7 +422,9 @@ export function PrecisionLabelDesigner({
               </CardContent>
             </Card>
           ))}
-        </div>
+          </div>
+          </div>
+        </ScrollArea>
       </div>
 
       {/* Live Preview with Drag */}
