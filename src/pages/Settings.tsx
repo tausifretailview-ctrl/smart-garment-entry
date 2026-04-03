@@ -4775,6 +4775,161 @@ export default function Settings() {
                   )}
                 </div>
 
+                {/* Authorised Stamp / Signature Section */}
+                <div className="pt-6 border-t">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="h-7 w-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center">
+                      <Pencil className="h-3.5 w-3.5 text-indigo-700 dark:text-indigo-300" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">Authorised Stamp / Signature</p>
+                      <p className="text-xs text-muted-foreground">Upload a stamp or signature image that appears on invoices</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {/* Upload area */}
+                    <div className="flex items-start gap-4">
+                      <label
+                        htmlFor="stamp_upload"
+                        className="flex flex-col items-center justify-center w-40 h-32 border-2 border-dashed rounded-lg cursor-pointer hover:border-primary transition-colors bg-muted/30"
+                      >
+                        {settings.bill_barcode_settings?.stamp_image_base64 ? (
+                          <img
+                            src={settings.bill_barcode_settings.stamp_image_base64}
+                            alt="Stamp preview"
+                            className="max-w-full max-h-full object-contain p-1"
+                          />
+                        ) : (
+                          <div className="text-center p-2">
+                            <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-1" />
+                            <p className="text-xs text-muted-foreground">Click to upload</p>
+                          </div>
+                        )}
+                        <input
+                          id="stamp_upload"
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            if (file.size > 2 * 1024 * 1024) {
+                              toast({ title: "File too large", description: "Max 2MB allowed", variant: "destructive" });
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onload = (ev) => {
+                              setSettings({
+                                ...settings,
+                                bill_barcode_settings: {
+                                  ...settings.bill_barcode_settings,
+                                  stamp_image_base64: ev.target?.result as string,
+                                },
+                              });
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                      </label>
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        <p>PNG, JPG (max 2MB)</p>
+                        <p>Stamp or signature image</p>
+                        {settings.bill_barcode_settings?.stamp_image_base64 && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="mt-2"
+                            onClick={() =>
+                              setSettings({
+                                ...settings,
+                                bill_barcode_settings: {
+                                  ...settings.bill_barcode_settings,
+                                  stamp_image_base64: undefined,
+                                },
+                              })
+                            }
+                          >
+                            Remove Image
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Position */}
+                    <div className="space-y-1.5">
+                      <Label>Position on Invoice</Label>
+                      <div className="flex gap-4">
+                        {(['bottom-right', 'bottom-left'] as const).map((pos) => (
+                          <label key={pos} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                            <input
+                              type="radio"
+                              name="stamp_position"
+                              checked={(settings.bill_barcode_settings?.stamp_position || 'bottom-right') === pos}
+                              onChange={() =>
+                                setSettings({
+                                  ...settings,
+                                  bill_barcode_settings: { ...settings.bill_barcode_settings, stamp_position: pos },
+                                })
+                              }
+                            />
+                            {pos === 'bottom-right' ? 'Bottom Right (default)' : 'Bottom Left'}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Size */}
+                    <div className="space-y-1.5">
+                      <Label>Stamp Size</Label>
+                      <div className="flex gap-2">
+                        {(['small', 'medium', 'large'] as const).map((sz) => (
+                          <Button
+                            key={sz}
+                            variant={(settings.bill_barcode_settings?.stamp_size || 'medium') === sz ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() =>
+                              setSettings({
+                                ...settings,
+                                bill_barcode_settings: { ...settings.bill_barcode_settings, stamp_size: sz },
+                              })
+                            }
+                          >
+                            {sz.charAt(0).toUpperCase() + sz.slice(1)}
+                          </Button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">Small=80px, Medium=120px, Large=160px</p>
+                    </div>
+
+                    {/* Show on */}
+                    <div className="space-y-1.5">
+                      <Label>Show on</Label>
+                      <div className="flex flex-wrap gap-4">
+                        {[
+                          { key: 'stamp_show_sale' as const, label: 'Sale Invoice', def: true },
+                          { key: 'stamp_show_purchase' as const, label: 'Purchase Bill', def: true },
+                          { key: 'stamp_show_dc' as const, label: 'DC / Challan', def: false },
+                          { key: 'stamp_show_pos' as const, label: 'POS Receipt', def: false },
+                        ].map(({ key, label, def }) => (
+                          <label key={key} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                            <Checkbox
+                              checked={settings.bill_barcode_settings?.[key] ?? def}
+                              onCheckedChange={(checked) =>
+                                setSettings({
+                                  ...settings,
+                                  bill_barcode_settings: { ...settings.bill_barcode_settings, [key]: !!checked },
+                                })
+                              }
+                            />
+                            {label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Cheque Printing Section */}
                 <div className="pt-6 border-t">
                   <div className="flex items-center gap-2 mb-4">
