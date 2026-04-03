@@ -439,24 +439,47 @@ export default function SalesInvoiceDashboard() {
       if (debouncedSearch) {
         const searchStr = debouncedSearch.trim();
 
-        // Search sale_items for barcode or product name match
-        const { data: matchingItems } = await (supabase as any)
+        // Step 1: search sale_items for barcode / product name
+        const { data: matchingItems } = await supabase
           .from('sale_items')
           .select('sale_id')
           .eq('organization_id', currentOrganization.id)
-          .or(`barcode.ilike.%${searchStr}%,product_name.ilike.%${searchStr}%`)
-          .limit(200);
+          .or(
+            `barcode.ilike.%${searchStr}%,` +
+            `product_name.ilike.%${searchStr}%,` +
+            `brand.ilike.%${searchStr}%,` +
+            `size.ilike.%${searchStr}%`
+          )
+          .limit(300);
 
-        const matchingSaleIds = [...new Set((matchingItems || []).map((i: any) => i.sale_id).filter(Boolean))];
+        const matchingSaleIds = [
+          ...new Set(
+            (matchingItems || [])
+              .map((i: any) => i.sale_id)
+              .filter(Boolean)
+          )
+        ] as string[];
+
+        const saleTextFilter =
+          `sale_number.ilike.%${searchStr}%,` +
+          `customer_name.ilike.%${searchStr}%,` +
+          `customer_phone.ilike.%${searchStr}%,` +
+          `salesman.ilike.%${searchStr}%`;
 
         if (matchingSaleIds.length > 0) {
-          query = query.or(
-            `sale_number.ilike.%${searchStr}%,customer_name.ilike.%${searchStr}%,customer_phone.ilike.%${searchStr}%,id.in.(${matchingSaleIds.join(',')})`
-          );
+          // Get sale IDs matching text search
+          const { data: textMatches } = await supabase
+            .from('sales')
+            .select('id')
+            .eq('organization_id', currentOrganization.id)
+            .is('deleted_at', null)
+            .or(saleTextFilter);
+
+          const textMatchIds = (textMatches || []).map((s: any) => s.id);
+          const allMatchIds = [...new Set([...textMatchIds, ...matchingSaleIds])];
+          query = query.in('id', allMatchIds);
         } else {
-          query = query.or(
-            `sale_number.ilike.%${searchStr}%,customer_name.ilike.%${searchStr}%,customer_phone.ilike.%${searchStr}%`
-          );
+          query = query.or(saleTextFilter);
         }
       }
 
