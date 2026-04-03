@@ -6820,16 +6820,14 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: string
       }
-      generate_fee_receipt_number:
-        | { Args: { p_organization_id: string }; Returns: string }
-        | {
-            Args: {
-              p_fy_end_year?: number
-              p_fy_start_year?: number
-              p_organization_id: string
-            }
-            Returns: string
-          }
+      generate_fee_receipt_number: {
+        Args: {
+          p_fy_end_year?: number
+          p_fy_start_year?: number
+          p_organization_id: string
+        }
+        Returns: string
+      }
       generate_next_barcode: {
         Args: { p_organization_id: string }
         Returns: string
@@ -7089,6 +7087,14 @@ export type Database = {
       merge_suppliers: {
         Args: { p_source_supplier_id: string; p_target_supplier_id: string }
         Returns: Json
+      }
+      peek_fee_receipt_number: {
+        Args: {
+          p_fy_end_year?: number
+          p_fy_start_year?: number
+          p_organization_id: string
+        }
+        Returns: string
       }
       platform_assign_user_to_org: {
         Args: {
