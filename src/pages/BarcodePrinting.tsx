@@ -5580,7 +5580,7 @@ export default function BarcodePrinting() {
               yOffset={precisionSettings.yOffset}
               vGap={precisionSettings.vGap}
               config={precisionSettings.labelConfig || undefined}
-              thermalCols={precisionSettings.thermalCols}
+              thermalCols={precisionSettings.printMode === 'thermal2up' ? Math.max(2, precisionSettings.thermalCols || 2) : (precisionSettings.thermalCols || 1)}
               horizontalGap={getThermal2UpGap()}
             />
           ) : (
