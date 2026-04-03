@@ -24,6 +24,7 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 import { sortSizes } from "@/utils/sizeSort";
+import { multiTokenMatch } from "@/utils/multiTokenSearch";
 
 interface StockItem {
   id: string;

@@ -34,6 +34,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { multiTokenMatch } from "@/utils/multiTokenSearch";
 
 interface PurchaseHistoryItem {
   id: string;

@@ -26,6 +26,7 @@ import { MetricCardSkeleton, TableSkeleton } from "@/components/ui/skeletons";
 import { sortSizes } from "@/utils/sizeSort";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
+import { multiTokenMatch } from "@/utils/multiTokenSearch";
 
 type QuickPeriod = "today" | "yesterday" | "last7" | "last30" | "thisMonth";
 
