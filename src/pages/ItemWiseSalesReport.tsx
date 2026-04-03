@@ -262,7 +262,7 @@ export default function ItemWiseSalesReport() {
     // Apply search query — multi-token AND logic
     if (searchQuery.trim()) {
       data = data.filter(item =>
-        multiTokenMatch(searchQuery, item.product_name, item.barcode, item.brand, item.category, item.color, item.size, item.hsn_code)
+        multiTokenMatch(searchQuery, item.product_name, item.barcode, item.brand, item.category, item.color, item.size)
       );
     }
 
