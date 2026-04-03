@@ -416,13 +416,7 @@ const PriceHistoryReport = () => {
   const filteredStockMovements = useMemo(() => {
     return stockMovements.filter(item => {
       if (searchTerm) {
-        const search = searchTerm.toLowerCase();
-        const matchesSearch = 
-          item.barcode?.toLowerCase().includes(search) ||
-          item.product_name?.toLowerCase().includes(search) ||
-          item.bill_number?.toLowerCase().includes(search) ||
-          item.notes?.toLowerCase().includes(search);
-        if (!matchesSearch) return false;
+        if (!multiTokenMatch(searchTerm, item.barcode, item.product_name, item.bill_number, item.notes)) return false;
       }
 
       if (movementTypeFilter !== "all" && item.movement_type !== movementTypeFilter) return false;
