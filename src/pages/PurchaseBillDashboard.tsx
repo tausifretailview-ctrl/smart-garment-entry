@@ -359,23 +359,51 @@ const PurchaseBillDashboard = () => {
 
       // Server-side search — also search product details in purchase_items
       if (debouncedSearch) {
-        // First, find bill IDs that have matching products
-        const searchStr = debouncedSearch;
+        const searchStr = debouncedSearch.trim();
+
+        // Step 1: find bill_ids from purchase_items matching barcode/product
         const { data: matchingItems } = await (supabase as any)
           .from("purchase_items")
           .select("bill_id")
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
-          .or(`product_name.ilike.%${searchStr}%,brand.ilike.%${searchStr}%,barcode.ilike.%${searchStr}%,style.ilike.%${searchStr}%,category.ilike.%${searchStr}%,color.ilike.%${searchStr}%`)
-          .limit(200);
+          .or(
+            `product_name.ilike.%${searchStr}%,` +
+            `brand.ilike.%${searchStr}%,` +
+            `barcode.ilike.%${searchStr}%,` +
+            `style.ilike.%${searchStr}%,` +
+            `category.ilike.%${searchStr}%,` +
+            `color.ilike.%${searchStr}%`
+          )
+          .limit(300);
 
-        const matchingBillIds = [...new Set((matchingItems || []).map((i: any) => i.bill_id).filter(Boolean))];
+        const matchingBillIds = [
+          ...new Set(
+            (matchingItems || [])
+              .map((i: any) => i.bill_id)
+              .filter(Boolean)
+          )
+        ] as string[];
+
+        const billTextFilter =
+          `supplier_name.ilike.%${searchStr}%,` +
+          `supplier_invoice_no.ilike.%${searchStr}%,` +
+          `software_bill_no.ilike.%${searchStr}%`;
 
         if (matchingBillIds.length > 0) {
-          // Search bill-level fields OR bills containing matching products
-          query = query.or(`supplier_name.ilike.%${debouncedSearch}%,supplier_invoice_no.ilike.%${debouncedSearch}%,software_bill_no.ilike.%${debouncedSearch}%,id.in.(${matchingBillIds.join(",")})`);
+          // Get bill IDs matching text search
+          const { data: textMatches } = await supabase
+            .from("purchase_bills")
+            .select("id")
+            .eq("organization_id", currentOrganization.id)
+            .is("deleted_at", null)
+            .or(billTextFilter);
+
+          const textMatchIds = (textMatches || []).map((b: any) => b.id);
+          const allMatchIds = [...new Set([...textMatchIds, ...matchingBillIds])];
+          query = query.in("id", allMatchIds);
         } else {
-          query = query.or(`supplier_name.ilike.%${debouncedSearch}%,supplier_invoice_no.ilike.%${debouncedSearch}%,software_bill_no.ilike.%${debouncedSearch}%`);
+          query = query.or(billTextFilter);
         }
       }
 
@@ -1365,7 +1393,7 @@ const PurchaseBillDashboard = () => {
         <div className="px-4 pt-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search bills..." value={searchQuery}
+            <Input placeholder="Search by supplier, bill no, barcode, product, brand..." value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-10 bg-card border-border/60 rounded-xl text-sm" />
           </div>
