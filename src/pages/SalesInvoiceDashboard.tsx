@@ -440,7 +440,7 @@ export default function SalesInvoiceDashboard() {
         const searchStr = debouncedSearch.trim();
 
         // Step 1: search sale_items for barcode / product name
-        const { data: matchingItems } = await supabase
+        const { data: matchingItems } = await (supabase as any)
           .from('sale_items')
           .select('sale_id')
           .eq('organization_id', currentOrganization.id)

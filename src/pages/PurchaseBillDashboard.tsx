@@ -362,7 +362,7 @@ const PurchaseBillDashboard = () => {
         const searchStr = debouncedSearch.trim();
 
         // Step 1: find bill_ids from purchase_items matching barcode/product
-        const { data: matchingItems } = await supabase
+        const { data: matchingItems } = await (supabase as any)
           .from("purchase_items")
           .select("bill_id")
           .eq("organization_id", currentOrganization.id)
