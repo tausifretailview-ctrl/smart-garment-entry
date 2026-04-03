@@ -124,7 +124,7 @@ export function IMEIScanDialog({
                     isDuplicate && "border-destructive bg-destructive/10",
                     !valid && val.length > 0 && "border-amber-400 bg-amber-50 dark:bg-amber-950/20"
                   )}
-                  inputMode="numeric"
+                  inputMode="text"
                 />
                 <div className="w-5 shrink-0">
                   {valid && !isDuplicate && <Check className="h-4 w-4 text-green-600" />}

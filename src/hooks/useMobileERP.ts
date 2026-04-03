@@ -40,5 +40,5 @@ export function useMobileERP(): MobileERPSettings {
 export function validateIMEI(imei: string, minLength: number = 15, maxLength: number = 19): boolean {
   if (!imei) return false;
   const cleaned = imei.replace(/\s/g, '');
-  return /^\d+$/.test(cleaned) && cleaned.length >= minLength && cleaned.length <= maxLength;
+  return /^[a-zA-Z0-9]+$/.test(cleaned) && cleaned.length >= minLength && cleaned.length <= maxLength;
 }
