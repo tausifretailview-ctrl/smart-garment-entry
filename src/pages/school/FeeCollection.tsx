@@ -440,7 +440,7 @@ const FeeCollection = () => {
             phone,
             message: reminderMsg,
             templateType: "fee_reminder",
-          });
+          } as any);
         }
         toast.success("Fee reminder sent via WhatsApp!");
       } catch (err: any) {
