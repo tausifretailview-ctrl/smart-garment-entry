@@ -58,6 +58,7 @@ const DEFAULT_PRECISION_CONFIG: LabelDesignConfig = {
   barcodeHeight: 30,
   barcodeWidth: 1.5,
   customTextValue: "",
+  lines: [],
 };
 
 const SAMPLE_ITEM = {
