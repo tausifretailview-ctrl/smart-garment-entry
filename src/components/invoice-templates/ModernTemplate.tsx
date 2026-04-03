@@ -64,6 +64,9 @@ interface ModernTemplateProps {
     show_style?: boolean;
     show_hsn_code?: boolean;
   };
+  stampImageBase64?: string;
+  stampPosition?: 'bottom-right' | 'bottom-left';
+  stampSize?: 'small' | 'medium' | 'large';
 }
 
 export const ModernTemplate: React.FC<ModernTemplateProps> = ({
