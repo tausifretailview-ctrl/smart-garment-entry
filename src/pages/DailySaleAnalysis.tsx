@@ -16,7 +16,7 @@ import { format, addDays } from "date-fns";
 import {
   Search, Package, IndianRupee, TrendingUp, FileSpreadsheet, AlertTriangle,
   ChevronDown, ChevronUp, Phone, MessageSquare, ShoppingCart, RefreshCw, Loader2,
-  ClipboardList
+  ClipboardList, X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";

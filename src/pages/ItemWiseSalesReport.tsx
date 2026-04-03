@@ -15,7 +15,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
-import { CalendarIcon, Search, Package, IndianRupee, TrendingUp, Printer, FileSpreadsheet, FileText, Filter } from "lucide-react";
+import { CalendarIcon, Search, Package, IndianRupee, TrendingUp, Printer, FileSpreadsheet, FileText, Filter, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import { multiTokenMatch } from "@/utils/multiTokenSearch";
