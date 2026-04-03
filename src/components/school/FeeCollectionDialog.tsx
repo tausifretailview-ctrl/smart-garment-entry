@@ -156,16 +156,16 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
   const usedYearForReceipt = activeYear || currentYear;
   const fyYears = getFYYears(usedYearForReceipt?.year_name);
 
-  // Preview next receipt number — changes with selected academic year
+  // Preview next receipt number — read-only, does NOT consume a sequence
   const { data: nextReceiptNo } = useQuery({
-    queryKey: ["next-receipt-number", currentOrganization?.id, fyYears.start, fyYears.end],
+    queryKey: ["peek-receipt-number", currentOrganization?.id, fyYears.start, fyYears.end],
     queryFn: async () => {
       const params: any = { p_organization_id: currentOrganization!.id };
       if (fyYears.start && fyYears.end) {
         params.p_fy_start_year = fyYears.start;
         params.p_fy_end_year = fyYears.end;
       }
-      const { data } = await supabase.rpc("generate_fee_receipt_number", params);
+      const { data } = await supabase.rpc("peek_fee_receipt_number" as any, params);
       return data as string;
     },
     enabled: !!currentOrganization?.id && open,
