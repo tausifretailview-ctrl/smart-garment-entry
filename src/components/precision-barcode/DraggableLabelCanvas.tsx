@@ -190,7 +190,6 @@ export function DraggableLabelCanvas({
                 color: "#000000",
                 textDecoration: "none",
                 userSelect: "none",
-                position: "relative" as const,
               }}
               title={`${key}: drag to reposition`}
             >
