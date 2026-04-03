@@ -124,6 +124,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   format = 'a4',
   termsConditions,
   declarationText,
+  stampImageBase64,
+  stampSize = 'medium',
 }) => {
   const colors = colorSchemes[colorScheme] || colorSchemes.blue;
   const font = fontFamilyMap[fontFamily] || fontFamilyMap.inter;
