@@ -438,16 +438,15 @@ export default function StockReport() {
           .is("products.deleted_at", null)
           .neq("products.product_type", "service");
         
-        // Apply search filter — use barcode heuristic to pick the right strategy
+        // Apply search filter — unified fields: name, brand, style, category, color, hsn + barcode
         if (trimmedSearch) {
           if (looksLikeBarcode) {
             // Barcode search: exact match OR prefix match (fast B-tree index)
             query = query.or(`barcode.eq.${trimmedSearch},barcode.ilike.${trimmedSearch}%`);
           } else {
-            // Text search: filter on referenced table for product name/brand
-            // This uses referencedTable to correctly filter the inner join
+            // Text search: filter on referenced table for all product fields
             query = query.or(
-              `product_name.ilike.%${trimmedSearch}%,brand.ilike.%${trimmedSearch}%`,
+              `product_name.ilike.%${trimmedSearch}%,brand.ilike.%${trimmedSearch}%,style.ilike.%${trimmedSearch}%,category.ilike.%${trimmedSearch}%,color.ilike.%${trimmedSearch}%,hsn_code.ilike.%${trimmedSearch}%`,
               { referencedTable: "products" }
             );
           }

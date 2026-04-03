@@ -87,6 +87,8 @@ export function StockAnalysisSearch({
           products!inner (
             product_name,
             brand,
+            style,
+            category,
             deleted_at
           )
         `)

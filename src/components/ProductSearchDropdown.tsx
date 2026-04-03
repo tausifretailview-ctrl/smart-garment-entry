@@ -65,6 +65,7 @@ export function ProductSearchDropdown({
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
+        // Fetch variants with product fields for client-side multi-token AND search
         const { data, error } = await supabase
           .from("product_variants")
           .select(`
@@ -76,6 +77,8 @@ export function ProductSearchDropdown({
             products!inner (
               product_name,
               brand,
+              style,
+              category,
               deleted_at
             )
           `)
@@ -83,24 +86,37 @@ export function ProductSearchDropdown({
           .eq("active", true)
           .is("deleted_at", null)
           .is("products.deleted_at", null)
-          .or(`barcode.eq.${value},barcode.ilike.%${value}%,size.ilike.%${value}%,color.ilike.%${value}%`)
           .order("stock_qty", { ascending: false })
-          .limit(51); // Fetch 51 to detect if more results exist
+          .limit(500);
 
         if (error) throw error;
 
-        const formatted = data?.map((item: any) => ({
-          id: item.id,
-          product_name: item.products?.product_name || "",
-          brand: item.products?.brand || "",
-          barcode: item.barcode || "",
-          size: item.size || "",
-          color: item.color || "",
-          stock_qty: item.stock_qty || 0,
-        })) || [];
+        // Multi-token AND filter across all unified fields
+        const tokens = value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        const formatted = (data || [])
+          .filter((item: any) => {
+            const haystack = [
+              item.products?.product_name,
+              item.products?.brand,
+              item.products?.style,
+              item.products?.category,
+              item.barcode,
+              item.size,
+              item.color,
+            ].map(f => (f || '')).join(' ').toLowerCase();
+            return tokens.every(t => haystack.includes(t));
+          })
+          .map((item: any) => ({
+            id: item.id,
+            product_name: item.products?.product_name || "",
+            brand: item.products?.brand || "",
+            barcode: item.barcode || "",
+            size: item.size || "",
+            color: item.color || "",
+            stock_qty: item.stock_qty || 0,
+          }));
 
-        // Trim to 50 for display, use 51st to detect hasMore
-        const displayResults = formatted.length > 50 ? formatted.slice(0, 50) : formatted;
+        const displayResults = formatted.slice(0, 50);
         setResults(displayResults);
         setShowDropdown(displayResults.length > 0);
         setSelectedIndex(-1);

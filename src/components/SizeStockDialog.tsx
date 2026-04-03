@@ -174,40 +174,39 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
         }
       }
 
-      // Also search by product name, brand, style
-      // Use individual words from query for broader matching
+      // Also search by product name, brand, style, category, color, hsn
+      // Use ALL words from query for server-side OR (broadest net), then AND-filter client-side
       const queryWords = query.trim().split(/\s+/).filter(Boolean);
       const primaryWord = queryWords[0] || query;
       
-      const { data: productData, error: productError } = await supabase
+      let productQuery = supabase
         .from("products")
         .select(`
-          id, product_name, brand, color, category, style,
+          id, product_name, brand, color, category, style, hsn_code,
           size_groups(group_name),
           product_variants(mrp, pur_price, sale_price, barcode)
         `)
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .is("product_variants.deleted_at", null)
-        .or(`product_name.ilike.%${primaryWord}%,brand.ilike.%${primaryWord}%,style.ilike.%${primaryWord}%`)
+        .or(`product_name.ilike.%${primaryWord}%,brand.ilike.%${primaryWord}%,style.ilike.%${primaryWord}%,category.ilike.%${primaryWord}%,color.ilike.%${primaryWord}%,hsn_code.ilike.%${primaryWord}%`)
         .order("product_name")
-        .limit(100);
+        .limit(200);
+
+      const { data: productData, error: productError } = await productQuery;
 
       if (productError) throw productError;
 
-      // Client-side fuzzy filter: match with spaces removed for cases like "Rolex36" -> "Rolex 36"
+      // Client-side multi-token AND filter: every token must match somewhere
+      const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      const normalizedQueryLower = normalizedQuery.toLowerCase();
       const filteredProductData = (productData || []).filter((p: any) => {
-        const nameNorm = (p.product_name || '').replace(/\s+/g, '').toLowerCase();
-        const brandNorm = (p.brand || '').replace(/\s+/g, '').toLowerCase();
-        const styleNorm = (p.style || '').replace(/\s+/g, '').toLowerCase();
-        const queryLower = query.toLowerCase();
-        const queryNorm = normalizedQuery.toLowerCase();
-        
-        // Match if original query OR space-stripped query matches any field
-        return nameNorm.includes(queryNorm) || brandNorm.includes(queryNorm) || styleNorm.includes(queryNorm)
-          || (p.product_name || '').toLowerCase().includes(queryLower)
-          || (p.brand || '').toLowerCase().includes(queryLower)
-          || (p.style || '').toLowerCase().includes(queryLower);
+        const haystack = [
+          p.product_name, p.brand, p.style, p.category, p.color, p.hsn_code,
+        ].map(f => (f || '')).join(' ').toLowerCase();
+        const haystackNorm = haystack.replace(/\s+/g, '');
+        // AND logic: every token must appear, OR match space-stripped
+        return tokens.every(t => haystack.includes(t)) || haystackNorm.includes(normalizedQueryLower);
       });
 
       // Merge results - barcode matches first, then product matches
