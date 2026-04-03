@@ -831,16 +831,28 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
           </div>
         </div>
         <div style={{ 
-          width: '120px', 
+          width: stampImageBase64 ? '160px' : '120px', 
           border: `1px solid ${colors.primary}`, 
           padding: '5px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
-          alignItems: 'center',
+          alignItems: stampPosition === 'bottom-left' ? 'flex-start' : 'center',
           borderRadius: '3px'
         }}>
           <div style={{ fontSize: fontSizes.small, fontWeight: 'bold', color: colors.primary }}>For {businessName}</div>
+          {stampImageBase64 && (
+            <img
+              src={stampImageBase64}
+              alt="Authorised Stamp"
+              style={{
+                width: stampSize === 'small' ? '80px' : stampSize === 'large' ? '160px' : '120px',
+                maxHeight: stampSize === 'small' ? '60px' : stampSize === 'large' ? '120px' : '90px',
+                objectFit: 'contain',
+                margin: '4px 0',
+              }}
+            />
+          )}
           <div style={{ marginTop: 'auto', fontSize: fontSizes.small }}>Authorised Signatory</div>
         </div>
       </div>
