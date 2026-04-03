@@ -99,22 +99,20 @@ export function StockAnalysisSearch({
 
       if (error) throw error;
 
-      // Client-side filter for ALL fields including product_name/brand
-      const termLower = term.toLowerCase();
+      // Client-side multi-token AND filter across all product fields
+      const tokens = term.toLowerCase().split(/\s+/).filter(Boolean);
       const formatted = (data || [])
         .filter((item: any) => {
-          const productName = item.products?.product_name?.toLowerCase() || "";
-          const brand = item.products?.brand?.toLowerCase() || "";
-          const barcode = item.barcode?.toLowerCase() || "";
-          const size = item.size?.toLowerCase() || "";
-          const color = item.color?.toLowerCase() || "";
-          return (
-            productName.includes(termLower) ||
-            brand.includes(termLower) ||
-            barcode.includes(termLower) ||
-            size.includes(termLower) ||
-            color.includes(termLower)
-          );
+          const haystack = [
+            item.products?.product_name,
+            item.products?.brand,
+            item.products?.style,
+            item.products?.category,
+            item.barcode,
+            item.size,
+            item.color,
+          ].map(f => (f || '')).join(' ').toLowerCase();
+          return tokens.every(t => haystack.includes(t));
         })
         // Don't slice here - store all results for dynamic loading
         .map((item: any) => ({
