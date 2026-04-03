@@ -512,12 +512,25 @@ export default function ItemWiseSalesReport() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search by product, barcode, brand, category..."
+                    placeholder="Search name, brand, barcode, color... (multi-word AND)"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
+                    className="pl-9 pr-8 no-uppercase"
                   />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-muted transition-colors"
+                    >
+                      <X className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                  )}
                 </div>
+                {searchQuery && (
+                  <span className="text-xs text-muted-foreground mt-1 block">
+                    Showing {filteredData.length.toLocaleString('en-IN')} of {aggregatedData.length.toLocaleString('en-IN')} items
+                  </span>
+                )}
               </div>
 
               {/* Filter Toggle Button */}

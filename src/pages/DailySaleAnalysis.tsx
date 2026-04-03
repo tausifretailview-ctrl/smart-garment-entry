@@ -592,7 +592,7 @@ export default function DailySaleAnalysis() {
               </button>
             ))}
           </div>
-          <Input placeholder="Search item, barcode..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="h-9 text-sm" />
+          <Input placeholder="Search name, barcode... (multi-word AND)" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="h-9 text-sm no-uppercase" />
 
           {/* Mobile summary */}
           <div className="grid grid-cols-3 gap-2">
