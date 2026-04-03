@@ -177,7 +177,7 @@ export function PrecisionLabelDesigner({
           </div>
         </div>
 
-        <ScrollArea className="h-[400px] pr-2">
+        <ScrollArea className="h-[500px] pr-2">
           <div className="space-y-2">
             {allFieldKeys.map((key) => {
               const field = config[key] as LabelFieldConfig;
