@@ -422,7 +422,9 @@ export function PrecisionLabelDesigner({
               </CardContent>
             </Card>
           ))}
-        </div>
+          </div>
+          </div>
+        </ScrollArea>
       </div>
 
       {/* Live Preview with Drag */}
