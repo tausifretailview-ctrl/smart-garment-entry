@@ -370,7 +370,7 @@ export function PrecisionLabelDesigner({
             </Button>
           </div>
           {(config.lines || []).map((line, idx) => (
-            <Card key={idx} className="border-border">
+            <Card key={idx} className={`transition-colors ${activeLineIndex === idx ? "border-primary" : "border-border"}`}>
               <CardContent className="p-2 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
