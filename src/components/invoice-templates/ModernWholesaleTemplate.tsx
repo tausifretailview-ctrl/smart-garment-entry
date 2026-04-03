@@ -70,6 +70,9 @@ interface ModernWholesaleTemplateProps {
   format?: 'a5-vertical' | 'a5-horizontal' | 'a4';
   termsConditions?: string[];
   declarationText?: string;
+  stampImageBase64?: string;
+  stampSize?: 'small' | 'medium' | 'large';
+  [key: string]: any;
 }
 
 const colorSchemes: Record<string, { primary: string; light: string; gradient: string }> = {
