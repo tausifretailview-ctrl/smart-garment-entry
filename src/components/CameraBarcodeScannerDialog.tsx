@@ -66,6 +66,7 @@ export function CameraBarcodeScannerDialog({
       }
 
       const scanner = new Html5Qrcode(scannerId, {
+        verbose: false,
         formatsToSupport: [
           Html5QrcodeSupportedFormats.EAN_13,
           Html5QrcodeSupportedFormats.EAN_8,
