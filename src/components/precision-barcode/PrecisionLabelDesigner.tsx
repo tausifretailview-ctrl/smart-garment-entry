@@ -303,11 +303,9 @@ export function PrecisionLabelDesigner({
                 </Card>
               );
             })}
-          </div>
-        </ScrollArea>
 
-        {/* Lines Section */}
-        <div className="space-y-2 pt-2 border-t">
+            {/* Lines Section */}
+            <div className="space-y-2 pt-2 border-t mt-2">
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-semibold flex items-center gap-1">
               <Minus className="h-3 w-3" /> Lines / Separators
