@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { Trash2, Search, Plus, Check, ChevronsUpDown } from "lucide-react";
+import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -745,6 +746,19 @@ export default function SaleReturnEntry() {
               autoFocus
             />
           </div>
+          <CameraScanButton
+            onBarcodeScanned={(barcode) => {
+              setBarcodeInput(barcode);
+              setTimeout(() => {
+                if (barcodeInputRef.current) {
+                  barcodeInputRef.current.focus();
+                  const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
+                  barcodeInputRef.current.dispatchEvent(enterEvent);
+                }
+              }, 100);
+            }}
+            className="h-10"
+          />
           <Button type="submit" className="h-10 px-5 text-sm font-semibold">
             Add
           </Button>

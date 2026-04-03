@@ -22,6 +22,7 @@ import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, Chevr
 import { MobilePOSLayout } from "@/components/mobile/MobilePOSLayout";
 import { FloatingPOSReports } from "@/components/FloatingPOSReports";
 import { FloatingSaleReturn } from "@/components/FloatingSaleReturn";
+import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
@@ -3737,16 +3738,33 @@ export default function POSSales() {
             <PopoverTrigger asChild>
               <div className="relative w-60">
                 <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">Barcode</Label>
-                <Input
-                  ref={barcodeInputRef}
-                  placeholder={mobileERP.enabled && mobileERP.imei_scan_enforcement ? "Scan IMEI Number" : "Scan Barcode/Enter Product Name"}
-                  value={searchInput}
-                  onChange={handleBarcodeInputChange}
-                  onKeyDown={handleSearch}
-                  className="h-10 text-base pr-10 border-border/80 focus:border-primary"
-                  autoFocus
-                />
-                <Scan className="absolute right-3 top-[calc(50%+10px)] -translate-y-1/2 h-5 w-5 text-muted-foreground/60" />
+                <div className="flex gap-1">
+                  <div className="relative flex-1">
+                    <Input
+                      ref={barcodeInputRef}
+                      placeholder={mobileERP.enabled && mobileERP.imei_scan_enforcement ? "Scan IMEI Number" : "Scan Barcode/Enter Product Name"}
+                      value={searchInput}
+                      onChange={handleBarcodeInputChange}
+                      onKeyDown={handleSearch}
+                      className="h-10 text-base pr-10 border-border/80 focus:border-primary"
+                      autoFocus
+                    />
+                    <Scan className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground/60" />
+                  </div>
+                  <CameraScanButton
+                    onBarcodeScanned={(barcode) => {
+                      setSearchInput(barcode);
+                      setTimeout(() => {
+                        if (barcodeInputRef.current) {
+                          barcodeInputRef.current.focus();
+                          const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
+                          barcodeInputRef.current.dispatchEvent(enterEvent);
+                        }
+                      }, 100);
+                    }}
+                    className="h-10 w-10 shrink-0"
+                  />
+                </div>
               </div>
             </PopoverTrigger>
             <PopoverContent 
