@@ -223,6 +223,14 @@ interface BillBarcodeSettings {
   precision_a4_rows?: number;
   precision_print_mode?: 'thermal' | 'a4';
   precision_label_config?: any; // LabelDesignConfig stored as JSON
+  // Stamp / Signature Settings
+  stamp_image_base64?: string;
+  stamp_position?: 'bottom-right' | 'bottom-left';
+  stamp_size?: 'small' | 'medium' | 'large';
+  stamp_show_sale?: boolean;
+  stamp_show_purchase?: boolean;
+  stamp_show_dc?: boolean;
+  stamp_show_pos?: boolean;
 }
 
 interface ReportSettings {
