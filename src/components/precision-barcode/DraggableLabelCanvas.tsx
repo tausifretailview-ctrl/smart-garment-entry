@@ -210,6 +210,25 @@ export function DraggableLabelCanvas({
           );
         })}
 
+        {/* Render lines/separators */}
+        {config.lines?.map((line, idx) => {
+          if (!line.show) return null;
+          const isHorizontal = line.orientation === 'horizontal';
+          return (
+            <div
+              key={`line-${idx}`}
+              style={{
+                position: "absolute",
+                top: (line.y ?? 0) * MM_TO_PX * zoom,
+                left: (line.x ?? 0) * MM_TO_PX * zoom,
+                width: isHorizontal ? (line.length ?? 10) * MM_TO_PX * zoom : (line.thickness ?? 0.3) * MM_TO_PX * zoom,
+                height: isHorizontal ? (line.thickness ?? 0.3) * MM_TO_PX * zoom : (line.length ?? 10) * MM_TO_PX * zoom,
+                backgroundColor: "#000000",
+              }}
+            />
+          );
+        })}
+
         {/* Barcode */}
         {showBarcode && (
           <div
