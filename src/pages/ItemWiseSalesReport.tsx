@@ -281,13 +281,7 @@ export default function ItemWiseSalesReport() {
       if (selectedCategory !== "all" && item.products?.category !== selectedCategory) return;
       if (selectedDepartment !== "all" && item.products?.color !== selectedDepartment) return;
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchesSearch =
-          item.product_name?.toLowerCase().includes(q) ||
-          item.barcode?.toLowerCase().includes(q) ||
-          brand.toLowerCase().includes(q) ||
-          item.products?.category?.toLowerCase().includes(q);
-        if (!matchesSearch) return;
+        if (!multiTokenMatch(searchQuery, item.product_name, item.barcode, brand, item.products?.category, item.products?.color)) return;
       }
 
       const key = `${customerName}|||${brand}`;

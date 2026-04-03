@@ -433,11 +433,7 @@ const PriceHistoryReport = () => {
   const filteredProductChanges = useMemo(() => {
     return productChanges.filter(item => {
       if (searchTerm) {
-        const search = searchTerm.toLowerCase();
-        const matchesSearch = 
-          item.product_name?.toLowerCase().includes(search) ||
-          item.brand?.toLowerCase().includes(search);
-        if (!matchesSearch) return false;
+        if (!multiTokenMatch(searchTerm, item.product_name, item.brand)) return false;
       }
 
       const changeDate = item.created_at?.split("T")[0] || "";

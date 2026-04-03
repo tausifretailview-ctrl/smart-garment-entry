@@ -689,20 +689,10 @@ export default function StockReport() {
         if (!item.product_name.toLowerCase().includes(nameSearch)) return false;
       }
       
-      // General search filter
+      // General search filter — multi-token AND
       if (searchTerm) {
-        const search = searchTerm.toLowerCase();
-        const matchesSearch = (
-          item.product_name.toLowerCase().includes(search) ||
-          item.brand.toLowerCase().includes(search) ||
-          item.color.toLowerCase().includes(search) ||
-          item.size.toLowerCase().includes(search) ||
-          item.barcode.toLowerCase().includes(search) ||
-          item.supplier_name.toLowerCase().includes(search) ||
-          item.supplier_invoice_no.toLowerCase().includes(search) ||
-          variantIdsFromOldBarcodes.has(item.id)
-        );
-        if (!matchesSearch) return false;
+        const matchesOldBarcode = variantIdsFromOldBarcodes.has(item.id);
+        if (!matchesOldBarcode && !multiTokenMatch(searchTerm, item.product_name, item.brand, item.color, item.size, item.barcode, item.supplier_name, item.supplier_invoice_no, (item as any).category, (item as any).hsn_code)) return false;
       }
       
       // Brand filter

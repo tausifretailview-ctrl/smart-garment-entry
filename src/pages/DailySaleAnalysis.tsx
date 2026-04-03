@@ -376,12 +376,8 @@ export default function DailySaleAnalysis() {
   const filteredItems = useMemo(() => {
     let result = items;
     if (searchQuery) {
-      const q = searchQuery.toLowerCase();
       result = result.filter(i =>
-        i.itemDescription.toLowerCase().includes(q) ||
-        i.barcode.toLowerCase().includes(q) ||
-        i.supplierName.toLowerCase().includes(q) ||
-        i.brand.toLowerCase().includes(q)
+        multiTokenMatch(searchQuery, i.itemDescription, i.barcode, i.supplierName, i.brand, i.category, i.color, i.size, i.hsnCode)
       );
     }
     if (categoryFilter !== "all") result = result.filter(i => i.category === categoryFilter);
