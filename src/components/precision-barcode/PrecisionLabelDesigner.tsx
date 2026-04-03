@@ -504,7 +504,7 @@ export function PrecisionLabelDesigner({
         />
 
         <div className="text-xs text-muted-foreground text-center">
-          Actual size: {labelWidth}mm × {labelHeight}mm • Click a field to select, drag to move
+          Actual size: {labelWidth}mm × {labelHeight}mm • Click to select, drag to move • Delete key removes selected line
         </div>
       </div>
     </div>
