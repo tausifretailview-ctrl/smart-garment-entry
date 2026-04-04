@@ -25,6 +25,7 @@ import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Hom
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format, formatDistanceToNow } from "date-fns";
 import { ColumnDef } from "@tanstack/react-table";
+import * as XLSX from "xlsx";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Checkbox } from "@/components/ui/checkbox";
