@@ -64,6 +64,7 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
         .select("id, product_id, size, color, barcode, current_stock, pur_price, sale_price")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
+        .eq("active", true)
         .limit(5000);
       return data || [];
     },
