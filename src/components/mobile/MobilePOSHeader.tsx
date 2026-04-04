@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -10,8 +10,10 @@ import {
   Wifi,
   WifiOff,
   RefreshCw,
-  Menu
+  Menu,
+  Camera
 } from "lucide-react";
+import { CameraScanner } from "@/components/tablet/CameraScanner";
 import {
   Popover,
   PopoverContent,
@@ -85,6 +87,14 @@ export const MobilePOSHeader = ({
   onProductSelect,
   openProductSearch = false,
 }: MobilePOSHeaderProps) => {
+  const [showCamera, setShowCamera] = useState(false);
+
+  const handleCameraResult = useCallback((code: string) => {
+    onSearchInputChange(code);
+    setShowCamera(false);
+    setTimeout(() => onBarcodeSubmit(), 50);
+  }, [onSearchInputChange, onBarcodeSubmit]);
+
   const getStatusIcon = () => {
     if (!isOnline) return <WifiOff className="h-4 w-4 text-amber-500" />;
     if (isSyncing) return <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />;
@@ -127,19 +137,32 @@ export const MobilePOSHeader = ({
             value={searchInput}
             onChange={(e) => onSearchInputChange(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
+              if (e.key === 'Enter' || e.key === 'Go' || e.keyCode === 13) {
                 e.preventDefault();
                 onBarcodeSubmit();
               }
             }}
-            className="pl-10 h-10 text-base"
+            className="pl-10 pr-10 h-10 text-base no-uppercase"
             autoComplete="off"
             autoCapitalize="off"
             autoCorrect="off"
+            inputMode="text"
+            enterKeyHint="search"
+            spellCheck={false}
+            style={{ fontSize: '16px' }}
           />
         </div>
+        {/* Camera scan button */}
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-10 w-10 shrink-0"
+          onClick={() => setShowCamera(true)}
+        >
+          <Camera className="h-4 w-4" />
+        </Button>
         <Select value={selectedProductType} onValueChange={onProductTypeChange}>
-          <SelectTrigger className="h-10 w-[90px] text-xs bg-card">
+          <SelectTrigger className="h-10 w-[72px] text-xs bg-card">
             <SelectValue placeholder="All" />
           </SelectTrigger>
           <SelectContent className="bg-popover z-[100]">
@@ -150,6 +173,14 @@ export const MobilePOSHeader = ({
           </SelectContent>
         </Select>
       </div>
+
+      {/* Camera Scanner Overlay */}
+      {showCamera && (
+        <CameraScanner
+          onResult={handleCameraResult}
+          onClose={() => setShowCamera(false)}
+        />
+      )}
 
       {/* Mobile Product Search Results Dropdown */}
       {openProductSearch && searchInput.length >= 2 && filteredProducts.length > 0 && (

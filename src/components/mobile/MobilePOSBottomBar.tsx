@@ -113,7 +113,7 @@ export const MobilePOSBottomBar = ({
         <div className="grid grid-cols-4 gap-1.5">
           <Button 
             onClick={onCashPayment}
-            className="h-10 bg-green-600 hover:bg-green-700 text-white flex flex-col items-center justify-center gap-0"
+            className="h-12 bg-green-600 hover:bg-green-700 text-white flex flex-col items-center justify-center gap-0"
             disabled={!hasItems || isSaving}
           >
             {isSaving ? (
@@ -128,7 +128,7 @@ export const MobilePOSBottomBar = ({
           
           <Button 
             onClick={onUPIPayment}
-            className="h-10 bg-purple-600 hover:bg-purple-700 text-white flex flex-col items-center justify-center gap-0"
+            className="h-12 bg-purple-600 hover:bg-purple-700 text-white flex flex-col items-center justify-center gap-0"
             disabled={!hasItems || isSaving}
           >
             {isSaving ? (
@@ -143,7 +143,7 @@ export const MobilePOSBottomBar = ({
           
           <Button 
             onClick={onCardPayment}
-            className="h-10 bg-cyan-600 hover:bg-cyan-700 text-white flex flex-col items-center justify-center gap-0"
+            className="h-12 bg-cyan-600 hover:bg-cyan-700 text-white flex flex-col items-center justify-center gap-0"
             disabled={!hasItems || isSaving}
           >
             {isSaving ? (
@@ -158,7 +158,7 @@ export const MobilePOSBottomBar = ({
           
           <Button 
             onClick={onMoreOptions}
-            className="h-10 bg-slate-600 hover:bg-slate-700 text-white flex flex-col items-center justify-center gap-0"
+            className="h-12 bg-slate-600 hover:bg-slate-700 text-white flex flex-col items-center justify-center gap-0"
           >
             <MoreHorizontal className="h-4 w-4" />
             <span className="text-[9px]">More</span>
