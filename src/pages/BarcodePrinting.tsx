@@ -1302,12 +1302,15 @@ export default function BarcodePrinting() {
     }
     
     // After templates load, refresh labelConfig from barcode_label_settings source of truth
-    if (activePrecisionTemplateName) {
+    // Only on INITIAL load — subsequent DB refetches (e.g. after auto-save) must NOT
+    // overwrite the user's in-memory edits (strikethrough, lines, etc.)
+    if (activePrecisionTemplateName && !hasLoadedPrecisionConfigRef.current) {
       const templateName = activePrecisionTemplateName.startsWith("preset:")
         ? activePrecisionTemplateName.replace("preset:", "")
         : activePrecisionTemplateName;
       const freshTemplate = dbLabelTemplates.find((t: LabelTemplate) => t.name === templateName);
       if (freshTemplate?.config) {
+        hasLoadedPrecisionConfigRef.current = true;
         const migratedConfig = ensureCompleteFieldOrder(freshTemplate.config);
         setPrecisionSettings(prev => ({
           ...prev,
