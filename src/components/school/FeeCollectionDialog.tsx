@@ -388,6 +388,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
       queryClient.invalidateQueries({ queryKey: ["student-fee-details"] });
       queryClient.invalidateQueries({ queryKey: ["fee-collection-summary"] });
       queryClient.invalidateQueries({ queryKey: ["next-receipt-number"] });
+      queryClient.invalidateQueries({ queryKey: ["peek-receipt-number"] });
 
       // Auto-send WhatsApp receipt via API if configured
       const autoSend = (whatsAppSettings as any)?.auto_send_fee_receipt;
