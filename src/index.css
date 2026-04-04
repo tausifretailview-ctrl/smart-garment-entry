@@ -339,10 +339,19 @@ All colors MUST be HSL.
   border-color: #cbd5e1 !important;
 }
 
-/* Sidebar Active Indicator Bar */
+/* Sidebar Active Indicator Bar — solid blue with white left border */
 [data-sidebar="menu-button"][data-active="true"] {
-  border-left: 4px solid hsl(var(--sidebar-primary));
-  background: hsl(var(--sidebar-accent));
+  border-left: 3px solid hsl(0 0% 100%);
+  background: hsl(var(--sidebar-primary));
+  color: hsl(var(--sidebar-primary-foreground));
+}
+
+/* Sidebar group labels — uppercase muted */
+[data-sidebar="group-label"] {
+  font-size: 10px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  opacity: 0.5;
 }
 
 @layer base {
