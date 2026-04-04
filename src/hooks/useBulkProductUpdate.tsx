@@ -401,6 +401,37 @@ export const useBulkProductUpdate = () => {
     return data || [];
   };
 
+  const batchUpdateProducts = async (ids: string[], updateData: Record<string, any>) => {
+    const batchSize = 500;
+    for (let i = 0; i < ids.length; i += batchSize) {
+      const batch = ids.slice(i, i + batchSize);
+      const { error } = await supabase
+        .from("products")
+        .update(updateData)
+        .in("id", batch);
+      if (error) throw error;
+    }
+  };
+
+  const batchCascade = async (field: string, value: string | number | null, ids: string[]) => {
+    const batchSize = 500;
+    for (let i = 0; i < ids.length; i += batchSize) {
+      const batch = ids.slice(i, i + batchSize);
+      await cascadeToTransactionItems(field, value, batch);
+    }
+  };
+
+  const batchUpsertVariants = async (upsertData: any[]) => {
+    const batchSize = 500;
+    for (let i = 0; i < upsertData.length; i += batchSize) {
+      const batch = upsertData.slice(i, i + batchSize);
+      const { error } = await (supabase
+        .from("product_variants") as any)
+        .upsert(batch, { onConflict: 'id' });
+      if (error) throw error;
+    }
+  };
+
   const applyUpdates = async (
     updateType: UpdateType,
     config: FindReplaceConfig | UpdateFieldConfig | DiscountConfig | GSTConfig | PriceConfig,
@@ -414,44 +445,36 @@ export const useBulkProductUpdate = () => {
       const productItems = items.filter(i => i.type === "product");
       const variantItems = items.filter(i => i.type === "variant");
 
-      // Update products
+      // Update products in batches
       if (productItems.length > 0) {
+        const ids = productItems.map(i => i.id);
+
         if (updateType === "find_replace") {
           const frConfig = config as FindReplaceConfig;
-          // Batch update all matching products in one query
-          const ids = productItems.map(i => i.id);
-          const { error } = await supabase
-            .from("products")
-            .update({ [frConfig.field]: productItems[0]?.newValue })
-            .in("id", ids);
-          if (error) throw error;
-
-          // Cascade to transaction items
-          await cascadeToTransactionItems(frConfig.field, productItems[0]?.newValue, ids);
+          // For find_replace, each product may have different newValue
+          // Group by newValue to batch efficiently
+          const valueGroups = new Map<string, string[]>();
+          for (const item of productItems) {
+            const key = String(item.newValue ?? "");
+            if (!valueGroups.has(key)) valueGroups.set(key, []);
+            valueGroups.get(key)!.push(item.id);
+          }
+          for (const [val, groupIds] of valueGroups) {
+            await batchUpdateProducts(groupIds, { [frConfig.field]: val });
+            await batchCascade(frConfig.field, val, groupIds);
+          }
         } else if (updateType === "update_field") {
           const ufConfig = config as UpdateFieldConfig;
-          const ids = productItems.map(i => i.id);
-          await supabase
-            .from("products")
-            .update({ [ufConfig.field]: ufConfig.value })
-            .in("id", ids);
-
-          // Cascade to transaction items
-          await cascadeToTransactionItems(ufConfig.field, ufConfig.value, ids);
+          await batchUpdateProducts(ids, { [ufConfig.field]: ufConfig.value });
+          await batchCascade(ufConfig.field, ufConfig.value, ids);
         } else if (updateType === "update_gst") {
           const gstConfig = config as GSTConfig;
-          const ids = productItems.map(i => i.id);
-          await supabase
-            .from("products")
-            .update({ gst_per: gstConfig.newGst })
-            .in("id", ids);
-
-          // Cascade GST to transaction items
-          await cascadeToTransactionItems("gst_per", gstConfig.newGst, ids);
+          await batchUpdateProducts(ids, { gst_per: gstConfig.newGst });
+          await batchCascade("gst_per", gstConfig.newGst, ids);
         }
       }
 
-      // Update variants
+      // Update variants in batches
       if (variantItems.length > 0) {
         if (updateType === "apply_discount") {
           const discConfig = config as DiscountConfig;
@@ -460,10 +483,7 @@ export const useBulkProductUpdate = () => {
             [discConfig.applyTo]: item.newValue,
             organization_id: currentOrganization.id,
           }));
-          const { error } = await (supabase
-            .from("product_variants") as any)
-            .upsert(upsertData, { onConflict: 'id' });
-          if (error) throw error;
+          await batchUpsertVariants(upsertData);
         } else if (updateType === "update_prices") {
           const priceConfig = config as PriceConfig;
           const upsertData = variantItems.map(item => ({
@@ -471,10 +491,7 @@ export const useBulkProductUpdate = () => {
             [priceConfig.priceType]: item.newValue,
             organization_id: currentOrganization.id,
           }));
-          const { error } = await (supabase
-            .from("product_variants") as any)
-            .upsert(upsertData, { onConflict: 'id' });
-          if (error) throw error;
+          await batchUpsertVariants(upsertData);
         }
       }
 
