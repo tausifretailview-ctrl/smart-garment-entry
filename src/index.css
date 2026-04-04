@@ -8,9 +8,14 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* App Background & Surfaces */
-    --background: 213 27% 97%;
+    /* App Background & Surfaces — Windows workspace gray */
+    --background: 220 27% 97%;
     --foreground: 222 47% 11%;
+
+    /* Chrome title bar — deep navy */
+    --chrome: 222 55% 11%;
+    /* Workspace canvas */
+    --workspace: 220 27% 97%;
 
     /* Cards & Elevated Surfaces */
     --card: 0 0% 100%;
@@ -68,7 +73,7 @@ All colors MUST be HSL.
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
     --shadow-card: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 
-  /* ERP Design Tokens */
+    /* ERP Design Tokens */
     --erp-radius: 0.375rem;
     --erp-card-padding: 1.5rem;
     --erp-section-gap: 2rem;
@@ -76,16 +81,16 @@ All colors MUST be HSL.
     --erp-row-height: 3.5rem;
     --erp-input-height: 2.75rem;
 
-    /* Dark slate sidebar */
-    --sidebar-background: 222 47% 11%;
+    /* Deep navy sidebar — #141E35 */
+    --sidebar-background: 222 47% 15%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 217 91% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 47% 15%;
+    --sidebar-accent: 222 47% 20%;
     --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 222 47% 18%;
+    --sidebar-border: 222 47% 22%;
     --sidebar-ring: 217 91% 60%;
-    --sidebar-muted: 222 47% 14%;
+    --sidebar-muted: 222 47% 18%;
   }
 
   /* Classic Indigo Theme - matches old Smart Inventory theme */
@@ -295,14 +300,25 @@ All colors MUST be HSL.
 
   table th {
     @apply text-[13px] uppercase tracking-wider font-semibold px-5 py-4;
+    color: hsl(215 16% 47%);
+    letter-spacing: 0.07em;
   }
 
   table td {
     @apply text-[15px] px-5 py-4 border-b border-muted/80;
   }
 
+  /* Alternating row backgrounds */
+  table tbody tr:nth-child(even) {
+    background: hsl(210 33% 98%);
+  }
+
   table tbody tr {
-    @apply hover:bg-primary/5 transition-colors;
+    @apply transition-colors cursor-pointer;
+  }
+
+  table tbody tr:hover {
+    background: hsl(213 80% 96%) !important;
   }
 }
 
@@ -323,10 +339,19 @@ All colors MUST be HSL.
   border-color: #cbd5e1 !important;
 }
 
-/* Sidebar Active Indicator Bar */
+/* Sidebar Active Indicator Bar — solid blue with white left border */
 [data-sidebar="menu-button"][data-active="true"] {
-  border-left: 4px solid hsl(var(--sidebar-primary));
-  background: hsl(var(--sidebar-accent));
+  border-left: 3px solid hsl(0 0% 100%);
+  background: hsl(var(--sidebar-primary));
+  color: hsl(var(--sidebar-primary-foreground));
+}
+
+/* Sidebar group labels — uppercase muted */
+[data-sidebar="group-label"] {
+  font-size: 10px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  opacity: 0.5;
 }
 
 @layer base {
@@ -426,6 +451,7 @@ All colors MUST be HSL.
 
   .erp-financial {
     @apply text-[15px] font-medium text-right tabular-nums tracking-tight;
+    font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
   }
 
   .erp-customer-name {
@@ -442,6 +468,22 @@ All colors MUST be HSL.
 
   .erp-kpi-value {
     @apply text-[28px] font-bold tracking-tight;
+    font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
+  }
+
+  /* ERP Status Bar — Tally/SAP style bottom bar */
+  .erp-status-bar {
+    @apply fixed bottom-0 left-0 right-0 h-6 flex items-center px-4 gap-4 text-[11px] z-50;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+
+  .erp-status-bar .status-item {
+    @apply flex items-center gap-1 opacity-90;
+  }
+
+  .erp-status-bar .status-dot {
+    @apply w-1.5 h-1.5 rounded-full bg-emerald-300;
   }
 
   /* Active state indicator */
