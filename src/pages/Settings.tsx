@@ -1860,6 +1860,48 @@ export default function Settings() {
                     Available placeholders: {"{YYYY}"} (year), {"{MM}"} (month), {"{####}"} (auto-increment). Leave empty for default POS/25-26/1 format.
                   </p>
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="pos_series_start">POS Series Start From</Label>
+                  <Input
+                    id="pos_series_start"
+                    value={settings.sale_settings?.pos_series_start || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          pos_series_start: e.target.value,
+                        },
+                      })
+                    }
+                    placeholder="e.g., POS/36-27/11"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter the last used POS bill number. Next bill will auto-increment from this. Leave blank for default.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="invoice_series_start">Sale Invoice Series Start From</Label>
+                  <Input
+                    id="invoice_series_start"
+                    value={settings.sale_settings?.invoice_series_start || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          invoice_series_start: e.target.value,
+                        },
+                      })
+                    }
+                    placeholder="e.g., INV/25-26/100"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter the last used Sale Invoice number. Next invoice will auto-increment from this. Leave blank for default.
+                  </p>
+                </div>
                 
                 <div className="space-y-2">
                   <Label>Default Entry Mode (Sale Order / Quotation)</Label>
