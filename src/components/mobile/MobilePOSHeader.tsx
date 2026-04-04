@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -10,8 +10,10 @@ import {
   Wifi,
   WifiOff,
   RefreshCw,
-  Menu
+  Menu,
+  Camera
 } from "lucide-react";
+import { CameraScanner } from "@/components/tablet/CameraScanner";
 import {
   Popover,
   PopoverContent,
