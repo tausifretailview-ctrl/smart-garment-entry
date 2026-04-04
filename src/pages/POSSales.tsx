@@ -124,6 +124,7 @@ export default function POSSales() {
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
   const isIPadSafari = typeof navigator !== 'undefined' && (/iPad/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && "ontouchend" in document));
+  const isIOS = typeof navigator !== 'undefined' && (/iPhone/.test(navigator.userAgent) || isIPadSafari);
   const { settings: waSettings, sendMessageAsync } = useWhatsAppAPI();
   const [isHeldSale, setIsHeldSale] = useState(false);
   const [availableCreditBalance, setAvailableCreditBalance] = useState(0);
