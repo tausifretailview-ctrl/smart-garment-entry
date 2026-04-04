@@ -1045,7 +1045,7 @@ export default function POSSales() {
 
   // Handle barcode/product search on Enter - optimized for scanner input
   const handleSearch = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && searchInput.trim()) {
+    if ((e.key === 'Enter' || e.key === 'Go' || e.keyCode === 13) && searchInput.trim()) {
       e.preventDefault();
       
       // Clear any pending dropdown timer
