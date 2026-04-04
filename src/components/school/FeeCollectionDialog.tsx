@@ -275,12 +275,11 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           .rpc("generate_fee_receipt_number", rpcParams);
         if (receiptError) {
           console.warn("Receipt RPC failed, using fallback:", receiptError.message);
-          // Fallback: query max receipt number from student_fees
-          const now = new Date();
-          const fy = now.getMonth() >= 3
-            ? `${now.getFullYear()}-${String(now.getFullYear() + 1).slice(2)}`
-            : `${now.getFullYear() - 1}-${String(now.getFullYear()).slice(2)}`;
-          const prefix = `RCT/${fy}/`;
+          // Fallback: use selected academic year FY, not current date
+          const fbFY = saveFY.start && saveFY.end
+            ? `${saveFY.start}-${String(saveFY.end).slice(2)}`
+            : (() => { const now = new Date(); return now.getMonth() >= 3 ? `${now.getFullYear()}-${String(now.getFullYear() + 1).slice(2)}` : `${now.getFullYear() - 1}-${String(now.getFullYear()).slice(2)}`; })();
+          const prefix = `RCT/${fbFY}/`;
           const { data: maxReceipts } = await supabase
             .from("student_fees")
             .select("payment_receipt_id")
@@ -298,11 +297,10 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           receiptNumber = receiptResult as string;
         }
       } catch (rpcErr: any) {
-        const now = new Date();
-        const fy = now.getMonth() >= 3
-          ? `${now.getFullYear()}-${String(now.getFullYear() + 1).slice(2)}`
-          : `${now.getFullYear() - 1}-${String(now.getFullYear()).slice(2)}`;
-        const prefix = `RCT/${fy}/`;
+        const fbFY2 = saveFY.start && saveFY.end
+          ? `${saveFY.start}-${String(saveFY.end).slice(2)}`
+          : (() => { const now = new Date(); return now.getMonth() >= 3 ? `${now.getFullYear()}-${String(now.getFullYear() + 1).slice(2)}` : `${now.getFullYear() - 1}-${String(now.getFullYear()).slice(2)}`; })();
+        const prefix = `RCT/${fbFY2}/`;
         const { data: maxReceipts } = await supabase
           .from("student_fees")
           .select("payment_receipt_id")
