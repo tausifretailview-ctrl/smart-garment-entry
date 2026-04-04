@@ -300,14 +300,25 @@ All colors MUST be HSL.
 
   table th {
     @apply text-[13px] uppercase tracking-wider font-semibold px-5 py-4;
+    color: hsl(215 16% 47%);
+    letter-spacing: 0.07em;
   }
 
   table td {
     @apply text-[15px] px-5 py-4 border-b border-muted/80;
   }
 
+  /* Alternating row backgrounds */
+  table tbody tr:nth-child(even) {
+    background: hsl(210 33% 98%);
+  }
+
   table tbody tr {
-    @apply hover:bg-primary/5 transition-colors;
+    @apply transition-colors cursor-pointer;
+  }
+
+  table tbody tr:hover {
+    background: hsl(213 80% 96%) !important;
   }
 }
 
