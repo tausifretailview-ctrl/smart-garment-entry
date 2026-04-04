@@ -1248,6 +1248,7 @@ export default function BarcodePrinting() {
 
   // Track whether defaults have been loaded to prevent re-runs
   const hasLoadedDefaultsRef = useRef(false);
+  const hasLoadedPrecisionConfigRef = useRef(false);
 
   // Auto-save precision label config changes to active template (debounced)
   const autoSavePrecisionConfig = useCallback(async (templateName: string, labelConfig: LabelDesignConfig, labelWidth: number, labelHeight: number, orgId: string) => {
