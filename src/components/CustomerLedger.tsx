@@ -321,7 +321,9 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         if (v.reference_type === 'sale' || customerId) {
           invoiceVoucherPayments.set(v.reference_id, 
             (invoiceVoucherPayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
-        } else if (v.reference_type === 'customer') {
+        } else if (v.reference_type === 'customer' && v.voucher_type === 'receipt') {
+          // Only count receipt-type vouchers as payments FROM customer
+          // Exclude payment-type vouchers (refunds TO customer) - handled via refundsPaidTotal
           openingBalancePayments.set(v.reference_id, 
             (openingBalancePayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
         }
