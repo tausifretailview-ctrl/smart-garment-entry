@@ -366,7 +366,6 @@ const PurchaseBillDashboard = () => {
         const { data: matchingItems } = await (supabase as any)
           .from("purchase_items")
           .select("bill_id")
-          .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
           .or(
             `product_name.ilike.%${searchStr}%,` +
