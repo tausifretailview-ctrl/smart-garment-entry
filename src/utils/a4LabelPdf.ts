@@ -162,7 +162,8 @@ export const generateA4LabelPdf = async (
           // Draw strikethrough line if enabled
           if (field.strikethrough) {
             const textW = f.widthOfTextAtSize(displayText, fsPt);
-            const lineY = pdfY + fsPt * 0.35;
+            const offsetY = (field.strikethroughOffsetY ?? 0) * fsPt * 0.01;
+            const lineY = pdfY + fsPt * 0.35 - offsetY;
             page.drawLine({
               start: { x: drawX, y: lineY },
               end: { x: drawX + textW, y: lineY },
