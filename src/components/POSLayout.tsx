@@ -340,6 +340,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
       <FloatingCashTally open={showCashTally} onOpenChange={setShowCashTally} />
       <FloatingPayments open={showPayments} onOpenChange={setShowPayments} />
       <DeliveryChallanPOSDialog open={showDCDialog} onOpenChange={setShowDCDialog} />
+      <IPadInstallBanner />
     </div>
   );
 };
