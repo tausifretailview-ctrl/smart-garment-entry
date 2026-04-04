@@ -131,14 +131,17 @@ Student: {student_name}
 Admission No: {admission_number}
 Class: {class_name}
 
-Pending Fees: {amount}
+💰 Pending Fees: {amount}
 
-Due Date: Please pay at the earliest.
+Please pay before the due date to avoid late fees.
 
-Kindly clear the pending fees to avoid inconvenience.
+💳 *Pay Online via UPI:*
+{payment_link}
+_(Opens GPay, PhonePe, Paytm or any UPI app. Amount is pre-filled but you may edit if paying a different amount.)_
 
-Thank you for your cooperation.
+Or pay at the school office.
 
+Thank you 🙏
 {organization_name}`,
 
   school_fee_receipt: `Fee Receipt

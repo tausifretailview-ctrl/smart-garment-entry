@@ -398,19 +398,25 @@ const FeeCollection = () => {
     const upiBusinessName = gatewaySettings?.upi_business_name || currentOrganization?.name || "School";
 
     let paymentLink = "";
+    let upiDeepLink = "";
     if (upiId) {
+      const cleanBusinessName = upiBusinessName.replace(/[^a-zA-Z0-9 ]/g, "").substring(0, 50);
+      const txnNote = `Fee-${student.student_name}-${student.admission_number}`.replace(/\s+/g, "-").substring(0, 50);
       const upiParams = new URLSearchParams({
         pa: upiId,
-        pn: upiBusinessName.replace(/[^a-zA-Z0-9 ]/g, "").substring(0, 50),
+        pn: cleanBusinessName,
         am: student.totalDue.toFixed(2),
         cu: "INR",
-        tn: `Fee payment - ${student.student_name} (${student.admission_number})`,
+        tn: txnNote,
       });
-      paymentLink = `upi://pay?${upiParams.toString()}`;
+      upiDeepLink = `upi://pay?${upiParams.toString()}`;
+      // Web payment page link (clickable in WhatsApp)
+      const baseUrl = window.location.origin;
+      paymentLink = `${baseUrl}/pay?${upiParams.toString()}`;
     }
 
     const amountStr = `Rs.${student.totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
-    const reminderMsg = `Fees Reminder\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\nPending Fees: ${amountStr}\n\nDue Date: Please pay at the earliest.\n\nKindly clear the pending fees to avoid inconvenience.${upiId ? `\n\n*Pay Online*\nUPI ID: ${upiId}\nAmount: ${amountStr}\n\nClick to pay: ${paymentLink}` : ""}\n\nThank you for your cooperation.\n\n${currentOrganization?.name || "School"}`;
+    const reminderMsg = `Fees Reminder\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\n💰 Pending Fees: ${amountStr}\n\nPlease pay before the due date to avoid late fees.${upiId ? `\n\n💳 *Pay Online via UPI:*\n${paymentLink}\n_(Opens GPay, PhonePe, Paytm or any UPI app. Amount is pre-filled but you may edit if paying a different amount.)_` : ""}\n\nOr pay at the school office.\n\nThank you 🙏\n${currentOrganization?.name || "School"}`;
 
     if (whatsAppSettings?.is_active) {
       setSendingReminder(student.id);
@@ -432,6 +438,7 @@ const FeeCollection = () => {
               organization_name: currentOrganization?.name || "",
               payment_link: paymentLink || "Please pay at the school office",
               upi_id: upiId,
+              upi_deep_link: upiDeepLink,
             },
           });
         } else {
