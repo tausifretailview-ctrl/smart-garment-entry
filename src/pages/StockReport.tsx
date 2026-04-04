@@ -1291,17 +1291,7 @@ export default function StockReport() {
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Size</label>
-            <Select value={sizeFilter} onValueChange={setSizeFilter}>
-              <SelectTrigger className="h-10 !bg-white !text-gray-900">
-                <SelectValue placeholder="All Sizes" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Sizes</SelectItem>
-                {filterOptions.sizes.map(size => (
-                  <SelectItem key={size} value={size}>{size}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect value={sizeFilter} onValueChange={setSizeFilter} options={filterOptions.sizes} allLabel="All Sizes" placeholder="All Sizes" />
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Color</label>
