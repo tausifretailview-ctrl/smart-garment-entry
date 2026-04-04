@@ -222,7 +222,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // Fetch ALL voucher payments (both opening balance and invoice payments)
       const { data: allVouchers, error: voucherError } = await supabase
         .from('voucher_entries')
-        .select('reference_id, reference_type, total_amount')
+        .select('reference_id, reference_type, total_amount, voucher_type')
         .eq('organization_id', organizationId)
         .in('voucher_type', ['receipt', 'payment'])
         .is('deleted_at', null);
