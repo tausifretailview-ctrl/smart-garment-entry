@@ -152,8 +152,17 @@ export const MobilePOSHeader = ({
             style={{ fontSize: '16px' }}
           />
         </div>
+        {/* Camera scan button */}
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-10 w-10 shrink-0"
+          onClick={() => setShowCamera(true)}
+        >
+          <Camera className="h-4 w-4" />
+        </Button>
         <Select value={selectedProductType} onValueChange={onProductTypeChange}>
-          <SelectTrigger className="h-10 w-[90px] text-xs bg-card">
+          <SelectTrigger className="h-10 w-[72px] text-xs bg-card">
             <SelectValue placeholder="All" />
           </SelectTrigger>
           <SelectContent className="bg-popover z-[100]">
@@ -164,6 +173,14 @@ export const MobilePOSHeader = ({
           </SelectContent>
         </Select>
       </div>
+
+      {/* Camera Scanner Overlay */}
+      {showCamera && (
+        <CameraScanner
+          onResult={handleCameraResult}
+          onClose={() => setShowCamera(false)}
+        />
+      )}
 
       {/* Mobile Product Search Results Dropdown */}
       {openProductSearch && searchInput.length >= 2 && filteredProducts.length > 0 && (
