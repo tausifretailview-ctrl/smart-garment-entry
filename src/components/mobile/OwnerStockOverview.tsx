@@ -46,6 +46,7 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
         .select("id, product_name, brand, product_type, style, hsn_code, gst_per")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
+        .neq("product_type", "service")
         .order("product_name")
         .limit(1000);
       return data || [];
@@ -63,6 +64,7 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
         .select("id, product_id, size, color, barcode, current_stock, pur_price, sale_price")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
+        .eq("active", true)
         .limit(5000);
       return data || [];
     },
