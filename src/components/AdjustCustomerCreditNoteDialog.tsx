@@ -51,7 +51,7 @@ export function AdjustCustomerCreditNoteDialog({
 
       const { data: salesData, error: salesError } = await supabase
         .from("sales")
-        .select("id, sale_number, sale_date, net_amount, paid_amount, payment_status")
+        .select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, status")
         .eq("customer_id", customerId)
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
@@ -60,7 +60,9 @@ export function AdjustCustomerCreditNoteDialog({
 
       if (salesError) throw salesError;
 
-      return (salesData || []).map((sale: any) => ({
+      return (salesData || [])
+        .filter((sale: any) => sale.status !== "cancelled")
+        .map((sale: any) => ({
         ...sale,
         pending_amount: (sale.net_amount || 0) - (sale.paid_amount || 0),
       })).filter((sale: any) => sale.pending_amount > 0);
