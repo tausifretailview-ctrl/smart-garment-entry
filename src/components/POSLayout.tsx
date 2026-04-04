@@ -31,6 +31,7 @@ import { FloatingCashTally } from "@/components/FloatingCashTally";
 import { FloatingPayments } from "@/components/FloatingPayments";
 import { DeliveryChallanPOSDialog } from "@/components/DeliveryChallanPOSDialog";
 import { Truck } from "lucide-react";
+import { IPadInstallBanner } from "@/components/IPadInstallBanner";
 
 interface POSLayoutProps {
   children: ReactNode;
