@@ -1774,7 +1774,9 @@ Please clear your dues at the earliest. Thank you!`;
                       variant="outline"
                       size="sm"
                       className="border-amber-400 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/50"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
                         const orgSlug = window.location.pathname.split('/')[1];
                         window.location.href = `/${orgSlug}/advance-booking-dashboard?search=${encodeURIComponent(selectedCustomer.customer_name || '')}`;
                       }}
@@ -1787,7 +1789,15 @@ Please clear your dues at the earliest. Thank you!`;
                     variant="outline"
                     size="sm"
                     className="border-red-400 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/50"
-                    onClick={() => setShowOverpaymentRefundDialog(true)}
+                    disabled={!selectedCustomer?.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      setOverpaymentRefundAmount('');
+                      setOverpaymentRefundNote('');
+                      setOverpaymentRefundMode('cash');
+                      setShowOverpaymentRefundDialog(true);
+                    }}
                   >
                     <IndianRupee className="h-4 w-4 mr-1" />
                     Refund Overpayment
