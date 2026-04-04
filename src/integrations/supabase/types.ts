@@ -6710,8 +6710,10 @@ export type Database = {
       v_dashboard_stock_summary: {
         Row: {
           organization_id: string | null
+          total_sale_value: number | null
           total_stock_qty: number | null
           total_stock_value: number | null
+          total_variant_count: number | null
         }
         Relationships: [
           {
