@@ -1442,6 +1442,73 @@ const PurchaseBillDashboard = () => {
     );
   }, [billItems, showMrp]);
 
+  // Excel export handler
+  const handleExportExcel = useCallback(async () => {
+    if (!currentOrganization?.id) return;
+    try {
+      // Fetch ALL filtered bills (no pagination) for export
+      let query = supabase
+        .from("purchase_bills")
+        .select("supplier_name, supplier_invoice_no, software_bill_no, bill_date, gross_amount, discount_amount, gst_amount, net_amount, payment_status, paid_amount, total_qty, is_dc_purchase")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
+
+      if (startDate) query = query.gte("bill_date", startDate);
+      if (endDate) query = query.lte("bill_date", endDate);
+      if (paymentStatusFilter && paymentStatusFilter !== "all") {
+        if (paymentStatusFilter === "not_paid") {
+          query = query.or("payment_status.is.null,payment_status.eq.pending");
+        } else {
+          query = query.eq("payment_status", paymentStatusFilter);
+        }
+      }
+      if (dcFilter === "dc") query = query.eq("is_dc_purchase", true);
+      else if (dcFilter === "gst") query = query.or("is_dc_purchase.is.null,is_dc_purchase.eq.false");
+
+      query = query.order("bill_date", { ascending: false });
+
+      const allBills: any[] = [];
+      let from = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data } = await query.range(from, from + 999);
+        if (data && data.length > 0) { allBills.push(...data); from += 1000; hasMore = data.length === 1000; }
+        else hasMore = false;
+      }
+
+      const rows = allBills.map((b, i) => ({
+        "Sr No": i + 1,
+        "Bill No": b.software_bill_no || "",
+        "Date": b.bill_date ? format(new Date(b.bill_date), "dd-MM-yyyy") : "",
+        "Supplier Inv No": b.supplier_invoice_no || "",
+        "Supplier": b.supplier_name || "",
+        "Gross Amount": Math.round(b.gross_amount || 0),
+        "Discount": Math.round(b.discount_amount || 0),
+        "GST": Math.round(b.gst_amount || 0),
+        "Net Amount": Math.round(b.net_amount || 0),
+        "Paid": Math.round(b.paid_amount || 0),
+        "Status": b.payment_status || "pending",
+        "Items": b.total_qty || 0,
+        "Type": b.is_dc_purchase ? "DC" : "GST",
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws["!cols"] = [
+        { wch: 6 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 24 },
+        { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 12 },
+        { wch: 10 }, { wch: 8 }, { wch: 6 },
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Purchase Bills");
+      const dateStr = format(new Date(), "yyyy-MM-dd");
+      XLSX.writeFile(wb, `Purchase_Bills_${dateStr}.xlsx`);
+
+      toast({ title: "Exported", description: `${rows.length} bills exported to Excel` });
+    } catch (err: any) {
+      toast({ title: "Export failed", description: err.message, variant: "destructive" });
+    }
+  }, [currentOrganization?.id, startDate, endDate, paymentStatusFilter, dcFilter, toast]);
+
   // No full-page blocker — layout renders immediately, ERPTable shows skeletons via isLoading
   const isMobile = useIsMobile();
 
