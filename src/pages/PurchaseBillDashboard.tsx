@@ -970,24 +970,93 @@ const PurchaseBillDashboard = () => {
     });
   }, [bills, sortOrder]);
 
-  // Server-side summary stats via RPC
+  // Server-side summary stats — mirrors ALL filters from the bills query (no pagination)
   const { data: purchaseSummaryData } = useQuery({
-    queryKey: ['purchase-summary', currentOrganization?.id, startDate, endDate],
+    queryKey: ['purchase-summary', currentOrganization?.id, startDate, endDate, paymentStatusFilter, dcFilter, debouncedSearch],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_purchase_summary', {
-        p_org_id: currentOrganization!.id,
-        p_start_date: startDate || null,
-        p_end_date: endDate || null,
-      });
-      if (error) throw error;
-      const d = data as any;
-      return {
-        total_count: Number(d?.totalCount ?? d?.total_count ?? 0),
-        total_amount: Number(d?.totalAmount ?? d?.total_amount ?? 0),
-        paid_amount: Number(d?.paidAmount ?? d?.paid_amount ?? 0),
-        unpaid_amount: Number(d?.unpaidAmount ?? d?.unpaid_amount ?? 0),
-        partial_amount: Number(d?.partialAmount ?? d?.partial_amount ?? 0),
-      };
+      if (!currentOrganization?.id) return null;
+
+      let query = supabase
+        .from("purchase_bills")
+        .select("net_amount, paid_amount, payment_status, total_qty")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
+
+      if (startDate) query = query.gte("bill_date", startDate);
+      if (endDate) query = query.lte("bill_date", endDate);
+
+      if (paymentStatusFilter && paymentStatusFilter !== "all") {
+        if (paymentStatusFilter === "not_paid") {
+          query = query.or("payment_status.is.null,payment_status.eq.pending");
+        } else {
+          query = query.eq("payment_status", paymentStatusFilter);
+        }
+      }
+
+      if (dcFilter === "dc") {
+        query = query.eq("is_dc_purchase", true);
+      } else if (dcFilter === "gst") {
+        query = query.or("is_dc_purchase.is.null,is_dc_purchase.eq.false");
+      }
+
+      // Search filter — same logic as bills query
+      if (debouncedSearch) {
+        const searchStr = debouncedSearch.trim();
+        const { data: matchingItems } = await (supabase as any)
+          .from("purchase_items")
+          .select("bill_id")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .or(
+            `product_name.ilike.%${searchStr}%,brand.ilike.%${searchStr}%,barcode.ilike.%${searchStr}%,style.ilike.%${searchStr}%,category.ilike.%${searchStr}%,color.ilike.%${searchStr}%`
+          )
+          .limit(300);
+
+        const matchingBillIds = [...new Set((matchingItems || []).map((i: any) => i.bill_id).filter(Boolean))] as string[];
+        const billTextFilter = `supplier_name.ilike.%${searchStr}%,supplier_invoice_no.ilike.%${searchStr}%,software_bill_no.ilike.%${searchStr}%`;
+
+        if (matchingBillIds.length > 0) {
+          const { data: textMatches } = await supabase
+            .from("purchase_bills").select("id")
+            .eq("organization_id", currentOrganization.id).is("deleted_at", null)
+            .or(billTextFilter);
+          const allMatchIds = [...new Set([...(textMatches || []).map((b: any) => b.id), ...matchingBillIds])];
+          query = query.in("id", allMatchIds);
+        } else {
+          query = query.or(billTextFilter);
+        }
+      }
+
+      // Fetch all matching bills (no pagination) — only lightweight columns
+      const allBills: any[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      let hasMore = true;
+      while (hasMore) {
+        const { data, error } = await query.range(from, from + batchSize - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allBills.push(...data);
+          from += batchSize;
+          hasMore = data.length === batchSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const total_count = allBills.length;
+      const total_amount = allBills.reduce((s, b) => s + (b.net_amount || 0), 0);
+      const paid_amount = allBills
+        .filter(b => b.payment_status === 'completed')
+        .reduce((s, b) => s + (b.net_amount || 0), 0);
+      const partial_amount = allBills
+        .filter(b => b.payment_status === 'partial')
+        .reduce((s, b) => s + (b.net_amount || 0), 0);
+      const unpaid_amount = allBills
+        .filter(b => !b.payment_status || b.payment_status === 'pending')
+        .reduce((s, b) => s + (b.net_amount || 0), 0);
+
+      return { total_count, total_amount, paid_amount, unpaid_amount, partial_amount };
     },
     enabled: !!currentOrganization?.id,
     staleTime: 30_000,
