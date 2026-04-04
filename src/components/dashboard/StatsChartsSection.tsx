@@ -101,8 +101,10 @@ export const StatsChartsSection = () => {
       
       const { data, error } = await supabase
         .from("product_variants")
-        .select("stock_qty, sale_price, products!inner(product_name, organization_id)")
+        .select("stock_qty, sale_price, products!inner(product_name, organization_id, product_type)")
         .eq("products.organization_id", currentOrganization.id)
+        .eq("active", true)
+        .neq("products.product_type", "service")
         .order("stock_qty", { ascending: false })
         .limit(5);
 
