@@ -238,7 +238,9 @@ export const useSaveSale = () => {
       } else {
         // Sale Invoice format
         if (saleSettings?.invoice_numbering_format) {
-          saleNumber = await generateInvoiceNumber(saleSettings.invoice_numbering_format);
+          saleNumber = await generateInvoiceNumber(saleSettings.invoice_numbering_format, saleSettings?.invoice_series_start);
+        } else if (saleSettings?.invoice_series_start) {
+          saleNumber = await generateInvoiceNumber(saleSettings.invoice_series_start, saleSettings.invoice_series_start);
         } else {
           // Use default INV format: INV/YY-YY/N
           const { data: defaultNumber, error: numberError } = await supabase
