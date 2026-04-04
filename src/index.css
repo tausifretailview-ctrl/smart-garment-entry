@@ -459,6 +459,22 @@ All colors MUST be HSL.
 
   .erp-kpi-value {
     @apply text-[28px] font-bold tracking-tight;
+    font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
+  }
+
+  /* ERP Status Bar — Tally/SAP style bottom bar */
+  .erp-status-bar {
+    @apply fixed bottom-0 left-0 right-0 h-6 flex items-center px-4 gap-4 text-[11px] z-50;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+
+  .erp-status-bar .status-item {
+    @apply flex items-center gap-1 opacity-90;
+  }
+
+  .erp-status-bar .status-dot {
+    @apply w-1.5 h-1.5 rounded-full bg-emerald-300;
   }
 
   /* Active state indicator */
