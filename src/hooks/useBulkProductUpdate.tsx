@@ -81,23 +81,38 @@ export const useBulkProductUpdate = () => {
   const fetchMatchingProducts = async (filters: FilterCriteria) => {
     if (!currentOrganization) return [];
 
-    let query = supabase
-      .from("products")
-      .select("id, product_name, category, brand, style, color, hsn_code, gst_per")
-      .eq("organization_id", currentOrganization.id)
-      .is("deleted_at", null);
+    const allRows: any[] = [];
+    let offset = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    if (filters.category) query = query.eq("category", filters.category);
-    if (filters.brand) query = query.eq("brand", filters.brand);
-    if (filters.productName) query = query.ilike("product_name", `%${filters.productName}%`);
-    if (filters.style) query = query.ilike("style", `%${filters.style}%`);
-    if (filters.hsnCode) query = query.eq("hsn_code", filters.hsnCode);
-    if (filters.gstPercent !== undefined && filters.gstPercent !== null) {
-      query = query.eq("gst_per", filters.gstPercent);
+    while (hasMore) {
+      let query = supabase
+        .from("products")
+        .select("id, product_name, category, brand, style, color, hsn_code, gst_per")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
+
+      if (filters.category) query = query.eq("category", filters.category);
+      if (filters.brand) query = query.eq("brand", filters.brand);
+      if (filters.productName) query = query.ilike("product_name", `%${filters.productName}%`);
+      if (filters.style) query = query.ilike("style", `%${filters.style}%`);
+      if (filters.hsnCode) query = query.eq("hsn_code", filters.hsnCode);
+      if (filters.gstPercent !== undefined && filters.gstPercent !== null) {
+        query = query.eq("gst_per", filters.gstPercent);
+      }
+
+      const { data } = await query.order("id").range(offset, offset + pageSize - 1);
+      if (data && data.length > 0) {
+        allRows.push(...data);
+        offset += pageSize;
+        hasMore = data.length === pageSize;
+      } else {
+        hasMore = false;
+      }
     }
 
-    const { data } = await query;
-    return data || [];
+    return allRows;
   };
 
   const fetchMatchingVariants = async (filters: FilterCriteria) => {
