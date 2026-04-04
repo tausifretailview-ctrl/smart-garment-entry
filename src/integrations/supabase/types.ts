@@ -6938,73 +6938,39 @@ export type Database = {
         Args: { p_from_date: string; p_org_id: string; p_to_date: string }
         Returns: Json
       }
-      get_product_catalog_page:
-        | {
-            Args: {
-              p_category?: string
-              p_max_price?: number
-              p_min_price?: number
-              p_org_id: string
-              p_page?: number
-              p_page_size?: number
-              p_product_type?: string
-              p_search?: string
-              p_size_group_id?: string
-              p_stock_level?: string
-            }
-            Returns: {
-              brand: string
-              category: string
-              color: string
-              default_pur_price: number
-              default_sale_price: number
-              gst_per: number
-              hsn_code: string
-              image_url: string
-              product_id: string
-              product_name: string
-              product_type: string
-              size_group_id: string
-              status: string
-              style: string
-              total_count: number
-              total_stock: number
-              variant_count: number
-            }[]
-          }
-        | {
-            Args: {
-              p_category?: string
-              p_max_price?: number
-              p_min_price?: number
-              p_org_id: string
-              p_page?: number
-              p_page_size?: number
-              p_product_type?: string
-              p_search?: string
-              p_size_group_id?: string
-              p_stock_level?: string
-            }
-            Returns: {
-              brand: string
-              category: string
-              color: string
-              default_pur_price: number
-              default_sale_price: number
-              gst_per: number
-              hsn_code: string
-              image_url: string
-              product_id: string
-              product_name: string
-              product_type: string
-              size_group_id: string
-              status: string
-              style: string
-              total_count: number
-              total_stock: number
-              variant_count: number
-            }[]
-          }
+      get_product_catalog_page: {
+        Args: {
+          p_category?: string
+          p_max_price?: number
+          p_min_price?: number
+          p_org_id: string
+          p_page?: number
+          p_page_size?: number
+          p_product_type?: string
+          p_search?: string
+          p_size_group_id?: string
+          p_stock_level?: string
+        }
+        Returns: {
+          brand: string
+          category: string
+          color: string
+          default_pur_price: number
+          default_sale_price: number
+          gst_per: number
+          hsn_code: string
+          image_url: string
+          product_id: string
+          product_name: string
+          product_type: string
+          size_group_id: string
+          status: string
+          style: string
+          total_count: number
+          total_stock: number
+          variant_count: number
+        }[]
+      }
       get_product_dashboard_stats: {
         Args: {
           p_category?: string
