@@ -3336,7 +3336,7 @@ export default function POSSales() {
           onFlatDiscountModeChange={setFlatDiscountMode}
           selectedSalesman={selectedSalesman}
           setSelectedSalesman={setSelectedSalesman}
-          salesmen={salesmen || []}
+          salesmen={employees || []}
           note={saleNotes}
           setNote={setSaleNotes}
           roundOff={roundOff}
