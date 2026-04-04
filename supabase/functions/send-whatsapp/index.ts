@@ -201,9 +201,31 @@ function buildTemplateParams(
         return String(saleData.facebook || '');
       case 'custom_text':
         return param.customValue || '';
+      case 'balance':
+      case 'remaining_balance':
+        // Use ?? instead of || so that 0 is preserved (0 is a valid balance)
+        return Number(saleData.balance ?? saleData.remaining_balance ?? 0).toLocaleString('en-IN');
+      case 'student_name':
+        return String(saleData.student_name || '');
+      case 'admission_number':
+        return String(saleData.admission_number || '');
+      case 'class_name':
+        return String(saleData.class_name || '');
+      case 'receipt_number':
+        return String(saleData.receipt_number || '');
+      case 'date':
+        return String(saleData.date || '');
+      case 'fee_heads':
+        return String(saleData.fee_heads || '');
+      case 'payment_method':
+        return String(saleData.payment_method || '');
       default:
-        // Try to get the value directly from saleData
-        return String(saleData[field] || param.customValue || '');
+        // Try to get the value directly from saleData using ?? to preserve falsy values like 0
+        const val = saleData[field];
+        if (val !== null && val !== undefined && val !== '') {
+          return String(val);
+        }
+        return String(param.customValue || '');
     }
   });
 }
