@@ -174,6 +174,8 @@ interface SaleSettings {
   einvoice_settings?: EInvoiceSettings;
   thermal_receipt_style?: 'classic' | 'compact';
   auto_apply_advance?: boolean;
+  pos_series_start?: string;
+  invoice_series_start?: string;
 }
 
 interface BillBarcodeSettings {
