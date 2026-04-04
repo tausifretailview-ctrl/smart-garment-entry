@@ -113,7 +113,7 @@ export const MobilePOSBottomBar = ({
         <div className="grid grid-cols-4 gap-1.5">
           <Button 
             onClick={onCashPayment}
-            className="h-10 bg-green-600 hover:bg-green-700 text-white flex flex-col items-center justify-center gap-0"
+            className="h-12 bg-green-600 hover:bg-green-700 text-white flex flex-col items-center justify-center gap-0"
             disabled={!hasItems || isSaving}
           >
             {isSaving ? (
