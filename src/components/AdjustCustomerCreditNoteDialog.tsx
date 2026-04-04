@@ -56,6 +56,7 @@ export function AdjustCustomerCreditNoteDialog({
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .neq("payment_status", "completed")
+        .neq("status", "cancelled")
         .order("sale_date", { ascending: true });
 
       if (salesError) throw salesError;
