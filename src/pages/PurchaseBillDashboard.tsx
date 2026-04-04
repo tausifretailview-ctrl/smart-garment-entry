@@ -1668,6 +1668,15 @@ const PurchaseBillDashboard = () => {
           </div>
           <div className="flex gap-2">
             <Button 
+              onClick={handleExportExcel}
+              variant="outline"
+              size="sm"
+              className="gap-2"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Export Excel
+            </Button>
+            <Button 
               onClick={handleFixMissingProductNames} 
               variant="ghost"
               size="sm"
