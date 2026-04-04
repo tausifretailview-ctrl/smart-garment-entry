@@ -3397,7 +3397,7 @@ export default function POSSales() {
                 <Input id="tablet_address" value={newCustomerForm.address} onChange={(e) => setNewCustomerForm(prev => ({ ...prev, address: e.target.value }))} placeholder="Address (optional)" />
               </div>
             </div>
-            <Button onClick={handleAddCustomer} disabled={!newCustomerForm.customer_name.trim()}>Save Customer</Button>
+            <Button onClick={() => createCustomer.mutate(newCustomerForm)} disabled={!newCustomerForm.customer_name.trim() || !newCustomerForm.phone.trim()}>Save Customer</Button>
           </DialogContent>
         </Dialog>
       </>
