@@ -1425,6 +1425,7 @@ export default function BarcodePrinting() {
   // Reset defaults ref when organization changes so defaults reload for new org
   useEffect(() => {
     hasLoadedDefaultsRef.current = false;
+    hasLoadedPrecisionConfigRef.current = false;
   }, [currentOrganization?.id]);
 
   // Debounced auto-save for precision designer changes
