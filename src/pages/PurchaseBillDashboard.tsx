@@ -21,10 +21,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee, FileText, X, RefreshCw, Barcode, Eye, CreditCard, Camera, Lock, LockOpen, ZoomIn } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee, FileText, X, RefreshCw, Barcode, Eye, CreditCard, Camera, Lock, LockOpen, ZoomIn, FileSpreadsheet } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format, formatDistanceToNow } from "date-fns";
 import { ColumnDef } from "@tanstack/react-table";
+import * as XLSX from "xlsx";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -970,24 +971,93 @@ const PurchaseBillDashboard = () => {
     });
   }, [bills, sortOrder]);
 
-  // Server-side summary stats via RPC
+  // Server-side summary stats — mirrors ALL filters from the bills query (no pagination)
   const { data: purchaseSummaryData } = useQuery({
-    queryKey: ['purchase-summary', currentOrganization?.id, startDate, endDate],
+    queryKey: ['purchase-summary', currentOrganization?.id, startDate, endDate, paymentStatusFilter, dcFilter, debouncedSearch],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_purchase_summary', {
-        p_org_id: currentOrganization!.id,
-        p_start_date: startDate || null,
-        p_end_date: endDate || null,
-      });
-      if (error) throw error;
-      const d = data as any;
-      return {
-        total_count: Number(d?.totalCount ?? d?.total_count ?? 0),
-        total_amount: Number(d?.totalAmount ?? d?.total_amount ?? 0),
-        paid_amount: Number(d?.paidAmount ?? d?.paid_amount ?? 0),
-        unpaid_amount: Number(d?.unpaidAmount ?? d?.unpaid_amount ?? 0),
-        partial_amount: Number(d?.partialAmount ?? d?.partial_amount ?? 0),
-      };
+      if (!currentOrganization?.id) return null;
+
+      let query = supabase
+        .from("purchase_bills")
+        .select("net_amount, paid_amount, payment_status, total_qty")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
+
+      if (startDate) query = query.gte("bill_date", startDate);
+      if (endDate) query = query.lte("bill_date", endDate);
+
+      if (paymentStatusFilter && paymentStatusFilter !== "all") {
+        if (paymentStatusFilter === "not_paid") {
+          query = query.or("payment_status.is.null,payment_status.eq.pending");
+        } else {
+          query = query.eq("payment_status", paymentStatusFilter);
+        }
+      }
+
+      if (dcFilter === "dc") {
+        query = query.eq("is_dc_purchase", true);
+      } else if (dcFilter === "gst") {
+        query = query.or("is_dc_purchase.is.null,is_dc_purchase.eq.false");
+      }
+
+      // Search filter — same logic as bills query
+      if (debouncedSearch) {
+        const searchStr = debouncedSearch.trim();
+        const { data: matchingItems } = await (supabase as any)
+          .from("purchase_items")
+          .select("bill_id")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .or(
+            `product_name.ilike.%${searchStr}%,brand.ilike.%${searchStr}%,barcode.ilike.%${searchStr}%,style.ilike.%${searchStr}%,category.ilike.%${searchStr}%,color.ilike.%${searchStr}%`
+          )
+          .limit(300);
+
+        const matchingBillIds = [...new Set((matchingItems || []).map((i: any) => i.bill_id).filter(Boolean))] as string[];
+        const billTextFilter = `supplier_name.ilike.%${searchStr}%,supplier_invoice_no.ilike.%${searchStr}%,software_bill_no.ilike.%${searchStr}%`;
+
+        if (matchingBillIds.length > 0) {
+          const { data: textMatches } = await supabase
+            .from("purchase_bills").select("id")
+            .eq("organization_id", currentOrganization.id).is("deleted_at", null)
+            .or(billTextFilter);
+          const allMatchIds = [...new Set([...(textMatches || []).map((b: any) => b.id), ...matchingBillIds])];
+          query = query.in("id", allMatchIds);
+        } else {
+          query = query.or(billTextFilter);
+        }
+      }
+
+      // Fetch all matching bills (no pagination) — only lightweight columns
+      const allBills: any[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      let hasMore = true;
+      while (hasMore) {
+        const { data, error } = await query.range(from, from + batchSize - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allBills.push(...data);
+          from += batchSize;
+          hasMore = data.length === batchSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const total_count = allBills.length;
+      const total_amount = allBills.reduce((s, b) => s + (b.net_amount || 0), 0);
+      const paid_amount = allBills
+        .filter(b => b.payment_status === 'completed')
+        .reduce((s, b) => s + (b.net_amount || 0), 0);
+      const partial_amount = allBills
+        .filter(b => b.payment_status === 'partial')
+        .reduce((s, b) => s + (b.net_amount || 0), 0);
+      const unpaid_amount = allBills
+        .filter(b => !b.payment_status || b.payment_status === 'pending')
+        .reduce((s, b) => s + (b.net_amount || 0), 0);
+
+      return { total_count, total_amount, paid_amount, unpaid_amount, partial_amount };
     },
     enabled: !!currentOrganization?.id,
     staleTime: 30_000,
@@ -1372,6 +1442,73 @@ const PurchaseBillDashboard = () => {
     );
   }, [billItems, showMrp]);
 
+  // Excel export handler
+  const handleExportExcel = useCallback(async () => {
+    if (!currentOrganization?.id) return;
+    try {
+      // Fetch ALL filtered bills (no pagination) for export
+      let query = supabase
+        .from("purchase_bills")
+        .select("supplier_name, supplier_invoice_no, software_bill_no, bill_date, gross_amount, discount_amount, gst_amount, net_amount, payment_status, paid_amount, total_qty, is_dc_purchase")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
+
+      if (startDate) query = query.gte("bill_date", startDate);
+      if (endDate) query = query.lte("bill_date", endDate);
+      if (paymentStatusFilter && paymentStatusFilter !== "all") {
+        if (paymentStatusFilter === "not_paid") {
+          query = query.or("payment_status.is.null,payment_status.eq.pending");
+        } else {
+          query = query.eq("payment_status", paymentStatusFilter);
+        }
+      }
+      if (dcFilter === "dc") query = query.eq("is_dc_purchase", true);
+      else if (dcFilter === "gst") query = query.or("is_dc_purchase.is.null,is_dc_purchase.eq.false");
+
+      query = query.order("bill_date", { ascending: false });
+
+      const allBills: any[] = [];
+      let from = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data } = await query.range(from, from + 999);
+        if (data && data.length > 0) { allBills.push(...data); from += 1000; hasMore = data.length === 1000; }
+        else hasMore = false;
+      }
+
+      const rows = allBills.map((b, i) => ({
+        "Sr No": i + 1,
+        "Bill No": b.software_bill_no || "",
+        "Date": b.bill_date ? format(new Date(b.bill_date), "dd-MM-yyyy") : "",
+        "Supplier Inv No": b.supplier_invoice_no || "",
+        "Supplier": b.supplier_name || "",
+        "Gross Amount": Math.round(b.gross_amount || 0),
+        "Discount": Math.round(b.discount_amount || 0),
+        "GST": Math.round(b.gst_amount || 0),
+        "Net Amount": Math.round(b.net_amount || 0),
+        "Paid": Math.round(b.paid_amount || 0),
+        "Status": b.payment_status || "pending",
+        "Items": b.total_qty || 0,
+        "Type": b.is_dc_purchase ? "DC" : "GST",
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws["!cols"] = [
+        { wch: 6 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 24 },
+        { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 12 },
+        { wch: 10 }, { wch: 8 }, { wch: 6 },
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Purchase Bills");
+      const dateStr = format(new Date(), "yyyy-MM-dd");
+      XLSX.writeFile(wb, `Purchase_Bills_${dateStr}.xlsx`);
+
+      toast({ title: "Exported", description: `${rows.length} bills exported to Excel` });
+    } catch (err: any) {
+      toast({ title: "Export failed", description: err.message, variant: "destructive" });
+    }
+  }, [currentOrganization?.id, startDate, endDate, paymentStatusFilter, dcFilter, toast]);
+
   // No full-page blocker — layout renders immediately, ERPTable shows skeletons via isLoading
   const isMobile = useIsMobile();
 
@@ -1530,6 +1667,15 @@ const PurchaseBillDashboard = () => {
             </div>
           </div>
           <div className="flex gap-2">
+            <Button 
+              onClick={handleExportExcel}
+              variant="outline"
+              size="sm"
+              className="gap-2"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Export Excel
+            </Button>
             <Button 
               onClick={handleFixMissingProductNames} 
               variant="ghost"
