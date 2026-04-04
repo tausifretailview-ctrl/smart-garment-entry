@@ -18,6 +18,7 @@ import { ProductSearchDropdown } from "@/components/ProductSearchDropdown";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { MetricCardSkeleton, TableSkeleton } from "@/components/ui/skeletons";
 import * as XLSX from "xlsx";
