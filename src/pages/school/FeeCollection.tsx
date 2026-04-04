@@ -438,6 +438,7 @@ const FeeCollection = () => {
               organization_name: currentOrganization?.name || "",
               payment_link: paymentLink || "Please pay at the school office",
               upi_id: upiId,
+              upi_deep_link: upiDeepLink,
             },
           });
         } else {
