@@ -124,6 +124,7 @@ const ensureCompleteFieldOrder = (config: Partial<LabelDesignConfig>): LabelDesi
     barcodeHeight: config.barcodeHeight,
     barcodeWidth: config.barcodeWidth,
     customTextValue: config.customTextValue || '',
+    lines: config.lines || [],
   };
 };
 
