@@ -297,11 +297,10 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           receiptNumber = receiptResult as string;
         }
       } catch (rpcErr: any) {
-        const now = new Date();
-        const fy = now.getMonth() >= 3
-          ? `${now.getFullYear()}-${String(now.getFullYear() + 1).slice(2)}`
-          : `${now.getFullYear() - 1}-${String(now.getFullYear()).slice(2)}`;
-        const prefix = `RCT/${fy}/`;
+        const fbFY2 = saveFY.start && saveFY.end
+          ? `${saveFY.start}-${String(saveFY.end).slice(2)}`
+          : (() => { const now = new Date(); return now.getMonth() >= 3 ? `${now.getFullYear()}-${String(now.getFullYear() + 1).slice(2)}` : `${now.getFullYear() - 1}-${String(now.getFullYear()).slice(2)}`; })();
+        const prefix = `RCT/${fbFY2}/`;
         const { data: maxReceipts } = await supabase
           .from("student_fees")
           .select("payment_receipt_id")
