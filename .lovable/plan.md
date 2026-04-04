@@ -1,25 +1,41 @@
 
 
-## Plan: Transfer Invoice INV/25-26/866 to FY 26-27 Series
+## Fix: Lines/Separators Automatically Disappearing in Label Designer
 
-### What happened
-Invoice INV/25-26/866 (dated 01/04/2026) was created before the billing functions were fixed to use IST timezone. April 1st falls in FY 26-27, so it should have gotten an INV/26-27/X number.
+### Problem
+When a line is added in the Precision Label Designer, it disappears because the `ensureCompleteFieldOrder()` helper function rebuilds the config object **without preserving the `lines` array**. This function is called every time a template is loaded, a preset is applied, or a config is migrated — silently wiping all lines.
 
-### What we'll do
+### Root Cause
+In `src/pages/BarcodePrinting.tsx` (line 98-128), the `ensureCompleteFieldOrder` function returns a new object with hardcoded keys but omits `lines`:
 
-**Step 1: Query current state**
-- Find the sale record with sale_number `INV/25-26/866` for the KS Footwear organization
-- Check the current max sequence in `INV/26-27/` series to determine the correct new number
+```text
+return {
+  brand: ...,
+  productName: ...,
+  ...
+  customTextValue: ...,
+  // ← lines is MISSING here
+};
+```
 
-**Step 2: Update the invoice number**
-- Use the data insert tool (supports UPDATE) to change `sale_number` from `INV/25-26/866` to `INV/26-27/N` (where N is the next available sequence number in the 26-27 series)
+This function is called in ~10 places throughout the file whenever configs are loaded or templates are applied.
 
-### Safety
-- This is a single record update — no schema change needed
-- The sale date, items, payments, and all linked data remain unchanged
-- Only the `sale_number` field is updated
-- Audit trail is preserved since the record ID stays the same
+### Fix
 
-### Technical detail
-- The billing functions are already fixed (IST-based) so any new invoices created on/after April 1st will automatically get `26-27` series numbers going forward
+**File: `src/pages/BarcodePrinting.tsx`**
+
+Add `lines` preservation to the `ensureCompleteFieldOrder` return object (around line 127):
+
+```typescript
+// Add after customTextValue line:
+lines: config.lines || [],
+```
+
+This single-line fix ensures the `lines` array survives all config migrations and template loads. No other files need changes — the Designer, Canvas, and save logic all handle `lines` correctly already.
+
+### Technical Details
+- The `lines` property is a `LabelLineConfig[]` storing separator positions, thickness, orientation
+- The save path (`saveLabelTemplate`) correctly persists `lines` as part of `config`
+- The load path breaks because `ensureCompleteFieldOrder` strips it during migration
+- Same function also doesn't preserve other potential future properties; adding `lines` explicitly is the targeted fix
 
