@@ -443,12 +443,12 @@ export default function SalesInvoiceDashboard() {
         const { data: matchingItems } = await (supabase as any)
           .from('sale_items')
           .select('sale_id')
-          .eq('organization_id', currentOrganization.id)
+          .is('deleted_at', null)
           .or(
             `barcode.ilike.%${searchStr}%,` +
             `product_name.ilike.%${searchStr}%,` +
-            `brand.ilike.%${searchStr}%,` +
-            `size.ilike.%${searchStr}%`
+            `size.ilike.%${searchStr}%,` +
+            `color.ilike.%${searchStr}%`
           )
           .limit(300);
 
