@@ -34,7 +34,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
               <SidebarTrigger className="text-sidebar-foreground" />
             </div>
             {/* Add bottom padding on mobile for bottom nav; z-[1] ensures content is below fixed nav elements */}
-            <main className="flex-1 animate-fade-in p-4 pb-20 lg:pb-4 relative z-[1]">{children}</main>
+            <main className="flex-1 animate-fade-in p-4 pb-20 lg:pb-10 relative z-[1]">{children}</main>
           </SidebarInset>
         </div>
         
