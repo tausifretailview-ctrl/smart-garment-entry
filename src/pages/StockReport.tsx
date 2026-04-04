@@ -18,6 +18,7 @@ import { ProductSearchDropdown } from "@/components/ProductSearchDropdown";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { MetricCardSkeleton, TableSkeleton } from "@/components/ui/skeletons";
 import * as XLSX from "xlsx";
@@ -1278,73 +1279,23 @@ export default function StockReport() {
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Brand</label>
-            <Select value={brandFilter} onValueChange={setBrandFilter}>
-              <SelectTrigger className="h-10 !bg-white !text-gray-900">
-                <SelectValue placeholder="All Brands" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Brands</SelectItem>
-                {filterOptions.brands.map(brand => (
-                  <SelectItem key={brand} value={brand}>{brand}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect value={brandFilter} onValueChange={setBrandFilter} options={filterOptions.brands} allLabel="All Brands" placeholder="All Brands" />
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Category</label>
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="h-10 !bg-white !text-gray-900">
-                <SelectValue placeholder="All Categories" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {filterOptions.categories.map(cat => (
-                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect value={categoryFilter} onValueChange={setCategoryFilter} options={filterOptions.categories} allLabel="All Categories" placeholder="All Categories" />
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Department</label>
-            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-              <SelectTrigger className="h-10 !bg-white !text-gray-900">
-                <SelectValue placeholder="All Departments" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Departments</SelectItem>
-                {filterOptions.departments.map(dept => (
-                  <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect value={departmentFilter} onValueChange={setDepartmentFilter} options={filterOptions.departments} allLabel="All Departments" placeholder="All Departments" />
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Size</label>
-            <Select value={sizeFilter} onValueChange={setSizeFilter}>
-              <SelectTrigger className="h-10 !bg-white !text-gray-900">
-                <SelectValue placeholder="All Sizes" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Sizes</SelectItem>
-                {filterOptions.sizes.map(size => (
-                  <SelectItem key={size} value={size}>{size}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect value={sizeFilter} onValueChange={setSizeFilter} options={filterOptions.sizes} allLabel="All Sizes" placeholder="All Sizes" />
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Color</label>
-            <Select value={colorFilter} onValueChange={setColorFilter}>
-              <SelectTrigger className="h-10 !bg-white !text-gray-900">
-                <SelectValue placeholder="All Colors" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Colors</SelectItem>
-                {filterOptions.colors.map(color => (
-                  <SelectItem key={color} value={color}>{color}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect value={colorFilter} onValueChange={setColorFilter} options={filterOptions.colors} allLabel="All Colors" placeholder="All Colors" />
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Stock Status</label>
@@ -1375,31 +1326,11 @@ export default function StockReport() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="space-y-2">
                 <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Supplier</label>
-                <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-                  <SelectTrigger className="h-10 !bg-white !text-gray-900">
-                    <SelectValue placeholder="All Suppliers" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Suppliers</SelectItem>
-                    {filterOptions.suppliers.map(supplier => (
-                      <SelectItem key={supplier} value={supplier}>{supplier}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect value={supplierFilter} onValueChange={setSupplierFilter} options={filterOptions.suppliers} allLabel="All Suppliers" placeholder="All Suppliers" />
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Supplier Invoice</label>
-                <Select value={supplierInvoiceFilter} onValueChange={setSupplierInvoiceFilter}>
-                  <SelectTrigger className="h-10 !bg-white !text-gray-900">
-                    <SelectValue placeholder="All Invoices" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Invoices</SelectItem>
-                    {filterOptions.supplierInvoices.map(invoice => (
-                      <SelectItem key={invoice} value={invoice}>{invoice}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect value={supplierInvoiceFilter} onValueChange={setSupplierInvoiceFilter} options={filterOptions.supplierInvoices} allLabel="All Invoices" placeholder="All Invoices" />
               </div>
             </div>
           </CollapsibleContent>
