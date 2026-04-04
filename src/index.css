@@ -8,9 +8,14 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* App Background & Surfaces */
-    --background: 213 27% 97%;
+    /* App Background & Surfaces — Windows workspace gray */
+    --background: 220 27% 97%;
     --foreground: 222 47% 11%;
+
+    /* Chrome title bar — deep navy */
+    --chrome: 222 55% 11%;
+    /* Workspace canvas */
+    --workspace: 220 27% 97%;
 
     /* Cards & Elevated Surfaces */
     --card: 0 0% 100%;
@@ -68,7 +73,7 @@ All colors MUST be HSL.
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
     --shadow-card: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 
-  /* ERP Design Tokens */
+    /* ERP Design Tokens */
     --erp-radius: 0.375rem;
     --erp-card-padding: 1.5rem;
     --erp-section-gap: 2rem;
@@ -76,16 +81,16 @@ All colors MUST be HSL.
     --erp-row-height: 3.5rem;
     --erp-input-height: 2.75rem;
 
-    /* Dark slate sidebar */
-    --sidebar-background: 222 47% 11%;
+    /* Deep navy sidebar — #141E35 */
+    --sidebar-background: 222 47% 15%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 217 91% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 47% 15%;
+    --sidebar-accent: 222 47% 20%;
     --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 222 47% 18%;
+    --sidebar-border: 222 47% 22%;
     --sidebar-ring: 217 91% 60%;
-    --sidebar-muted: 222 47% 14%;
+    --sidebar-muted: 222 47% 18%;
   }
 
   /* Classic Indigo Theme - matches old Smart Inventory theme */

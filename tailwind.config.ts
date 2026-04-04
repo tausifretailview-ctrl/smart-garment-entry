@@ -14,12 +14,11 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
-        display: ["Sora", "Outfit", "Inter", "sans-serif"],
-        heading: ["Outfit", "Inter", "sans-serif"],
+        sans: ["Plus Jakarta Sans", "Inter", "system-ui", "sans-serif"],
+        display: ["Plus Jakarta Sans", "Sora", "Outfit", "Inter", "sans-serif"],
+        heading: ["Plus Jakarta Sans", "Outfit", "Inter", "sans-serif"],
         outfit: ["Outfit", "system-ui", "-apple-system", "sans-serif"],
-        heading: ["Outfit", "Inter", "sans-serif"],
-        mono: ["Roboto Mono", "monospace"],
+        mono: ["JetBrains Mono", "Roboto Mono", "monospace"],
         inter: ["Inter", "sans-serif"],
         roboto: ["Roboto", "sans-serif"],
         montserrat: ["Montserrat", "sans-serif"],
