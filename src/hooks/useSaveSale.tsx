@@ -52,11 +52,22 @@ export const useSaveSale = () => {
   const { awardPoints, isPointsEnabled, calculatePoints } = useCustomerPoints();
   const { invalidateSales } = useDashboardInvalidation();
 
-  const generateInvoiceNumber = async (format: string) => {
+  const generateInvoiceNumber = async (format: string, seriesStart?: string) => {
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     
+    // If seriesStart is provided (e.g. "POS/36-27/11"), extract base and minimum sequence
+    let minSequence = 1;
+    let startBase = '';
+    if (seriesStart && seriesStart.trim()) {
+      const startMatches = seriesStart.match(/^(.*?)(\d+)$/);
+      if (startMatches) {
+        startBase = startMatches[1];
+        minSequence = parseInt(startMatches[2]);
+      }
+    }
+
     // Check if format has placeholders
     const hasPlaceholders = format.includes('{');
     
@@ -77,11 +88,11 @@ export const useSaveSale = () => {
           .maybeSingle();
 
         // Extract the last sequence number
-        let sequence = 1;
+        let sequence = minSequence;
         if (lastSale?.sale_number) {
           const matches = lastSale.sale_number.match(/(\d+)$/);
           if (matches) {
-            sequence = parseInt(matches[1]) + 1 + attempt;
+            sequence = Math.max(parseInt(matches[1]) + 1, minSequence) + attempt;
           }
         }
 
@@ -94,8 +105,8 @@ export const useSaveSale = () => {
           .replace('{###}', String(sequence).padStart(3, '0'))
           .replace('{#####}', String(sequence).padStart(5, '0'));
       } else {
-        // Format is literal string, find last matching invoice and increment
-        const basePattern = format.replace(/\d+$/, ''); // Remove trailing numbers
+        // Format is literal string OR using seriesStart base
+        const basePattern = startBase || format.replace(/\d+$/, ''); // Remove trailing numbers
         
         const { data: lastSale } = await supabase
           .from('sales')
@@ -107,11 +118,11 @@ export const useSaveSale = () => {
           .limit(1)
           .maybeSingle();
 
-        let sequence = 1;
+        let sequence = minSequence;
         if (lastSale?.sale_number) {
           const matches = lastSale.sale_number.match(/(\d+)$/);
           if (matches) {
-            sequence = parseInt(matches[1]) + 1 + attempt;
+            sequence = Math.max(parseInt(matches[1]) + 1, minSequence) + attempt;
           }
         }
 
@@ -213,7 +224,10 @@ export const useSaveSale = () => {
       if (saleType === 'pos') {
         // Check for custom POS format first
         if (saleSettings?.pos_numbering_format) {
-          saleNumber = await generateInvoiceNumber(saleSettings.pos_numbering_format);
+          saleNumber = await generateInvoiceNumber(saleSettings.pos_numbering_format, saleSettings?.pos_series_start);
+        } else if (saleSettings?.pos_series_start) {
+          // No custom format but has series start — use it as literal format
+          saleNumber = await generateInvoiceNumber(saleSettings.pos_series_start, saleSettings.pos_series_start);
         } else {
           // Use default POS format: POS/YY-YY/N
           const { data: defaultNumber, error: numberError } = await supabase
@@ -224,7 +238,9 @@ export const useSaveSale = () => {
       } else {
         // Sale Invoice format
         if (saleSettings?.invoice_numbering_format) {
-          saleNumber = await generateInvoiceNumber(saleSettings.invoice_numbering_format);
+          saleNumber = await generateInvoiceNumber(saleSettings.invoice_numbering_format, saleSettings?.invoice_series_start);
+        } else if (saleSettings?.invoice_series_start) {
+          saleNumber = await generateInvoiceNumber(saleSettings.invoice_series_start, saleSettings.invoice_series_start);
         } else {
           // Use default INV format: INV/YY-YY/N
           const { data: defaultNumber, error: numberError } = await supabase
