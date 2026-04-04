@@ -442,6 +442,7 @@ All colors MUST be HSL.
 
   .erp-financial {
     @apply text-[15px] font-medium text-right tabular-nums tracking-tight;
+    font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
   }
 
   .erp-customer-name {
