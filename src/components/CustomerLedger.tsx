@@ -639,7 +639,22 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       if (openingError) throw openingError;
 
       // Merge invoice payments and opening balance payments
-      const allVouchers = [...(vouchersData || []), ...(openingBalancePayments || [])];
+      // Exclude payment-type (refund) vouchers for sale returns — they are already
+      // represented by the Sale Return entry with "(Cash Refunded)" label
+      const allVouchers = [...(vouchersData || []), ...(openingBalancePayments || [])]
+        .filter((v: any) => {
+          // Keep all receipt vouchers
+          if (v.voucher_type === 'receipt') return true;
+          // For payment vouchers (refunds to customer): exclude sale return refunds
+          // as the sale_returns entry already shows the credit with "(Cash Refunded)"
+          if (v.voucher_type === 'payment' && v.reference_type === 'customer') {
+            const desc = (v.description || '').toLowerCase();
+            if (desc.includes('refund paid for sale return') || desc.includes('refund for sale return')) {
+              return false;
+            }
+          }
+          return true;
+        });
 
       // Fetch customer advances
       let advancesQuery = supabase
