@@ -1326,17 +1326,7 @@ export default function StockReport() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="space-y-2">
                 <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Supplier</label>
-                <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-                  <SelectTrigger className="h-10 !bg-white !text-gray-900">
-                    <SelectValue placeholder="All Suppliers" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Suppliers</SelectItem>
-                    {filterOptions.suppliers.map(supplier => (
-                      <SelectItem key={supplier} value={supplier}>{supplier}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect value={supplierFilter} onValueChange={setSupplierFilter} options={filterOptions.suppliers} allLabel="All Suppliers" placeholder="All Suppliers" />
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Supplier Invoice</label>
