@@ -3347,6 +3347,10 @@ export default function POSSales() {
           selectedProductType={selectedProductType}
           onProductTypeChange={setSelectedProductType}
           hasMoreCustomers={hasMoreCustomers}
+          onCashierReport={() => setShowFloatingCashierReport(true)}
+          onEstimatePrint={() => handleEstimatePrintRef.current?.()}
+          onStockReport={() => setShowFloatingStockReport(true)}
+          onAddNewCustomer={() => setShowAddCustomerDialog(true)}
         />
 
         {/* Dialogs needed for tablet too */}
