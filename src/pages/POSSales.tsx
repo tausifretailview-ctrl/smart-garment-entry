@@ -11,7 +11,8 @@ import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerSearch, useCustomerBalances } from "@/hooks/useCustomerSearch";
 import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile, useIsTablet } from "@/hooks/use-mobile";
+import { TabletPOSLayout } from "@/components/tablet/TabletPOSLayout";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -121,6 +122,8 @@ export default function POSSales() {
   const { saveSale, updateSale, holdSale, resumeHeldSale, isSaving } = useSaveSale();
   const { createCreditNote, getAvailableCreditBalance, applyCredit, isCreating: isCreatingCreditNote, isApplying: isApplyingCredit } = useCreditNotes();
   const isMobile = useIsMobile();
+  const isTablet = useIsTablet();
+  const isIPadSafari = typeof navigator !== 'undefined' && (/iPad/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && "ontouchend" in document));
   const { settings: waSettings, sendMessageAsync } = useWhatsAppAPI();
   const [isHeldSale, setIsHeldSale] = useState(false);
   const [availableCreditBalance, setAvailableCreditBalance] = useState(0);
@@ -329,7 +332,10 @@ export default function POSSales() {
   }, [currentOrganization?.id]);
 
   // Auto-focus barcode input on mount and keep focus when idle
+  // Disabled on iPad to prevent soft keyboard from popping up unexpectedly
   useEffect(() => {
+    if (isIPadSafari) return; // Skip auto-focus on iPad — user taps when ready
+    
     // Focus immediately on mount
     barcodeInputRef.current?.focus();
     
@@ -375,7 +381,7 @@ export default function POSSales() {
       document.removeEventListener('click', handleGlobalClick);
       clearInterval(focusInterval);
     };
-  }, []);
+  }, [isIPadSafari]);
 
   const fetchPosBillFormat = async () => {
     try {
@@ -1042,7 +1048,7 @@ export default function POSSales() {
 
   // Handle barcode/product search on Enter - optimized for scanner input
   const handleSearch = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && searchInput.trim()) {
+    if ((e.key === 'Enter' || e.key === 'Go' || e.keyCode === 13) && searchInput.trim()) {
       e.preventDefault();
       
       // Clear any pending dropdown timer
@@ -3270,6 +3276,133 @@ export default function POSSales() {
       })).filter((item: any) => item.searchText.includes(term)) || [];
     });
   }, [productSearchResults, productsData, searchInput, selectedProductType]);
+
+  // Tablet POS Layout (iPad)
+  if (isTablet && !isMobile) {
+    return (
+      <>
+        <TabletPOSLayout
+          items={items}
+          totals={totals}
+          finalAmount={finalAmount}
+          updateQuantity={updateQuantity}
+          removeItem={removeItem}
+          invoiceNumber={currentInvoiceNumber || nextInvoicePreview}
+          customerId={customerId}
+          customerName={customerName}
+          customerPhone={customerPhone}
+          customers={customers || []}
+          customerSearchInput={customerName}
+          onCustomerSearchChange={(value) => {
+            setCustomerName(value);
+            setOpenCustomerSearch(true);
+          }}
+          openCustomerSearch={openCustomerSearch}
+          setOpenCustomerSearch={setOpenCustomerSearch}
+          onCustomerSelect={(customer) => {
+            if (customer) {
+              setCustomerId(customer.id);
+              setCustomerName(customer.customer_name);
+              setCustomerPhone(customer.phone || "");
+            } else {
+              setCustomerId("");
+              setCustomerName("");
+              setCustomerPhone("");
+            }
+          }}
+          onAddCustomer={() => setShowAddCustomerDialog(true)}
+          searchInput={searchInput}
+          onSearchInputChange={(value) => {
+            setSearchInput(value);
+            if (value.length > 0) setOpenProductSearch(true);
+          }}
+          onBarcodeSubmit={() => {
+            if (searchInput.trim()) {
+              searchAndAddProduct(searchInput.trim());
+              setSearchInput("");
+            }
+          }}
+          barcodeInputRef={barcodeInputRef}
+          isSaving={isSaving}
+          onPaymentAndPrint={handlePaymentAndPrint}
+          onMixPayment={handleMixPayment}
+          onHoldBill={handleHoldBill}
+          onClear={handleClearAll}
+          onNewBill={handleNewInvoice}
+          onSaleReturn={() => setShowFloatingSaleReturn(true)}
+          flatDiscountValue={flatDiscountValue}
+          flatDiscountMode={flatDiscountMode}
+          onFlatDiscountValueChange={setFlatDiscountValue}
+          onFlatDiscountModeChange={setFlatDiscountMode}
+          selectedSalesman={selectedSalesman}
+          setSelectedSalesman={setSelectedSalesman}
+          salesmen={employees || []}
+          note={saleNotes}
+          setNote={setSaleNotes}
+          roundOff={roundOff}
+          setRoundOff={setRoundOff}
+          filteredProducts={filteredProducts}
+          onProductSelect={(product, variant) => addItemToCart(product, variant)}
+          openProductSearch={openProductSearch}
+          selectedProductType={selectedProductType}
+          onProductTypeChange={setSelectedProductType}
+          hasMoreCustomers={hasMoreCustomers}
+        />
+
+        {/* Dialogs needed for tablet too */}
+        <MixPaymentDialog
+          open={showMixPaymentDialog}
+          onOpenChange={setShowMixPaymentDialog}
+          billAmount={finalAmount}
+          creditApplied={creditApplied}
+          onSave={handleMixPaymentSave}
+        />
+        <FloatingSaleReturn
+          open={showFloatingSaleReturn}
+          onOpenChange={setShowFloatingSaleReturn}
+          organizationId={currentOrganization?.id || ""}
+          customerId={customerId}
+          customerName={customerName || undefined}
+          onReturnSaved={(amount, returnNumber, refundType) => {
+            if (refundType === "exchange" || refundType === "credit_note") {
+              setSaleReturnAdjust(amount);
+              toast({
+                title: refundType === "exchange" ? "Exchange Applied" : "Credit Note Created",
+                description: `${returnNumber} — ₹${Math.round(amount)} ${refundType === "exchange" ? "deducted from new bill" : "credit note issued"}`,
+              });
+            } else {
+              toast({
+                title: "Cash Refund Processed",
+                description: `${returnNumber} — ₹${Math.round(amount)} cash refunded to customer`,
+              });
+            }
+          }}
+        />
+        <Dialog open={showAddCustomerDialog} onOpenChange={setShowAddCustomerDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Add New Customer</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="tablet_customer_name">Name *</Label>
+                <Input id="tablet_customer_name" value={newCustomerForm.customer_name} onChange={(e) => setNewCustomerForm(prev => ({ ...prev, customer_name: e.target.value }))} placeholder="Customer name" autoFocus />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="tablet_phone">Mobile *</Label>
+                <Input id="tablet_phone" value={newCustomerForm.phone} onChange={(e) => setNewCustomerForm(prev => ({ ...prev, phone: e.target.value }))} placeholder="Mobile number" />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="tablet_address">Address</Label>
+                <Input id="tablet_address" value={newCustomerForm.address} onChange={(e) => setNewCustomerForm(prev => ({ ...prev, address: e.target.value }))} placeholder="Address (optional)" />
+              </div>
+            </div>
+            <Button onClick={() => createCustomer.mutate(newCustomerForm)} disabled={!newCustomerForm.customer_name.trim() || !newCustomerForm.phone.trim()}>Save Customer</Button>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
 
   // Mobile POS Layout
   if (isMobile) {
