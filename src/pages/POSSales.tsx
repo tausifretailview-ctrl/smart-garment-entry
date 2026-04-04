@@ -335,7 +335,7 @@ export default function POSSales() {
   // Auto-focus barcode input on mount and keep focus when idle
   // Disabled on iPad to prevent soft keyboard from popping up unexpectedly
   useEffect(() => {
-    if (isIPadSafari) return; // Skip auto-focus on iPad — user taps when ready
+    if (isIOS) return; // Skip auto-focus on iOS — user taps when ready
     
     // Focus immediately on mount
     barcodeInputRef.current?.focus();
