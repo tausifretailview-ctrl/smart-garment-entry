@@ -170,14 +170,14 @@ export function PrecisionLabelPreview({
           >
             {content}
             {field.strikethrough && (
-              <span style={{
-                position: "absolute",
-                left: `${(100 - (field.strikethroughWidth ?? 100)) / 2}%`,
-                width: `${field.strikethroughWidth ?? 100}%`,
-                top: "50%",
-                height: `${field.strikethroughThickness ?? 1}px`,
-                backgroundColor: "#000",
-                transform: "translateY(-50%)",
+               <span style={{
+                 position: "absolute",
+                 left: `${(100 - (field.strikethroughWidth ?? 100)) / 2}%`,
+                 width: `${field.strikethroughWidth ?? 100}%`,
+                 top: `calc(50% + ${field.strikethroughOffsetY ?? 0}%)`,
+                 height: `${field.strikethroughThickness ?? 1}px`,
+                 backgroundColor: "#000",
+                 transform: "translateY(-50%)",
                 pointerEvents: "none",
               }} />
             )}

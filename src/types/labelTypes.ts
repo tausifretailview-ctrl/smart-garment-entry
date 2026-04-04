@@ -5,6 +5,7 @@ export interface LabelFieldConfig {
   strikethrough?: boolean;
   strikethroughWidth?: number;  // percentage of field width (default 100)
   strikethroughThickness?: number;  // in px (default 1)
+  strikethroughOffsetY?: number;  // vertical offset in % from center (default 0)
   fontFamily?: string;
   textAlign?: 'left' | 'center' | 'right';
   paddingTop?: number;

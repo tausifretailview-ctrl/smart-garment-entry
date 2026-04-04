@@ -312,6 +312,18 @@ export function PrecisionLabelDesigner({
                                 className="h-7 text-xs"
                               />
                             </div>
+                            <div>
+                              <Label className="text-[10px]">Y Offset %</Label>
+                              <Input
+                                type="number"
+                                min={-50}
+                                max={50}
+                                step={1}
+                                value={field.strikethroughOffsetY ?? 0}
+                                onChange={(e) => updateField(key, { strikethroughOffsetY: Number(e.target.value) })}
+                                className="h-7 text-xs"
+                              />
+                            </div>
                           </>
                         )}
                         <div className="col-span-2">
