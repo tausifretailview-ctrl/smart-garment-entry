@@ -175,7 +175,12 @@ export const MobilePOSLayout = ({
       {/* Cart Items - Scrollable area with bottom padding for payment bar */}
       <ScrollArea 
         ref={scrollAreaRef}
-        className="flex-1 px-3 pb-[100px]"
+        className="flex-1 px-3"
+        style={{ 
+          paddingBottom: "calc(100px + env(safe-area-inset-bottom, 0px))",
+          overscrollBehavior: "contain",
+          WebkitOverflowScrolling: "touch" as any,
+        }}
       >
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">

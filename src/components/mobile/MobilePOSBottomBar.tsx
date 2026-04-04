@@ -158,7 +158,7 @@ export const MobilePOSBottomBar = ({
           
           <Button 
             onClick={onMoreOptions}
-            className="h-10 bg-slate-600 hover:bg-slate-700 text-white flex flex-col items-center justify-center gap-0"
+            className="h-12 bg-slate-600 hover:bg-slate-700 text-white flex flex-col items-center justify-center gap-0"
           >
             <MoreHorizontal className="h-4 w-4" />
             <span className="text-[9px]">More</span>

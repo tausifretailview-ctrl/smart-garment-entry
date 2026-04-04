@@ -127,15 +127,19 @@ export const MobilePOSHeader = ({
             value={searchInput}
             onChange={(e) => onSearchInputChange(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
+              if (e.key === 'Enter' || e.key === 'Go' || e.keyCode === 13) {
                 e.preventDefault();
                 onBarcodeSubmit();
               }
             }}
-            className="pl-10 h-10 text-base"
+            className="pl-10 pr-10 h-10 text-base no-uppercase"
             autoComplete="off"
             autoCapitalize="off"
             autoCorrect="off"
+            inputMode="text"
+            enterKeyHint="search"
+            spellCheck={false}
+            style={{ fontSize: '16px' }}
           />
         </div>
         <Select value={selectedProductType} onValueChange={onProductTypeChange}>
