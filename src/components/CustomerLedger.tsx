@@ -369,8 +369,9 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         const effectiveUnusedAdvances = Math.max(0, unusedAdvanceTotal - advanceRefundTotal);
         const creditNoteTotal = customerCreditNotes.get(customer.id) || 0;
         const refundsPaidTotal = customerRefundsPaid.get(customer.id) || 0;
-        // Balance = Opening + Sales - Paid + Adjustments - Effective Unused Advances - Credit Notes - Refunds Paid
-        const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - effectiveUnusedAdvances - creditNoteTotal - refundsPaidTotal);
+        // Balance = Opening + Sales - Paid + Adjustments - Effective Unused Advances - Credit Notes + Refunds Paid
+        // refundsPaidTotal uses + sign because cash refunds paid OUT cancel the credit liability from sale returns
+        const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - effectiveUnusedAdvances - creditNoteTotal + refundsPaidTotal);
 
         return {
           ...customer,
