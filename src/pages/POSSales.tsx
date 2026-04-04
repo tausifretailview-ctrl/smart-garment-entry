@@ -3327,8 +3327,8 @@ export default function POSSales() {
           onPaymentAndPrint={handlePaymentAndPrint}
           onMixPayment={handleMixPayment}
           onHoldBill={handleHoldBill}
-          onClear={handleClearSale}
-          onNewBill={handleNewBill}
+          onClear={handleClearAll}
+          onNewBill={handleNewInvoice}
           onSaleReturn={() => setShowFloatingSaleReturn(true)}
           flatDiscountValue={flatDiscountValue}
           flatDiscountMode={flatDiscountMode}
