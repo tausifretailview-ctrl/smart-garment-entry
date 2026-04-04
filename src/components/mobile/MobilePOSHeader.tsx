@@ -87,6 +87,14 @@ export const MobilePOSHeader = ({
   onProductSelect,
   openProductSearch = false,
 }: MobilePOSHeaderProps) => {
+  const [showCamera, setShowCamera] = useState(false);
+
+  const handleCameraResult = useCallback((code: string) => {
+    onSearchInputChange(code);
+    setShowCamera(false);
+    setTimeout(() => onBarcodeSubmit(), 50);
+  }, [onSearchInputChange, onBarcodeSubmit]);
+
   const getStatusIcon = () => {
     if (!isOnline) return <WifiOff className="h-4 w-4 text-amber-500" />;
     if (isSyncing) return <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />;
