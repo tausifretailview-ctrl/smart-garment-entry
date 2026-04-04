@@ -337,9 +337,9 @@ export function TabletPOSLayout({
                 onChange={(e) => setSelectedSalesman(e.target.value)}
               >
                 <option value="">— Select —</option>
-                {salesmen.map((s: any) => (
-                  <option key={s.id || s.name} value={s.name}>{s.name}</option>
-                ))}
+              {salesmen.map((s: any) => (
+                <option key={s.id || s.employee_name || s.name} value={s.employee_name || s.name}>{s.employee_name || s.name}</option>
+              ))}
               </select>
             </div>
 
