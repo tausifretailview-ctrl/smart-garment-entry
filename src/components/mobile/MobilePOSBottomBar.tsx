@@ -128,7 +128,7 @@ export const MobilePOSBottomBar = ({
           
           <Button 
             onClick={onUPIPayment}
-            className="h-10 bg-purple-600 hover:bg-purple-700 text-white flex flex-col items-center justify-center gap-0"
+            className="h-12 bg-purple-600 hover:bg-purple-700 text-white flex flex-col items-center justify-center gap-0"
             disabled={!hasItems || isSaving}
           >
             {isSaving ? (
