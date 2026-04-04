@@ -50,6 +50,7 @@ export const Layout = ({ children }: LayoutProps) => {
         <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="general" />
         <FloatingWhatsAppInbox />
         <FloatingChatButton />
+        <StatusBar />
       </SidebarProvider>
     </ChatProvider>
   );
