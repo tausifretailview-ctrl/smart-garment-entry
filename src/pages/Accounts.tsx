@@ -252,7 +252,7 @@ export default function Accounts() {
       }
       let baseDescription = editDescription.split(' | Cheque No:')[0].split(' | Transaction ID:')[0];
       const finalDescription = baseDescription + paymentDetails;
-      const { error: voucherError } = await supabase.from("voucher_entries").update({ voucher_date: format(editPaymentDate, "yyyy-MM-dd"), total_amount: newAmount, description: finalDescription }).eq("id", editingPayment.id);
+      const { error: voucherError } = await supabase.from("voucher_entries").update({ voucher_date: format(editPaymentDate, "yyyy-MM-dd"), total_amount: newAmount, description: finalDescription }).eq("id", editingPayment.id).eq("organization_id", currentOrganization!.id);
       if (voucherError) throw voucherError;
       if (editingPayment.reference_id && amountDiff !== 0) {
         const { data: invoice } = await supabase.from("sales").select("paid_amount, net_amount").eq("id", editingPayment.reference_id).maybeSingle();

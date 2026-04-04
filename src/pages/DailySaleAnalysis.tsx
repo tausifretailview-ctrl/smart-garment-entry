@@ -170,7 +170,7 @@ export default function DailySaleAnalysis() {
       const thirtyDaysAgo = vel30.fromISO;
       const sevenDaysAgo = vel7.fromISO;
 
-      console.log('=== SALE ANALYSIS DEBUG ===', { period, fromStr, toStr, orgId });
+      
 
       // 1. Fetch sale items in date range
       const allSaleItems: any[] = [];
@@ -197,7 +197,7 @@ export default function DailySaleAnalysis() {
         } else hasMore = false;
       }
 
-      console.log('Sale items fetched:', allSaleItems.length, 'sample:', allSaleItems.slice(0, 2));
+      
 
       const variantMap = new Map<string, {
         variantId: string; productName: string; size: string; color: string;
