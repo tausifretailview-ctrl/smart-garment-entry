@@ -222,7 +222,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // Fetch ALL voucher payments (both opening balance and invoice payments)
       const { data: allVouchers, error: voucherError } = await supabase
         .from('voucher_entries')
-        .select('reference_id, reference_type, total_amount')
+        .select('reference_id, reference_type, total_amount, voucher_type')
         .eq('organization_id', organizationId)
         .in('voucher_type', ['receipt', 'payment'])
         .is('deleted_at', null);
@@ -321,7 +321,9 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         if (v.reference_type === 'sale' || customerId) {
           invoiceVoucherPayments.set(v.reference_id, 
             (invoiceVoucherPayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
-        } else if (v.reference_type === 'customer') {
+        } else if (v.reference_type === 'customer' && v.voucher_type === 'receipt') {
+          // Only count receipt-type vouchers as payments FROM customer
+          // Exclude payment-type vouchers (refunds TO customer) - handled via refundsPaidTotal
           openingBalancePayments.set(v.reference_id, 
             (openingBalancePayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
         }
@@ -367,8 +369,9 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         const effectiveUnusedAdvances = Math.max(0, unusedAdvanceTotal - advanceRefundTotal);
         const creditNoteTotal = customerCreditNotes.get(customer.id) || 0;
         const refundsPaidTotal = customerRefundsPaid.get(customer.id) || 0;
-        // Balance = Opening + Sales - Paid + Adjustments - Effective Unused Advances - Credit Notes - Refunds Paid
-        const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - effectiveUnusedAdvances - creditNoteTotal - refundsPaidTotal);
+        // Balance = Opening + Sales - Paid + Adjustments - Effective Unused Advances - Credit Notes + Refunds Paid
+        // refundsPaidTotal uses + sign because cash refunds paid OUT cancel the credit liability from sale returns
+        const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - effectiveUnusedAdvances - creditNoteTotal + refundsPaidTotal);
 
         return {
           ...customer,
@@ -636,7 +639,22 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       if (openingError) throw openingError;
 
       // Merge invoice payments and opening balance payments
-      const allVouchers = [...(vouchersData || []), ...(openingBalancePayments || [])];
+      // Exclude payment-type (refund) vouchers for sale returns — they are already
+      // represented by the Sale Return entry with "(Cash Refunded)" label
+      const allVouchers = [...(vouchersData || []), ...(openingBalancePayments || [])]
+        .filter((v: any) => {
+          // Keep all receipt vouchers
+          if (v.voucher_type === 'receipt') return true;
+          // For payment vouchers (refunds to customer): exclude sale return refunds
+          // as the sale_returns entry already shows the credit with "(Cash Refunded)"
+          if (v.voucher_type === 'payment' && v.reference_type === 'customer') {
+            const desc = (v.description || '').toLowerCase();
+            if (desc.includes('refund paid for sale return') || desc.includes('refund for sale return')) {
+              return false;
+            }
+          }
+          return true;
+        });
 
       // Fetch customer advances
       let advancesQuery = supabase
