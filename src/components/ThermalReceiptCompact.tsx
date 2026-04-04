@@ -240,22 +240,22 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
           <>
             <div style={singleLine} />
             <div style={{ fontSize: '9px', fontWeight: 900, textAlign: 'center', marginBottom: '2px' }}>GST DETAILS</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', tableLayout: 'fixed' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #000' }}>
-                  <th style={{ textAlign: 'left', padding: '1px 0' }}>GST%</th>
-                  <th style={{ textAlign: 'right', padding: '1px 0' }}>Taxable</th>
-                  <th style={{ textAlign: 'right', padding: '1px 0' }}>CGST</th>
-                  <th style={{ textAlign: 'right', padding: '1px 0' }}>SGST</th>
+                  <th style={{ textAlign: 'left', padding: '1px 0', width: '15%' }}>GST%</th>
+                  <th style={{ textAlign: 'right', padding: '1px 0', width: '30%' }}>Taxable</th>
+                  <th style={{ textAlign: 'right', padding: '1px 0', width: '27%' }}>CGST</th>
+                  <th style={{ textAlign: 'right', padding: '1px 0', width: '28%' }}>SGST</th>
                 </tr>
               </thead>
               <tbody>
                 {gstRateBreakdown.map((entry, idx) => (
                   <tr key={idx}>
                     <td style={{ padding: '1px 0' }}>{entry.rate}%</td>
-                    <td style={{ textAlign: 'right', padding: '1px 0' }}>₹{fmtDec(entry.taxableAmount)}</td>
-                    <td style={{ textAlign: 'right', padding: '1px 0' }}>₹{fmtDec(entry.cgst)}</td>
-                    <td style={{ textAlign: 'right', padding: '1px 0' }}>₹{fmtDec(entry.sgst)}</td>
+                    <td style={{ textAlign: 'right', padding: '1px 0' }}>{fmtDec(entry.taxableAmount)}</td>
+                    <td style={{ textAlign: 'right', padding: '1px 0' }}>{fmtDec(entry.cgst)}</td>
+                    <td style={{ textAlign: 'right', padding: '1px 0' }}>{fmtDec(entry.sgst)}</td>
                   </tr>
                 ))}
               </tbody>

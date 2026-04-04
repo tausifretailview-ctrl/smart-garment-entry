@@ -283,32 +283,29 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
           <>
             <div style={singleLine} />
             <div style={{ fontSize: '10px', fontWeight: 900, textAlign: 'center', marginBottom: '2px' }}>GST DETAILS</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', tableLayout: 'fixed' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #000' }}>
-                  <th style={{ textAlign: 'left', padding: '1px 0', fontWeight: 900 }}>GST%</th>
-                  <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 900 }}>Taxable</th>
-                  <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 900 }}>CGST</th>
-                  <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 900 }}>SGST</th>
-                  <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 900 }}>Total</th>
+                  <th style={{ textAlign: 'left', padding: '1px 0', fontWeight: 900, width: '15%' }}>GST%</th>
+                  <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 900, width: '30%' }}>Taxable</th>
+                  <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 900, width: '27%' }}>CGST</th>
+                  <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 900, width: '28%' }}>SGST</th>
                 </tr>
               </thead>
               <tbody>
                 {gstRateBreakdown.map((entry, idx) => (
                   <tr key={idx}>
                     <td style={{ textAlign: 'left', padding: '1px 0' }}>{entry.rate}%</td>
-                    <td style={{ textAlign: 'right', padding: '1px 0' }}>₹{fmtDec(entry.taxableAmount)}</td>
-                    <td style={{ textAlign: 'right', padding: '1px 0' }}>₹{fmtDec(entry.cgst)}</td>
-                    <td style={{ textAlign: 'right', padding: '1px 0' }}>₹{fmtDec(entry.sgst)}</td>
-                    <td style={{ textAlign: 'right', padding: '1px 0' }}>₹{fmtDec(entry.cgst + entry.sgst)}</td>
+                    <td style={{ textAlign: 'right', padding: '1px 0' }}>{fmtDec(entry.taxableAmount)}</td>
+                    <td style={{ textAlign: 'right', padding: '1px 0' }}>{fmtDec(entry.cgst)}</td>
+                    <td style={{ textAlign: 'right', padding: '1px 0' }}>{fmtDec(entry.sgst)}</td>
                   </tr>
                 ))}
                 <tr style={{ borderTop: '1px solid #000', fontWeight: 900 }}>
                   <td style={{ padding: '1px 0' }}>Total</td>
-                  <td style={{ textAlign: 'right', padding: '1px 0' }}>₹{fmtDec(gstRateBreakdown.reduce((s, e) => s + e.taxableAmount, 0))}</td>
-                  <td style={{ textAlign: 'right', padding: '1px 0' }}>₹{fmtDec(gstRateBreakdown.reduce((s, e) => s + e.cgst, 0))}</td>
-                  <td style={{ textAlign: 'right', padding: '1px 0' }}>₹{fmtDec(gstRateBreakdown.reduce((s, e) => s + e.sgst, 0))}</td>
-                  <td style={{ textAlign: 'right', padding: '1px 0' }}>₹{fmtDec(gstRateBreakdown.reduce((s, e) => s + e.cgst + e.sgst, 0))}</td>
+                  <td style={{ textAlign: 'right', padding: '1px 0' }}>{fmtDec(gstRateBreakdown.reduce((s, e) => s + e.taxableAmount, 0))}</td>
+                  <td style={{ textAlign: 'right', padding: '1px 0' }}>{fmtDec(gstRateBreakdown.reduce((s, e) => s + e.cgst, 0))}</td>
+                  <td style={{ textAlign: 'right', padding: '1px 0' }}>{fmtDec(gstRateBreakdown.reduce((s, e) => s + e.sgst, 0))}</td>
                 </tr>
               </tbody>
             </table>
