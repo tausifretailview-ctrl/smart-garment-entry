@@ -284,9 +284,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
             .from("student_fees")
             .select("payment_receipt_id")
             .eq("organization_id", currentOrganization.id)
-            .like("payment_receipt_id", `${prefix}%`)
-            .order("payment_receipt_id", { ascending: false })
-            .limit(50);
+            .like("payment_receipt_id", `${prefix}%`);
           let maxSeq = 0;
           (maxReceipts || []).forEach((r: any) => {
             const num = parseInt(r.payment_receipt_id?.replace(prefix, "") || "0");
@@ -305,9 +303,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           .from("student_fees")
           .select("payment_receipt_id")
           .eq("organization_id", currentOrganization.id)
-          .like("payment_receipt_id", `${prefix}%`)
-          .order("payment_receipt_id", { ascending: false })
-          .limit(50);
+          .like("payment_receipt_id", `${prefix}%`);
         let maxSeq = 0;
         (maxReceipts || []).forEach((r: any) => {
           const num = parseInt(r.payment_receipt_id?.replace(prefix, "") || "0");
