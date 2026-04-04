@@ -81,55 +81,104 @@ export const useBulkProductUpdate = () => {
   const fetchMatchingProducts = async (filters: FilterCriteria) => {
     if (!currentOrganization) return [];
 
-    let query = supabase
-      .from("products")
-      .select("id, product_name, category, brand, style, color, hsn_code, gst_per")
-      .eq("organization_id", currentOrganization.id)
-      .is("deleted_at", null);
+    const allRows: any[] = [];
+    let offset = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    if (filters.category) query = query.eq("category", filters.category);
-    if (filters.brand) query = query.eq("brand", filters.brand);
-    if (filters.productName) query = query.ilike("product_name", `%${filters.productName}%`);
-    if (filters.style) query = query.ilike("style", `%${filters.style}%`);
-    if (filters.hsnCode) query = query.eq("hsn_code", filters.hsnCode);
-    if (filters.gstPercent !== undefined && filters.gstPercent !== null) {
-      query = query.eq("gst_per", filters.gstPercent);
+    while (hasMore) {
+      let query = supabase
+        .from("products")
+        .select("id, product_name, category, brand, style, color, hsn_code, gst_per")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
+
+      if (filters.category) query = query.eq("category", filters.category);
+      if (filters.brand) query = query.eq("brand", filters.brand);
+      if (filters.productName) query = query.ilike("product_name", `%${filters.productName}%`);
+      if (filters.style) query = query.ilike("style", `%${filters.style}%`);
+      if (filters.hsnCode) query = query.eq("hsn_code", filters.hsnCode);
+      if (filters.gstPercent !== undefined && filters.gstPercent !== null) {
+        query = query.eq("gst_per", filters.gstPercent);
+      }
+
+      const { data } = await query.order("id").range(offset, offset + pageSize - 1);
+      if (data && data.length > 0) {
+        allRows.push(...data);
+        offset += pageSize;
+        hasMore = data.length === pageSize;
+      } else {
+        hasMore = false;
+      }
     }
 
-    const { data } = await query;
-    return data || [];
+    return allRows;
   };
 
   const fetchMatchingVariants = async (filters: FilterCriteria) => {
     if (!currentOrganization) return [];
 
-    let productsQuery = supabase
-      .from("products")
-      .select("id")
-      .eq("organization_id", currentOrganization.id)
-      .is("deleted_at", null);
+    // Paginate product IDs fetch
+    const allProductIds: string[] = [];
+    let pOffset = 0;
+    const pPageSize = 1000;
+    let pHasMore = true;
 
-    if (filters.category) productsQuery = productsQuery.eq("category", filters.category);
-    if (filters.brand) productsQuery = productsQuery.eq("brand", filters.brand);
-    if (filters.productName) productsQuery = productsQuery.ilike("product_name", `%${filters.productName}%`);
-    if (filters.style) productsQuery = productsQuery.ilike("style", `%${filters.style}%`);
+    while (pHasMore) {
+      let productsQuery = supabase
+        .from("products")
+        .select("id")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
 
-    const { data: products } = await productsQuery;
-    if (!products?.length) return [];
+      if (filters.category) productsQuery = productsQuery.eq("category", filters.category);
+      if (filters.brand) productsQuery = productsQuery.eq("brand", filters.brand);
+      if (filters.productName) productsQuery = productsQuery.ilike("product_name", `%${filters.productName}%`);
+      if (filters.style) productsQuery = productsQuery.ilike("style", `%${filters.style}%`);
 
-    const productIds = products.map(p => p.id);
+      const { data: products } = await productsQuery.order("id").range(pOffset, pOffset + pPageSize - 1);
+      if (products && products.length > 0) {
+        allProductIds.push(...products.map(p => p.id));
+        pOffset += pPageSize;
+        pHasMore = products.length === pPageSize;
+      } else {
+        pHasMore = false;
+      }
+    }
 
-    let variantsQuery = supabase
-      .from("product_variants")
-      .select("id, product_id, barcode, size, color, mrp, sale_price, pur_price, products!inner(product_name, style)")
-      .eq("organization_id", currentOrganization.id)
-      .is("deleted_at", null)
-      .in("product_id", productIds);
+    if (!allProductIds.length) return [];
 
-    if (filters.barcode) variantsQuery = variantsQuery.eq("barcode", filters.barcode);
+    // Paginate variants fetch in batches of product IDs
+    const allVariants: any[] = [];
+    const batchSize = 500;
 
-    const { data } = await variantsQuery;
-    return data || [];
+    for (let i = 0; i < allProductIds.length; i += batchSize) {
+      const batchIds = allProductIds.slice(i, i + batchSize);
+      let vOffset = 0;
+      let vHasMore = true;
+
+      while (vHasMore) {
+        let variantsQuery = supabase
+          .from("product_variants")
+          .select("id, product_id, barcode, size, color, mrp, sale_price, pur_price, products!inner(product_name, style)")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .in("product_id", batchIds);
+
+        if (filters.barcode) variantsQuery = variantsQuery.eq("barcode", filters.barcode);
+
+        const { data } = await variantsQuery.order("id").range(vOffset, vOffset + 1000 - 1);
+        if (data && data.length > 0) {
+          allVariants.push(...data);
+          vOffset += 1000;
+          vHasMore = data.length === 1000;
+        } else {
+          vHasMore = false;
+        }
+      }
+    }
+
+    return allVariants;
   };
 
   const generatePreview = async (
@@ -352,6 +401,37 @@ export const useBulkProductUpdate = () => {
     return data || [];
   };
 
+  const batchUpdateProducts = async (ids: string[], updateData: Record<string, any>) => {
+    const batchSize = 500;
+    for (let i = 0; i < ids.length; i += batchSize) {
+      const batch = ids.slice(i, i + batchSize);
+      const { error } = await supabase
+        .from("products")
+        .update(updateData)
+        .in("id", batch);
+      if (error) throw error;
+    }
+  };
+
+  const batchCascade = async (field: string, value: string | number | null, ids: string[]) => {
+    const batchSize = 500;
+    for (let i = 0; i < ids.length; i += batchSize) {
+      const batch = ids.slice(i, i + batchSize);
+      await cascadeToTransactionItems(field, value, batch);
+    }
+  };
+
+  const batchUpsertVariants = async (upsertData: any[]) => {
+    const batchSize = 500;
+    for (let i = 0; i < upsertData.length; i += batchSize) {
+      const batch = upsertData.slice(i, i + batchSize);
+      const { error } = await (supabase
+        .from("product_variants") as any)
+        .upsert(batch, { onConflict: 'id' });
+      if (error) throw error;
+    }
+  };
+
   const applyUpdates = async (
     updateType: UpdateType,
     config: FindReplaceConfig | UpdateFieldConfig | DiscountConfig | GSTConfig | PriceConfig,
@@ -365,44 +445,36 @@ export const useBulkProductUpdate = () => {
       const productItems = items.filter(i => i.type === "product");
       const variantItems = items.filter(i => i.type === "variant");
 
-      // Update products
+      // Update products in batches
       if (productItems.length > 0) {
+        const ids = productItems.map(i => i.id);
+
         if (updateType === "find_replace") {
           const frConfig = config as FindReplaceConfig;
-          // Batch update all matching products in one query
-          const ids = productItems.map(i => i.id);
-          const { error } = await supabase
-            .from("products")
-            .update({ [frConfig.field]: productItems[0]?.newValue })
-            .in("id", ids);
-          if (error) throw error;
-
-          // Cascade to transaction items
-          await cascadeToTransactionItems(frConfig.field, productItems[0]?.newValue, ids);
+          // For find_replace, each product may have different newValue
+          // Group by newValue to batch efficiently
+          const valueGroups = new Map<string, string[]>();
+          for (const item of productItems) {
+            const key = String(item.newValue ?? "");
+            if (!valueGroups.has(key)) valueGroups.set(key, []);
+            valueGroups.get(key)!.push(item.id);
+          }
+          for (const [val, groupIds] of valueGroups) {
+            await batchUpdateProducts(groupIds, { [frConfig.field]: val });
+            await batchCascade(frConfig.field, val, groupIds);
+          }
         } else if (updateType === "update_field") {
           const ufConfig = config as UpdateFieldConfig;
-          const ids = productItems.map(i => i.id);
-          await supabase
-            .from("products")
-            .update({ [ufConfig.field]: ufConfig.value })
-            .in("id", ids);
-
-          // Cascade to transaction items
-          await cascadeToTransactionItems(ufConfig.field, ufConfig.value, ids);
+          await batchUpdateProducts(ids, { [ufConfig.field]: ufConfig.value });
+          await batchCascade(ufConfig.field, ufConfig.value, ids);
         } else if (updateType === "update_gst") {
           const gstConfig = config as GSTConfig;
-          const ids = productItems.map(i => i.id);
-          await supabase
-            .from("products")
-            .update({ gst_per: gstConfig.newGst })
-            .in("id", ids);
-
-          // Cascade GST to transaction items
-          await cascadeToTransactionItems("gst_per", gstConfig.newGst, ids);
+          await batchUpdateProducts(ids, { gst_per: gstConfig.newGst });
+          await batchCascade("gst_per", gstConfig.newGst, ids);
         }
       }
 
-      // Update variants
+      // Update variants in batches
       if (variantItems.length > 0) {
         if (updateType === "apply_discount") {
           const discConfig = config as DiscountConfig;
@@ -411,10 +483,7 @@ export const useBulkProductUpdate = () => {
             [discConfig.applyTo]: item.newValue,
             organization_id: currentOrganization.id,
           }));
-          const { error } = await (supabase
-            .from("product_variants") as any)
-            .upsert(upsertData, { onConflict: 'id' });
-          if (error) throw error;
+          await batchUpsertVariants(upsertData);
         } else if (updateType === "update_prices") {
           const priceConfig = config as PriceConfig;
           const upsertData = variantItems.map(item => ({
@@ -422,10 +491,7 @@ export const useBulkProductUpdate = () => {
             [priceConfig.priceType]: item.newValue,
             organization_id: currentOrganization.id,
           }));
-          const { error } = await (supabase
-            .from("product_variants") as any)
-            .upsert(upsertData, { onConflict: 'id' });
-          if (error) throw error;
+          await batchUpsertVariants(upsertData);
         }
       }
 
