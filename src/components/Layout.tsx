@@ -11,6 +11,7 @@ import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
 import { OwnerBottomNav } from "@/components/mobile/OwnerBottomNav";
 import { MobileFAB } from "@/components/mobile/MobileFAB";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
+import { StatusBar } from "@/components/StatusBar";
 
 interface LayoutProps {
   children: ReactNode;
