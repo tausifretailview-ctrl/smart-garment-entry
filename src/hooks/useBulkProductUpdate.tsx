@@ -118,33 +118,67 @@ export const useBulkProductUpdate = () => {
   const fetchMatchingVariants = async (filters: FilterCriteria) => {
     if (!currentOrganization) return [];
 
-    let productsQuery = supabase
-      .from("products")
-      .select("id")
-      .eq("organization_id", currentOrganization.id)
-      .is("deleted_at", null);
+    // Paginate product IDs fetch
+    const allProductIds: string[] = [];
+    let pOffset = 0;
+    const pPageSize = 1000;
+    let pHasMore = true;
 
-    if (filters.category) productsQuery = productsQuery.eq("category", filters.category);
-    if (filters.brand) productsQuery = productsQuery.eq("brand", filters.brand);
-    if (filters.productName) productsQuery = productsQuery.ilike("product_name", `%${filters.productName}%`);
-    if (filters.style) productsQuery = productsQuery.ilike("style", `%${filters.style}%`);
+    while (pHasMore) {
+      let productsQuery = supabase
+        .from("products")
+        .select("id")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
 
-    const { data: products } = await productsQuery;
-    if (!products?.length) return [];
+      if (filters.category) productsQuery = productsQuery.eq("category", filters.category);
+      if (filters.brand) productsQuery = productsQuery.eq("brand", filters.brand);
+      if (filters.productName) productsQuery = productsQuery.ilike("product_name", `%${filters.productName}%`);
+      if (filters.style) productsQuery = productsQuery.ilike("style", `%${filters.style}%`);
 
-    const productIds = products.map(p => p.id);
+      const { data: products } = await productsQuery.order("id").range(pOffset, pOffset + pPageSize - 1);
+      if (products && products.length > 0) {
+        allProductIds.push(...products.map(p => p.id));
+        pOffset += pPageSize;
+        pHasMore = products.length === pPageSize;
+      } else {
+        pHasMore = false;
+      }
+    }
 
-    let variantsQuery = supabase
-      .from("product_variants")
-      .select("id, product_id, barcode, size, color, mrp, sale_price, pur_price, products!inner(product_name, style)")
-      .eq("organization_id", currentOrganization.id)
-      .is("deleted_at", null)
-      .in("product_id", productIds);
+    if (!allProductIds.length) return [];
 
-    if (filters.barcode) variantsQuery = variantsQuery.eq("barcode", filters.barcode);
+    // Paginate variants fetch in batches of product IDs
+    const allVariants: any[] = [];
+    const batchSize = 500;
 
-    const { data } = await variantsQuery;
-    return data || [];
+    for (let i = 0; i < allProductIds.length; i += batchSize) {
+      const batchIds = allProductIds.slice(i, i + batchSize);
+      let vOffset = 0;
+      let vHasMore = true;
+
+      while (vHasMore) {
+        let variantsQuery = supabase
+          .from("product_variants")
+          .select("id, product_id, barcode, size, color, mrp, sale_price, pur_price, products!inner(product_name, style)")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .in("product_id", batchIds);
+
+        if (filters.barcode) variantsQuery = variantsQuery.eq("barcode", filters.barcode);
+
+        const { data } = await variantsQuery.order("id").range(vOffset, vOffset + 1000 - 1);
+        if (data && data.length > 0) {
+          allVariants.push(...data);
+          vOffset += 1000;
+          vHasMore = data.length === 1000;
+        } else {
+          vHasMore = false;
+        }
+      }
+    }
+
+    return allVariants;
   };
 
   const generatePreview = async (
