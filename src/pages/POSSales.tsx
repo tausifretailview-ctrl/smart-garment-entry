@@ -332,7 +332,10 @@ export default function POSSales() {
   }, [currentOrganization?.id]);
 
   // Auto-focus barcode input on mount and keep focus when idle
+  // Disabled on iPad to prevent soft keyboard from popping up unexpectedly
   useEffect(() => {
+    if (isIPadSafari) return; // Skip auto-focus on iPad — user taps when ready
+    
     // Focus immediately on mount
     barcodeInputRef.current?.focus();
     
@@ -378,7 +381,7 @@ export default function POSSales() {
       document.removeEventListener('click', handleGlobalClick);
       clearInterval(focusInterval);
     };
-  }, []);
+  }, [isIPadSafari]);
 
   const fetchPosBillFormat = async () => {
     try {
