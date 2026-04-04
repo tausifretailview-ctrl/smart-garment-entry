@@ -1295,17 +1295,7 @@ export default function StockReport() {
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Color</label>
-            <Select value={colorFilter} onValueChange={setColorFilter}>
-              <SelectTrigger className="h-10 !bg-white !text-gray-900">
-                <SelectValue placeholder="All Colors" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Colors</SelectItem>
-                {filterOptions.colors.map(color => (
-                  <SelectItem key={color} value={color}>{color}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect value={colorFilter} onValueChange={setColorFilter} options={filterOptions.colors} allLabel="All Colors" placeholder="All Colors" />
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Stock Status</label>
