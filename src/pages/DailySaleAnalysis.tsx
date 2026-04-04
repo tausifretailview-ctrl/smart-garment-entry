@@ -197,7 +197,7 @@ export default function DailySaleAnalysis() {
         } else hasMore = false;
       }
 
-      console.log('Sale items fetched:', allSaleItems.length, 'sample:', allSaleItems.slice(0, 2));
+      
 
       const variantMap = new Map<string, {
         variantId: string; productName: string; size: string; color: string;
