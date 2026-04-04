@@ -44,6 +44,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
         
         <FloatingWhatsAppInbox />
         <FloatingChatButton />
+        <StatusBar />
       </SidebarProvider>
     </ChatProvider>
   );
