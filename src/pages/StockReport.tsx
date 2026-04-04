@@ -1330,17 +1330,7 @@ export default function StockReport() {
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Supplier Invoice</label>
-                <Select value={supplierInvoiceFilter} onValueChange={setSupplierInvoiceFilter}>
-                  <SelectTrigger className="h-10 !bg-white !text-gray-900">
-                    <SelectValue placeholder="All Invoices" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Invoices</SelectItem>
-                    {filterOptions.supplierInvoices.map(invoice => (
-                      <SelectItem key={invoice} value={invoice}>{invoice}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect value={supplierInvoiceFilter} onValueChange={setSupplierInvoiceFilter} options={filterOptions.supplierInvoices} allLabel="All Invoices" placeholder="All Invoices" />
               </div>
             </div>
           </CollapsibleContent>
