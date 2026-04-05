@@ -753,6 +753,23 @@ const DesktopDashboard = () => {
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-4">
 
         {/* Left side - Metric cards */}
+        {!hasLoaded ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+            <div className="p-4 rounded-full bg-muted">
+              <BarChart3 className="h-10 w-10 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="text-base font-semibold text-foreground">Dashboard data not loaded</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Click <strong>Load Data</strong> above to fetch your business analytics
+              </p>
+            </div>
+            <Button onClick={handleRefreshAll} disabled={isRefreshing}>
+              <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
+              Load Data
+            </Button>
+          </div>
+        ) : (
         <div className="space-y-3">
           {/* Row 1 - Sales Metrics */}
           <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
@@ -985,8 +1002,9 @@ const DesktopDashboard = () => {
           )}
 
           {/* Charts Section */}
-          <StatsChartsSection />
+          <StatsChartsSection hasLoaded={hasLoaded} />
         </div>
+        )}
 
         {/* Right side - New Updates panel + Customer Cards */}
         <div className="self-start space-y-3">

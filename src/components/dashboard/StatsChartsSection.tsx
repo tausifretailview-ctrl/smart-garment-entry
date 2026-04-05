@@ -3,13 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { AnimatedChart } from "./AnimatedChart";
 import { format, subDays, startOfDay } from "date-fns";
-import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 
-export const StatsChartsSection = () => {
+interface StatsChartsSectionProps {
+  hasLoaded?: boolean;
+}
+
+export const StatsChartsSection = ({ hasLoaded = true }: StatsChartsSectionProps) => {
   const { currentOrganization } = useOrganization();
-  
-  // Tier-based polling - reduces cloud usage based on subscription tier
-  const { getRefreshInterval } = useTierBasedRefresh();
 
   // Fetch last 7 days sales data
   const { data: salesData } = useQuery({
@@ -48,9 +48,10 @@ export const StatsChartsSection = () => {
 
       return salesByDay;
     },
-    enabled: !!currentOrganization,
-    staleTime: 60000, // 1 minute stale time
-    refetchInterval: getRefreshInterval('medium'), // Tier-based polling
+    enabled: !!currentOrganization && hasLoaded,
+    staleTime: 10 * 60 * 1000,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch last 7 days purchase data - using aggregation view
@@ -88,9 +89,10 @@ export const StatsChartsSection = () => {
 
       return purchaseByDay;
     },
-    enabled: !!currentOrganization,
-    staleTime: 60000,
-    refetchInterval: getRefreshInterval('medium'),
+    enabled: !!currentOrganization && hasLoaded,
+    staleTime: 10 * 60 * 1000,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch top 5 products by stock value
@@ -118,9 +120,10 @@ export const StatsChartsSection = () => {
         value: (item.stock_qty || 0) * (Number(item.sale_price) || 0),
       })) || [];
     },
-    enabled: !!currentOrganization,
-    staleTime: 120000, // 2 minutes stale time
-    refetchInterval: false, // No auto-refresh - on-demand only (Phase 4)
+    enabled: !!currentOrganization && hasLoaded,
+    staleTime: 10 * 60 * 1000,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
   });
 
   // Combine sales and purchases for comparison
