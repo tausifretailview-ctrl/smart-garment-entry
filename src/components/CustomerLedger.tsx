@@ -55,7 +55,7 @@ interface Transaction {
   id: string;
   date: string;
   timestamp: string | null;
-  type: 'invoice' | 'payment' | 'advance' | 'adjustment' | 'fee' | 'return' | 'refund' | 'credit_note';
+  type: 'invoice' | 'payment' | 'advance' | 'advance_application' | 'adjustment' | 'fee' | 'return' | 'refund' | 'credit_note';
   reference: string;
   description: string;
   debit: number;
@@ -800,13 +800,12 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           type: 'invoice' as const,
           data: sale,
         })),
-        // Filter out advance-application vouchers (internal transfers - advance already credited)
+        // Include all vouchers including advance-application entries
         ...allVouchers
-          .filter((voucher: any) => !voucher.description?.startsWith('Adjusted from advance balance'))
-          .map((voucher) => ({
+          .map((voucher: any) => ({
             date: voucher.voucher_date,
             timestamp: voucher.created_at,
-            type: 'payment' as const,
+            type: voucher.payment_method === 'advance_adjustment' ? 'advance_application' as const : 'payment' as const,
             data: voucher,
           })),
         ...(advancesData || []).map((advance) => ({
@@ -846,8 +845,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         const tsA = a.timestamp ? new Date(a.timestamp).getTime() : new Date(a.date).getTime();
         const tsB = b.timestamp ? new Date(b.timestamp).getTime() : new Date(b.date).getTime();
         if (tsA !== tsB) return tsA - tsB;
-        // Stable tiebreaker: invoice < cn_adjustment = advance < payment < adjustment
-        const typeOrder: Record<string, number> = { invoice: 0, cn_adjustment: 1, advance: 1, refund: 1, credit_note: 1, payment: 2, adjustment: 3 };
+        // Stable tiebreaker: invoice < cn_adjustment = advance < advance_application < payment < adjustment
+        const typeOrder: Record<string, number> = { invoice: 0, cn_adjustment: 1, advance: 1, refund: 1, credit_note: 1, advance_application: 1.5, payment: 2, adjustment: 3 };
         return (typeOrder[a.type] ?? 1) - (typeOrder[b.type] ?? 1);
       });
 
@@ -933,8 +932,12 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           if (advance.description) {
             description += ` - ${advance.description}`;
           }
-          if (advance.used_amount > 0) {
-            description += ` (Used: ₹${advance.used_amount.toLocaleString('en-IN')}, Available: ₹${availableAmount.toLocaleString('en-IN')})`;
+          if (advance.status === 'fully_used') {
+            description += ' — Fully Applied to Invoice(s)';
+          } else if (advance.used_amount > 0) {
+            description += ` — Partially Applied (₹${advance.used_amount.toLocaleString('en-IN')} used, ₹${availableAmount.toLocaleString('en-IN')} remaining)`;
+          } else {
+            description += ' — Available for Invoice Settlement';
           }
           
           allTransactions.push({
