@@ -92,23 +92,23 @@ const AnimatedMetricCard = ({
   // Map accent colors to semantic status classes for dark mode compatibility
   const getAccentClasses = (color: string) => {
     const colorMap: Record<string, { border: string; bg: string; text: string }> = {
-      'bg-blue-500': { border: 'border-l-primary', bg: 'bg-primary/10', text: 'text-primary' },
-      'bg-blue-600': { border: 'border-l-primary', bg: 'bg-primary/10', text: 'text-primary' },
-      'bg-green-500': { border: 'border-l-success', bg: 'bg-success/10', text: 'text-success' },
-      'bg-green-600': { border: 'border-l-success', bg: 'bg-success/10', text: 'text-success' },
-      'bg-emerald-500': { border: 'border-l-success', bg: 'bg-success/10', text: 'text-success' },
-      'bg-orange-500': { border: 'border-l-warning', bg: 'bg-warning/10', text: 'text-warning' },
-      'bg-amber-500': { border: 'border-l-warning', bg: 'bg-warning/10', text: 'text-warning' },
-      'bg-red-500': { border: 'border-l-destructive', bg: 'bg-destructive/10', text: 'text-destructive' },
-      'bg-pink-500': { border: 'border-l-accent', bg: 'bg-accent/10', text: 'text-accent' },
-      'bg-purple-500': { border: 'border-l-accent', bg: 'bg-accent/10', text: 'text-accent' },
-      'bg-violet-500': { border: 'border-l-accent', bg: 'bg-accent/10', text: 'text-accent' },
-      'bg-indigo-500': { border: 'border-l-primary', bg: 'bg-primary/10', text: 'text-primary' },
-      'bg-cyan-500': { border: 'border-l-primary', bg: 'bg-primary/10', text: 'text-primary' },
-      'bg-teal-500': { border: 'border-l-success', bg: 'bg-success/10', text: 'text-success' },
-      'bg-slate-500': { border: 'border-l-muted-foreground', bg: 'bg-muted', text: 'text-muted-foreground' },
+      'bg-blue-500': { border: 'border-t-primary', bg: 'bg-primary/10', text: 'text-primary' },
+      'bg-blue-600': { border: 'border-t-primary', bg: 'bg-primary/10', text: 'text-primary' },
+      'bg-green-500': { border: 'border-t-success', bg: 'bg-success/10', text: 'text-success' },
+      'bg-green-600': { border: 'border-t-success', bg: 'bg-success/10', text: 'text-success' },
+      'bg-emerald-500': { border: 'border-t-success', bg: 'bg-success/10', text: 'text-success' },
+      'bg-orange-500': { border: 'border-t-warning', bg: 'bg-warning/10', text: 'text-warning' },
+      'bg-amber-500': { border: 'border-t-warning', bg: 'bg-warning/10', text: 'text-warning' },
+      'bg-red-500': { border: 'border-t-destructive', bg: 'bg-destructive/10', text: 'text-destructive' },
+      'bg-pink-500': { border: 'border-t-accent', bg: 'bg-accent/10', text: 'text-accent' },
+      'bg-purple-500': { border: 'border-t-accent', bg: 'bg-accent/10', text: 'text-accent' },
+      'bg-violet-500': { border: 'border-t-accent', bg: 'bg-accent/10', text: 'text-accent' },
+      'bg-indigo-500': { border: 'border-t-primary', bg: 'bg-primary/10', text: 'text-primary' },
+      'bg-cyan-500': { border: 'border-t-primary', bg: 'bg-primary/10', text: 'text-primary' },
+      'bg-teal-500': { border: 'border-t-success', bg: 'bg-success/10', text: 'text-success' },
+      'bg-slate-500': { border: 'border-t-muted-foreground', bg: 'bg-muted', text: 'text-muted-foreground' },
     };
-    return colorMap[color] || { border: 'border-l-primary', bg: 'bg-primary/10', text: 'text-primary' };
+    return colorMap[color] || { border: 'border-t-primary', bg: 'bg-primary/10', text: 'text-primary' };
   };
 
   const accentClasses = getAccentClasses(accentColor);
@@ -123,7 +123,7 @@ const AnimatedMetricCard = ({
               "transition-all duration-150 ease-out",
               "hover:shadow-md hover:border-primary/30 hover:-translate-y-0.5",
               "active:translate-y-0 active:shadow-sm",
-              "border-l-4",
+              "border-t-4",
               accentClasses.border
             )}
           >
@@ -136,7 +136,7 @@ const AnimatedMetricCard = ({
               </div>
             </CardHeader>
             <CardContent className="p-3 pt-0 pl-4">
-              <div className="text-2xl font-bold text-card-foreground tracking-tight">
+              <div className="text-xl font-bold text-card-foreground tracking-tight font-mono">
                 {displayValue}
               </div>
             </CardContent>
@@ -671,6 +671,44 @@ const DesktopDashboard = () => {
         </div>
       </div>
       
+      {/* Command Toolbar */}
+      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-border">
+        <button
+          onClick={() => navigate("/pos-sales")}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          <Plus className="h-3.5 w-3.5" /> New Sale
+        </button>
+        <button
+          onClick={() => navigate("/purchase-entry")}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-border bg-background hover:bg-muted transition-colors text-foreground"
+        >
+          <Package className="h-3.5 w-3.5" /> Purchase
+        </button>
+        <button
+          onClick={() => navigate("/stock-report")}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-border bg-background hover:bg-muted transition-colors text-foreground"
+        >
+          <BarChart3 className="h-3.5 w-3.5" /> Stock
+        </button>
+        <button
+          onClick={() => navigate("/accounts")}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-border bg-background hover:bg-muted transition-colors text-foreground"
+        >
+          <Calculator className="h-3.5 w-3.5" /> Accounts
+        </button>
+        <button
+          onClick={() => navigate("/daily-cashier-report")}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-border bg-background hover:bg-muted transition-colors text-foreground"
+        >
+          <DollarSign className="h-3.5 w-3.5" /> Cashier
+        </button>
+        <div className="flex-1" />
+        <span className="text-xs text-muted-foreground hidden lg:block">
+          Quick actions — Ctrl+K to search
+        </span>
+      </div>
+
       {/* Last Updated Indicator */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
@@ -683,7 +721,7 @@ const DesktopDashboard = () => {
         {/* Left side - Metric cards */}
         <div className="space-y-3">
           {/* Row 1 - Sales Metrics */}
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-4 lg:grid-cols-4">
             <AnimatedMetricCard
               title="Total Sales"
               value={salesData?.total || 0}
@@ -737,7 +775,7 @@ const DesktopDashboard = () => {
           </div>
 
           {/* Row 2 - Purchase Metrics */}
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-4 lg:grid-cols-4">
             <AnimatedMetricCard
               title="Total Purchase"
               value={purchaseData?.total || 0}
@@ -791,7 +829,7 @@ const DesktopDashboard = () => {
           </div>
 
           {/* Row 3 - Inventory & Financial Metrics */}
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-4 lg:grid-cols-4">
             <AnimatedMetricCard
               title="Products"
               value={productsCount || 0}
