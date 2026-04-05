@@ -1155,9 +1155,15 @@ const DailyCashierReport = () => {
                     </div>
                   )}
                 </div>
+                {totals.expenseTotal > 0 && (
+                  <div className="flex justify-between py-2 border-b text-destructive">
+                    <span className="text-muted-foreground">💸 Total Expenses ({totals.expenseCount})</span>
+                    <span className="font-semibold">- {formatCurrency(totals.expenseTotal)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between py-2 border-t mt-2 font-bold text-green-600">
                   <span>Total Collected</span>
-                  <span>{formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal)}</span>
+                  <span>{formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal - totals.expenseTotal)}</span>
                 </div>
                 <div className="pt-2 space-y-1 border-t mt-2">
                   <div className="flex justify-between">
