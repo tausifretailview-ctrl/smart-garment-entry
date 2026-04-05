@@ -1,41 +1,65 @@
 
 
-## Fix: Lines/Separators Automatically Disappearing in Label Designer
+## Problem Diagnosis
 
-### Problem
-When a line is added in the Precision Label Designer, it disappears because the `ensureCompleteFieldOrder()` helper function rebuilds the config object **without preserving the `lines` array**. This function is called every time a template is loaded, a preset is applied, or a config is migrated — silently wiping all lines.
+The Accounts dashboard cards show ₹0 for most values due to **3 bugs** in the RPC function and **1 bug** in the client-side code:
 
-### Root Cause
-In `src/pages/BarcodePrinting.tsx` (line 98-128), the `ensureCompleteFieldOrder` function returns a new object with hardcoded keys but omits `lines`:
+### Bug 1 — Monthly Expenses RPC query is broken
+The `get_accounts_dashboard_metrics` RPC uses `amount` (non-existent column) and `entry_date` (non-existent column) instead of `total_amount` and `voucher_date`. It also doesn't filter by `voucher_type = 'expense'`, so it would include receipts/payments if the column existed.
 
-```text
-return {
-  brand: ...,
-  productName: ...,
-  ...
-  customTextValue: ...,
-  // ← lines is MISSING here
-};
+### Bug 2 — Payment card amounts are hardcoded to 0
+In `Accounts.tsx` lines 192-198, `paidAmount`, `pendingAmount`, `partialAmount`, `completedAmount` are all set to `0`. The RPC only returns counts per status, not amounts.
+
+### Bug 3 — Total Invoices card uses `totalReceivables` (outstanding) not total sales
+`paymentStats.totalAmount` is set to `dashboardStats?.totalReceivables` which is outstanding balance, not total invoice value.
+
+### Bug 4 — P/L formula is wrong
+`currentMonthPL` is calculated as `receivables - payables - expenses` which doesn't represent profit/loss. It should be `totalSales - totalPurchases - expenses` for the current month.
+
+---
+
+## Plan
+
+### Step 1 — Fix the RPC function via migration
+
+Update `get_accounts_dashboard_metrics` to:
+- Fix monthly expenses: use `total_amount`, `voucher_date`, and filter `voucher_type = 'expense'`
+- Add amount aggregations per payment status (paid/partial/pending amounts)
+- Add total sales amount for the month
+- Add total purchases amount for the month (for proper P/L)
+- Return `invoiceStats` with both counts AND amounts
+
+New RPC return shape:
+```json
+{
+  "totalReceivables": 208075,
+  "totalPayables": 50000,
+  "monthlyExpenses": 15500,
+  "monthlySales": 775910,
+  "monthlyPurchases": 300000,
+  "invoiceStats": {
+    "total": 166, "totalAmount": 775910,
+    "paid": 100, "paidAmount": 500000,
+    "partial": 30, "partialAmount": 175000,
+    "pending": 36, "pendingAmount": 100910
+  }
+}
 ```
 
-This function is called in ~10 places throughout the file whenever configs are loaded or templates are applied.
+### Step 2 — Fix client-side mapping in Accounts.tsx
 
-### Fix
+Update `paymentStats` to use the new RPC amounts:
+- `totalAmount` → `invoiceStats.totalAmount`
+- `completedAmount` → `invoiceStats.paidAmount`
+- `partialAmount` → `invoiceStats.partialAmount`
+- `pendingAmount` → `invoiceStats.pendingAmount`
 
-**File: `src/pages/BarcodePrinting.tsx`**
+Update `dashboardMetrics`:
+- `currentMonthPL` → `monthlySales - monthlyPurchases - monthlyExpenses`
+- `totalReceivables` → from RPC (outstanding from customers)
+- `totalPayables` → from RPC (outstanding to suppliers)
 
-Add `lines` preservation to the `ensureCompleteFieldOrder` return object (around line 127):
-
-```typescript
-// Add after customTextValue line:
-lines: config.lines || [],
-```
-
-This single-line fix ensures the `lines` array survives all config migrations and template loads. No other files need changes — the Designer, Canvas, and save logic all handle `lines` correctly already.
-
-### Technical Details
-- The `lines` property is a `LabelLineConfig[]` storing separator positions, thickness, orientation
-- The save path (`saveLabelTemplate`) correctly persists `lines` as part of `config`
-- The load path breaks because `ensureCompleteFieldOrder` strips it during migration
-- Same function also doesn't preserve other potential future properties; adding `lines` explicitly is the targeted fix
+### Files Changed
+1. **New migration SQL** — rewrite `get_accounts_dashboard_metrics` RPC
+2. **`src/pages/Accounts.tsx`** — update lines 180-199 to map new RPC fields
 
