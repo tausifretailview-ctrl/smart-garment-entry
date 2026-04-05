@@ -952,6 +952,24 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             balance: runningBalance,
             paymentBreakdown: advance.payment_method ? { method: advance.payment_method } : undefined,
           });
+        } else if (item.type === 'advance_application') {
+          // Advance applied to invoice — display-only, no balance impact
+          // (advance already credited when received, this is just re-allocation)
+          const voucher = item.data as any;
+          const invoiceRef = voucher.description?.replace('Adjusted from advance balance for ', '') || '';
+          const description = `Advance Applied to Invoice${invoiceRef ? ' — ' + invoiceRef : ''}`;
+          
+          allTransactions.push({
+            id: voucher.id,
+            date: voucher.voucher_date,
+            timestamp: item.timestamp || null,
+            type: 'advance_application',
+            reference: voucher.voucher_number || 'ADV-APP',
+            description,
+            debit: 0,
+            credit: 0,
+            balance: runningBalance,
+          });
         } else if (item.type === 'adjustment') {
           const adj = item.data as any;
           const outDiff = adj.outstanding_difference || 0;
