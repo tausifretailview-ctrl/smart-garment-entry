@@ -18,10 +18,10 @@ interface TierIntervals {
  * Enterprise: 1 minute polling (current behavior)
  */
 const TIER_INTERVALS: Record<string, TierIntervals> = {
-  enterprise: { fast: 60000, medium: 120000, slow: 300000 },
-  professional: { fast: 120000, medium: 180000, slow: 300000 },
-  basic: { fast: 300000, medium: 300000, slow: 600000 },
-  free: { fast: false, medium: false, slow: false },
+  enterprise:   { fast: 300000,  medium: 600000,  slow: 900000  }, // 5min / 10min / 15min
+  professional: { fast: 300000,  medium: 600000,  slow: 900000  }, // same
+  basic:        { fast: 600000,  medium: 900000,  slow: 1800000 }, // 10min / 15min / 30min
+  free:         { fast: false,   medium: false,   slow: false   }, // manual only
 };
 
 /**

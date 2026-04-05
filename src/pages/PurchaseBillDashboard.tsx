@@ -440,7 +440,7 @@ const PurchaseBillDashboard = () => {
       return { bills: (data || []) as PurchaseBill[], totalCount: count || 0 };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 30000,
+    staleTime: 2 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 
@@ -1058,7 +1058,7 @@ const PurchaseBillDashboard = () => {
       return { total_count, total_amount, paid_amount, unpaid_amount, partial_amount };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 30_000,
+    staleTime: 2 * 60 * 1000,
   });
 
   const summaryStats = useMemo(() => ({

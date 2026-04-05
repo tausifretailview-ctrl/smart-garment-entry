@@ -492,7 +492,7 @@ export default function SalesInvoiceDashboard() {
       return { data: data || [], count: count || 0 };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 30000,
+    staleTime: 2 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 
@@ -558,7 +558,7 @@ export default function SalesInvoiceDashboard() {
       };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 30000,
+    staleTime: 2 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 

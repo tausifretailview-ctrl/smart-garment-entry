@@ -97,6 +97,8 @@ const EmployeeMaster = () => {
       } catch (error) { console.error("Error in orgUsers query:", error); return []; }
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: employees = [], isLoading } = useQuery({
@@ -118,6 +120,8 @@ const EmployeeMaster = () => {
       return allEmployees;
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const createEmployee = useMutation({

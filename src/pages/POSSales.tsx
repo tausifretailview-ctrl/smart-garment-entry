@@ -881,7 +881,8 @@ export default function POSSales() {
       return data || [];
     },
     enabled: !!currentOrganization?.id,
-    refetchInterval: 30000,
+    staleTime: 5 * 60 * 1000,   // Cache 5 minutes
+    refetchInterval: false,       // No auto-poll — refetch on hold/resume action only
   });
 
   const [showHoldPanel, setShowHoldPanel] = useState(false);

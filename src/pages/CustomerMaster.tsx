@@ -244,7 +244,7 @@ const CustomerMaster = () => {
       return { customers: (data || []) as Customer[], filteredCount: count || 0 };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 
@@ -276,7 +276,7 @@ const CustomerMaster = () => {
       return balanceMap;
     },
     enabled: !!currentOrganization?.id && visibleCustomerIds.length > 0,
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000,
   });
 
   const createCustomer = useMutation({
