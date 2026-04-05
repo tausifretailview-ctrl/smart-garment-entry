@@ -5746,8 +5746,11 @@ export type Database = {
           discount_amount: number | null
           discount_reason: string | null
           id: string
+          notes: string | null
           organization_id: string
+          paid_by: string | null
           payment_method: string | null
+          receipt_number: string | null
           reference_id: string | null
           reference_type: string | null
           total_amount: number
@@ -5766,8 +5769,11 @@ export type Database = {
           discount_amount?: number | null
           discount_reason?: string | null
           id?: string
+          notes?: string | null
           organization_id: string
+          paid_by?: string | null
           payment_method?: string | null
+          receipt_number?: string | null
           reference_id?: string | null
           reference_type?: string | null
           total_amount?: number
@@ -5786,8 +5792,11 @@ export type Database = {
           discount_amount?: number | null
           discount_reason?: string | null
           id?: string
+          notes?: string | null
           organization_id?: string
+          paid_by?: string | null
           payment_method?: string | null
+          receipt_number?: string | null
           reference_id?: string | null
           reference_type?: string | null
           total_amount?: number
