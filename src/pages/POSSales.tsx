@@ -3885,7 +3885,12 @@ export default function POSSales() {
             onClick={() => {
               const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
               if (orgSlug) {
-                window.open(`/${orgSlug}/advance-booking-dashboard`, '_blank');
+                const url = `/${orgSlug}/advance-booking-dashboard`;
+                const win = window.open(url, '_blank');
+                if (!win) {
+                  // Popup blocked — fallback to dialog
+                  setShowAdvanceBooking(true);
+                }
               } else {
                 setShowAdvanceBooking(true);
               }
