@@ -316,6 +316,17 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
           </>
         )}
 
+        {/* NOTE */}
+        {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
+          <>
+            <div style={singleLine} />
+            <div style={{ fontSize: '9px', lineHeight: '1.3' }}>
+              <span style={{ fontWeight: 900 }}>Note: </span>
+              <span style={{ whiteSpace: 'pre-wrap' }}>{notes.trim()}</span>
+            </div>
+          </>
+        )}
+
         {/* FOOTER */}
         <div style={singleLine} />
         <div style={{ ...center, fontSize: '13px', fontWeight: 900, margin: '3px 0' }}>Thank You! Visit Again!</div>

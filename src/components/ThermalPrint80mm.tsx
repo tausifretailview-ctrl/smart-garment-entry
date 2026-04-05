@@ -370,6 +370,17 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
           </>
         )}
 
+        {/* ═══ NOTE ═══ */}
+        {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
+          <>
+            <div style={singleLine} />
+            <div style={{ fontSize: '10px', lineHeight: '1.3' }}>
+              <span style={{ fontWeight: 900 }}>Note: </span>
+              <span style={{ whiteSpace: 'pre-wrap' }}>{notes.trim()}</span>
+            </div>
+          </>
+        )}
+
         {/* ═══ FOOTER ═══ */}
         <div style={singleLine} />
         <div style={{ ...center, fontSize: '14px', fontWeight: 900, margin: '4px 0', letterSpacing: '1px' }}>
