@@ -13,20 +13,19 @@ export const StatusBar = () => {
     <div className="erp-status-bar hidden lg:flex">
       <div className="status-item">
         <span className="status-dot" />
-        <Wifi className="h-3 w-3" />
         <span>Connected</span>
       </div>
+      <div className="w-px h-3 bg-primary-foreground/20 mx-1" />
       <div className="status-item">
-        <Database className="h-3 w-3" />
         <span>{currentOrganization?.name || "—"}</span>
       </div>
+      <div className="w-px h-3 bg-primary-foreground/20 mx-1" />
       <div className="status-item">
-        <Calendar className="h-3 w-3" />
         <span>{fy}</span>
       </div>
       <div className="flex-1" />
-      <div className="status-item opacity-60">
-        <span>EzzyERP v2.0</span>
+      <div className="status-item opacity-50 text-[10px]">
+        EzzyERP v2.0
       </div>
     </div>
   );

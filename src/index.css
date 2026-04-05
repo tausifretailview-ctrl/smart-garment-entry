@@ -488,7 +488,11 @@ All colors MUST be HSL.
 
   /* Active state indicator */
   .active-indicator {
-    @apply relative before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-6 before:w-1 before:rounded-r-full before:bg-primary;
+    @apply relative;
+  }
+  .active-indicator::before {
+    content: '';
+    @apply absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-r-sm bg-white;
   }
 }
 

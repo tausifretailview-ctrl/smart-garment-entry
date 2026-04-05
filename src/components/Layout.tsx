@@ -38,7 +38,7 @@ export const Layout = ({ children }: LayoutProps) => {
               <SidebarTrigger className="text-sidebar-foreground h-5 w-5" />
             </div>
             {/* Add bottom padding on mobile for bottom nav; lg adds extra for status bar */}
-            <main className="flex-1 overflow-auto p-4 pb-20 lg:pb-10 relative z-[1]">{children}</main>
+            <main className="flex-1 overflow-auto p-4 pb-20 lg:pb-14 relative z-[1]">{children}</main>
             <Footer />
           </SidebarInset>
         </div>
