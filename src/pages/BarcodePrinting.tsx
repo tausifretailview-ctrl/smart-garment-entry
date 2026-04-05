@@ -3045,8 +3045,9 @@ export default function BarcodePrinting() {
         // Thermal 1UP: each label is its own page, no A4 pagination
         numPages = totalLabels;
       } else {
-        const availableHeight = 297 - topOffset - bottomOffset - 10;
-        const rowsPerPage = Math.floor(availableHeight / (dimensions.height + dimensions.gap));
+        const availableHeight = 297 - topOffset - bottomOffset;
+        const explicitRows = sheetType === 'custom' ? customRows : ((sheetPresets[sheetType] as any)?.rows || null);
+        const rowsPerPage = explicitRows ? explicitRows : Math.floor(availableHeight / (dimensions.height + dimensions.gap));
         const labelsPerPage = dimensions.cols * Math.max(1, rowsPerPage);
         numPages = totalLabels > 0 ? Math.ceil(totalLabels / labelsPerPage) : 0;
       }
@@ -3064,8 +3065,9 @@ export default function BarcodePrinting() {
     if (isPreviewMode && numPages > 0) {
       // Preview mode: Show pages with separators
       const isThermalPreview = isThermal1Up();
-      const availableHeight = 297 - topOffset - bottomOffset - 10;
-      const rowsPerPage = isThermalPreview ? 1 : Math.floor(availableHeight / (dimensions.height + dimensions.gap));
+      const availableHeight = 297 - topOffset - bottomOffset;
+      const explicitRowsP = sheetType === 'custom' ? customRows : ((sheetPresets[sheetType] as any)?.rows || null);
+      const rowsPerPage = isThermalPreview ? 1 : (explicitRowsP ? explicitRowsP : Math.floor(availableHeight / (dimensions.height + dimensions.gap)));
       const labelsPerPage = isThermalPreview ? 1 : dimensions.cols * Math.max(1, rowsPerPage);
 
       // Add total count at the top
@@ -3127,10 +3129,8 @@ export default function BarcodePrinting() {
             grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
             grid-template-rows: repeat(${rowsPerPage}, ${dimensions.height}mm);
             gap: ${dimensions.gap}mm;
-            padding-top: ${topOffset}mm;
-            padding-left: ${leftOffset}mm;
-            padding-bottom: ${bottomOffset}mm;
-            padding-right: ${rightOffset}mm;
+            margin-top: ${topOffset * 3.78}px;
+            margin-left: ${leftOffset * 3.78}px;
             margin-bottom: ${page < numPages - 1 ? '20px' : '0'};
           `;
         }
@@ -3189,8 +3189,9 @@ export default function BarcodePrinting() {
         : isThermal2Up()
         ? 2
         : (() => {
-            const availableHeight = 297 - topOffset - bottomOffset - 5; // A4 height with margins
-            const rowsPerPage = Math.floor(availableHeight / (dimensions.height + dimensions.gap));
+            const availableHeight = 297 - topOffset - bottomOffset;
+            const explicitRows = sheetType === 'custom' ? customRows : ((sheetPresets[sheetType] as any)?.rows || null);
+            const rowsPerPage = explicitRows ? explicitRows : Math.floor(availableHeight / (dimensions.height + dimensions.gap));
             return dimensions.cols * Math.max(1, rowsPerPage);
           })();
       const numPrintPages = allLabels.length > 0 ? Math.ceil(allLabels.length / labelsPerPage) : 0;
@@ -3246,10 +3247,6 @@ export default function BarcodePrinting() {
               grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
               grid-template-rows: repeat(${rowsOnPage}, ${dimensions.height}mm);
               gap: ${dimensions.gap}mm;
-              padding-top: ${topOffset}mm;
-              padding-left: ${leftOffset}mm;
-              padding-bottom: ${bottomOffset}mm;
-              padding-right: ${rightOffset}mm;
               page-break-after: always;
               break-after: page;
             `;
@@ -5702,7 +5699,7 @@ export default function BarcodePrinting() {
           size: ${isThermal1Up() 
             ? `${(sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)) + leftOffset + rightOffset}mm ${(sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)) + topOffset + bottomOffset}mm` 
             : 'A4 portrait'}; 
-          margin: 0mm !important;
+          margin: ${isThermal1Up() ? '0mm' : `${topOffset}mm ${rightOffset}mm ${bottomOffset}mm ${leftOffset}mm`} !important;
         }
         
         @media print {
