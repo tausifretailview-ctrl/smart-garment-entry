@@ -2309,6 +2309,7 @@ const PurchaseEntry = () => {
         // Invalidate dashboard queries for immediate UI refresh
         invalidatePurchases();
         queryClient.invalidateQueries({ queryKey: ["next-supplier-inv-no"] });
+        queryClient.invalidateQueries({ queryKey: ['pos-products'] });
         // Batch-fetch product details instead of N individual queries
         const uniqueProductIds = [...new Set(lineItems.map(i => i.product_id))];
         const productDetailsMap = new Map<string, { brand: string; color: string; style: string }>();
