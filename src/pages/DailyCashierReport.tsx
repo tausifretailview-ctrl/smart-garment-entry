@@ -152,7 +152,30 @@ const DailyCashierReport = () => {
     enabled: !!currentOrganization?.id,
   });
 
-  const isLoading = salesLoading || receiptsLoading || refundsLoading || feesLoading;
+  // Fetch expense vouchers for selected period
+  const { data: expenseData, isLoading: expensesLoading } = useQuery({
+    queryKey: ["cashier-report-expenses", currentOrganization?.id, selectedDate, period],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const startDateStr = format(startDate, 'yyyy-MM-dd');
+      const endDateStr = format(endDate, 'yyyy-MM-dd');
+      try {
+        const { data, error } = await supabase
+          .from("voucher_entries")
+          .select("id, total_amount, payment_method, category, description")
+          .eq("organization_id", currentOrganization.id)
+          .eq("voucher_type", "expense")
+          .gte("voucher_date", startDateStr)
+          .lte("voucher_date", endDateStr)
+          .is("deleted_at", null);
+        if (error) { console.error("Expense query error:", error); return []; }
+        return data || [];
+      } catch (e) { console.error("Expense query failed:", e); return []; }
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  const isLoading = salesLoading || receiptsLoading || refundsLoading || feesLoading || expensesLoading;
 
   // Fetch settings for business name
   const { data: settings } = useQuery({
