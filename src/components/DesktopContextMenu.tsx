@@ -10,6 +10,7 @@ export interface ContextMenuItem {
   destructive?: boolean;
   separator?: boolean;
   hidden?: boolean;
+  shortcut?: string;
 }
 
 interface DesktopContextMenuProps {
@@ -106,6 +107,9 @@ export const DesktopContextMenu: React.FC<DesktopContextMenuProps> = ({
                 />
               )}
               <span className="truncate">{item.label}</span>
+              {item.shortcut && (
+                <span className="ml-auto text-[10px] text-muted-foreground/60 font-mono">{item.shortcut}</span>
+              )}
             </button>
           );
         })}
@@ -204,6 +208,9 @@ export const PageContextMenu: React.FC<PageContextMenuProps> = ({
                   <Icon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                 )}
                 <span className="truncate">{item.label}</span>
+                {item.shortcut && (
+                  <span className="ml-auto text-[10px] text-muted-foreground/60 font-mono">{item.shortcut}</span>
+                )}
               </button>
             );
           })}

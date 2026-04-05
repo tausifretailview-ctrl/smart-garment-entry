@@ -1,6 +1,5 @@
 import { ReactNode } from "react";
 import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
 import { AppSidebar } from "@/components/AppSidebar";
 import { WindowTabsBar } from "@/components/WindowTabsBar";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
@@ -39,7 +38,6 @@ export const Layout = ({ children }: LayoutProps) => {
             </div>
             {/* Add bottom padding on mobile for bottom nav; lg adds extra for status bar */}
             <main className="flex-1 overflow-auto p-4 pb-20 lg:pb-14 relative z-[1]">{children}</main>
-            <Footer />
           </SidebarInset>
         </div>
         
