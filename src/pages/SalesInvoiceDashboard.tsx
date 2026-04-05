@@ -685,7 +685,7 @@ export default function SalesInvoiceDashboard() {
             p_sale_id: id,
             p_reason: bulkCancelReason.trim() || null,
           });
-          console.log('Cancel invoice result:', id, { data, error });
+          
           if (error) {
             console.error('Cancel invoice error:', id, error);
             failCount++;

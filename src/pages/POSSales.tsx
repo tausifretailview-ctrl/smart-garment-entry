@@ -2098,7 +2098,7 @@ export default function POSSales() {
   const handlePaymentAndPrint = async (method: 'cash' | 'card' | 'upi' | 'pay_later') => {
     // Prevent duplicate saves from rapid clicks or keyboard shortcuts
     if (isSaving) {
-      console.log('Payment already in progress, skipping duplicate call');
+      
       return;
     }
 
@@ -2263,7 +2263,7 @@ export default function POSSales() {
       if (isDirectPrintEnabled && isAutoPrintEnabled) {
         // Set data first, then trigger print after render
         setTimeout(async () => {
-          console.log('Direct print: auto-print triggered, invoicePrintRef:', !!invoicePrintRef.current, 'innerHTML length:', invoicePrintRef.current?.innerHTML?.length || 0);
+          
           const paperSize = posBillFormat === 'thermal' ? '80mm' : posBillFormat === 'a5' || posBillFormat === 'a5-horizontal' ? 'A5' : 'A4';
           await directPrint(invoicePrintRef.current, {
             context: 'pos',

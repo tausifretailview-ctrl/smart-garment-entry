@@ -2000,7 +2000,7 @@ const PurchaseEntry = () => {
         editingBillId,
         originalLineItems,
       }, false);
-      console.log('[PurchaseEntry] Draft safety-save completed before bill save');
+      
     } catch (draftErr) {
       console.error('[PurchaseEntry] Draft safety-save failed:', draftErr);
     }
@@ -2063,7 +2063,7 @@ const PurchaseEntry = () => {
             .in("id", itemsToDelete);
           
           if (deleteError) throw deleteError;
-          console.log(`Deleted ${itemsToDelete.length} items`);
+          
         }
 
         // 2. Find items to UPDATE (exists in both, but qty/price/details changed)
@@ -2110,7 +2110,7 @@ const PurchaseEntry = () => {
         }
         
         if (itemsToUpdate.length > 0) {
-          console.log(`Updated ${itemsToUpdate.length} items`);
+          
         }
 
         // 3. Find items to INSERT (new items not in original)
@@ -2148,7 +2148,7 @@ const PurchaseEntry = () => {
               .insert(chunk);
             if (insertError) throw insertError;
           }
-          console.log(`Inserted ${itemsToInsert.length} new items`);
+          
           
           // Map inserted items back to LineItem format for barcode printing
           insertedNewItems = lineItems.filter(item => !originalItemsMap.has(item.temp_id));

@@ -931,7 +931,7 @@ export default function SaleOrderEntry() {
       return { success: false };
     }
     
-    console.log('[SaleOrderEntry] Saving order with', itemsToSave.length, 'items');
+    
 
     setIsSaving(true);
     try {
@@ -1002,7 +1002,7 @@ export default function SaleOrderEntry() {
         uom: item.uom || DEFAULT_UOM,
       }));
       
-      console.log('[SaleOrderEntry] Inserting', orderItems.length, 'order items for order', orderId);
+      
 
       const { error: itemsError } = await supabase
         .from('sale_order_items')

@@ -1818,14 +1818,14 @@ Thank you for choosing us!`;
   const handleSaveInvoice = async () => {
     // Synchronous lock check - prevents duplicate saves from rapid clicks/keyboard shortcuts
     if (savingLockRef.current) {
-      console.log('Save already in progress (lock), skipping duplicate call');
+      
       return;
     }
     savingLockRef.current = true;
 
     // State-based check (secondary protection)
     if (isSaving) {
-      console.log('Save already in progress (state), skipping duplicate call');
+      
       savingLockRef.current = false;
       return;
     }
@@ -1898,11 +1898,6 @@ Thank you for choosing us!`;
         }));
       }
       
-      console.log('[Stock Validation] Fresh original items from DB:', {
-        editingInvoiceId,
-        freshOriginalItems,
-        stateOriginalItems: originalItemsForEdit,
-      });
     }
 
     const insufficientItems = await validateCartStock(
