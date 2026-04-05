@@ -780,21 +780,62 @@ export default function POSSales() {
       if (currentSaleId || !currentOrganization?.id) return;
       
       try {
-        // Use the database function to get the next invoice number
-        const { data: nextNumber, error } = await supabase.rpc('generate_pos_number', {
-          p_organization_id: currentOrganization.id
-        });
+        const saleSettings = (settingsData as any)?.sale_settings;
         
-        if (error) throw error;
-        setNextInvoicePreview(nextNumber || 'INV/25-26/1');
+        // Check for custom POS format or series start
+        if (saleSettings?.pos_numbering_format || saleSettings?.pos_series_start) {
+          const format = saleSettings.pos_numbering_format || saleSettings.pos_series_start;
+          const seriesStart = saleSettings.pos_series_start;
+          
+          let minSequence = 1;
+          let basePattern = format.replace(/\d+$/, '');
+          
+          if (seriesStart && seriesStart.trim()) {
+            const startMatches = seriesStart.match(/^(.*?)(\d+)$/);
+            if (startMatches) {
+              basePattern = startMatches[1];
+              minSequence = parseInt(startMatches[2]);
+            }
+          }
+          
+          // Find highest existing sequence for this base pattern
+          const { data: lastSale } = await supabase
+            .from('sales')
+            .select('sale_number')
+            .eq('organization_id', currentOrganization.id)
+            .is('deleted_at', null)
+            .like('sale_number', `${basePattern}%`)
+            .order('created_at', { ascending: false })
+            .limit(50);
+          
+          let sequence = minSequence;
+          if (lastSale && lastSale.length > 0) {
+            let maxSeq = 0;
+            for (const s of lastSale) {
+              const matches = s.sale_number.match(/(\d+)$/);
+              if (matches) maxSeq = Math.max(maxSeq, parseInt(matches[1]));
+            }
+            sequence = Math.max(maxSeq + 1, minSequence);
+          }
+          
+          setNextInvoicePreview(`${basePattern}${sequence}`);
+        } else {
+          // Use the database function to get the next invoice number
+          const { data: nextNumber, error } = await supabase.rpc('generate_pos_number', {
+            p_organization_id: currentOrganization.id
+          });
+          
+          if (error) throw error;
+          setNextInvoicePreview(nextNumber || 'POS/25-26/1');
+        }
       } catch (error) {
         console.error('Error previewing next invoice:', error);
-        setNextInvoicePreview('INV/25-26/1');
+        setNextInvoicePreview('POS/??-??/?');
       }
     };
     
     previewNextInvoice();
-  }, [currentSaleId, currentOrganization?.id]);
+  }, [currentSaleId, currentOrganization?.id, settingsData]);
 
   // Fetch today's sales
   const { data: todaysSales } = useQuery({
