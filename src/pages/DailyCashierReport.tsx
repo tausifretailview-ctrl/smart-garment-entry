@@ -152,7 +152,30 @@ const DailyCashierReport = () => {
     enabled: !!currentOrganization?.id,
   });
 
-  const isLoading = salesLoading || receiptsLoading || refundsLoading || feesLoading;
+  // Fetch expense vouchers for selected period
+  const { data: expenseData, isLoading: expensesLoading } = useQuery({
+    queryKey: ["cashier-report-expenses", currentOrganization?.id, selectedDate, period],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const startDateStr = format(startDate, 'yyyy-MM-dd');
+      const endDateStr = format(endDate, 'yyyy-MM-dd');
+      try {
+        const { data, error } = await supabase
+          .from("voucher_entries")
+          .select("id, total_amount, payment_method, category, description")
+          .eq("organization_id", currentOrganization.id)
+          .eq("voucher_type", "expense")
+          .gte("voucher_date", startDateStr)
+          .lte("voucher_date", endDateStr)
+          .is("deleted_at", null);
+        if (error) { console.error("Expense query error:", error); return []; }
+        return data || [];
+      } catch (e) { console.error("Expense query failed:", e); return []; }
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  const isLoading = salesLoading || receiptsLoading || refundsLoading || feesLoading || expensesLoading;
 
   // Fetch settings for business name
   const { data: settings } = useQuery({
@@ -328,6 +351,30 @@ const DailyCashierReport = () => {
       });
     }
 
+    // Calculate expense totals by payment method and category
+    let expenseCash = 0;
+    let expenseUpi = 0;
+    let expenseCard = 0;
+    let expenseOther = 0;
+    const expenseByCategory: Record<string, { cash: number; upi: number; card: number; other: number; total: number }> = {};
+
+    if (expenseData) {
+      expenseData.forEach((exp: any) => {
+        const amt = Number(exp.total_amount) || 0;
+        const method = (exp.payment_method || "cash").toLowerCase();
+        const cat = exp.category || exp.description || "Miscellaneous";
+
+        if (!expenseByCategory[cat]) expenseByCategory[cat] = { cash: 0, upi: 0, card: 0, other: 0, total: 0 };
+        expenseByCategory[cat].total += amt;
+
+        if (method === "cash") { expenseCash += amt; expenseByCategory[cat].cash += amt; }
+        else if (method === "upi") { expenseUpi += amt; expenseByCategory[cat].upi += amt; }
+        else if (method === "card") { expenseCard += amt; expenseByCategory[cat].card += amt; }
+        else { expenseOther += amt; expenseByCategory[cat].other += amt; }
+      });
+    }
+    const expenseTotal = expenseCash + expenseUpi + expenseCard + expenseOther;
+
     // Net Receivable = Net Sale (net_amount already includes S/R deduction from POS save logic)
     const netReceivable = totalSale;
 
@@ -367,6 +414,14 @@ const DailyCashierReport = () => {
       feeBankCollection,
       feeTotalCollection,
       feeCount: feeCollectionData?.length || 0,
+      // Expense outflows
+      expenseCash,
+      expenseUpi,
+      expenseCard,
+      expenseOther,
+      expenseTotal,
+      expenseByCategory,
+      expenseCount: expenseData?.length || 0,
     };
   };
 
@@ -960,10 +1015,35 @@ const DailyCashierReport = () => {
                       </TableRow>
                     </>
                   )}
+                  {/* Expense Outflows Section */}
+                  {totals.expenseTotal > 0 && (
+                    <>
+                      <TableRow className="bg-red-50 dark:bg-red-950">
+                        <TableCell colSpan={2} className="font-semibold text-destructive">
+                          💸 Expense Outflows — {totals.expenseCount} entries
+                        </TableCell>
+                      </TableRow>
+                      {Object.entries(totals.expenseByCategory).sort(([,a],[,b]) => b.total - a.total).map(([cat, vals]) => (
+                        <TableRow key={cat}>
+                          <TableCell className="pl-8 text-xs">
+                            {cat}
+                            {vals.cash > 0 && <span className="ml-2 text-muted-foreground">Cash: {formatCurrency(vals.cash)}</span>}
+                            {vals.upi > 0 && <span className="ml-2 text-muted-foreground">UPI: {formatCurrency(vals.upi)}</span>}
+                            {vals.card > 0 && <span className="ml-2 text-muted-foreground">Card: {formatCurrency(vals.card)}</span>}
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-destructive">{formatCurrency(vals.total)}</TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow className="bg-red-100 dark:bg-red-900">
+                        <TableCell className="font-bold text-destructive">Total Expenses</TableCell>
+                        <TableCell className="text-right font-bold text-destructive">{formatCurrency(totals.expenseTotal)}</TableCell>
+                      </TableRow>
+                    </>
+                  )}
                   <TableRow className="bg-primary/10">
-                    <TableCell className="font-bold text-primary">GRAND TOTAL (Sales + RCP + Fees)</TableCell>
+                    <TableCell className="font-bold text-primary">GRAND TOTAL (Sales + RCP + Fees - Expenses)</TableCell>
                     <TableCell className="text-right font-bold text-lg text-primary">
-                      {formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.rcpTotalCollection + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal)}
+                      {formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.rcpTotalCollection + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal - totals.expenseTotal)}
                     </TableCell>
                   </TableRow>
                   <TableRow>
@@ -1075,9 +1155,15 @@ const DailyCashierReport = () => {
                     </div>
                   )}
                 </div>
+                {totals.expenseTotal > 0 && (
+                  <div className="flex justify-between py-2 border-b text-destructive">
+                    <span className="text-muted-foreground">💸 Total Expenses ({totals.expenseCount})</span>
+                    <span className="font-semibold">- {formatCurrency(totals.expenseTotal)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between py-2 border-t mt-2 font-bold text-green-600">
                   <span>Total Collected</span>
-                  <span>{formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal)}</span>
+                  <span>{formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal - totals.expenseTotal)}</span>
                 </div>
                 <div className="pt-2 space-y-1 border-t mt-2">
                   <div className="flex justify-between">
