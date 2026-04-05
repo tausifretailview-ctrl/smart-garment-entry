@@ -2721,16 +2721,33 @@ const PurchaseEntry = () => {
             barcode = variantInfo.barcode || row.barcode?.toString().trim() || '';
           } else {
             // Check if variant already exists FIRST — before generating any barcode
-            const colorFilter = color ? `color.eq.${color}` : 'color.is.null';
+            // Handle both NULL and empty-string color values for robust matching
+            const colorConditions = color
+              ? `color.eq.${color}`
+              : 'color.is.null,color.eq.';
             const { data: existingVariant } = await supabase
               .from('product_variants')
               .select('id, barcode')
               .eq('product_id', productId)
               .eq('size', size || '')
-              .or(colorFilter)
+              .or(colorConditions)
               .is('deleted_at', null)
               .eq('organization_id', currentOrganization.id)
               .maybeSingle();
+
+            // Also try finding by barcode if Excel row has one and above lookup missed
+            const rowBarcode = row.barcode?.toString().trim() || '';
+            let barcodeVariant: { id: string; barcode: string } | null = null;
+            if (!existingVariant && rowBarcode) {
+              const { data: byBarcode } = await supabase
+                .from('product_variants')
+                .select('id, barcode')
+                .eq('organization_id', currentOrganization.id)
+                .eq('barcode', rowBarcode)
+                .is('deleted_at', null)
+                .maybeSingle();
+              barcodeVariant = byBarcode;
+            }
 
             let newVariantId: string | null = null;
             let variantError: any = null;
@@ -2738,24 +2755,16 @@ const PurchaseEntry = () => {
             if (existingVariant) {
               // Variant exists — reuse its ID AND its existing barcode
               newVariantId = existingVariant.id;
-              barcode = row.barcode?.toString().trim() || existingVariant.barcode || '';
+              barcode = rowBarcode || existingVariant.barcode || '';
+            } else if (barcodeVariant) {
+              // Found by barcode — reuse it (handles re-import after delete)
+              newVariantId = barcodeVariant.id;
+              barcode = barcodeVariant.barcode;
             } else {
               // Variant does NOT exist — now generate a new barcode
-              barcode = row.barcode?.toString().trim() || '';
+              barcode = rowBarcode;
               if (!barcode) {
                 barcode = barcodePool[barcodePoolIndex++] || `AUTO${Date.now()}${barcodePoolIndex}`;
-              }
-
-              // Check for duplicate barcode before inserting new variant
-              if (barcode) {
-                const { exists, productName: conflictProduct } = await checkBarcodeExists(barcode, currentOrganization.id);
-                if (exists) {
-                  toast({
-                    title: "Duplicate Barcode Warning",
-                    description: `Barcode "${barcode}" already exists in "${conflictProduct}". Proceeding with import.`,
-                    variant: "destructive",
-                  });
-                }
               }
 
               const { data: inserted, error: insertErr } = await supabase
@@ -2773,8 +2782,28 @@ const PurchaseEntry = () => {
                 })
                 .select('id')
                 .single();
-              newVariantId = inserted?.id || null;
-              variantError = insertErr;
+              
+              // If insert fails (e.g. unique constraint), try to find existing variant as fallback
+              if (insertErr) {
+                const { data: fallback } = await supabase
+                  .from('product_variants')
+                  .select('id, barcode')
+                  .eq('product_id', productId)
+                  .eq('size', size || '')
+                  .is('deleted_at', null)
+                  .eq('organization_id', currentOrganization.id)
+                  .limit(1)
+                  .maybeSingle();
+                if (fallback) {
+                  newVariantId = fallback.id;
+                  barcode = fallback.barcode || barcode;
+                } else {
+                  variantError = insertErr;
+                }
+              } else {
+                newVariantId = inserted?.id || null;
+                variantError = !newVariantId ? insertErr : null;
+              }
             }
 
             if (variantError || !newVariantId) {
