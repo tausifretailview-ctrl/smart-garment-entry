@@ -48,6 +48,7 @@ interface ThermalPrint80mmProps {
   refundCash?: number;
   documentType?: 'invoice' | 'quotation' | 'sale-order' | 'pos';
   termsConditions?: string;
+  notes?: string;
   pointsRedeemed?: number;
   pointsRedemptionValue?: number;
   pointsBalance?: number;
@@ -68,7 +69,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
       roundOff = 0, grandTotal,
       gstBreakdown, gstRateBreakdown, paymentMethod,
       cashPaid = 0, upiPaid = 0, cardPaid = 0, creditPaid = 0, refundCash = 0,
-      documentType = 'invoice', termsConditions,
+      documentType = 'invoice', termsConditions, notes,
       pointsRedeemed = 0, pointsRedemptionValue = 0, pointsBalance = 0,
       cashier, salesman, counter, isDcInvoice,
     } = props;
@@ -117,7 +118,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
 
     // ─── Styles ────────────────────────────────────
     const base: React.CSSProperties = {
-      width: '70mm', maxWidth: '70mm', padding: '2mm',
+      width: '72mm', maxWidth: '72mm', padding: '2mm 2mm 2mm 4mm',
       backgroundColor: 'white', fontFamily: "'Courier New', Courier, monospace",
       fontSize: '12px', lineHeight: '1.4', color: '#000',
       fontWeight: 700, boxSizing: 'border-box',
@@ -366,6 +367,17 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
           <>
             <div style={singleLine} />
             <div style={{ fontSize: '10px', lineHeight: '1.3', whiteSpace: 'pre-wrap', textAlign: 'center' }}>{termsConditions}</div>
+          </>
+        )}
+
+        {/* ═══ NOTE ═══ */}
+        {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
+          <>
+            <div style={singleLine} />
+            <div style={{ fontSize: '10px', lineHeight: '1.3' }}>
+              <span style={{ fontWeight: 900 }}>Note: </span>
+              <span style={{ whiteSpace: 'pre-wrap' }}>{notes.trim()}</span>
+            </div>
           </>
         )}
 

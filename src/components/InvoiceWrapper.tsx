@@ -429,6 +429,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             refundCash={props.refundCash}
             documentType="invoice"
             termsConditions={filteredTerms.join('\n')}
+            notes={props.notes}
             pointsRedeemed={props.pointsRedeemed}
             pointsRedemptionValue={props.pointsRedemptionValue}
             pointsBalance={props.pointsBalance}
