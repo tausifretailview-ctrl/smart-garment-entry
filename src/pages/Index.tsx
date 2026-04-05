@@ -225,16 +225,19 @@ const DesktopDashboard = () => {
     {
       label: "POS Billing",
       icon: ShoppingCart,
+      shortcut: "Ctrl+N",
       onClick: () => navigate("/pos-sales"),
     },
     {
       label: "Stock Report",
       icon: Package,
+      shortcut: "Ctrl+G",
       onClick: () => navigate("/stock-report"),
     },
     {
       label: "Daily Cash Report",
       icon: Calculator,
+      shortcut: "Ctrl+T",
       onClick: () => navigate("/daily-cashier-report"),
     },
     {
@@ -251,6 +254,7 @@ const DesktopDashboard = () => {
     {
       label: "Refresh Dashboard",
       icon: RefreshCw,
+      shortcut: "F5",
       onClick: () => handleRefreshAll(),
     },
   ];
