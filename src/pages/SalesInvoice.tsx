@@ -570,24 +570,62 @@ export default function SalesInvoice() {
       
       try {
         const settings = settingsData?.sale_settings as any;
-        if (settings?.invoice_numbering_format) {
-          // Use custom format from settings
-          const now = new Date();
-          const year = now.getFullYear();
-          const month = String(now.getMonth() + 1).padStart(2, '0');
-          const fyStart = now.getMonth() >= 3 ? year : year - 1;
-          const fyEnd = fyStart + 1;
-          const fyShort = `${String(fyStart).slice(-2)}-${String(fyEnd).slice(-2)}`;
+        if (settings?.invoice_numbering_format || settings?.invoice_series_start) {
+          const format = settings.invoice_numbering_format || settings.invoice_series_start;
+          const seriesStart = settings.invoice_series_start;
+          const hasPlaceholders = format.includes('{');
           
-          let preview = settings.invoice_numbering_format
-            .replace('{FY}', fyShort)
-            .replace('{YYYY}', String(year))
-            .replace('{MM}', month)
-            .replace('{N}', '?');
-          
-          setNextInvoicePreview(preview);
+          if (hasPlaceholders) {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const fyStart = now.getMonth() >= 3 ? year : year - 1;
+            const fyEnd = fyStart + 1;
+            const fyShort = `${String(fyStart).slice(-2)}-${String(fyEnd).slice(-2)}`;
+            
+            let preview = format
+              .replace('{FY}', fyShort)
+              .replace('{YYYY}', String(year))
+              .replace('{MM}', month)
+              .replace('{N}', '?');
+            
+            setNextInvoicePreview(preview);
+          } else {
+            // Literal format — compute next sequence respecting series start
+            let minSequence = 1;
+            let basePattern = format.replace(/\d+$/, '');
+            
+            if (seriesStart && seriesStart.trim()) {
+              const startMatches = seriesStart.match(/^(.*?)(\d+)$/);
+              if (startMatches) {
+                basePattern = startMatches[1];
+                minSequence = parseInt(startMatches[2]);
+              }
+            }
+            
+            const { data: lastSales } = await supabase
+              .from('sales')
+              .select('sale_number')
+              .eq('organization_id', currentOrganization.id)
+              .is('deleted_at', null)
+              .like('sale_number', `${basePattern}%`)
+              .order('created_at', { ascending: false })
+              .limit(50);
+            
+            let sequence = minSequence;
+            if (lastSales && lastSales.length > 0) {
+              let maxSeq = 0;
+              for (const s of lastSales) {
+                const matches = s.sale_number.match(/(\d+)$/);
+                if (matches) maxSeq = Math.max(maxSeq, parseInt(matches[1]));
+              }
+              sequence = Math.max(maxSeq + 1, minSequence);
+            }
+            
+            setNextInvoicePreview(`${basePattern}${sequence}`);
+          }
         } else {
-          // Use database function for default format - always fetch fresh
+          // Use database function for default format
           const { data: nextNumber, error } = await supabase.rpc('generate_sale_number', {
             p_organization_id: currentOrganization.id
           });
@@ -1987,11 +2025,81 @@ Thank you for choosing us!`;
         });
         setShowPrintDialog(true);
       } else {
-        // Create new invoice
-        const { data: saleNumber, error: saleNumError } = await supabase
-          .rpc('generate_sale_number', { p_organization_id: currentOrganization?.id });
-
-        if (saleNumError) throw saleNumError;
+        // Create new invoice — respect invoice_series_start from settings
+        let saleNumber: string;
+        const saleSettings = settingsData?.sale_settings as any;
+        
+        if (saleSettings?.invoice_numbering_format || saleSettings?.invoice_series_start) {
+          const format = saleSettings.invoice_numbering_format || saleSettings.invoice_series_start;
+          const seriesStart = saleSettings.invoice_series_start;
+          const hasPlaceholders = format.includes('{');
+          
+          let minSequence = 1;
+          let basePattern = format.replace(/\d+$/, '');
+          
+          if (seriesStart && seriesStart.trim()) {
+            const startMatches = seriesStart.match(/^(.*?)(\d+)$/);
+            if (startMatches) {
+              basePattern = startMatches[1];
+              minSequence = parseInt(startMatches[2]);
+            }
+          }
+          
+          if (hasPlaceholders) {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            
+            const { data: lastSale } = await supabase
+              .from('sales')
+              .select('sale_number')
+              .eq('organization_id', currentOrganization!.id)
+              .is('deleted_at', null)
+              .like('sale_number', `%${year}%`)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            
+            let sequence = minSequence;
+            if (lastSale?.sale_number) {
+              const matches = lastSale.sale_number.match(/(\d+)$/);
+              if (matches) sequence = Math.max(parseInt(matches[1]) + 1, minSequence);
+            }
+            
+            saleNumber = format
+              .replace('{YYYY}', String(year))
+              .replace('{YY}', String(year).slice(-2))
+              .replace('{MM}', month)
+              .replace('{####}', String(sequence).padStart(4, '0'))
+              .replace('{###}', String(sequence).padStart(3, '0'))
+              .replace('{#####}', String(sequence).padStart(5, '0'));
+          } else {
+            const { data: lastSales } = await supabase
+              .from('sales')
+              .select('sale_number')
+              .eq('organization_id', currentOrganization!.id)
+              .is('deleted_at', null)
+              .like('sale_number', `${basePattern}%`)
+              .order('created_at', { ascending: false })
+              .limit(50);
+            
+            let sequence = minSequence;
+            if (lastSales && lastSales.length > 0) {
+              let maxSeq = 0;
+              for (const s of lastSales) {
+                const matches = s.sale_number.match(/(\d+)$/);
+                if (matches) maxSeq = Math.max(maxSeq, parseInt(matches[1]));
+              }
+              sequence = Math.max(maxSeq + 1, minSequence);
+            }
+            saleNumber = `${basePattern}${sequence}`;
+          }
+        } else {
+          const { data: defaultNumber, error: saleNumError } = await supabase
+            .rpc('generate_sale_number', { p_organization_id: currentOrganization?.id });
+          if (saleNumError) throw saleNumError;
+          saleNumber = defaultNumber;
+        }
 
         const { data: saleData, error: saleError } = await supabase
           .from('sales')
