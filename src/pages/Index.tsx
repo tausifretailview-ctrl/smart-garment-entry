@@ -775,7 +775,7 @@ const DesktopDashboard = () => {
           </div>
 
           {/* Row 2 - Purchase Metrics */}
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-4 lg:grid-cols-4">
             <AnimatedMetricCard
               title="Total Purchase"
               value={purchaseData?.total || 0}
@@ -829,7 +829,7 @@ const DesktopDashboard = () => {
           </div>
 
           {/* Row 3 - Inventory & Financial Metrics */}
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-4 lg:grid-cols-4">
             <AnimatedMetricCard
               title="Products"
               value={productsCount || 0}
