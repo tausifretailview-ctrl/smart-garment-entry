@@ -55,7 +55,7 @@ interface Transaction {
   id: string;
   date: string;
   timestamp: string | null;
-  type: 'invoice' | 'payment' | 'advance' | 'adjustment' | 'fee' | 'return' | 'refund' | 'credit_note';
+  type: 'invoice' | 'payment' | 'advance' | 'advance_application' | 'adjustment' | 'fee' | 'return' | 'refund' | 'credit_note';
   reference: string;
   description: string;
   debit: number;
@@ -800,13 +800,12 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           type: 'invoice' as const,
           data: sale,
         })),
-        // Filter out advance-application vouchers (internal transfers - advance already credited)
+        // Include all vouchers including advance-application entries
         ...allVouchers
-          .filter((voucher: any) => !voucher.description?.startsWith('Adjusted from advance balance'))
-          .map((voucher) => ({
+          .map((voucher: any) => ({
             date: voucher.voucher_date,
             timestamp: voucher.created_at,
-            type: 'payment' as const,
+            type: voucher.payment_method === 'advance_adjustment' ? 'advance_application' as const : 'payment' as const,
             data: voucher,
           })),
         ...(advancesData || []).map((advance) => ({
@@ -846,8 +845,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         const tsA = a.timestamp ? new Date(a.timestamp).getTime() : new Date(a.date).getTime();
         const tsB = b.timestamp ? new Date(b.timestamp).getTime() : new Date(b.date).getTime();
         if (tsA !== tsB) return tsA - tsB;
-        // Stable tiebreaker: invoice < cn_adjustment = advance < payment < adjustment
-        const typeOrder: Record<string, number> = { invoice: 0, cn_adjustment: 1, advance: 1, refund: 1, credit_note: 1, payment: 2, adjustment: 3 };
+        // Stable tiebreaker: invoice < cn_adjustment = advance < advance_application < payment < adjustment
+        const typeOrder: Record<string, number> = { invoice: 0, cn_adjustment: 1, advance: 1, refund: 1, credit_note: 1, advance_application: 1.5, payment: 2, adjustment: 3 };
         return (typeOrder[a.type] ?? 1) - (typeOrder[b.type] ?? 1);
       });
 
@@ -933,8 +932,12 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           if (advance.description) {
             description += ` - ${advance.description}`;
           }
-          if (advance.used_amount > 0) {
-            description += ` (Used: ₹${advance.used_amount.toLocaleString('en-IN')}, Available: ₹${availableAmount.toLocaleString('en-IN')})`;
+          if (advance.status === 'fully_used') {
+            description += ' — Fully Applied to Invoice(s)';
+          } else if (advance.used_amount > 0) {
+            description += ` — Partially Applied (₹${advance.used_amount.toLocaleString('en-IN')} used, ₹${availableAmount.toLocaleString('en-IN')} remaining)`;
+          } else {
+            description += ' — Available for Invoice Settlement';
           }
           
           allTransactions.push({
@@ -948,6 +951,24 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             credit: advance.amount,
             balance: runningBalance,
             paymentBreakdown: advance.payment_method ? { method: advance.payment_method } : undefined,
+          });
+        } else if (item.type === 'advance_application') {
+          // Advance applied to invoice — display-only, no balance impact
+          // (advance already credited when received, this is just re-allocation)
+          const voucher = item.data as any;
+          const invoiceRef = voucher.description?.replace('Adjusted from advance balance for ', '') || '';
+          const description = `Advance Applied to Invoice${invoiceRef ? ' — ' + invoiceRef : ''}`;
+          
+          allTransactions.push({
+            id: voucher.id,
+            date: voucher.voucher_date,
+            timestamp: item.timestamp || null,
+            type: 'advance_application',
+            reference: voucher.voucher_number || 'ADV-APP',
+            description,
+            debit: 0,
+            credit: 0,
+            balance: runningBalance,
           });
         } else if (item.type === 'adjustment') {
           const adj = item.data as any;
@@ -1894,6 +1915,10 @@ Please clear your dues at the earliest. Thank you!`;
                                   {transaction.type === 'advance' ? (
                                     <Badge className="bg-primary/20 text-primary border-primary/30">
                                       <Wallet className="h-3 w-3 mr-1" /> ADVANCE
+                                    </Badge>
+                                  ) : transaction.type === 'advance_application' ? (
+                                    <Badge className="bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 border border-teal-300 text-xs">
+                                      <TrendingUp className="h-3 w-3 mr-1" /> Advance Applied
                                     </Badge>
                                   ) : transaction.type === 'adjustment' ? (
                                     <Badge className="bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-500/30">
