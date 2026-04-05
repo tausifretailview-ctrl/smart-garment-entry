@@ -128,7 +128,7 @@ export default function ItemWiseStockReport() {
         }
       }
 
-      console.log(`ItemWiseStockReport: Fetched ${allVariants.length} variants with filters`);
+      
       return allVariants;
     },
     enabled: !!currentOrganization?.id && hasActiveFilter,

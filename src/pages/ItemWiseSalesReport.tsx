@@ -175,7 +175,7 @@ export default function ItemWiseSalesReport() {
       }
 
       if (allSales.length === 0) return [];
-      console.log(`ItemWiseSalesReport: fetched ${allSales.length} sales`);
+      
 
       const saleIds = allSales.map((s) => s.id);
       const salesMap = new Map(allSales.map(s => [s.id, s.customer_name]));

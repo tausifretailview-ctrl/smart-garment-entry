@@ -77,6 +77,8 @@ export default function DeliveryChallanDashboard() {
       return data || [];
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const filteredChallans = (challansData || []).filter((challan: any) => {

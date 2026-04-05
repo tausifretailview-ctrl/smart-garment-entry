@@ -577,7 +577,7 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
           margin: 0
         });
       } catch (e) {
-        console.log('Preview barcode error:', e);
+        
       }
     });
   }, [labelConfig, barcodeValue]);
@@ -1279,7 +1279,7 @@ export default function BarcodePrinting() {
     ));
     
     if (success) {
-      console.log(`Auto-saved template "${templateName}"`);
+      
     }
   }, [saveTemplateToDb]);
 

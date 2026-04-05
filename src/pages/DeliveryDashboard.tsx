@@ -77,6 +77,8 @@ const DeliveryDashboard = () => {
       };
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch delivery trend data (last 7 days)
@@ -117,6 +119,8 @@ const DeliveryDashboard = () => {
       return chartData;
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch status distribution
@@ -143,6 +147,8 @@ const DeliveryDashboard = () => {
       ];
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch filtered invoices based on selected status, date range, search, and payment status
@@ -182,6 +188,8 @@ const DeliveryDashboard = () => {
       return data;
     },
     enabled: !!currentOrganization?.id && !!selectedStatus,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // Mutation to update delivery status

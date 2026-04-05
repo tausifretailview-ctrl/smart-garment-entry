@@ -123,6 +123,8 @@ export default function PaymentsDashboard() {
       return data;
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: invoices, isLoading, refetch } = useQuery<Invoice[]>({
@@ -164,6 +166,8 @@ export default function PaymentsDashboard() {
       return salesData || [];
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // Calculate summary statistics

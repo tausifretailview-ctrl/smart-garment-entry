@@ -100,7 +100,7 @@ export function CustomerBalanceImportDialog({
 
       // Fetch ALL customers for matching (bypasses 1000 row limit via pagination)
       const customers = await fetchAllCustomers(currentOrganization.id);
-      console.log(`Loaded ${customers.length} customers for matching`);
+      
 
       // Create a lookup map by normalized phone
       const customerMap = new Map<string, { id: string; name: string }>();

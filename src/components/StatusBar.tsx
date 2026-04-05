@@ -22,7 +22,8 @@ export const StatusBar = () => {
       return data;
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 60_000,
+    staleTime: 15 * 60 * 1000,    // 15 minutes — stock qty doesn't change every minute
+    refetchOnWindowFocus: false,
   });
 
   const { data: dueData } = useQuery({
@@ -39,7 +40,8 @@ export const StatusBar = () => {
       return { total };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 60_000,
+    staleTime: 15 * 60 * 1000,    // 15 minutes
+    refetchOnWindowFocus: false,
   });
 
   const stockQty = stockData?.total_stock_qty ?? 0;
