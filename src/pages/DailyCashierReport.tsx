@@ -414,6 +414,14 @@ const DailyCashierReport = () => {
       feeBankCollection,
       feeTotalCollection,
       feeCount: feeCollectionData?.length || 0,
+      // Expense outflows
+      expenseCash,
+      expenseUpi,
+      expenseCard,
+      expenseOther,
+      expenseTotal,
+      expenseByCategory,
+      expenseCount: expenseData?.length || 0,
     };
   };
 
