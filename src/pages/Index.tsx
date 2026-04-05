@@ -139,6 +139,10 @@ const AnimatedMetricCard = ({
               <div className="text-xl font-bold text-card-foreground tracking-tight font-mono">
                 {displayValue}
               </div>
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-[10px] text-muted-foreground">{isCurrency ? "Amount" : "Count"}</span>
+                <span className="text-[9px] font-semibold text-success bg-success/10 px-1.5 py-0.5 rounded-sm">↑ Live</span>
+              </div>
             </CardContent>
           </Card>
         </div>

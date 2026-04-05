@@ -10,6 +10,7 @@ export interface ContextMenuItem {
   destructive?: boolean;
   separator?: boolean;
   hidden?: boolean;
+  shortcut?: string;
 }
 
 interface DesktopContextMenuProps {
