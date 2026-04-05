@@ -213,8 +213,8 @@ export const Header = () => {
 
         {/* Live indicator */}
         <div className="flex items-center gap-1.5 text-sidebar-foreground/60">
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-xs font-medium text-emerald-400">Live</span>
+          <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
+          <span className="text-xs font-medium text-success">Live</span>
           <span className="text-xs text-sidebar-foreground/40">· {new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}</span>
         </div>
 
