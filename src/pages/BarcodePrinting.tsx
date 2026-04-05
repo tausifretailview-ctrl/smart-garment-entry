@@ -3012,6 +3012,24 @@ export default function BarcodePrinting() {
     return Math.min(scaleX, scaleY);
   };
 
+  const getSheetPageMargins = () => {
+    const w = sheetType === 'custom' ? customWidth : parseInt(sheetPresets[sheetType].width);
+    const h = sheetType === 'custom' ? customHeight : parseInt(sheetPresets[sheetType].height);
+    const cols = sheetType === 'custom' ? customCols : sheetPresets[sheetType].cols;
+    const rows = sheetType === 'custom' ? (customRows || 8) : ((sheetPresets[sheetType] as any).rows || 8);
+    const gap = sheetType === 'custom' ? customGap : parseInt(sheetPresets[sheetType].gap);
+
+    const totalLabelW = cols * w + (cols - 1) * gap;
+    const totalLabelH = rows * h + (rows - 1) * gap;
+
+    const marginTop    = Math.max(0, ((297 - totalLabelH) / 2) + topOffset);
+    const marginBottom = Math.max(0, ((297 - totalLabelH) / 2) - topOffset);
+    const marginLeft   = Math.max(0, ((210 - totalLabelW) / 2) + leftOffset);
+    const marginRight  = Math.max(0, ((210 - totalLabelW) / 2) - leftOffset);
+
+    return { marginTop, marginBottom, marginLeft, marginRight };
+  };
+
   const generatePreview = (targetElementId: string) => {
     const printArea = document.getElementById(targetElementId);
     if (!printArea) return;
@@ -3366,19 +3384,90 @@ export default function BarcodePrinting() {
 
     // Classic mode: Generate labels in the print area
     generatePreview("printArea");
-    
-    // Suppress browser headers/footers by clearing document title during print
-    const originalTitle = document.title;
-    const originalZoom = (document.body.style as any).zoom;
-    document.title = ' ';
-    (document.body.style as any).zoom = '1';
-    
-    // Print immediately since barcodes are pre-rendered
+
+    // For thermal sheets: keep existing window.print() approach
+    if (isThermal1Up() || isThermal2Up()) {
+      const originalTitle = document.title;
+      document.title = ' ';
+      setTimeout(() => {
+        window.print();
+        document.title = originalTitle;
+      }, 200);
+      return;
+    }
+
+    // For A4 sheets: open clean isolated print window (same as Precision Pro)
     setTimeout(() => {
-      window.print();
-      document.title = originalTitle;
-      (document.body.style as any).zoom = originalZoom || '';
-    }, 200);
+      const printAreaEl = document.getElementById("printArea");
+      if (!printAreaEl) return;
+
+      const labelHTML = printAreaEl.innerHTML;
+      const { marginTop, marginBottom, marginLeft, marginRight } = getSheetPageMargins();
+
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        toast.error("Popup blocked — please allow popups for this site.");
+        return;
+      }
+
+      printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @page {
+    size: A4 portrait;
+    margin: ${marginTop.toFixed(2)}mm ${marginRight.toFixed(2)}mm ${marginBottom.toFixed(2)}mm ${marginLeft.toFixed(2)}mm !important;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 210mm;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .label-grid {
+    display: grid;
+    page-break-after: always;
+    break-after: page;
+  }
+  .label-grid:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+  .label-cell {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .brand { font-family: Arial, sans-serif; font-weight: 800; text-transform: uppercase; }
+  .prod  { font-family: Arial, sans-serif; }
+  .mrp   { font-family: Arial, sans-serif; font-weight: 700; }
+  .meta  { font-family: Arial, sans-serif; }
+  svg, canvas { display: block; }
+  @media print {
+    html, body { margin: 0 !important; padding: 0 !important; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>${labelHTML}</body>
+</html>`);
+
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 400);
+    }, 300);
   };
 
   const handleTestPrint = async () => {
@@ -3655,7 +3744,9 @@ export default function BarcodePrinting() {
         : isThermal2Up()
         ? 2
         : (() => {
-            const availableHeight = 297 - topOffset - bottomOffset - 10;
+            const explicitRows = sheetType === 'custom' ? customRows : ((sheetPresets[sheetType] as any)?.rows || 0);
+            if (explicitRows > 0) return baseDimensions.cols * explicitRows;
+            const availableHeight = 297 - 10;
             const rowsPerPage = Math.floor(availableHeight / (baseDimensions.height + baseDimensions.gap));
             return baseDimensions.cols * Math.max(1, rowsPerPage);
           })();
