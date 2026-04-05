@@ -351,6 +351,30 @@ const DailyCashierReport = () => {
       });
     }
 
+    // Calculate expense totals by payment method and category
+    let expenseCash = 0;
+    let expenseUpi = 0;
+    let expenseCard = 0;
+    let expenseOther = 0;
+    const expenseByCategory: Record<string, { cash: number; upi: number; card: number; other: number; total: number }> = {};
+
+    if (expenseData) {
+      expenseData.forEach((exp: any) => {
+        const amt = Number(exp.total_amount) || 0;
+        const method = (exp.payment_method || "cash").toLowerCase();
+        const cat = exp.category || exp.description || "Miscellaneous";
+
+        if (!expenseByCategory[cat]) expenseByCategory[cat] = { cash: 0, upi: 0, card: 0, other: 0, total: 0 };
+        expenseByCategory[cat].total += amt;
+
+        if (method === "cash") { expenseCash += amt; expenseByCategory[cat].cash += amt; }
+        else if (method === "upi") { expenseUpi += amt; expenseByCategory[cat].upi += amt; }
+        else if (method === "card") { expenseCard += amt; expenseByCategory[cat].card += amt; }
+        else { expenseOther += amt; expenseByCategory[cat].other += amt; }
+      });
+    }
+    const expenseTotal = expenseCash + expenseUpi + expenseCard + expenseOther;
+
     // Net Receivable = Net Sale (net_amount already includes S/R deduction from POS save logic)
     const netReceivable = totalSale;
 
