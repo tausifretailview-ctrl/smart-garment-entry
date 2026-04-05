@@ -671,6 +671,44 @@ const DesktopDashboard = () => {
         </div>
       </div>
       
+      {/* Command Toolbar */}
+      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-border">
+        <button
+          onClick={() => navigate("/pos-sales")}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          <Plus className="h-3.5 w-3.5" /> New Sale
+        </button>
+        <button
+          onClick={() => navigate("/purchase-entry")}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-border bg-background hover:bg-muted transition-colors text-foreground"
+        >
+          <Package className="h-3.5 w-3.5" /> Purchase
+        </button>
+        <button
+          onClick={() => navigate("/stock-report")}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-border bg-background hover:bg-muted transition-colors text-foreground"
+        >
+          <BarChart3 className="h-3.5 w-3.5" /> Stock
+        </button>
+        <button
+          onClick={() => navigate("/accounts")}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-border bg-background hover:bg-muted transition-colors text-foreground"
+        >
+          <Calculator className="h-3.5 w-3.5" /> Accounts
+        </button>
+        <button
+          onClick={() => navigate("/daily-cashier-report")}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-border bg-background hover:bg-muted transition-colors text-foreground"
+        >
+          <DollarSign className="h-3.5 w-3.5" /> Cashier
+        </button>
+        <div className="flex-1" />
+        <span className="text-xs text-muted-foreground hidden lg:block">
+          Quick actions — Ctrl+K to search
+        </span>
+      </div>
+
       {/* Last Updated Indicator */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
@@ -683,7 +721,7 @@ const DesktopDashboard = () => {
         {/* Left side - Metric cards */}
         <div className="space-y-3">
           {/* Row 1 - Sales Metrics */}
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-4 lg:grid-cols-4">
             <AnimatedMetricCard
               title="Total Sales"
               value={salesData?.total || 0}
