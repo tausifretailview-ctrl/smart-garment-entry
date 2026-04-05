@@ -179,23 +179,26 @@ export default function Accounts() {
 
   // Dashboard metrics from unified RPC
   const invoiceStats = dashboardStats?.invoiceStats || {};
+  const monthlySales = dashboardStats?.monthlySales || 0;
+  const monthlyPurchases = dashboardStats?.monthlyPurchases || 0;
+  const monthlyExpenses = dashboardStats?.monthlyExpenses || 0;
   const dashboardMetrics = {
     totalReceivables: dashboardStats?.totalReceivables || 0,
     totalPayables: dashboardStats?.totalPayables || 0,
-    monthlyExpenses: dashboardStats?.monthlyExpenses || 0,
-    currentMonthPL: (dashboardStats?.totalReceivables || 0) - (dashboardStats?.totalPayables || 0) - (dashboardStats?.monthlyExpenses || 0),
+    monthlyExpenses,
+    currentMonthPL: monthlySales - monthlyPurchases - monthlyExpenses,
   };
 
   const paymentStats = {
     totalInvoices: invoiceStats.total || 0,
-    totalAmount: dashboardStats?.totalReceivables || 0,
-    paidAmount: 0,
+    totalAmount: invoiceStats.totalAmount || 0,
+    paidAmount: invoiceStats.paidAmount || 0,
     pendingCount: invoiceStats.pending || 0,
-    pendingAmount: 0,
+    pendingAmount: invoiceStats.pendingAmount || 0,
     partialCount: invoiceStats.partial || 0,
-    partialAmount: 0,
+    partialAmount: invoiceStats.partialAmount || 0,
     completedCount: invoiceStats.paid || 0,
-    completedAmount: 0,
+    completedAmount: invoiceStats.paidAmount || 0,
   };
 
   const handleCardClick = (filter: string | null) => {
