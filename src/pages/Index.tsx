@@ -209,6 +209,7 @@ const DesktopDashboard = () => {
   const [dateRange, setDateRange] = useState<DateRangeType>("monthly");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [hasLoaded, setHasLoaded] = useState(false);
   const queryClient = useQueryClient();
   const [showSizeStock, setShowSizeStock] = useState(false);
   
@@ -274,12 +275,17 @@ const DesktopDashboard = () => {
   // Manual refresh all - single RPC query key
   const handleRefreshAll = async () => {
     setIsRefreshing(true);
-    await queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-    await queryClient.invalidateQueries({ queryKey: ["sales-trend"] });
-    await queryClient.invalidateQueries({ queryKey: ["purchase-trend"] });
-    await queryClient.invalidateQueries({ queryKey: ["top-products"] });
+    if (!hasLoaded) {
+      setHasLoaded(true);
+      setTimeout(() => setIsRefreshing(false), 1000);
+    } else {
+      await queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      await queryClient.invalidateQueries({ queryKey: ["sales-trend"] });
+      await queryClient.invalidateQueries({ queryKey: ["purchase-trend"] });
+      await queryClient.invalidateQueries({ queryKey: ["top-products"] });
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
     setLastUpdated(new Date());
-    setTimeout(() => setIsRefreshing(false), 500);
   };
 
   // Single RPC call replaces 8-10 separate queries
@@ -295,6 +301,7 @@ const DesktopDashboard = () => {
       });
       if (error) throw error;
       setLastUpdated(new Date());
+      setHasLoaded(true);
       return data as {
         total_sales: number;
         invoice_count: number;
@@ -319,9 +326,10 @@ const DesktopDashboard = () => {
         purchase_return_qty: number;
       };
     },
-    enabled: !!currentOrganization,
-    staleTime: 60000,
-    refetchInterval: getRefreshInterval('fast'),
+    enabled: !!currentOrganization && hasLoaded,
+    staleTime: 10 * 60 * 1000,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
   });
 
   // Extract metrics from single RPC result
@@ -637,15 +645,20 @@ const DesktopDashboard = () => {
           <ThemeToggle />
           
           {/* Refresh Button */}
-          <Button
-            variant="outline"
+           <Button
+            variant={hasLoaded ? "outline" : "default"}
             size="sm"
             onClick={handleRefreshAll}
-            disabled={isRefreshing}
-            className="h-9 text-sm border-border bg-card hover:bg-muted"
+            disabled={isRefreshing || isLoading}
+            className={cn(
+              "h-9 text-sm",
+              hasLoaded
+                ? "border-border bg-card hover:bg-muted"
+                : "bg-primary text-primary-foreground hover:bg-primary/90"
+            )}
           >
-            <RefreshCw className={cn("h-3.5 w-3.5 mr-1", isRefreshing && "animate-spin")} />
-            Refresh
+            <RefreshCw className={cn("h-3.5 w-3.5 mr-1", (isRefreshing || isLoading) && "animate-spin")} />
+            {hasLoaded ? "Refresh" : "Load Data"}
           </Button>
           
           <div className="flex items-center gap-2 bg-card border border-border rounded-md px-2 py-1 shadow-elevated">
@@ -719,14 +732,44 @@ const DesktopDashboard = () => {
 
       {/* Last Updated Indicator */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
-        <span>Live • Last updated: {format(lastUpdated, "HH:mm:ss")}</span>
+        {hasLoaded ? (
+          <>
+            <div className={cn("h-2 w-2 rounded-full", isLoading ? "bg-amber-400 animate-pulse" : "bg-success")} />
+            <span>
+              {isLoading ? "Loading..." : `Last updated: ${format(lastUpdated, "HH:mm:ss")}`}
+            </span>
+          </>
+        ) : (
+          <>
+            <div className="h-2 w-2 rounded-full bg-muted-foreground" />
+            <span className="text-muted-foreground">
+              Click <strong>Load Data</strong> to view dashboard
+            </span>
+          </>
+        )}
       </div>
 
       {/* Main Content Grid with New Updates Sidebar */}
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-4">
 
         {/* Left side - Metric cards */}
+        {!hasLoaded ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+            <div className="p-4 rounded-full bg-muted">
+              <BarChart3 className="h-10 w-10 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="text-base font-semibold text-foreground">Dashboard data not loaded</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Click <strong>Load Data</strong> above to fetch your business analytics
+              </p>
+            </div>
+            <Button onClick={handleRefreshAll} disabled={isRefreshing}>
+              <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
+              Load Data
+            </Button>
+          </div>
+        ) : (
         <div className="space-y-3">
           {/* Row 1 - Sales Metrics */}
           <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
@@ -959,8 +1002,9 @@ const DesktopDashboard = () => {
           )}
 
           {/* Charts Section */}
-          <StatsChartsSection />
+          <StatsChartsSection hasLoaded={hasLoaded} />
         </div>
+        )}
 
         {/* Right side - New Updates panel + Customer Cards */}
         <div className="self-start space-y-3">
