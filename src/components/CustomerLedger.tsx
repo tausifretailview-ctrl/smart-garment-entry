@@ -1916,6 +1916,10 @@ Please clear your dues at the earliest. Thank you!`;
                                     <Badge className="bg-primary/20 text-primary border-primary/30">
                                       <Wallet className="h-3 w-3 mr-1" /> ADVANCE
                                     </Badge>
+                                  ) : transaction.type === 'advance_application' ? (
+                                    <Badge className="bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 border border-teal-300 text-xs">
+                                      <TrendingUp className="h-3 w-3 mr-1" /> Advance Applied
+                                    </Badge>
                                   ) : transaction.type === 'adjustment' ? (
                                     <Badge className="bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-500/30">
                                       ADJ
