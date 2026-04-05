@@ -117,7 +117,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
     const salesPerson = salesman || cashier;
 
     const base: React.CSSProperties = {
-      width: '70mm', maxWidth: '70mm', padding: '2mm',
+      width: '72mm', maxWidth: '72mm', padding: '2mm 2mm 2mm 4mm',
       backgroundColor: 'white', fontFamily: "'Courier New', Courier, monospace",
       fontSize: '12px', lineHeight: '1.4', color: '#000',
       fontWeight: 700, boxSizing: 'border-box',
