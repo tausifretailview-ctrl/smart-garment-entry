@@ -126,6 +126,14 @@ export const Header = () => {
               Ezzy ERP
             </span>
           </button>
+
+          <div className="hidden lg:flex items-center gap-0 ml-2">
+            {["File","View","Tools","Help"].map(m => (
+              <span key={m} className="text-[11px] text-sidebar-foreground/55 hover:text-sidebar-foreground hover:bg-sidebar-accent px-2 py-1 rounded cursor-pointer transition-colors">
+                {m}
+              </span>
+            ))}
+          </div>
         </div>
 
         {/* Quick Actions - Desktop */}
