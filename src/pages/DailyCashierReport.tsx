@@ -1015,10 +1015,35 @@ const DailyCashierReport = () => {
                       </TableRow>
                     </>
                   )}
+                  {/* Expense Outflows Section */}
+                  {totals.expenseTotal > 0 && (
+                    <>
+                      <TableRow className="bg-red-50 dark:bg-red-950">
+                        <TableCell colSpan={2} className="font-semibold text-destructive">
+                          💸 Expense Outflows — {totals.expenseCount} entries
+                        </TableCell>
+                      </TableRow>
+                      {Object.entries(totals.expenseByCategory).sort(([,a],[,b]) => b.total - a.total).map(([cat, vals]) => (
+                        <TableRow key={cat}>
+                          <TableCell className="pl-8 text-xs">
+                            {cat}
+                            {vals.cash > 0 && <span className="ml-2 text-muted-foreground">Cash: {formatCurrency(vals.cash)}</span>}
+                            {vals.upi > 0 && <span className="ml-2 text-muted-foreground">UPI: {formatCurrency(vals.upi)}</span>}
+                            {vals.card > 0 && <span className="ml-2 text-muted-foreground">Card: {formatCurrency(vals.card)}</span>}
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-destructive">{formatCurrency(vals.total)}</TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow className="bg-red-100 dark:bg-red-900">
+                        <TableCell className="font-bold text-destructive">Total Expenses</TableCell>
+                        <TableCell className="text-right font-bold text-destructive">{formatCurrency(totals.expenseTotal)}</TableCell>
+                      </TableRow>
+                    </>
+                  )}
                   <TableRow className="bg-primary/10">
-                    <TableCell className="font-bold text-primary">GRAND TOTAL (Sales + RCP + Fees)</TableCell>
+                    <TableCell className="font-bold text-primary">GRAND TOTAL (Sales + RCP + Fees - Expenses)</TableCell>
                     <TableCell className="text-right font-bold text-lg text-primary">
-                      {formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.rcpTotalCollection + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal)}
+                      {formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.rcpTotalCollection + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal - totals.expenseTotal)}
                     </TableCell>
                   </TableRow>
                   <TableRow>
