@@ -342,7 +342,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           customerCreditNotes.set(sr.customer_id, (customerCreditNotes.get(sr.customer_id) || 0) + (sr.net_amount || 0));
       });
 
-      console.log(`CustomerLedger: Fetched ${customersData.length} customers, ${salesData.length} sales, ${allVouchers?.length || 0} voucher payments, ${allAdjustments?.length || 0} adjustments, ${allAdvances?.length || 0} advances, ${allCreditNotes?.length || 0} credit notes`);
+      
 
       // Calculate totals per customer using Math.max to avoid double-counting
       const customerTotals = customersData.map((customer: any) => {
@@ -751,15 +751,6 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
       const { data: creditNotesData } = await creditNotesQuery.order("issue_date", { ascending: true });
 
-      console.log('Sales for customer:', salesData?.length || 0);
-      console.log('All customer sale IDs:', allSaleIds.length);
-      console.log('Invoice payments found:', vouchersData?.length || 0);
-      console.log('Opening balance payments found:', openingBalancePayments?.length || 0);
-      console.log('Advances found:', advancesData?.length || 0);
-      console.log('Adjustments found:', adjustmentsData?.length || 0);
-      console.log('CN Adjustments found:', saleReturnsData?.length || 0);
-      console.log('Advance refunds found:', filteredAdvanceRefunds.length);
-      console.log('Credit notes found:', creditNotesData?.length || 0);
 
       // Calculate total voucher payments per sale to exclude from "payment at sale"
       const voucherPaymentsBySaleId: Record<string, number> = {};

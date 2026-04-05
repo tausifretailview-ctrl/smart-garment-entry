@@ -229,7 +229,7 @@ export function InteractiveLabelPreview({
           margin: 0
         });
       } catch (e) {
-        console.log('Preview barcode error:', e);
+        
       }
     });
   }, [labelConfig, barcodeValue]);

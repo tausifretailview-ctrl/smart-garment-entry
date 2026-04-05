@@ -288,7 +288,7 @@ export function BarTenderLabelDesigner({
       const isReasonableScale = scaleX > 0.3 && scaleX < 3 && scaleY > 0.3 && scaleY < 3;
       
       if (isReasonableScale && (scaleX !== 1 || scaleY !== 1)) {
-        console.log(`Auto-scaling positions: ${prevWidth}x${prevHeight} -> ${labelWidth}x${labelHeight}`);
+        
         
         const updates: Partial<LabelDesignConfig> = {};
         
@@ -391,7 +391,7 @@ export function BarTenderLabelDesigner({
           margin: 0
         });
       } catch (e) {
-        console.log('Preview barcode error:', e);
+        
       }
     });
   }, [labelConfig, barcodeValue, zoom]);
@@ -582,7 +582,7 @@ export function BarTenderLabelDesigner({
       const scaleX = labelWidth / templateWidth;
       const scaleY = labelHeight / templateHeight;
       
-      console.log(`Scaling template from ${templateWidth}x${templateHeight} to ${labelWidth}x${labelHeight}`);
+      
       
       // Scale all field positions
       const scaledConfig = { ...template.config };

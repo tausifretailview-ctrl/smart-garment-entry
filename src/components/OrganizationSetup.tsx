@@ -57,7 +57,7 @@ export const OrganizationSetup = () => {
   // Auto-redirect: if resolved with 0 orgs but we have evidence of prior org, redirect there
   useEffect(() => {
     if (user && hasResolvedOrganizations && organizations.length === 0 && !fetchError && redirectSlug) {
-      console.log("User has cached/stored org but 0 results — redirecting to", redirectSlug);
+      
       navigate(`/${redirectSlug}`, { replace: true });
     }
   }, [user, hasResolvedOrganizations, organizations.length, fetchError, redirectSlug, navigate]);
