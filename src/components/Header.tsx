@@ -83,8 +83,8 @@ export const Header = () => {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border backdrop-blur-md bg-card/95 text-foreground shadow-sm">
-      <div className="flex h-14 items-center justify-between px-4 max-w-full">
+    <header className="sticky top-0 z-50 w-full border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
+      <div className="flex h-10 items-center justify-between px-3 max-w-full">
         {/* Left Side - Logo and Mobile Menu */}
         <div className="flex items-center gap-2">
           {/* Mobile Menu */}
