@@ -463,7 +463,8 @@ All colors MUST be HSL.
   }
 
   .erp-badge {
-    @apply text-[13px] font-semibold;
+    @apply text-[10px] font-semibold rounded-sm border;
+    padding: 1px 7px;
   }
 
   .erp-kpi-value {
