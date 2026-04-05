@@ -48,6 +48,7 @@ interface ThermalReceiptCompactProps {
   refundCash?: number;
   documentType?: 'invoice' | 'quotation' | 'sale-order' | 'pos';
   termsConditions?: string;
+  notes?: string;
   pointsRedeemed?: number;
   pointsRedemptionValue?: number;
   pointsBalance?: number;
