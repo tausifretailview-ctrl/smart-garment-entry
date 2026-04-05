@@ -1,5 +1,5 @@
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { Database, Calendar, Wifi } from "lucide-react";
+
 
 export const StatusBar = () => {
   const { currentOrganization } = useOrganization();
