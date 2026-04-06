@@ -111,6 +111,7 @@ export default function SalesInvoiceDashboard() {
   const [deliveryFilter, setDeliveryFilter] = useState<string>("all");
   const [periodFilter, setPeriodFilter] = useState<string>("monthly");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
+  const [shopFilter, setShopFilter] = useState<string>("all");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
