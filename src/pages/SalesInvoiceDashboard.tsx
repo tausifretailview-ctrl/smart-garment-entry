@@ -607,6 +607,26 @@ export default function SalesInvoiceDashboard() {
   const showItemHsn = saleSettings?.show_item_hsn ?? false;
   const showItemMrp = saleSettings?.show_item_mrp ?? saleSettings?.show_mrp_column ?? false;
 
+  // Detect single filtered customer for bulk advance button
+  const filteredCustomer = useMemo(() => {
+    if (!debouncedSearch || !invoicesData.length) return null;
+    const customerIds = new Set(invoicesData.map((inv: any) => inv.customer_id).filter(Boolean));
+    if (customerIds.size === 1) {
+      const inv = invoicesData.find((i: any) => i.customer_id);
+      return inv ? { id: inv.customer_id, name: inv.customer_name } : null;
+    }
+    return null;
+  }, [debouncedSearch, invoicesData]);
+
+  // Fetch advance balance for filtered customer
+  useEffect(() => {
+    if (filteredCustomer?.id) {
+      getAvailableAdvanceBalance(filteredCustomer.id).then(setBulkAdvanceBalance).catch(() => setBulkAdvanceBalance(0));
+    } else {
+      setBulkAdvanceBalance(0);
+    }
+  }, [filteredCustomer?.id]);
+
   // Stock restoration is now handled automatically by database triggers
   // No need for manual stock restoration code
   const { softDelete, bulkSoftDelete, hardDelete } = useSoftDelete();
