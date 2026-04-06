@@ -20,6 +20,7 @@ interface User {
   created_at: string;
   roles: string[];
   org_role: string;
+  shop_name: string | null;
 }
 
 const AVAILABLE_ROLES = ["admin", "manager", "user"];
@@ -44,7 +45,7 @@ export function UserManagement() {
       // First, get organization members
       const { data: members, error: membersError } = await supabase
         .from("organization_members")
-        .select("user_id, role, created_at")
+        .select("user_id, role, created_at, shop_name")
         .eq("organization_id", currentOrganization.id);
 
       if (membersError) throw membersError;
@@ -85,7 +86,8 @@ export function UserManagement() {
           return {
             ...user,
             org_role: member?.role || 'user',
-            created_at: member?.created_at || user.created_at
+            created_at: member?.created_at || user.created_at,
+            shop_name: member?.shop_name || null,
           };
         });
 
