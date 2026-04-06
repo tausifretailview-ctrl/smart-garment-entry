@@ -1,65 +1,43 @@
 
 
-## Problem Diagnosis
+## Fix: Invoice Dashboard Not Accounting for Credit Note Adjustments
 
-The Accounts dashboard cards show ₹0 for most values due to **3 bugs** in the RPC function and **1 bug** in the client-side code:
+### Problem
+When a credit note (sale return) is applied against an invoice, `sale_return_adjust` is updated on the sale record. However, the Invoice Dashboard ignores this field everywhere — showing inflated pending balances and incorrect payment statuses.
 
-### Bug 1 — Monthly Expenses RPC query is broken
-The `get_accounts_dashboard_metrics` RPC uses `amount` (non-existent column) and `entry_date` (non-existent column) instead of `total_amount` and `voucher_date`. It also doesn't filter by `voucher_type = 'expense'`, so it would include receipts/payments if the column existed.
+**Example**: SADIQA's invoice ₹4,500 with ₹1,300 paid + ₹3,200 credit note should show ₹0 pending and "Completed", but currently shows ₹3,200 pending and "Partial".
 
-### Bug 2 — Payment card amounts are hardcoded to 0
-In `Accounts.tsx` lines 192-198, `paidAmount`, `pendingAmount`, `partialAmount`, `completedAmount` are all set to `0`. The RPC only returns counts per status, not amounts.
+### File: `src/pages/SalesInvoiceDashboard.tsx`
 
-### Bug 3 — Total Invoices card uses `totalReceivables` (outstanding) not total sales
-`paymentStats.totalAmount` is set to `dashboardStats?.totalReceivables` which is outstanding balance, not total invoice value.
+All changes apply the formula: `pending = net_amount - paid_amount - sale_return_adjust`
 
-### Bug 4 — P/L formula is wrong
-`currentMonthPL` is calculated as `receivables - payables - expenses` which doesn't represent profit/loss. It should be `totalSales - totalPurchases - expenses` for the current month.
+### Changes (10 locations)
 
----
+1. **Page totals balance** (line 833) — Add `- (inv.sale_return_adjust || 0)` with `Math.max(0, ...)`
 
-## Plan
+2. **Excel export** (line 864, 901) — Add `sale_return_adjust` to select query; fix Balance column; add "Credit Note Adj." column
 
-### Step 1 — Fix the RPC function via migration
+3. **Table row pending** (line 2041) — Add `- (inv.sale_return_adjust || 0)`
 
-Update `get_accounts_dashboard_metrics` to:
-- Fix monthly expenses: use `total_amount`, `voucher_date`, and filter `voucher_type = 'expense'`
-- Add amount aggregations per payment status (paid/partial/pending amounts)
-- Add total sales amount for the month
-- Add total purchases amount for the month (for proper P/L)
-- Return `invoiceStats` with both counts AND amounts
+4. **openPaymentDialog** (line 1396) — Subtract `sale_return_adjust` from pending
 
-New RPC return shape:
-```json
-{
-  "totalReceivables": 208075,
-  "totalPayables": 50000,
-  "monthlyExpenses": 15500,
-  "monthlySales": 775910,
-  "monthlyPurchases": 300000,
-  "invoiceStats": {
-    "total": 166, "totalAmount": 775910,
-    "paid": 100, "paidAmount": 500000,
-    "partial": 30, "partialAmount": 175000,
-    "pending": 36, "pendingAmount": 100910
-  }
-}
-```
+5. **Advance mode pending** (line 1416) — Subtract `sale_return_adjust`
 
-### Step 2 — Fix client-side mapping in Accounts.tsx
+6. **Credit note mode pending** (line 1462) — Subtract `sale_return_adjust`
 
-Update `paymentStats` to use the new RPC amounts:
-- `totalAmount` → `invoiceStats.totalAmount`
-- `completedAmount` → `invoiceStats.paidAmount`
-- `partialAmount` → `invoiceStats.partialAmount`
-- `pendingAmount` → `invoiceStats.pendingAmount`
+7. **Payment guard + status** (lines 1487, 1501) — Factor `sale_return_adjust` into pending check and status determination (`completed` when `paid + cn_adjust >= net`)
 
-Update `dashboardMetrics`:
-- `currentMonthPL` → `monthlySales - monthlyPurchases - monthlyExpenses`
-- `totalReceivables` → from RPC (outstanding from customers)
-- `totalPayables` → from RPC (outstanding to suppliers)
+8. **Payment dialog "Pending" display** (line 2147) — Subtract `sale_return_adjust`
 
-### Files Changed
-1. **New migration SQL** — rewrite `get_accounts_dashboard_metrics` RPC
-2. **`src/pages/Accounts.tsx`** — update lines 180-199 to map new RPC fields
+9. **Second payment dialog "Pending"** (line 2905) — Subtract `sale_return_adjust`
+
+10. **WhatsApp balance queries** (lines 1251, 1367) — Add `sale_return_adjust` to select; include in `totalPaid` sum; fix fallback calculations (lines 1374, 1377)
+
+### Verification
+After fix, SADIQA's INV/25-26/443: `4500 - 1300 - 3200 = 0` → status "completed" ✓
+
+### Not Changed
+- Sale return recording logic
+- CustomerLedger, PurchaseBillDashboard
+- Invoice print templates
 
