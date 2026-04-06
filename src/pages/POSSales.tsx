@@ -2118,6 +2118,7 @@ export default function POSSales() {
     paymentLockRef.current = true;
 
     if (items.length === 0) {
+      paymentLockRef.current = false;
       toast({
         title: "No Items",
         description: "Please add items to the cart before processing payment",
