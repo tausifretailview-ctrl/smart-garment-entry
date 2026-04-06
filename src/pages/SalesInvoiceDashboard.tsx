@@ -417,7 +417,7 @@ export default function SalesInvoiceDashboard() {
 
   // Server-side paginated query — NO sale_items, explicit columns
   const { data: invoicesResult, isLoading, refetch, error: invoicesError } = useQuery({
-    queryKey: ['invoices', currentOrganization?.id, debouncedSearch, deliveryFilter, paymentStatusFilter, queryDateRange.start, queryDateRange.end, currentPage, itemsPerPage],
+    queryKey: ['invoices', currentOrganization?.id, debouncedSearch, deliveryFilter, paymentStatusFilter, shopFilter, queryDateRange.start, queryDateRange.end, currentPage, itemsPerPage],
     queryFn: async () => {
       if (!currentOrganization?.id) return { data: [], count: 0 };
       
@@ -438,6 +438,9 @@ export default function SalesInvoiceDashboard() {
       }
       if (paymentStatusFilter !== 'all') {
         query = query.eq('payment_status', paymentStatusFilter);
+      }
+      if (shopFilter !== 'all') {
+        query = query.eq('shop_name', shopFilter);
       }
       if (queryDateRange.start) {
         query = query.gte('sale_date', queryDateRange.start);
