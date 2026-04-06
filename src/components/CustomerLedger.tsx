@@ -1304,7 +1304,105 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     };
   }, [filteredCustomers]);
 
-  // Calculate transaction totals
+  // Export customer list to Excel
+  const handleExportCustomerListExcel = useCallback(() => {
+    if (!filteredCustomers.length) return;
+    const rows = filteredCustomers.map((c) => ({
+      "Customer Name": c.customer_name,
+      "Phone": c.phone || "",
+      "Email": c.email || "",
+      "Opening Balance": Math.round(c.opening_balance || 0),
+      "Total Sales": Math.round(c.totalSales),
+      "Total Paid": Math.round(c.totalPaid),
+      "Balance": Math.round(c.balance),
+      "Status": c.balance > 0 ? "Outstanding" : c.balance < 0 ? "Advance" : "Settled",
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Customer Ledger");
+    XLSX.writeFile(wb, `Customer_Ledger_${format(new Date(), "dd-MM-yyyy")}.xlsx`);
+    toast.success("Customer ledger exported to Excel");
+  }, [filteredCustomers]);
+
+  // Export customer list to PDF
+  const handleExportCustomerListPDF = useCallback(() => {
+    if (!filteredCustomers.length) return;
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFontSize(16);
+    doc.text("Customer Ledger Report", 14, 15);
+    doc.setFontSize(9);
+    doc.text(`Date: ${format(new Date(), "dd/MM/yyyy")}  |  Customers: ${filteredCustomers.length}  |  Outstanding: ₹${Math.round(summary.totalOutstanding).toLocaleString("en-IN")}`, 14, 22);
+
+    const cols = ["#", "Customer Name", "Phone", "Total Sales", "Total Paid", "Balance", "Status"];
+    const colWidths = [10, 70, 35, 40, 40, 40, 30];
+    let y = 30;
+
+    // Header
+    doc.setFillColor(41, 98, 255);
+    doc.rect(14, y - 5, pageWidth - 28, 8, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    let x = 14;
+    cols.forEach((col, i) => {
+      doc.text(col, x + 2, y);
+      x += colWidths[i];
+    });
+    y += 6;
+    doc.setTextColor(0, 0, 0);
+
+    filteredCustomers.forEach((c, idx) => {
+      if (y > doc.internal.pageSize.getHeight() - 15) {
+        doc.addPage();
+        y = 15;
+        // Re-draw header
+        doc.setFillColor(41, 98, 255);
+        doc.rect(14, y - 5, pageWidth - 28, 8, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(8);
+        let hx = 14;
+        cols.forEach((col, i) => {
+          doc.text(col, hx + 2, y);
+          hx += colWidths[i];
+        });
+        y += 6;
+        doc.setTextColor(0, 0, 0);
+      }
+
+      if (idx % 2 === 0) {
+        doc.setFillColor(245, 247, 250);
+        doc.rect(14, y - 4, pageWidth - 28, 6, "F");
+      }
+
+      doc.setFontSize(7.5);
+      x = 14;
+      const row = [
+        String(idx + 1),
+        c.customer_name.substring(0, 35),
+        (c.phone || "").substring(0, 15),
+        `₹${Math.round(c.totalSales).toLocaleString("en-IN")}`,
+        `₹${Math.round(c.totalPaid).toLocaleString("en-IN")}`,
+        `₹${Math.round(c.balance).toLocaleString("en-IN")}`,
+        c.balance > 0 ? "Outstanding" : c.balance < 0 ? "Advance" : "Settled",
+      ];
+      row.forEach((val, i) => {
+        doc.text(val, x + 2, y);
+        x += colWidths[i];
+      });
+      y += 6;
+    });
+
+    // Footer totals
+    y += 4;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Total Sales: ₹${Math.round(summary.totalReceivable).toLocaleString("en-IN")}   |   Total Outstanding: ₹${Math.round(summary.totalOutstanding).toLocaleString("en-IN")}`, 14, y);
+
+    doc.save(`Customer_Ledger_${format(new Date(), "dd-MM-yyyy")}.pdf`);
+    toast.success("Customer ledger exported to PDF");
+  }, [filteredCustomers, summary]);
+
   const transactionTotals = useMemo(() => {
     if (!transactions) return { totalDebit: 0, totalCredit: 0 };
     
