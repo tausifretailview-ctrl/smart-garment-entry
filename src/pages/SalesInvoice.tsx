@@ -81,6 +81,7 @@ import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
+import { useShopName } from "@/hooks/useShopName";
 
 interface LineItem {
   id: string;
@@ -115,6 +116,7 @@ export default function SalesInvoice() {
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
+  const shopName = useShopName();
   const location = useLocation();
   const { orgNavigate: navigate } = useOrgNavigation();
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
@@ -2118,6 +2120,7 @@ Thank you for choosing us!`;
             payment_method: 'pay_later',
             payment_status: 'pending',
             organization_id: currentOrganization?.id,
+            shop_name: shopName || null,
             due_date: dueDate.toISOString().split('T')[0],
             payment_term: paymentTerm || null,
             terms_conditions: termsConditions || null,

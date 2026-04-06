@@ -4,6 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -12,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, Plus, X } from "lucide-react";
+import { Loader2, Plus, X, Store } from "lucide-react";
 
 interface User {
   id: string;
@@ -20,6 +21,7 @@ interface User {
   created_at: string;
   roles: string[];
   org_role: string;
+  shop_name: string | null;
 }
 
 const AVAILABLE_ROLES = ["admin", "manager", "user"];
@@ -44,7 +46,7 @@ export function UserManagement() {
       // First, get organization members
       const { data: members, error: membersError } = await supabase
         .from("organization_members")
-        .select("user_id, role, created_at")
+        .select("user_id, role, created_at, shop_name")
         .eq("organization_id", currentOrganization.id);
 
       if (membersError) throw membersError;
@@ -85,7 +87,8 @@ export function UserManagement() {
           return {
             ...user,
             org_role: member?.role || 'user',
-            created_at: member?.created_at || user.created_at
+            created_at: member?.created_at || user.created_at,
+            shop_name: member?.shop_name || null,
           };
         });
 
@@ -152,6 +155,25 @@ export function UserManagement() {
     }
   };
 
+  const updateShopName = async (userId: string, newShopName: string) => {
+    if (!currentOrganization) return;
+    try {
+      const { error } = await supabase
+        .from("organization_members")
+        .update({ shop_name: newShopName || null })
+        .eq("user_id", userId)
+        .eq("organization_id", currentOrganization.id);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Shop name updated" });
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, shop_name: newShopName || null } : u));
+    } catch (error) {
+      console.error("Error updating shop name:", error);
+      toast({ title: "Error", description: "Failed to update shop name", variant: "destructive" });
+    }
+  };
+
   if (!currentOrganization) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -171,10 +193,11 @@ export function UserManagement() {
   return (
     <div className="space-y-4">
       <div className="rounded-md border">
-        <Table>
+         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Email</TableHead>
+              <TableHead>Shop Name</TableHead>
               <TableHead>Roles</TableHead>
               <TableHead>Created At</TableHead>
               <TableHead>Actions</TableHead>
@@ -183,7 +206,7 @@ export function UserManagement() {
           <TableBody>
             {users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
                   No users in this organization
                 </TableCell>
               </TableRow>
@@ -191,6 +214,22 @@ export function UserManagement() {
               users.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">{user.email}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Store className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <Input
+                        className="h-8 w-32"
+                        placeholder="e.g. Shop 1"
+                        defaultValue={user.shop_name || ""}
+                        onBlur={(e) => {
+                          const val = e.target.value.trim();
+                          if (val !== (user.shop_name || "")) {
+                            updateShopName(user.id, val);
+                          }
+                        }}
+                      />
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {user.roles.length > 0 ? (

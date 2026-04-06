@@ -111,6 +111,7 @@ export default function SalesInvoiceDashboard() {
   const [deliveryFilter, setDeliveryFilter] = useState<string>("all");
   const [periodFilter, setPeriodFilter] = useState<string>("monthly");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
+  const [shopFilter, setShopFilter] = useState<string>("all");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -416,7 +417,7 @@ export default function SalesInvoiceDashboard() {
 
   // Server-side paginated query — NO sale_items, explicit columns
   const { data: invoicesResult, isLoading, refetch, error: invoicesError } = useQuery({
-    queryKey: ['invoices', currentOrganization?.id, debouncedSearch, deliveryFilter, paymentStatusFilter, queryDateRange.start, queryDateRange.end, currentPage, itemsPerPage],
+    queryKey: ['invoices', currentOrganization?.id, debouncedSearch, deliveryFilter, paymentStatusFilter, shopFilter, queryDateRange.start, queryDateRange.end, currentPage, itemsPerPage],
     queryFn: async () => {
       if (!currentOrganization?.id) return { data: [], count: 0 };
       
@@ -425,7 +426,7 @@ export default function SalesInvoiceDashboard() {
 
       let query = supabase
         .from('sales')
-        .select('id, sale_number, sale_date, customer_id, customer_name, customer_phone, customer_email, customer_address, gross_amount, discount_amount, flat_discount_amount, flat_discount_percent, other_charges, round_off, net_amount, paid_amount, payment_method, payment_status, delivery_status, salesman, notes, total_qty, created_at, updated_at, irn, ack_no, einvoice_status, einvoice_error, einvoice_qr_code, sale_return_adjust, due_date, shipping_address, sale_type, is_cancelled, cancelled_at, cancelled_reason, customers:customer_id (gst_number)', { count: 'exact' })
+        .select('id, sale_number, sale_date, customer_id, customer_name, customer_phone, customer_email, customer_address, gross_amount, discount_amount, flat_discount_amount, flat_discount_percent, other_charges, round_off, net_amount, paid_amount, payment_method, payment_status, delivery_status, salesman, notes, total_qty, created_at, updated_at, irn, ack_no, einvoice_status, einvoice_error, einvoice_qr_code, sale_return_adjust, due_date, shipping_address, sale_type, is_cancelled, cancelled_at, cancelled_reason, shop_name, customers:customer_id (gst_number)', { count: 'exact' })
         .eq('organization_id', currentOrganization.id)
         .eq('sale_type', 'invoice')
         .is('deleted_at', null)
@@ -437,6 +438,9 @@ export default function SalesInvoiceDashboard() {
       }
       if (paymentStatusFilter !== 'all') {
         query = query.eq('payment_status', paymentStatusFilter);
+      }
+      if (shopFilter !== 'all') {
+        query = query.eq('shop_name', shopFilter);
       }
       if (queryDateRange.start) {
         query = query.gte('sale_date', queryDateRange.start);
@@ -534,6 +538,23 @@ export default function SalesInvoiceDashboard() {
     searchParams.delete('downloadPdf');
     setSearchParams(searchParams, { replace: true });
   }, [downloadPdfId, isLoading, invoicesData]);
+
+  // Fetch distinct shop names for filter
+  const { data: shopNames = [] } = useQuery({
+    queryKey: ['shop-names', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const { data } = await supabase
+        .from('organization_members')
+        .select('shop_name')
+        .eq('organization_id', currentOrganization.id)
+        .not('shop_name', 'is', null);
+      const names = [...new Set((data || []).map((m: any) => m.shop_name).filter(Boolean))];
+      return names as string[];
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 60000,
+  });
 
   // Server-side summary stats via RPC
   const { data: summaryStats } = useQuery({
@@ -2739,6 +2760,17 @@ export default function SalesInvoiceDashboard() {
                   <SelectItem value="in_process">In Process</SelectItem>
                   <SelectItem value="undelivered">Undelivered</SelectItem>
                   <SelectItem value="order_cancelled" className="text-destructive">Order Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={shopFilter} onValueChange={setShopFilter}>
+                <SelectTrigger className="w-[130px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white">
+                  <SelectValue placeholder="Shop" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Shops</SelectItem>
+                  {shopNames.map(s => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {filteredCustomer && bulkAdvanceBalance > 0 && (

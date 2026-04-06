@@ -5,6 +5,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useCustomerPoints } from "@/hooks/useCustomerPoints";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
+import { useShopName } from "@/hooks/useShopName";
 import { generateAndUploadInvoicePDF, InvoicePdfData, generateInvoicePdfBase64 } from "@/utils/invoicePdfUploader";
 
 interface CartItem {
@@ -51,6 +52,7 @@ export const useSaveSale = () => {
   const savingLockRef = useRef(false); // Synchronous lock to prevent duplicate saves
   const { awardPoints, isPointsEnabled, calculatePoints } = useCustomerPoints();
   const { invalidateSales } = useDashboardInvalidation();
+  const shopName = useShopName();
 
   const generateInvoiceNumber = async (format: string, seriesStart?: string) => {
     const now = new Date();
@@ -324,6 +326,7 @@ export const useSaveSale = () => {
           notes: saleData.notes || null,
           created_by: user.id,
           organization_id: currentOrganization.id,
+          shop_name: shopName || null,
         })
         .select()
         .single();
@@ -896,6 +899,7 @@ export const useSaveSale = () => {
           notes: JSON.stringify(holdData),
           created_by: user.id,
           organization_id: currentOrganization.id,
+          shop_name: shopName || null,
         })
         .select()
         .single();
