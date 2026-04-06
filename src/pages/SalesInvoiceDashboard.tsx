@@ -54,6 +54,7 @@ import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useCustomerAdvances } from "@/hooks/useCustomerAdvances";
+import { BulkAdvanceAdjustDialog } from "@/components/BulkAdvanceAdjustDialog";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { formatDistanceToNow } from "date-fns";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
@@ -190,6 +191,12 @@ export default function SalesInvoiceDashboard() {
   // Draft save hook
   const { hasDraft, draftData, deleteDraft, lastSaved } = useDraftSave('sale_invoice');
   const { getAvailableAdvanceBalance, applyAdvance } = useCustomerAdvances(currentOrganization?.id || null);
+  
+  // Bulk advance adjust state
+  const [showBulkAdvanceDialog, setShowBulkAdvanceDialog] = useState(false);
+  const [bulkAdvanceCustomer, setBulkAdvanceCustomer] = useState<{ id: string; name: string } | null>(null);
+  const [bulkAdvanceBalance, setBulkAdvanceBalance] = useState<number>(0);
+
   // Context menu for desktop right-click
   const isDesktop = useIsDesktop();
   const rowContextMenu = useContextMenu<any>();
@@ -599,6 +606,26 @@ export default function SalesInvoiceDashboard() {
   const showItemBarcode = saleSettings?.show_item_barcode ?? true;
   const showItemHsn = saleSettings?.show_item_hsn ?? false;
   const showItemMrp = saleSettings?.show_item_mrp ?? saleSettings?.show_mrp_column ?? false;
+
+  // Detect single filtered customer for bulk advance button
+  const filteredCustomer = useMemo(() => {
+    if (!debouncedSearch || !invoicesData.length) return null;
+    const customerIds = new Set(invoicesData.map((inv: any) => inv.customer_id).filter(Boolean));
+    if (customerIds.size === 1) {
+      const inv = invoicesData.find((i: any) => i.customer_id);
+      return inv ? { id: inv.customer_id, name: inv.customer_name } : null;
+    }
+    return null;
+  }, [debouncedSearch, invoicesData]);
+
+  // Fetch advance balance for filtered customer
+  useEffect(() => {
+    if (filteredCustomer?.id) {
+      getAvailableAdvanceBalance(filteredCustomer.id).then(setBulkAdvanceBalance).catch(() => setBulkAdvanceBalance(0));
+    } else {
+      setBulkAdvanceBalance(0);
+    }
+  }, [filteredCustomer?.id]);
 
   // Stock restoration is now handled automatically by database triggers
   // No need for manual stock restoration code
@@ -2557,6 +2584,20 @@ export default function SalesInvoiceDashboard() {
                   <SelectItem value="order_cancelled" className="text-destructive">Order Cancelled</SelectItem>
                 </SelectContent>
               </Select>
+              {filteredCustomer && bulkAdvanceBalance > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 text-[13px] border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-medium gap-1.5 flex-shrink-0"
+                  onClick={() => {
+                    setBulkAdvanceCustomer(filteredCustomer);
+                    setShowBulkAdvanceDialog(true);
+                  }}
+                >
+                  <IndianRupee className="h-3.5 w-3.5" />
+                  Adjust Advance ₹{bulkAdvanceBalance.toLocaleString("en-IN")}
+                </Button>
+              )}
               <div id="erp-toolbar-portal" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
             </div>
 
@@ -3266,6 +3307,25 @@ export default function SalesInvoiceDashboard() {
               title="Quick Actions"
             />
           </>
+        )}
+
+        {/* Bulk Advance Adjust Dialog */}
+        {bulkAdvanceCustomer && (
+          <BulkAdvanceAdjustDialog
+            open={showBulkAdvanceDialog}
+            onOpenChange={setShowBulkAdvanceDialog}
+            customerId={bulkAdvanceCustomer.id}
+            customerName={bulkAdvanceCustomer.name}
+            organizationId={currentOrganization?.id || ""}
+            userId={user?.id}
+            onComplete={() => {
+              refetch();
+              // Re-fetch advance balance
+              if (filteredCustomer?.id) {
+                getAvailableAdvanceBalance(filteredCustomer.id).then(setBulkAdvanceBalance).catch(() => setBulkAdvanceBalance(0));
+              }
+            }}
+          />
         )}
       </div>
   );
