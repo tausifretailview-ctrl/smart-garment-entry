@@ -1371,13 +1371,17 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       });
     }
 
+    // For school non-structure students, opening_balance and totalSales are the same — avoid showing both
+    const showOpeningInMsg = !isSchool || (selectedCustomer as any).hasStructures !== false;
+    const feesLabel = isSchool ? ((selectedCustomer as any).hasStructures === false ? 'Opening Balance' : 'Total Fees') : 'Total Sales';
+    const paidLabel = isSchool ? 'Fees Paid' : 'Total Paid';
+
     const message = `📊 *Account Statement*
 
 👤 *${selectedCustomer.customer_name}*${dateRange}
-
-💰 Opening Balance: ₹${Math.round(openingBalance).toLocaleString("en-IN")}
-📈 ${isSchool ? 'Total Fees' : 'Total Sales'}: ₹${Math.round(selectedCustomer.totalSales).toLocaleString("en-IN")}
-✅ ${isSchool ? 'Fees Paid' : 'Total Paid'}: ₹${Math.round(selectedCustomer.totalPaid).toLocaleString("en-IN")}
+${showOpeningInMsg ? `\n💰 Opening Balance: ₹${Math.round(openingBalance).toLocaleString("en-IN")}` : ''}
+📈 ${feesLabel}: ₹${Math.round(selectedCustomer.totalSales).toLocaleString("en-IN")}
+✅ ${paidLabel}: ₹${Math.round(selectedCustomer.totalPaid).toLocaleString("en-IN")}
 ────────────────
 💵 *Outstanding: ₹${Math.abs(Math.round(selectedCustomer.balance)).toLocaleString("en-IN")}${selectedCustomer.balance < 0 ? " (Advance)" : ""}*${txnSummary}
 
@@ -1737,7 +1741,8 @@ Please clear your dues at the earliest. Thank you!`;
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-0">
-              {selectedCustomer.opening_balance !== 0 && (
+              {/* For school non-structure students, opening_balance IS totalSales — show only once as "Opening Balance" */}
+              {selectedCustomer.opening_balance !== 0 && !(isSchool && (selectedCustomer as any).hasStructures === false) && (
                 <Card className="border-l-4 border-l-orange-400 overflow-hidden">
                   <CardContent className="p-4">
                     <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Opening Balance</div>
@@ -1756,7 +1761,7 @@ Please clear your dues at the earliest. Thank you!`;
               <Card className="border-l-4 border-l-blue-400 overflow-hidden">
                 <CardContent className="p-4">
                   <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                    {isSchool ? 'Total Fees' : 'Total Sales'}
+                    {isSchool ? ((selectedCustomer as any).hasStructures === false ? 'Opening Balance' : 'Total Fees') : 'Total Sales'}
                   </div>
                   <div className="text-xl font-bold text-blue-700 dark:text-blue-300 tabular-nums">
                     ₹{selectedCustomer.totalSales.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
@@ -1777,9 +1782,16 @@ Please clear your dues at the earliest. Thank you!`;
                 <CardContent className="p-4">
                   <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Collection Rate</div>
                   <div className="text-xl font-bold text-violet-700 dark:text-violet-300 tabular-nums">
-                    {(selectedCustomer.totalSales + Math.max(0, selectedCustomer.opening_balance)) > 0
-                      ? ((selectedCustomer.totalPaid / (selectedCustomer.totalSales + Math.max(0, selectedCustomer.opening_balance))) * 100).toFixed(1)
-                      : '0.0'}%
+                    {(() => {
+                      // For school: totalSales already represents full expected (structures OR imported balance)
+                      // For business: total expected = totalSales + opening_balance
+                      const totalExpected = isSchool
+                        ? selectedCustomer.totalSales
+                        : selectedCustomer.totalSales + Math.max(0, selectedCustomer.opening_balance);
+                      return totalExpected > 0
+                        ? ((selectedCustomer.totalPaid / totalExpected) * 100).toFixed(1)
+                        : '0.0';
+                    })()}%
                   </div>
                 </CardContent>
               </Card>
