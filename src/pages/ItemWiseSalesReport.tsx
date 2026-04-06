@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar } from "@/components/ui/calendar";
@@ -40,6 +41,7 @@ interface FilterOptions {
   categories: string[];
   departments: string[];
   customers: string[];
+  colors: string[];
 }
 
 const CHART_COLORS = [
@@ -67,12 +69,14 @@ export default function ItemWiseSalesReport() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [selectedCustomer, setSelectedCustomer] = useState<string>("all");
+  const [selectedColor, setSelectedColor] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"itemwise" | "brandwise">("itemwise");
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     brands: [],
     categories: [],
     departments: [],
     customers: [],
+    colors: [],
   });
 
   const REPORT_CACHE = { staleTime: 5 * 60 * 1000, gcTime: 30 * 60 * 1000, refetchOnWindowFocus: false as const };
@@ -85,11 +89,12 @@ export default function ItemWiseSalesReport() {
   const { data: filterOptionsData } = useQuery({
     queryKey: ["item-wise-filter-options", currentOrganization?.id],
     queryFn: async () => {
-      if (!currentOrganization?.id) return { brands: [], categories: [], departments: [], customers: [] };
+      if (!currentOrganization?.id) return { brands: [], categories: [], departments: [], customers: [], colors: [] };
 
-      const [{ data: products }, { data: sales }] = await Promise.all([
+      const [{ data: products }, { data: sales }, { data: variants }] = await Promise.all([
         supabase.from("products").select("brand, category, style").eq("organization_id", currentOrganization.id).is("deleted_at", null),
         supabase.from("sales").select("customer_name").eq("organization_id", currentOrganization.id).is("deleted_at", null),
+        supabase.from("product_variants").select("color, product_id, products!inner(organization_id)").eq("products.organization_id", currentOrganization.id).is("deleted_at", null),
       ]);
 
       return {
@@ -97,6 +102,7 @@ export default function ItemWiseSalesReport() {
         categories: [...new Set((products || []).map(p => p.category).filter(Boolean))].sort() as string[],
         departments: [...new Set((products || []).map(p => p.style).filter(Boolean))].sort() as string[],
         customers: [...new Set((sales || []).map(s => s.customer_name).filter(Boolean))].sort() as string[],
+        colors: [...new Set((variants || []).map((v: any) => v.color).filter(Boolean))].sort() as string[],
       };
     },
     enabled: !!currentOrganization?.id,
@@ -258,6 +264,9 @@ export default function ItemWiseSalesReport() {
       // Department maps to style/color in this context
       data = data.filter(item => item.color === selectedDepartment);
     }
+    if (selectedColor !== "all") {
+      data = data.filter(item => item.color === selectedColor);
+    }
 
     // Apply search query — multi-token AND logic
     if (searchQuery.trim()) {
@@ -267,7 +276,7 @@ export default function ItemWiseSalesReport() {
     }
 
     return data;
-  }, [aggregatedData, searchQuery, selectedBrand, selectedCategory, selectedDepartment]);
+  }, [aggregatedData, searchQuery, selectedBrand, selectedCategory, selectedDepartment, selectedColor]);
 
   // Brand-wise data: aggregate saleItems by customer_name + brand
   const brandWiseData = useMemo(() => {
@@ -281,6 +290,7 @@ export default function ItemWiseSalesReport() {
       if (selectedBrand !== "all" && brand !== selectedBrand) return;
       if (selectedCategory !== "all" && item.products?.category !== selectedCategory) return;
       if (selectedDepartment !== "all" && item.products?.color !== selectedDepartment) return;
+      if (selectedColor !== "all" && item.products?.color !== selectedColor) return;
       if (searchQuery.trim()) {
         if (!multiTokenMatch(searchQuery, item.product_name, item.barcode, brand, item.products?.category, item.products?.color)) return;
       }
@@ -298,7 +308,7 @@ export default function ItemWiseSalesReport() {
     return Array.from(groups.values()).sort((a, b) =>
       a.customer_name.localeCompare(b.customer_name) || a.brand.localeCompare(b.brand)
     );
-  }, [saleItems, selectedBrand, selectedCategory, selectedDepartment, searchQuery]);
+  }, [saleItems, selectedBrand, selectedCategory, selectedDepartment, selectedColor, searchQuery]);
 
   // Summary via RPC (single JSON instead of client-side aggregation)
   const { data: rpcSummary } = useQuery({
@@ -320,7 +330,7 @@ export default function ItemWiseSalesReport() {
   });
 
   // When brand/category/department filters are active, compute summary from filtered data
-  const hasClientFilters = selectedBrand !== "all" || selectedCategory !== "all" || selectedDepartment !== "all" || searchQuery.trim() !== "";
+  const hasClientFilters = selectedBrand !== "all" || selectedCategory !== "all" || selectedDepartment !== "all" || selectedColor !== "all" || searchQuery.trim() !== "";
 
   const summary = useMemo(() => {
     if (hasClientFilters) {
@@ -551,72 +561,73 @@ export default function ItemWiseSalesReport() {
                 {/* Brand Filter */}
                 <div className="w-full md:w-44">
                   <label className="text-sm font-medium text-muted-foreground mb-1 block">Brand</label>
-                  <Select value={selectedBrand} onValueChange={setSelectedBrand}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Brands" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Brands</SelectItem>
-                      {filterOptions.brands.map((brand) => (
-                        <SelectItem key={brand} value={brand}>{brand}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={selectedBrand}
+                    onValueChange={setSelectedBrand}
+                    options={filterOptions.brands}
+                    placeholder="All Brands"
+                    allLabel="All Brands"
+                    allValue="all"
+                  />
                 </div>
 
                 {/* Category Filter */}
                 <div className="w-full md:w-44">
                   <label className="text-sm font-medium text-muted-foreground mb-1 block">Category</label>
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Categories" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Categories</SelectItem>
-                      {filterOptions.categories.map((cat) => (
-                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={selectedCategory}
+                    onValueChange={setSelectedCategory}
+                    options={filterOptions.categories}
+                    placeholder="All Categories"
+                    allLabel="All Categories"
+                    allValue="all"
+                  />
                 </div>
 
                 {/* Department Filter */}
                 <div className="w-full md:w-44">
                   <label className="text-sm font-medium text-muted-foreground mb-1 block">Department</label>
-                  <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Departments" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Departments</SelectItem>
-                      {filterOptions.departments.map((dept) => (
-                        <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={selectedDepartment}
+                    onValueChange={setSelectedDepartment}
+                    options={filterOptions.departments}
+                    placeholder="All Departments"
+                    allLabel="All Departments"
+                    allValue="all"
+                  />
+                </div>
+
+                {/* Color Filter */}
+                <div className="w-full md:w-44">
+                  <label className="text-sm font-medium text-muted-foreground mb-1 block">Color</label>
+                  <SearchableSelect
+                    value={selectedColor}
+                    onValueChange={setSelectedColor}
+                    options={filterOptions.colors}
+                    placeholder="All Colors"
+                    allLabel="All Colors"
+                    allValue="all"
+                  />
                 </div>
 
                 {/* Customer Filter */}
                 <div className="w-full md:w-48">
                   <label className="text-sm font-medium text-muted-foreground mb-1 block">Customer</label>
-                  <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Customers" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Customers</SelectItem>
-                      {filterOptions.customers.map((cust) => (
-                        <SelectItem key={cust} value={cust}>{cust}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={selectedCustomer}
+                    onValueChange={setSelectedCustomer}
+                    options={filterOptions.customers}
+                    placeholder="All Customers"
+                    allLabel="All Customers"
+                    allValue="all"
+                  />
                 </div>
               </div>
             )}
 
             <div className="text-sm text-muted-foreground">
               Showing data from {format(dateRange.from, "dd MMM yyyy")} to {format(dateRange.to, "dd MMM yyyy")}
-              {(selectedBrand !== "all" || selectedCategory !== "all" || selectedDepartment !== "all" || selectedCustomer !== "all") && (
+              {(selectedBrand !== "all" || selectedCategory !== "all" || selectedDepartment !== "all" || selectedColor !== "all" || selectedCustomer !== "all") && (
                 <span className="ml-2 text-primary">• Filters applied</span>
               )}
             </div>
