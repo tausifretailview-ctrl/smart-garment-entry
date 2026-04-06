@@ -1499,56 +1499,61 @@ export default function SalesInvoiceDashboard() {
 
     setIsRecordingPayment(true);
     try {
-      const newPaidAmount = Math.round((currentPaid + amount) * 100) / 100;
-      const newStatus = (newPaidAmount + currentCNAdjust) >= selectedInvoiceForPayment.net_amount - 1
+      const isCreditNoteMode = paymentMode === "credit_note";
+
+      // For credit note: don't touch paid_amount, only sale_return_adjust
+      const newPaidAmount = isCreditNoteMode
+        ? currentPaid
+        : Math.round((currentPaid + amount) * 100) / 100;
+      const newCNAdjust = isCreditNoteMode
+        ? currentCNAdjust + amount
+        : currentCNAdjust;
+      const newStatus = (newPaidAmount + newCNAdjust) >= selectedInvoiceForPayment.net_amount - 1
         ? 'completed'
-        : newPaidAmount > 0 ? 'partial' : 'pending';
+        : newPaidAmount > 0 || newCNAdjust > 0 ? 'partial' : 'pending';
 
-      // Update sales table FIRST (before advance deduction to avoid orphaned deductions on failure)
-      const { error: updateError } = await supabase
-        .from('sales')
-        .update({
-          paid_amount: newPaidAmount,
-          payment_status: newStatus,
-          payment_date: format(paymentDate, 'yyyy-MM-dd'),
-          payment_method: paymentMode,
-        })
-        .eq('id', selectedInvoiceForPayment.id);
+      if (isCreditNoteMode) {
+        // Credit note adjustment: update sale_return_adjust + status only (no payment_method change)
+        if (selectedCNReturnId) {
+          await supabase
+            .from('sale_returns')
+            .update({
+              credit_status: 'adjusted',
+              linked_sale_id: selectedInvoiceForPayment.id,
+            })
+            .eq('id', selectedCNReturnId);
+        }
 
-      if (updateError) throw updateError;
-
-      // If payment mode is advance, apply advance deduction using FIFO (after sale update succeeds)
-      if (paymentMode === "advance" && selectedInvoiceForPayment.customer_id) {
-        await applyAdvance.mutateAsync({
-          customerId: selectedInvoiceForPayment.customer_id,
-          amountToApply: amount,
-        });
-      }
-
-      // If payment mode is credit_note, update sale return and sale_return_adjust
-      if (paymentMode === "credit_note" && selectedCNReturnId) {
-        await supabase
-          .from('sale_returns')
-          .update({
-            credit_status: 'adjusted',
-            linked_sale_id: selectedInvoiceForPayment.id,
-          })
-          .eq('id', selectedCNReturnId);
-
-        // Fetch current sale_return_adjust to accumulate
-        const { data: currentSaleForCN } = await supabase
-          .from('sales')
-          .select('sale_return_adjust')
-          .eq('id', selectedInvoiceForPayment.id)
-          .single();
-        const existingCNAdjust = currentSaleForCN?.sale_return_adjust || 0;
-
-        await supabase
+        const { error: updateError } = await supabase
           .from('sales')
           .update({
-            sale_return_adjust: existingCNAdjust + amount,
+            sale_return_adjust: newCNAdjust,
+            payment_status: newStatus,
           })
           .eq('id', selectedInvoiceForPayment.id);
+
+        if (updateError) throw updateError;
+      } else {
+        // Normal / advance payment: update paid_amount + payment_method
+        const { error: updateError } = await supabase
+          .from('sales')
+          .update({
+            paid_amount: newPaidAmount,
+            payment_status: newStatus,
+            payment_date: format(paymentDate, 'yyyy-MM-dd'),
+            payment_method: paymentMode,
+          })
+          .eq('id', selectedInvoiceForPayment.id);
+
+        if (updateError) throw updateError;
+
+        // If payment mode is advance, apply advance deduction using FIFO
+        if (paymentMode === "advance" && selectedInvoiceForPayment.customer_id) {
+          await applyAdvance.mutateAsync({
+            customerId: selectedInvoiceForPayment.customer_id,
+            amountToApply: amount,
+          });
+        }
       }
 
       // Generate voucher number
@@ -1598,8 +1603,8 @@ export default function SalesInvoiceDashboard() {
         invoiceDate: selectedInvoiceForPayment.sale_date,
         invoiceAmount: selectedInvoiceForPayment.net_amount,
         paidAmount: amount,
-        previousBalance: selectedInvoiceForPayment.net_amount - currentPaid,
-        currentBalance: selectedInvoiceForPayment.net_amount - newPaidAmount,
+        previousBalance: Math.max(0, selectedInvoiceForPayment.net_amount - currentPaid - currentCNAdjust),
+        currentBalance: Math.max(0, selectedInvoiceForPayment.net_amount - newPaidAmount - newCNAdjust),
         paymentMethod: paymentMode,
         narration: paymentNarration,
       };
