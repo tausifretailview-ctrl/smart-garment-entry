@@ -41,25 +41,45 @@ export function FeeReceiptReprintDialog({ open, onOpenChange, receiptId }: FeeRe
       const student = first.students;
       const totalPaying = fees.reduce((s: number, f: any) => s + (f.paid_amount || 0), 0);
 
-      // Calculate remaining balance: fetch total fees for this student
+      // Calculate remaining balance: fetch total fees and fee structures for this student
       const { data: allFees } = await supabase
         .from("student_fees")
-        .select("paid_amount, amount")
+        .select("paid_amount, amount, fee_head_id")
         .eq("student_id", first.student_id)
         .eq("organization_id", currentOrganization.id);
 
-      const totalAmount = (allFees || []).reduce((s: number, f: any) => s + (f.amount || 0), 0);
       const totalPaid = (allFees || []).reduce((s: number, f: any) => s + (f.paid_amount || 0), 0);
 
-      // Get student's closing_fees_balance for imported balance scenario
+      // Check if student has fee structures (fee_head_id present) or uses imported balance
+      const hasStructures = (allFees || []).some((f: any) => f.fee_head_id != null);
+
+      // Get student's closing_fees_balance
       const { data: studentRecord } = await supabase
         .from("students")
-        .select("closing_fees_balance")
+        .select("closing_fees_balance, class_id")
         .eq("id", first.student_id)
         .single();
 
       const closingBalance = studentRecord?.closing_fees_balance || 0;
-      const effectiveTotal = totalAmount > 0 ? totalAmount : closingBalance;
+
+      let effectiveTotal: number;
+      if (hasStructures) {
+        // For structured fees, sum unique fee head amounts (not per-payment amounts)
+        const { data: structures } = await supabase
+          .from("fee_structures")
+          .select("amount, frequency")
+          .eq("organization_id", currentOrganization.id)
+          .eq("class_id", studentRecord?.class_id || '');
+        effectiveTotal = (structures || []).reduce((s: number, fs: any) => {
+          const multiplier = fs.frequency === "monthly" ? 12 : fs.frequency === "quarterly" ? 4 : 1;
+          return s + (fs.amount * multiplier);
+        }, 0);
+        if (effectiveTotal === 0) effectiveTotal = closingBalance;
+      } else {
+        // Imported balance: closing_fees_balance IS the total, don't sum per-record amounts
+        effectiveTotal = closingBalance;
+      }
+
       const remainingBalance = Math.max(0, effectiveTotal - totalPaid);
 
       return {
