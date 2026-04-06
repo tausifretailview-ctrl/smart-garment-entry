@@ -120,6 +120,8 @@ export default function POSSales() {
   const { currentOrganization } = useOrganization();
   const { setOnNewSale, setOnClearCart, setOnOpenCashierReport, setOnOpenStockReport, setOnOpenSaleReturn, setOnSaveChanges, setOnEstimatePrint, setHasItems, setIsEditing, setIsSavingChanges } = usePOS();
   const { saveSale, updateSale, holdSale, resumeHeldSale, isSaving } = useSaveSale();
+  // Ref-based lock to prevent duplicate saves from rapid keyboard + click combos
+  const paymentLockRef = useRef(false);
   const { createCreditNote, getAvailableCreditBalance, applyCredit, isCreating: isCreatingCreditNote, isApplying: isApplyingCredit } = useCreditNotes();
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
@@ -2108,11 +2110,12 @@ export default function POSSales() {
   };
 
   const handlePaymentAndPrint = async (method: 'cash' | 'card' | 'upi' | 'pay_later') => {
-    // Prevent duplicate saves from rapid clicks or keyboard shortcuts
-    if (isSaving) {
-      
+    // Ref-based lock prevents duplicate saves from rapid keyboard + click combos
+    // (isSaving is React state and only updates on next render — too slow for rapid inputs)
+    if (paymentLockRef.current || isSaving) {
       return;
     }
+    paymentLockRef.current = true;
 
     if (items.length === 0) {
       toast({
