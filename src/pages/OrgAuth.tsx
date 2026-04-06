@@ -285,6 +285,7 @@ export default function OrgAuth() {
     setLoading(true);
     setError("");
     setShowCacheRecovery(false);
+    isSigningInRef.current = true;
 
     try {
       // CRITICAL: Clear any existing stale session before login attempt
