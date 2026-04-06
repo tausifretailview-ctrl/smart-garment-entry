@@ -619,7 +619,8 @@ serve(async (req) => {
     }
 
     // ========== DUPLICATE MESSAGE PREVENTION ==========
-    // Check if a message was already sent for this invoice within the cooldown period
+    // Atomic: insert a pending log entry with a dedup key, skip if one already exists
+    // This prevents race conditions where two near-simultaneous calls both pass the read check
     if (referenceId && referenceType === 'sale') {
       const { data: existingLog } = await supabase
         .from('whatsapp_logs')
@@ -665,6 +666,29 @@ serve(async (req) => {
       })
       .select()
       .single();
+
+    // After inserting, check if another pending/sent log already exists for this reference
+    // This catches race conditions where two calls insert nearly simultaneously
+    if (logEntry && referenceId && referenceType === 'sale') {
+      const { data: allLogs } = await supabase
+        .from('whatsapp_logs')
+        .select('id, created_at')
+        .eq('reference_id', referenceId)
+        .eq('template_type', templateType || 'sales_invoice')
+        .in('status', ['sent', 'delivered', 'read', 'pending'])
+        .order('created_at', { ascending: true })
+        .limit(2);
+
+      // If this log entry is NOT the first one, it's a duplicate — delete it and skip
+      if (allLogs && allLogs.length > 1 && allLogs[0].id !== logEntry.id) {
+        console.log(`Race condition duplicate detected for sale ${referenceId} — skipping this call`);
+        await supabase.from('whatsapp_logs').delete().eq('id', logEntry.id);
+        return new Response(
+          JSON.stringify({ success: true, skipped: true, reason: 'Duplicate prevented (race condition)' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     if (logError) {
       console.error('Error creating log entry:', logError);
