@@ -1371,13 +1371,17 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       });
     }
 
+    // For school non-structure students, opening_balance and totalSales are the same — avoid showing both
+    const showOpeningInMsg = !isSchool || (selectedCustomer as any).hasStructures !== false;
+    const feesLabel = isSchool ? ((selectedCustomer as any).hasStructures === false ? 'Opening Balance' : 'Total Fees') : 'Total Sales';
+    const paidLabel = isSchool ? 'Fees Paid' : 'Total Paid';
+
     const message = `📊 *Account Statement*
 
 👤 *${selectedCustomer.customer_name}*${dateRange}
-
-💰 Opening Balance: ₹${Math.round(openingBalance).toLocaleString("en-IN")}
-📈 ${isSchool ? 'Total Fees' : 'Total Sales'}: ₹${Math.round(selectedCustomer.totalSales).toLocaleString("en-IN")}
-✅ ${isSchool ? 'Fees Paid' : 'Total Paid'}: ₹${Math.round(selectedCustomer.totalPaid).toLocaleString("en-IN")}
+${showOpeningInMsg ? `\n💰 Opening Balance: ₹${Math.round(openingBalance).toLocaleString("en-IN")}` : ''}
+📈 ${feesLabel}: ₹${Math.round(selectedCustomer.totalSales).toLocaleString("en-IN")}
+✅ ${paidLabel}: ₹${Math.round(selectedCustomer.totalPaid).toLocaleString("en-IN")}
 ────────────────
 💵 *Outstanding: ₹${Math.abs(Math.round(selectedCustomer.balance)).toLocaleString("en-IN")}${selectedCustomer.balance < 0 ? " (Advance)" : ""}*${txnSummary}
 
