@@ -539,6 +539,23 @@ export default function SalesInvoiceDashboard() {
     setSearchParams(searchParams, { replace: true });
   }, [downloadPdfId, isLoading, invoicesData]);
 
+  // Fetch distinct shop names for filter
+  const { data: shopNames = [] } = useQuery({
+    queryKey: ['shop-names', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const { data } = await supabase
+        .from('organization_members')
+        .select('shop_name')
+        .eq('organization_id', currentOrganization.id)
+        .not('shop_name', 'is', null);
+      const names = [...new Set((data || []).map((m: any) => m.shop_name).filter(Boolean))];
+      return names as string[];
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 60000,
+  });
+
   // Server-side summary stats via RPC
   const { data: summaryStats } = useQuery({
     queryKey: ['invoice-dashboard-stats', currentOrganization?.id, debouncedSearch, deliveryFilter, paymentStatusFilter, queryDateRange.start, queryDateRange.end],
