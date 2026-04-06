@@ -120,7 +120,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
     const base: React.CSSProperties = {
       width: '72mm', maxWidth: '72mm', padding: '2mm 2mm 2mm 4mm',
       backgroundColor: 'white', fontFamily: "'Courier New', Courier, monospace",
-      fontSize: '12px', lineHeight: '1.4', color: '#000',
+      fontSize: '14px', lineHeight: '1.5', color: '#000',
       fontWeight: 700, boxSizing: 'border-box',
       WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
       overflow: 'hidden',
@@ -148,9 +148,9 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
           <div style={{ fontWeight: 900, fontSize: '18px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px' }}>
             {settings?.business_name || 'STORE NAME'}
           </div>
-          <div style={{ fontSize: '11px', lineHeight: '1.3' }}>{settings?.address || ''}</div>
-          {settings?.mobile_number && <div style={{ fontSize: '11px' }}>Tel: {settings.mobile_number}</div>}
-          {settings?.gst_number && <div style={{ fontSize: '11px', fontWeight: 900 }}>GSTIN: {settings.gst_number}</div>}
+          <div style={{ fontSize: '13px', lineHeight: '1.3' }}>{settings?.address || ''}</div>
+          {settings?.mobile_number && <div style={{ fontSize: '13px' }}>Tel: {settings.mobile_number}</div>}
+          {settings?.gst_number && <div style={{ fontSize: '13px', fontWeight: 900 }}>GSTIN: {settings.gst_number}</div>}
         </div>
         <div style={dblLine} />
 
@@ -159,7 +159,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         <div style={singleLine} />
 
         {/* ═══ BILL INFO — same line ═══ */}
-        <div style={{ fontSize: '11px', marginBottom: '3px' }}>
+        <div style={{ fontSize: '13px', marginBottom: '3px' }}>
           <div style={row}>
             <span>{docLabel}: <b>{billNo}</b></span>
             <span>Date: {format(date, 'dd/MM/yy')}</span>
@@ -173,7 +173,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
 
         {/* ═══ CUSTOMER ═══ */}
         {(customerName && customerName !== 'Walk-in Customer') && (
-          <div style={{ fontSize: '11px', marginBottom: '3px' }}>
+          <div style={{ fontSize: '13px', marginBottom: '3px' }}>
             <div>Cust: {customerName.length > 30 ? customerName.substring(0, 28) + '..' : customerName}</div>
             {customerPhone && <div>Mob: {customerPhone}</div>}
             {customerAddress && <div>Addr: {customerAddress.length > 30 ? customerAddress.substring(0, 28) + '..' : customerAddress}</div>}
@@ -183,7 +183,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         <div style={singleLine} />
 
         {/* ═══ ITEMS TABLE ═══ */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', marginBottom: '3px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', marginBottom: '3px' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid #000' }}>
               <th style={{ textAlign: 'left', padding: '2px 0', fontWeight: 900, width: '100%' }}>ITEM</th>
@@ -201,14 +201,14 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         </table>
 
         {items.map((item, i) => (
-          <div key={i} style={{ fontSize: '11px', marginBottom: '4px' }}>
+          <div key={i} style={{ fontSize: '13px', marginBottom: '4px' }}>
             {/* Item name — full width */}
             <div style={{ fontWeight: 900, lineHeight: '1.3', wordBreak: 'break-word' }}>
               {item.particulars}
             </div>
             {/* Barcode */}
             {item.barcode && (
-              <div style={{ fontSize: '10px', fontWeight: 700 }}>BC: {item.barcode}</div>
+              <div style={{ fontSize: '12px', fontWeight: 700 }}>BC: {item.barcode}</div>
             )}
             {/* Qty, Rate, Amount — right aligned */}
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -283,8 +283,8 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         {gstRateBreakdown && gstRateBreakdown.length > 0 ? (
           <>
             <div style={singleLine} />
-            <div style={{ fontSize: '10px', fontWeight: 900, textAlign: 'center', marginBottom: '2px' }}>GST DETAILS</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', tableLayout: 'fixed' }}>
+            <div style={{ fontSize: '12px', fontWeight: 900, textAlign: 'center', marginBottom: '2px' }}>GST DETAILS</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', tableLayout: 'fixed' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #000' }}>
                   <th style={{ textAlign: 'left', padding: '1px 0', fontWeight: 900, width: '15%' }}>GST%</th>
@@ -314,8 +314,8 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         ) : (gst.cgst > 0 || gst.sgst > 0) ? (
           <>
             <div style={singleLine} />
-            <div style={{ fontSize: '10px', fontWeight: 900, textAlign: 'center', marginBottom: '2px' }}>GST DETAILS</div>
-            <div style={{ fontSize: '10px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 900, textAlign: 'center', marginBottom: '2px' }}>GST DETAILS</div>
+            <div style={{ fontSize: '12px' }}>
               {gst.cgst > 0 && <div style={row}><span>CGST</span><span>₹{fmtDec(gst.cgst)}</span></div>}
               {gst.sgst > 0 && <div style={row}><span>SGST</span><span>₹{fmtDec(gst.sgst)}</span></div>}
             </div>
@@ -326,7 +326,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
 
         {/* ═══ PAYMENT ═══ */}
         {(cashPaid > 0 || upiPaid > 0 || cardPaid > 0 || creditPaid > 0 || paymentMethod) && (
-          <div style={{ fontSize: '11px', marginBottom: '3px' }}>
+          <div style={{ fontSize: '13px', marginBottom: '3px' }}>
             <div style={{ fontWeight: 900, marginBottom: '2px' }}>PAYMENT</div>
             {cashPaid > 0 && <div style={row}><span>Cash</span><span>₹{fmtAmt(cashPaid)}</span></div>}
             {upiPaid > 0 && <div style={row}><span>UPI</span><span>₹{fmtAmt(upiPaid)}</span></div>}
@@ -346,7 +346,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
 
         {/* ═══ LOYALTY POINTS ═══ */}
         {(pointsRedeemed > 0 || pointsBalance > 0) && (
-          <div style={{ fontSize: '10px', margin: '3px 0', padding: '2px', border: '1px solid #000' }}>
+          <div style={{ fontSize: '12px', margin: '3px 0', padding: '2px', border: '1px solid #000' }}>
             <div style={{ ...center, fontWeight: 900, marginBottom: '1px' }}>LOYALTY POINTS</div>
             {pointsRedeemed > 0 && <div style={row}><span>Redeemed</span><span>{pointsRedeemed} pts (₹{fmtAmt(pointsRedemptionValue)})</span></div>}
             <div style={{ ...row, fontWeight: 900 }}><span>Balance</span><span>{pointsBalance} pts</span></div>
@@ -356,9 +356,9 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         {/* ═══ UPI QR ═══ */}
         {qrCodeUrl && (settings?.bill_barcode_settings?.upi_id || settings?.bill_barcode_settings?.dc_upi_id) && (
           <div style={{ ...center, margin: '4px 0' }}>
-            <div style={{ fontSize: '10px', fontWeight: 900, marginBottom: '2px' }}>SCAN TO PAY</div>
+            <div style={{ fontSize: '12px', fontWeight: 900, marginBottom: '2px' }}>SCAN TO PAY</div>
             <img src={qrCodeUrl} alt="UPI QR" style={{ width: '80px', height: '80px', margin: '0 auto', display: 'block' }} />
-            <div style={{ fontSize: '9px', marginTop: '1px' }}>{(isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id) ? settings.bill_barcode_settings.dc_upi_id : settings.bill_barcode_settings.upi_id}</div>
+            <div style={{ fontSize: '11px', marginTop: '1px' }}>{(isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id) ? settings.bill_barcode_settings.dc_upi_id : settings.bill_barcode_settings.upi_id}</div>
           </div>
         )}
 
@@ -366,7 +366,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         {termsConditions && (
           <>
             <div style={singleLine} />
-            <div style={{ fontSize: '10px', lineHeight: '1.3', whiteSpace: 'pre-wrap', textAlign: 'center' }}>{termsConditions}</div>
+            <div style={{ fontSize: '12px', lineHeight: '1.3', whiteSpace: 'pre-wrap', textAlign: 'center' }}>{termsConditions}</div>
           </>
         )}
 
@@ -374,7 +374,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
           <>
             <div style={singleLine} />
-            <div style={{ fontSize: '10px', lineHeight: '1.3' }}>
+            <div style={{ fontSize: '12px', lineHeight: '1.3' }}>
               <span style={{ fontWeight: 900 }}>Note: </span>
               <span style={{ whiteSpace: 'pre-wrap' }}>{notes.trim()}</span>
             </div>
@@ -388,7 +388,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         </div>
 
         {settings?.bill_barcode_settings?.footer_text && (
-          <div style={{ ...center, fontSize: '9px', marginTop: '2px', whiteSpace: 'pre-wrap' }}>{settings.bill_barcode_settings.footer_text}</div>
+          <div style={{ ...center, fontSize: '11px', marginTop: '2px', whiteSpace: 'pre-wrap' }}>{settings.bill_barcode_settings.footer_text}</div>
         )}
 
         <div style={dblLine} />
