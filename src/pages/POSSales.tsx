@@ -782,10 +782,22 @@ export default function POSSales() {
       try {
         const saleSettings = (settingsData as any)?.sale_settings;
         
+        // Auto-correct stale FY in literal format strings
+        const autoCorrectFY = (fmt: string): string => {
+          const ist = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+          const m = ist.getMonth() + 1;
+          const y = ist.getFullYear();
+          const fyStart = m >= 4 ? y : y - 1;
+          const currentFY = `${String(fyStart).slice(-2)}-${String(fyStart + 1).slice(-2)}`;
+          return fmt.replace(/\/(\d{2})-(\d{2})\//, `/${currentFY}/`);
+        };
+
         // Check for custom POS format or series start
         if (saleSettings?.pos_numbering_format || saleSettings?.pos_series_start) {
-          const format = saleSettings.pos_numbering_format || saleSettings.pos_series_start;
-          const seriesStart = saleSettings.pos_series_start;
+          const rawFormat = saleSettings.pos_numbering_format || saleSettings.pos_series_start;
+          const rawSeriesStart = saleSettings.pos_series_start;
+          const format = autoCorrectFY(rawFormat);
+          const seriesStart = rawSeriesStart ? autoCorrectFY(rawSeriesStart) : rawSeriesStart;
           
           let minSequence = 1;
           let basePattern = format.replace(/\d+$/, '');
