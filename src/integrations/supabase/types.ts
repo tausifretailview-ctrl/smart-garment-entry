@@ -2513,6 +2513,7 @@ export type Database = {
           id: string
           organization_id: string
           role: Database["public"]["Enums"]["app_role"]
+          shop_name: string | null
           user_id: string
         }
         Insert: {
@@ -2520,6 +2521,7 @@ export type Database = {
           id?: string
           organization_id: string
           role?: Database["public"]["Enums"]["app_role"]
+          shop_name?: string | null
           user_id: string
         }
         Update: {
@@ -2527,6 +2529,7 @@ export type Database = {
           id?: string
           organization_id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          shop_name?: string | null
           user_id?: string
         }
         Relationships: [
@@ -4600,6 +4603,7 @@ export type Database = {
           salesman: string | null
           shipping_address: string | null
           shipping_instructions: string | null
+          shop_name: string | null
           signed_invoice: string | null
           signed_qr_code: string | null
           terms_conditions: string | null
@@ -4659,6 +4663,7 @@ export type Database = {
           salesman?: string | null
           shipping_address?: string | null
           shipping_instructions?: string | null
+          shop_name?: string | null
           signed_invoice?: string | null
           signed_qr_code?: string | null
           terms_conditions?: string | null
@@ -4718,6 +4723,7 @@ export type Database = {
           salesman?: string | null
           shipping_address?: string | null
           shipping_instructions?: string | null
+          shop_name?: string | null
           signed_invoice?: string | null
           signed_qr_code?: string | null
           terms_conditions?: string | null
