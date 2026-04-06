@@ -2584,6 +2584,20 @@ export default function SalesInvoiceDashboard() {
                   <SelectItem value="order_cancelled" className="text-destructive">Order Cancelled</SelectItem>
                 </SelectContent>
               </Select>
+              {filteredCustomer && bulkAdvanceBalance > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 text-[13px] border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-medium gap-1.5 flex-shrink-0"
+                  onClick={() => {
+                    setBulkAdvanceCustomer(filteredCustomer);
+                    setShowBulkAdvanceDialog(true);
+                  }}
+                >
+                  <IndianRupee className="h-3.5 w-3.5" />
+                  Adjust Advance ₹{bulkAdvanceBalance.toLocaleString("en-IN")}
+                </Button>
+              )}
               <div id="erp-toolbar-portal" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
             </div>
 
@@ -3293,6 +3307,25 @@ export default function SalesInvoiceDashboard() {
               title="Quick Actions"
             />
           </>
+        )}
+
+        {/* Bulk Advance Adjust Dialog */}
+        {bulkAdvanceCustomer && (
+          <BulkAdvanceAdjustDialog
+            open={showBulkAdvanceDialog}
+            onOpenChange={setShowBulkAdvanceDialog}
+            customerId={bulkAdvanceCustomer.id}
+            customerName={bulkAdvanceCustomer.name}
+            organizationId={currentOrganization?.id || ""}
+            userId={user?.id}
+            onComplete={() => {
+              refetch();
+              // Re-fetch advance balance
+              if (filteredCustomer?.id) {
+                getAvailableAdvanceBalance(filteredCustomer.id).then(setBulkAdvanceBalance).catch(() => setBulkAdvanceBalance(0));
+              }
+            }}
+          />
         )}
       </div>
   );
