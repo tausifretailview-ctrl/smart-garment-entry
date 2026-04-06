@@ -2176,6 +2176,9 @@ export default function POSSales() {
       result = await saveSale(saleData, method);
     }
     
+    // Release lock after save attempt completes
+    paymentLockRef.current = false;
+
     if (result) {
       // Save financer details if provided
       if (financerDetails?.financer_name) {
