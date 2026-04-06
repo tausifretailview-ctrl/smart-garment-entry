@@ -2590,6 +2590,17 @@ Please clear your dues at the earliest. Thank you!`;
                 Clear Filters
               </Button>
             )}
+
+            <div className="flex items-center gap-2 ml-auto">
+              <Button variant="outline" size="sm" onClick={handleExportCustomerListExcel}>
+                <Download className="mr-2 h-4 w-4" />
+                {isMobile ? "Excel" : "Export Excel"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleExportCustomerListPDF}>
+                <FileDown className="mr-2 h-4 w-4" />
+                {isMobile ? "PDF" : "Export PDF"}
+              </Button>
+            </div>
           </div>
 
           {/* Mobile Card View */}
