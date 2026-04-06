@@ -1,43 +1,51 @@
 
 
-## Fix: Invoice Dashboard Not Accounting for Credit Note Adjustments
+## Add Bulk "Adjust Advance" Feature to Sales Invoice Dashboard
 
 ### Problem
-When a credit note (sale return) is applied against an invoice, `sale_return_adjust` is updated on the sale record. However, the Invoice Dashboard ignores this field everywhere — showing inflated pending balances and incorrect payment statuses.
+Customer Khadija Sheikh has ₹4,000 advance balance, but outstanding invoices still show as Partial/Not Paid. Currently the only way to apply advances is one invoice at a time via the payment dialog. The user wants a one-click bulk adjustment option.
 
-**Example**: SADIQA's invoice ₹4,500 with ₹1,300 paid + ₹3,200 credit note should show ₹0 pending and "Completed", but currently shows ₹3,200 pending and "Partial".
+### Changes — Single file: `src/pages/SalesInvoiceDashboard.tsx`
 
-### File: `src/pages/SalesInvoiceDashboard.tsx`
+**1. Add "Adjust Advance" button in the dashboard toolbar area**
+- When a customer search filter is active and the filtered customer has an available advance balance, show an "Adjust Advance (₹X)" button
+- Button appears near the filter/search area at the top
 
-All changes apply the formula: `pending = net_amount - paid_amount - sale_return_adjust`
+**2. Bulk Adjust Advance Dialog**
+- New dialog that shows:
+  - Customer name and available advance balance
+  - List of outstanding invoices (pending/partial) for that customer, sorted oldest first
+  - Auto-calculated allocation (FIFO): how much of the advance will be applied to each invoice
+  - Confirm button to execute
+- On confirm:
+  - Loop through invoices in date order, apply advance amount (FIFO) to each
+  - Update `paid_amount` and `payment_status` on each invoice
+  - Call `applyAdvance.mutateAsync()` to deduct from `customer_advances` table
+  - Create voucher entries for each adjustment
+  - Refresh queries
 
-### Changes (10 locations)
+**3. Keep existing manual per-invoice "From Advance" option**
+- No changes needed — it already works correctly
 
-1. **Page totals balance** (line 833) — Add `- (inv.sale_return_adjust || 0)` with `Math.max(0, ...)`
+### Technical Flow
 
-2. **Excel export** (line 864, 901) — Add `sale_return_adjust` to select query; fix Balance column; add "Credit Note Adj." column
+```text
+User clicks "Adjust Advance ₹4,000"
+  → Dialog shows outstanding invoices:
+     INV/1194: ₹10,200 pending → apply ₹4,000 (partial) 
+     Remaining advance: ₹0
+  → User confirms
+  → System updates:
+     - INV/1194: paid_amount += 4000, status recalculated
+     - customer_advances: used_amount += 4000 (FIFO)
+     - voucher_entry created for each allocation
+  → Dashboard refreshes with updated balances/statuses
+```
 
-3. **Table row pending** (line 2041) — Add `- (inv.sale_return_adjust || 0)`
-
-4. **openPaymentDialog** (line 1396) — Subtract `sale_return_adjust` from pending
-
-5. **Advance mode pending** (line 1416) — Subtract `sale_return_adjust`
-
-6. **Credit note mode pending** (line 1462) — Subtract `sale_return_adjust`
-
-7. **Payment guard + status** (lines 1487, 1501) — Factor `sale_return_adjust` into pending check and status determination (`completed` when `paid + cn_adjust >= net`)
-
-8. **Payment dialog "Pending" display** (line 2147) — Subtract `sale_return_adjust`
-
-9. **Second payment dialog "Pending"** (line 2905) — Subtract `sale_return_adjust`
-
-10. **WhatsApp balance queries** (lines 1251, 1367) — Add `sale_return_adjust` to select; include in `totalPaid` sum; fix fallback calculations (lines 1374, 1377)
-
-### Verification
-After fix, SADIQA's INV/25-26/443: `4500 - 1300 - 3200 = 0` → status "completed" ✓
-
-### Not Changed
-- Sale return recording logic
-- CustomerLedger, PurchaseBillDashboard
-- Invoice print templates
+### State additions
+- `showBulkAdvanceDialog` boolean
+- `bulkAdvanceCustomerId` / `bulkAdvanceCustomerName` 
+- `bulkAdvanceBalance` number
+- `bulkAdvanceInvoices` array (fetched on dialog open)
+- `isProcessingBulkAdvance` boolean
 
