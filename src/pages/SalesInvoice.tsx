@@ -2120,6 +2120,7 @@ Thank you for choosing us!`;
             payment_method: 'pay_later',
             payment_status: 'pending',
             organization_id: currentOrganization?.id,
+            shop_name: shopName || null,
             due_date: dueDate.toISOString().split('T')[0],
             payment_term: paymentTerm || null,
             terms_conditions: termsConditions || null,
