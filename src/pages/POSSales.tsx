@@ -2213,6 +2213,7 @@ export default function POSSales() {
         upiAmount: result.upi_amount || 0,
         cardAmount: result.card_amount || 0,
         salesman: selectedSalesman || null,
+        financerDetails: financerDetails || null,
       };
       
       // Auto-record salesman commission
@@ -2440,6 +2441,7 @@ export default function POSSales() {
         upiAmount: result.upi_amount || 0,
         cardAmount: result.card_amount || 0,
         creditAmount: paymentData.creditAmount || 0,
+        financerDetails: financerDetails || null,
       } : null;
       
       // Auto-record salesman commission
