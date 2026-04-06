@@ -2048,8 +2048,10 @@ Thank you for choosing us!`;
         const saleSettings = settingsData?.sale_settings as any;
         
         if (saleSettings?.invoice_numbering_format || saleSettings?.invoice_series_start) {
-          const format = saleSettings.invoice_numbering_format || saleSettings.invoice_series_start;
-          const seriesStart = saleSettings.invoice_series_start;
+          const rawFormat = saleSettings.invoice_numbering_format || saleSettings.invoice_series_start;
+          const rawSeriesStart = saleSettings.invoice_series_start;
+          const format = autoCorrectFY(rawFormat);
+          const seriesStart = rawSeriesStart ? autoCorrectFY(rawSeriesStart) : rawSeriesStart;
           const hasPlaceholders = format.includes('{');
           
           let minSequence = 1;
