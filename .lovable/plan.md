@@ -1,51 +1,56 @@
 
 
-## Add Bulk "Adjust Advance" Feature to Sales Invoice Dashboard
+# Plan: Delete All Products from Mulund Mobility Organization
 
-### Problem
-Customer Khadija Sheikh has ₹4,000 advance balance, but outstanding invoices still show as Partial/Not Paid. Currently the only way to apply advances is one invoice at a time via the payment dialog. The user wants a one-click bulk adjustment option.
+## Investigation Results
 
-### Changes — Single file: `src/pages/SalesInvoiceDashboard.tsx`
+- **Organization**: MULUND MOBILITY (`697c451a-f863-4fe4-82f3-31859a9e5251`)
+- **Total Products**: 2,061 (with 1,167 variants)
+- **Batch Stock Records**: 1,110 entries linked to variants
+- **Transaction Dependencies**: Only **1 product** ("MOTOROLA G57 POWER") is used in a sale. All other 2,060 products have zero transactions.
 
-**1. Add "Adjust Advance" button in the dashboard toolbar area**
-- When a customer search filter is active and the filtered customer has an available advance balance, show an "Adjust Advance (₹X)" button
-- Button appears near the filter/search area at the top
+## Approach
 
-**2. Bulk Adjust Advance Dialog**
-- New dialog that shows:
-  - Customer name and available advance balance
-  - List of outstanding invoices (pending/partial) for that customer, sorted oldest first
-  - Auto-calculated allocation (FIFO): how much of the advance will be applied to each invoice
-  - Confirm button to execute
-- On confirm:
-  - Loop through invoices in date order, apply advance amount (FIFO) to each
-  - Update `paid_amount` and `payment_status` on each invoice
-  - Call `applyAdvance.mutateAsync()` to deduct from `customer_advances` table
-  - Create voucher entries for each adjustment
-  - Refresh queries
+Since the user wants to start fresh, we will create a migration that safely deletes all products and related data **only for this organization**. The one product used in a sale ("MOTOROLA G57 POWER") presents a decision point.
 
-**3. Keep existing manual per-invoice "From Advance" option**
-- No changes needed — it already works correctly
+## Steps
 
-### Technical Flow
+### Step 1: Create a database migration
 
-```text
-User clicks "Adjust Advance ₹4,000"
-  → Dialog shows outstanding invoices:
-     INV/1194: ₹10,200 pending → apply ₹4,000 (partial) 
-     Remaining advance: ₹0
-  → User confirms
-  → System updates:
-     - INV/1194: paid_amount += 4000, status recalculated
-     - customer_advances: used_amount += 4000 (FIFO)
-     - voucher_entry created for each allocation
-  → Dashboard refreshes with updated balances/statuses
+A single migration that executes in the correct order to respect foreign key constraints:
+
+1. **Delete `batch_stock`** — references `variant_id` and `organization_id`
+2. **Delete `sale_items`** — references `product_id` / `variant_id` (only 1 record)
+3. **Delete `sales`** — the parent sale record (only 1 record, already soft-deleted or not)
+4. **Delete `product_variants`** — references `product_id`
+5. **Delete `products`** — the main product records
+
+All queries will be scoped strictly to `organization_id = '697c451a-...'`.
+
+### Step 2: Handle the one sale record
+
+The "MOTOROLA G57 POWER" product has 1 sale transaction. To cleanly delete the product, we also need to remove that sale and its items. This is acceptable since the user wants to start fresh.
+
+## Technical Details
+
+```sql
+-- Scoped ONLY to Mulund Mobility organization
+DELETE FROM batch_stock WHERE organization_id = '697c451a-f863-4fe4-82f3-31859a9e5251';
+
+DELETE FROM sale_items WHERE sale_id IN (
+  SELECT id FROM sales WHERE organization_id = '697c451a-f863-4fe4-82f3-31859a9e5251'
+);
+DELETE FROM sales WHERE organization_id = '697c451a-f863-4fe4-82f3-31859a9e5251';
+
+DELETE FROM product_variants WHERE product_id IN (
+  SELECT id FROM products WHERE organization_id = '697c451a-f863-4fe4-82f3-31859a9e5251'
+);
+DELETE FROM products WHERE organization_id = '697c451a-f863-4fe4-82f3-31859a9e5251';
 ```
 
-### State additions
-- `showBulkAdvanceDialog` boolean
-- `bulkAdvanceCustomerId` / `bulkAdvanceCustomerName` 
-- `bulkAdvanceBalance` number
-- `bulkAdvanceInvoices` array (fetched on dialog open)
-- `isProcessingBulkAdvance` boolean
+## Safety
+
+- Every DELETE is scoped to the specific organization ID — no other org is affected
+- No code changes needed — only a one-time data cleanup migration
+- After this, the user can start fresh with new purchase entries and products
 
