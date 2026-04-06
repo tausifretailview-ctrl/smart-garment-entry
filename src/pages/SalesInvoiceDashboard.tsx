@@ -1428,6 +1428,7 @@ export default function SalesInvoiceDashboard() {
     setPaymentMode("cash");
     setPaymentNarration("");
     setAdvanceBalance(0);
+    setAdvanceFromBookings(0);
     setIsFetchingAdvance(false);
     setAvailableCNBalance(0);
     setIsFetchingCN(false);
