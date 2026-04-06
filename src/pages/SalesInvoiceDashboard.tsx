@@ -165,6 +165,7 @@ export default function SalesInvoiceDashboard() {
   const [paymentNarration, setPaymentNarration] = useState("");
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
   const [advanceBalance, setAdvanceBalance] = useState<number>(0);
+  const [advanceFromBookings, setAdvanceFromBookings] = useState<number>(0);
   const [isFetchingAdvance, setIsFetchingAdvance] = useState(false);
   const [availableCNBalance, setAvailableCNBalance] = useState<number>(0);
   const [isFetchingCN, setIsFetchingCN] = useState(false);
@@ -618,14 +619,83 @@ export default function SalesInvoiceDashboard() {
     return null;
   }, [debouncedSearch, invoicesData]);
 
-  // Fetch advance balance for filtered customer
+  // Fetch combined advance + credit balance for filtered customer
   useEffect(() => {
-    if (filteredCustomer?.id) {
-      getAvailableAdvanceBalance(filteredCustomer.id).then(setBulkAdvanceBalance).catch(() => setBulkAdvanceBalance(0));
+    if (filteredCustomer?.id && currentOrganization?.id) {
+      const fetchCombinedBalance = async () => {
+        try {
+          const customerId = filteredCustomer.id;
+          const orgId = currentOrganization.id;
+          const bookingBalance = await getAvailableAdvanceBalance(customerId);
+          
+          // Also compute credit/overpayment balance
+          const [
+            { data: customerData },
+            { data: customerSales },
+            { data: customerReturns },
+            { data: customerAdjustments },
+            { data: customerVouchers },
+            { data: refundVouchers },
+          ] = await Promise.all([
+            supabase.from('customers').select('opening_balance').eq('id', customerId).single(),
+            supabase.from('sales').select('id, net_amount, paid_amount, sale_return_adjust, payment_status')
+              .eq('organization_id', orgId).eq('customer_id', customerId)
+              .is('deleted_at', null).not('payment_status', 'in', '("cancelled","hold")'),
+            supabase.from('sale_returns').select('net_amount')
+              .eq('organization_id', orgId).eq('customer_id', customerId).is('deleted_at', null),
+            supabase.from('customer_balance_adjustments').select('outstanding_difference')
+              .eq('organization_id', orgId).eq('customer_id', customerId),
+            supabase.from('voucher_entries').select('reference_id, total_amount, reference_type, voucher_type')
+              .eq('organization_id', orgId).eq('voucher_type', 'receipt').is('deleted_at', null),
+            supabase.from('voucher_entries').select('reference_id, total_amount')
+              .eq('organization_id', orgId).eq('voucher_type', 'payment')
+              .eq('reference_type', 'customer').eq('reference_id', customerId).is('deleted_at', null),
+          ]);
+
+          const openingBalance = customerData?.opening_balance || 0;
+          const totalSales = (customerSales || []).reduce((s: number, sale: any) => s + (sale.net_amount || 0), 0);
+          const saleIds = new Set((customerSales || []).map((s: any) => s.id));
+          
+          const invoiceVoucherMap = new Map<string, number>();
+          let openingBalancePaymentTotal = 0;
+          (customerVouchers || []).forEach((v: any) => {
+            if (v.reference_id && saleIds.has(v.reference_id)) {
+              invoiceVoucherMap.set(v.reference_id, (invoiceVoucherMap.get(v.reference_id) || 0) + (v.total_amount || 0));
+            } else if (v.reference_type === 'customer' && v.reference_id === customerId && v.voucher_type === 'receipt') {
+              openingBalancePaymentTotal += (v.total_amount || 0);
+            }
+          });
+          
+          let totalPaidOnSales = 0;
+          (customerSales || []).forEach((sale: any) => {
+            const salePaid = sale.paid_amount || 0;
+            const srAdj = sale.sale_return_adjust || 0;
+            const voucherAmt = invoiceVoucherMap.get(sale.id) || 0;
+            totalPaidOnSales += Math.max(salePaid - srAdj, voucherAmt);
+          });
+          
+          const totalPaid = totalPaidOnSales + openingBalancePaymentTotal;
+          const adjustmentTotal = (customerAdjustments || []).reduce((s: number, a: any) => s + (a.outstanding_difference || 0), 0);
+          const creditNoteTotal = (customerReturns || []).reduce((s: number, r: any) => s + (r.net_amount || 0), 0);
+          const refundsPaidTotal = (refundVouchers || []).reduce((s: number, v: any) => s + (v.total_amount || 0), 0);
+          
+          const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - creditNoteTotal + refundsPaidTotal);
+          
+          let creditBalance = 0;
+          if (balance < 0) {
+            creditBalance = Math.max(0, Math.abs(balance) - bookingBalance);
+          }
+          
+          setBulkAdvanceBalance(bookingBalance + creditBalance);
+        } catch {
+          setBulkAdvanceBalance(0);
+        }
+      };
+      fetchCombinedBalance();
     } else {
       setBulkAdvanceBalance(0);
     }
-  }, [filteredCustomer?.id]);
+  }, [filteredCustomer?.id, currentOrganization?.id]);
 
   // Stock restoration is now handled automatically by database triggers
   // No need for manual stock restoration code
@@ -1427,6 +1497,7 @@ export default function SalesInvoiceDashboard() {
     setPaymentMode("cash");
     setPaymentNarration("");
     setAdvanceBalance(0);
+    setAdvanceFromBookings(0);
     setIsFetchingAdvance(false);
     setAvailableCNBalance(0);
     setIsFetchingCN(false);
@@ -1439,13 +1510,96 @@ export default function SalesInvoiceDashboard() {
     if (mode === "advance" && selectedInvoiceForPayment?.customer_id) {
       setIsFetchingAdvance(true);
       try {
-        const balance = await getAvailableAdvanceBalance(selectedInvoiceForPayment.customer_id);
-        setAdvanceBalance(balance);
+        const customerId = selectedInvoiceForPayment.customer_id;
+        const orgId = currentOrganization?.id;
+        
+        // Fetch advance booking balance
+        const bookingBalance = await getAvailableAdvanceBalance(customerId);
+        setAdvanceFromBookings(bookingBalance);
+        
+        // Also compute customer credit/overpayment balance from ledger
+        let creditBalance = 0;
+        try {
+          const [
+            { data: customerData },
+            { data: customerSales },
+            { data: customerReturns },
+            { data: customerAdjustments },
+            { data: customerVouchers },
+            { data: refundVouchers },
+          ] = await Promise.all([
+            supabase.from('customers').select('opening_balance').eq('id', customerId).single(),
+            supabase.from('sales').select('id, net_amount, paid_amount, sale_return_adjust, payment_status')
+              .eq('organization_id', orgId!).eq('customer_id', customerId)
+              .is('deleted_at', null).not('payment_status', 'in', '("cancelled","hold")'),
+            supabase.from('sale_returns').select('net_amount')
+              .eq('organization_id', orgId!).eq('customer_id', customerId).is('deleted_at', null),
+            supabase.from('customer_balance_adjustments').select('outstanding_difference')
+              .eq('organization_id', orgId!).eq('customer_id', customerId),
+            supabase.from('voucher_entries').select('reference_id, total_amount, reference_type, voucher_type')
+              .eq('organization_id', orgId!).eq('voucher_type', 'receipt').is('deleted_at', null),
+            supabase.from('voucher_entries').select('reference_id, total_amount')
+              .eq('organization_id', orgId!).eq('voucher_type', 'payment')
+              .eq('reference_type', 'customer').eq('reference_id', customerId).is('deleted_at', null),
+          ]);
+
+          const openingBalance = customerData?.opening_balance || 0;
+          const totalSales = (customerSales || []).reduce((s: number, sale: any) => s + (sale.net_amount || 0), 0);
+          
+          // Build sale ID set for this customer
+          const saleIds = new Set((customerSales || []).map((s: any) => s.id));
+          
+          // Calculate totalPaid using same logic as CustomerLedger
+          const invoiceVoucherMap = new Map<string, number>();
+          (customerVouchers || []).forEach((v: any) => {
+            if (v.reference_id && saleIds.has(v.reference_id)) {
+              invoiceVoucherMap.set(v.reference_id, (invoiceVoucherMap.get(v.reference_id) || 0) + (v.total_amount || 0));
+            }
+          });
+          
+          // Opening balance payments (receipt vouchers referencing customer directly)
+          let openingBalancePaymentTotal = 0;
+          (customerVouchers || []).forEach((v: any) => {
+            if (v.reference_type === 'customer' && v.reference_id === customerId && v.voucher_type === 'receipt') {
+              openingBalancePaymentTotal += (v.total_amount || 0);
+            }
+          });
+          
+          let totalPaidOnSales = 0;
+          (customerSales || []).forEach((sale: any) => {
+            const salePaid = sale.paid_amount || 0;
+            const srAdj = sale.sale_return_adjust || 0;
+            const voucherAmt = invoiceVoucherMap.get(sale.id) || 0;
+            totalPaidOnSales += Math.max(salePaid - srAdj, voucherAmt);
+          });
+          
+          const totalPaid = totalPaidOnSales + openingBalancePaymentTotal;
+          const adjustmentTotal = (customerAdjustments || []).reduce((s: number, a: any) => s + (a.outstanding_difference || 0), 0);
+          const creditNoteTotal = (customerReturns || []).reduce((s: number, r: any) => s + (r.net_amount || 0), 0);
+          const refundsPaidTotal = (refundVouchers || []).reduce((s: number, v: any) => s + (v.total_amount || 0), 0);
+          
+          // Unused advance total (already have bookingBalance)
+          // effectiveUnusedAdvances is already subtracted - but we don't want to double count with bookingBalance
+          
+          const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - creditNoteTotal + refundsPaidTotal);
+          
+          // If balance is negative, customer has credit/overpayment
+          if (balance < 0) {
+            // Credit balance is the overpayment EXCLUDING the advance booking balance (to avoid double counting)
+            creditBalance = Math.max(0, Math.abs(balance) - bookingBalance);
+          }
+        } catch (err) {
+          console.error("Failed to compute credit balance:", err);
+        }
+        
+        const totalAvailable = bookingBalance + creditBalance;
+        setAdvanceBalance(totalAvailable);
         const pendingAmount = Math.max(0, selectedInvoiceForPayment.net_amount - (selectedInvoiceForPayment.paid_amount || 0) - (selectedInvoiceForPayment.sale_return_adjust || 0));
-        setPaidAmount(Math.min(balance, pendingAmount).toString());
+        setPaidAmount(Math.min(totalAvailable, pendingAmount).toString());
       } catch (error) {
         console.error("Failed to fetch advance balance:", error);
         setAdvanceBalance(0);
+        setAdvanceFromBookings(0);
       } finally {
         setIsFetchingAdvance(false);
       }
@@ -1574,12 +1728,15 @@ export default function SalesInvoiceDashboard() {
 
         if (updateError) throw updateError;
 
-        // If payment mode is advance, apply advance deduction using FIFO
+        // If payment mode is advance, apply advance deduction using FIFO (only for booking-based advances)
         if (paymentMode === "advance" && selectedInvoiceForPayment.customer_id) {
-          await applyAdvance.mutateAsync({
-            customerId: selectedInvoiceForPayment.customer_id,
-            amountToApply: amount,
-          });
+          const bookingDeduction = Math.min(amount, advanceFromBookings);
+          if (bookingDeduction > 0) {
+            await applyAdvance.mutateAsync({
+              customerId: selectedInvoiceForPayment.customer_id,
+              amountToApply: bookingDeduction,
+            });
+          }
         }
       }
 
