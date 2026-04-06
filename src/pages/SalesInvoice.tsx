@@ -627,15 +627,24 @@ export default function SalesInvoice() {
             setNextInvoicePreview(`${basePattern}${sequence}`);
           }
         } else {
-          // Use database function for default format
-          const { data: nextNumber, error } = await supabase.rpc('generate_sale_number', {
-            p_organization_id: currentOrganization.id
-          });
+          // Preview next INV number without incrementing the sequence
+          const ist = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+          const month = ist.getMonth() + 1; // 1-based
+          const year = ist.getFullYear();
+          const fyStart = month >= 4 ? year : year - 1;
+          const fyEnd = fyStart + 1;
+          const series = `INV/${String(fyStart).slice(2)}-${String(fyEnd).slice(2)}`;
           
-          if (error) throw error;
-          if (nextNumber) {
-            setNextInvoicePreview(nextNumber);
-          }
+          // Read current last_number from sequences table
+          const { data: seqRow } = await supabase
+            .from('bill_number_sequences')
+            .select('last_number')
+            .eq('organization_id', currentOrganization.id)
+            .eq('series', series)
+            .maybeSingle();
+          
+          const nextNum = (seqRow?.last_number || 0) + 1;
+          setNextInvoicePreview(`${series}/${nextNum}`);
         }
       } catch (error) {
         console.error('Error previewing next invoice:', error);
