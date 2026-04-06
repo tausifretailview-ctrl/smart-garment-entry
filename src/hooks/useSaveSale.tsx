@@ -899,6 +899,7 @@ export const useSaveSale = () => {
           notes: JSON.stringify(holdData),
           created_by: user.id,
           organization_id: currentOrganization.id,
+          shop_name: shopName || null,
         })
         .select()
         .single();
