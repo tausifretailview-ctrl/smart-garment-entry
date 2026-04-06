@@ -887,6 +887,7 @@ const FeeCollection = () => {
                       <TableHead>Fee Head</TableHead>
                       <TableHead>Payment</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="w-14 text-center">WhatsApp</TableHead>
                       <TableHead className="w-14 text-center">Modify</TableHead>
                       <TableHead className="w-14 text-center">Print</TableHead>
                       <TableHead className="w-14 text-center">Delete</TableHead>
@@ -932,6 +933,30 @@ const FeeCollection = () => {
                           <Badge variant="secondary">{fee.payment_method || "Cash"}</Badge>
                         </TableCell>
                         <TableCell className="text-right font-medium">₹{(fee.paid_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
+                        <TableCell className="text-center">
+                          {fee.students?.parent_phone && fee.payment_receipt_id && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                              title="Send Receipt via WhatsApp"
+                              onClick={() => {
+                                const phone = fee.students.parent_phone;
+                                const studentName = fee.students?.student_name || "-";
+                                const admNo = fee.students?.admission_number || "-";
+                                const className = fee.students?.school_classes?.class_name || "-";
+                                const amount = (fee.paid_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 });
+                                const date = fee.paid_date ? format(new Date(fee.paid_date), "dd/MM/yyyy") : "-";
+                                const method = fee.payment_method || "Cash";
+                                const headName = fee.fee_heads?.head_name || "Yearly Fees 2025-26";
+                                const msg = `Fee Receipt\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nReceipt No: ${fee.payment_receipt_id}\nDate: ${date}\nStudent: ${studentName}\nAdmission No: ${admNo}\nClass: ${className}\n\nAmount Paid: Rs.${amount}\nPayment Mode: ${method}\n\n• ${headName}: Rs.${amount}\n\nThank you for your payment.\n\n${currentOrganization?.name || "School"}`;
+                                sendWhatsApp(phone, msg);
+                              }}
+                            >
+                              <MessageCircle className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </TableCell>
                         <TableCell className="text-center">
                           <Button
                             variant="ghost"
