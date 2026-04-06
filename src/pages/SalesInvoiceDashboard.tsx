@@ -1603,8 +1603,8 @@ export default function SalesInvoiceDashboard() {
         invoiceDate: selectedInvoiceForPayment.sale_date,
         invoiceAmount: selectedInvoiceForPayment.net_amount,
         paidAmount: amount,
-        previousBalance: selectedInvoiceForPayment.net_amount - currentPaid,
-        currentBalance: selectedInvoiceForPayment.net_amount - newPaidAmount,
+        previousBalance: Math.max(0, selectedInvoiceForPayment.net_amount - currentPaid - currentCNAdjust),
+        currentBalance: Math.max(0, selectedInvoiceForPayment.net_amount - newPaidAmount - newCNAdjust),
         paymentMethod: paymentMode,
         narration: paymentNarration,
       };
