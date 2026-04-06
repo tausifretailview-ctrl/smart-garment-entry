@@ -200,11 +200,15 @@ export function BulkAdvanceAdjustDialog({
         if (vErr) throw vErr;
       }
 
-      // Apply advance deduction (FIFO)
-      await applyAdvance.mutateAsync({
-        customerId,
-        amountToApply: totalAllocated,
-      });
+      // Apply advance deduction (FIFO) - only for booking-based advances
+      const bookingBalance = await getAvailableAdvanceBalance(customerId);
+      const bookingDeduction = Math.min(totalAllocated, bookingBalance);
+      if (bookingDeduction > 0) {
+        await applyAdvance.mutateAsync({
+          customerId,
+          amountToApply: bookingDeduction,
+        });
+      }
 
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
