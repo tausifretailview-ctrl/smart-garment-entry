@@ -2047,6 +2047,10 @@ export default function SalesInvoiceDashboard() {
             </div>
           ) : paginatedInvoices.map((inv: any) => {
             const pending = Math.max(0, (inv.net_amount||0)-(inv.paid_amount||0)-(inv.sale_return_adjust||0));
+            const totalSettled = (inv.paid_amount||0) + (inv.sale_return_adjust||0);
+            const effectiveStatus = inv.payment_status === 'hold' ? 'hold'
+              : (totalSettled >= (inv.net_amount||0) || Math.abs(totalSettled - (inv.net_amount||0)) < 1) ? 'completed'
+              : totalSettled > 0 ? 'partial' : 'pending';
             const sc: Record<string, string> = {
               completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
               partial: "bg-amber-50 text-amber-700 border-amber-200",
@@ -2061,8 +2065,8 @@ export default function SalesInvoiceDashboard() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={cn("font-mono text-xs font-bold text-primary", inv.is_cancelled && "line-through decoration-red-500/70")}>{inv.sale_number}</span>
-                        <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border", sc[inv.payment_status] || sc.pending)}>
-                          {inv.payment_status === 'completed' ? 'Paid' : inv.payment_status}
+                        <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border", sc[effectiveStatus] || sc.pending)}>
+                          {effectiveStatus === 'completed' ? 'Paid' : effectiveStatus}
                         </span>
                         {inv.is_cancelled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">Cancelled</span>}
                       </div>
