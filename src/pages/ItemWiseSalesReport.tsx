@@ -561,65 +561,66 @@ export default function ItemWiseSalesReport() {
                 {/* Brand Filter */}
                 <div className="w-full md:w-44">
                   <label className="text-sm font-medium text-muted-foreground mb-1 block">Brand</label>
-                  <Select value={selectedBrand} onValueChange={setSelectedBrand}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Brands" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Brands</SelectItem>
-                      {filterOptions.brands.map((brand) => (
-                        <SelectItem key={brand} value={brand}>{brand}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={selectedBrand}
+                    onValueChange={setSelectedBrand}
+                    options={filterOptions.brands}
+                    placeholder="All Brands"
+                    allLabel="All Brands"
+                    allValue="all"
+                  />
                 </div>
 
                 {/* Category Filter */}
                 <div className="w-full md:w-44">
                   <label className="text-sm font-medium text-muted-foreground mb-1 block">Category</label>
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Categories" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Categories</SelectItem>
-                      {filterOptions.categories.map((cat) => (
-                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={selectedCategory}
+                    onValueChange={setSelectedCategory}
+                    options={filterOptions.categories}
+                    placeholder="All Categories"
+                    allLabel="All Categories"
+                    allValue="all"
+                  />
                 </div>
 
                 {/* Department Filter */}
                 <div className="w-full md:w-44">
                   <label className="text-sm font-medium text-muted-foreground mb-1 block">Department</label>
-                  <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Departments" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Departments</SelectItem>
-                      {filterOptions.departments.map((dept) => (
-                        <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={selectedDepartment}
+                    onValueChange={setSelectedDepartment}
+                    options={filterOptions.departments}
+                    placeholder="All Departments"
+                    allLabel="All Departments"
+                    allValue="all"
+                  />
+                </div>
+
+                {/* Color Filter */}
+                <div className="w-full md:w-44">
+                  <label className="text-sm font-medium text-muted-foreground mb-1 block">Color</label>
+                  <SearchableSelect
+                    value={selectedColor}
+                    onValueChange={setSelectedColor}
+                    options={filterOptions.colors}
+                    placeholder="All Colors"
+                    allLabel="All Colors"
+                    allValue="all"
+                  />
                 </div>
 
                 {/* Customer Filter */}
                 <div className="w-full md:w-48">
                   <label className="text-sm font-medium text-muted-foreground mb-1 block">Customer</label>
-                  <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Customers" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Customers</SelectItem>
-                      {filterOptions.customers.map((cust) => (
-                        <SelectItem key={cust} value={cust}>{cust}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={selectedCustomer}
+                    onValueChange={setSelectedCustomer}
+                    options={filterOptions.customers}
+                    placeholder="All Customers"
+                    allLabel="All Customers"
+                    allValue="all"
+                  />
                 </div>
               </div>
             )}
