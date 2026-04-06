@@ -326,6 +326,7 @@ export const useSaveSale = () => {
           notes: saleData.notes || null,
           created_by: user.id,
           organization_id: currentOrganization.id,
+          shop_name: shopName || null,
         })
         .select()
         .single();
