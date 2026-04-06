@@ -3683,7 +3683,7 @@ export default function POSSales() {
             previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
             roundOff={savedInvoiceData?.roundOff ?? roundOff}
             salesman={savedInvoiceData?.salesman || selectedSalesman || ''}
-            financerDetails={financerDetails}
+            financerDetails={savedInvoiceData?.financerDetails || financerDetails}
           />
         </div>
       </>
@@ -5125,7 +5125,7 @@ export default function POSSales() {
                 previousBalance={savedInvoiceData.previousBalance ?? 0}
                 roundOff={savedInvoiceData.roundOff ?? 0}
                 salesman={savedInvoiceData?.salesman || ''}
-                financerDetails={financerDetails}
+                financerDetails={savedInvoiceData?.financerDetails || financerDetails}
               />
             )}
             onPrint={handleClosePrintConfirmDialog}
@@ -5225,7 +5225,7 @@ export default function POSSales() {
                 previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
                 roundOff={savedInvoiceData?.roundOff ?? roundOff}
                 salesman={savedInvoiceData?.salesman || selectedSalesman || ''}
-                financerDetails={financerDetails}
+                financerDetails={savedInvoiceData?.financerDetails || financerDetails}
               />
             </div>
           )}
