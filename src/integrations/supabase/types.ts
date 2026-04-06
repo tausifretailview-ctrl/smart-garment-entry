@@ -504,6 +504,42 @@ export type Database = {
           },
         ]
       }
+      bill_number_sequences: {
+        Row: {
+          id: string
+          last_number: number
+          organization_id: string
+          series: string
+        }
+        Insert: {
+          id?: string
+          last_number?: number
+          organization_id: string
+          series: string
+        }
+        Update: {
+          id?: string
+          last_number?: number
+          organization_id?: string
+          series?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bill_number_sequences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_number_sequences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       bulk_update_history: {
         Row: {
           config: Json | null
@@ -6889,12 +6925,20 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: string
       }
+      generate_pos_number_atomic: {
+        Args: { p_organization_id: string }
+        Returns: string
+      }
       generate_purchase_bill_number:
         | {
             Args: { p_date?: string; p_organization_id?: string }
             Returns: string
           }
         | { Args: { p_organization_id: string }; Returns: string }
+      generate_purchase_bill_number_atomic: {
+        Args: { p_organization_id: string }
+        Returns: string
+      }
       generate_purchase_order_number: {
         Args: { p_organization_id: string }
         Returns: string
@@ -6912,6 +6956,10 @@ export type Database = {
         Returns: string
       }
       generate_sale_number: {
+        Args: { p_organization_id: string; p_prefix?: string }
+        Returns: string
+      }
+      generate_sale_number_atomic: {
         Args: { p_organization_id: string; p_prefix?: string }
         Returns: string
       }
