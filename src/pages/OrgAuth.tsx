@@ -61,6 +61,8 @@ export default function OrgAuth() {
 
   // Request lifecycle guard: prevent stale async fetches from updating state
   const fetchTokenRef = useRef(0);
+  // Guard: prevent checkUserMembership from running while handleSignIn is active
+  const isSigningInRef = useRef(false);
 
   // Check and clear lockout on mount
   useEffect(() => {
