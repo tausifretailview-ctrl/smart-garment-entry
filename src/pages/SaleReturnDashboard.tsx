@@ -9,13 +9,16 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronUp, Printer, Trash2, Plus, Search, Receipt, TrendingDown, IndianRupee, CreditCard, Banknote, ArrowLeftRight, Pencil } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ChevronDown, ChevronUp, Printer, Trash2, Plus, Search, Receipt, TrendingDown, IndianRupee, CreditCard, Banknote, ArrowLeftRight, Pencil, Download, CalendarIcon } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useReactToPrint } from "react-to-print";
 import { SaleReturnPrint } from "@/components/SaleReturnPrint";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { AdjustCustomerCreditNoteDialog } from "@/components/AdjustCustomerCreditNoteDialog";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { format } from "date-fns";
+import * as XLSX from "xlsx";
 
 interface SaleReturn {
   id: string;
@@ -34,6 +37,8 @@ interface SaleReturn {
   linked_sale_id?: string;
   refund_type?: string;
   credit_note_number?: string;
+  customer_phone?: string | null;
+  total_qty?: number;
 }
 
 interface SaleReturnItem {
@@ -69,9 +74,16 @@ export default function SaleReturnDashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 50;
 
+  // Date filters
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  // Status filter
+  const [statusFilter, setStatusFilter] = useState("all");
+
   const [returnToPrint, setReturnToPrint] = useState<SaleReturn | null>(null);
   const [businessDetails, setBusinessDetails] = useState<BusinessDetails | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
 
   // Credit note adjustment dialog states
   const [showAdjustDialog, setShowAdjustDialog] = useState(false);
@@ -84,6 +96,10 @@ export default function SaleReturnDashboard() {
     contentRef: printRef,
   });
 
+  const handlePrintTable = useReactToPrint({
+    contentRef: tableRef,
+  });
+
   // Debounced search
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -93,9 +109,14 @@ export default function SaleReturnDashboard() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  // Reset page on filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [fromDate, toDate, statusFilter]);
+
   // Server-side paginated query
   const { data: returnsData, isLoading: returnsLoading, refetch: refetchReturns } = useQuery({
-    queryKey: ["sale-returns", currentOrganization?.id, debouncedSearch, currentPage, pageSize],
+    queryKey: ["sale-returns", currentOrganization?.id, debouncedSearch, currentPage, pageSize, fromDate, toDate, statusFilter],
     queryFn: async () => {
       if (!currentOrganization?.id) return { returns: [], totalCount: 0 };
 
@@ -107,6 +128,19 @@ export default function SaleReturnDashboard() {
         .select("id, return_number, customer_name, customer_id, original_sale_number, return_date, gross_amount, gst_amount, net_amount, notes, credit_note_id, credit_status, linked_sale_id, refund_type", { count: "exact" })
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
+
+      // Date filters
+      if (fromDate) {
+        query = query.gte("return_date", fromDate);
+      }
+      if (toDate) {
+        query = query.lte("return_date", toDate);
+      }
+
+      // Status filter
+      if (statusFilter && statusFilter !== "all") {
+        query = query.eq("credit_status", statusFilter);
+      }
 
       if (debouncedSearch) {
         const searchStr = debouncedSearch.trim();
@@ -135,7 +169,47 @@ export default function SaleReturnDashboard() {
 
       const { data, error, count } = await query;
       if (error) throw error;
-      return { returns: (data || []) as SaleReturn[], totalCount: count || 0 };
+
+      const returnsList = (data || []) as SaleReturn[];
+
+      // Fetch customer phones for all customer_ids
+      const customerIds = [...new Set(returnsList.map(r => r.customer_id).filter(Boolean))] as string[];
+      let customerPhoneMap: Record<string, string> = {};
+      if (customerIds.length > 0) {
+        const { data: customers } = await supabase
+          .from("customers")
+          .select("id, phone")
+          .in("id", customerIds);
+        if (customers) {
+          customers.forEach((c: any) => {
+            if (c.phone) customerPhoneMap[c.id] = c.phone;
+          });
+        }
+      }
+
+      // Fetch total qty per return from sale_return_items
+      const returnIds = returnsList.map(r => r.id);
+      let qtyMap: Record<string, number> = {};
+      if (returnIds.length > 0) {
+        const { data: items } = await supabase
+          .from("sale_return_items")
+          .select("return_id, quantity")
+          .in("return_id", returnIds);
+        if (items) {
+          items.forEach((item: any) => {
+            qtyMap[item.return_id] = (qtyMap[item.return_id] || 0) + (item.quantity || 0);
+          });
+        }
+      }
+
+      // Enrich returns
+      const enriched = returnsList.map(r => ({
+        ...r,
+        customer_phone: r.customer_id ? customerPhoneMap[r.customer_id] || null : null,
+        total_qty: qtyMap[r.id] || 0,
+      }));
+
+      return { returns: enriched, totalCount: count || 0 };
     },
     enabled: !!currentOrganization?.id,
     staleTime: 30000,
@@ -230,7 +304,6 @@ export default function SaleReturnDashboard() {
       const items = await fetchReturnItems(returnRecord.id);
       printData = { ...printData, items };
     }
-    // Fetch credit note number if credit_note_id exists
     if (returnRecord.credit_note_id) {
       const { data: cn } = await supabase
         .from("credit_notes")
@@ -245,10 +318,38 @@ export default function SaleReturnDashboard() {
     setTimeout(() => handlePrint(), 100);
   };
 
-  // Server-side filtering already applied, no client-side filter needed
+  // Export to Excel
+  const handleExportExcel = () => {
+    if (returns.length === 0) {
+      toast({ title: "No data", description: "No returns to export", variant: "destructive" });
+      return;
+    }
+
+    const exportData = returns.map((ret) => ({
+      "Return No": ret.return_number || "-",
+      "Date": format(new Date(ret.return_date), "dd/MM/yyyy"),
+      "Customer": ret.customer_name,
+      "Mobile": ret.customer_phone || "-",
+      "Original Sale No": ret.original_sale_number || "-",
+      "Qty": ret.total_qty || 0,
+      "Gross": Math.round(ret.gross_amount),
+      "GST": Math.round(ret.gst_amount * 100) / 100,
+      "Net Amount": Math.round(ret.net_amount),
+      "Credit Status": ret.credit_status || "-",
+      "Refund Type": ret.refund_type === 'cash_refund' ? 'Cash Refund' : ret.refund_type === 'exchange' ? 'Exchange' : 'Credit Note',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Sale Returns");
+    XLSX.writeFile(wb, `Sale_Returns_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    toast({ title: "Exported", description: `${returns.length} records exported to Excel` });
+  };
+
   const totalReturns = returnsData?.totalCount || returns.length;
   const totalValue = returns.reduce((sum, ret) => sum + ret.net_amount, 0);
   const averageValue = returns.length > 0 ? totalValue / returns.length : 0;
+  const totalQty = returns.reduce((sum, ret) => sum + (ret.total_qty || 0), 0);
   const totalPages = Math.ceil(totalReturns / pageSize);
 
   return (
@@ -261,8 +362,8 @@ export default function SaleReturnDashboard() {
           </Button>
         </div>
 
-        {/* Summary Cards - Vasy ERP Style Vibrant */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardDescription className="text-sm font-medium text-white/80">Total Returns</CardDescription>
@@ -287,6 +388,17 @@ export default function SaleReturnDashboard() {
 
           <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-sm font-medium text-white/80">Total Qty</CardDescription>
+              <Receipt className="h-4 w-4 text-white" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-white">{totalQty}</div>
+              <p className="text-xs text-white/70">Items returned</p>
+            </CardContent>
+          </Card>
+
+          <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-rose-500 to-rose-600 border-0 shadow-lg">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardDescription className="text-sm font-medium text-white/80">Average Return Value</CardDescription>
               <IndianRupee className="h-4 w-4 text-white" />
             </CardHeader>
@@ -299,8 +411,8 @@ export default function SaleReturnDashboard() {
 
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-4">
-              <div className="relative flex-1">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative flex-1 min-w-[200px]">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search return no, customer, product, barcode..."
@@ -309,9 +421,48 @@ export default function SaleReturnDashboard() {
                   className="pl-10"
                 />
               </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-muted-foreground whitespace-nowrap">From</label>
+                <Input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className="w-[150px]"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-muted-foreground whitespace-nowrap">To</label>
+                <Input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="w-[150px]"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="adjusted">Adjusted</SelectItem>
+                  <SelectItem value="refunded">Refunded</SelectItem>
+                  <SelectItem value="adjusted_outstanding">Adj. Outstanding</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" onClick={handleExportExcel}>
+                <Download className="h-4 w-4 mr-1" />
+                Excel
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => handlePrintTable()}>
+                <Printer className="h-4 w-4 mr-1" />
+                Print
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
+            <div ref={tableRef}>
             {loading ? (
               <div className="text-center py-8 text-muted-foreground">Loading...</div>
             ) : returns.length === 0 ? (
@@ -320,24 +471,26 @@ export default function SaleReturnDashboard() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-12"></TableHead>
+                    <TableHead className="w-12 print:hidden"></TableHead>
                     <TableHead>Return No</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Customer</TableHead>
+                    <TableHead>Mobile</TableHead>
                     <TableHead>Original Sale No</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
                     <TableHead className="text-right">Gross</TableHead>
                     <TableHead className="text-right">GST</TableHead>
                     <TableHead className="text-right">Net Amount</TableHead>
                     <TableHead>Credit Status</TableHead>
                     <TableHead>Refund Type</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="text-right print:hidden">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {returns.map((ret) => (
                     <>
                       <TableRow key={ret.id}>
-                        <TableCell>
+                        <TableCell className="print:hidden">
                           <Button
                             variant="ghost"
                             size="icon"
@@ -366,6 +519,7 @@ export default function SaleReturnDashboard() {
                             {ret.customer_name}
                           </button>
                         </TableCell>
+                        <TableCell className="text-sm">{ret.customer_phone || "-"}</TableCell>
                         <TableCell>
                           {ret.original_sale_number ? (
                             <Badge variant="outline">{ret.original_sale_number}</Badge>
@@ -373,6 +527,7 @@ export default function SaleReturnDashboard() {
                             "-"
                           )}
                         </TableCell>
+                        <TableCell className="text-right">{ret.total_qty || 0}</TableCell>
                         <TableCell className="text-right">₹{ret.gross_amount.toFixed(2)}</TableCell>
                         <TableCell className="text-right">₹{ret.gst_amount.toFixed(2)}</TableCell>
                         <TableCell className="text-right font-medium">₹{ret.net_amount.toFixed(2)}</TableCell>
@@ -421,7 +576,7 @@ export default function SaleReturnDashboard() {
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right print:hidden">
                           <div className="flex justify-end gap-1">
                             <Button
                               variant="ghost"
@@ -466,7 +621,7 @@ export default function SaleReturnDashboard() {
                       </TableRow>
                       {expandedRows.has(ret.id) && loadedItems[ret.id] && (
                         <TableRow>
-                          <TableCell colSpan={11} className="bg-muted/50">
+                          <TableCell colSpan={13} className="bg-muted/50">
                             <div className="p-4">
                               <h4 className="font-medium mb-2">Return Items:</h4>
                               <Table>
@@ -510,6 +665,7 @@ export default function SaleReturnDashboard() {
                 </TableBody>
               </Table>
             )}
+            </div>
 
             {/* Pagination */}
             {totalPages > 1 && (
