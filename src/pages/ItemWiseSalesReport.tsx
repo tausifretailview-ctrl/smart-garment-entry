@@ -627,7 +627,7 @@ export default function ItemWiseSalesReport() {
 
             <div className="text-sm text-muted-foreground">
               Showing data from {format(dateRange.from, "dd MMM yyyy")} to {format(dateRange.to, "dd MMM yyyy")}
-              {(selectedBrand !== "all" || selectedCategory !== "all" || selectedDepartment !== "all" || selectedCustomer !== "all") && (
+              {(selectedBrand !== "all" || selectedCategory !== "all" || selectedDepartment !== "all" || selectedColor !== "all" || selectedCustomer !== "all") && (
                 <span className="ml-2 text-primary">• Filters applied</span>
               )}
             </div>
