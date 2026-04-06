@@ -119,7 +119,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
     const base: React.CSSProperties = {
       width: '72mm', maxWidth: '72mm', padding: '2mm 2mm 2mm 4mm',
       backgroundColor: 'white', fontFamily: "'Courier New', Courier, monospace",
-      fontSize: '12px', lineHeight: '1.4', color: '#000',
+      fontSize: '14px', lineHeight: '1.5', color: '#000',
       fontWeight: 700, boxSizing: 'border-box',
       WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
       overflow: 'hidden',
