@@ -69,7 +69,7 @@ const AdjustmentVoucher = ({ data, student, orgName }: any) => (
       </thead>
       <tbody>
         <tr style={{ borderBottom: "1px solid #ddd" }}>
-          <td style={{ padding: "6px 4px" }}>Previous Balance</td>
+          <td style={{ padding: "6px 4px" }}>Previous Pending Due</td>
           <td style={{ textAlign: "right", padding: "6px 4px" }}>{fmtINR(data.old_balance)}</td>
         </tr>
         <tr style={{ borderBottom: "1px solid #ddd" }}>
@@ -82,7 +82,7 @@ const AdjustmentVoucher = ({ data, student, orgName }: any) => (
           </td>
         </tr>
         <tr style={{ borderTop: "2px solid #000" }}>
-          <td style={{ padding: "6px 4px", fontWeight: "bold" }}>Revised Balance</td>
+          <td style={{ padding: "6px 4px", fontWeight: "bold" }}>Revised Pending Due</td>
           <td style={{ textAlign: "right", padding: "6px 4px", fontWeight: "bold", fontSize: "14px" }}>{fmtINR(data.new_balance)}</td>
         </tr>
       </tbody>
@@ -113,16 +113,24 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
   const [savedVoucher, setSavedVoucher] = useState<any>(null);
   const [showVoucher, setShowVoucher] = useState(false);
 
-  // Use computed totalDue (from fee structures - payments) if available, else fall back to closing_fees_balance
-  const oldBalance = student?.totalDue != null ? student.totalDue : (student?.closing_fees_balance || 0);
+  // oldDue = what student currently owes (net of payments)
+  const oldDue = student?.totalDue != null ? student.totalDue : (student?.closing_fees_balance || 0);
+  // alreadyPaid = total collected so far (needed to reverse-calculate closing_fees_balance)
+  const alreadyPaid = student?.totalPaid || 0;
   const amountNum = parseFloat(amount) || 0;
-  const newBalance =
-    adjustmentType === "credit" ? oldBalance + amountNum :
-    adjustmentType === "debit" ? Math.max(0, oldBalance - amountNum) :
-    amountNum;
-  const changeAmount =
-    adjustmentType === "set" ? Math.abs(newBalance - oldBalance) : amountNum;
-  const isIncrease = newBalance > oldBalance;
+  // newDue = the new remaining balance the user intends
+  const newDue =
+    adjustmentType === "credit" ? oldDue + amountNum :        // add to what's owed
+    adjustmentType === "debit"  ? Math.max(0, oldDue - amountNum) :  // reduce what's owed
+    amountNum;                                                  // set exact remaining
+  // closing_fees_balance = newDue + alreadyPaid
+  // (because ledger shows: closing_fees_balance - paid = remaining)
+  const newBalance = newDue + alreadyPaid;
+  const changeAmount = amountNum;
+  const isIncrease = newDue > oldDue;
+  // For UI display — always show the DUE amounts (not the gross closing_fees_balance)
+  const displayOldBalance = oldDue;
+  const displayNewBalance = newDue;
 
   const { data: currentYear } = useQuery({
     queryKey: ["current-academic-year", currentOrganization?.id],
@@ -171,8 +179,8 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
         adjusted_by: userId,
         adjusted_by_name: userEmail,
         adjustment_type: adjustmentType,
-        old_balance: oldBalance,
-        new_balance: newBalance,
+        old_balance: displayOldBalance,
+        new_balance: displayNewBalance,
         change_amount: changeAmount,
         reason_code: reasonCode,
         reason_code_label: reasonLabel,
@@ -241,7 +249,7 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
               </div>
               <div className="space-y-1 text-sm">
                 <p><span className="text-muted-foreground">Student:</span> {student.student_name} ({student.admission_number})</p>
-                <p><span className="text-muted-foreground">Current Balance:</span> ₹{fmtINR(oldBalance)}</p>
+                <p><span className="text-muted-foreground">Current Pending Due:</span> ₹{fmtINR(displayOldBalance)}</p>
                 <p>
                   <span className="text-muted-foreground">Adjustment:</span>{" "}
                   <span className={isIncrease ? "text-red-600 font-semibold" : "text-green-600 font-semibold"}>
@@ -251,9 +259,10 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
                   </span>
                 </p>
                 <p>
-                  <span className="text-muted-foreground">New Balance:</span>{" "}
-                  <span className="font-bold text-base">₹{fmtINR(newBalance)}</span>
+                  <span className="text-muted-foreground">New Pending Due:</span>{" "}
+                  <span className="font-bold text-base">₹{fmtINR(displayNewBalance)}</span>
                 </p>
+                <p className="text-xs text-muted-foreground">Already collected: ₹{fmtINR(alreadyPaid)}</p>
                 <p><span className="text-muted-foreground">Reason:</span> {reasonOptions.find(r => r.value === reasonCode)?.label}{reasonDetail ? ` — ${reasonDetail}` : ""}</p>
               </div>
             </div>
@@ -274,7 +283,10 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
           <div className="space-y-4">
             <div className="rounded-lg border bg-muted/30 p-3 text-center">
               <span className="text-xs text-muted-foreground">Current Balance</span>
-              <div className="text-2xl font-bold text-foreground">₹{fmtINR(oldBalance)}</div>
+              <div className="text-2xl font-bold text-foreground">₹{fmtINR(displayOldBalance)}</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Already paid: ₹{fmtINR(alreadyPaid)} • Opening balance: ₹{fmtINR(student?.closing_fees_balance || 0)}
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -310,7 +322,7 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
               />
               {amountNum > 0 && (
                 <p className={`text-xs font-medium ${isIncrease ? "text-red-600" : "text-green-600"}`}>
-                  New balance will be: ₹{fmtINR(newBalance)}
+                  Pending due will become: ₹{fmtINR(displayNewBalance)}
                   {adjustmentType !== "set" && ` (${isIncrease ? "+" : "−"}₹${fmtINR(changeAmount)})`}
                 </p>
               )}
