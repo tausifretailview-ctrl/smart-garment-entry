@@ -4102,6 +4102,48 @@ export type Database = {
           },
         ]
       }
+      sale_number_sequence: {
+        Row: {
+          financial_year: string
+          id: number
+          next_sequence: number
+          organization_id: string
+          prefix: string
+          updated_at: string | null
+        }
+        Insert: {
+          financial_year: string
+          id?: number
+          next_sequence?: number
+          organization_id: string
+          prefix?: string
+          updated_at?: string | null
+        }
+        Update: {
+          financial_year?: string
+          id?: number
+          next_sequence?: number
+          organization_id?: string
+          prefix?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_number_sequence_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_number_sequence_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       sale_order_items: {
         Row: {
           barcode: string | null
