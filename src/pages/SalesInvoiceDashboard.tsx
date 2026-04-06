@@ -54,6 +54,7 @@ import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useCustomerAdvances } from "@/hooks/useCustomerAdvances";
+import { BulkAdvanceAdjustDialog } from "@/components/BulkAdvanceAdjustDialog";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { formatDistanceToNow } from "date-fns";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
@@ -190,6 +191,12 @@ export default function SalesInvoiceDashboard() {
   // Draft save hook
   const { hasDraft, draftData, deleteDraft, lastSaved } = useDraftSave('sale_invoice');
   const { getAvailableAdvanceBalance, applyAdvance } = useCustomerAdvances(currentOrganization?.id || null);
+  
+  // Bulk advance adjust state
+  const [showBulkAdvanceDialog, setShowBulkAdvanceDialog] = useState(false);
+  const [bulkAdvanceCustomer, setBulkAdvanceCustomer] = useState<{ id: string; name: string } | null>(null);
+  const [bulkAdvanceBalance, setBulkAdvanceBalance] = useState<number>(0);
+
   // Context menu for desktop right-click
   const isDesktop = useIsDesktop();
   const rowContextMenu = useContextMenu<any>();
