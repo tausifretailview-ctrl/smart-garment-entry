@@ -312,7 +312,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
         {termsConditions && (
           <>
             <div style={singleLine} />
-            <div style={{ fontSize: '11px', lineHeight: '1.3', whiteSpace: 'pre-wrap', textAlign: 'center' }}>{termsConditions}</div>
+            <div style={{ fontSize: '13px', lineHeight: '1.4', whiteSpace: 'pre-wrap', wordBreak: 'break-word', textAlign: 'center' }}>{termsConditions}</div>
           </>
         )}
 
