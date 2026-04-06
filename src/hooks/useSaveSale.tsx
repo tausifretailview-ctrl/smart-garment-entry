@@ -54,16 +54,34 @@ export const useSaveSale = () => {
   const { invalidateSales } = useDashboardInvalidation();
   const shopName = useShopName();
 
+  /**
+   * Auto-correct FY year in literal formats like "INV/25-26/1" → "INV/26-27/1"
+   * so stale settings don't produce wrong-year invoices after April 1.
+   */
+  const autoCorrectFY = (fmt: string): string => {
+    const ist = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const m = ist.getMonth() + 1;
+    const y = ist.getFullYear();
+    const fyStart = m >= 4 ? y : y - 1;
+    const currentFY = `${String(fyStart).slice(-2)}-${String(fyStart + 1).slice(-2)}`;
+    // Match patterns like /25-26/ or /24-25/ in the format string
+    return fmt.replace(/\/(\d{2})-(\d{2})\//, `/${currentFY}/`);
+  };
+
   const generateInvoiceNumber = async (format: string, seriesStart?: string) => {
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
+
+    // Auto-correct stale FY in literal formats
+    const correctedFormat = autoCorrectFY(format);
+    const correctedStart = seriesStart ? autoCorrectFY(seriesStart) : seriesStart;
     
     // If seriesStart is provided (e.g. "POS/36-27/11"), extract base and minimum sequence
     let minSequence = 1;
     let startBase = '';
-    if (seriesStart && seriesStart.trim()) {
-      const startMatches = seriesStart.match(/^(.*?)(\d+)$/);
+    if (correctedStart && correctedStart.trim()) {
+      const startMatches = correctedStart.match(/^(.*?)(\d+)$/);
       if (startMatches) {
         startBase = startMatches[1];
         minSequence = parseInt(startMatches[2]);
@@ -71,7 +89,7 @@ export const useSaveSale = () => {
     }
 
     // Check if format has placeholders
-    const hasPlaceholders = format.includes('{');
+    const hasPlaceholders = correctedFormat.includes('{');
     
     // Try up to 10 times to find a unique invoice number
     for (let attempt = 0; attempt < 10; attempt++) {
@@ -99,7 +117,7 @@ export const useSaveSale = () => {
         }
 
         // Replace placeholders in format
-        invoiceNumber = format
+        invoiceNumber = correctedFormat
           .replace('{YYYY}', String(year))
           .replace('{YY}', String(year).slice(-2))
           .replace('{MM}', month)
@@ -108,7 +126,7 @@ export const useSaveSale = () => {
           .replace('{#####}', String(sequence).padStart(5, '0'));
       } else {
         // Format is literal string OR using seriesStart base
-        const basePattern = startBase || format.replace(/\d+$/, ''); // Remove trailing numbers
+        const basePattern = startBase || correctedFormat.replace(/\d+$/, ''); // Remove trailing numbers
         
         const { data: lastSale } = await supabase
           .from('sales')

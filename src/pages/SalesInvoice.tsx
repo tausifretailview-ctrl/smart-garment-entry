@@ -565,6 +565,16 @@ export default function SalesInvoice() {
     staleTime: 60000,
   });
 
+  // Auto-correct stale FY in literal format strings
+  const autoCorrectFY = (fmt: string): string => {
+    const ist = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const m = ist.getMonth() + 1;
+    const y = ist.getFullYear();
+    const fyStart = m >= 4 ? y : y - 1;
+    const currentFY = `${String(fyStart).slice(-2)}-${String(fyStart + 1).slice(-2)}`;
+    return fmt.replace(/\/(\d{2})-(\d{2})\//, `/${currentFY}/`);
+  };
+
   // Generate next invoice number preview
   useEffect(() => {
     const previewNextInvoice = async () => {
@@ -573,8 +583,10 @@ export default function SalesInvoice() {
       try {
         const settings = settingsData?.sale_settings as any;
         if (settings?.invoice_numbering_format || settings?.invoice_series_start) {
-          const format = settings.invoice_numbering_format || settings.invoice_series_start;
-          const seriesStart = settings.invoice_series_start;
+          const rawFormat = settings.invoice_numbering_format || settings.invoice_series_start;
+          const rawSeriesStart = settings.invoice_series_start;
+          const format = autoCorrectFY(rawFormat);
+          const seriesStart = rawSeriesStart ? autoCorrectFY(rawSeriesStart) : rawSeriesStart;
           const hasPlaceholders = format.includes('{');
           
           if (hasPlaceholders) {
@@ -2036,8 +2048,10 @@ Thank you for choosing us!`;
         const saleSettings = settingsData?.sale_settings as any;
         
         if (saleSettings?.invoice_numbering_format || saleSettings?.invoice_series_start) {
-          const format = saleSettings.invoice_numbering_format || saleSettings.invoice_series_start;
-          const seriesStart = saleSettings.invoice_series_start;
+          const rawFormat = saleSettings.invoice_numbering_format || saleSettings.invoice_series_start;
+          const rawSeriesStart = saleSettings.invoice_series_start;
+          const format = autoCorrectFY(rawFormat);
+          const seriesStart = rawSeriesStart ? autoCorrectFY(rawSeriesStart) : rawSeriesStart;
           const hasPlaceholders = format.includes('{');
           
           let minSequence = 1;
