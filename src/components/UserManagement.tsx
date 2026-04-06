@@ -155,6 +155,25 @@ export function UserManagement() {
     }
   };
 
+  const updateShopName = async (userId: string, newShopName: string) => {
+    if (!currentOrganization) return;
+    try {
+      const { error } = await supabase
+        .from("organization_members")
+        .update({ shop_name: newShopName || null })
+        .eq("user_id", userId)
+        .eq("organization_id", currentOrganization.id);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Shop name updated" });
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, shop_name: newShopName || null } : u));
+    } catch (error) {
+      console.error("Error updating shop name:", error);
+      toast({ title: "Error", description: "Failed to update shop name", variant: "destructive" });
+    }
+  };
+
   if (!currentOrganization) {
     return (
       <div className="text-center py-8 text-muted-foreground">
