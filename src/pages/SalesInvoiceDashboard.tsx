@@ -2745,6 +2745,17 @@ export default function SalesInvoiceDashboard() {
                   <SelectItem value="order_cancelled" className="text-destructive">Order Cancelled</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={shopFilter} onValueChange={setShopFilter}>
+                <SelectTrigger className="w-[130px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white">
+                  <SelectValue placeholder="Shop" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Shops</SelectItem>
+                  {shopNames.map(s => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {filteredCustomer && bulkAdvanceBalance > 0 && (
                 <Button
                   variant="outline"
