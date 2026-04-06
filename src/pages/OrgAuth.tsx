@@ -223,7 +223,8 @@ export default function OrgAuth() {
 
   useEffect(() => {
     const checkUserMembership = async () => {
-      if (!user || !organization || membershipChecked) return;
+      // Skip if handleSignIn is actively running (it handles its own membership check)
+      if (!user || !organization || membershipChecked || isSigningInRef.current) return;
 
       setMembershipChecked(true);
 
