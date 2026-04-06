@@ -116,6 +116,7 @@ export default function SalesInvoice() {
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
+  const shopName = useShopName();
   const location = useLocation();
   const { orgNavigate: navigate } = useOrgNavigation();
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
