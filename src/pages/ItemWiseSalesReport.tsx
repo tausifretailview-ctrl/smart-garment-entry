@@ -40,6 +40,7 @@ interface FilterOptions {
   categories: string[];
   departments: string[];
   customers: string[];
+  colors: string[];
 }
 
 const CHART_COLORS = [
@@ -67,12 +68,14 @@ export default function ItemWiseSalesReport() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [selectedCustomer, setSelectedCustomer] = useState<string>("all");
+  const [selectedColor, setSelectedColor] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"itemwise" | "brandwise">("itemwise");
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     brands: [],
     categories: [],
     departments: [],
     customers: [],
+    colors: [],
   });
 
   const REPORT_CACHE = { staleTime: 5 * 60 * 1000, gcTime: 30 * 60 * 1000, refetchOnWindowFocus: false as const };
@@ -85,11 +88,12 @@ export default function ItemWiseSalesReport() {
   const { data: filterOptionsData } = useQuery({
     queryKey: ["item-wise-filter-options", currentOrganization?.id],
     queryFn: async () => {
-      if (!currentOrganization?.id) return { brands: [], categories: [], departments: [], customers: [] };
+      if (!currentOrganization?.id) return { brands: [], categories: [], departments: [], customers: [], colors: [] };
 
-      const [{ data: products }, { data: sales }] = await Promise.all([
+      const [{ data: products }, { data: sales }, { data: variants }] = await Promise.all([
         supabase.from("products").select("brand, category, style").eq("organization_id", currentOrganization.id).is("deleted_at", null),
         supabase.from("sales").select("customer_name").eq("organization_id", currentOrganization.id).is("deleted_at", null),
+        supabase.from("product_variants").select("color, product_id, products!inner(organization_id)").eq("products.organization_id", currentOrganization.id).is("deleted_at", null),
       ]);
 
       return {
@@ -97,6 +101,7 @@ export default function ItemWiseSalesReport() {
         categories: [...new Set((products || []).map(p => p.category).filter(Boolean))].sort() as string[],
         departments: [...new Set((products || []).map(p => p.style).filter(Boolean))].sort() as string[],
         customers: [...new Set((sales || []).map(s => s.customer_name).filter(Boolean))].sort() as string[],
+        colors: [...new Set((variants || []).map((v: any) => v.color).filter(Boolean))].sort() as string[],
       };
     },
     enabled: !!currentOrganization?.id,
@@ -258,6 +263,9 @@ export default function ItemWiseSalesReport() {
       // Department maps to style/color in this context
       data = data.filter(item => item.color === selectedDepartment);
     }
+    if (selectedColor !== "all") {
+      data = data.filter(item => item.color === selectedColor);
+    }
 
     // Apply search query — multi-token AND logic
     if (searchQuery.trim()) {
@@ -267,7 +275,7 @@ export default function ItemWiseSalesReport() {
     }
 
     return data;
-  }, [aggregatedData, searchQuery, selectedBrand, selectedCategory, selectedDepartment]);
+  }, [aggregatedData, searchQuery, selectedBrand, selectedCategory, selectedDepartment, selectedColor]);
 
   // Brand-wise data: aggregate saleItems by customer_name + brand
   const brandWiseData = useMemo(() => {
@@ -281,6 +289,7 @@ export default function ItemWiseSalesReport() {
       if (selectedBrand !== "all" && brand !== selectedBrand) return;
       if (selectedCategory !== "all" && item.products?.category !== selectedCategory) return;
       if (selectedDepartment !== "all" && item.products?.color !== selectedDepartment) return;
+      if (selectedColor !== "all" && item.products?.color !== selectedColor) return;
       if (searchQuery.trim()) {
         if (!multiTokenMatch(searchQuery, item.product_name, item.barcode, brand, item.products?.category, item.products?.color)) return;
       }
@@ -298,7 +307,7 @@ export default function ItemWiseSalesReport() {
     return Array.from(groups.values()).sort((a, b) =>
       a.customer_name.localeCompare(b.customer_name) || a.brand.localeCompare(b.brand)
     );
-  }, [saleItems, selectedBrand, selectedCategory, selectedDepartment, searchQuery]);
+  }, [saleItems, selectedBrand, selectedCategory, selectedDepartment, selectedColor, searchQuery]);
 
   // Summary via RPC (single JSON instead of client-side aggregation)
   const { data: rpcSummary } = useQuery({
@@ -320,7 +329,7 @@ export default function ItemWiseSalesReport() {
   });
 
   // When brand/category/department filters are active, compute summary from filtered data
-  const hasClientFilters = selectedBrand !== "all" || selectedCategory !== "all" || selectedDepartment !== "all" || searchQuery.trim() !== "";
+  const hasClientFilters = selectedBrand !== "all" || selectedCategory !== "all" || selectedDepartment !== "all" || selectedColor !== "all" || searchQuery.trim() !== "";
 
   const summary = useMemo(() => {
     if (hasClientFilters) {
