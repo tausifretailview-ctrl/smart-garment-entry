@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Banknote, CreditCard, Smartphone, Percent } from "lucide-react";
+import { Banknote, CreditCard, Smartphone, Building2 } from "lucide-react";
 
 interface MixPaymentDialogProps {
   open: boolean;
@@ -21,11 +21,11 @@ interface MixPaymentDialogProps {
     cardAmount: number;
     upiAmount: number;
     bankAmount: number;
+    financeAmount: number;
     creditAmount: number;
     totalPaid: number;
     refundAmount: number;
     issueCreditNote?: boolean;
-    financeDiscount?: number;
   }) => void;
 }
 
@@ -40,12 +40,12 @@ export function MixPaymentDialog({
   const [cardAmount, setCardAmount] = useState(0);
   const [upiAmount, setUpiAmount] = useState(0);
   const [bankAmount, setBankAmount] = useState(0);
-  const [financeDiscount, setFinanceDiscount] = useState(0);
+  const [financeAmount, setFinanceAmount] = useState(0);
   const [refundAmount, setRefundAmount] = useState(0);
 
   const isRefundMode = billAmount < 0;
   const refundRequired = Math.abs(billAmount);
-  const totalPaid = cashAmount + cardAmount + upiAmount + bankAmount;
+  const totalPaid = cashAmount + cardAmount + upiAmount + bankAmount + financeAmount;
   const creditBalance = isRefundMode ? 0 : Math.max(0, billAmount - totalPaid);
   const balanceAmount = isRefundMode ? 0 : billAmount - totalPaid;
 
@@ -56,7 +56,7 @@ export function MixPaymentDialog({
       setCardAmount(0);
       setUpiAmount(0);
       setBankAmount(0);
-      setFinanceDiscount(0);
+      setFinanceAmount(0);
       setRefundAmount(0);
     } else if (isRefundMode) {
       // Pre-fill refund amount in refund mode
@@ -74,6 +74,7 @@ export function MixPaymentDialog({
         cardAmount: 0,
         upiAmount: 0,
         bankAmount: 0,
+        financeAmount: 0,
         creditAmount: 0,
         totalPaid: 0,
         refundAmount,
@@ -88,11 +89,11 @@ export function MixPaymentDialog({
         cardAmount,
         upiAmount,
         bankAmount,
+        financeAmount,
         creditAmount: creditBalance,
         totalPaid,
         refundAmount: 0,
         issueCreditNote: false,
-        financeDiscount,
       });
     }
 
@@ -223,45 +224,22 @@ export function MixPaymentDialog({
                 />
               </div>
 
-              {/* Bank Transfer (Finance) */}
+              {/* Finance Amount */}
               <div className="space-y-2">
-                <Label htmlFor="bank" className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  Bank Transfer
+                <Label htmlFor="finance" className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4" />
+                  Finance
                 </Label>
                 <Input
-                  id="bank"
+                  id="finance"
                   type="number"
                   min="0"
                   step="0.01"
-                  value={bankAmount || ""}
-                  onChange={(e) => setBankAmount(Number(e.target.value) || 0)}
-                  placeholder="₹ 0.00 — financer bank credit"
+                  value={financeAmount || ""}
+                  onChange={(e) => setFinanceAmount(Number(e.target.value) || 0)}
+                  placeholder="₹ 0.00 — financer amount"
                   className="text-right"
                 />
-              </div>
-
-              {/* Finance Discount */}
-              <div className="space-y-2">
-                <Label htmlFor="financeDiscount" className="flex items-center gap-2">
-                  <Percent className="h-4 w-4" />
-                  Finance Discount
-                </Label>
-                <Input
-                  id="financeDiscount"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={financeDiscount || ""}
-                  onChange={(e) => setFinanceDiscount(Number(e.target.value) || 0)}
-                  placeholder="₹ 0.00 — financer commission"
-                  className="text-right"
-                />
-                {financeDiscount > 0 && (
-                  <p className="text-[11px] text-muted-foreground">
-                    Recorded as expense only — does not reduce bill amount
-                  </p>
-                )}
               </div>
 
               {/* Credit (Balance) */}
