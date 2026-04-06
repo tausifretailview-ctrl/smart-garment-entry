@@ -231,7 +231,7 @@ export const useSaveSale = () => {
         } else {
           // Use default POS format: POS/YY-YY/N
           const { data: defaultNumber, error: numberError } = await supabase
-            .rpc('generate_pos_number', { p_organization_id: currentOrganization.id });
+            .rpc('generate_pos_number_atomic', { p_organization_id: currentOrganization.id });
           if (numberError) throw numberError;
           saleNumber = defaultNumber;
         }
@@ -244,7 +244,7 @@ export const useSaveSale = () => {
         } else {
           // Use default INV format: INV/YY-YY/N
           const { data: defaultNumber, error: numberError } = await supabase
-            .rpc('generate_sale_number', { p_organization_id: currentOrganization.id });
+            .rpc('generate_sale_number_atomic', { p_organization_id: currentOrganization.id });
           if (numberError) throw numberError;
           saleNumber = defaultNumber;
         }
@@ -589,9 +589,13 @@ export const useSaveSale = () => {
       return { ...sale, pointsAwarded };
     } catch (error: any) {
       console.error('Error saving sale:', error);
+      const isDuplicate = error?.code === '23505' || 
+                          error?.message?.includes('duplicate key');
       toast({
-        title: "Error saving sale",
-        description: error.message || "An error occurred while saving the sale",
+        title: isDuplicate ? "Bill number conflict" : "Error saving sale",
+        description: isDuplicate 
+          ? "Another user saved a bill at the same time. Please try again."
+          : error.message || "An error occurred while saving the sale",
         variant: "destructive",
       });
       return null;
@@ -852,7 +856,7 @@ export const useSaveSale = () => {
         saleNumber = await generateInvoiceNumber(holdSaleSettings.pos_numbering_format);
       } else {
         const { data: defaultNumber, error: numberError } = await supabase
-          .rpc('generate_pos_number', { p_organization_id: currentOrganization.id });
+          .rpc('generate_pos_number_atomic', { p_organization_id: currentOrganization.id });
         if (numberError) throw numberError;
         saleNumber = defaultNumber;
       }
@@ -906,9 +910,13 @@ export const useSaveSale = () => {
       return sale;
     } catch (error: any) {
       console.error('Error holding sale:', error);
+      const isDuplicate = error?.code === '23505' || 
+                          error?.message?.includes('duplicate key');
       toast({
-        title: "Error holding sale",
-        description: error.message || "An error occurred while holding the sale",
+        title: isDuplicate ? "Bill number conflict" : "Error holding sale",
+        description: isDuplicate 
+          ? "Another user saved a bill at the same time. Please try again."
+          : error.message || "An error occurred while holding the sale",
         variant: "destructive",
       });
       return null;
