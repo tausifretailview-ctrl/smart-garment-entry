@@ -1,26 +1,32 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Smartphone, IndianRupee, Building2, FileText, CheckCircle2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Smartphone, IndianRupee, Building2, FileText, CheckCircle2, Pencil } from "lucide-react";
 import QRCode from "qrcode";
 
 export default function PublicPaymentPage() {
   const [searchParams] = useSearchParams();
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [payClicked, setPayClicked] = useState(false);
+  const [isEditingAmount, setIsEditingAmount] = useState(false);
 
   // Extract payment details from URL params
   const upiId = searchParams.get("pa") || "";
   const businessName = decodeURIComponent(searchParams.get("pn") || "Merchant");
   const rawAmount = searchParams.get("am") || "0";
-  const amount = isNaN(parseFloat(rawAmount)) ? "0" : rawAmount;
+  const originalAmount = isNaN(parseFloat(rawAmount)) ? 0 : parseFloat(rawAmount);
   const invoiceNumber = searchParams.get("tn") ? decodeURIComponent(searchParams.get("tn") || "") : "";
 
+  const [editableAmount, setEditableAmount] = useState<string>(originalAmount.toString());
+  const currentAmount = parseFloat(editableAmount) || 0;
+
   // Generate UPI deep link
-  const upiLink = upiId
-    ? `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(businessName)}&am=${amount}&cu=INR${invoiceNumber ? `&tn=${encodeURIComponent(invoiceNumber)}` : ""}`
-    : null;
+  const upiLink = useMemo(() => {
+    if (!upiId || currentAmount <= 0) return null;
+    return `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(businessName)}&am=${currentAmount}&cu=INR${invoiceNumber ? `&tn=${encodeURIComponent(invoiceNumber)}` : ""}`;
+  }, [upiId, businessName, currentAmount, invoiceNumber]);
 
   // Generate QR code
   useEffect(() => {
@@ -28,25 +34,23 @@ export default function PublicPaymentPage() {
       QRCode.toDataURL(upiLink, {
         width: 200,
         margin: 2,
-        color: {
-          dark: "#000000",
-          light: "#ffffff",
-        },
+        color: { dark: "#000000", light: "#ffffff" },
       })
         .then((url) => setQrDataUrl(url))
         .catch((err) => console.error("QR generation error:", err));
+    } else {
+      setQrDataUrl("");
     }
   }, [upiLink]);
 
   const handlePayNow = () => {
     if (upiLink) {
       setPayClicked(true);
-      // Open UPI app with deep link
       window.location.href = upiLink;
     }
   };
 
-  if (!upiId || !amount) {
+  if (!upiId || !originalAmount) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -61,7 +65,8 @@ export default function PublicPaymentPage() {
     );
   }
 
-  const formattedAmount = parseFloat(amount).toLocaleString("en-IN");
+  const formattedAmount = currentAmount.toLocaleString("en-IN");
+  const formattedOriginal = originalAmount.toLocaleString("en-IN");
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center p-4">
@@ -77,11 +82,61 @@ export default function PublicPaymentPage() {
         <CardContent className="space-y-6">
           {/* Amount Display */}
           <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-xl p-6 text-center">
-            <p className="text-sm text-muted-foreground mb-1">Amount to Pay</p>
-            <div className="flex items-center justify-center gap-1">
-              <IndianRupee className="h-8 w-8 text-primary" />
-              <span className="text-4xl font-bold text-primary">{formattedAmount}</span>
-            </div>
+            <p className="text-sm text-muted-foreground mb-1">
+              {currentAmount < originalAmount ? "Paying" : "Amount to Pay"}
+            </p>
+
+            {isEditingAmount ? (
+              <div className="flex items-center justify-center gap-2">
+                <IndianRupee className="h-6 w-6 text-primary" />
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  value={editableAmount}
+                  onChange={(e) => setEditableAmount(e.target.value)}
+                  className="w-40 text-2xl font-bold text-center h-12"
+                  min={1}
+                  max={originalAmount}
+                  autoFocus
+                />
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const val = parseFloat(editableAmount);
+                    if (!val || val <= 0) setEditableAmount(originalAmount.toString());
+                    else if (val > originalAmount) setEditableAmount(originalAmount.toString());
+                    setIsEditingAmount(false);
+                    setPayClicked(false);
+                  }}
+                >
+                  Done
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center gap-1">
+                <IndianRupee className="h-8 w-8 text-primary" />
+                <span className="text-4xl font-bold text-primary">{formattedAmount}</span>
+                <button
+                  onClick={() => setIsEditingAmount(true)}
+                  className="ml-2 p-1.5 rounded-full hover:bg-primary/10 transition-colors"
+                  title="Edit amount for partial payment"
+                >
+                  <Pencil className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </div>
+            )}
+
+            {currentAmount < originalAmount && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Total due: ₹{formattedOriginal} • Partial payment
+              </p>
+            )}
+
+            {!isEditingAmount && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Tap ✏️ to change amount for partial payment
+              </p>
+            )}
           </div>
 
           {/* Invoice Info */}
@@ -99,6 +154,7 @@ export default function PublicPaymentPage() {
           <Button
             onClick={handlePayNow}
             size="lg"
+            disabled={currentAmount <= 0 || isEditingAmount}
             className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 shadow-lg"
           >
             {payClicked ? (
