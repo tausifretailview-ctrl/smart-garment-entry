@@ -2219,8 +2219,7 @@ const PurchaseEntry = () => {
         if (!currentOrganization?.id) throw new Error("No organization selected");
         
         // Generate bill number right before saving
-        const { data: newBillNo, error: billNoError } = await supabase.rpc("generate_purchase_bill_number", {
-          p_date: format(billDate, "yyyy-MM-dd"),
+        const { data: newBillNo, error: billNoError } = await supabase.rpc("generate_purchase_bill_number_atomic", {
           p_organization_id: currentOrganization.id
         });
         
