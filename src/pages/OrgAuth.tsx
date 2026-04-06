@@ -415,6 +415,7 @@ export default function OrgAuth() {
         setError("An unexpected error occurred. Please try again.");
       }
     } finally {
+      isSigningInRef.current = false;
       setLoading(false);
     }
   };
