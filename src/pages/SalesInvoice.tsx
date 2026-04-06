@@ -2091,7 +2091,7 @@ Thank you for choosing us!`;
           }
         } else {
           const { data: defaultNumber, error: saleNumError } = await supabase
-            .rpc('generate_sale_number', { p_organization_id: currentOrganization?.id });
+            .rpc('generate_sale_number_atomic', { p_organization_id: currentOrganization?.id });
           if (saleNumError) throw saleNumError;
           saleNumber = defaultNumber;
         }

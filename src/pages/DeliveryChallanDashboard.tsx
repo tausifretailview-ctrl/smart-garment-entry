@@ -110,7 +110,7 @@ export default function DeliveryChallanDashboard() {
     setIsConverting(true);
     try {
       // Generate sale number
-      const { data: saleNumber, error: saleNumError } = await supabase.rpc('generate_sale_number', {
+      const { data: saleNumber, error: saleNumError } = await supabase.rpc('generate_sale_number_atomic', {
         p_organization_id: currentOrganization?.id
       });
       if (saleNumError) throw saleNumError;

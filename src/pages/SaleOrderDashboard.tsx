@@ -229,7 +229,7 @@ export default function SaleOrderDashboard() {
     setIsConverting(true);
     try {
       // Generate sale number
-      const { data: saleNumber } = await supabase.rpc('generate_sale_number', {
+      const { data: saleNumber } = await supabase.rpc('generate_sale_number_atomic', {
         p_organization_id: currentOrganization?.id
       });
 
