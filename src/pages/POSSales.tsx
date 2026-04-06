@@ -2142,6 +2142,7 @@ export default function POSSales() {
     );
     
     if (insufficientItems.length > 0) {
+      paymentLockRef.current = false;
       showMultipleStockErrors(insufficientItems);
       return;
     }
