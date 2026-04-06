@@ -61,6 +61,8 @@ export default function OrgAuth() {
 
   // Request lifecycle guard: prevent stale async fetches from updating state
   const fetchTokenRef = useRef(0);
+  // Guard: prevent checkUserMembership from running while handleSignIn is active
+  const isSigningInRef = useRef(false);
 
   // Check and clear lockout on mount
   useEffect(() => {
@@ -221,7 +223,8 @@ export default function OrgAuth() {
 
   useEffect(() => {
     const checkUserMembership = async () => {
-      if (!user || !organization || membershipChecked) return;
+      // Skip if handleSignIn is actively running (it handles its own membership check)
+      if (!user || !organization || membershipChecked || isSigningInRef.current) return;
 
       setMembershipChecked(true);
 
@@ -282,6 +285,7 @@ export default function OrgAuth() {
     setLoading(true);
     setError("");
     setShowCacheRecovery(false);
+    isSigningInRef.current = true;
 
     try {
       // CRITICAL: Clear any existing stale session before login attempt
@@ -411,6 +415,7 @@ export default function OrgAuth() {
         setError("An unexpected error occurred. Please try again.");
       }
     } finally {
+      isSigningInRef.current = false;
       setLoading(false);
     }
   };
