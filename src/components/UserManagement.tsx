@@ -193,10 +193,11 @@ export function UserManagement() {
   return (
     <div className="space-y-4">
       <div className="rounded-md border">
-        <Table>
+         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Email</TableHead>
+              <TableHead>Shop Name</TableHead>
               <TableHead>Roles</TableHead>
               <TableHead>Created At</TableHead>
               <TableHead>Actions</TableHead>
@@ -205,7 +206,7 @@ export function UserManagement() {
           <TableBody>
             {users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
                   No users in this organization
                 </TableCell>
               </TableRow>
@@ -213,6 +214,22 @@ export function UserManagement() {
               users.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">{user.email}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Store className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <Input
+                        className="h-8 w-32"
+                        placeholder="e.g. Shop 1"
+                        defaultValue={user.shop_name || ""}
+                        onBlur={(e) => {
+                          const val = e.target.value.trim();
+                          if (val !== (user.shop_name || "")) {
+                            updateShopName(user.id, val);
+                          }
+                        }}
+                      />
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {user.roles.length > 0 ? (
