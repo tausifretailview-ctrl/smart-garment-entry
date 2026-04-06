@@ -257,9 +257,11 @@ export function SalesInvoiceERPTable({
               );
             }
             const paidAmt = invoice.paid_amount || 0;
+            const cnAdjust = invoice.sale_return_adjust || 0;
+            const totalSettled = paidAmt + cnAdjust;
             const effectiveStatus = invoice.payment_status === 'hold' ? 'hold'
-              : (paidAmt >= invoice.net_amount || Math.abs(paidAmt - invoice.net_amount) < 1) ? 'completed'
-              : paidAmt > 0 ? 'partial' : 'pending';
+              : (totalSettled >= invoice.net_amount || Math.abs(totalSettled - invoice.net_amount) < 1) ? 'completed'
+              : totalSettled > 0 ? 'partial' : 'pending';
             return (
               <div className="text-center space-y-1">
                 <Badge
