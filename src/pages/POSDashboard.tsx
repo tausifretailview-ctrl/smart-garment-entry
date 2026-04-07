@@ -1715,13 +1715,14 @@ const POSDashboard = () => {
                       {columnSettings.creditNoteAmt && <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">C/Note Amt</TableHead>}
                       {columnSettings.creditNoteStatus && <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">C/Note</TableHead>}
                       {columnSettings.status && <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">Pay Status</TableHead>}
+                      {isEInvoiceEnabled && <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">E-Invoice</TableHead>}
                       <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedSales.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + (columnSettings.refundStatus ? 1 : 0) + (columnSettings.creditNoteAmt ? 1 : 0) + (columnSettings.creditNoteStatus ? 1 : 0) + 15} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + (columnSettings.refundStatus ? 1 : 0) + (columnSettings.creditNoteAmt ? 1 : 0) + (columnSettings.creditNoteStatus ? 1 : 0) + (isEInvoiceEnabled ? 1 : 0) + 15} className="text-center text-muted-foreground py-8">
                           No sales found
                         </TableCell>
                       </TableRow>
@@ -1894,6 +1895,24 @@ const POSDashboard = () => {
                                 })()}
                               </TableCell>
                             )}
+                            {isEInvoiceEnabled && (
+                              <TableCell className="px-2 py-1.5" onClick={() => toggleExpanded(sale.id)}>
+                                {sale.irn ? (
+                                  sale.einvoice_status === 'cancelled' ? (
+                                    <Badge variant="destructive" className="text-[11px] px-1.5 py-0">Cancelled</Badge>
+                                  ) : (
+                                    <Badge className="bg-green-500 hover:bg-green-600 text-white text-[11px] px-1.5 py-0">
+                                      <FileCheck className="h-3 w-3 mr-1" />
+                                      Generated
+                                    </Badge>
+                                  )
+                                ) : sale.customer_id && sale.customers?.gst_number ? (
+                                  <Badge variant="outline" className="text-muted-foreground text-[11px] px-1.5 py-0">Pending</Badge>
+                                ) : (
+                                  <span className="text-muted-foreground text-[11px]">-</span>
+                                )}
+                              </TableCell>
+                            )}
                             <TableCell className="px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-0.5">
                                 {((sale.paid_amount || 0) < sale.net_amount && sale.payment_status !== 'hold') && (
@@ -1967,6 +1986,18 @@ const POSDashboard = () => {
                                     <Printer className="h-3.5 w-3.5" />
                                   </Button>
                                 )}
+                                {isEInvoiceEnabled && sale.irn && sale.einvoice_status !== 'cancelled' && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={(e) => { e.stopPropagation(); handleDownloadEInvoicePDF(sale); }}
+                                    title="Print/Download E-Invoice"
+                                    disabled={isDownloadingEInvoice === sale.id}
+                                  >
+                                    {isDownloadingEInvoice === sale.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileCheck className="h-3.5 w-3.5 text-green-600" />}
+                                  </Button>
+                                )}
                                 {columnSettings.modify && hasSpecialPermission('modify_records') && (
                                    <Button
                                      variant="ghost"
@@ -1982,7 +2013,7 @@ const POSDashboard = () => {
                           </TableRow>
                           {expandedSale === sale.id && saleItems[sale.id] && (
                             <TableRow>
-                              <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + 16} className="bg-muted/30 p-3">
+                              <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + (isEInvoiceEnabled ? 1 : 0) + 16} className="bg-muted/30 p-3">
                                 <div className="space-y-3">
                                   <div>
                                     <h4 className="font-semibold text-[13px] mb-1.5">Sale Items:</h4>
