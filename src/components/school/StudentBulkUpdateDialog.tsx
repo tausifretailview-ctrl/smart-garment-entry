@@ -304,8 +304,8 @@ export const StudentBulkUpdateDialog = ({ open, onOpenChange }: StudentBulkUpdat
         {step === "upload" && (
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
-              Upload an Excel file to update existing students' Class, Division, Roll Number, and Phone Numbers.
-              Students are matched by <strong>name</strong>.
+              Upload an Excel file to update existing students' Emergency Contact, Class, Division, Roll Number, and Phone Numbers.
+              Students are matched by <strong>name</strong>. Reads <strong>all sheets</strong> (class-wise).
             </p>
             <div className="flex items-center gap-3">
               <Input
@@ -318,7 +318,8 @@ export const StudentBulkUpdateDialog = ({ open, onOpenChange }: StudentBulkUpdat
               {isProcessing && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
             </div>
             <div className="text-xs text-muted-foreground space-y-1">
-              <p>Expected columns: CHILD NAME, CLASS, DIV, Roll No, FATHER NO, FATHER, ADDRESS, EMERGENCY CONTACT</p>
+              <p>Supports class-wise sheets (NUR, JR.KG, 1ST, etc.) — all sheets are processed.</p>
+              <p>The 2nd "MOBILE NO." column is imported as Emergency Contact.</p>
               <p>Name matching strips prefixes like MS., MST., MR. and is case-insensitive.</p>
             </div>
           </div>
