@@ -1229,13 +1229,22 @@ const POSDashboard = () => {
       toast({ title: "Cannot Cancel", description: "IRN can only be cancelled within 24 hours of generation.", variant: "destructive" });
       return;
     }
-    if (!confirm(`Cancel IRN for bill ${sale.sale_number}? This cannot be undone.`)) return;
+    const cancelReasonCode = window.prompt(
+      `Cancel IRN for ${sale.sale_number}\n\nEnter reason:\n1 = Duplicate\n2 = Data Entry Mistake\n3 = Order Cancelled\n4 = Others\n\nType 1, 2, 3 or 4:`
+    );
+    if (!cancelReasonCode) return;
+
+    const reasonMap: Record<string, string> = {
+      '1': 'duplicate', '2': 'data_error', '3': 'cancelled', '4': 'others'
+    };
+    const reason = reasonMap[cancelReasonCode.trim()] || 'others';
+    const remarks = window.prompt('Enter remarks (optional):') || reason;
 
     setIsCancellingIRN(sale.id);
     try {
       const testMode = saleSettings?.einvoice_settings?.test_mode ?? true;
       const response = await supabase.functions.invoke('cancel-einvoice', {
-        body: { saleId: sale.id, organizationId: currentOrganization?.id, reason: 'others', remarks: 'Cancelled from POS dashboard', testMode },
+        body: { saleId: sale.id, organizationId: currentOrganization?.id, reason, remarks: remarks.substring(0, 100), testMode },
       });
       if (response.error) throw new Error(response.error.message);
       const result = response.data;
