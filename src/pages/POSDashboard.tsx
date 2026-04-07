@@ -2496,6 +2496,24 @@ const POSDashboard = () => {
         customerName={selectedCustomerForHistory?.name || ''}
         organizationId={currentOrganization?.id || ''}
       />
+
+      {/* Hidden E-Invoice Print Component for PDF Generation */}
+      {eInvoiceToPrint && (
+        <div style={{ position: 'fixed', left: '-9999px', top: 0, opacity: 0, pointerEvents: 'none', zIndex: -9999 }}>
+          <EInvoicePrint
+            ref={eInvoicePrintRef}
+            invoice={eInvoiceToPrint}
+            settings={{
+              company_name: settings?.business_name || currentOrganization?.name || '',
+              company_address: settings?.address || '',
+              company_phone: settings?.mobile_number || '',
+              company_email: settings?.email_id || '',
+              gst_number: settings?.gst_number || '',
+              logo_url: (settings as any)?.logo_url || '',
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 };
