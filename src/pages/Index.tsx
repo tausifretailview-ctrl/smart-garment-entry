@@ -128,7 +128,7 @@ const AnimatedMetricCard = ({
             )}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1 pl-4">
-              <CardTitle className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+              <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 {title}
               </CardTitle>
               <div className={cn("p-1.5 rounded-md transition-transform duration-150 group-hover:scale-110", accentClasses.bg)}>
@@ -136,12 +136,12 @@ const AnimatedMetricCard = ({
               </div>
             </CardHeader>
             <CardContent className="p-3 pt-0 pl-4">
-              <div className="text-xl font-bold text-card-foreground tracking-tight font-mono">
+              <div className="text-2xl font-bold text-card-foreground tracking-tight font-mono">
                 {displayValue}
               </div>
               <div className="flex items-center justify-between mt-1">
-                <span className="text-[10px] text-muted-foreground">{isCurrency ? "Amount" : "Count"}</span>
-                <span className="text-[9px] font-semibold text-success bg-success/10 px-1.5 py-0.5 rounded-sm">↑ Live</span>
+                <span className="text-[11px] text-muted-foreground">{isCurrency ? "Amount" : "Count"}</span>
+                <span className="text-[10px] font-semibold text-success bg-success/10 px-1.5 py-0.5 rounded-sm">↑ Live</span>
               </div>
             </CardContent>
           </Card>
