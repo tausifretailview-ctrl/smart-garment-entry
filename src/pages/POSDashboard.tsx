@@ -2087,6 +2087,16 @@ const POSDashboard = () => {
                                               Cancel IRN
                                             </Button>
                                           )}
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-7 text-xs"
+                                            onClick={() => handleDownloadEInvoicePDF(sale)}
+                                            disabled={isDownloadingEInvoice === sale.id}
+                                          >
+                                            {isDownloadingEInvoice === sale.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <FileDown className="h-3 w-3 mr-1" />}
+                                            Download E-Invoice
+                                          </Button>
                                           {sale.einvoice_status === 'cancelled' && (
                                             <Badge variant="destructive" className="text-[11px]">IRN Cancelled</Badge>
                                           )}
