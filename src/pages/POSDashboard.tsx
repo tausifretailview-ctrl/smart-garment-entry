@@ -1300,7 +1300,7 @@ const POSDashboard = () => {
   };
 
 
-    if (currentPage < totalPages) {
+    const handleNextPage = () => {
       setCurrentPage(currentPage + 1);
     }
   };
