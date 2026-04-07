@@ -421,8 +421,8 @@ Deno.serve(async (req) => {
       return {
         SlNo: String(index + 1),
         PrdDesc: safeDesc,
-        IsServc: 'N',
         HsnCd: item.hsn_code || '62099000',
+        IsServc: (item.hsn_code || '').startsWith('99') ? 'Y' : 'N',
         ...(item.barcode && item.barcode.length >= 3 ? { Barcde: item.barcode.substring(0, 30) } : {}),
         Qty: item.quantity,
         FreeQty: 0,
