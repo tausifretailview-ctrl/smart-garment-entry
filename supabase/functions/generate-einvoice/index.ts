@@ -413,8 +413,11 @@ Deno.serve(async (req) => {
     // Build item list
     const itemList = sale.sale_items.map((item: any, index: number) => {
       const gstRate = item.gst_percent || 0;
-      const taxableValue = item.line_total / (1 + gstRate / 100);
-      const gstAmount = item.line_total - taxableValue;
+      const taxableValue = Number((item.line_total / (1 + gstRate / 100)).toFixed(2));
+      const gstAmount = Number((item.line_total - taxableValue).toFixed(2));
+      const grossAmt = Number((item.quantity * item.unit_price).toFixed(2));
+      // Discount in rupees = gross - taxable (back-calculated so AssAmt = TotAmt - Discount exactly)
+      const discountAmt = Number((grossAmt - taxableValue).toFixed(2));
       
       const prdDesc = (item.product_name || 'Product').substring(0, 100);
       const safeDesc = prdDesc.length < 3 ? prdDesc.padEnd(3, ' ') : prdDesc;
@@ -428,10 +431,10 @@ Deno.serve(async (req) => {
         FreeQty: 0,
         Unit: 'PCS',
         UnitPrice: Number(item.unit_price.toFixed(2)),
-        TotAmt: Number((item.quantity * item.unit_price).toFixed(2)),
-        Discount: Number((item.discount_percent || 0).toFixed(2)),
-        PreTaxVal: Number(taxableValue.toFixed(2)),
-        AssAmt: Number(taxableValue.toFixed(2)),
+        TotAmt: grossAmt,
+        Discount: discountAmt,
+        PreTaxVal: taxableValue,
+        AssAmt: taxableValue,
         GstRt: gstRate,
         IgstAmt: isInterState ? Number(gstAmount.toFixed(2)) : 0,
         CgstAmt: !isInterState ? Number((gstAmount / 2).toFixed(2)) : 0,
