@@ -209,6 +209,10 @@ const POSDashboard = () => {
   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
   
+  // E-Invoice state
+  const [isGeneratingEInvoice, setIsGeneratingEInvoice] = useState<string | null>(null);
+  const [isCancellingIRN, setIsCancellingIRN] = useState<string | null>(null);
+
   // Virtual scrolling ref
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
