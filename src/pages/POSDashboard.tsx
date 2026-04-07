@@ -1251,7 +1251,55 @@ const POSDashboard = () => {
     }
   };
 
-  const handleNextPage = () => {
+  // E-Invoice PDF Download handler
+  const handleDownloadEInvoicePDF = async (sale: Sale) => {
+    if (!sale.irn) {
+      toast({ title: "E-Invoice Not Generated", description: "Please generate e-Invoice first.", variant: "destructive" });
+      return;
+    }
+    setIsDownloadingEInvoice(sale.id);
+    setEInvoiceToPrint(sale);
+    setTimeout(async () => {
+      try {
+        if (!eInvoicePrintRef.current) throw new Error("Print component not ready");
+        const canvas = await html2canvas(eInvoicePrintRef.current, { scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff" });
+        const imgData = canvas.toDataURL("image/png");
+        const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        const scaledHeight = (canvas.height * pdfWidth) / canvas.width;
+        if (scaledHeight <= pdfHeight * 1.05) {
+          pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, Math.min(scaledHeight, pdfHeight));
+        } else {
+          const pixelsPerPage = (pdfHeight / scaledHeight) * canvas.height;
+          const totalPages = Math.ceil(scaledHeight / pdfHeight);
+          for (let page = 0; page < totalPages; page++) {
+            if (page > 0) pdf.addPage();
+            const sourceY = page * pixelsPerPage;
+            const sourceH = Math.min(pixelsPerPage, canvas.height - sourceY);
+            const sliceH = (sourceH * pdfWidth) / canvas.width;
+            const pageCanvas = document.createElement('canvas');
+            pageCanvas.width = canvas.width;
+            pageCanvas.height = Math.ceil(sourceH);
+            const ctx = pageCanvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceH, 0, 0, canvas.width, Math.ceil(sourceH));
+              pdf.addImage(pageCanvas.toDataURL('image/png'), "PNG", 0, 0, pdfWidth, sliceH);
+            }
+          }
+        }
+        pdf.save(`e-Invoice_${sale.sale_number}.pdf`);
+        toast({ title: "Download Complete", description: `e-Invoice PDF saved as e-Invoice_${sale.sale_number}.pdf` });
+      } catch (error: any) {
+        toast({ title: "Download Failed", description: error.message, variant: "destructive" });
+      } finally {
+        setIsDownloadingEInvoice(null);
+        setEInvoiceToPrint(null);
+      }
+    }, 500);
+  };
+
+
     if (currentPage < totalPages) {
       setCurrentPage(currentPage + 1);
     }
