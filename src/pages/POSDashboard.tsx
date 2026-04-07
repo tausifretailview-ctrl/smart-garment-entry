@@ -24,7 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send, CheckCircle2, Clock, RefreshCcw, ShoppingCart, Pause, FileText, Lock, FileSpreadsheet, FileCheck, XCircle, Download } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send, CheckCircle2, Clock, RefreshCcw, ShoppingCart, Pause, FileText, Lock, FileSpreadsheet, FileCheck, XCircle, Download, FileDown } from "lucide-react";
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
 
@@ -33,6 +33,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useReactToPrint } from "react-to-print";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
+import { EInvoicePrint } from "@/components/EInvoicePrint";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { PaymentReceipt } from "@/components/PaymentReceipt";
 import { useQuery } from "@tanstack/react-query";
@@ -212,6 +215,9 @@ const POSDashboard = () => {
   // E-Invoice state
   const [isGeneratingEInvoice, setIsGeneratingEInvoice] = useState<string | null>(null);
   const [isCancellingIRN, setIsCancellingIRN] = useState<string | null>(null);
+  const [isDownloadingEInvoice, setIsDownloadingEInvoice] = useState<string | null>(null);
+  const [eInvoiceToPrint, setEInvoiceToPrint] = useState<any>(null);
+  const eInvoicePrintRef = useRef<HTMLDivElement>(null);
 
   // Virtual scrolling ref
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -1245,6 +1251,54 @@ const POSDashboard = () => {
     }
   };
 
+  // E-Invoice PDF Download handler
+  const handleDownloadEInvoicePDF = async (sale: Sale) => {
+    if (!sale.irn) {
+      toast({ title: "E-Invoice Not Generated", description: "Please generate e-Invoice first.", variant: "destructive" });
+      return;
+    }
+    setIsDownloadingEInvoice(sale.id);
+    setEInvoiceToPrint(sale);
+    setTimeout(async () => {
+      try {
+        if (!eInvoicePrintRef.current) throw new Error("Print component not ready");
+        const canvas = await html2canvas(eInvoicePrintRef.current, { scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff" });
+        const imgData = canvas.toDataURL("image/png");
+        const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        const scaledHeight = (canvas.height * pdfWidth) / canvas.width;
+        if (scaledHeight <= pdfHeight * 1.05) {
+          pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, Math.min(scaledHeight, pdfHeight));
+        } else {
+          const pixelsPerPage = (pdfHeight / scaledHeight) * canvas.height;
+          const totalPages = Math.ceil(scaledHeight / pdfHeight);
+          for (let page = 0; page < totalPages; page++) {
+            if (page > 0) pdf.addPage();
+            const sourceY = page * pixelsPerPage;
+            const sourceH = Math.min(pixelsPerPage, canvas.height - sourceY);
+            const sliceH = (sourceH * pdfWidth) / canvas.width;
+            const pageCanvas = document.createElement('canvas');
+            pageCanvas.width = canvas.width;
+            pageCanvas.height = Math.ceil(sourceH);
+            const ctx = pageCanvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceH, 0, 0, canvas.width, Math.ceil(sourceH));
+              pdf.addImage(pageCanvas.toDataURL('image/png'), "PNG", 0, 0, pdfWidth, sliceH);
+            }
+          }
+        }
+        pdf.save(`e-Invoice_${sale.sale_number}.pdf`);
+        toast({ title: "Download Complete", description: `e-Invoice PDF saved as e-Invoice_${sale.sale_number}.pdf` });
+      } catch (error: any) {
+        toast({ title: "Download Failed", description: error.message, variant: "destructive" });
+      } finally {
+        setIsDownloadingEInvoice(null);
+        setEInvoiceToPrint(null);
+      }
+    }, 500);
+  };
+
   const handleNextPage = () => {
     if (currentPage < totalPages) {
       setCurrentPage(currentPage + 1);
@@ -2033,6 +2087,16 @@ const POSDashboard = () => {
                                               Cancel IRN
                                             </Button>
                                           )}
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-7 text-xs"
+                                            onClick={() => handleDownloadEInvoicePDF(sale)}
+                                            disabled={isDownloadingEInvoice === sale.id}
+                                          >
+                                            {isDownloadingEInvoice === sale.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <FileDown className="h-3 w-3 mr-1" />}
+                                            Download E-Invoice
+                                          </Button>
                                           {sale.einvoice_status === 'cancelled' && (
                                             <Badge variant="destructive" className="text-[11px]">IRN Cancelled</Badge>
                                           )}
@@ -2442,6 +2506,24 @@ const POSDashboard = () => {
         customerName={selectedCustomerForHistory?.name || ''}
         organizationId={currentOrganization?.id || ''}
       />
+
+      {/* Hidden E-Invoice Print Component for PDF Generation */}
+      {eInvoiceToPrint && (
+        <div style={{ position: 'fixed', left: '-9999px', top: 0, opacity: 0, pointerEvents: 'none', zIndex: -9999 }}>
+          <EInvoicePrint
+            ref={eInvoicePrintRef}
+            invoice={eInvoiceToPrint}
+            settings={{
+              company_name: settings?.business_name || currentOrganization?.name || '',
+              company_address: settings?.address || '',
+              company_phone: settings?.mobile_number || '',
+              company_email: settings?.email_id || '',
+              gst_number: settings?.gst_number || '',
+              logo_url: (settings as any)?.logo_url || '',
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 };
