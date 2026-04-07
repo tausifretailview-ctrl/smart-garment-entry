@@ -330,6 +330,7 @@ export function SalesInvoiceERPTable({
       header: () => <div className="text-right pr-1">Actions</div>,
       meta: { stickyRight: true },
       cell: ({ row }) => {
+        try {
         const invoice = row.original;
         if (invoice.is_cancelled) {
           return (
@@ -538,6 +539,10 @@ export function SalesInvoiceERPTable({
             </div>
           </div>
         );
+        } catch (e) {
+          console.error('E-Invoice action cell render error:', e);
+          return null;
+        }
       },
       size: 240,
     });
