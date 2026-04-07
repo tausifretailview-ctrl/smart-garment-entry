@@ -1722,7 +1722,7 @@ const POSDashboard = () => {
                   <TableBody>
                     {paginatedSales.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + (columnSettings.refundStatus ? 1 : 0) + (columnSettings.creditNoteAmt ? 1 : 0) + (columnSettings.creditNoteStatus ? 1 : 0) + 15} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + (columnSettings.refundStatus ? 1 : 0) + (columnSettings.creditNoteAmt ? 1 : 0) + (columnSettings.creditNoteStatus ? 1 : 0) + (isEInvoiceEnabled ? 1 : 0) + 15} className="text-center text-muted-foreground py-8">
                           No sales found
                         </TableCell>
                       </TableRow>
@@ -2013,7 +2013,7 @@ const POSDashboard = () => {
                           </TableRow>
                           {expandedSale === sale.id && saleItems[sale.id] && (
                             <TableRow>
-                              <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + 16} className="bg-muted/30 p-3">
+                              <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + (isEInvoiceEnabled ? 1 : 0) + 16} className="bg-muted/30 p-3">
                                 <div className="space-y-3">
                                   <div>
                                     <h4 className="font-semibold text-[13px] mb-1.5">Sale Items:</h4>
