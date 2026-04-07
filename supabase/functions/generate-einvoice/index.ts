@@ -371,9 +371,14 @@ Deno.serve(async (req) => {
     console.log('Auth response details:', JSON.stringify(authData));
 
     if (authData.status_cd !== 'Success' || !authData.data?.AuthToken) {
+      const extractErrorMsg = (details: any): string => {
+        if (!details) return '';
+        if (typeof details === 'string') return details;
+        if (Array.isArray(details)) return details.map((e: any) => e.ErrorMessage || JSON.stringify(e)).join('; ');
+        return details.ErrorMessage || details.message || JSON.stringify(details);
+      };
       const errorMsg = authData.status_desc || 
-                       authData.ErrorDetails?.ErrorMessage || 
-                       authData.ErrorDetails?.message ||
+                       extractErrorMsg(authData.ErrorDetails) ||
                        'Authentication failed - check credentials';
       console.error('Authentication failed:', errorMsg);
       
@@ -565,24 +570,17 @@ Deno.serve(async (req) => {
 
     if (generateData.status_cd !== 'Success') {
       // Extract error from all possible PeriOne response formats
-      let errorMsg = 'E-Invoice generation failed';
-      if (generateData.ErrorDetails) {
-        if (typeof generateData.ErrorDetails === 'string') {
-          errorMsg = generateData.ErrorDetails;
-        } else if (Array.isArray(generateData.ErrorDetails)) {
-          errorMsg = generateData.ErrorDetails.map((e: any) => e.ErrorMessage || JSON.stringify(e)).join('; ');
-        } else if (generateData.ErrorDetails.ErrorMessage) {
-          errorMsg = generateData.ErrorDetails.ErrorMessage;
-        } else {
-          errorMsg = JSON.stringify(generateData.ErrorDetails);
-        }
-      } else if (generateData.status_desc) {
-        errorMsg = generateData.status_desc;
-      } else if (generateData.error) {
-        errorMsg = generateData.error;
-      } else if (generateData.message) {
-        errorMsg = generateData.message;
-      }
+      const extractErr = (details: any): string => {
+        if (!details) return '';
+        if (typeof details === 'string') return details;
+        if (Array.isArray(details)) return details.map((e: any) => e.ErrorMessage || JSON.stringify(e)).join('; ');
+        return details.ErrorMessage || details.message || JSON.stringify(details);
+      };
+      const errorMsg = extractErr(generateData.ErrorDetails)
+        || generateData.status_desc
+        || (typeof generateData.error === 'string' ? generateData.error : extractErr(generateData.error))
+        || generateData.message
+        || 'E-Invoice generation failed';
       console.error('E-Invoice generation failed:', errorMsg);
       
       // Update sale with error
