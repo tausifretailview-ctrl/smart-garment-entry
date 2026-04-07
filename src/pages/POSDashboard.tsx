@@ -227,6 +227,8 @@ const POSDashboard = () => {
   const showItemBarcode = saleSettings?.show_item_barcode ?? true;
   const showItemHsn = saleSettings?.show_item_hsn ?? false;
   const showItemMrp = saleSettings?.show_item_mrp ?? saleSettings?.show_mrp_column ?? false;
+  const isEInvoiceEnabled = saleSettings?.einvoice_settings?.enabled ?? false;
+
   useEffect(() => {
     const loadData = async () => {
       await fetchSales();
