@@ -62,7 +62,7 @@ const normalizeName = (name: string): string => {
 };
 
 const findColumn = (headers: string[], candidates: string[]): number => {
-  const lower = headers.map(h => (h || "").toString().trim().toLowerCase().replace(/\n/g, " "));
+  const lower = headers.map(h => (h || "").toString().trim().toLowerCase().replace(/[\r\n]+/g, " "));
   for (const c of candidates) {
     const idx = lower.indexOf(c.toLowerCase());
     if (idx !== -1) return idx;
