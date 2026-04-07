@@ -19,6 +19,8 @@ interface EInvoicePrintProps {
     ack_no?: string;
     ack_date?: string;
     einvoice_qr_code?: string;
+    ewb_number?: string;
+    ewb_date?: string;
     sale_items?: Array<{
       product_name: string;
       size: string;
@@ -194,6 +196,29 @@ export const EInvoicePrint = React.forwardRef<HTMLDivElement, EInvoicePrintProps
             </div>
           </div>
         </div>
+
+        {/* e-Way Bill Section */}
+        {invoice.ewb_number && (
+          <div style={{
+            border: "1px solid #0097A7",
+            borderRadius: "4px",
+            padding: "6px 8px",
+            marginBottom: "10px",
+            backgroundColor: "#f0fafa",
+            display: "flex",
+            alignItems: "center",
+            gap: "16px",
+          }}>
+            <span style={{ fontSize: "10px", fontWeight: "bold", color: "#00695C" }}>e-Way Bill:</span>
+            <span style={{ fontSize: "10px", fontFamily: "monospace" }}>{invoice.ewb_number}</span>
+            {invoice.ewb_date && (
+              <>
+                <span style={{ fontSize: "10px", fontWeight: "bold", color: "#00695C" }}>Date:</span>
+                <span style={{ fontSize: "10px" }}>{invoice.ewb_date}</span>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Buyer Details */}
         <div style={{ display: "flex", marginBottom: "10px", border: "1px solid #999", borderRadius: "2px" }}>
