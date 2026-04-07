@@ -1260,7 +1260,9 @@ const POSDashboard = () => {
       return;
     }
     setIsDownloadingEInvoice(sale.id);
-    setEInvoiceToPrint(sale);
+    // Fetch sale_items so EInvoicePrint can render product details
+    const items = await fetchSaleItems(sale.id);
+    setEInvoiceToPrint({ ...sale, sale_items: items });
     setTimeout(async () => {
       try {
         if (!eInvoicePrintRef.current) throw new Error("Print component not ready");
