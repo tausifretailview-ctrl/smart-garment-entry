@@ -737,7 +737,7 @@ const FeeCollection = () => {
                                   className="text-green-600 border-green-600 hover:bg-green-50 h-8 w-8 p-0"
                                   onClick={() => handleSendReminder(student)}
                                   disabled={sendingReminder === student.id || !whatsAppSettings?.is_active}
-                                  title="Send via WhatsApp API"
+                                  title={`Send via API to ${student.parent_phone}${student.emergency_contact && student.emergency_contact !== student.parent_phone ? ` & ${student.emergency_contact}` : ""}`}
                                 >
                                   {sendingReminder === student.id ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -763,10 +763,33 @@ const FeeCollection = () => {
                                     const msg = `Fees Reminder\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\n💰 Pending Fees: ${amountStr}\n\nPlease pay before the due date to avoid late fees.${upiId ? `\n\n💳 *Pay Online via UPI:*\n${paymentLink}\n_(Opens GPay, PhonePe, Paytm or any UPI app. Amount is pre-filled but you may edit if paying a different amount.)_` : ""}\n\nOr pay at the school office.\n\nThank you 🙏\n${currentOrganization?.name || "School"}`;
                                     sendWhatsApp(phone, msg);
                                   }}
-                                  title="Send manually via WhatsApp"
+                                  title={`Manual WhatsApp to Parent: ${student.parent_phone}`}
                                 >
                                   <MessageCircle className="h-4 w-4" />
                                 </Button>
+                                {/* Manual WhatsApp to emergency contact */}
+                                {student.emergency_contact && student.emergency_contact !== student.parent_phone && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-orange-600 border-orange-600 hover:bg-orange-50 h-8 w-8 p-0"
+                                    onClick={() => {
+                                      const upiId = gatewaySettings?.upi_id || "";
+                                      const upiBusinessName = gatewaySettings?.upi_business_name || currentOrganization?.name || "School";
+                                      let paymentLink = "";
+                                      if (upiId && student.totalDue > 0) {
+                                        const upiParams = new URLSearchParams({ pa: upiId, pn: upiBusinessName, am: String(student.totalDue), cu: "INR", tn: `Fees-${student.admission_number}` });
+                                        paymentLink = `${window.location.origin}/pay?${upiParams.toString()}`;
+                                      }
+                                      const amountStr = `Rs.${student.totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+                                      const msg = `Fees Reminder\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\n💰 Pending Fees: ${amountStr}\n\nPlease pay before the due date to avoid late fees.${upiId ? `\n\n💳 *Pay Online via UPI:*\n${paymentLink}\n_(Opens GPay, PhonePe, Paytm or any UPI app. Amount is pre-filled but you may edit if paying a different amount.)_` : ""}\n\nOr pay at the school office.\n\nThank you 🙏\n${currentOrganization?.name || "School"}`;
+                                      sendWhatsApp(student.emergency_contact, msg);
+                                    }}
+                                    title={`Manual WhatsApp to Emergency: ${student.emergency_contact}`}
+                                  >
+                                    <MessageCircle className="h-4 w-4" />
+                                  </Button>
+                                )}
                               </>
                             )}
                             <Button size="sm" onClick={() => handleCollect(student)} className="h-8">
