@@ -285,7 +285,7 @@ const POSDashboard = () => {
       while (hasMore) {
         const { data, error } = await supabase
           .from("sales")
-          .select("*")
+          .select("*, customers:customer_id (gst_number)")
           .eq("organization_id", currentOrganization.id)
           .in("sale_type", ["pos", "delivery_challan"])
           .is("deleted_at", null)
