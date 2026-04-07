@@ -41,12 +41,12 @@ interface EInvoicePayload {
     LglNm: string;
     TrdNm: string;
     Addr1: string;
-    Addr2: string;
+    Addr2?: string;
     Loc: string;
     Pin: number;
     Stcd: string;
-    Ph: string;
-    Em: string;
+    Ph?: string;
+    Em?: string;
   };
   BuyerDtls: {
     Gstin: string;
@@ -54,7 +54,7 @@ interface EInvoicePayload {
     TrdNm: string;
     Pos: string;
     Addr1: string;
-    Addr2: string;
+    Addr2?: string;
     Loc: string;
     Pin: number;
     Stcd: string;
@@ -472,7 +472,8 @@ Deno.serve(async (req) => {
         const safeSellerAddr = sellerAddr.length >= 3 ? sellerAddr : 'Address Line 1';
         const sellerPin = parseInt((settingsData?.address as string || '').match(/\d{6}/)?.[0] || '000000');
         const safeSellerPin = (sellerPin >= 100000 && sellerPin <= 999999) ? sellerPin : 500001;
-        const sellerPhone = (settingsData?.mobile_number || '').replace(/\D/g, '');
+        const rawSellerPhone = (settingsData?.mobile_number || '').replace(/\D/g, '');
+        const sellerPhone = rawSellerPhone.length > 12 ? rawSellerPhone.slice(-10) : rawSellerPhone;
         const sellerLoc = ((settingsData?.address as string || '').split(',').pop()?.trim() || 'City').substring(0, 50);
         const safeSellerLoc = sellerLoc.length >= 3 ? sellerLoc : 'City';
         return {
@@ -480,7 +481,6 @@ Deno.serve(async (req) => {
           LglNm: (settingsData?.business_name || orgData?.name || 'Business Name').substring(0, 100),
           TrdNm: (settingsData?.business_name || orgData?.name || 'Business Name').substring(0, 100),
           Addr1: safeSellerAddr,
-          Addr2: '',
           Loc: safeSellerLoc,
           Pin: safeSellerPin,
           Stcd: sellerStateCode,
@@ -493,7 +493,8 @@ Deno.serve(async (req) => {
         const safeAddr = buyerAddr.length >= 3 ? buyerAddr : 'Address Not Provided';
         const buyerPin = parseInt((sale.customer_address || sale.customers?.address || '')?.match(/\d{6}/)?.[0] || '000000');
         const safeBuyerPin = (buyerPin >= 100000 && buyerPin <= 999999) ? buyerPin : 500001;
-        const buyerPhone = (sale.customer_phone || sale.customers?.phone || '').replace(/\D/g, '');
+        const rawBuyerPhone = (sale.customer_phone || sale.customers?.phone || '').replace(/\D/g, '');
+        const buyerPhone = rawBuyerPhone.length > 12 ? rawBuyerPhone.slice(-10) : rawBuyerPhone;
         const safePhone = (buyerPhone.length >= 6 && buyerPhone.length <= 12) ? buyerPhone : undefined;
         const buyerLoc = (sale.customer_address?.split(',').pop()?.trim() || 'City').substring(0, 50);
         const safeLoc = buyerLoc.length >= 3 ? buyerLoc : 'City';
@@ -503,7 +504,6 @@ Deno.serve(async (req) => {
           TrdNm: (sale.customer_name || sale.customers?.customer_name || 'Customer').substring(0, 100),
           Pos: buyerStateCode,
           Addr1: safeAddr,
-          Addr2: '',
           Loc: safeLoc,
           Pin: safeBuyerPin,
           Stcd: buyerStateCode,
