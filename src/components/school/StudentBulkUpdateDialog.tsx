@@ -62,10 +62,26 @@ const normalizeName = (name: string): string => {
 };
 
 const findColumn = (headers: string[], candidates: string[]): number => {
-  const lower = headers.map(h => (h || "").toString().trim().toLowerCase());
+  const lower = headers.map(h => (h || "").toString().trim().toLowerCase().replace(/\n/g, " "));
   for (const c of candidates) {
     const idx = lower.indexOf(c.toLowerCase());
     if (idx !== -1) return idx;
+  }
+  return -1;
+};
+
+/** Find the Nth occurrence of a column matching candidates (0-indexed) */
+const findColumnNth = (headers: string[], candidates: string[], nth: number): number => {
+  const lower = headers.map(h => (h || "").toString().trim().toLowerCase().replace(/\n/g, " "));
+  let count = 0;
+  for (let i = 0; i < lower.length; i++) {
+    for (const c of candidates) {
+      if (lower[i] === c.toLowerCase()) {
+        if (count === nth) return i;
+        count++;
+        break;
+      }
+    }
   }
   return -1;
 };
@@ -102,21 +118,6 @@ export const StudentBulkUpdateDialog = ({ open, onOpenChange }: StudentBulkUpdat
     try {
       const data = await file.arrayBuffer();
       const wb = XLSX.read(data);
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
-      if (rows.length < 2) throw new Error("Excel file has no data rows");
-
-      const headers = rows[0].map((h: any) => String(h || ""));
-      const nameIdx = findColumn(headers, ["CHILD NAME", "Student Name", "Name", "STUDENT NAME"]);
-      const classIdx = findColumn(headers, ["CLASS", "Class Name", "Class"]);
-      const divIdx = findColumn(headers, ["DIV", "Division", "DIVISION"]);
-      const rollIdx = findColumn(headers, ["Roll No", "Roll Number", "ROLL NO", "Roll no"]);
-      const phoneIdx = findColumn(headers, ["FATHER NO", "Parent Phone", "Father No", "FATHER NO.", "Phone"]);
-      const parentIdx = findColumn(headers, ["FATHER", "Parent Name", "Father Name", "FATHER NAME"]);
-      const addressIdx = findColumn(headers, ["ADDRESS", "Address"]);
-      const emergencyIdx = findColumn(headers, ["EMERGENCY CONTACT", "Emergency Contact", "EMERGENCY", "Emergency No"]);
-
-      if (nameIdx === -1) throw new Error("Could not find student name column (CHILD NAME / Student Name / Name)");
 
       // Fetch all existing students
       const { data: students, error: studErr } = await supabase
@@ -147,42 +148,96 @@ export const StudentBulkUpdateDialog = ({ open, onOpenChange }: StudentBulkUpdat
       const matchedList: MatchedStudent[] = [];
       const unmatchedList: UnmatchedRow[] = [];
 
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        const rawName = row[nameIdx] ? String(row[nameIdx]).trim() : "";
-        if (!rawName) continue;
+      // Process ALL sheets (class-wise Excel)
+      const mobileCandidates = ["mobile no.", "mobile no", "contact", "phone", "father no", "father no.", "mobile no. (f)", "mobile no. (m)"];
 
-        const key = normalizeName(rawName);
-        const existing = studentMap.get(key);
+      for (const sheetName of wb.SheetNames) {
+        const ws = wb.Sheets[sheetName];
+        const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        if (rows.length < 2) continue;
 
-        if (!existing) {
-          unmatchedList.push({ name: rawName, row: i + 1 });
-          continue;
+        // Find header row (first row with a NAME column)
+        let headerRowIdx = -1;
+        let headers: string[] = [];
+        for (let r = 0; r < Math.min(rows.length, 5); r++) {
+          const candidateHeaders = (rows[r] || []).map((h: any) => String(h || ""));
+          const nameTest = findColumn(candidateHeaders, ["NAME", "CHILD NAME", "Student Name", "STUDENT NAME"]);
+          if (nameTest !== -1) {
+            headerRowIdx = r;
+            headers = candidateHeaders;
+            break;
+          }
         }
+        if (headerRowIdx === -1) continue;
 
-        const newClassName = classIdx !== -1 && row[classIdx] ? String(row[classIdx]).trim() : "";
-        const newClassId = newClassName ? (classMap.get(newClassName.toLowerCase()) || null) : null;
-        const existingClass = existing.school_classes as any;
+        const nameIdx = findColumn(headers, ["NAME", "CHILD NAME", "Student Name", "STUDENT NAME"]);
+        const classIdx = findColumn(headers, ["CLASS", "Class Name", "Class", "STD"]);
+        const divIdx = findColumn(headers, ["DIV", "Division", "DIVISION"]);
+        const rollIdx = findColumn(headers, ["Roll No", "Roll Number", "ROLL NO", "Roll no"]);
+        const phoneIdx = findColumn(headers, mobileCandidates);
+        // Second MOBILE NO. column = emergency contact
+        const emergencyIdx = findColumnNth(headers, mobileCandidates, 1);
+        const parentIdx = findColumn(headers, ["FATHER", "Parent Name", "Father Name", "FATHER NAME"]);
+        const addressIdx = findColumn(headers, ["ADDRESS", "Address", "ADD.", "ADD"]);
+        const dedicatedEmergencyIdx = findColumn(headers, ["EMERGENCY CONTACT", "Emergency Contact", "EMERGENCY", "Emergency No"]);
 
-        matchedList.push({
-          id: existing.id,
-          student_name: existing.student_name,
-          current_class_name: existingClass?.class_name || "-",
-          new_class_name: newClassName || "-",
-          new_class_id: newClassId,
-          current_division: existing.division || "-",
-          new_division: divIdx !== -1 && row[divIdx] ? String(row[divIdx]).trim() : existing.division || "",
-          current_roll: existing.roll_number ? String(existing.roll_number) : "-",
-          new_roll: rollIdx !== -1 && row[rollIdx] ? String(row[rollIdx]).replace(/\.0$/, "").trim() : "",
-          current_phone: existing.parent_phone || "-",
-          new_phone: phoneIdx !== -1 ? normalizePhoneNumber(row[phoneIdx]) : "",
-          current_parent_name: existing.parent_name || "-",
-          new_parent_name: parentIdx !== -1 && row[parentIdx] ? String(row[parentIdx]).trim() : "",
-          current_address: existing.address || "-",
-          new_address: addressIdx !== -1 && row[addressIdx] ? String(row[addressIdx]).trim() : "",
-          current_emergency_contact: existing.emergency_contact || "-",
-          new_emergency_contact: emergencyIdx !== -1 ? normalizePhoneNumber(row[emergencyIdx]) : "",
-        });
+        if (nameIdx === -1) continue;
+
+        // Use sheet name as class context if no CLASS column
+        const sheetClassName = sheetName.trim();
+
+        for (let i = headerRowIdx + 1; i < rows.length; i++) {
+          const row = rows[i];
+          const rawName = row[nameIdx] ? String(row[nameIdx]).trim() : "";
+          if (!rawName) continue;
+
+          const key = normalizeName(rawName);
+          const existing = studentMap.get(key);
+
+          if (!existing) {
+            unmatchedList.push({ name: `${rawName} (${sheetClassName})`, row: i + 1 });
+            continue;
+          }
+
+          // Determine emergency contact: prefer dedicated column, fallback to 2nd MOBILE NO.
+          let newEmergency = "";
+          if (dedicatedEmergencyIdx !== -1) {
+            newEmergency = normalizePhoneNumber(row[dedicatedEmergencyIdx]);
+          } else if (emergencyIdx !== -1) {
+            newEmergency = normalizePhoneNumber(row[emergencyIdx]);
+          }
+
+          const newClassName = classIdx !== -1 && row[classIdx] ? String(row[classIdx]).trim() : "";
+          const newClassId = newClassName ? (classMap.get(newClassName.toLowerCase()) || null) : null;
+          const existingClass = existing.school_classes as any;
+
+          matchedList.push({
+            id: existing.id,
+            student_name: existing.student_name,
+            current_class_name: existingClass?.class_name || "-",
+            new_class_name: newClassName || "-",
+            new_class_id: newClassId,
+            current_division: existing.division || "-",
+            new_division: divIdx !== -1 && row[divIdx] ? String(row[divIdx]).trim() : existing.division || "",
+            current_roll: existing.roll_number ? String(existing.roll_number) : "-",
+            new_roll: rollIdx !== -1 && row[rollIdx] ? String(row[rollIdx]).replace(/\.0$/, "").trim() : "",
+            current_phone: existing.parent_phone || "-",
+            new_phone: phoneIdx !== -1 ? normalizePhoneNumber(row[phoneIdx]) : "",
+            current_parent_name: existing.parent_name || "-",
+            new_parent_name: parentIdx !== -1 && row[parentIdx] ? String(row[parentIdx]).trim() : "",
+            current_address: existing.address || "-",
+            new_address: addressIdx !== -1 && row[addressIdx] ? String(row[addressIdx]).trim() : "",
+            current_emergency_contact: existing.emergency_contact || "-",
+            new_emergency_contact: newEmergency,
+          });
+
+          // Remove from map to avoid duplicates across sheets
+          studentMap.delete(key);
+        }
+      }
+
+      if (matchedList.length === 0 && unmatchedList.length === 0) {
+        throw new Error("No student data found. Ensure sheets have a NAME column.");
       }
 
       setMatched(matchedList);
@@ -249,8 +304,8 @@ export const StudentBulkUpdateDialog = ({ open, onOpenChange }: StudentBulkUpdat
         {step === "upload" && (
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
-              Upload an Excel file to update existing students' Class, Division, Roll Number, and Phone Numbers.
-              Students are matched by <strong>name</strong>.
+              Upload an Excel file to update existing students' Emergency Contact, Class, Division, Roll Number, and Phone Numbers.
+              Students are matched by <strong>name</strong>. Reads <strong>all sheets</strong> (class-wise).
             </p>
             <div className="flex items-center gap-3">
               <Input
@@ -263,7 +318,8 @@ export const StudentBulkUpdateDialog = ({ open, onOpenChange }: StudentBulkUpdat
               {isProcessing && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
             </div>
             <div className="text-xs text-muted-foreground space-y-1">
-              <p>Expected columns: CHILD NAME, CLASS, DIV, Roll No, FATHER NO, FATHER, ADDRESS, EMERGENCY CONTACT</p>
+              <p>Supports class-wise sheets (NUR, JR.KG, 1ST, etc.) — all sheets are processed.</p>
+              <p>The 2nd "MOBILE NO." column is imported as Emergency Contact.</p>
               <p>Name matching strips prefixes like MS., MST., MR. and is case-insensitive.</p>
             </div>
           </div>
@@ -291,51 +347,61 @@ export const StudentBulkUpdateDialog = ({ open, onOpenChange }: StudentBulkUpdat
                       <TableHead>Class</TableHead>
                       <TableHead>Division</TableHead>
                       <TableHead>Roll No</TableHead>
-                      <TableHead>Phone</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {matched.map((m) => (
-                      <TableRow key={m.id}>
-                        <TableCell className="font-medium text-sm">{m.student_name}</TableCell>
-                        <TableCell className="text-sm">
-                          <span className="text-muted-foreground">{m.current_class_name}</span>
-                          {m.new_class_name !== "-" && m.new_class_name !== m.current_class_name && (
-                            <span className="inline-flex items-center">
-                              <ArrowRight className="h-3 w-3 mx-1" />
-                              <span className="text-primary font-medium">{m.new_class_name}</span>
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          <span className="text-muted-foreground">{m.current_division}</span>
-                          {m.new_division && m.new_division !== m.current_division && (
-                            <span className="inline-flex items-center">
-                              <ArrowRight className="h-3 w-3 mx-1" />
-                              <span className="text-primary font-medium">{m.new_division}</span>
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          <span className="text-muted-foreground">{m.current_roll}</span>
-                          {m.new_roll && m.new_roll !== m.current_roll && (
-                            <span className="inline-flex items-center">
-                              <ArrowRight className="h-3 w-3 mx-1" />
-                              <span className="text-primary font-medium">{m.new_roll}</span>
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          <span className="text-muted-foreground">{m.current_phone}</span>
-                          {m.new_phone && m.new_phone !== m.current_phone && (
-                            <span className="inline-flex items-center">
-                              <ArrowRight className="h-3 w-3 mx-1" />
-                              <span className="text-primary font-medium">{m.new_phone}</span>
-                            </span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                       <TableHead>Phone</TableHead>
+                       <TableHead>Emergency Contact</TableHead>
+                     </TableRow>
+                   </TableHeader>
+                   <TableBody>
+                     {matched.map((m) => (
+                       <TableRow key={m.id}>
+                         <TableCell className="font-medium text-sm">{m.student_name}</TableCell>
+                         <TableCell className="text-sm">
+                           <span className="text-muted-foreground">{m.current_class_name}</span>
+                           {m.new_class_name !== "-" && m.new_class_name !== m.current_class_name && (
+                             <span className="inline-flex items-center">
+                               <ArrowRight className="h-3 w-3 mx-1" />
+                               <span className="text-primary font-medium">{m.new_class_name}</span>
+                             </span>
+                           )}
+                         </TableCell>
+                         <TableCell className="text-sm">
+                           <span className="text-muted-foreground">{m.current_division}</span>
+                           {m.new_division && m.new_division !== m.current_division && (
+                             <span className="inline-flex items-center">
+                               <ArrowRight className="h-3 w-3 mx-1" />
+                               <span className="text-primary font-medium">{m.new_division}</span>
+                             </span>
+                           )}
+                         </TableCell>
+                         <TableCell className="text-sm">
+                           <span className="text-muted-foreground">{m.current_roll}</span>
+                           {m.new_roll && m.new_roll !== m.current_roll && (
+                             <span className="inline-flex items-center">
+                               <ArrowRight className="h-3 w-3 mx-1" />
+                               <span className="text-primary font-medium">{m.new_roll}</span>
+                             </span>
+                           )}
+                         </TableCell>
+                         <TableCell className="text-sm">
+                           <span className="text-muted-foreground">{m.current_phone}</span>
+                           {m.new_phone && m.new_phone !== m.current_phone && (
+                             <span className="inline-flex items-center">
+                               <ArrowRight className="h-3 w-3 mx-1" />
+                               <span className="text-primary font-medium">{m.new_phone}</span>
+                             </span>
+                           )}
+                         </TableCell>
+                         <TableCell className="text-sm">
+                           <span className="text-muted-foreground">{m.current_emergency_contact}</span>
+                           {m.new_emergency_contact && m.new_emergency_contact !== m.current_emergency_contact && m.new_emergency_contact !== "-" && (
+                             <span className="inline-flex items-center">
+                               <ArrowRight className="h-3 w-3 mx-1" />
+                               <span className="text-orange-600 font-medium">{m.new_emergency_contact}</span>
+                             </span>
+                           )}
+                         </TableCell>
+                       </TableRow>
+                     ))}
                   </TableBody>
                 </Table>
               </div>
