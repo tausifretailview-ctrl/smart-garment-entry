@@ -419,11 +419,13 @@ const FeeCollection = () => {
     const amountStr = `Rs.${student.totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
     const reminderMsg = `Fees Reminder\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\n💰 Pending Fees: ${amountStr}\n\nPlease pay before the due date to avoid late fees.${upiId ? `\n\n💳 *Pay Online via UPI:*\n${paymentLink}\n_(Opens GPay, PhonePe, Paytm or any UPI app. Amount is pre-filled but you may edit if paying a different amount.)_` : ""}\n\nOr pay at the school office.\n\nThank you 🙏\n${currentOrganization?.name || "School"}`;
 
+    const emergencyPhone = student.emergency_contact || "";
+    const sendToEmergency = emergencyPhone && emergencyPhone !== phone;
+
     if (whatsAppSettings?.is_active) {
       setSendingReminder(student.id);
       try {
         if (templateName) {
-          // Send via Meta template
           await sendMessageAsync({
             phone,
             message: reminderMsg,
@@ -442,25 +444,50 @@ const FeeCollection = () => {
               upi_deep_link: upiDeepLink,
             },
           });
+          // Also send to emergency contact
+          if (sendToEmergency) {
+            await sendMessageAsync({
+              phone: emergencyPhone,
+              message: reminderMsg,
+              templateType: "fee_reminder",
+              templateName,
+              imageUrl: logoUrl || undefined,
+              imageCaption: currentOrganization?.name || "",
+              saleData: {
+                student_name: student.student_name,
+                admission_number: student.admission_number,
+                class_name: student.school_classes?.class_name || "",
+                amount: student.totalDue,
+                organization_name: currentOrganization?.name || "",
+                payment_link: paymentLink || "Please pay at the school office",
+                upi_id: upiId,
+                upi_deep_link: upiDeepLink,
+              },
+            });
+          }
         } else {
-          // No template configured — send as plain text via API
           await sendMessageAsync({
             phone,
             message: reminderMsg,
             templateType: "fee_reminder",
           } as any);
+          if (sendToEmergency) {
+            await sendMessageAsync({
+              phone: emergencyPhone,
+              message: reminderMsg,
+              templateType: "fee_reminder",
+            } as any);
+          }
         }
-        toast.success("Fee reminder sent via WhatsApp!");
+        toast.success(`Fee reminder sent via WhatsApp!${sendToEmergency ? " (sent to emergency contact too)" : ""}`);
       } catch (err: any) {
         console.error("WhatsApp reminder error:", err);
         toast.error("WhatsApp API failed: " + (err.message || "Unknown error") + ". Check WhatsApp settings.");
-        // Fallback to wa.me link
         sendWhatsApp(phone, reminderMsg);
       } finally {
         setSendingReminder(null);
       }
     } else {
-      // WhatsApp API not active — open wa.me link
       sendWhatsApp(phone, reminderMsg);
     }
   };
