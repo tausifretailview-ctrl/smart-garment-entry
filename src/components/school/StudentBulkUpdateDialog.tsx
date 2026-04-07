@@ -347,51 +347,61 @@ export const StudentBulkUpdateDialog = ({ open, onOpenChange }: StudentBulkUpdat
                       <TableHead>Class</TableHead>
                       <TableHead>Division</TableHead>
                       <TableHead>Roll No</TableHead>
-                      <TableHead>Phone</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {matched.map((m) => (
-                      <TableRow key={m.id}>
-                        <TableCell className="font-medium text-sm">{m.student_name}</TableCell>
-                        <TableCell className="text-sm">
-                          <span className="text-muted-foreground">{m.current_class_name}</span>
-                          {m.new_class_name !== "-" && m.new_class_name !== m.current_class_name && (
-                            <span className="inline-flex items-center">
-                              <ArrowRight className="h-3 w-3 mx-1" />
-                              <span className="text-primary font-medium">{m.new_class_name}</span>
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          <span className="text-muted-foreground">{m.current_division}</span>
-                          {m.new_division && m.new_division !== m.current_division && (
-                            <span className="inline-flex items-center">
-                              <ArrowRight className="h-3 w-3 mx-1" />
-                              <span className="text-primary font-medium">{m.new_division}</span>
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          <span className="text-muted-foreground">{m.current_roll}</span>
-                          {m.new_roll && m.new_roll !== m.current_roll && (
-                            <span className="inline-flex items-center">
-                              <ArrowRight className="h-3 w-3 mx-1" />
-                              <span className="text-primary font-medium">{m.new_roll}</span>
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          <span className="text-muted-foreground">{m.current_phone}</span>
-                          {m.new_phone && m.new_phone !== m.current_phone && (
-                            <span className="inline-flex items-center">
-                              <ArrowRight className="h-3 w-3 mx-1" />
-                              <span className="text-primary font-medium">{m.new_phone}</span>
-                            </span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                       <TableHead>Phone</TableHead>
+                       <TableHead>Emergency Contact</TableHead>
+                     </TableRow>
+                   </TableHeader>
+                   <TableBody>
+                     {matched.map((m) => (
+                       <TableRow key={m.id}>
+                         <TableCell className="font-medium text-sm">{m.student_name}</TableCell>
+                         <TableCell className="text-sm">
+                           <span className="text-muted-foreground">{m.current_class_name}</span>
+                           {m.new_class_name !== "-" && m.new_class_name !== m.current_class_name && (
+                             <span className="inline-flex items-center">
+                               <ArrowRight className="h-3 w-3 mx-1" />
+                               <span className="text-primary font-medium">{m.new_class_name}</span>
+                             </span>
+                           )}
+                         </TableCell>
+                         <TableCell className="text-sm">
+                           <span className="text-muted-foreground">{m.current_division}</span>
+                           {m.new_division && m.new_division !== m.current_division && (
+                             <span className="inline-flex items-center">
+                               <ArrowRight className="h-3 w-3 mx-1" />
+                               <span className="text-primary font-medium">{m.new_division}</span>
+                             </span>
+                           )}
+                         </TableCell>
+                         <TableCell className="text-sm">
+                           <span className="text-muted-foreground">{m.current_roll}</span>
+                           {m.new_roll && m.new_roll !== m.current_roll && (
+                             <span className="inline-flex items-center">
+                               <ArrowRight className="h-3 w-3 mx-1" />
+                               <span className="text-primary font-medium">{m.new_roll}</span>
+                             </span>
+                           )}
+                         </TableCell>
+                         <TableCell className="text-sm">
+                           <span className="text-muted-foreground">{m.current_phone}</span>
+                           {m.new_phone && m.new_phone !== m.current_phone && (
+                             <span className="inline-flex items-center">
+                               <ArrowRight className="h-3 w-3 mx-1" />
+                               <span className="text-primary font-medium">{m.new_phone}</span>
+                             </span>
+                           )}
+                         </TableCell>
+                         <TableCell className="text-sm">
+                           <span className="text-muted-foreground">{m.current_emergency_contact}</span>
+                           {m.new_emergency_contact && m.new_emergency_contact !== m.current_emergency_contact && m.new_emergency_contact !== "-" && (
+                             <span className="inline-flex items-center">
+                               <ArrowRight className="h-3 w-3 mx-1" />
+                               <span className="text-orange-600 font-medium">{m.new_emergency_contact}</span>
+                             </span>
+                           )}
+                         </TableCell>
+                       </TableRow>
+                     ))}
                   </TableBody>
                 </Table>
               </div>
