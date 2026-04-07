@@ -2131,7 +2131,9 @@ export default function SalesInvoiceDashboard() {
     }
 
     setIsDownloadingEInvoice(invoice.id);
-    setEInvoiceToPrint(invoice);
+    // Ensure sale_items are loaded for the print component
+    const invoiceWithItems = await ensureSaleItems(invoice);
+    setEInvoiceToPrint(invoiceWithItems);
 
     // Wait for the component to render
     setTimeout(async () => {
