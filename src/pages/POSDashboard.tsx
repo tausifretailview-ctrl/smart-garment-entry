@@ -2007,6 +2007,59 @@ const POSDashboard = () => {
                                       </div>
                                     </div>
                                   )}
+
+                                  {/* E-Invoice Actions */}
+                                  {isEInvoiceEnabled && sale.customer_id && (
+                                    <div className="flex items-center gap-2 pt-2 border-t">
+                                      <span className="text-xs font-semibold text-muted-foreground mr-1">E-Invoice:</span>
+                                      {sale.irn ? (
+                                        <>
+                                          <Badge className="bg-green-500 text-white text-[11px]">
+                                            <FileCheck className="h-3 w-3 mr-1" />
+                                            IRN Generated
+                                          </Badge>
+                                          <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[200px]" title={sale.irn}>
+                                            {sale.irn.substring(0, 25)}...
+                                          </span>
+                                          {sale.einvoice_status !== 'cancelled' && (
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              className="h-7 text-xs text-destructive border-destructive/30"
+                                              onClick={() => handleCancelIRN(sale)}
+                                              disabled={isCancellingIRN === sale.id}
+                                            >
+                                              {isCancellingIRN === sale.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
+                                              Cancel IRN
+                                            </Button>
+                                          )}
+                                          {sale.einvoice_status === 'cancelled' && (
+                                            <Badge variant="destructive" className="text-[11px]">IRN Cancelled</Badge>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <>
+                                          {sale.customers?.gst_number ? (
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              className="h-7 text-xs"
+                                              onClick={() => handleGenerateEInvoice(sale)}
+                                              disabled={isGeneratingEInvoice === sale.id}
+                                            >
+                                              {isGeneratingEInvoice === sale.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <FileCheck className="h-3 w-3 mr-1" />}
+                                              Generate E-Invoice
+                                            </Button>
+                                          ) : (
+                                            <span className="text-xs text-muted-foreground italic">Customer GSTIN required for E-Invoice</span>
+                                          )}
+                                          {sale.einvoice_error && (
+                                            <span className="text-xs text-destructive">Last error: {sale.einvoice_error}</span>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               </TableCell>
                             </TableRow>
