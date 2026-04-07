@@ -1217,13 +1217,22 @@ const POSDashboard = () => {
     }
   };
 
+  const safeErrorString = (val: any): string => {
+    if (!val) return '';
+    if (typeof val === 'string') return val;
+    if (typeof val === 'object') {
+      return val.ErrorMessage || val.message || val.error || JSON.stringify(val);
+    }
+    return String(val);
+  };
+
   const handleCancelIRN = async (sale: Sale) => {
     if (!sale.irn) return;
     if (sale.einvoice_status === 'cancelled') {
       toast({ title: "Already Cancelled", description: "This IRN has already been cancelled." });
       return;
     }
-    const ackDate = new Date(sale.created_at);
+    const ackDate = sale.ack_date ? new Date(sale.ack_date) : new Date(sale.created_at);
     const hoursSince = (Date.now() - ackDate.getTime()) / (1000 * 60 * 60);
     if (hoursSince > 24) {
       toast({ title: "Cannot Cancel", description: "IRN can only be cancelled within 24 hours of generation.", variant: "destructive" });
@@ -1253,7 +1262,7 @@ const POSDashboard = () => {
         toast({ title: "IRN Cancelled", description: "The e-Invoice IRN has been cancelled successfully." });
         fetchSales();
       } else {
-        toast({ title: "Cancellation Failed", description: result.error, variant: "destructive" });
+        toast({ title: "Cancellation Failed", description: safeErrorString(result.error) || "Cancellation failed", variant: "destructive" });
       }
     } catch (error: any) {
       toast({ title: "Error", description: error.message || "Failed to cancel IRN", variant: "destructive" });
