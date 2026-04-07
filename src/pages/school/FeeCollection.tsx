@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Receipt, Loader2, IndianRupee, Calendar, User, MessageCircle, Pencil, CreditCard, Banknote, Smartphone, Building2, Printer, Trash2 } from "lucide-react";
+import { Search, Receipt, Loader2, IndianRupee, Calendar, User, MessageCircle, Pencil, CreditCard, Banknote, Smartphone, Building2, Printer, Trash2, Send, ExternalLink } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { FeeCollectionDialog } from "@/components/school/FeeCollectionDialog";
 import { StudentHistoryDialog } from "@/components/school/StudentHistoryDialog";
@@ -46,6 +46,7 @@ const FeeCollection = () => {
   const [activeTab, setActiveTab] = useState("collect");
   const [deletingReceipt, setDeletingReceipt] = useState<string | null>(null);
   const [selectedYearId, setSelectedYearId] = useState<string | null>(null);
+  const [sendingReceiptWA, setSendingReceiptWA] = useState<string | null>(null);
 
   const deleteReceiptMutation = useMutation({
     mutationFn: async (receiptId: string) => {
@@ -887,7 +888,7 @@ const FeeCollection = () => {
                       <TableHead>Fee Head</TableHead>
                       <TableHead>Payment</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
-                      <TableHead className="w-14 text-center">WhatsApp</TableHead>
+                      <TableHead className="w-24 text-center">WhatsApp</TableHead>
                       <TableHead className="w-14 text-center">Modify</TableHead>
                       <TableHead className="w-14 text-center">Print</TableHead>
                       <TableHead className="w-14 text-center">Delete</TableHead>
@@ -934,28 +935,60 @@ const FeeCollection = () => {
                         </TableCell>
                         <TableCell className="text-right font-medium">₹{(fee.paid_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
                         <TableCell className="text-center">
-                          {fee.students?.parent_phone && fee.payment_receipt_id && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                              title="Send Receipt via WhatsApp"
-                              onClick={() => {
-                                const phone = fee.students.parent_phone;
-                                const studentName = fee.students?.student_name || "-";
-                                const admNo = fee.students?.admission_number || "-";
-                                const className = fee.students?.school_classes?.class_name || "-";
-                                const amount = (fee.paid_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 });
-                                const date = fee.paid_date ? format(new Date(fee.paid_date), "dd/MM/yyyy") : "-";
-                                const method = fee.payment_method || "Cash";
-                                const headName = fee.fee_heads?.head_name || "Yearly Fees 2025-26";
-                                const msg = `Fee Receipt\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nReceipt No: ${fee.payment_receipt_id}\nDate: ${date}\nStudent: ${studentName}\nAdmission No: ${admNo}\nClass: ${className}\n\nAmount Paid: Rs.${amount}\nPayment Mode: ${method}\n\n• ${headName}: Rs.${amount}\n\nThank you for your payment.\n\n${currentOrganization?.name || "School"}`;
-                                sendWhatsApp(phone, msg);
-                              }}
-                            >
-                              <MessageCircle className="h-4 w-4" />
-                            </Button>
-                          )}
+                          {fee.students?.parent_phone && fee.payment_receipt_id && (() => {
+                            const phone = fee.students.parent_phone;
+                            const studentName = fee.students?.student_name || "-";
+                            const admNo = fee.students?.admission_number || "-";
+                            const className = fee.students?.school_classes?.class_name || "-";
+                            const amount = (fee.paid_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 });
+                            const date = fee.paid_date ? format(new Date(fee.paid_date), "dd/MM/yyyy") : "-";
+                            const method = fee.payment_method || "Cash";
+                            const headName = fee.fee_heads?.head_name || "Yearly Fees 2025-26";
+                            const msg = `Fee Receipt\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nReceipt No: ${fee.payment_receipt_id}\nDate: ${date}\nStudent: ${studentName}\nAdmission No: ${admNo}\nClass: ${className}\n\nAmount Paid: Rs.${amount}\nPayment Mode: ${method}\n\n• ${headName}: Rs.${amount}\n\nThank you for your payment.\n\n${currentOrganization?.name || "School"}`;
+                            return (
+                              <div className="flex items-center justify-center gap-0.5">
+                                {/* API WhatsApp button */}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  title={whatsAppSettings?.is_active ? "Send via WhatsApp API" : "WhatsApp API not configured"}
+                                  disabled={!whatsAppSettings?.is_active || sendingReceiptWA === fee.id}
+                                  onClick={async () => {
+                                    setSendingReceiptWA(fee.id);
+                                    try {
+                                      await sendMessageAsync({
+                                        phone,
+                                        message: msg,
+                                        templateType: "fee_receipt",
+                                      } as any);
+                                      toast.success("Receipt sent via WhatsApp API!");
+                                    } catch (err: any) {
+                                      toast.error("API failed: " + (err.message || "Unknown error"));
+                                    } finally {
+                                      setSendingReceiptWA(null);
+                                    }
+                                  }}
+                                >
+                                  {sendingReceiptWA === fee.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Send className="h-4 w-4" />
+                                  )}
+                                </Button>
+                                {/* Manual WhatsApp button (wa.me) */}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  title="Send via WhatsApp (Manual)"
+                                  onClick={() => sendWhatsApp(phone, msg)}
+                                >
+                                  <MessageCircle className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell className="text-center">
                           <Button
