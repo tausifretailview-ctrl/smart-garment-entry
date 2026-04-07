@@ -80,6 +80,19 @@ Deno.serve(async (req) => {
     const baseUrl = testMode ? 'https://staging.perione.in' : 'https://api.perione.in';
     const ipAddress = await getPublicIP();
 
+    // Log masked credentials for debugging
+    const mask = (s: string) => s ? s.substring(0, 3) + '***' + s.substring(s.length - 2) : '(empty)';
+    console.log('Attempting auth with:', {
+      baseUrl,
+      username: mask(username),
+      password: mask(password),
+      clientId: mask(clientId),
+      clientSecret: mask(clientSecret),
+      email: apiEmail,
+      gstin: sellerGstin,
+      ip: ipAddress,
+    });
+
     const authUrl = `${baseUrl}/einvoice/authenticate?email=${encodeURIComponent(apiEmail)}`;
     const authResp = await fetch(authUrl, {
       method: 'GET',
@@ -94,7 +107,17 @@ Deno.serve(async (req) => {
       },
     });
 
-    const authData = await authResp.json();
+    let authData: any;
+    const respText = await authResp.text();
+    try {
+      authData = JSON.parse(respText);
+    } catch {
+      console.error('PeriOne non-JSON response. Status:', authResp.status, 'Body:', respText);
+      return new Response(
+        JSON.stringify({ success: false, error: `Server returned non-JSON (HTTP ${authResp.status}). Contact PeriOne support.` }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     if (authData.status_cd === 'Success' && authData.data?.AuthToken) {
       return new Response(
@@ -111,6 +134,7 @@ Deno.serve(async (req) => {
         authData.ErrorDetails?.ErrorMessage ||
         authData.ErrorDetails?.message ||
         authData.error_description ||
+        authData.error ||
         authData.message ||
         '';
 
