@@ -120,11 +120,202 @@ export const Header = () => {
 
         {/* Classic menu bar — desktop only */}
         <nav className="hidden lg:flex items-center gap-0 ml-1">
-          {["File", "View", "Tools", "Reports", "Help"].map((m) => (
-            <span key={m} className="text-[12px] text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent px-2.5 py-1 rounded cursor-pointer transition-colors underline-offset-2 hover:underline decoration-sidebar-foreground/30">
-              {m}
-            </span>
-          ))}
+          {/* FILE */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="text-[12px] text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent px-2.5 py-1.5 rounded transition-colors focus:outline-none">
+                File
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-52 text-sm">
+              <DropdownMenuItem onClick={() => orgNavigate("/pos-sales")} className="cursor-pointer">
+                <ShoppingCart className="h-3.5 w-3.5 mr-2 opacity-60" /> New POS Sale
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/sales-invoice")} className="cursor-pointer">
+                <Plus className="h-3.5 w-3.5 mr-2 opacity-60" /> New Invoice
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/purchase-entry")} className="cursor-pointer">
+                <Package className="h-3.5 w-3.5 mr-2 opacity-60" /> New Purchase
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/quotation-entry")} className="cursor-pointer">
+                <TrendingUp className="h-3.5 w-3.5 mr-2 opacity-60" /> New Quotation
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/product-entry")} className="cursor-pointer">
+                <BoxIcon className="h-3.5 w-3.5 mr-2 opacity-60" /> New Product
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => orgNavigate("/settings")} className="cursor-pointer">
+                Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-destructive">
+                Sign Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* VIEW */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="text-[12px] text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent px-2.5 py-1.5 rounded transition-colors focus:outline-none">
+                View
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-52 text-sm">
+              <DropdownMenuItem onClick={() => orgNavigate("/")} className="cursor-pointer">
+                <LayoutGrid className="h-3.5 w-3.5 mr-2 opacity-60" /> Dashboard
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/pos-dashboard")} className="cursor-pointer">
+                <ShoppingCart className="h-3.5 w-3.5 mr-2 opacity-60" /> POS Dashboard
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/sales-invoice-dashboard")} className="cursor-pointer">
+                <TrendingUp className="h-3.5 w-3.5 mr-2 opacity-60" /> Invoice Dashboard
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/purchase-bills")} className="cursor-pointer">
+                <Package className="h-3.5 w-3.5 mr-2 opacity-60" /> Purchase Dashboard
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => orgNavigate("/delivery-dashboard")} className="cursor-pointer">
+                Delivery Dashboard
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/payments-dashboard")} className="cursor-pointer">
+                Payments Dashboard
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => orgNavigate("/accounts")} className="cursor-pointer">
+                Accounts & Ledger
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/customer-ledger-report")} className="cursor-pointer">
+                Customer Ledger
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* TOOLS */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="text-[12px] text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent px-2.5 py-1.5 rounded transition-colors focus:outline-none">
+                Tools
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56 text-sm">
+              <DropdownMenuItem onClick={() => orgNavigate("/barcode-printing")} className="cursor-pointer">
+                <BoxIcon className="h-3.5 w-3.5 mr-2 opacity-60" /> Barcode Printing
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/stock-adjustment")} className="cursor-pointer">
+                <Package className="h-3.5 w-3.5 mr-2 opacity-60" /> Stock Adjustment
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/stock-settlement")} className="cursor-pointer">
+                Stock Settlement
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => orgNavigate("/bulk-product-update")} className="cursor-pointer">
+                Bulk Product Update
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/tally-export")} className="cursor-pointer">
+                Tally Export
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => orgNavigate("/recycle-bin")} className="cursor-pointer">
+                Recycle Bin
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/user-rights")} className="cursor-pointer">
+                User Rights
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/audit-log")} className="cursor-pointer">
+                Audit Log
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => orgNavigate("/whatsapp-inbox")} className="cursor-pointer">
+                WhatsApp Inbox
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* REPORTS */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="text-[12px] text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent px-2.5 py-1.5 rounded transition-colors focus:outline-none">
+                Reports
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56 text-sm">
+              <DropdownMenuItem onClick={() => orgNavigate("/stock-report")} className="cursor-pointer">
+                <BoxIcon className="h-3.5 w-3.5 mr-2 opacity-60" /> Stock Report
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/item-wise-sales")} className="cursor-pointer">
+                Item-wise Sales
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/item-wise-stock")} className="cursor-pointer">
+                Item-wise Stock
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/stock-ageing")} className="cursor-pointer">
+                Stock Ageing
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => orgNavigate("/daily-tally")} className="cursor-pointer">
+                <TrendingUp className="h-3.5 w-3.5 mr-2 opacity-60" /> Daily Tally
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/daily-cashier-report")} className="cursor-pointer">
+                Daily Cashier
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/daily-sale-analysis")} className="cursor-pointer">
+                Daily Sale Analysis
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/hourly-sales-analysis")} className="cursor-pointer">
+                Hourly Sales
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => orgNavigate("/accounting-reports")} className="cursor-pointer">
+                P&L / Balance Sheet
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/net-profit-analysis")} className="cursor-pointer">
+                Net Profit Analysis
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/sales-analytics")} className="cursor-pointer">
+                Sales Analytics
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => orgNavigate("/gst-reports")} className="cursor-pointer">
+                GST Reports
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/gst-register")} className="cursor-pointer">
+                GST Register
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/einvoice-report")} className="cursor-pointer">
+                E-Invoice Report
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* HELP */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="text-[12px] text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent px-2.5 py-1.5 rounded transition-colors focus:outline-none">
+                Help
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-52 text-sm">
+              <DropdownMenuItem onClick={() => orgNavigate("/settings")} className="cursor-pointer">
+                App Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => window.open("https://wa.me/your-support-number", "_blank")}
+                className="cursor-pointer"
+              >
+                WhatsApp Support
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  toast("About EzzyERP", { description: "EzzyERP v2.0 · Smart Inventory & Billing" });
+                }}
+                className="cursor-pointer"
+              >
+                About EzzyERP
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </nav>
 
         {/* Search bar — grows to fill space */}
