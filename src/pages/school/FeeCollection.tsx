@@ -323,7 +323,7 @@ const FeeCollection = () => {
 
       const query = supabase
         .from("student_fees")
-        .select("*, students!inner(student_name, admission_number, parent_phone, parent_name, class_id, school_classes:class_id(class_name)), fee_heads(head_name), academic_years(year_name)")
+        .select("*, students!inner(student_name, admission_number, parent_phone, emergency_contact, parent_name, class_id, school_classes:class_id(class_name)), fee_heads(head_name), academic_years(year_name)")
         .eq("organization_id", currentOrganization!.id)
         .eq("academic_year_id", activeYear.id)
         .gte("paid_date", dateRange.from)
