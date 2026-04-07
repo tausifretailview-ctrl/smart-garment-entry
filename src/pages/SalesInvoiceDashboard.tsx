@@ -2086,9 +2086,16 @@ export default function SalesInvoiceDashboard() {
       return;
     }
 
-    if (!confirm(`Are you sure you want to cancel the IRN for invoice ${invoice.sale_number}? This action cannot be undone.`)) {
-      return;
-    }
+    const cancelReasonCode = window.prompt(
+      `Cancel IRN for ${invoice.sale_number}\n\nEnter reason:\n1 = Duplicate\n2 = Data Entry Mistake\n3 = Order Cancelled\n4 = Others\n\nType 1, 2, 3 or 4:`
+    );
+    if (!cancelReasonCode) return;
+
+    const reasonMap: Record<string, string> = {
+      '1': 'duplicate', '2': 'data_error', '3': 'cancelled', '4': 'others'
+    };
+    const reason = reasonMap[cancelReasonCode.trim()] || 'others';
+    const remarks = window.prompt('Enter remarks (optional):') || reason;
 
     setIsCancellingIRN(invoice.id);
     try {
@@ -2097,8 +2104,8 @@ export default function SalesInvoiceDashboard() {
         body: {
           saleId: invoice.id,
           organizationId: currentOrganization?.id,
-          reason: 'others',
-          remarks: 'Cancelled from dashboard',
+          reason,
+          remarks: remarks.substring(0, 100),
           testMode,
         },
       });
