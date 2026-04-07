@@ -961,6 +961,7 @@ const FeeCollection = () => {
                         <TableCell className="text-center">
                           {fee.students?.parent_phone && fee.payment_receipt_id && (() => {
                             const phone = fee.students.parent_phone;
+                            const emergencyPhone = fee.students.emergency_contact || "";
                             const studentName = fee.students?.student_name || "-";
                             const admNo = fee.students?.admission_number || "-";
                             const className = fee.students?.school_classes?.class_name || "-";
@@ -971,12 +972,12 @@ const FeeCollection = () => {
                             const msg = `Fee Receipt\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nReceipt No: ${fee.payment_receipt_id}\nDate: ${date}\nStudent: ${studentName}\nAdmission No: ${admNo}\nClass: ${className}\n\nAmount Paid: Rs.${amount}\nPayment Mode: ${method}\n\n• ${headName}: Rs.${amount}\n\nThank you for your payment.\n\n${currentOrganization?.name || "School"}`;
                             return (
                               <div className="flex items-center justify-center gap-0.5">
-                                {/* API WhatsApp button */}
+                                {/* API WhatsApp button - sends to both parent + emergency */}
                                 <Button
                                   variant="ghost"
                                   size="icon"
                                   className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                  title={whatsAppSettings?.is_active ? "Send via WhatsApp API" : "WhatsApp API not configured"}
+                                  title={whatsAppSettings?.is_active ? `Send via API to ${phone}${emergencyPhone ? ` & ${emergencyPhone}` : ""}` : "WhatsApp API not configured"}
                                   disabled={!whatsAppSettings?.is_active || sendingReceiptWA === fee.id}
                                   onClick={async () => {
                                     setSendingReceiptWA(fee.id);
@@ -986,7 +987,15 @@ const FeeCollection = () => {
                                         message: msg,
                                         templateType: "fee_receipt",
                                       } as any);
-                                      toast.success("Receipt sent via WhatsApp API!");
+                                      // Also send to emergency contact if available
+                                      if (emergencyPhone && emergencyPhone !== phone) {
+                                        await sendMessageAsync({
+                                          phone: emergencyPhone,
+                                          message: msg,
+                                          templateType: "fee_receipt",
+                                        } as any);
+                                      }
+                                      toast.success(`Receipt sent via WhatsApp API!${emergencyPhone && emergencyPhone !== phone ? " (sent to emergency contact too)" : ""}`);
                                     } catch (err: any) {
                                       toast.error("API failed: " + (err.message || "Unknown error"));
                                     } finally {
@@ -1000,16 +1009,28 @@ const FeeCollection = () => {
                                     <Send className="h-4 w-4" />
                                   )}
                                 </Button>
-                                {/* Manual WhatsApp button (wa.me) */}
+                                {/* Manual WhatsApp - parent */}
                                 <Button
                                   variant="ghost"
                                   size="icon"
                                   className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                  title="Send via WhatsApp (Manual)"
+                                  title={`Manual WhatsApp to Parent: ${phone}`}
                                   onClick={() => sendWhatsApp(phone, msg)}
                                 >
                                   <MessageCircle className="h-4 w-4" />
                                 </Button>
+                                {/* Manual WhatsApp - emergency contact */}
+                                {emergencyPhone && emergencyPhone !== phone && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                                    title={`Manual WhatsApp to Emergency: ${emergencyPhone}`}
+                                    onClick={() => sendWhatsApp(emergencyPhone, msg)}
+                                  >
+                                    <MessageCircle className="h-4 w-4" />
+                                  </Button>
+                                )}
                               </div>
                             );
                           })()}
