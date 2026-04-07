@@ -1203,6 +1203,7 @@ const POSDashboard = () => {
       });
       if (response.error) throw new Error(response.error.message);
       const result = response.data;
+      if (!result) throw new Error("No response received from e-Invoice service");
       if (result.success) {
         toast({ title: "E-Invoice Generated", description: `IRN: ${result.irn?.substring(0, 30)}...` });
         fetchSales();

@@ -2027,6 +2027,10 @@ export default function SalesInvoiceDashboard() {
 
       const result = response.data;
       
+      if (!result) {
+        throw new Error("No response received from e-Invoice service");
+      }
+      
       if (result.success) {
         toast({
           title: "E-Invoice Generated",
