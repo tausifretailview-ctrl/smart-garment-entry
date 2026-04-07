@@ -165,7 +165,7 @@ export const SchoolFeeReceipt = forwardRef<HTMLDivElement, SchoolFeeReceiptProps
             <div style={{ textAlign: "right" }}>
               <p style={{ margin: "2px 0" }}><strong>Date:</strong> {format(new Date(paidDate), "dd/MM/yyyy")}</p>
               <p style={{ margin: "2px 0" }}><strong>Class:</strong> {student.class_name}</p>
-              {student.parent_name && <p style={{ margin: "2px 0" }}><strong>Parent:</strong> {student.parent_name}</p>}
+              {parentFullName && <p style={{ margin: "2px 0" }}><strong>Parent:</strong> {parentFullName}</p>}
               <p style={{ margin: "2px 0" }}><strong>Academic Year:</strong> {academicYear}</p>
             </div>
           </div>
