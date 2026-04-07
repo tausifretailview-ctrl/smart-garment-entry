@@ -62,10 +62,26 @@ const normalizeName = (name: string): string => {
 };
 
 const findColumn = (headers: string[], candidates: string[]): number => {
-  const lower = headers.map(h => (h || "").toString().trim().toLowerCase());
+  const lower = headers.map(h => (h || "").toString().trim().toLowerCase().replace(/\n/g, " "));
   for (const c of candidates) {
     const idx = lower.indexOf(c.toLowerCase());
     if (idx !== -1) return idx;
+  }
+  return -1;
+};
+
+/** Find the Nth occurrence of a column matching candidates (0-indexed) */
+const findColumnNth = (headers: string[], candidates: string[], nth: number): number => {
+  const lower = headers.map(h => (h || "").toString().trim().toLowerCase().replace(/\n/g, " "));
+  let count = 0;
+  for (let i = 0; i < lower.length; i++) {
+    for (const c of candidates) {
+      if (lower[i] === c.toLowerCase()) {
+        if (count === nth) return i;
+        count++;
+        break;
+      }
+    }
   }
   return -1;
 };
