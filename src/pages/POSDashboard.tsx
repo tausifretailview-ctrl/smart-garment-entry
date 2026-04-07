@@ -1299,8 +1299,8 @@ const POSDashboard = () => {
     }, 500);
   };
 
-
-    const handleNextPage = () => {
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
       setCurrentPage(currentPage + 1);
     }
   };
