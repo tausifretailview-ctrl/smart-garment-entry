@@ -1187,6 +1187,7 @@ textarea {
   text-transform: uppercase;
 }
 
-textarea.no-uppercase {
+textarea.no-uppercase,
+input.no-uppercase {
   text-transform: none;
 }
