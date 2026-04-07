@@ -96,6 +96,18 @@ export const useQZTray = () => {
       const result = await qz.printers.find();
       const list: string[] = Array.isArray(result) ? result : (result ? [String(result)] : []);
 
+      // If empty, retry once after short delay (QZ sometimes needs a moment)
+      if (list.length === 0) {
+        await new Promise(r => setTimeout(r, 500));
+        setupQZSecurity(qz);
+        const result2 = await qz.printers.find();
+        const list2: string[] = Array.isArray(result2)
+          ? result2
+          : (result2 ? [String(result2)] : []);
+        setState(prev => ({ ...prev, printers: list2, error: null, isConnected: true }));
+        return list2;
+      }
+
       setState(prev => ({ ...prev, printers: list, error: null, isConnected: true }));
       return list;
     } catch (err: any) {
@@ -152,14 +164,23 @@ export const useQZTray = () => {
   // Auto-connect + fetch printers on mount
   useEffect(() => {
     if (!isQZAvailable()) return;
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
+      // Wait for qz script to be available (defer loads it late)
+      let attempts = 0;
+      while (!isQZAvailable() && attempts < 15) {
+        await new Promise(r => setTimeout(r, 200));
+        attempts++;
+      }
+      if (!isQZAvailable()) return;
+
       if (isQZLive()) {
         setState(prev => ({ ...prev, isConnected: true }));
         getPrinters();
       } else {
-        connect().then(ok => { if (ok) getPrinters(); });
+        const ok = await connect();
+        if (ok) getPrinters();
       }
-    }, 800);
+    }, 500);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // once on mount only

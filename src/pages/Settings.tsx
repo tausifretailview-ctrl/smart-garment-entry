@@ -2375,7 +2375,7 @@ export default function Settings() {
                               if (printers.length === 0) {
                                 toast({
                                   title: "No Printers Found",
-                                  description: "QZ Tray is not running. Install from qz.io/download",
+                                  description: "Make sure QZ Tray app is running on this computer (system tray). Download from qz.io/download if not installed.",
                                   variant: "destructive",
                                 });
                               } else {
