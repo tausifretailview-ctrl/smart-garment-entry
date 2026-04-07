@@ -3322,25 +3322,30 @@ export default function Settings() {
                           
                           <div className="space-y-2">
                             <Label htmlFor="api_password">Password</Label>
-                             <Input
-                              id="api_password"
-                              type="password"
-                              className="no-uppercase"
-                              value={settings.sale_settings?.einvoice_settings?.api_password || ''}
-                              onChange={(e) =>
-                                setSettings({
-                                  ...settings,
-                                  sale_settings: {
-                                    ...settings.sale_settings,
-                                    einvoice_settings: {
-                                      ...settings.sale_settings?.einvoice_settings,
-                                      api_password: e.target.value,
-                                    } as any,
-                                  },
-                                })
-                              }
-                              placeholder="••••••••"
-                            />
+                            <div className="relative">
+                              <Input
+                                id="api_password"
+                                type={showApiPassword ? "text" : "password"}
+                                className="no-uppercase pr-10"
+                                value={settings.sale_settings?.einvoice_settings?.api_password || ''}
+                                onChange={(e) =>
+                                  setSettings({
+                                    ...settings,
+                                    sale_settings: {
+                                      ...settings.sale_settings,
+                                      einvoice_settings: {
+                                        ...settings.sale_settings?.einvoice_settings,
+                                        api_password: e.target.value,
+                                      } as any,
+                                    },
+                                  })
+                                }
+                                placeholder="••••••••"
+                              />
+                              <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3 hover:bg-transparent" onClick={() => setShowApiPassword(!showApiPassword)}>
+                                {showApiPassword ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                              </Button>
+                            </div>
                           </div>
                           
                           <div className="space-y-2">
@@ -3367,25 +3372,30 @@ export default function Settings() {
                           
                           <div className="space-y-2 md:col-span-2">
                             <Label htmlFor="api_client_secret">Client Secret</Label>
-                            <Input
-                              id="api_client_secret"
-                              type="password"
-                              value={settings.sale_settings?.einvoice_settings?.api_client_secret || ''}
-                              onChange={(e) =>
-                                setSettings({
-                                  ...settings,
-                                  sale_settings: {
-                                    ...settings.sale_settings,
-                                    einvoice_settings: {
-                                      ...settings.sale_settings?.einvoice_settings,
-                                      api_client_secret: e.target.value,
-                                    } as any,
-                                  },
-                                })
-                              }
-                              placeholder="••••••••••••••••"
-                              className="font-mono no-uppercase"
-                            />
+                            <div className="relative">
+                              <Input
+                                id="api_client_secret"
+                                type={showClientSecret ? "text" : "password"}
+                                value={settings.sale_settings?.einvoice_settings?.api_client_secret || ''}
+                                onChange={(e) =>
+                                  setSettings({
+                                    ...settings,
+                                    sale_settings: {
+                                      ...settings.sale_settings,
+                                      einvoice_settings: {
+                                        ...settings.sale_settings?.einvoice_settings,
+                                        api_client_secret: e.target.value,
+                                      } as any,
+                                    },
+                                  })
+                                }
+                                placeholder="••••••••••••••••"
+                                className="font-mono no-uppercase pr-10"
+                              />
+                              <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3 hover:bg-transparent" onClick={() => setShowClientSecret(!showClientSecret)}>
+                                {showClientSecret ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </div>
