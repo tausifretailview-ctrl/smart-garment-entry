@@ -28,6 +28,20 @@ export const SchoolFeeReceipt = forwardRef<HTMLDivElement, SchoolFeeReceiptProps
     const orgAddress = (currentOrganization as any)?.address || "";
     const orgPhone = (currentOrganization as any)?.phone || "";
 
+    // Auto-append student surname to parent name if missing
+    const parentFullName = (() => {
+      const parent = (student.parent_name || "").trim();
+      if (!parent) return "";
+      // Extract surname: last word from student name (strip prefixes like MST., MS., MR.)
+      const cleanName = student.student_name.replace(/^(MST\.?|MS\.?|MR\.?)\s*/i, "").trim();
+      const nameParts = cleanName.split(/\s+/);
+      if (nameParts.length < 2) return parent;
+      const surname = nameParts[nameParts.length - 1].replace(/\.$/, "");
+      // If parent name already contains surname, skip
+      if (parent.toUpperCase().includes(surname.toUpperCase())) return parent;
+      return `${parent} ${surname}`.toUpperCase();
+    })();
+
     const { data: logoUrl } = useQuery({
       queryKey: ["org-logo", currentOrganization?.id],
       queryFn: async () => {
@@ -151,7 +165,7 @@ export const SchoolFeeReceipt = forwardRef<HTMLDivElement, SchoolFeeReceiptProps
             <div style={{ textAlign: "right" }}>
               <p style={{ margin: "2px 0" }}><strong>Date:</strong> {format(new Date(paidDate), "dd/MM/yyyy")}</p>
               <p style={{ margin: "2px 0" }}><strong>Class:</strong> {student.class_name}</p>
-              {student.parent_name && <p style={{ margin: "2px 0" }}><strong>Parent:</strong> {student.parent_name}</p>}
+              {parentFullName && <p style={{ margin: "2px 0" }}><strong>Parent:</strong> {parentFullName}</p>}
               <p style={{ margin: "2px 0" }}><strong>Academic Year:</strong> {academicYear}</p>
             </div>
           </div>
