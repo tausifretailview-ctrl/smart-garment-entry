@@ -323,7 +323,7 @@ const FeeCollection = () => {
 
       const query = supabase
         .from("student_fees")
-        .select("*, students!inner(student_name, admission_number, parent_phone, parent_name, class_id, school_classes:class_id(class_name)), fee_heads(head_name), academic_years(year_name)")
+        .select("*, students!inner(student_name, admission_number, parent_phone, emergency_contact, parent_name, class_id, school_classes:class_id(class_name)), fee_heads(head_name), academic_years(year_name)")
         .eq("organization_id", currentOrganization!.id)
         .eq("academic_year_id", activeYear.id)
         .gte("paid_date", dateRange.from)
@@ -419,11 +419,13 @@ const FeeCollection = () => {
     const amountStr = `Rs.${student.totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
     const reminderMsg = `Fees Reminder\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\n💰 Pending Fees: ${amountStr}\n\nPlease pay before the due date to avoid late fees.${upiId ? `\n\n💳 *Pay Online via UPI:*\n${paymentLink}\n_(Opens GPay, PhonePe, Paytm or any UPI app. Amount is pre-filled but you may edit if paying a different amount.)_` : ""}\n\nOr pay at the school office.\n\nThank you 🙏\n${currentOrganization?.name || "School"}`;
 
+    const emergencyPhone = student.emergency_contact || "";
+    const sendToEmergency = emergencyPhone && emergencyPhone !== phone;
+
     if (whatsAppSettings?.is_active) {
       setSendingReminder(student.id);
       try {
         if (templateName) {
-          // Send via Meta template
           await sendMessageAsync({
             phone,
             message: reminderMsg,
@@ -442,25 +444,50 @@ const FeeCollection = () => {
               upi_deep_link: upiDeepLink,
             },
           });
+          // Also send to emergency contact
+          if (sendToEmergency) {
+            await sendMessageAsync({
+              phone: emergencyPhone,
+              message: reminderMsg,
+              templateType: "fee_reminder",
+              templateName,
+              imageUrl: logoUrl || undefined,
+              imageCaption: currentOrganization?.name || "",
+              saleData: {
+                student_name: student.student_name,
+                admission_number: student.admission_number,
+                class_name: student.school_classes?.class_name || "",
+                amount: student.totalDue,
+                organization_name: currentOrganization?.name || "",
+                payment_link: paymentLink || "Please pay at the school office",
+                upi_id: upiId,
+                upi_deep_link: upiDeepLink,
+              },
+            });
+          }
         } else {
-          // No template configured — send as plain text via API
           await sendMessageAsync({
             phone,
             message: reminderMsg,
             templateType: "fee_reminder",
           } as any);
+          if (sendToEmergency) {
+            await sendMessageAsync({
+              phone: emergencyPhone,
+              message: reminderMsg,
+              templateType: "fee_reminder",
+            } as any);
+          }
         }
-        toast.success("Fee reminder sent via WhatsApp!");
+        toast.success(`Fee reminder sent via WhatsApp!${sendToEmergency ? " (sent to emergency contact too)" : ""}`);
       } catch (err: any) {
         console.error("WhatsApp reminder error:", err);
         toast.error("WhatsApp API failed: " + (err.message || "Unknown error") + ". Check WhatsApp settings.");
-        // Fallback to wa.me link
         sendWhatsApp(phone, reminderMsg);
       } finally {
         setSendingReminder(null);
       }
     } else {
-      // WhatsApp API not active — open wa.me link
       sendWhatsApp(phone, reminderMsg);
     }
   };
@@ -710,7 +737,7 @@ const FeeCollection = () => {
                                   className="text-green-600 border-green-600 hover:bg-green-50 h-8 w-8 p-0"
                                   onClick={() => handleSendReminder(student)}
                                   disabled={sendingReminder === student.id || !whatsAppSettings?.is_active}
-                                  title="Send via WhatsApp API"
+                                  title={`Send via API to ${student.parent_phone}${student.emergency_contact && student.emergency_contact !== student.parent_phone ? ` & ${student.emergency_contact}` : ""}`}
                                 >
                                   {sendingReminder === student.id ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -736,10 +763,33 @@ const FeeCollection = () => {
                                     const msg = `Fees Reminder\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\n💰 Pending Fees: ${amountStr}\n\nPlease pay before the due date to avoid late fees.${upiId ? `\n\n💳 *Pay Online via UPI:*\n${paymentLink}\n_(Opens GPay, PhonePe, Paytm or any UPI app. Amount is pre-filled but you may edit if paying a different amount.)_` : ""}\n\nOr pay at the school office.\n\nThank you 🙏\n${currentOrganization?.name || "School"}`;
                                     sendWhatsApp(phone, msg);
                                   }}
-                                  title="Send manually via WhatsApp"
+                                  title={`Manual WhatsApp to Parent: ${student.parent_phone}`}
                                 >
                                   <MessageCircle className="h-4 w-4" />
                                 </Button>
+                                {/* Manual WhatsApp to emergency contact */}
+                                {student.emergency_contact && student.emergency_contact !== student.parent_phone && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-orange-600 border-orange-600 hover:bg-orange-50 h-8 w-8 p-0"
+                                    onClick={() => {
+                                      const upiId = gatewaySettings?.upi_id || "";
+                                      const upiBusinessName = gatewaySettings?.upi_business_name || currentOrganization?.name || "School";
+                                      let paymentLink = "";
+                                      if (upiId && student.totalDue > 0) {
+                                        const upiParams = new URLSearchParams({ pa: upiId, pn: upiBusinessName, am: String(student.totalDue), cu: "INR", tn: `Fees-${student.admission_number}` });
+                                        paymentLink = `${window.location.origin}/pay?${upiParams.toString()}`;
+                                      }
+                                      const amountStr = `Rs.${student.totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+                                      const msg = `Fees Reminder\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\n💰 Pending Fees: ${amountStr}\n\nPlease pay before the due date to avoid late fees.${upiId ? `\n\n💳 *Pay Online via UPI:*\n${paymentLink}\n_(Opens GPay, PhonePe, Paytm or any UPI app. Amount is pre-filled but you may edit if paying a different amount.)_` : ""}\n\nOr pay at the school office.\n\nThank you 🙏\n${currentOrganization?.name || "School"}`;
+                                      sendWhatsApp(student.emergency_contact, msg);
+                                    }}
+                                    title={`Manual WhatsApp to Emergency: ${student.emergency_contact}`}
+                                  >
+                                    <MessageCircle className="h-4 w-4" />
+                                  </Button>
+                                )}
                               </>
                             )}
                             <Button size="sm" onClick={() => handleCollect(student)} className="h-8">
@@ -961,6 +1011,7 @@ const FeeCollection = () => {
                         <TableCell className="text-center">
                           {fee.students?.parent_phone && fee.payment_receipt_id && (() => {
                             const phone = fee.students.parent_phone;
+                            const emergencyPhone = fee.students.emergency_contact || "";
                             const studentName = fee.students?.student_name || "-";
                             const admNo = fee.students?.admission_number || "-";
                             const className = fee.students?.school_classes?.class_name || "-";
@@ -971,12 +1022,12 @@ const FeeCollection = () => {
                             const msg = `Fee Receipt\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nReceipt No: ${fee.payment_receipt_id}\nDate: ${date}\nStudent: ${studentName}\nAdmission No: ${admNo}\nClass: ${className}\n\nAmount Paid: Rs.${amount}\nPayment Mode: ${method}\n\n• ${headName}: Rs.${amount}\n\nThank you for your payment.\n\n${currentOrganization?.name || "School"}`;
                             return (
                               <div className="flex items-center justify-center gap-0.5">
-                                {/* API WhatsApp button */}
+                                {/* API WhatsApp button - sends to both parent + emergency */}
                                 <Button
                                   variant="ghost"
                                   size="icon"
                                   className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                  title={whatsAppSettings?.is_active ? "Send via WhatsApp API" : "WhatsApp API not configured"}
+                                  title={whatsAppSettings?.is_active ? `Send via API to ${phone}${emergencyPhone ? ` & ${emergencyPhone}` : ""}` : "WhatsApp API not configured"}
                                   disabled={!whatsAppSettings?.is_active || sendingReceiptWA === fee.id}
                                   onClick={async () => {
                                     setSendingReceiptWA(fee.id);
@@ -986,7 +1037,15 @@ const FeeCollection = () => {
                                         message: msg,
                                         templateType: "fee_receipt",
                                       } as any);
-                                      toast.success("Receipt sent via WhatsApp API!");
+                                      // Also send to emergency contact if available
+                                      if (emergencyPhone && emergencyPhone !== phone) {
+                                        await sendMessageAsync({
+                                          phone: emergencyPhone,
+                                          message: msg,
+                                          templateType: "fee_receipt",
+                                        } as any);
+                                      }
+                                      toast.success(`Receipt sent via WhatsApp API!${emergencyPhone && emergencyPhone !== phone ? " (sent to emergency contact too)" : ""}`);
                                     } catch (err: any) {
                                       toast.error("API failed: " + (err.message || "Unknown error"));
                                     } finally {
@@ -1000,16 +1059,28 @@ const FeeCollection = () => {
                                     <Send className="h-4 w-4" />
                                   )}
                                 </Button>
-                                {/* Manual WhatsApp button (wa.me) */}
+                                {/* Manual WhatsApp - parent */}
                                 <Button
                                   variant="ghost"
                                   size="icon"
                                   className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                  title="Send via WhatsApp (Manual)"
+                                  title={`Manual WhatsApp to Parent: ${phone}`}
                                   onClick={() => sendWhatsApp(phone, msg)}
                                 >
                                   <MessageCircle className="h-4 w-4" />
                                 </Button>
+                                {/* Manual WhatsApp - emergency contact */}
+                                {emergencyPhone && emergencyPhone !== phone && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                                    title={`Manual WhatsApp to Emergency: ${emergencyPhone}`}
+                                    onClick={() => sendWhatsApp(emergencyPhone, msg)}
+                                  >
+                                    <MessageCircle className="h-4 w-4" />
+                                  </Button>
+                                )}
                               </div>
                             );
                           })()}
