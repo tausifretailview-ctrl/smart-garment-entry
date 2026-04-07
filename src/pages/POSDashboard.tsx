@@ -2077,6 +2077,9 @@ const POSDashboard = () => {
                                           <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[200px]" title={sale.irn}>
                                             {sale.irn.substring(0, 25)}...
                                           </span>
+                                          {sale.ack_no && (
+                                            <span className="text-[10px] text-green-600 font-medium">Ack No: {sale.ack_no}</span>
+                                          )}
                                           {sale.einvoice_status !== 'cancelled' && (
                                             <Button
                                               variant="outline"
@@ -2120,7 +2123,11 @@ const POSDashboard = () => {
                                             <span className="text-xs text-muted-foreground italic">Customer GSTIN required for E-Invoice</span>
                                           )}
                                           {sale.einvoice_error && (
-                                            <span className="text-xs text-destructive">Last error: {sale.einvoice_error}</span>
+                                            sale.einvoice_error.toLowerCase().includes('success') ? (
+                                              <span className="text-xs text-green-600 font-medium">✓ {sale.einvoice_error}</span>
+                                            ) : (
+                                              <span className="text-xs text-destructive">Last error: {sale.einvoice_error}</span>
+                                            )
                                           )}
                                         </>
                                       )}

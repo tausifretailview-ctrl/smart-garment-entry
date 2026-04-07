@@ -573,7 +573,12 @@ Deno.serve(async (req) => {
     console.log('Generate response status:', generateData.status_cd);
     console.log('Generate response full:', JSON.stringify(generateData));
 
-    if (generateData.status_cd !== 'Success') {
+    // PeriOne may return success with status_cd='Success', '1', or even with Irn in data
+    const isSuccess = generateData.status_cd === 'Success' 
+      || generateData.status_cd === '1'
+      || (generateData.data && generateData.data.Irn);
+
+    if (!isSuccess) {
       // Extract error from all possible PeriOne response formats
       const extractErr = (details: any): string => {
         if (!details) return '';
