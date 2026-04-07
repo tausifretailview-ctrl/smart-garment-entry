@@ -24,7 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send, CheckCircle2, Clock, RefreshCcw, ShoppingCart, Pause, FileText, Lock, FileSpreadsheet } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send, CheckCircle2, Clock, RefreshCcw, ShoppingCart, Pause, FileText, Lock, FileSpreadsheet, FileCheck, XCircle, Download } from "lucide-react";
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
 
@@ -92,6 +92,13 @@ interface Sale {
   notes?: string | null;
   created_at: string;
   sale_type?: string;
+  // E-Invoice fields
+  irn?: string | null;
+  ack_no?: string | null;
+  einvoice_status?: string | null;
+  einvoice_error?: string | null;
+  einvoice_qr_code?: string | null;
+  customers?: { gst_number?: string | null } | null;
 }
 
 // Default columns - defined OUTSIDE component to prevent re-render loops
@@ -202,6 +209,10 @@ const POSDashboard = () => {
   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
   
+  // E-Invoice state
+  const [isGeneratingEInvoice, setIsGeneratingEInvoice] = useState<string | null>(null);
+  const [isCancellingIRN, setIsCancellingIRN] = useState<string | null>(null);
+
   // Virtual scrolling ref
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
@@ -216,6 +227,8 @@ const POSDashboard = () => {
   const showItemBarcode = saleSettings?.show_item_barcode ?? true;
   const showItemHsn = saleSettings?.show_item_hsn ?? false;
   const showItemMrp = saleSettings?.show_item_mrp ?? saleSettings?.show_mrp_column ?? false;
+  const isEInvoiceEnabled = saleSettings?.einvoice_settings?.enabled ?? false;
+
   useEffect(() => {
     const loadData = async () => {
       await fetchSales();
@@ -278,7 +291,7 @@ const POSDashboard = () => {
       while (hasMore) {
         const { data, error } = await supabase
           .from("sales")
-          .select("*")
+          .select("*, customers:customer_id (gst_number)")
           .eq("organization_id", currentOrganization.id)
           .in("sale_type", ["pos", "delivery_challan"])
           .is("deleted_at", null)
@@ -1159,6 +1172,79 @@ const POSDashboard = () => {
     navigate(`/pos-sales?saleId=${saleId}`);
   }, [navigate]);
 
+  // ── E-Invoice handlers ──
+  const handleGenerateEInvoice = async (sale: Sale) => {
+    const customerGstin = sale.customers?.gst_number;
+    if (!customerGstin) {
+      toast({ title: "GSTIN Required", description: "Customer GSTIN is required for e-Invoice generation (B2B requirement).", variant: "destructive" });
+      return;
+    }
+    if (sale.irn) {
+      toast({ title: "Already Generated", description: `E-Invoice already exists. IRN: ${sale.irn.substring(0, 20)}...` });
+      return;
+    }
+    const sellerGstin = (settings as any)?.gst_number;
+    if (!sellerGstin) {
+      toast({ title: "Seller GSTIN Missing", description: "Configure Business GSTIN in Settings → Business Details.", variant: "destructive" });
+      return;
+    }
+
+    setIsGeneratingEInvoice(sale.id);
+    try {
+      const testMode = saleSettings?.einvoice_settings?.test_mode ?? true;
+      const response = await supabase.functions.invoke('generate-einvoice', {
+        body: { saleId: sale.id, organizationId: currentOrganization?.id, testMode },
+      });
+      if (response.error) throw new Error(response.error.message);
+      const result = response.data;
+      if (result.success) {
+        toast({ title: "E-Invoice Generated", description: `IRN: ${result.irn?.substring(0, 30)}...` });
+        fetchSales();
+      } else {
+        toast({ title: "E-Invoice Failed", description: result.error || "Failed to generate e-Invoice", variant: "destructive" });
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to generate e-Invoice", variant: "destructive" });
+    } finally {
+      setIsGeneratingEInvoice(null);
+    }
+  };
+
+  const handleCancelIRN = async (sale: Sale) => {
+    if (!sale.irn) return;
+    if (sale.einvoice_status === 'cancelled') {
+      toast({ title: "Already Cancelled", description: "This IRN has already been cancelled." });
+      return;
+    }
+    const ackDate = new Date(sale.created_at);
+    const hoursSince = (Date.now() - ackDate.getTime()) / (1000 * 60 * 60);
+    if (hoursSince > 24) {
+      toast({ title: "Cannot Cancel", description: "IRN can only be cancelled within 24 hours of generation.", variant: "destructive" });
+      return;
+    }
+    if (!confirm(`Cancel IRN for bill ${sale.sale_number}? This cannot be undone.`)) return;
+
+    setIsCancellingIRN(sale.id);
+    try {
+      const testMode = saleSettings?.einvoice_settings?.test_mode ?? true;
+      const response = await supabase.functions.invoke('cancel-einvoice', {
+        body: { saleId: sale.id, organizationId: currentOrganization?.id, reason: 'others', remarks: 'Cancelled from POS dashboard', testMode },
+      });
+      if (response.error) throw new Error(response.error.message);
+      const result = response.data;
+      if (result.success) {
+        toast({ title: "IRN Cancelled", description: "The e-Invoice IRN has been cancelled successfully." });
+        fetchSales();
+      } else {
+        toast({ title: "Cancellation Failed", description: result.error, variant: "destructive" });
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to cancel IRN", variant: "destructive" });
+    } finally {
+      setIsCancellingIRN(null);
+    }
+  };
+
   const handleNextPage = () => {
     if (currentPage < totalPages) {
       setCurrentPage(currentPage + 1);
@@ -1919,6 +2005,59 @@ const POSDashboard = () => {
                                           </TableBody>
                                         </Table>
                                       </div>
+                                    </div>
+                                  )}
+
+                                  {/* E-Invoice Actions */}
+                                  {isEInvoiceEnabled && sale.customer_id && (
+                                    <div className="flex items-center gap-2 pt-2 border-t">
+                                      <span className="text-xs font-semibold text-muted-foreground mr-1">E-Invoice:</span>
+                                      {sale.irn ? (
+                                        <>
+                                          <Badge className="bg-green-500 text-white text-[11px]">
+                                            <FileCheck className="h-3 w-3 mr-1" />
+                                            IRN Generated
+                                          </Badge>
+                                          <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[200px]" title={sale.irn}>
+                                            {sale.irn.substring(0, 25)}...
+                                          </span>
+                                          {sale.einvoice_status !== 'cancelled' && (
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              className="h-7 text-xs text-destructive border-destructive/30"
+                                              onClick={() => handleCancelIRN(sale)}
+                                              disabled={isCancellingIRN === sale.id}
+                                            >
+                                              {isCancellingIRN === sale.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
+                                              Cancel IRN
+                                            </Button>
+                                          )}
+                                          {sale.einvoice_status === 'cancelled' && (
+                                            <Badge variant="destructive" className="text-[11px]">IRN Cancelled</Badge>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <>
+                                          {sale.customers?.gst_number ? (
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              className="h-7 text-xs"
+                                              onClick={() => handleGenerateEInvoice(sale)}
+                                              disabled={isGeneratingEInvoice === sale.id}
+                                            >
+                                              {isGeneratingEInvoice === sale.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <FileCheck className="h-3 w-3 mr-1" />}
+                                              Generate E-Invoice
+                                            </Button>
+                                          ) : (
+                                            <span className="text-xs text-muted-foreground italic">Customer GSTIN required for E-Invoice</span>
+                                          )}
+                                          {sale.einvoice_error && (
+                                            <span className="text-xs text-destructive">Last error: {sale.einvoice_error}</span>
+                                          )}
+                                        </>
+                                      )}
                                     </div>
                                   )}
                                 </div>
