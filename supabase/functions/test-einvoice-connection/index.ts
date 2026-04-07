@@ -111,6 +111,7 @@ Deno.serve(async (req) => {
         authData.ErrorDetails?.ErrorMessage ||
         authData.ErrorDetails?.message ||
         authData.error_description ||
+        authData.error ||
         authData.message ||
         '';
 
