@@ -81,14 +81,6 @@ export const DirectPrintDialog = ({
     printRaw,
   } = useQZTray();
 
-  // Fetch printers every time the dialog opens
-  useEffect(() => {
-    if (open) {
-      getPrinters();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
   const {
     isSupported: isUsbSupported,
     isConnected: isUsbConnected,
@@ -248,7 +240,21 @@ export const DirectPrintDialog = ({
   };
 
   const handleRefreshPrinters = async () => {
-    await getPrinters();
+    setIsFetchingPrinters(true);
+    let list = await getPrinters();
+
+    for (let i = 0; i < 2 && list.length === 0; i++) {
+      await new Promise(r => setTimeout(r, 800));
+      list = await getPrinters();
+    }
+
+    setIsFetchingPrinters(false);
+
+    if (list.length === 0) {
+      toast.error('No printers detected. Make sure QZ Tray is running in the system tray.');
+      return;
+    }
+
     toast.success('Printer list refreshed');
   };
 

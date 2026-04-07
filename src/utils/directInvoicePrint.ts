@@ -12,6 +12,12 @@ interface PrintConfig {
   copies?: number;
 }
 
+const QZ_CONNECT_OPTIONS = {
+  retries: 2,
+  delay: 1,
+  keepAlive: 60,
+};
+
 /**
  * Check if QZ Tray is available and connected
  */
@@ -62,13 +68,14 @@ function setupQZSecurity() {
  * Connect to QZ Tray if not already connected
  */
 export const ensureQZConnection = async (): Promise<boolean> => {
-  if (typeof window === 'undefined' || !window.qz) return false;
+  const loaded = await waitForQZ();
+  if (!loaded || typeof window === 'undefined' || !window.qz) return false;
   try {
     if (window.qz.websocket.isActive()) return true;
     // Set security before connect
     window.qz.security.setCertificatePromise(function(resolve: Function) { resolve(); });
     window.qz.security.setSignaturePromise(function(_: string, resolve: Function) { resolve(); });
-    await window.qz.websocket.connect();
+    await window.qz.websocket.connect(QZ_CONNECT_OPTIONS);
     return true;
   } catch (err) {
     console.error('QZ Tray connection failed:', err);
@@ -90,7 +97,17 @@ export const getQZPrinters = async (): Promise<string[]> => {
     window.qz.security.setCertificatePromise(function(resolve: Function) { resolve(); });
     window.qz.security.setSignaturePromise(function(_: string, resolve: Function) { resolve(); });
     const result = await window.qz.printers.find();
-    return Array.isArray(result) ? result : (result ? [String(result)] : []);
+    const list = Array.isArray(result) ? result : (result ? [String(result)] : []);
+
+    if (list.length === 0) {
+      await new Promise(r => setTimeout(r, 500));
+      window.qz.security.setCertificatePromise(function(resolve: Function) { resolve(); });
+      window.qz.security.setSignaturePromise(function(_: string, resolve: Function) { resolve(); });
+      const result2 = await window.qz.printers.find();
+      return Array.isArray(result2) ? result2 : (result2 ? [String(result2)] : []);
+    }
+
+    return list;
   } catch (err) {
     console.error('Failed to get printers:', err);
     return [];

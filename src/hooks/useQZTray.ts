@@ -15,6 +15,12 @@ interface QZTrayState {
   error: string | null;
 }
 
+const QZ_CONNECT_OPTIONS = {
+  retries: 2,
+  delay: 1,
+  keepAlive: 60,
+};
+
 // Must be called before connect() AND before printers.find() AND before print()
 function setupQZSecurity(qz: any) {
   qz.security.setCertificatePromise(function(resolve: Function, reject: Function) {
@@ -40,12 +46,25 @@ export const useQZTray = () => {
     return typeof window !== 'undefined' && window.qz !== undefined;
   }, []);
 
+  const waitForQZAvailability = useCallback(async (): Promise<boolean> => {
+    if (isQZAvailable()) return true;
+
+    let attempts = 0;
+    while (!isQZAvailable() && attempts < 15) {
+      await new Promise(r => setTimeout(r, 200));
+      attempts++;
+    }
+
+    return isQZAvailable();
+  }, [isQZAvailable]);
+
   const isQZLive = (): boolean => {
     return typeof window !== 'undefined' && window.qz?.websocket?.isActive?.() === true;
   };
 
   const connect = useCallback(async (): Promise<boolean> => {
-    if (!isQZAvailable()) {
+    const available = await waitForQZAvailability();
+    if (!available) {
       setState(prev => ({ ...prev, error: 'QZ Tray not installed. Download from https://qz.io/download/' }));
       return false;
     }
@@ -60,14 +79,14 @@ export const useQZTray = () => {
     try {
       const qz = window.qz;
       setupQZSecurity(qz); // MUST be before connect()
-      await qz.websocket.connect();
+      await qz.websocket.connect(QZ_CONNECT_OPTIONS);
       setState(prev => ({ ...prev, isConnected: true, isConnecting: false, error: null }));
       return true;
     } catch (err: any) {
-      setState(prev => ({ ...prev, isConnecting: false, error: err?.message || 'Failed to connect to QZ Tray' }));
+      setState(prev => ({ ...prev, isConnected: false, isConnecting: false, error: err?.message || 'Failed to connect to QZ Tray' }));
       return false;
     }
-  }, [isQZAvailable]);
+  }, [waitForQZAvailability]);
 
   const disconnect = useCallback(async (): Promise<void> => {
     if (!isQZAvailable()) return;
@@ -80,7 +99,8 @@ export const useQZTray = () => {
   }, [isQZAvailable]);
 
   const getPrinters = useCallback(async (): Promise<string[]> => {
-    if (!isQZAvailable()) return [];
+    const available = await waitForQZAvailability();
+    if (!available) return [];
     if (fetchingPrinters.current) return state.printers;
     fetchingPrinters.current = true;
 
@@ -117,7 +137,7 @@ export const useQZTray = () => {
     } finally {
       fetchingPrinters.current = false;
     }
-  }, [isQZAvailable, connect, state.printers]);
+  }, [connect, state.printers, waitForQZAvailability]);
 
   const findThermalPrinters = useCallback(async (): Promise<string[]> => {
     const all = await getPrinters();
@@ -163,15 +183,10 @@ export const useQZTray = () => {
 
   // Auto-connect + fetch printers on mount
   useEffect(() => {
-    if (!isQZAvailable()) return;
     const timer = setTimeout(async () => {
       // Wait for qz script to be available (defer loads it late)
-      let attempts = 0;
-      while (!isQZAvailable() && attempts < 15) {
-        await new Promise(r => setTimeout(r, 200));
-        attempts++;
-      }
-      if (!isQZAvailable()) return;
+      const available = await waitForQZAvailability();
+      if (!available) return;
 
       if (isQZLive()) {
         setState(prev => ({ ...prev, isConnected: true }));
