@@ -92,6 +92,13 @@ interface Sale {
   notes?: string | null;
   created_at: string;
   sale_type?: string;
+  // E-Invoice fields
+  irn?: string | null;
+  ack_no?: string | null;
+  einvoice_status?: string | null;
+  einvoice_error?: string | null;
+  einvoice_qr_code?: string | null;
+  customers?: { gst_number?: string | null } | null;
 }
 
 // Default columns - defined OUTSIDE component to prevent re-render loops
