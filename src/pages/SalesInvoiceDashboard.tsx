@@ -2096,7 +2096,7 @@ export default function SalesInvoiceDashboard() {
 
       if (response.error) throw new Error(response.error.message);
       const result = response.data;
-
+      if (!result) throw new Error("No response from cancel service");
       if (result.success) {
         toast({ title: "IRN Cancelled", description: "The e-Invoice IRN has been cancelled successfully." });
         refetch();
