@@ -34,6 +34,8 @@ interface MatchedStudent {
   new_parent_name: string;
   current_address: string;
   new_address: string;
+  current_emergency_contact: string;
+  new_emergency_contact: string;
 }
 
 interface UnmatchedRow {
@@ -112,13 +114,14 @@ export const StudentBulkUpdateDialog = ({ open, onOpenChange }: StudentBulkUpdat
       const phoneIdx = findColumn(headers, ["FATHER NO", "Parent Phone", "Father No", "FATHER NO.", "Phone"]);
       const parentIdx = findColumn(headers, ["FATHER", "Parent Name", "Father Name", "FATHER NAME"]);
       const addressIdx = findColumn(headers, ["ADDRESS", "Address"]);
+      const emergencyIdx = findColumn(headers, ["EMERGENCY CONTACT", "Emergency Contact", "EMERGENCY", "Emergency No"]);
 
       if (nameIdx === -1) throw new Error("Could not find student name column (CHILD NAME / Student Name / Name)");
 
       // Fetch all existing students
       const { data: students, error: studErr } = await supabase
         .from("students")
-        .select("id, student_name, class_id, division, roll_number, parent_phone, parent_name, address, school_classes(class_name)")
+        .select("id, student_name, class_id, division, roll_number, parent_phone, parent_name, address, emergency_contact, school_classes(class_name)")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
       if (studErr) throw studErr;
@@ -177,6 +180,8 @@ export const StudentBulkUpdateDialog = ({ open, onOpenChange }: StudentBulkUpdat
           new_parent_name: parentIdx !== -1 && row[parentIdx] ? String(row[parentIdx]).trim() : "",
           current_address: existing.address || "-",
           new_address: addressIdx !== -1 && row[addressIdx] ? String(row[addressIdx]).trim() : "",
+          current_emergency_contact: existing.emergency_contact || "-",
+          new_emergency_contact: emergencyIdx !== -1 ? normalizePhoneNumber(row[emergencyIdx]) : "",
         });
       }
 
@@ -207,6 +212,7 @@ export const StudentBulkUpdateDialog = ({ open, onOpenChange }: StudentBulkUpdat
           if (m.new_phone) updates.parent_phone = m.new_phone;
           if (m.new_parent_name) updates.parent_name = m.new_parent_name;
           if (m.new_address) updates.address = m.new_address;
+          if (m.new_emergency_contact) updates.emergency_contact = m.new_emergency_contact;
 
           if (Object.keys(updates).length === 0) return Promise.resolve();
 
@@ -257,7 +263,7 @@ export const StudentBulkUpdateDialog = ({ open, onOpenChange }: StudentBulkUpdat
               {isProcessing && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
             </div>
             <div className="text-xs text-muted-foreground space-y-1">
-              <p>Expected columns: CHILD NAME, CLASS, DIV, Roll No, FATHER NO, FATHER, ADDRESS</p>
+              <p>Expected columns: CHILD NAME, CLASS, DIV, Roll No, FATHER NO, FATHER, ADDRESS, EMERGENCY CONTACT</p>
               <p>Name matching strips prefixes like MS., MST., MR. and is case-insensitive.</p>
             </div>
           </div>
