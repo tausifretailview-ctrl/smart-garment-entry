@@ -220,16 +220,17 @@ export const DirectPrintDialog = ({
 
   // Auto-fetch printers when dialog opens, with retry
   useEffect(() => {
-    if (!open || !isConnected) return;
+    if (!open) return;
     if (printers.length > 0) return;
-    
+
     let cancelled = false;
     const fetchWithRetry = async () => {
       setIsFetchingPrinters(true);
+      // Always attempt connect + fetch regardless of isConnected state
       let list = await getPrinters();
-      // Retry up to 2 times with delay if empty
-      for (let i = 0; i < 2 && list.length === 0 && !cancelled; i++) {
-        await new Promise(r => setTimeout(r, 600));
+      // Retry up to 3 times with delay if empty
+      for (let i = 0; i < 3 && list.length === 0 && !cancelled; i++) {
+        await new Promise(r => setTimeout(r, 800));
         if (cancelled) break;
         list = await getPrinters();
       }
@@ -237,7 +238,7 @@ export const DirectPrintDialog = ({
     };
     fetchWithRetry();
     return () => { cancelled = true; };
-  }, [open, isConnected, printers.length, getPrinters]);
+  }, [open, printers.length, getPrinters]);
 
   const handleConnect = async () => {
     const connected = await connect();

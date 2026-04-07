@@ -80,6 +80,9 @@ export const ensureQZConnection = async (): Promise<boolean> => {
  * Get list of available printers from QZ Tray
  */
 export const getQZPrinters = async (): Promise<string[]> => {
+  // Wait for QZ script to be available (handles async/defer loading)
+  const loaded = await waitForQZ();
+  if (!loaded) return [];
   const connected = await ensureQZConnection();
   if (!connected) return [];
   try {
