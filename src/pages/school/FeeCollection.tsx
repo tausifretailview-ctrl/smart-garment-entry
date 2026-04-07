@@ -703,20 +703,44 @@ const FeeCollection = () => {
                         <TableCell>
                           <div className="flex items-center gap-1 justify-end">
                             {student.totalDue > 0 && student.parent_phone && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-green-600 border-green-600 hover:bg-green-50 h-8 w-8 p-0"
-                                onClick={() => handleSendReminder(student)}
-                                disabled={sendingReminder === student.id}
-                                title="Send WhatsApp Reminder"
-                              >
-                                {sendingReminder === student.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-green-600 border-green-600 hover:bg-green-50 h-8 w-8 p-0"
+                                  onClick={() => handleSendReminder(student)}
+                                  disabled={sendingReminder === student.id || !whatsAppSettings?.is_active}
+                                  title="Send via WhatsApp API"
+                                >
+                                  {sendingReminder === student.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Send className="h-4 w-4" />
+                                  )}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-green-600 border-green-600 hover:bg-green-50 h-8 w-8 p-0"
+                                  onClick={() => {
+                                    const phone = student.parent_phone;
+                                    if (!phone) return;
+                                    const upiId = gatewaySettings?.upi_id || "";
+                                    const upiBusinessName = gatewaySettings?.upi_business_name || currentOrganization?.name || "School";
+                                    let paymentLink = "";
+                                    if (upiId && student.totalDue > 0) {
+                                      const upiParams = new URLSearchParams({ pa: upiId, pn: upiBusinessName, am: String(student.totalDue), cu: "INR", tn: `Fees-${student.admission_number}` });
+                                      paymentLink = `${window.location.origin}/pay?${upiParams.toString()}`;
+                                    }
+                                    const amountStr = `Rs.${student.totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+                                    const msg = `Fees Reminder\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\n💰 Pending Fees: ${amountStr}\n\nPlease pay before the due date to avoid late fees.${upiId ? `\n\n💳 *Pay Online via UPI:*\n${paymentLink}\n_(Opens GPay, PhonePe, Paytm or any UPI app. Amount is pre-filled but you may edit if paying a different amount.)_` : ""}\n\nOr pay at the school office.\n\nThank you 🙏\n${currentOrganization?.name || "School"}`;
+                                    sendWhatsApp(phone, msg);
+                                  }}
+                                  title="Send manually via WhatsApp"
+                                >
                                   <MessageCircle className="h-4 w-4" />
-                                )}
-                              </Button>
+                                </Button>
+                              </>
                             )}
                             <Button size="sm" onClick={() => handleCollect(student)} className="h-8">
                               <Receipt className="h-4 w-4 mr-1" />
