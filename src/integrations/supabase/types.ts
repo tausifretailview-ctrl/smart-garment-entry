@@ -4577,6 +4577,7 @@ export type Database = {
           einvoice_error: string | null
           einvoice_qr_code: string | null
           einvoice_status: string | null
+          einvoice_test_mode: boolean | null
           flat_discount_amount: number
           flat_discount_percent: number
           gross_amount: number
@@ -4637,6 +4638,7 @@ export type Database = {
           einvoice_error?: string | null
           einvoice_qr_code?: string | null
           einvoice_status?: string | null
+          einvoice_test_mode?: boolean | null
           flat_discount_amount?: number
           flat_discount_percent?: number
           gross_amount?: number
@@ -4697,6 +4699,7 @@ export type Database = {
           einvoice_error?: string | null
           einvoice_qr_code?: string | null
           einvoice_status?: string | null
+          einvoice_test_mode?: boolean | null
           flat_discount_amount?: number
           flat_discount_percent?: number
           gross_amount?: number

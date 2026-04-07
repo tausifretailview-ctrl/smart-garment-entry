@@ -620,6 +620,7 @@ Deno.serve(async (req) => {
         einvoice_qr_code: einvoiceData.SignedQRCode,
         einvoice_status: 'generated',
         einvoice_error: null,
+        einvoice_test_mode: testMode,
       })
       .eq('id', saleId);
 

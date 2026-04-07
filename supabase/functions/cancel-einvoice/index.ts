@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
     // Fetch sale
     const { data: sale, error: saleError } = await supabase
       .from('sales')
-      .select('id, sale_number, irn, ack_no, ack_date, einvoice_status, created_at')
+      .select('id, sale_number, irn, ack_no, ack_date, einvoice_status, created_at, einvoice_test_mode')
       .eq('id', saleId)
       .single();
 
@@ -127,7 +127,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    const baseUrl = testMode ? 'https://staging.perione.in' : 'https://api.perione.in';
+    // Use the test mode that was active when IRN was generated
+    // to ensure cancel hits the same environment (staging vs production)
+    const effectiveTestMode = sale.einvoice_test_mode !== null && sale.einvoice_test_mode !== undefined
+      ? sale.einvoice_test_mode
+      : testMode;
+    const baseUrl = effectiveTestMode ? 'https://staging.perione.in' : 'https://api.perione.in';
     const ipAddress = await getPublicIP();
 
     // Step 1: Authenticate
@@ -188,12 +193,22 @@ Deno.serve(async (req) => {
     const cancelData = await cancelResponse.json();
     console.log('Cancel response:', JSON.stringify(cancelData));
 
-    const cancelSuccess = cancelData.status_cd === 'Success' || cancelData.status_cd === 1 || String(cancelData.status_cd) === '1' || !!cancelData.data?.Irn;
+    const cancelSuccess = cancelData.status_cd === 'Success' ||
+      cancelData.status_cd === 1 ||
+      String(cancelData.status_cd) === '1' ||
+      !!cancelData.data?.Irn;
+
     if (!cancelSuccess) {
-      const errorMsg = cancelData.ErrorDetails?.ErrorMessage ||
-        cancelData.ErrorDetails?.[0]?.ErrorMessage ||
-        JSON.stringify(cancelData.ErrorDetails) ||
-        'Cancellation failed';
+      const extractErr = (d: any): string => {
+        if (!d) return '';
+        if (typeof d === 'string') return d;
+        if (Array.isArray(d)) return d.map((e: any) => e.ErrorMessage || JSON.stringify(e)).join('; ');
+        return d.ErrorMessage || d.message || JSON.stringify(d);
+      };
+      const errorMsg = extractErr(cancelData.ErrorDetails)
+        || cancelData.status_desc
+        || cancelData.message
+        || 'Cancellation failed';
 
       await supabase.from('sales').update({
         einvoice_error: `Cancel Error: ${errorMsg}`,
