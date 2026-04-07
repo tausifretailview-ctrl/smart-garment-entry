@@ -547,14 +547,42 @@ Deno.serve(async (req) => {
       body: JSON.stringify(einvoicePayload),
     });
 
-    const generateData = await generateResponse.json();
+    const generateText = await generateResponse.text();
+    console.log('Generate raw response:', generateText);
+    
+    let generateData: any;
+    try {
+      generateData = JSON.parse(generateText);
+    } catch {
+      console.error('Non-JSON generate response:', generateText);
+      const errorMsg = `API returned non-JSON response (HTTP ${generateResponse.status}): ${generateText.substring(0, 200)}`;
+      await supabase.from('sales').update({ einvoice_status: 'failed', einvoice_error: errorMsg }).eq('id', saleId);
+      return new Response(JSON.stringify({ success: false, error: errorMsg }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     console.log('Generate response status:', generateData.status_cd);
+    console.log('Generate response full:', JSON.stringify(generateData));
 
     if (generateData.status_cd !== 'Success') {
-      const errorMsg = generateData.ErrorDetails?.ErrorMessage || 
-                       generateData.ErrorDetails?.[0]?.ErrorMessage ||
-                       JSON.stringify(generateData.ErrorDetails) ||
-                       'E-Invoice generation failed';
+      // Extract error from all possible PeriOne response formats
+      let errorMsg = 'E-Invoice generation failed';
+      if (generateData.ErrorDetails) {
+        if (typeof generateData.ErrorDetails === 'string') {
+          errorMsg = generateData.ErrorDetails;
+        } else if (Array.isArray(generateData.ErrorDetails)) {
+          errorMsg = generateData.ErrorDetails.map((e: any) => e.ErrorMessage || JSON.stringify(e)).join('; ');
+        } else if (generateData.ErrorDetails.ErrorMessage) {
+          errorMsg = generateData.ErrorDetails.ErrorMessage;
+        } else {
+          errorMsg = JSON.stringify(generateData.ErrorDetails);
+        }
+      } else if (generateData.status_desc) {
+        errorMsg = generateData.status_desc;
+      } else if (generateData.error) {
+        errorMsg = generateData.error;
+      } else if (generateData.message) {
+        errorMsg = generateData.message;
+      }
       console.error('E-Invoice generation failed:', errorMsg);
       
       // Update sale with error

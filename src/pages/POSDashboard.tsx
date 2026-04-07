@@ -1207,7 +1207,7 @@ const POSDashboard = () => {
         toast({ title: "E-Invoice Generated", description: `IRN: ${result.irn?.substring(0, 30)}...` });
         fetchSales();
       } else {
-        toast({ title: "E-Invoice Failed", description: result.error || "Failed to generate e-Invoice", variant: "destructive" });
+        toast({ title: "E-Invoice Failed", description: result.error || result.message || "E-Invoice generation failed", variant: "destructive" });
       }
     } catch (error: any) {
       toast({ title: "Error", description: error.message || "Failed to generate e-Invoice", variant: "destructive" });

@@ -2034,9 +2034,10 @@ export default function SalesInvoiceDashboard() {
         });
         refetch();
       } else {
+        const errorDetail = result.error || result.message || "Failed to generate e-Invoice";
         toast({
           title: "E-Invoice Failed",
-          description: result.error || "Failed to generate e-Invoice",
+          description: errorDetail,
           variant: "destructive",
         });
       }
