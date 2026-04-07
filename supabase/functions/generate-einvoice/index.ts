@@ -102,22 +102,22 @@ interface EInvoicePayload {
     TotInvValFc: number;
   };
   PayDtls: {
-    Nm: string;
-    AccDet: string;
-    Mode: string;
-    FinInsBr: string;
-    PayTerm: string;
-    PayInstr: string;
-    CrTrn: string;
-    DirDr: string;
+    Nm?: string;
+    AccDet?: string;
+    Mode?: string;
+    FinInsBr?: string;
+    PayTerm?: string;
+    PayInstr?: string;
+    CrTrn?: string;
+    DirDr?: string;
     CrDay: number;
     PaidAmt: number;
     PaymtDue: number;
   };
-  RefDtls: {
+  RefDtls?: {
     InvRm: string;
   };
-  EwbDtls: {
+  EwbDtls?: {
     TransId: string;
     TransName: string;
     Distance: number;
@@ -416,12 +416,14 @@ Deno.serve(async (req) => {
       const taxableValue = item.line_total / (1 + gstRate / 100);
       const gstAmount = item.line_total - taxableValue;
       
+      const prdDesc = (item.product_name || 'Product').substring(0, 100);
+      const safeDesc = prdDesc.length < 3 ? prdDesc.padEnd(3, ' ') : prdDesc;
       return {
         SlNo: String(index + 1),
-        PrdDesc: item.product_name || '',
+        PrdDesc: safeDesc,
         IsServc: 'N',
-        HsnCd: item.hsn_code || '62099000', // Default HSN for garments
-        Barcde: item.barcode || '',
+        HsnCd: item.hsn_code || '62099000',
+        ...(item.barcode && item.barcode.length >= 3 ? { Barcde: item.barcode.substring(0, 30) } : {}),
         Qty: item.quantity,
         FreeQty: 0,
         Unit: 'PCS',
@@ -465,31 +467,50 @@ Deno.serve(async (req) => {
         No: sale.sale_number,
         Dt: formatDateForEInvoice(sale.sale_date),
       },
-      SellerDtls: {
-        Gstin: sellerGstin,
-        LglNm: settingsData?.business_name || orgData?.name || 'Business Name',
-        TrdNm: settingsData?.business_name || orgData?.name || 'Business Name',
-        Addr1: (settingsData?.address as string)?.substring(0, 100) || 'Address Line 1',
-        Addr2: '',
-        Loc: (settingsData?.address as string)?.split(',').pop()?.trim() || 'City',
-        Pin: parseInt((settingsData?.address as string)?.match(/\d{6}/)?.[0] || '560001'),
-        Stcd: sellerStateCode,
-        Ph: settingsData?.mobile_number || '',
-        Em: settingsData?.email_id || '',
-      },
-      BuyerDtls: {
-        Gstin: buyerGstin,
-        LglNm: sale.customer_name || sale.customers?.customer_name || 'Customer',
-        TrdNm: sale.customer_name || sale.customers?.customer_name || 'Customer',
-        Pos: buyerStateCode,
-        Addr1: sale.customer_address?.substring(0, 100) || sale.customers?.address?.substring(0, 100) || 'Address',
-        Addr2: '',
-        Loc: sale.customer_address?.split(',').pop()?.trim() || 'City',
-        Pin: parseInt(sale.customer_address?.match(/\d{6}/)?.[0] || '560001'),
-        Stcd: buyerStateCode,
-        Ph: sale.customer_phone || sale.customers?.phone || '',
-        Em: sale.customers?.email || '',
-      },
+      SellerDtls: (() => {
+        const sellerAddr = (settingsData?.address as string || '').substring(0, 100);
+        const safeSellerAddr = sellerAddr.length >= 3 ? sellerAddr : 'Address Line 1';
+        const sellerPin = parseInt((settingsData?.address as string || '').match(/\d{6}/)?.[0] || '000000');
+        const safeSellerPin = (sellerPin >= 100000 && sellerPin <= 999999) ? sellerPin : 500001;
+        const sellerPhone = (settingsData?.mobile_number || '').replace(/\D/g, '');
+        const sellerLoc = ((settingsData?.address as string || '').split(',').pop()?.trim() || 'City').substring(0, 50);
+        const safeSellerLoc = sellerLoc.length >= 3 ? sellerLoc : 'City';
+        return {
+          Gstin: sellerGstin,
+          LglNm: (settingsData?.business_name || orgData?.name || 'Business Name').substring(0, 100),
+          TrdNm: (settingsData?.business_name || orgData?.name || 'Business Name').substring(0, 100),
+          Addr1: safeSellerAddr,
+          Addr2: '',
+          Loc: safeSellerLoc,
+          Pin: safeSellerPin,
+          Stcd: sellerStateCode,
+          ...(sellerPhone.length >= 6 ? { Ph: sellerPhone } : {}),
+          ...(settingsData?.email_id ? { Em: settingsData.email_id } : {}),
+        };
+      })(),
+      BuyerDtls: (() => {
+        const buyerAddr = (sale.customer_address || sale.customers?.address || '').substring(0, 100);
+        const safeAddr = buyerAddr.length >= 3 ? buyerAddr : 'Address Not Provided';
+        const buyerPin = parseInt((sale.customer_address || sale.customers?.address || '')?.match(/\d{6}/)?.[0] || '000000');
+        const safeBuyerPin = (buyerPin >= 100000 && buyerPin <= 999999) ? buyerPin : 500001;
+        const buyerPhone = (sale.customer_phone || sale.customers?.phone || '').replace(/\D/g, '');
+        const safePhone = (buyerPhone.length >= 6 && buyerPhone.length <= 12) ? buyerPhone : undefined;
+        const buyerLoc = (sale.customer_address?.split(',').pop()?.trim() || 'City').substring(0, 50);
+        const safeLoc = buyerLoc.length >= 3 ? buyerLoc : 'City';
+        return {
+          Gstin: buyerGstin,
+          LglNm: (sale.customer_name || sale.customers?.customer_name || 'Customer').substring(0, 100),
+          TrdNm: (sale.customer_name || sale.customers?.customer_name || 'Customer').substring(0, 100),
+          Pos: buyerStateCode,
+          Addr1: safeAddr,
+          Addr2: '',
+          Loc: safeLoc,
+          Pin: safeBuyerPin,
+          Stcd: buyerStateCode,
+          ...(safePhone ? { Ph: safePhone } : {}),
+          ...(sale.customers?.email ? { Em: sale.customers.email } : {}),
+        };
+      })(),
       ItemList: itemList,
       ValDtls: {
         AssVal: Number(totalTaxableValue.toFixed(2)),
@@ -505,31 +526,12 @@ Deno.serve(async (req) => {
         TotInvValFc: 0,
       },
       PayDtls: {
-        Nm: '',
-        AccDet: '',
-        Mode: '',
-        FinInsBr: '',
-        PayTerm: '',
-        PayInstr: '',
-        CrTrn: '',
-        DirDr: '',
         CrDay: 0,
         PaidAmt: Number((sale.paid_amount || 0).toFixed(2)),
-        PaymtDue: Number(((sale.net_amount || 0) - (sale.paid_amount || 0)).toFixed(2)),
+        PaymtDue: Number(Math.max(0, (sale.net_amount || 0) - (sale.paid_amount || 0)).toFixed(2)),
       },
-      RefDtls: {
-        InvRm: sale.notes || '',
-      },
-      EwbDtls: {
-        TransId: '',
-        TransName: '',
-        Distance: 0,
-        TransDocNo: '',
-        TransDocDt: '',
-        VehNo: '',
-        VehType: '',
-        TransMode: '',
-      },
+      ...(sale.notes ? { RefDtls: { InvRm: sale.notes.substring(0, 100) } } : {}),
+      // EwbDtls omitted — empty strings cause PeriOne 5002 validation errors
     };
 
     console.log('E-Invoice payload built, generating...');
