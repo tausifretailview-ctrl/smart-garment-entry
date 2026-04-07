@@ -69,6 +69,15 @@ import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { cn } from "@/lib/utils";
 import { waitForPrintReady } from "@/utils/printReady";
 
+const safeErrorString = (val: any): string => {
+  if (!val) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object') {
+    return val.ErrorMessage || val.message || val.error || JSON.stringify(val);
+  }
+  return String(val);
+};
+
 interface ColumnSettings {
   [key: string]: boolean;
   phone: boolean;
@@ -2038,7 +2047,7 @@ export default function SalesInvoiceDashboard() {
         });
         refetch();
       } else {
-        const errorDetail = result.error || result.message || "Failed to generate e-Invoice";
+        const errorDetail = safeErrorString(result.error || result.message) || "Failed to generate e-Invoice";
         toast({
           title: "E-Invoice Failed",
           description: errorDetail,
@@ -2101,7 +2110,7 @@ export default function SalesInvoiceDashboard() {
         toast({ title: "IRN Cancelled", description: "The e-Invoice IRN has been cancelled successfully." });
         refetch();
       } else {
-        toast({ title: "Cancellation Failed", description: result.error, variant: "destructive" });
+        toast({ title: "Cancellation Failed", description: safeErrorString(result.error) || "Cancellation failed", variant: "destructive" });
       }
     } catch (error: any) {
       toast({ title: "Error", description: error.message || "Failed to cancel IRN", variant: "destructive" });

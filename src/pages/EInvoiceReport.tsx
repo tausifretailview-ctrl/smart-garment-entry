@@ -17,6 +17,15 @@ import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, subDays } from 
 import { Search, FileSpreadsheet, Loader2, RefreshCw, CheckCircle2, AlertTriangle, Clock, XCircle, Shield, Zap } from "lucide-react";
 import * as XLSX from "xlsx";
 
+const safeErrorString = (val: any): string => {
+  if (!val) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object') {
+    return val.ErrorMessage || val.message || val.error || JSON.stringify(val);
+  }
+  return String(val);
+};
+
 type PeriodFilter = 'today' | 'yesterday' | 'last7' | 'last30' | 'this_month' | 'all';
 type StatusFilter = 'all' | 'generated' | 'not_generated' | 'cancelled' | 'failed';
 
@@ -211,9 +220,16 @@ export default function EInvoiceReport() {
     {
       id: 'error',
       header: 'Error',
-      cell: ({ row }) => row.original.einvoice_error
-        ? <span className="text-xs text-destructive truncate max-w-[200px] block" title={row.original.einvoice_error}>{row.original.einvoice_error.substring(0, 40)}...</span>
-        : null,
+      cell: ({ row }) => {
+        const errVal = row.original.einvoice_error;
+        if (!errVal) return null;
+        const errStr = safeErrorString(errVal);
+        return (
+          <span className="text-xs text-destructive truncate max-w-[200px] block" title={errStr}>
+            {errStr.substring(0, 40)}...
+          </span>
+        );
+      },
       size: 200,
     },
     {
@@ -227,15 +243,28 @@ export default function EInvoiceReport() {
         if (!inv.irn || inv.einvoice_status === 'failed') {
           return (
             <Button variant="outline" size="sm" onClick={async () => {
-              const testMode = (settings?.sale_settings as any)?.einvoice_settings?.test_mode ?? true;
-              const res = await supabase.functions.invoke('generate-einvoice', {
-                body: { saleId: inv.id, organizationId: currentOrganization?.id, testMode },
-              });
-              if (res.data?.success) {
-                toast({ title: "Generated", description: "E-Invoice generated" });
-                refetch();
-              } else {
-                toast({ title: "Failed", description: res.data?.error, variant: "destructive" });
+              try {
+                const testMode = (settings?.sale_settings as any)?.einvoice_settings?.test_mode ?? true;
+                const res = await supabase.functions.invoke('generate-einvoice', {
+                  body: { saleId: inv.id, organizationId: currentOrganization?.id, testMode },
+                });
+                if (res.error) throw new Error(res.error.message);
+                if (res.data?.success) {
+                  toast({ title: "Generated", description: "E-Invoice generated successfully" });
+                  refetch();
+                } else {
+                  toast({
+                    title: "E-Invoice Failed",
+                    description: safeErrorString(res.data?.error) || "Generation failed",
+                    variant: "destructive",
+                  });
+                }
+              } catch (err: any) {
+                toast({
+                  title: "Error",
+                  description: safeErrorString(err?.message) || "Failed to generate e-Invoice",
+                  variant: "destructive",
+                });
               }
             }}>
               <Zap className="h-3 w-3 mr-1" /> Generate
