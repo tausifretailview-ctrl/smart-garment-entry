@@ -98,6 +98,7 @@ interface Sale {
   // E-Invoice fields
   irn?: string | null;
   ack_no?: string | null;
+  ack_date?: string | null;
   einvoice_status?: string | null;
   einvoice_error?: string | null;
   einvoice_qr_code?: string | null;
