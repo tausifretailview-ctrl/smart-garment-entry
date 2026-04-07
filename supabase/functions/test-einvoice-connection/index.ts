@@ -106,10 +106,40 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } else {
-      const errorMsg = authData.status_desc ||
+      // Build a detailed error message showing what went wrong
+      const rawError = authData.status_desc ||
         authData.ErrorDetails?.ErrorMessage ||
         authData.ErrorDetails?.message ||
-        'Authentication failed - check credentials';
+        authData.error_description ||
+        authData.message ||
+        '';
+
+      // Try to identify the specific field causing the issue
+      const lowerErr = rawError.toLowerCase();
+      let fieldHint = '';
+      if (lowerErr.includes('password') || lowerErr.includes('pwd')) {
+        fieldHint = ' (Check Password - case sensitive)';
+      } else if (lowerErr.includes('user') || lowerErr.includes('username') || lowerErr.includes('userid')) {
+        fieldHint = ' (Check Username/User ID - case sensitive)';
+      } else if (lowerErr.includes('client_id') || lowerErr.includes('clientid') || lowerErr.includes('client id')) {
+        fieldHint = ' (Check Client ID)';
+      } else if (lowerErr.includes('client_secret') || lowerErr.includes('clientsecret') || lowerErr.includes('secret')) {
+        fieldHint = ' (Check Client Secret)';
+      } else if (lowerErr.includes('email')) {
+        fieldHint = ' (Check API Email)';
+      } else if (lowerErr.includes('gstin') || lowerErr.includes('gst')) {
+        fieldHint = ' (Check Seller GSTIN)';
+      } else if (lowerErr.includes('ip') || lowerErr.includes('whitelist')) {
+        fieldHint = ' (Server IP not whitelisted - contact PeriOne)';
+      } else if (lowerErr.includes('invalid') || lowerErr.includes('unauthorized') || lowerErr.includes('denied')) {
+        fieldHint = ' (Credentials invalid - verify Username, Password & Client ID are correct and case-sensitive)';
+      }
+
+      const errorMsg = (rawError || 'Authentication failed') + fieldHint;
+
+      // Also log full response for debugging
+      console.error('PeriOne auth failed. Status:', authResp.status, 'Response:', JSON.stringify(authData));
+
       return new Response(
         JSON.stringify({ success: false, error: errorMsg }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
