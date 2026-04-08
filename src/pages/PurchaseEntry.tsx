@@ -2627,38 +2627,18 @@ const PurchaseEntry = () => {
       .map(k => productMap.get(k))
       .filter(Boolean) as string[];
 
-    // Pre-fetch variants only for products in the Excel (batched to avoid URL length issues)
+    // For import, we always create new variants per row — no variant reuse
     const variantMap = new Map<string, { id: string; barcode: string }>();
-    if (relevantProductIds.length > 0) {
-      const VARIANT_BATCH = 50;
-      for (let b = 0; b < relevantProductIds.length; b += VARIANT_BATCH) {
-        const batch = relevantProductIds.slice(b, b + VARIANT_BATCH);
-        const { data: batchVariants } = await supabase
-          .from('product_variants')
-          .select('id, product_id, size, barcode, color')
-          .eq('organization_id', currentOrganization.id)
-          .is('deleted_at', null)
-          .in('product_id', batch);
-        (batchVariants || []).forEach(v => {
-          const key = `${v.product_id}|${(v.color || '').toLowerCase()}|${(v.size || '').toLowerCase()}`;
-          variantMap.set(key, { id: v.id, barcode: v.barcode || '' });
-        });
-      }
-    }
 
-    // Pre-generate barcodes sequentially from DB to guarantee unique numbers
-    // Each RPC call atomically reserves a barcode number — no race conditions
-    const rowsNeedingBarcode = validRows.filter(row => !row.barcode?.toString().trim());
+    // Pre-generate barcodes for ALL rows (every row gets a new unique barcode)
     const barcodePool: string[] = [];
-    if (rowsNeedingBarcode.length > 0) {
-      for (let b = 0; b < rowsNeedingBarcode.length; b++) {
-        try {
-          const { data } = await supabase.rpc('generate_next_barcode', { p_organization_id: currentOrganization.id });
-          if (data) barcodePool.push(data);
-        } catch (e) {
-          // Fallback unique barcode
-          barcodePool.push(`B${Date.now()}${b}`);
-        }
+    for (let b = 0; b < validRows.length; b++) {
+      try {
+        const { data } = await supabase.rpc('generate_next_barcode', { p_organization_id: currentOrganization.id });
+        if (data) barcodePool.push(data);
+        else barcodePool.push(`B${Date.now()}${b}`);
+      } catch (e) {
+        barcodePool.push(`B${Date.now()}${b}`);
       }
     }
     let barcodePoolIndex = 0;
@@ -2715,102 +2695,32 @@ const PurchaseEntry = () => {
           let skuId: string;
           let barcode: string;
 
-          if (variantInfo) {
-            skuId = variantInfo.id;
-            barcode = variantInfo.barcode || row.barcode?.toString().trim() || '';
-          } else {
-            // Check if variant already exists FIRST — before generating any barcode
-            // Handle both NULL and empty-string color values for robust matching
-            const colorConditions = color
-              ? `color.eq.${color}`
-              : 'color.is.null,color.eq.';
-            const { data: existingVariant } = await supabase
+          // Always create a new variant with a new barcode for every import row
+          {
+            barcode = barcodePool[barcodePoolIndex++] || `AUTO${Date.now()}${Math.random()}`;
+
+            const { data: inserted, error: insertErr } = await supabase
               .from('product_variants')
-              .select('id, barcode')
-              .eq('product_id', productId)
-              .eq('size', size || '')
-              .or(colorConditions)
-              .is('deleted_at', null)
-              .eq('organization_id', currentOrganization.id)
-              .maybeSingle();
+              .insert({
+                organization_id: currentOrganization.id,
+                product_id: productId,
+                size: size || '',
+                color: color || null,
+                barcode: barcode,
+                pur_price: parseLocalizedNumber(row.pur_price),
+                sale_price: parseLocalizedNumber(row.sale_price),
+                stock_qty: 0,
+                active: true,
+              })
+              .select('id')
+              .single();
 
-            // Also try finding by barcode if Excel row has one and above lookup missed
-            const rowBarcode = row.barcode?.toString().trim() || '';
-            let barcodeVariant: { id: string; barcode: string } | null = null;
-            if (!existingVariant && rowBarcode) {
-              const { data: byBarcode } = await supabase
-                .from('product_variants')
-                .select('id, barcode')
-                .eq('organization_id', currentOrganization.id)
-                .eq('barcode', rowBarcode)
-                .is('deleted_at', null)
-                .maybeSingle();
-              barcodeVariant = byBarcode;
-            }
-
-            let newVariantId: string | null = null;
-            let variantError: any = null;
-
-            if (existingVariant) {
-              // Variant exists — reuse its ID AND its existing barcode
-              newVariantId = existingVariant.id;
-              barcode = rowBarcode || existingVariant.barcode || '';
-            } else if (barcodeVariant) {
-              // Found by barcode — reuse it (handles re-import after delete)
-              newVariantId = barcodeVariant.id;
-              barcode = barcodeVariant.barcode;
-            } else {
-              // Variant does NOT exist — now generate a new barcode
-              barcode = rowBarcode;
-              if (!barcode) {
-                barcode = barcodePool[barcodePoolIndex++] || `AUTO${Date.now()}${barcodePoolIndex}`;
-              }
-
-              const { data: inserted, error: insertErr } = await supabase
-                .from('product_variants')
-                .insert({
-                  organization_id: currentOrganization.id,
-                  product_id: productId,
-                  size: size || '',
-                  color: color || null,
-                  barcode: barcode,
-                  pur_price: parseLocalizedNumber(row.pur_price),
-                  sale_price: parseLocalizedNumber(row.sale_price),
-                  stock_qty: 0,
-                  active: true,
-                })
-                .select('id')
-                .single();
-              
-              // If insert fails (e.g. unique constraint), try to find existing variant as fallback
-              if (insertErr) {
-                const { data: fallback } = await supabase
-                  .from('product_variants')
-                  .select('id, barcode')
-                  .eq('product_id', productId)
-                  .eq('size', size || '')
-                  .is('deleted_at', null)
-                  .eq('organization_id', currentOrganization.id)
-                  .limit(1)
-                  .maybeSingle();
-                if (fallback) {
-                  newVariantId = fallback.id;
-                  barcode = fallback.barcode || barcode;
-                } else {
-                  variantError = insertErr;
-                }
-              } else {
-                newVariantId = inserted?.id || null;
-                variantError = !newVariantId ? insertErr : null;
-              }
-            }
-
-            if (variantError || !newVariantId) {
+            if (insertErr || !inserted) {
+              console.error('Variant insert error:', insertErr);
               errorCount++;
               continue;
             }
-            skuId = newVariantId;
-            variantMap.set(variantKey, { id: skuId, barcode });
+            skuId = inserted.id;
           }
 
           const qty = parseLocalizedNumber(row.qty) || 0;
