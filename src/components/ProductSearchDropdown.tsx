@@ -65,8 +65,11 @@ export function ProductSearchDropdown({
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
-        // Fetch variants with product fields for client-side multi-token AND search
-        const { data, error } = await supabase
+        const trimmed = value.trim();
+        const looksLikeBarcode = /\d/.test(trimmed) && trimmed.length >= 5;
+
+        // Build base query
+        let query = supabase
           .from("product_variants")
           .select(`
             id,
@@ -85,7 +88,23 @@ export function ProductSearchDropdown({
           .eq("organization_id", currentOrganization.id)
           .eq("active", true)
           .is("deleted_at", null)
-          .is("products.deleted_at", null)
+          .is("products.deleted_at", null);
+
+        // Add server-side filter for barcodes so they're found even beyond limit
+        if (looksLikeBarcode) {
+          query = query.or(`barcode.eq.${trimmed},barcode.ilike.${trimmed}%`);
+        } else {
+          // For text search, filter on product fields server-side
+          const token = trimmed.split(/\s+/)[0]; // use first token for server filter
+          if (token) {
+            query = query.or(
+              `product_name.ilike.%${token}%,brand.ilike.%${token}%,style.ilike.%${token}%,category.ilike.%${token}%`,
+              { referencedTable: "products" }
+            );
+          }
+        }
+
+        const { data, error } = await query
           .order("stock_qty", { ascending: false })
           .limit(500);
 
