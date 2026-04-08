@@ -1784,12 +1784,12 @@ const POSDashboard = () => {
                                 <div className="flex items-center gap-1">
                                   <span>{sale.sale_number}</span>
                                   {sale.sale_type === 'delivery_challan' && (
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-700 border border-orange-300 leading-none">
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-700 border border-orange-300 leading-none">
                                       DC
                                     </span>
                                   )}
                                 </div>
-                                <span className="text-[11px] text-foreground/70">
+                                <span className="text-xs text-foreground/70">
                                   {sale.sale_date ? format(new Date(sale.sale_date), "hh:mm a") : ''}
                                 </span>
                               </div>
@@ -1824,7 +1824,7 @@ const POSDashboard = () => {
                             <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums font-semibold text-primary" onClick={() => toggleExpanded(sale.id)}>
                               <div className="flex items-center justify-end gap-1">
                                 {(sale.sale_return_adjust || 0) > 0 && (
-                                  <Badge variant="outline" className="text-[9px] px-1 py-0 font-semibold border-orange-300 text-orange-600 bg-orange-50 dark:bg-orange-950 dark:border-orange-700 dark:text-orange-400 whitespace-nowrap">
+                                  <Badge variant="outline" className="text-xs px-1 py-0 font-semibold border-orange-300 text-orange-600 bg-orange-50 dark:bg-orange-950 dark:border-orange-700 dark:text-orange-400 whitespace-nowrap">
                                     S/R Adj
                                   </Badge>
                                 )}
@@ -1871,11 +1871,11 @@ const POSDashboard = () => {
                             {columnSettings.refundStatus && (
                               <TableCell className="px-2 py-1.5" onClick={() => toggleExpanded(sale.id)}>
                                 {(sale.refund_amount || 0) > 0 ? (
-                                  <Badge variant="destructive" className="bg-red-500 text-white text-[11px] px-1.5 py-0">
+                                  <Badge variant="destructive" className="bg-red-500 text-white text-xs px-1.5 py-0">
                                     Refunded
                                   </Badge>
                                 ) : (
-                                  <Badge variant="outline" className="text-muted-foreground text-[11px] px-1.5 py-0">
+                                  <Badge variant="outline" className="text-muted-foreground text-xs px-1.5 py-0">
                                     No Refund
                                   </Badge>
                                 )}
@@ -1895,11 +1895,11 @@ const POSDashboard = () => {
                             {columnSettings.creditNoteStatus && (
                               <TableCell className="px-2 py-1.5" onClick={() => toggleExpanded(sale.id)}>
                                 {sale.credit_note_id ? (
-                                  <Badge className="bg-violet-500 hover:bg-violet-600 text-white text-[11px] px-1.5 py-0">
+                                  <Badge className="bg-violet-500 hover:bg-violet-600 text-white text-xs px-1.5 py-0">
                                     Issued
                                   </Badge>
                                 ) : (
-                                  <Badge variant="outline" className="text-muted-foreground text-[11px] px-1.5 py-0">
+                                  <Badge variant="outline" className="text-muted-foreground text-xs px-1.5 py-0">
                                     None
                                   </Badge>
                                 )}
@@ -1913,7 +1913,7 @@ const POSDashboard = () => {
                                     : (sale.paid_amount || 0) > 0 ? 'partial' : 'pending';
                                   return (
                                     <Badge 
-                                      className={`min-w-[60px] justify-center whitespace-nowrap text-[11px] px-1.5 py-0 ${
+                                      className={`min-w-[60px] justify-center whitespace-nowrap text-xs px-1.5 py-0 ${
                                         es === "completed" 
                                           ? "bg-green-500 hover:bg-green-600 text-white" 
                                           : es === "partial" 
@@ -1933,17 +1933,17 @@ const POSDashboard = () => {
                               <TableCell className="px-2 py-1.5" onClick={() => toggleExpanded(sale.id)}>
                                 {sale.irn ? (
                                   sale.einvoice_status === 'cancelled' ? (
-                                    <Badge variant="destructive" className="text-[11px] px-1.5 py-0">Cancelled</Badge>
+                                    <Badge variant="destructive" className="text-xs px-1.5 py-0">Cancelled</Badge>
                                   ) : (
-                                    <Badge className="bg-green-500 hover:bg-green-600 text-white text-[11px] px-1.5 py-0">
+                                    <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs px-1.5 py-0">
                                       <FileCheck className="h-3 w-3 mr-1" />
                                       Generated
                                     </Badge>
                                   )
                                 ) : sale.customer_id && sale.customers?.gst_number ? (
-                                  <Badge variant="outline" className="text-muted-foreground text-[11px] px-1.5 py-0">Pending</Badge>
+                                  <Badge variant="outline" className="text-muted-foreground text-xs px-1.5 py-0">Pending</Badge>
                                 ) : (
-                                  <span className="text-muted-foreground text-[11px]">-</span>
+                                  <span className="text-muted-foreground text-xs">-</span>
                                 )}
                               </TableCell>
                             )}
@@ -2111,7 +2111,7 @@ const POSDashboard = () => {
                                             {saleReturns[sale.sale_number].map((ret: any) => (
                                               <TableRow key={ret.id} className="h-9">
                                                 <TableCell className="px-2 py-1">
-                                                  <Badge variant="destructive" className="text-[11px] px-1.5 py-0">{ret.return_number || "-"}</Badge>
+                                                  <Badge variant="destructive" className="text-xs px-1.5 py-0">{ret.return_number || "-"}</Badge>
                                                 </TableCell>
                                                 <TableCell className="px-2 py-1 text-sm">{new Date(ret.return_date).toLocaleDateString()}</TableCell>
                                                 <TableCell className="px-2 py-1 text-sm">{ret.customer_name?.toUpperCase()}</TableCell>
@@ -2135,15 +2135,15 @@ const POSDashboard = () => {
                                       <span className="text-xs font-semibold text-muted-foreground mr-1">E-Invoice:</span>
                                       {sale.irn ? (
                                         <>
-                                          <Badge className="bg-green-500 text-white text-[11px]">
+                                          <Badge className="bg-green-500 text-white text-xs">
                                             <FileCheck className="h-3 w-3 mr-1" />
                                             IRN Generated
                                           </Badge>
-                                          <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[200px]" title={sale.irn}>
+                                          <span className="text-xs text-muted-foreground font-mono truncate max-w-[200px]" title={sale.irn}>
                                             {sale.irn.substring(0, 25)}...
                                           </span>
                                           {sale.ack_no && (
-                                            <span className="text-[10px] text-green-600 font-medium">Ack No: {sale.ack_no}</span>
+                                            <span className="text-xs text-green-600 font-medium">Ack No: {sale.ack_no}</span>
                                           )}
                                           {sale.einvoice_status !== 'cancelled' && sale.status !== 'cancelled' && (
                                             <Button
@@ -2168,7 +2168,7 @@ const POSDashboard = () => {
                                             Download E-Invoice
                                           </Button>
                                           {sale.einvoice_status === 'cancelled' && (
-                                            <Badge variant="destructive" className="text-[11px]">IRN Cancelled</Badge>
+                                            <Badge variant="destructive" className="text-xs">IRN Cancelled</Badge>
                                           )}
                                         </>
                                       ) : (

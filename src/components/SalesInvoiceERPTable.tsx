@@ -149,7 +149,7 @@ export function SalesInvoiceERPTable({
               <div className="flex items-center gap-1.5 font-medium">
                 <span className={invoice.is_cancelled ? "line-through decoration-red-500/70" : ""}>{invoice.sale_number}</span>
                 {invoice.is_cancelled && (
-                  <Badge className="no-line-through text-[9px] px-1.5 py-0 h-4 bg-red-700 hover:bg-red-800 text-white no-underline" style={{ textDecoration: 'none' }}>CANCELLED</Badge>
+                  <Badge className="no-line-through text-xs px-1.5 py-0 h-4 bg-red-700 hover:bg-red-800 text-white no-underline" style={{ textDecoration: 'none' }}>CANCELLED</Badge>
                 )}
                 {!invoice.is_cancelled && invoice.payment_status === 'completed' && (
                   <span title="Invoice is locked (Fully Paid)">
@@ -278,7 +278,7 @@ export function SalesInvoiceERPTable({
                 {cnAdjusted && cnAdjusted.length > 0 && (
                   <Badge
                     variant="outline"
-                    className="bg-purple-50 text-purple-700 border-purple-300 text-[10px] px-1.5 py-0 block dark:bg-purple-950 dark:text-purple-300 dark:border-purple-700"
+                    className="bg-purple-50 text-purple-700 border-purple-300 text-xs px-1.5 py-0 block dark:bg-purple-950 dark:text-purple-300 dark:border-purple-700"
                   >
                     CN Adjusted
                   </Badge>
