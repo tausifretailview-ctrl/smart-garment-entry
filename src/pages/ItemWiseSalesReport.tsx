@@ -406,15 +406,14 @@ export default function ItemWiseSalesReport() {
   // Export to Excel
   const exportToExcel = () => {
     if (activeTab === "customerwise") {
-      const exportData = customerWiseData.map((row, i) => ({
-        "Sr No": i + 1,
-        "Customer Name": row.customer_name,
-        "Items": row.item_count,
-        "Total Qty": row.total_qty,
-        "Total Value": Math.round(row.total_amount),
-        "Avg Item Value": row.total_qty > 0 ? Math.round(row.total_amount / row.total_qty) : 0,
-      }));
-      const ws = XLSX.utils.json_to_sheet(exportData);
+      const exportRows: any[] = [];
+      customerWiseData.forEach((row, i) => {
+        exportRows.push({ "Sr No": i + 1, "Customer Name": row.customer_name, "Product Name": "", "Items": row.item_count, "Total Qty": row.total_qty, "Total Value": Math.round(row.total_amount), "Avg Item Value": row.total_qty > 0 ? Math.round(row.total_amount / row.total_qty) : 0 });
+        row.productList.forEach((p, pi) => {
+          exportRows.push({ "Sr No": "", "Customer Name": "", "Product Name": p.product_name, "Items": "", "Total Qty": p.qty, "Total Value": Math.round(p.amount), "Avg Item Value": "" });
+        });
+      });
+      const ws = XLSX.utils.json_to_sheet(exportRows);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Customer-wise Sales");
       XLSX.writeFile(wb, `customer-wise-sales-${format(dateRange.from, "yyyy-MM-dd")}.xlsx`);
