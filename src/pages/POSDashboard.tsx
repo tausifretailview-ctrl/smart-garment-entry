@@ -167,11 +167,15 @@ const POSDashboard = () => {
     staleTime: 300000,
   });
 
-  // Default userFilter to logged-in user
+  // Default userFilter to logged-in user (single-user orgs default to "all")
   useEffect(() => {
     if (userFilter === "__pending__" && orgUsers.length > 0 && user?.id) {
-      const isOrgMember = orgUsers.some((u: any) => u.id === user.id);
-      setUserFilter(isOrgMember ? user.id : "all");
+      if (orgUsers.length === 1) {
+        setUserFilter("all");
+      } else {
+        const isOrgMember = orgUsers.some((u: any) => u.id === user.id);
+        setUserFilter(isOrgMember ? user.id : "all");
+      }
     } else if (userFilter === "__pending__" && orgUsers.length > 0) {
       setUserFilter("all");
     }
