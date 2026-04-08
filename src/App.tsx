@@ -19,6 +19,22 @@ import { POSLayout } from "@/components/POSLayout";
 import { SchoolFeatureGate } from "./components/school/SchoolFeatureGate";
 import { getStoredOrgSlug } from "@/lib/orgSlug";
 
+// Auto-retry lazy imports to handle chunk failures after deployments
+function lazyWithRetry(importFn: () => Promise<any>) {
+  return lazy(() =>
+    importFn().catch((error) => {
+      const hasReloaded = sessionStorage.getItem("chunk_reload");
+      if (!hasReloaded) {
+        sessionStorage.setItem("chunk_reload", "true");
+        window.location.reload();
+        return new Promise(() => {});
+      }
+      sessionStorage.removeItem("chunk_reload");
+      throw error;
+    })
+  );
+}
+
 // Lazy-loaded page components for code splitting
 const OrganizationManagement = lazy(() => import("./pages/OrganizationManagement"));
 const Index = lazy(() => import("./pages/Index"));
