@@ -603,7 +603,7 @@ export default function OrganizationManagement() {
                           placeholder="Enter a secure password"
                           value={newUserPassword}
                           onChange={(e) => setNewUserPassword(e.target.value)}
-                          className="pr-10"
+                          className="pr-10 no-uppercase"
                         />
                         <button
                           type="button"
