@@ -2255,7 +2255,7 @@ export default function SalesInvoiceDashboard() {
           {[{v:"all",l:"All"},{v:"pending",l:"Pending"},{v:"partial",l:"Partial"},{v:"completed",l:"Paid"}].map((s) => (
             <button key={s.v} onClick={() => { setPaymentStatusFilter(s.v); setCurrentPage(1); }}
               className={cn(
-                "flex-shrink-0 px-3 py-1 rounded-full text-[11px] font-semibold border transition-all touch-manipulation",
+                "flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition-all touch-manipulation",
                 paymentStatusFilter === s.v ? "bg-foreground text-background border-transparent" : "bg-card text-muted-foreground border-border"
               )}>
               {s.l}
@@ -2293,10 +2293,10 @@ export default function SalesInvoiceDashboard() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={cn("font-mono text-xs font-bold text-primary", inv.is_cancelled && "line-through decoration-red-500/70")}>{inv.sale_number}</span>
-                        <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border", sc[effectiveStatus] || sc.pending)}>
+                        <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full border", sc[effectiveStatus] || sc.pending)}>
                           {effectiveStatus === 'completed' ? 'Paid' : effectiveStatus}
                         </span>
-                        {inv.is_cancelled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">Cancelled</span>}
+                        {inv.is_cancelled && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">Cancelled</span>}
                       </div>
                       <p
                         className={cn("text-sm font-medium text-foreground mt-1 truncate", inv.is_cancelled && "line-through decoration-red-500/50", inv.customer_name && inv.customer_name !== 'Walk-in' && "text-primary underline underline-offset-2 decoration-primary/30")}
@@ -2308,7 +2308,7 @@ export default function SalesInvoiceDashboard() {
                           }
                         }}
                       >{inv.customer_name || 'Walk-in'}</p>
-                      <p className="text-[11px] text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         {format(new Date(inv.created_at || inv.sale_date), "d MMM · hh:mm a")}
                         {inv.total_qty ? ` · ${inv.total_qty} pcs` : ""}
                       </p>
@@ -2316,7 +2316,7 @@ export default function SalesInvoiceDashboard() {
                     <div className="text-right shrink-0 ml-3">
                       <p className={cn("text-sm font-bold tabular-nums", inv.is_cancelled && "line-through decoration-red-500/70")}>₹{(inv.net_amount||0).toLocaleString("en-IN")}</p>
                       {pending > 0 && (
-                        <p className="text-[11px] text-amber-600 font-medium">Due ₹{pending.toLocaleString("en-IN")}</p>
+                        <p className="text-xs text-amber-600 font-medium">Due ₹{pending.toLocaleString("en-IN")}</p>
                       )}
                     </div>
                   </div>
