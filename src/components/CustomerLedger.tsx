@@ -643,8 +643,15 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // represented by the Sale Return entry with "(Cash Refunded)" label
       const allVouchers = [...(vouchersData || []), ...(openingBalancePayments || [])]
         .filter((v: any) => {
-          // Keep all receipt vouchers
-          if (v.voucher_type === 'receipt') return true;
+          // Keep all receipt vouchers EXCEPT credit note adjustments linked to sale returns
+          if (v.voucher_type === 'receipt') {
+            const desc = (v.description || '').toLowerCase();
+            // Credit note adjustments are already represented by the Sale Return entry (cn_adjustment)
+            if (desc.includes('credit note adjusted') || desc.includes('cn adjusted')) {
+              return false;
+            }
+            return true;
+          }
           // For payment vouchers (refunds to customer): exclude sale return refunds
           // as the sale_returns entry already shows the credit with "(Cash Refunded)"
           if (v.voucher_type === 'payment' && v.reference_type === 'customer') {
@@ -995,7 +1002,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           
           let description = `Sale Return - ${sr.return_number}`;
           if (sr.credit_status === 'adjusted' && sr.linkedSaleNumber) {
-            description += ` (Adjusted against ${sr.linkedSaleNumber})`;
+            description += ` (Adjusted via CN against ${sr.linkedSaleNumber})`;
           } else if (sr.credit_status === 'refunded') {
             description += ` (Cash Refunded)`;
           } else if (sr.credit_status === 'adjusted_outstanding') {
