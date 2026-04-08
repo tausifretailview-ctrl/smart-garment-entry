@@ -988,7 +988,7 @@ export default function PlatformAdmin() {
                           value={userPassword}
                           onChange={(e) => setUserPassword(e.target.value)}
                           placeholder="Enter temporary password"
-                          className="pr-10"
+                          className="pr-10 no-uppercase"
                         />
                         <button
                           type="button"
