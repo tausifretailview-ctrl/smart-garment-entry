@@ -1631,6 +1631,19 @@ const POSDashboard = () => {
                   <SelectItem value="dc">DC Only</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={userFilter} onValueChange={setUserFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="All Users" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  <SelectItem value="all">All Users</SelectItem>
+                  {orgUsers.map((user: any) => (
+                    <SelectItem key={user.id} value={user.id} title={user.email}>
+                      {user.email.split("@")[0]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               
               
               {/* Column Settings Popover */}
