@@ -6,9 +6,11 @@ import { storeOrgSlug } from "@/lib/orgSlug";
 // Global constants for cross-tab refresh coordination
 const REFRESH_LOCK_KEY = 'auth_refresh_lock';
 const REFRESH_COOLDOWN = 5000; // 5 seconds cooldown between refreshes
-const SESSION_EXPIRY_BUFFER = 600; // 10 minutes buffer before expiry
-const PERIODIC_CHECK_INTERVAL = 4 * 60 * 1000; // Check every 4 minutes
+const SESSION_EXPIRY_BUFFER = 900; // 15 minutes buffer before expiry
+const PERIODIC_CHECK_INTERVAL = 2 * 60 * 1000; // Check every 2 minutes
 const SESSION_TIMEOUT = 10000; // 10 seconds timeout for initial session fetch
+const MAX_REFRESH_RETRIES = 3;
+const RETRY_DELAY = 2000; // 2 seconds between retries
 
 interface AuthContextType {
   user: User | null;
@@ -56,6 +58,27 @@ const clearRefreshLock = () => {
   localStorage.removeItem(REFRESH_LOCK_KEY);
 };
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Network-aware signOut: skip if offline and schedule retry when back online
+const safeSignOut = async (setSession: (s: Session | null) => void, setUser: (u: User | null) => void) => {
+  if (!navigator.onLine) {
+    console.warn("Offline — skipping auto sign-out, will retry when online");
+    const handler = async () => {
+      window.removeEventListener('online', handler);
+      console.log("Back online — performing deferred sign-out");
+      await supabase.auth.signOut({ scope: 'local' });
+      setSession(null);
+      setUser(null);
+    };
+    window.addEventListener('online', handler);
+    return;
+  }
+  await supabase.auth.signOut({ scope: 'local' });
+  setSession(null);
+  setUser(null);
+};
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -90,14 +113,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
         
         // Chrome-specific: refresh_token_not_found means the token was revoked
-        // (tab suspension, bfcache, aggressive cleanup). Clean up locally.
         const errorMsg = (error.message || '').toLowerCase();
         if (errorMsg.includes('refresh_token_not_found') || errorMsg.includes('refresh token not found')) {
-          console.warn("Refresh token revoked (common in Chrome). Clearing local session.");
-          await supabase.auth.signOut({ scope: 'local' });
+          console.warn("Refresh token revoked — checking if a valid session still exists in storage...");
+          // Before signing out, check if storage still has a valid session
+          const { data: checkData } = await supabase.auth.getSession();
+          if (checkData?.session) {
+            console.log("Valid session still exists in storage, keeping it.");
+            return;
+          }
+          // Retry up to MAX_REFRESH_RETRIES times before giving up
+          for (let attempt = 1; attempt <= MAX_REFRESH_RETRIES; attempt++) {
+            console.log(`Retry attempt ${attempt}/${MAX_REFRESH_RETRIES}...`);
+            await delay(RETRY_DELAY);
+            const { data: retryData, error: retryError } = await supabase.auth.refreshSession();
+            if (!retryError && retryData?.session) {
+              console.log(`Retry ${attempt} succeeded`);
+              if (retryData.session.user?.id !== sessionRef.current?.user?.id) {
+                setSession(retryData.session);
+                setUser(retryData.session.user);
+              } else {
+                sessionRef.current = retryData.session;
+              }
+              return;
+            }
+          }
+          console.warn("All retries failed. Signing out.");
           localStorage.removeItem(REFRESH_LOCK_KEY);
-          setSession(null);
-          setUser(null);
+          await safeSignOut(setSession, setUser);
           return;
         }
         
@@ -199,28 +242,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (error) {
         console.warn("Error getting session, attempting refresh:", error);
         localStorage.removeItem(REFRESH_LOCK_KEY);
-        try {
-          const { data: refreshData } = await supabase.auth.refreshSession();
-          if (refreshData.session) {
-            setSession(refreshData.session);
-            setUser(refreshData.session.user);
-            setLoading(false);
-            return;
+        // Retry refresh up to MAX_REFRESH_RETRIES times
+        for (let attempt = 1; attempt <= MAX_REFRESH_RETRIES; attempt++) {
+          try {
+            const { data: refreshData } = await supabase.auth.refreshSession();
+            if (refreshData.session) {
+              setSession(refreshData.session);
+              setUser(refreshData.session.user);
+              setLoading(false);
+              return;
+            }
+          } catch (refreshErr) {
+            console.error(`Refresh attempt ${attempt} failed:`, refreshErr);
           }
-        } catch (refreshErr) {
-          console.error("Refresh also failed:", refreshErr);
+          if (attempt < MAX_REFRESH_RETRIES) await delay(RETRY_DELAY);
         }
-        // Aggressive cleanup: wipe ALL sb-* keys to clear corrupted Chrome state
-        try {
-          const sbKeys = Object.keys(localStorage).filter(k => k.startsWith('sb-'));
-          sbKeys.forEach(k => localStorage.removeItem(k));
-          console.warn("Cleared all sb-* localStorage keys after session error");
-        } catch (cleanupErr) {
-          console.error("Failed to clean sb-* keys:", cleanupErr);
-        }
-        await supabase.auth.signOut({ scope: 'local' });
-        setSession(null);
-        setUser(null);
+        await safeSignOut(setSession, setUser);
         setLoading(false);
         return;
       }
@@ -232,28 +269,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (currentTime > expiryTime) {
           console.warn("Session expired, attempting refresh...");
           localStorage.removeItem(REFRESH_LOCK_KEY);
-          try {
-            const { data: refreshData } = await supabase.auth.refreshSession();
-            if (refreshData.session) {
-              setSession(refreshData.session);
-              setUser(refreshData.session.user);
-              setLoading(false);
-              return;
+          for (let attempt = 1; attempt <= MAX_REFRESH_RETRIES; attempt++) {
+            try {
+              const { data: refreshData } = await supabase.auth.refreshSession();
+              if (refreshData.session) {
+                setSession(refreshData.session);
+                setUser(refreshData.session.user);
+                setLoading(false);
+                return;
+              }
+            } catch (refreshErr) {
+              console.error(`Refresh attempt ${attempt} for expired session failed:`, refreshErr);
             }
-          } catch (refreshErr) {
-            console.error("Refresh failed for expired session:", refreshErr);
+            if (attempt < MAX_REFRESH_RETRIES) await delay(RETRY_DELAY);
           }
-          // Aggressive cleanup of all sb-* keys for Chrome edge cases
-          try {
-            const sbKeys = Object.keys(localStorage).filter(k => k.startsWith('sb-'));
-            sbKeys.forEach(k => localStorage.removeItem(k));
-            console.warn("Cleared all sb-* localStorage keys after expired session");
-          } catch (cleanupErr) {
-            console.error("Failed to clean sb-* keys:", cleanupErr);
-          }
-          await supabase.auth.signOut({ scope: 'local' });
-          setSession(null);
-          setUser(null);
+          await safeSignOut(setSession, setUser);
           setLoading(false);
           return;
         }
