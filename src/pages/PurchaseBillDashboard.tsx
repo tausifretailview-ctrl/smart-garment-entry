@@ -113,6 +113,7 @@ interface PurchaseBill {
   bill_image_url?: string | null;
   is_locked?: boolean;
   items?: PurchaseItem[];
+  purchase_items?: { count: number }[];
 }
 
 const PurchaseBillDashboard = () => {
@@ -354,9 +355,10 @@ const PurchaseBillDashboard = () => {
 
       let query = supabase
         .from("purchase_bills")
-        .select("id, supplier_id, supplier_name, supplier_invoice_no, software_bill_no, bill_date, gross_amount, discount_amount, gst_amount, net_amount, notes, created_at, payment_status, paid_amount, total_qty, is_dc_purchase, bill_image_url, is_locked", { count: "exact" })
+        .select("id, supplier_id, supplier_name, supplier_invoice_no, software_bill_no, bill_date, gross_amount, discount_amount, gst_amount, net_amount, notes, created_at, payment_status, paid_amount, total_qty, is_dc_purchase, bill_image_url, is_locked, purchase_items(count)", { count: "exact" })
         .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .is("purchase_items.deleted_at", null);
 
       // Server-side search — also search product details in purchase_items
       if (debouncedSearch) {
@@ -1270,9 +1272,13 @@ const PurchaseBillDashboard = () => {
     {
       id: "items_count",
       header: "Items",
-      cell: ({ row }) => (
-        <span className="text-center block text-sm">{billItems[row.original.id]?.length || 0}</span>
-      ),
+      cell: ({ row }) => {
+        const bill = row.original;
+        const countFromQuery = bill.purchase_items?.[0]?.count;
+        const countFromExpand = billItems[bill.id]?.length;
+        const displayCount = countFromExpand ?? countFromQuery ?? 0;
+        return <span className="text-center block text-sm">{displayCount}</span>;
+      },
       size: 55,
       minSize: 45,
     },
