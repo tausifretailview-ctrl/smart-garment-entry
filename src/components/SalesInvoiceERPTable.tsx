@@ -135,7 +135,7 @@ export function SalesInvoiceERPTable({
             />
           </div>
         ),
-        size: 40,
+        size: 36,
       });
     }
 
@@ -163,7 +163,8 @@ export function SalesInvoiceERPTable({
             </div>
           );
         },
-        size: 140,
+        size: 130,
+        minSize: 110,
       },
       {
         accessorKey: "customer_name",
@@ -186,7 +187,8 @@ export function SalesInvoiceERPTable({
             </span>
           );
         },
-        size: 200,
+        size: 170,
+        minSize: 120,
       });
 
     if (columnSettings.phone) {
@@ -194,7 +196,8 @@ export function SalesInvoiceERPTable({
         accessorKey: "customer_phone",
         header: "Phone",
         cell: ({ row }) => row.original.customer_phone || '-',
-        size: 120,
+        size: 115,
+        minSize: 100,
       });
     }
 
@@ -203,21 +206,23 @@ export function SalesInvoiceERPTable({
         accessorKey: "sale_date",
         header: "Date",
         cell: ({ row }) => row.original.sale_date ? format(new Date(row.original.sale_date), 'dd/MM/yyyy') : '-',
-        size: 100,
+        size: 95,
+        minSize: 85,
       },
       {
         id: "qty",
-        header: "Qty",
+        header: "QTY",
         cell: ({ row }) => (
           <span className="text-center block">
             {row.original.total_qty || 0}
           </span>
         ),
-        size: 60,
+        size: 55,
+        minSize: 45,
       },
       {
         id: "discount",
-        header: "Discount",
+        header: "Disc",
         cell: ({ row }) => {
           const invoice = row.original;
           return (
@@ -229,13 +234,15 @@ export function SalesInvoiceERPTable({
             </div>
           );
         },
-        size: 100,
+        size: 90,
+        minSize: 80,
       },
       {
         accessorKey: "net_amount",
         header: "Amount",
         cell: ({ row }) => <span className="tabular-nums">₹{Math.round(row.original.net_amount).toLocaleString('en-IN')}</span>,
-        size: 110,
+        size: 100,
+        minSize: 85,
       }
     );
 
@@ -286,7 +293,8 @@ export function SalesInvoiceERPTable({
               </div>
             );
           },
-          size: 100,
+          size: 90,
+          minSize: 80,
         },
         {
           id: "balance",
@@ -296,7 +304,8 @@ export function SalesInvoiceERPTable({
               ₹{Math.round((row.original.net_amount || 0) - (row.original.paid_amount || 0)).toLocaleString('en-IN')}
             </span>
           ),
-          size: 100,
+          size: 90,
+          minSize: 75,
         }
       );
     }
@@ -321,7 +330,8 @@ export function SalesInvoiceERPTable({
             </div>
           );
         },
-        size: 110,
+        size: 95,
+        minSize: 80,
       });
     }
 
@@ -544,7 +554,8 @@ export function SalesInvoiceERPTable({
           return null;
         }
       },
-      size: 240,
+      size: 160,
+      minSize: 140,
     });
 
     return cols;
