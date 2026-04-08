@@ -64,7 +64,7 @@ export function DraggableHeader<T>({ header, isSticky, density }: DraggableHeade
         >
           <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
         </button>
-        <span className="truncate">
+        <span className="truncate" title={typeof header.column.columnDef.header === 'string' ? header.column.columnDef.header : ''}>
           {header.isPlaceholder
             ? null
             : flexRender(header.column.columnDef.header, header.getContext())}

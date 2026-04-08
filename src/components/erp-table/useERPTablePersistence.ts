@@ -71,13 +71,15 @@ export function useERPTablePersistence(
   }, []);
 
   const resetSettings = useCallback(() => {
-    setSettings({
+    const newSettings = {
       columnOrder: defaults.columnOrder,
       columnVisibility: defaults.columnVisibility,
       columnSizing: {},
       density: defaults.density ?? "comfortable",
-    });
-  }, [defaults]);
+    };
+    setSettings(newSettings);
+    try { localStorage.removeItem(`${STORAGE_PREFIX}${tableId}`); } catch {}
+  }, [defaults, tableId]);
 
   return {
     ...settings,
