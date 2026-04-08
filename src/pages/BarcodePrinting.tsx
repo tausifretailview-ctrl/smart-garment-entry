@@ -2262,6 +2262,7 @@ export default function BarcodePrinting() {
 
   const handleClearAll = () => {
     setLabelItems([]);
+    localStorage.removeItem('barcode_label_items');
     setSearchQuery("");
     toast.success("Cleared all labels");
   };
