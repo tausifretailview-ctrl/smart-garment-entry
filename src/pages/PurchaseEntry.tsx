@@ -452,6 +452,54 @@ const PurchaseEntry = () => {
   // Barcode mode: 'auto' (default) or 'scan' (manual/manufacturer barcode)
   const barcodeMode = (settings?.purchase_settings as any)?.barcode_mode || 'auto';
   const isAutoBarcode = barcodeMode !== 'scan';
+
+  // Detect if a barcode was system-generated (belongs to this org's auto series)
+  // System barcodes: orgNumber * 10000000 + sequence (e.g., org #9 → 90001001, 90001002...)
+  // Branded/universal barcodes (Jockey, Rupa etc.) won't match this pattern
+  const isSystemGeneratedBarcode = (barcode: string | null | undefined): boolean => {
+    if (!barcode || !currentOrganization?.organization_number) return false;
+    const num = parseInt(barcode, 10);
+    if (isNaN(num)) return false;
+    const orgNum = currentOrganization.organization_number;
+    const rangeStart = orgNum * 10000000;
+    const rangeEnd = (orgNum + 1) * 10000000;
+    return num >= rangeStart && num < rangeEnd;
+  };
+
+  // Helper: create a new variant with a new barcode, copying fields from source
+  const createNewVariantWithBarcode = async (source: {
+    product_id: string; size: string; color?: string;
+    pur_price?: number; sale_price?: number; mrp?: number;
+  }): Promise<{ id: string; barcode: string } | null> => {
+    try {
+      const newBarcode = await generateCentralizedBarcode();
+      const { data: newVariant, error } = await supabase
+        .from("product_variants")
+        .insert({
+          organization_id: currentOrganization!.id,
+          product_id: source.product_id,
+          size: source.size || "",
+          color: source.color || "",
+          barcode: newBarcode,
+          pur_price: source.pur_price || 0,
+          sale_price: source.sale_price || 0,
+          mrp: source.mrp || 0,
+          stock_qty: 0,
+          active: true,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      return { id: newVariant.id, barcode: newBarcode };
+    } catch (error: any) {
+      console.error("Failed to create new variant:", error);
+      toast({
+        title: "Warning",
+        description: "Could not create new variant, reusing existing. " + (error.message || ""),
+      });
+      return null;
+    }
+  };
   
   const autoFocusSearch = (settings?.purchase_settings as any)?.auto_focus_search || false;
   const sizeGridReviewMode = (settings?.purchase_settings as any)?.size_grid_review_mode || false;
@@ -997,7 +1045,7 @@ const PurchaseEntry = () => {
       openSizeGridModal(variant.product_id);
     } else {
       // For Free Size mode - add row and focus on QTY field
-      addInlineRow(variant);
+      await addInlineRow(variant);
       setTimeout(() => {
         lastQtyInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         lastQtyInputRef.current?.focus();
@@ -1396,7 +1444,7 @@ const PurchaseEntry = () => {
     if (entryMode === "grid") {
       openSizeGridModal(variant.product_id);
     } else {
-      addInlineRow(variant);
+      await addInlineRow(variant);
       // Scroll to and focus on quantity input after adding inline row
       setTimeout(() => {
         lastQtyInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1454,24 +1502,26 @@ const PurchaseEntry = () => {
       const v = data[0];
       const product = v.products as any;
       let barcode = v.barcode || "";
+      let skuId = v.id;
       
-      if (!barcode && isAutoBarcode) {
-        try {
-          barcode = await generateCentralizedBarcode();
-          await supabase.from("product_variants").update({ barcode }).eq("id", v.id);
-        } catch (error) {
-          toast({
-            title: "Error",
-            description: "Failed to generate barcode for product",
-            variant: "destructive",
-          });
-          return;
-        }
+      // Smart barcode: system-generated → new variant+barcode, branded → reuse
+      if (barcode && isSystemGeneratedBarcode(barcode)) {
+        const result = await createNewVariantWithBarcode({
+          product_id: productId, size: v.size, color: v.color,
+          pur_price: product.default_pur_price, sale_price: product.default_sale_price, mrp: v.mrp,
+        });
+        if (result) { skuId = result.id; barcode = result.barcode; }
+      } else if (!barcode && isAutoBarcode) {
+        const result = await createNewVariantWithBarcode({
+          product_id: productId, size: v.size, color: v.color,
+          pur_price: product.default_pur_price, sale_price: product.default_sale_price, mrp: v.mrp,
+        });
+        if (result) { skuId = result.id; barcode = result.barcode; }
       }
 
       addItemRow({
         product_id: productId,
-        sku_id: v.id,
+        sku_id: skuId,
         product_name: product.product_name,
         size: v.size,
         qty: 1,
@@ -1566,23 +1616,28 @@ const PurchaseEntry = () => {
           continue;
         }
       } else {
-        // Existing variant - auto-generate barcode if missing
-        if (!barcode && isAutoBarcode) {
-          try {
-            barcode = await generateCentralizedBarcode();
-            await supabase
-              .from("product_variants")
-              .update({ barcode })
-              .eq("id", variant.id);
-          } catch (error) {
-            toast({
-              title: "Error",
-              description: `Failed to generate barcode for size ${variant.size}`,
-              variant: "destructive",
-            });
-            continue;
-          }
+        // Existing variant - smart barcode handling
+        if (barcode && isSystemGeneratedBarcode(barcode)) {
+          // System-generated barcode → new variant + new barcode
+          const result = await createNewVariantWithBarcode({
+            product_id: selectedProduct.id, size: variant.size,
+            color: newColor || variant.color || selectedProduct.color,
+            pur_price: variant.pur_price || selectedProduct.default_pur_price,
+            sale_price: variant.sale_price || selectedProduct.default_sale_price,
+            mrp: variant.mrp,
+          });
+          if (result) { skuId = result.id; barcode = result.barcode; }
+        } else if (!barcode && isAutoBarcode) {
+          const result = await createNewVariantWithBarcode({
+            product_id: selectedProduct.id, size: variant.size,
+            color: newColor || variant.color || selectedProduct.color,
+            pur_price: variant.pur_price || selectedProduct.default_pur_price,
+            sale_price: variant.sale_price || selectedProduct.default_sale_price,
+            mrp: variant.mrp,
+          });
+          if (result) { skuId = result.id; barcode = result.barcode; }
         }
+        // Branded barcode → reuse as-is
       }
 
       addItemRow({
@@ -1617,14 +1672,47 @@ const PurchaseEntry = () => {
     focusSearchBar();
   };
 
-  const addInlineRow = (variant: ProductVariant) => {
+  const addInlineRow = async (variant: ProductVariant) => {
+    let skuId = variant.id;
+    let barcode = variant.barcode;
+
+    // Smart barcode logic: system-generated → new barcode+variant, branded → reuse
+    if (barcode && isSystemGeneratedBarcode(barcode)) {
+      const result = await createNewVariantWithBarcode({
+        product_id: variant.product_id,
+        size: variant.size,
+        color: variant.color,
+        pur_price: variant.pur_price,
+        sale_price: variant.sale_price,
+        mrp: variant.mrp,
+      });
+      if (result) {
+        skuId = result.id;
+        barcode = result.barcode;
+      }
+    } else if (!barcode && isAutoBarcode) {
+      const result = await createNewVariantWithBarcode({
+        product_id: variant.product_id,
+        size: variant.size,
+        color: variant.color,
+        pur_price: variant.pur_price,
+        sale_price: variant.sale_price,
+        mrp: variant.mrp,
+      });
+      if (result) {
+        skuId = result.id;
+        barcode = result.barcode;
+      }
+    }
+    // Branded barcode or no barcode + scan mode → reuse as-is
+
     const subTotal = 1 * variant.pur_price;
     const discountAmount = 0;
     const lineTotal = subTotal - discountAmount;
     const newItem: LineItem = {
       temp_id: Date.now().toString() + Math.random(),
       product_id: variant.product_id,
-      sku_id: variant.id,
+      sku_id: skuId,
       product_name: variant.product_name,
       size: variant.size,
       qty: 1,
@@ -1633,7 +1721,7 @@ const PurchaseEntry = () => {
       mrp: variant.mrp || 0,
       gst_per: variant.gst_per,
       hsn_code: variant.hsn_code,
-      barcode: variant.barcode,
+      barcode: barcode,
       discount_percent: 0,
       line_total: lineTotal,
       brand: variant.brand || "",

@@ -10,6 +10,7 @@ interface Organization {
   enabled_features: string[];
   settings: Record<string, any>;
   organization_type: "business" | "school";
+  organization_number: number;
 }
 
 interface OrganizationContextType {
@@ -86,7 +87,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       .from("organization_members")
       .select(`
         id, organization_id, user_id, role,
-        organizations (id, name, slug, subscription_tier, enabled_features, settings, organization_type)
+        organizations (id, name, slug, subscription_tier, enabled_features, settings, organization_type, organization_number)
       `)
       .eq("user_id", userId);
   };
