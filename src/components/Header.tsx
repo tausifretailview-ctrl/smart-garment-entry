@@ -400,7 +400,32 @@ export const Header = () => {
           </div>
         ))}
 
+        {/* Quick action buttons */}
+        <div className="w-px h-4 bg-sidebar-border mx-0.5" />
+        <Button
+          onClick={() => setQuickStockOpen(true)}
+          variant="outline"
+          className="h-7 px-2.5 text-xs font-medium text-sidebar-foreground bg-sidebar-accent/40 border-sidebar-border hover:bg-sidebar-accent hover:text-sidebar-foreground gap-1.5"
+        >
+          <BoxIcon className="h-3.5 w-3.5" />
+          Quick Stock
+        </Button>
+        <Button
+          onClick={() => setSizeStockOpen(true)}
+          variant="outline"
+          className="h-7 px-2.5 text-xs font-medium text-sidebar-foreground bg-sidebar-accent/40 border-sidebar-border hover:bg-sidebar-accent hover:text-sidebar-foreground gap-1.5"
+        >
+          <LayoutGrid className="h-3.5 w-3.5" />
+          Size Stock
+        </Button>
+
         <div className="flex-1" />
+
+        {/* Organization name */}
+        <span className="text-xs font-semibold text-sidebar-foreground/80 truncate max-w-[150px]" title={currentOrganization?.name || ""}>
+          {currentOrganization?.name || ""}
+        </span>
+        <div className="w-px h-4 bg-sidebar-border mx-1" />
 
         {/* Live indicator */}
         <div className="flex items-center gap-1.5 text-sidebar-foreground/60">
