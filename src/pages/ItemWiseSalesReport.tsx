@@ -83,6 +83,7 @@ export default function ItemWiseSalesReport() {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
+  const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null);
   const ITEMS_PER_PAGE = 100;
 
   // Fetch filter options with caching
@@ -310,9 +311,9 @@ export default function ItemWiseSalesReport() {
     );
   }, [saleItems, selectedBrand, selectedCategory, selectedDepartment, selectedColor, searchQuery]);
 
-  // Customer-wise aggregation
+  // Customer-wise aggregation with product breakdown
   const customerWiseData = useMemo(() => {
-    const groups = new Map<string, { customer_name: string; total_qty: number; total_amount: number; item_count: number }>();
+    const groups = new Map<string, { customer_name: string; total_qty: number; total_amount: number; item_count: number; products: Map<string, { product_name: string; qty: number; amount: number }> }>();
     saleItems.forEach((item: any) => {
       const customerName = item.customer_name || "Walk-in Customer";
       if (selectedBrand !== "all" && item.products?.brand !== selectedBrand) return;
@@ -323,15 +324,23 @@ export default function ItemWiseSalesReport() {
         if (!multiTokenMatch(searchQuery, item.product_name, item.barcode, item.products?.brand, item.products?.category, item.products?.color)) return;
       }
       const existing = groups.get(customerName);
+      const productName = item.product_name || "Unknown";
       if (existing) {
         existing.total_qty += item.quantity;
         existing.total_amount += Number(item.line_total);
         existing.item_count += 1;
+        const ep = existing.products.get(productName);
+        if (ep) { ep.qty += item.quantity; ep.amount += Number(item.line_total); }
+        else { existing.products.set(productName, { product_name: productName, qty: item.quantity, amount: Number(item.line_total) }); }
       } else {
-        groups.set(customerName, { customer_name: customerName, total_qty: item.quantity, total_amount: Number(item.line_total), item_count: 1 });
+        const products = new Map<string, { product_name: string; qty: number; amount: number }>();
+        products.set(productName, { product_name: productName, qty: item.quantity, amount: Number(item.line_total) });
+        groups.set(customerName, { customer_name: customerName, total_qty: item.quantity, total_amount: Number(item.line_total), item_count: 1, products });
       }
     });
-    return Array.from(groups.values()).sort((a, b) => b.total_amount - a.total_amount);
+    return Array.from(groups.values())
+      .map(g => ({ ...g, productList: Array.from(g.products.values()).sort((a, b) => b.qty - a.qty) }))
+      .sort((a, b) => b.total_amount - a.total_amount);
   }, [saleItems, selectedBrand, selectedCategory, selectedDepartment, selectedColor, searchQuery]);
 
   // Summary via RPC (single JSON instead of client-side aggregation)
@@ -397,15 +406,14 @@ export default function ItemWiseSalesReport() {
   // Export to Excel
   const exportToExcel = () => {
     if (activeTab === "customerwise") {
-      const exportData = customerWiseData.map((row, i) => ({
-        "Sr No": i + 1,
-        "Customer Name": row.customer_name,
-        "Items": row.item_count,
-        "Total Qty": row.total_qty,
-        "Total Value": Math.round(row.total_amount),
-        "Avg Item Value": row.total_qty > 0 ? Math.round(row.total_amount / row.total_qty) : 0,
-      }));
-      const ws = XLSX.utils.json_to_sheet(exportData);
+      const exportRows: any[] = [];
+      customerWiseData.forEach((row, i) => {
+        exportRows.push({ "Sr No": i + 1, "Customer Name": row.customer_name, "Product Name": "", "Items": row.item_count, "Total Qty": row.total_qty, "Total Value": Math.round(row.total_amount), "Avg Item Value": row.total_qty > 0 ? Math.round(row.total_amount / row.total_qty) : 0 });
+        row.productList.forEach((p, pi) => {
+          exportRows.push({ "Sr No": "", "Customer Name": "", "Product Name": p.product_name, "Items": "", "Total Qty": p.qty, "Total Value": Math.round(p.amount), "Avg Item Value": "" });
+        });
+      });
+      const ws = XLSX.utils.json_to_sheet(exportRows);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Customer-wise Sales");
       XLSX.writeFile(wb, `customer-wise-sales-${format(dateRange.from, "yyyy-MM-dd")}.xlsx`);
@@ -897,14 +905,51 @@ export default function ItemWiseSalesReport() {
                   </TableHeader>
                   <TableBody>
                     {customerWiseData.map((row, index) => (
-                      <TableRow key={row.customer_name} className={index % 2 === 0 ? "" : "bg-muted/30"}>
-                        <TableCell className="font-mono text-muted-foreground">{index + 1}</TableCell>
-                        <TableCell className="font-medium">{row.customer_name}</TableCell>
-                        <TableCell className="text-center">{row.item_count}</TableCell>
-                        <TableCell className="text-right font-mono">{row.total_qty}</TableCell>
-                        <TableCell className="text-right font-mono font-semibold">₹{Math.round(row.total_amount).toLocaleString("en-IN")}</TableCell>
-                        <TableCell className="text-right font-mono text-muted-foreground">₹{row.total_qty > 0 ? Math.round(row.total_amount / row.total_qty).toLocaleString("en-IN") : 0}</TableCell>
-                      </TableRow>
+                      <>
+                        <TableRow
+                          key={row.customer_name}
+                          className={cn("cursor-pointer hover:bg-muted/40", index % 2 === 0 ? "" : "bg-muted/30")}
+                          onClick={() => setExpandedCustomer(expandedCustomer === row.customer_name ? null : row.customer_name)}
+                        >
+                          <TableCell className="font-mono text-muted-foreground">{index + 1}</TableCell>
+                          <TableCell className="font-medium">
+                            <span className="mr-1 text-xs">{expandedCustomer === row.customer_name ? "▼" : "▶"}</span>
+                            {row.customer_name}
+                          </TableCell>
+                          <TableCell className="text-center">{row.item_count}</TableCell>
+                          <TableCell className="text-right font-mono">{row.total_qty}</TableCell>
+                          <TableCell className="text-right font-mono font-semibold">₹{Math.round(row.total_amount).toLocaleString("en-IN")}</TableCell>
+                          <TableCell className="text-right font-mono text-muted-foreground">₹{row.total_qty > 0 ? Math.round(row.total_amount / row.total_qty).toLocaleString("en-IN") : 0}</TableCell>
+                        </TableRow>
+                        {expandedCustomer === row.customer_name && (
+                          <TableRow key={`${row.customer_name}-products`}>
+                            <TableCell colSpan={6} className="p-0">
+                              <div className="bg-muted/20 border-y">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow className="bg-muted/40">
+                                      <TableHead className="w-12 pl-10">#</TableHead>
+                                      <TableHead className="pl-10">Product Name</TableHead>
+                                      <TableHead className="text-right">Qty</TableHead>
+                                      <TableHead className="text-right">Amount (₹)</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {row.productList.map((p, pi) => (
+                                      <TableRow key={pi} className="hover:bg-muted/30">
+                                        <TableCell className="pl-10 font-mono text-xs text-muted-foreground">{pi + 1}</TableCell>
+                                        <TableCell className="pl-10 text-sm">{p.product_name}</TableCell>
+                                        <TableCell className="text-right font-mono text-sm">{p.qty}</TableCell>
+                                        <TableCell className="text-right font-mono text-sm">₹{Math.round(p.amount).toLocaleString("en-IN")}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </>
                     ))}
                   </TableBody>
                 </Table>
