@@ -1616,23 +1616,28 @@ const PurchaseEntry = () => {
           continue;
         }
       } else {
-        // Existing variant - auto-generate barcode if missing
-        if (!barcode && isAutoBarcode) {
-          try {
-            barcode = await generateCentralizedBarcode();
-            await supabase
-              .from("product_variants")
-              .update({ barcode })
-              .eq("id", variant.id);
-          } catch (error) {
-            toast({
-              title: "Error",
-              description: `Failed to generate barcode for size ${variant.size}`,
-              variant: "destructive",
-            });
-            continue;
-          }
+        // Existing variant - smart barcode handling
+        if (barcode && isSystemGeneratedBarcode(barcode)) {
+          // System-generated barcode → new variant + new barcode
+          const result = await createNewVariantWithBarcode({
+            product_id: selectedProduct.id, size: variant.size,
+            color: newColor || variant.color || selectedProduct.color,
+            pur_price: variant.pur_price || selectedProduct.default_pur_price,
+            sale_price: variant.sale_price || selectedProduct.default_sale_price,
+            mrp: variant.mrp,
+          });
+          if (result) { skuId = result.id; barcode = result.barcode; }
+        } else if (!barcode && isAutoBarcode) {
+          const result = await createNewVariantWithBarcode({
+            product_id: selectedProduct.id, size: variant.size,
+            color: newColor || variant.color || selectedProduct.color,
+            pur_price: variant.pur_price || selectedProduct.default_pur_price,
+            sale_price: variant.sale_price || selectedProduct.default_sale_price,
+            mrp: variant.mrp,
+          });
+          if (result) { skuId = result.id; barcode = result.barcode; }
         }
+        // Branded barcode → reuse as-is
       }
 
       addItemRow({
