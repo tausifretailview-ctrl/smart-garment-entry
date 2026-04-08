@@ -393,8 +393,8 @@ export default function SaleReturnEntry() {
       return;
     }
 
-    const fetchedPrice = await getPriceFromSale(variantId, originalSaleId || undefined);
-    let unitPrice = fetchedPrice ?? variant.sale_price;
+    const fetchedResult = await getPriceFromSale(variantId, originalSaleId || undefined, useOriginalPriceForReturn);
+    let unitPrice = fetchedResult?.price ?? variant.sale_price;
 
     const newItem: ReturnItem = {
       productId: product.id,
@@ -408,6 +408,8 @@ export default function SaleReturnEntry() {
       lineTotal: unitPrice,
       hsnCode: product.hsn_code || '',
       maxReturnable,
+      originalPrice: fetchedResult?.originalPrice,
+      discountPercent: fetchedResult?.discountPercent,
     };
 
     setReturnItems([...returnItems, newItem]);
@@ -500,8 +502,8 @@ export default function SaleReturnEntry() {
         setBarcodeInput("");
         return;
       }
-      const fetchedPrice = await getPriceFromSale(variant!.id, originalSaleId || undefined);
-      let unitPrice = fetchedPrice ?? variant!.sale_price;
+      const fetchedResult = await getPriceFromSale(variant!.id, originalSaleId || undefined, useOriginalPriceForReturn);
+      let unitPrice = fetchedResult?.price ?? variant!.sale_price;
 
       const newItem: ReturnItem = {
         productId: product!.id,
@@ -516,6 +518,8 @@ export default function SaleReturnEntry() {
         lineTotal: unitPrice,
         hsnCode: product!.hsn_code || '',
         maxReturnable,
+        originalPrice: fetchedResult?.originalPrice,
+        discountPercent: fetchedResult?.discountPercent,
       };
       setReturnItems(prev => [...prev, newItem]);
     }
