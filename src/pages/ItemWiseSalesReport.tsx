@@ -70,7 +70,7 @@ export default function ItemWiseSalesReport() {
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [selectedCustomer, setSelectedCustomer] = useState<string>("all");
   const [selectedColor, setSelectedColor] = useState<string>("all");
-  const [activeTab, setActiveTab] = useState<"itemwise" | "brandwise">("itemwise");
+  const [activeTab, setActiveTab] = useState<"itemwise" | "customerwise" | "brandwise">("itemwise");
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     brands: [],
     categories: [],
@@ -310,6 +310,30 @@ export default function ItemWiseSalesReport() {
     );
   }, [saleItems, selectedBrand, selectedCategory, selectedDepartment, selectedColor, searchQuery]);
 
+  // Customer-wise aggregation
+  const customerWiseData = useMemo(() => {
+    const groups = new Map<string, { customer_name: string; total_qty: number; total_amount: number; item_count: number }>();
+    saleItems.forEach((item: any) => {
+      const customerName = item.customer_name || "Walk-in Customer";
+      if (selectedBrand !== "all" && item.products?.brand !== selectedBrand) return;
+      if (selectedCategory !== "all" && item.products?.category !== selectedCategory) return;
+      if (selectedDepartment !== "all" && item.products?.color !== selectedDepartment) return;
+      if (selectedColor !== "all" && item.products?.color !== selectedColor) return;
+      if (searchQuery.trim()) {
+        if (!multiTokenMatch(searchQuery, item.product_name, item.barcode, item.products?.brand, item.products?.category, item.products?.color)) return;
+      }
+      const existing = groups.get(customerName);
+      if (existing) {
+        existing.total_qty += item.quantity;
+        existing.total_amount += Number(item.line_total);
+        existing.item_count += 1;
+      } else {
+        groups.set(customerName, { customer_name: customerName, total_qty: item.quantity, total_amount: Number(item.line_total), item_count: 1 });
+      }
+    });
+    return Array.from(groups.values()).sort((a, b) => b.total_amount - a.total_amount);
+  }, [saleItems, selectedBrand, selectedCategory, selectedDepartment, selectedColor, searchQuery]);
+
   // Summary via RPC (single JSON instead of client-side aggregation)
   const { data: rpcSummary } = useQuery({
     queryKey: ["item-sales-summary-rpc", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer],
@@ -372,7 +396,20 @@ export default function ItemWiseSalesReport() {
 
   // Export to Excel
   const exportToExcel = () => {
-    if (activeTab === "brandwise") {
+    if (activeTab === "customerwise") {
+      const exportData = customerWiseData.map((row, i) => ({
+        "Sr No": i + 1,
+        "Customer Name": row.customer_name,
+        "Items": row.item_count,
+        "Total Qty": row.total_qty,
+        "Total Value": Math.round(row.total_amount),
+        "Avg Item Value": row.total_qty > 0 ? Math.round(row.total_amount / row.total_qty) : 0,
+      }));
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Customer-wise Sales");
+      XLSX.writeFile(wb, `customer-wise-sales-${format(dateRange.from, "yyyy-MM-dd")}.xlsx`);
+    } else if (activeTab === "brandwise") {
       const exportData = brandWiseData.map((item) => ({
         "Customer Name": item.customer_name,
         Brand: item.brand,
@@ -695,9 +732,10 @@ export default function ItemWiseSalesReport() {
       </div>
 
       {/* Tabs for Item-wise and Brand-wise */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "itemwise" | "brandwise")}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "itemwise" | "customerwise" | "brandwise")}>
         <TabsList className="mb-4">
           <TabsTrigger value="itemwise">📦 Item-wise Details</TabsTrigger>
+          <TabsTrigger value="customerwise">👤 Customer-wise Sale</TabsTrigger>
           <TabsTrigger value="brandwise">🏷️ Brand-wise Sale</TabsTrigger>
         </TabsList>
 
@@ -834,6 +872,46 @@ export default function ItemWiseSalesReport() {
                     })()}
                   </TableBody>
                 </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="customerwise">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Customer-wise Sale ({customerWiseData.length} customers)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="w-12">#</TableHead>
+                      <TableHead>Customer Name</TableHead>
+                      <TableHead className="text-center">Items</TableHead>
+                      <TableHead className="text-right">Total Qty</TableHead>
+                      <TableHead className="text-right">Total Value (₹)</TableHead>
+                      <TableHead className="text-right">Avg Item Value (₹)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {customerWiseData.map((row, index) => (
+                      <TableRow key={row.customer_name} className={index % 2 === 0 ? "" : "bg-muted/30"}>
+                        <TableCell className="font-mono text-muted-foreground">{index + 1}</TableCell>
+                        <TableCell className="font-medium">{row.customer_name}</TableCell>
+                        <TableCell className="text-center">{row.item_count}</TableCell>
+                        <TableCell className="text-right font-mono">{row.total_qty}</TableCell>
+                        <TableCell className="text-right font-mono font-semibold">₹{Math.round(row.total_amount).toLocaleString("en-IN")}</TableCell>
+                        <TableCell className="text-right font-mono text-muted-foreground">₹{row.total_qty > 0 ? Math.round(row.total_amount / row.total_qty).toLocaleString("en-IN") : 0}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="flex justify-end gap-6 mt-3 px-2 text-sm font-semibold">
+                <span>Total Qty: {customerWiseData.reduce((s, r) => s + r.total_qty, 0)}</span>
+                <span>Total Value: ₹{Math.round(customerWiseData.reduce((s, r) => s + r.total_amount, 0)).toLocaleString("en-IN")}</span>
               </div>
             </CardContent>
           </Card>
