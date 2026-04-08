@@ -484,7 +484,7 @@ export default function SalesInvoiceDashboard() {
       if (shopFilter !== 'all') {
         query = query.eq('shop_name', shopFilter);
       }
-      if (userFilter !== 'all') {
+      if (userFilter !== 'all' && userFilter !== '__pending__') {
         query = query.eq('created_by', userFilter);
       }
       if (queryDateRange.start) {
@@ -1033,7 +1033,7 @@ export default function SalesInvoiceDashboard() {
 
         if (deliveryFilter !== 'all') query = query.eq('delivery_status', deliveryFilter);
         if (paymentStatusFilter !== 'all') query = query.eq('payment_status', paymentStatusFilter);
-        if (userFilter !== 'all') query = query.eq('created_by', userFilter);
+        if (userFilter !== 'all' && userFilter !== '__pending__') query = query.eq('created_by', userFilter);
         if (queryDateRange.start) query = query.gte('sale_date', queryDateRange.start);
         if (queryDateRange.end) query = query.lte('sale_date', queryDateRange.end);
         if (debouncedSearch) {

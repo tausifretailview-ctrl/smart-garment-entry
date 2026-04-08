@@ -1120,7 +1120,7 @@ const POSDashboard = () => {
         (creditNoteFilter === "with_credit_note" && sale.credit_note_id) ||
         (creditNoteFilter === "without_credit_note" && !sale.credit_note_id);
 
-      const matchesUser = userFilter === "all" || sale.created_by === userFilter;
+      const matchesUser = userFilter === "all" || userFilter === "__pending__" || sale.created_by === userFilter;
 
       return matchesSearch && matchesDateRange && matchesPaymentMethod && matchesPaymentStatus && matchesRefund && matchesCreditNote && matchesSaleType && matchesUser;
     });
