@@ -1804,7 +1804,7 @@ export default function BarcodePrinting() {
     }
   }, [labelItems]);
 
-
+  const genEAN8 = () => {
     const seven = Array.from({ length: 7 }, () => Math.floor(Math.random() * 10));
     const sum = seven[0] * 3 + seven[1] + seven[2] * 3 + seven[3] + seven[4] * 3 + seven[5] + seven[6] * 3;
     const chk = (10 - (sum % 10)) % 10;
