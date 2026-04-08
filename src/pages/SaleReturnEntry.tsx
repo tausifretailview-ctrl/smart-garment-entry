@@ -1070,6 +1070,11 @@ export default function SaleReturnEntry() {
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-sm font-bold text-foreground">₹{item.unitPrice.toFixed(2)}</p>
+                    {useOriginalPriceForReturn && item.discountPercent ? (
+                      <p className="text-[10px] text-muted-foreground">(before disc)</p>
+                    ) : item.originalPrice && item.originalPrice !== item.unitPrice ? (
+                      <p className="text-[10px] text-muted-foreground">MRP ₹{item.originalPrice.toFixed(0)} (-{item.discountPercent?.toFixed(0) || ''}%)</p>
+                    ) : null}
                     <p className="text-xs text-muted-foreground">Qty: {item.quantity} | GST: {item.gstPercent}%</p>
                   </div>
                 </div>
@@ -1202,7 +1207,14 @@ export default function SaleReturnEntry() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right text-sm">₹{item.unitPrice.toFixed(2)}</TableCell>
+                    <TableCell className="text-right text-sm">
+                      ₹{item.unitPrice.toFixed(2)}
+                      {useOriginalPriceForReturn && item.discountPercent ? (
+                        <span className="block text-[10px] text-muted-foreground">(before disc)</span>
+                      ) : item.originalPrice && item.originalPrice !== item.unitPrice ? (
+                        <span className="block text-[10px] text-muted-foreground">MRP ₹{item.originalPrice.toFixed(0)}</span>
+                      ) : null}
+                    </TableCell>
                     <TableCell className="text-right text-sm">{item.gstPercent}%</TableCell>
                     <TableCell className="text-right text-sm font-semibold">₹{item.lineTotal.toFixed(2)}</TableCell>
                     <TableCell>
