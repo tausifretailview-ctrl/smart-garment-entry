@@ -83,6 +83,7 @@ export default function ItemWiseSalesReport() {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
+  const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null);
   const ITEMS_PER_PAGE = 100;
 
   // Fetch filter options with caching
