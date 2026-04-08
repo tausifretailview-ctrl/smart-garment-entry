@@ -243,7 +243,7 @@ export default function POSSales() {
       address: "",
       gst_number: "",
     });
-    setShowAddCustomerDialog(true);
+    openAddCustomerDialog();
   };
 
   // Price selection dialog state
@@ -636,7 +636,7 @@ export default function POSSales() {
       // F10 - Add New Customer
       else if (e.key === 'F10') {
         e.preventDefault();
-        setShowAddCustomerDialog(true);
+        openAddCustomerDialog();
       }
       // F11 - Size-wise Stock Report
       else if (e.key === 'F11') {
@@ -3367,7 +3367,7 @@ export default function POSSales() {
               setCustomerPhone("");
             }
           }}
-          onAddCustomer={() => setShowAddCustomerDialog(true)}
+          onAddCustomer={() => openAddCustomerDialog()}
           searchInput={searchInput}
           onSearchInputChange={(value) => {
             setSearchInput(value);
@@ -3407,7 +3407,7 @@ export default function POSSales() {
           onCashierReport={() => setShowFloatingCashierReport(true)}
           onEstimatePrint={() => handleEstimatePrintRef.current?.()}
           onStockReport={() => setShowFloatingStockReport(true)}
-          onAddNewCustomer={() => setShowAddCustomerDialog(true)}
+          onAddNewCustomer={() => openAddCustomerDialog()}
         />
 
         {/* Dialogs needed for tablet too */}
@@ -3498,7 +3498,7 @@ export default function POSSales() {
               setCustomerPhone("");
             }
           }}
-          onAddCustomer={() => setShowAddCustomerDialog(true)}
+          onAddCustomer={() => openAddCustomerDialog()}
           searchInput={searchInput}
           onSearchInputChange={(value) => {
             setSearchInput(value);
@@ -4114,7 +4114,7 @@ export default function POSSales() {
                   size="icon"
                   variant="ghost"
                   className="absolute right-1 top-1/2 translate-y-0.5 h-8 w-8"
-                  onClick={() => setShowAddCustomerDialog(true)}
+                  onClick={() => openAddCustomerDialog()}
                   title="Add New Customer"
                 >
                   <UserPlus className="h-5 w-5" />
