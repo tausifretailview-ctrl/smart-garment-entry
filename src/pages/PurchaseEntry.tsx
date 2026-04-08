@@ -452,6 +452,54 @@ const PurchaseEntry = () => {
   // Barcode mode: 'auto' (default) or 'scan' (manual/manufacturer barcode)
   const barcodeMode = (settings?.purchase_settings as any)?.barcode_mode || 'auto';
   const isAutoBarcode = barcodeMode !== 'scan';
+
+  // Detect if a barcode was system-generated (belongs to this org's auto series)
+  // System barcodes: orgNumber * 10000000 + sequence (e.g., org #9 → 90001001, 90001002...)
+  // Branded/universal barcodes (Jockey, Rupa etc.) won't match this pattern
+  const isSystemGeneratedBarcode = (barcode: string | null | undefined): boolean => {
+    if (!barcode || !currentOrganization?.organization_number) return false;
+    const num = parseInt(barcode, 10);
+    if (isNaN(num)) return false;
+    const orgNum = currentOrganization.organization_number;
+    const rangeStart = orgNum * 10000000;
+    const rangeEnd = (orgNum + 1) * 10000000;
+    return num >= rangeStart && num < rangeEnd;
+  };
+
+  // Helper: create a new variant with a new barcode, copying fields from source
+  const createNewVariantWithBarcode = async (source: {
+    product_id: string; size: string; color?: string;
+    pur_price?: number; sale_price?: number; mrp?: number;
+  }): Promise<{ id: string; barcode: string } | null> => {
+    try {
+      const newBarcode = await generateCentralizedBarcode();
+      const { data: newVariant, error } = await supabase
+        .from("product_variants")
+        .insert({
+          organization_id: currentOrganization!.id,
+          product_id: source.product_id,
+          size: source.size || "",
+          color: source.color || "",
+          barcode: newBarcode,
+          pur_price: source.pur_price || 0,
+          sale_price: source.sale_price || 0,
+          mrp: source.mrp || 0,
+          stock_qty: 0,
+          active: true,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      return { id: newVariant.id, barcode: newBarcode };
+    } catch (error: any) {
+      console.error("Failed to create new variant:", error);
+      toast({
+        title: "Warning",
+        description: "Could not create new variant, reusing existing. " + (error.message || ""),
+      });
+      return null;
+    }
+  };
   
   const autoFocusSearch = (settings?.purchase_settings as any)?.auto_focus_search || false;
   const sizeGridReviewMode = (settings?.purchase_settings as any)?.size_grid_review_mode || false;
