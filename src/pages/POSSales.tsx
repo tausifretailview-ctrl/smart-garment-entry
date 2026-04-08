@@ -243,7 +243,7 @@ export default function POSSales() {
       address: "",
       gst_number: "",
     });
-    openAddCustomerDialog();
+    setShowAddCustomerDialog(true);
   };
 
   // Price selection dialog state
