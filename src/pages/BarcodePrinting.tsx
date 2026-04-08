@@ -1078,7 +1078,13 @@ export default function BarcodePrinting() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [labelItems, setLabelItems] = useState<LabelItem[]>([]);
+  const [labelItems, setLabelItems] = useState<LabelItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('barcode_label_items');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [];
+  });
   const [quantityMode, setQuantityMode] = useState<QuantityMode>("manual");
   const [sizeSortOrder, setSizeSortOrder] = useState<SizeSortOrder>("barcode_asc");
   const [billNumber, setBillNumber] = useState("");
