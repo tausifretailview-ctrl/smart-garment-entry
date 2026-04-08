@@ -1045,7 +1045,7 @@ const PurchaseEntry = () => {
       openSizeGridModal(variant.product_id);
     } else {
       // For Free Size mode - add row and focus on QTY field
-      addInlineRow(variant);
+      await addInlineRow(variant);
       setTimeout(() => {
         lastQtyInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         lastQtyInputRef.current?.focus();
@@ -1444,7 +1444,7 @@ const PurchaseEntry = () => {
     if (entryMode === "grid") {
       openSizeGridModal(variant.product_id);
     } else {
-      addInlineRow(variant);
+      await addInlineRow(variant);
       // Scroll to and focus on quantity input after adding inline row
       setTimeout(() => {
         lastQtyInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1502,24 +1502,26 @@ const PurchaseEntry = () => {
       const v = data[0];
       const product = v.products as any;
       let barcode = v.barcode || "";
+      let skuId = v.id;
       
-      if (!barcode && isAutoBarcode) {
-        try {
-          barcode = await generateCentralizedBarcode();
-          await supabase.from("product_variants").update({ barcode }).eq("id", v.id);
-        } catch (error) {
-          toast({
-            title: "Error",
-            description: "Failed to generate barcode for product",
-            variant: "destructive",
-          });
-          return;
-        }
+      // Smart barcode: system-generated → new variant+barcode, branded → reuse
+      if (barcode && isSystemGeneratedBarcode(barcode)) {
+        const result = await createNewVariantWithBarcode({
+          product_id: productId, size: v.size, color: v.color,
+          pur_price: product.default_pur_price, sale_price: product.default_sale_price, mrp: v.mrp,
+        });
+        if (result) { skuId = result.id; barcode = result.barcode; }
+      } else if (!barcode && isAutoBarcode) {
+        const result = await createNewVariantWithBarcode({
+          product_id: productId, size: v.size, color: v.color,
+          pur_price: product.default_pur_price, sale_price: product.default_sale_price, mrp: v.mrp,
+        });
+        if (result) { skuId = result.id; barcode = result.barcode; }
       }
 
       addItemRow({
         product_id: productId,
-        sku_id: v.id,
+        sku_id: skuId,
         product_name: product.product_name,
         size: v.size,
         qty: 1,
