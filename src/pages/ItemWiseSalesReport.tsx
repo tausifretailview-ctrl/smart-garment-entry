@@ -310,9 +310,9 @@ export default function ItemWiseSalesReport() {
     );
   }, [saleItems, selectedBrand, selectedCategory, selectedDepartment, selectedColor, searchQuery]);
 
-  // Customer-wise aggregation
+  // Customer-wise aggregation with product breakdown
   const customerWiseData = useMemo(() => {
-    const groups = new Map<string, { customer_name: string; total_qty: number; total_amount: number; item_count: number }>();
+    const groups = new Map<string, { customer_name: string; total_qty: number; total_amount: number; item_count: number; products: Map<string, { product_name: string; qty: number; amount: number }> }>();
     saleItems.forEach((item: any) => {
       const customerName = item.customer_name || "Walk-in Customer";
       if (selectedBrand !== "all" && item.products?.brand !== selectedBrand) return;
@@ -323,15 +323,23 @@ export default function ItemWiseSalesReport() {
         if (!multiTokenMatch(searchQuery, item.product_name, item.barcode, item.products?.brand, item.products?.category, item.products?.color)) return;
       }
       const existing = groups.get(customerName);
+      const productName = item.product_name || "Unknown";
       if (existing) {
         existing.total_qty += item.quantity;
         existing.total_amount += Number(item.line_total);
         existing.item_count += 1;
+        const ep = existing.products.get(productName);
+        if (ep) { ep.qty += item.quantity; ep.amount += Number(item.line_total); }
+        else { existing.products.set(productName, { product_name: productName, qty: item.quantity, amount: Number(item.line_total) }); }
       } else {
-        groups.set(customerName, { customer_name: customerName, total_qty: item.quantity, total_amount: Number(item.line_total), item_count: 1 });
+        const products = new Map<string, { product_name: string; qty: number; amount: number }>();
+        products.set(productName, { product_name: productName, qty: item.quantity, amount: Number(item.line_total) });
+        groups.set(customerName, { customer_name: customerName, total_qty: item.quantity, total_amount: Number(item.line_total), item_count: 1, products });
       }
     });
-    return Array.from(groups.values()).sort((a, b) => b.total_amount - a.total_amount);
+    return Array.from(groups.values())
+      .map(g => ({ ...g, productList: Array.from(g.products.values()).sort((a, b) => b.qty - a.qty) }))
+      .sort((a, b) => b.total_amount - a.total_amount);
   }, [saleItems, selectedBrand, selectedCategory, selectedDepartment, selectedColor, searchQuery]);
 
   // Summary via RPC (single JSON instead of client-side aggregation)
