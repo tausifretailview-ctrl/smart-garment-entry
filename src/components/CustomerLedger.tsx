@@ -222,7 +222,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // Fetch ALL voucher payments (both opening balance and invoice payments)
       const { data: allVouchers, error: voucherError } = await supabase
         .from('voucher_entries')
-        .select('reference_id, reference_type, total_amount, voucher_type')
+        .select('reference_id, reference_type, total_amount, voucher_type, description')
         .eq('organization_id', organizationId)
         .in('voucher_type', ['receipt', 'payment'])
         .is('deleted_at', null);
@@ -316,6 +316,15 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
       allVouchers?.forEach((v: any) => {
         if (!v.reference_id) return;
+        
+        // Skip credit note adjustment vouchers — these amounts are already
+        // accounted for via creditNoteTotal (from sale_returns.net_amount)
+        if (v.description) {
+          const desc = v.description.toLowerCase();
+          if (desc.includes('credit note adjusted') || desc.includes('cn adjusted')) {
+            return;
+          }
+        }
         
         const customerId = saleToCustomerMap.get(v.reference_id);
         if (v.reference_type === 'sale' || customerId) {
