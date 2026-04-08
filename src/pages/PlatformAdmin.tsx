@@ -470,24 +470,15 @@ export default function PlatformAdmin() {
   // Create user and assign to organization
   const createUserMutation = useMutation({
     mutationFn: async () => {
-      // Step 1: Create user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: userEmail,
-        password: userPassword,
+      // Create user via edge function to avoid replacing admin's session
+      const { data, error } = await supabase.functions.invoke("create-user", {
+        body: { email: userEmail, password: userPassword, orgId: userOrgId, role: userRole },
       });
 
-      if (authError) throw authError;
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
-      // Step 2: Assign to organization
-      const { error: assignError } = await supabase.rpc("platform_assign_user_to_org", {
-        p_user_email: userEmail,
-        p_org_id: userOrgId,
-        p_role: userRole,
-      });
-
-      if (assignError) throw assignError;
-
-      return authData;
+      return data;
     },
     onSuccess: () => {
       toast.success("User created and assigned successfully!");
