@@ -16,14 +16,13 @@ export const useUserPermissions = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchPermissions = async () => {
       if (!user || !currentOrganization?.id) {
         setPermissions(null);
         setLoading(false);
         return;
       }
-
-      // For all users (including admin), check if custom permissions exist
 
       try {
         const { data, error } = await supabase
@@ -33,25 +32,45 @@ export const useUserPermissions = () => {
           .eq("user_id", user.id)
           .maybeSingle();
 
+        if (cancelled) return;
         if (error) throw error;
 
         if (data?.permissions) {
           const perms = data.permissions as unknown as UserPermissions;
           setPermissions(perms);
         } else {
-          // No custom permissions set - admin gets full access, others get defaults
           setPermissions(null);
         }
       } catch (error) {
         console.error("Error fetching user permissions:", error);
-        setPermissions(null);
+        if (!cancelled) setPermissions(null);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchPermissions();
+    return () => { cancelled = true; };
   }, [user, currentOrganization?.id, organizationRole]);
+
+  // Realtime listener for instant permission updates from other tabs/users
+  useEffect(() => {
+    if (!user?.id || !currentOrganization?.id) return;
+    const channel = supabase
+      .channel("user-permissions-realtime")
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "user_permissions",
+        filter: `user_id=eq.${user.id}`,
+      }, (payload) => {
+        if (payload.new && (payload.new as any).permissions) {
+          setPermissions((payload.new as any).permissions as UserPermissions);
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id, currentOrganization?.id]);
 
   // Helper to check if a specific menu item is accessible
   const hasMenuAccess = (menuId: string): boolean => {
