@@ -438,33 +438,48 @@ export default function SaleReturnEntry() {
       return;
     }
     
+    // Check max returnable before adding
+    const maxReturnable = await getMaxReturnable(variant!.id);
+    
     const existingIndex = returnItems.findIndex(
       (item) => item.variantId === variant!.id
     );
     
     if (existingIndex !== -1) {
+      const currentQty = returnItems[existingIndex].quantity;
+      if (currentQty >= maxReturnable) {
+        toast({ title: "Cannot Return", description: `${product!.product_name} (${variant!.size}) — max returnable is ${maxReturnable}`, variant: "destructive" });
+        setBarcodeInput("");
+        return;
+      }
       const updated = [...returnItems];
       updated[existingIndex].quantity += 1;
       updated[existingIndex].lineTotal = 
         updated[existingIndex].quantity * updated[existingIndex].unitPrice;
+      updated[existingIndex].maxReturnable = maxReturnable;
       setReturnItems(updated);
     } else {
-      // Get price from specific sale invoice if available, else most recent sale
-      const fetchedPrice = await getPriceFromSale(variant.id, originalSaleId || undefined);
-      let unitPrice = fetchedPrice ?? variant.sale_price;
+      if (maxReturnable <= 0) {
+        toast({ title: "Cannot Return", description: `${product!.product_name} (${variant!.size}) — all sold units already returned`, variant: "destructive" });
+        setBarcodeInput("");
+        return;
+      }
+      const fetchedPrice = await getPriceFromSale(variant!.id, originalSaleId || undefined);
+      let unitPrice = fetchedPrice ?? variant!.sale_price;
 
       const newItem: ReturnItem = {
-        productId: product.id,
-        variantId: variant.id,
-        productName: product.product_name,
-        size: variant.size,
-        color: variant.color || undefined,
-        barcode: variant.barcode,
+        productId: product!.id,
+        variantId: variant!.id,
+        productName: product!.product_name,
+        size: variant!.size,
+        color: variant!.color || undefined,
+        barcode: variant!.barcode,
         quantity: 1,
         unitPrice,
-        gstPercent: variant.gst_per,
+        gstPercent: variant!.gst_per,
         lineTotal: unitPrice,
-        hsnCode: product.hsn_code || '',
+        hsnCode: product!.hsn_code || '',
+        maxReturnable,
       };
       setReturnItems(prev => [...prev, newItem]);
     }
