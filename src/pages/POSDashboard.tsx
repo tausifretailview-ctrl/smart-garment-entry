@@ -1268,7 +1268,15 @@ const POSDashboard = () => {
         toast({ title: "IRN Cancelled", description: "The e-Invoice IRN has been cancelled successfully." });
         fetchSales();
       } else {
-        toast({ title: "Cancellation Failed", description: safeErrorString(result.error) || "Cancellation failed", variant: "destructive" });
+        const errorMsg = safeErrorString(result.error) || "Cancellation failed";
+        // If PeriOne says "not active" or already cancelled, sync local status
+        if (errorMsg.toLowerCase().includes('not active') || errorMsg.toLowerCase().includes('already cancelled')) {
+          await supabase.from('sales').update({ einvoice_status: 'cancelled' }).eq('id', sale.id);
+          toast({ title: "IRN Already Cancelled", description: "This IRN was already cancelled. Status has been updated.", variant: "destructive" });
+          fetchSales();
+        } else {
+          toast({ title: "Cancellation Failed", description: errorMsg, variant: "destructive" });
+        }
       }
     } catch (error: any) {
       toast({ title: "Error", description: error.message || "Failed to cancel IRN", variant: "destructive" });
