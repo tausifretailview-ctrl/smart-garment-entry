@@ -95,6 +95,7 @@ interface Sale {
   notes?: string | null;
   created_at: string;
   sale_type?: string;
+  status?: string | null;
   // E-Invoice fields
   irn?: string | null;
   ack_no?: string | null;
@@ -1233,6 +1234,10 @@ const POSDashboard = () => {
       toast({ title: "Already Cancelled", description: "This IRN has already been cancelled." });
       return;
     }
+    if (sale.status === 'cancelled') {
+      toast({ title: "Invoice Not Active", description: "This invoice has been cancelled. IRN cannot be cancelled for inactive invoices.", variant: "destructive" });
+      return;
+    }
     const ackDate = sale.ack_date ? new Date(sale.ack_date) : new Date(sale.created_at);
     const hoursSince = (Date.now() - ackDate.getTime()) / (1000 * 60 * 60);
     if (hoursSince > 24) {
@@ -2007,7 +2012,7 @@ const POSDashboard = () => {
                                     <Printer className="h-3.5 w-3.5" />
                                   </Button>
                                 )}
-                                {isEInvoiceEnabled && sale.irn && sale.einvoice_status !== 'cancelled' && (
+                                {isEInvoiceEnabled && sale.irn && sale.einvoice_status !== 'cancelled' && sale.status !== 'cancelled' && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -2132,7 +2137,7 @@ const POSDashboard = () => {
                                           {sale.ack_no && (
                                             <span className="text-[10px] text-green-600 font-medium">Ack No: {sale.ack_no}</span>
                                           )}
-                                          {sale.einvoice_status !== 'cancelled' && (
+                                          {sale.einvoice_status !== 'cancelled' && sale.status !== 'cancelled' && (
                                             <Button
                                               variant="outline"
                                               size="sm"
