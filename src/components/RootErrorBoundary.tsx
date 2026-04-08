@@ -33,7 +33,18 @@ export class RootErrorBoundary extends Component<Props, State> {
               <Button variant="outline" onClick={() => this.setState({ hasError: false })}>
                 Try Again
               </Button>
+              <Button variant="link" onClick={() => {
+                const slug = localStorage.getItem("selectedOrgSlug");
+                window.location.href = slug ? `/${slug}` : "/";
+              }}>
+                Go to Dashboard
+              </Button>
             </div>
+            {this.state.error && (
+              <p className="mt-4 text-xs text-muted-foreground break-all">
+                Error: {this.state.error.message}
+              </p>
+            )}
             {import.meta.env.DEV && this.state.error?.stack && (
               <pre className="mt-4 p-4 bg-muted rounded text-xs text-left overflow-auto max-h-48 text-muted-foreground">
                 {this.state.error.stack}
