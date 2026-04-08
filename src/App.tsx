@@ -219,6 +219,11 @@ function NonOrgRedirect({ path }: { path: string }) {
 })();
 
 const App = () => {
+  // Clear chunk reload flag on successful mount
+  useEffect(() => {
+    sessionStorage.removeItem("chunk_reload");
+  }, []);
+
   // Global unhandled rejection handler
   useEffect(() => {
     const handleRejection = (event: PromiseRejectionEvent) => {
