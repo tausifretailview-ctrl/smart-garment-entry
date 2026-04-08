@@ -121,7 +121,7 @@ export default function SalesInvoiceDashboard() {
   const [periodFilter, setPeriodFilter] = useState<string>("monthly");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
   const [shopFilter, setShopFilter] = useState<string>("all");
-  const [userFilter, setUserFilter] = useState<string>("all");
+  const [userFilter, setUserFilter] = useState<string>("__pending__");
 
   // Fetch org users for billing user filter
   const { data: orgUsers = [] } = useQuery({
@@ -143,6 +143,17 @@ export default function SalesInvoiceDashboard() {
     enabled: !!currentOrganization?.id,
     staleTime: 300000,
   });
+
+  // Default userFilter to logged-in user
+  useEffect(() => {
+    if (userFilter === "__pending__" && orgUsers.length > 0 && user?.id) {
+      const isOrgMember = orgUsers.some((u: any) => u.id === user.id);
+      setUserFilter(isOrgMember ? user.id : "all");
+    } else if (userFilter === "__pending__" && orgUsers.length > 0) {
+      setUserFilter("all");
+    }
+  }, [orgUsers, user?.id]);
+
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -473,7 +484,7 @@ export default function SalesInvoiceDashboard() {
       if (shopFilter !== 'all') {
         query = query.eq('shop_name', shopFilter);
       }
-      if (userFilter !== 'all') {
+      if (userFilter !== 'all' && userFilter !== '__pending__') {
         query = query.eq('created_by', userFilter);
       }
       if (queryDateRange.start) {
@@ -1022,7 +1033,7 @@ export default function SalesInvoiceDashboard() {
 
         if (deliveryFilter !== 'all') query = query.eq('delivery_status', deliveryFilter);
         if (paymentStatusFilter !== 'all') query = query.eq('payment_status', paymentStatusFilter);
-        if (userFilter !== 'all') query = query.eq('created_by', userFilter);
+        if (userFilter !== 'all' && userFilter !== '__pending__') query = query.eq('created_by', userFilter);
         if (queryDateRange.start) query = query.gte('sale_date', queryDateRange.start);
         if (queryDateRange.end) query = query.lte('sale_date', queryDateRange.end);
         if (debouncedSearch) {
