@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Loader2, Printer } from "lucide-react";
+import { Package, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Loader2, Printer, AlertTriangle } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -34,6 +34,7 @@ interface StockItem {
   color: string;
   size: string;
   stock_qty: number;
+  db_stock_qty: number;
   opening_qty: number;
   purchase_qty: number;
   purchase_return_qty: number;
@@ -621,6 +622,13 @@ export default function StockReport() {
         const movements = variantMovements[item.id] || { purchase: 0, purchaseReturn: 0, sales: 0, saleReturn: 0 };
         const supplierInfo = variantSuppliers[item.id] || { supplier_name: '', supplier_invoice_no: '' };
         const netSalesQty = Math.max(0, movements.sales);
+        const purchaseQty = Math.max(0, movements.purchase);
+        const purchaseReturnQty = Math.max(0, movements.purchaseReturn);
+        const saleReturnQty = Math.max(0, movements.saleReturn);
+        const openingQty = item.opening_qty || 0;
+        
+        // Calculate stock from transactions instead of trusting DB stock_qty
+        const calculatedStock = openingQty + purchaseQty - purchaseReturnQty - netSalesQty + saleReturnQty;
         
         return {
           id: item.id,
@@ -628,12 +636,13 @@ export default function StockReport() {
           brand: item.products?.brand || "",
           color: item.color || item.products?.color || "",
           size: item.size,
-          stock_qty: item.stock_qty,
-          opening_qty: item.opening_qty || 0,
-          purchase_qty: Math.max(0, movements.purchase),
-          purchase_return_qty: Math.max(0, movements.purchaseReturn),
+          stock_qty: calculatedStock,
+          db_stock_qty: item.stock_qty,
+          opening_qty: openingQty,
+          purchase_qty: purchaseQty,
+          purchase_return_qty: purchaseReturnQty,
           sales_qty: netSalesQty,
-          sale_return_qty: Math.max(0, movements.saleReturn || 0),
+          sale_return_qty: saleReturnQty,
           sale_price: item.sale_price,
           pur_price: item.pur_price || null,
           barcode: item.barcode || "",
@@ -1526,7 +1535,14 @@ export default function StockReport() {
                                 {item.sale_return_qty > 0 ? `+${item.sale_return_qty}` : '0'}
                               </TableCell>
                               <TableCell className="text-right bg-primary/10 font-bold text-primary">
-                                {item.stock_qty}
+                                <div className="flex items-center justify-end gap-1">
+                                  {item.stock_qty}
+                                  {item.stock_qty !== item.db_stock_qty && (
+                                    <span title={`DB stock (${item.db_stock_qty}) differs from calculated (${item.stock_qty}). Run stock reconciliation to fix.`}>
+                                      <AlertTriangle className="h-3 w-3 text-amber-500 inline" />
+                                    </span>
+                                  )}
+                                </div>
                               </TableCell>
                               <TableCell className="text-right">
                                 {item.pur_price ? (
