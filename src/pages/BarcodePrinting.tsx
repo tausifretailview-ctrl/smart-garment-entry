@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import JsBarcode from "jsbarcode";
-import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer, AlertTriangle, Plus, Home } from "lucide-react";
+import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer, AlertTriangle, Plus, Home, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -1304,7 +1304,7 @@ export default function BarcodePrinting() {
     // After templates load, refresh labelConfig from barcode_label_settings source of truth
     // Only on INITIAL load — subsequent DB refetches (e.g. after auto-save) must NOT
     // overwrite the user's in-memory edits (strikethrough, lines, etc.)
-    if (activePrecisionTemplateName && !hasLoadedPrecisionConfigRef.current) {
+    if (activePrecisionTemplateName && (!hasLoadedPrecisionConfigRef.current || !precisionSettings.labelConfig)) {
       const templateName = activePrecisionTemplateName.startsWith("preset:")
         ? activePrecisionTemplateName.replace("preset:", "")
         : activePrecisionTemplateName;
@@ -1702,6 +1702,7 @@ export default function BarcodePrinting() {
 
   // Pre-fill items from purchase entry if passed via navigation state
   useEffect(() => {
+    if (isLoadingSettings) return; // Wait for label design settings to load first
     if (location.state?.purchaseItems) {
       const purchaseItems = location.state.purchaseItems;
       let hasPurchasePrices = false;
@@ -1779,7 +1780,7 @@ export default function BarcodePrinting() {
       
       toast.success(`Loaded ${items.length} items from purchase bill`);
     }
-  }, [location.state, purchaseCodeAlphabet]);
+  }, [location.state, purchaseCodeAlphabet, isLoadingSettings]);
 
   // Re-sort items when size sort order changes
   useEffect(() => {
@@ -5552,37 +5553,46 @@ export default function BarcodePrinting() {
           </DialogHeader>
           {precisionSettings.enabled ? (
             <div className="mt-4 border rounded-md p-4 bg-white overflow-auto">
-              <div className="mb-3 p-3 rounded-lg text-center font-bold text-sm" style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--primary))" }}>
-                Total: {labelItems.reduce((s, i) => s + (i.qty || 0), 0)} labels
-              </div>
-              {(precisionSettings.printMode === 'thermal' || precisionSettings.printMode === 'thermal2up') ? (
-                <div className="flex flex-col items-center gap-4">
-                  {labelItems.filter(i => (i.qty || 0) > 0).flatMap((item, idx) =>
-                    Array.from({ length: item.qty || 1 }, (_, qi) => (
-                      <div key={`${idx}-${qi}`} className="border border-dashed border-border">
-                        <PrecisionLabelPreview
-                          item={{ ...item, businessName }}
-                          width={precisionSettings.labelWidth}
-                          height={precisionSettings.labelHeight}
-                          config={precisionSettings.labelConfig || undefined}
-                          scaleFactor={2}
-                        />
-                      </div>
-                    ))
-                  )}
+              {isLoadingSettings ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
+                  <span className="text-muted-foreground">Loading label design settings...</span>
                 </div>
               ) : (
-                <PrecisionA4SheetPrint
-                  items={labelItems.filter(i => (i.qty || 0) > 0).map(i => ({ ...i, businessName }))}
-                  labelWidth={precisionSettings.labelWidth}
-                  labelHeight={precisionSettings.labelHeight}
-                  cols={precisionSettings.a4Cols}
-                  rows={precisionSettings.a4Rows}
-                  xOffset={precisionSettings.xOffset}
-                  yOffset={precisionSettings.yOffset}
-                  vGap={precisionSettings.vGap}
-                  config={precisionSettings.labelConfig || undefined}
-                />
+                <>
+                  <div className="mb-3 p-3 rounded-lg text-center font-bold text-sm" style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--primary))" }}>
+                    Total: {labelItems.reduce((s, i) => s + (i.qty || 0), 0)} labels
+                  </div>
+                  {(precisionSettings.printMode === 'thermal' || precisionSettings.printMode === 'thermal2up') ? (
+                    <div className="flex flex-col items-center gap-4">
+                      {labelItems.filter(i => (i.qty || 0) > 0).flatMap((item, idx) =>
+                        Array.from({ length: item.qty || 1 }, (_, qi) => (
+                          <div key={`${idx}-${qi}`} className="border border-dashed border-border">
+                            <PrecisionLabelPreview
+                              item={{ ...item, businessName }}
+                              width={precisionSettings.labelWidth}
+                              height={precisionSettings.labelHeight}
+                              config={precisionSettings.labelConfig || undefined}
+                              scaleFactor={2}
+                            />
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  ) : (
+                    <PrecisionA4SheetPrint
+                      items={labelItems.filter(i => (i.qty || 0) > 0).map(i => ({ ...i, businessName }))}
+                      labelWidth={precisionSettings.labelWidth}
+                      labelHeight={precisionSettings.labelHeight}
+                      cols={precisionSettings.a4Cols}
+                      rows={precisionSettings.a4Rows}
+                      xOffset={precisionSettings.xOffset}
+                      yOffset={precisionSettings.yOffset}
+                      vGap={precisionSettings.vGap}
+                      config={precisionSettings.labelConfig || undefined}
+                    />
+                  )}
+                </>
               )}
             </div>
           ) : (
