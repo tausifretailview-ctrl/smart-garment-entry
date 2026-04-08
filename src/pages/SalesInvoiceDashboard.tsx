@@ -121,6 +121,28 @@ export default function SalesInvoiceDashboard() {
   const [periodFilter, setPeriodFilter] = useState<string>("monthly");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
   const [shopFilter, setShopFilter] = useState<string>("all");
+  const [userFilter, setUserFilter] = useState<string>("all");
+
+  // Fetch org users for billing user filter
+  const { data: orgUsers = [] } = useQuery({
+    queryKey: ["org-users-filter", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const { data: members } = await supabase
+        .from("organization_members")
+        .select("user_id, role")
+        .eq("organization_id", currentOrganization.id);
+      if (!members?.length) return [];
+      const { data: result } = await supabase.functions.invoke("get-users");
+      const allUsers = result?.users || [];
+      const memberIds = new Set(members.map((m: any) => m.user_id));
+      return allUsers
+        .filter((u: any) => memberIds.has(u.id))
+        .map((u: any) => ({ id: u.id, email: u.email }));
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 300000,
+  });
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -426,7 +448,7 @@ export default function SalesInvoiceDashboard() {
 
   // Server-side paginated query — NO sale_items, explicit columns
   const { data: invoicesResult, isLoading, refetch, error: invoicesError } = useQuery({
-    queryKey: ['invoices', currentOrganization?.id, debouncedSearch, deliveryFilter, paymentStatusFilter, shopFilter, queryDateRange.start, queryDateRange.end, currentPage, itemsPerPage],
+    queryKey: ['invoices', currentOrganization?.id, debouncedSearch, deliveryFilter, paymentStatusFilter, shopFilter, userFilter, queryDateRange.start, queryDateRange.end, currentPage, itemsPerPage],
     queryFn: async () => {
       if (!currentOrganization?.id) return { data: [], count: 0 };
       
@@ -450,6 +472,9 @@ export default function SalesInvoiceDashboard() {
       }
       if (shopFilter !== 'all') {
         query = query.eq('shop_name', shopFilter);
+      }
+      if (userFilter !== 'all') {
+        query = query.eq('created_by', userFilter);
       }
       if (queryDateRange.start) {
         query = query.gte('sale_date', queryDateRange.start);
@@ -997,6 +1022,7 @@ export default function SalesInvoiceDashboard() {
 
         if (deliveryFilter !== 'all') query = query.eq('delivery_status', deliveryFilter);
         if (paymentStatusFilter !== 'all') query = query.eq('payment_status', paymentStatusFilter);
+        if (userFilter !== 'all') query = query.eq('created_by', userFilter);
         if (queryDateRange.start) query = query.gte('sale_date', queryDateRange.start);
         if (queryDateRange.end) query = query.lte('sale_date', queryDateRange.end);
         if (debouncedSearch) {
@@ -1076,7 +1102,7 @@ export default function SalesInvoiceDashboard() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, itemsPerPage, periodFilter, paymentStatusFilter, deliveryFilter, startDate, endDate]);
+  }, [debouncedSearch, itemsPerPage, periodFilter, paymentStatusFilter, deliveryFilter, userFilter, startDate, endDate]);
 
   const handlePageSizeChange = (value: string) => {
     setItemsPerPage(Number(value));
@@ -2793,6 +2819,19 @@ export default function SalesInvoiceDashboard() {
                   <SelectItem value="all">All Shops</SelectItem>
                   {shopNames.map(s => (
                     <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={userFilter} onValueChange={setUserFilter}>
+                <SelectTrigger className="w-[145px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white">
+                  <SelectValue placeholder="Billing User" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Users</SelectItem>
+                  {orgUsers.map((user: any) => (
+                    <SelectItem key={user.id} value={user.id} title={user.email}>
+                      {user.email.split("@")[0]}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>

@@ -94,6 +94,7 @@ interface Sale {
   salesman?: string | null;
   notes?: string | null;
   created_at: string;
+  created_by?: string | null;
   sale_type?: string;
   status?: string | null;
   // E-Invoice fields
@@ -142,6 +143,28 @@ const POSDashboard = () => {
   const [saleTypeFilter, setSaleTypeFilter] = useState<string>("all");
   const [refundFilter, setRefundFilter] = useState<string>("all");
   const [creditNoteFilter, setCreditNoteFilter] = useState<string>("all");
+  const [userFilter, setUserFilter] = useState<string>("all");
+
+  // Fetch org users for billing user filter
+  const { data: orgUsers = [] } = useQuery({
+    queryKey: ["org-users-filter", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const { data: members } = await supabase
+        .from("organization_members")
+        .select("user_id, role")
+        .eq("organization_id", currentOrganization.id);
+      if (!members?.length) return [];
+      const { data: result } = await supabase.functions.invoke("get-users");
+      const allUsers = result?.users || [];
+      const memberIds = new Set(members.map((m: any) => m.user_id));
+      return allUsers
+        .filter((u: any) => memberIds.has(u.id))
+        .map((u: any) => ({ id: u.id, email: u.email }));
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 300000,
+  });
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [saleItems, setSaleItems] = useState<Record<string, SaleItem[]>>({});
   const [saleReturns, setSaleReturns] = useState<Record<string, any[]>>({});
@@ -1085,9 +1108,11 @@ const POSDashboard = () => {
         (creditNoteFilter === "with_credit_note" && sale.credit_note_id) ||
         (creditNoteFilter === "without_credit_note" && !sale.credit_note_id);
 
-      return matchesSearch && matchesDateRange && matchesPaymentMethod && matchesPaymentStatus && matchesRefund && matchesCreditNote && matchesSaleType;
+      const matchesUser = userFilter === "all" || sale.created_by === userFilter;
+
+      return matchesSearch && matchesDateRange && matchesPaymentMethod && matchesPaymentStatus && matchesRefund && matchesCreditNote && matchesSaleType && matchesUser;
     });
-  }, [sales, saleItems, searchQuery, startDate, endDate, paymentMethodFilter, paymentStatusFilter, refundFilter, creditNoteFilter, saleTypeFilter]);
+  }, [sales, saleItems, searchQuery, startDate, endDate, paymentMethodFilter, paymentStatusFilter, refundFilter, creditNoteFilter, saleTypeFilter, userFilter]);
 
   // Memoize summary statistics to avoid recalculating on every render
   const summaryStats = useMemo(() => ({
@@ -1604,6 +1629,19 @@ const POSDashboard = () => {
                   <SelectItem value="all">All Bills</SelectItem>
                   <SelectItem value="pos">POS Bills</SelectItem>
                   <SelectItem value="dc">DC Only</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={userFilter} onValueChange={setUserFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="All Users" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  <SelectItem value="all">All Users</SelectItem>
+                  {orgUsers.map((user: any) => (
+                    <SelectItem key={user.id} value={user.id} title={user.email}>
+                      {user.email.split("@")[0]}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               
