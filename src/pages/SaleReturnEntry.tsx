@@ -53,6 +53,7 @@ interface ReturnItem {
   gstPercent: number;
   lineTotal: number;
   hsnCode?: string;
+  maxReturnable?: number;
 }
 
 export default function SaleReturnEntry() {
@@ -324,13 +325,38 @@ export default function SaleReturnEntry() {
     }
   };
 
+  // Helper: fetch max returnable qty for a variant
+  const getMaxReturnable = async (variantId: string): Promise<number> => {
+    const { data: soldData } = await supabase
+      .from('sale_items')
+      .select('quantity')
+      .eq('variant_id', variantId)
+      .is('deleted_at', null);
+    const totalSold = (soldData || []).reduce((sum, r) => sum + (r.quantity || 0), 0);
+
+    const { data: returnedData } = await supabase
+      .from('sale_return_items')
+      .select('quantity')
+      .eq('variant_id', variantId)
+      .is('deleted_at', null);
+    const alreadyReturned = (returnedData || []).reduce((sum, r) => sum + (r.quantity || 0), 0);
+
+    return totalSold - alreadyReturned;
+  };
+
   const addProduct = async (productId: string, variantId: string) => {
     const product = products.find((p) => p.id === productId);
     const variant = variants.find((v) => v.id === variantId);
 
     if (!product || !variant) return;
 
-    // Get price from specific sale invoice if available, else most recent sale
+    const maxReturnable = await getMaxReturnable(variantId);
+    if (maxReturnable <= 0) {
+      toast({ title: "Cannot Return", description: `${product.product_name} (${variant.size}) — all sold units already returned`, variant: "destructive" });
+      setSearchOpen(false);
+      return;
+    }
+
     const fetchedPrice = await getPriceFromSale(variantId, originalSaleId || undefined);
     let unitPrice = fetchedPrice ?? variant.sale_price;
 
@@ -345,6 +371,7 @@ export default function SaleReturnEntry() {
       gstPercent: variant.gst_per,
       lineTotal: unitPrice,
       hsnCode: product.hsn_code || '',
+      maxReturnable,
     };
 
     setReturnItems([...returnItems, newItem]);
