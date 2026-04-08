@@ -126,6 +126,7 @@ const POSDashboard = () => {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
+  const { user } = useAuth();
   const { formatMessage } = useWhatsAppTemplates();
   const { sendWhatsApp, copyInvoiceLink } = useWhatsAppSend();
   const { settings: whatsAppAPISettings, sendMessageAsync, isSending: isSendingWhatsAppAPI } = useWhatsAppAPI();
@@ -143,7 +144,7 @@ const POSDashboard = () => {
   const [saleTypeFilter, setSaleTypeFilter] = useState<string>("all");
   const [refundFilter, setRefundFilter] = useState<string>("all");
   const [creditNoteFilter, setCreditNoteFilter] = useState<string>("all");
-  const [userFilter, setUserFilter] = useState<string>("all");
+  const [userFilter, setUserFilter] = useState<string>("__pending__");
 
   // Fetch org users for billing user filter
   const { data: orgUsers = [] } = useQuery({

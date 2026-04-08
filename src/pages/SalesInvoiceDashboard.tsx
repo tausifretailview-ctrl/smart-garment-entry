@@ -121,7 +121,7 @@ export default function SalesInvoiceDashboard() {
   const [periodFilter, setPeriodFilter] = useState<string>("monthly");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
   const [shopFilter, setShopFilter] = useState<string>("all");
-  const [userFilter, setUserFilter] = useState<string>("all");
+  const [userFilter, setUserFilter] = useState<string>("__pending__");
 
   // Fetch org users for billing user filter
   const { data: orgUsers = [] } = useQuery({
