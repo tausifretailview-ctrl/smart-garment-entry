@@ -94,6 +94,7 @@ interface Sale {
   salesman?: string | null;
   notes?: string | null;
   created_at: string;
+  created_by?: string | null;
   sale_type?: string;
   status?: string | null;
   // E-Invoice fields
@@ -142,6 +143,28 @@ const POSDashboard = () => {
   const [saleTypeFilter, setSaleTypeFilter] = useState<string>("all");
   const [refundFilter, setRefundFilter] = useState<string>("all");
   const [creditNoteFilter, setCreditNoteFilter] = useState<string>("all");
+  const [userFilter, setUserFilter] = useState<string>("all");
+
+  // Fetch org users for billing user filter
+  const { data: orgUsers = [] } = useQuery({
+    queryKey: ["org-users-filter", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const { data: members } = await supabase
+        .from("organization_members")
+        .select("user_id, role")
+        .eq("organization_id", currentOrganization.id);
+      if (!members?.length) return [];
+      const { data: result } = await supabase.functions.invoke("get-users");
+      const allUsers = result?.users || [];
+      const memberIds = new Set(members.map((m: any) => m.user_id));
+      return allUsers
+        .filter((u: any) => memberIds.has(u.id))
+        .map((u: any) => ({ id: u.id, email: u.email }));
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 300000,
+  });
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [saleItems, setSaleItems] = useState<Record<string, SaleItem[]>>({});
   const [saleReturns, setSaleReturns] = useState<Record<string, any[]>>({});
