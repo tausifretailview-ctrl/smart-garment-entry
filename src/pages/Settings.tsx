@@ -2028,6 +2028,7 @@ export default function Settings() {
                   />
                 </div>
 
+                <div className="space-y-3">
                   <Label className="text-base font-semibold">Totals & Taxes</Label>
                   
                   <div className="flex items-center space-x-2">
