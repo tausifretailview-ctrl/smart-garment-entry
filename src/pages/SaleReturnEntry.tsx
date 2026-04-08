@@ -53,6 +53,7 @@ interface ReturnItem {
   gstPercent: number;
   lineTotal: number;
   hsnCode?: string;
+  maxReturnable?: number;
 }
 
 export default function SaleReturnEntry() {
@@ -324,13 +325,38 @@ export default function SaleReturnEntry() {
     }
   };
 
+  // Helper: fetch max returnable qty for a variant
+  const getMaxReturnable = async (variantId: string): Promise<number> => {
+    const { data: soldData } = await supabase
+      .from('sale_items')
+      .select('quantity')
+      .eq('variant_id', variantId)
+      .is('deleted_at', null);
+    const totalSold = (soldData || []).reduce((sum, r) => sum + (r.quantity || 0), 0);
+
+    const { data: returnedData } = await supabase
+      .from('sale_return_items')
+      .select('quantity')
+      .eq('variant_id', variantId)
+      .is('deleted_at', null);
+    const alreadyReturned = (returnedData || []).reduce((sum, r) => sum + (r.quantity || 0), 0);
+
+    return totalSold - alreadyReturned;
+  };
+
   const addProduct = async (productId: string, variantId: string) => {
     const product = products.find((p) => p.id === productId);
     const variant = variants.find((v) => v.id === variantId);
 
     if (!product || !variant) return;
 
-    // Get price from specific sale invoice if available, else most recent sale
+    const maxReturnable = await getMaxReturnable(variantId);
+    if (maxReturnable <= 0) {
+      toast({ title: "Cannot Return", description: `${product.product_name} (${variant.size}) — all sold units already returned`, variant: "destructive" });
+      setSearchOpen(false);
+      return;
+    }
+
     const fetchedPrice = await getPriceFromSale(variantId, originalSaleId || undefined);
     let unitPrice = fetchedPrice ?? variant.sale_price;
 
@@ -345,6 +371,7 @@ export default function SaleReturnEntry() {
       gstPercent: variant.gst_per,
       lineTotal: unitPrice,
       hsnCode: product.hsn_code || '',
+      maxReturnable,
     };
 
     setReturnItems([...returnItems, newItem]);
@@ -411,33 +438,48 @@ export default function SaleReturnEntry() {
       return;
     }
     
+    // Check max returnable before adding
+    const maxReturnable = await getMaxReturnable(variant!.id);
+    
     const existingIndex = returnItems.findIndex(
       (item) => item.variantId === variant!.id
     );
     
     if (existingIndex !== -1) {
+      const currentQty = returnItems[existingIndex].quantity;
+      if (currentQty >= maxReturnable) {
+        toast({ title: "Cannot Return", description: `${product!.product_name} (${variant!.size}) — max returnable is ${maxReturnable}`, variant: "destructive" });
+        setBarcodeInput("");
+        return;
+      }
       const updated = [...returnItems];
       updated[existingIndex].quantity += 1;
       updated[existingIndex].lineTotal = 
         updated[existingIndex].quantity * updated[existingIndex].unitPrice;
+      updated[existingIndex].maxReturnable = maxReturnable;
       setReturnItems(updated);
     } else {
-      // Get price from specific sale invoice if available, else most recent sale
-      const fetchedPrice = await getPriceFromSale(variant.id, originalSaleId || undefined);
-      let unitPrice = fetchedPrice ?? variant.sale_price;
+      if (maxReturnable <= 0) {
+        toast({ title: "Cannot Return", description: `${product!.product_name} (${variant!.size}) — all sold units already returned`, variant: "destructive" });
+        setBarcodeInput("");
+        return;
+      }
+      const fetchedPrice = await getPriceFromSale(variant!.id, originalSaleId || undefined);
+      let unitPrice = fetchedPrice ?? variant!.sale_price;
 
       const newItem: ReturnItem = {
-        productId: product.id,
-        variantId: variant.id,
-        productName: product.product_name,
-        size: variant.size,
-        color: variant.color || undefined,
-        barcode: variant.barcode,
+        productId: product!.id,
+        variantId: variant!.id,
+        productName: product!.product_name,
+        size: variant!.size,
+        color: variant!.color || undefined,
+        barcode: variant!.barcode,
         quantity: 1,
         unitPrice,
-        gstPercent: variant.gst_per,
+        gstPercent: variant!.gst_per,
         lineTotal: unitPrice,
-        hsnCode: product.hsn_code || '',
+        hsnCode: product!.hsn_code || '',
+        maxReturnable,
       };
       setReturnItems(prev => [...prev, newItem]);
     }
@@ -448,6 +490,12 @@ export default function SaleReturnEntry() {
 
   const updateQuantity = (index: number, quantity: number) => {
     if (quantity < 1) return;
+    const item = returnItems[index];
+    const max = item.maxReturnable;
+    if (max && quantity > max) {
+      toast({ title: "Limit Exceeded", description: `Max returnable for ${item.productName} (${item.size}) is ${max}`, variant: "destructive" });
+      quantity = max;
+    }
     const updated = [...returnItems];
     updated[index].quantity = quantity;
     updated[index].lineTotal = quantity * updated[index].unitPrice;
@@ -578,6 +626,14 @@ export default function SaleReturnEntry() {
   const handleSave = async () => {
     if (returnItems.length === 0) {
       toast({ title: "Error", description: "Please add at least one item", variant: "destructive" });
+      return;
+    }
+
+    // Final validation: check no item exceeds max returnable
+    const overItems = returnItems.filter(item => item.maxReturnable && item.quantity > item.maxReturnable);
+    if (overItems.length > 0) {
+      const msg = overItems.map(i => `${i.productName} (${i.size}): max ${i.maxReturnable}`).join(', ');
+      toast({ title: "Quantity Exceeded", description: `Reduce qty: ${msg}`, variant: "destructive" });
       return;
     }
 
@@ -1092,13 +1148,19 @@ export default function SaleReturnEntry() {
                     <TableCell className="text-sm">{item.color || "-"}</TableCell>
                     <TableCell className="text-sm font-mono">{item.barcode || "-"}</TableCell>
                     <TableCell>
-                      <Input
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
-                        className="w-20 h-8 text-sm text-center"
-                      />
+                      <div className="flex flex-col items-start gap-0.5">
+                        <Input
+                          type="number"
+                          min="1"
+                          max={item.maxReturnable || undefined}
+                          value={item.quantity}
+                          onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
+                          className="w-20 h-8 text-sm text-center"
+                        />
+                        {item.maxReturnable && (
+                          <span className="text-[10px] text-muted-foreground">Max: {item.maxReturnable}</span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right text-sm">₹{item.unitPrice.toFixed(2)}</TableCell>
                     <TableCell className="text-right text-sm">{item.gstPercent}%</TableCell>
