@@ -1503,9 +1503,9 @@ export default function Settings() {
                         <Label className="text-sm">IMEI Max Length</Label>
                         <Input
                           type="number"
-                          min="10"
-                          max="25"
-                          value={settings.product_settings?.mobile_erp?.imei_max_length ?? 19}
+                          min="5"
+                          max="50"
+                          value={settings.product_settings?.mobile_erp?.imei_max_length ?? 25}
                           onChange={(e) =>
                             setSettings({
                               ...settings,
@@ -1513,7 +1513,7 @@ export default function Settings() {
                                 ...settings.product_settings,
                                 mobile_erp: {
                                   ...settings.product_settings?.mobile_erp,
-                                  imei_max_length: parseInt(e.target.value) || 19,
+                                  imei_max_length: parseInt(e.target.value) || 25,
                                 },
                               },
                             })

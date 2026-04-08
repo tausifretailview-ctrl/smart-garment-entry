@@ -474,8 +474,8 @@ const PurchaseEntry = () => {
       enabled: true,
       imei_scan_enforcement: merp.imei_scan_enforcement ?? true,
       locked_size_qty: merp.locked_size_qty ?? true,
-      imei_min_length: merp.imei_min_length ?? 15,
-      imei_max_length: merp.imei_max_length ?? 19,
+      imei_min_length: merp.imei_min_length ?? 4,
+      imei_max_length: merp.imei_max_length ?? 25,
     };
   })();
   const isMobileERPMode = !!mobileERPSettings?.enabled;
