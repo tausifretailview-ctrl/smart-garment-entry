@@ -232,6 +232,20 @@ export default function POSSales() {
     gst_number: "",
   });
   
+  // Helper to open Add Customer dialog with phone pre-filled from search
+  const openAddCustomerDialog = () => {
+    const searchText = customerName.trim();
+    const isPhone = /^\d{7,15}$/.test(searchText);
+    setNewCustomerForm({
+      customer_name: "",
+      phone: isPhone ? searchText : "",
+      email: "",
+      address: "",
+      gst_number: "",
+    });
+    setShowAddCustomerDialog(true);
+  };
+
   // Price selection dialog state
   const [showPriceSelectionDialog, setShowPriceSelectionDialog] = useState(false);
   const [pendingPriceSelection, setPendingPriceSelection] = useState<PendingPriceSelection | null>(null);
