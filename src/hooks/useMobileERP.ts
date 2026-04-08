@@ -14,7 +14,7 @@ const DEFAULT_SETTINGS: MobileERPSettings = {
   imei_scan_enforcement: true,
   locked_size_qty: true,
   financer_billing: true,
-  imei_min_length: 15,
+  imei_min_length: 4,
   imei_max_length: 19,
 };
 
