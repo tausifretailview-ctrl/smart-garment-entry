@@ -905,14 +905,51 @@ export default function ItemWiseSalesReport() {
                   </TableHeader>
                   <TableBody>
                     {customerWiseData.map((row, index) => (
-                      <TableRow key={row.customer_name} className={index % 2 === 0 ? "" : "bg-muted/30"}>
-                        <TableCell className="font-mono text-muted-foreground">{index + 1}</TableCell>
-                        <TableCell className="font-medium">{row.customer_name}</TableCell>
-                        <TableCell className="text-center">{row.item_count}</TableCell>
-                        <TableCell className="text-right font-mono">{row.total_qty}</TableCell>
-                        <TableCell className="text-right font-mono font-semibold">₹{Math.round(row.total_amount).toLocaleString("en-IN")}</TableCell>
-                        <TableCell className="text-right font-mono text-muted-foreground">₹{row.total_qty > 0 ? Math.round(row.total_amount / row.total_qty).toLocaleString("en-IN") : 0}</TableCell>
-                      </TableRow>
+                      <>
+                        <TableRow
+                          key={row.customer_name}
+                          className={cn("cursor-pointer hover:bg-muted/40", index % 2 === 0 ? "" : "bg-muted/30")}
+                          onClick={() => setExpandedCustomer(expandedCustomer === row.customer_name ? null : row.customer_name)}
+                        >
+                          <TableCell className="font-mono text-muted-foreground">{index + 1}</TableCell>
+                          <TableCell className="font-medium">
+                            <span className="mr-1 text-xs">{expandedCustomer === row.customer_name ? "▼" : "▶"}</span>
+                            {row.customer_name}
+                          </TableCell>
+                          <TableCell className="text-center">{row.item_count}</TableCell>
+                          <TableCell className="text-right font-mono">{row.total_qty}</TableCell>
+                          <TableCell className="text-right font-mono font-semibold">₹{Math.round(row.total_amount).toLocaleString("en-IN")}</TableCell>
+                          <TableCell className="text-right font-mono text-muted-foreground">₹{row.total_qty > 0 ? Math.round(row.total_amount / row.total_qty).toLocaleString("en-IN") : 0}</TableCell>
+                        </TableRow>
+                        {expandedCustomer === row.customer_name && (
+                          <TableRow key={`${row.customer_name}-products`}>
+                            <TableCell colSpan={6} className="p-0">
+                              <div className="bg-muted/20 border-y">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow className="bg-muted/40">
+                                      <TableHead className="w-12 pl-10">#</TableHead>
+                                      <TableHead className="pl-10">Product Name</TableHead>
+                                      <TableHead className="text-right">Qty</TableHead>
+                                      <TableHead className="text-right">Amount (₹)</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {row.productList.map((p, pi) => (
+                                      <TableRow key={pi} className="hover:bg-muted/30">
+                                        <TableCell className="pl-10 font-mono text-xs text-muted-foreground">{pi + 1}</TableCell>
+                                        <TableCell className="pl-10 text-sm">{p.product_name}</TableCell>
+                                        <TableCell className="text-right font-mono text-sm">{p.qty}</TableCell>
+                                        <TableCell className="text-right font-mono text-sm">₹{Math.round(p.amount).toLocaleString("en-IN")}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </>
                     ))}
                   </TableBody>
                 </Table>
