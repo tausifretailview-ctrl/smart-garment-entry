@@ -1029,12 +1029,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         if (mobileERPMode?.enabled) {
           const invalidIMEI = variantsToCreate.find(v => {
             const cleaned = (v.barcode || '').replace(/\s/g, '');
-            return !/^\d+$/.test(cleaned) || cleaned.length < (mobileERPMode.imei_min_length || 15) || cleaned.length > (mobileERPMode.imei_max_length || 19);
+            return !/^[a-zA-Z0-9\-_.\/]+$/.test(cleaned) || cleaned.length < (mobileERPMode.imei_min_length || 4) || cleaned.length > (mobileERPMode.imei_max_length || 25);
           });
           if (invalidIMEI) {
             toast({
               title: "Invalid IMEI",
-              description: `IMEI must be ${mobileERPMode.imei_min_length}-${mobileERPMode.imei_max_length} digits. Check: ${invalidIMEI.barcode}`,
+              description: `IMEI must be ${mobileERPMode.imei_min_length}-${mobileERPMode.imei_max_length} characters. Check: ${invalidIMEI.barcode}`,
               variant: "destructive",
             });
             setLoading(false);
@@ -2310,9 +2310,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                 />
                                 {mobileERPMode?.enabled && variant.barcode && (() => {
                                   const cleaned = variant.barcode.replace(/\s/g, '');
-                                  const isValid = /^\d+$/.test(cleaned) && cleaned.length >= (mobileERPMode.imei_min_length || 15) && cleaned.length <= (mobileERPMode.imei_max_length || 19);
+                                  const isValid = /^[a-zA-Z0-9\-_.\/]+$/.test(cleaned) && cleaned.length >= (mobileERPMode.imei_min_length || 4) && cleaned.length <= (mobileERPMode.imei_max_length || 25);
                                   if (!isValid && cleaned.length > 0) {
-                                    return <span className="text-[10px] text-amber-600 font-semibold mt-0.5 block">Need {mobileERPMode.imei_min_length}-{mobileERPMode.imei_max_length} digits</span>;
+                                    return <span className="text-[10px] text-amber-600 font-semibold mt-0.5 block">Need {mobileERPMode.imei_min_length}-{mobileERPMode.imei_max_length} chars</span>;
                                   }
                                   return null;
                                 })()}

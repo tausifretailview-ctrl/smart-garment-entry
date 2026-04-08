@@ -1269,7 +1269,7 @@ export default function POSSales() {
       if (!validateIMEI(searchTerm, mobileERP.imei_min_length, mobileERP.imei_max_length)) {
         toast({
           title: "Invalid IMEI",
-          description: `Please scan a valid IMEI number (${mobileERP.imei_min_length}-${mobileERP.imei_max_length} digits)`,
+          description: `Please scan a valid barcode (${mobileERP.imei_min_length}-${mobileERP.imei_max_length} characters)`,
           variant: "destructive",
         });
         setSearchInput("");

@@ -14,8 +14,8 @@ const DEFAULT_SETTINGS: MobileERPSettings = {
   imei_scan_enforcement: true,
   locked_size_qty: true,
   financer_billing: true,
-  imei_min_length: 15,
-  imei_max_length: 19,
+  imei_min_length: 4,
+  imei_max_length: 25,
 };
 
 export function useMobileERP(): MobileERPSettings {
@@ -32,13 +32,13 @@ export function useMobileERP(): MobileERPSettings {
     imei_scan_enforcement: mobileErp.imei_scan_enforcement ?? true,
     locked_size_qty: mobileErp.locked_size_qty ?? true,
     financer_billing: mobileErp.financer_billing ?? true,
-    imei_min_length: mobileErp.imei_min_length ?? 15,
-    imei_max_length: mobileErp.imei_max_length ?? 19,
+    imei_min_length: mobileErp.imei_min_length ?? 4,
+    imei_max_length: mobileErp.imei_max_length ?? 25,
   };
 }
 
-export function validateIMEI(imei: string, minLength: number = 15, maxLength: number = 19): boolean {
+export function validateIMEI(imei: string, minLength: number = 4, maxLength: number = 25): boolean {
   if (!imei) return false;
   const cleaned = imei.replace(/\s/g, '');
-  return /^[a-zA-Z0-9]+$/.test(cleaned) && cleaned.length >= minLength && cleaned.length <= maxLength;
+  return /^[a-zA-Z0-9\-_.\/]+$/.test(cleaned) && cleaned.length >= minLength && cleaned.length <= maxLength;
 }
