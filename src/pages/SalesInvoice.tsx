@@ -3445,8 +3445,16 @@ Thank you for choosing us!`;
                           className="w-16 h-9 text-right text-[14px] tabular-nums ml-auto"
                         />
                       </td>
-                      <td className="text-right px-3 py-2 text-sm font-medium tabular-nums text-destructive">
-                        {item.discountAmount > 0 ? `-₹${item.discountAmount.toFixed(2)}` : '-'}
+                      <td className="text-right px-1.5 py-1">
+                        <Input
+                          type="number"
+                          min="0"
+                          value={item.discountAmount || ""}
+                          placeholder="-"
+                          onChange={(e) => updateDiscountAmount(item.id, parseFloat(e.target.value) || 0)}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                          className="w-20 h-9 text-right text-[14px] tabular-nums ml-auto text-destructive"
+                        />
                       </td>
                       <td className="text-center px-3 py-2">
                         <span className="text-sm font-semibold text-muted-foreground">{item.gstPercent}%</span>
