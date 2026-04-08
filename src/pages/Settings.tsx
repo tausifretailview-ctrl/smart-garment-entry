@@ -2004,6 +2004,30 @@ export default function Settings() {
                   />
                 </div>
 
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="sale_return_use_original_price" className="text-sm font-medium">
+                      Sale Return Price
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Use original price (before discount) for sale returns. Default: OFF (uses actual paid price after discount)
+                    </p>
+                  </div>
+                  <Switch
+                    id="sale_return_use_original_price"
+                    checked={(settings.sale_settings as any)?.sale_return_use_original_price ?? false}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          sale_return_use_original_price: checked,
+                        } as any,
+                      })
+                    }
+                  />
+                </div>
+
                 <div className="space-y-3">
                   <Label className="text-base font-semibold">Totals & Taxes</Label>
                   

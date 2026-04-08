@@ -54,6 +54,8 @@ interface ReturnItem {
   lineTotal: number;
   hsnCode?: string;
   maxReturnable?: number;
+  originalPrice?: number;
+  discountPercent?: number;
 }
 
 export default function SaleReturnEntry() {
@@ -85,6 +87,23 @@ export default function SaleReturnEntry() {
   const [editLoading, setEditLoading] = useState(false);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const [originalSaleId, setOriginalSaleId] = useState<string>('');
+  const [useOriginalPriceForReturn, setUseOriginalPriceForReturn] = useState(false);
+
+  // Fetch sale return price setting
+  useEffect(() => {
+    if (!currentOrganization?.id) return;
+    supabase
+      .from("settings")
+      .select("sale_settings")
+      .eq("organization_id", currentOrganization.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        const saleSettings = data?.sale_settings as any;
+        if (saleSettings?.sale_return_use_original_price) {
+          setUseOriginalPriceForReturn(true);
+        }
+      });
+  }, [currentOrganization?.id]);
 
   // Store original item IDs for edit mode (to delete them on resave)
   const [originalItemIds, setOriginalItemIds] = useState<string[]>([]);
@@ -299,11 +318,15 @@ export default function SaleReturnEntry() {
     );
   });
   // Get unit price from a specific sale's items for a given variant
-  const getPriceFromSale = async (variantId: string, specificSaleId?: string): Promise<number | null> => {
+  const getPriceFromSale = async (
+    variantId: string, 
+    specificSaleId?: string,
+    useOriginalPrice?: boolean
+  ): Promise<{ price: number; originalPrice?: number; discountPercent?: number } | null> => {
     try {
       let query = supabase
         .from('sale_items')
-        .select('unit_price, per_qty_net_amount, line_total, quantity')
+        .select('unit_price, per_qty_net_amount, line_total, quantity, discount_percent')
         .eq('variant_id', variantId)
         .is('deleted_at', null);
 
@@ -316,10 +339,23 @@ export default function SaleReturnEntry() {
       const { data } = await query.maybeSingle();
       if (!data) return null;
 
-      if (data.unit_price && data.unit_price > 0) return data.unit_price;
-      if (data.per_qty_net_amount && data.per_qty_net_amount > 0) return data.per_qty_net_amount;
-      if (data.line_total && data.quantity) return data.line_total / data.quantity;
-      return null;
+      const origPrice = (data.unit_price && data.unit_price > 0) ? data.unit_price : undefined;
+      const discPct = (data.discount_percent && data.discount_percent > 0) ? data.discount_percent : undefined;
+
+      let price: number | null = null;
+      if (useOriginalPrice) {
+        // Return original price before discount (for exchange scenarios)
+        if (data.unit_price && data.unit_price > 0) price = data.unit_price;
+        else if (data.per_qty_net_amount && data.per_qty_net_amount > 0) price = data.per_qty_net_amount;
+      } else {
+        // DEFAULT: Return actual paid price after all discounts (accounting-correct)
+        if (data.per_qty_net_amount && data.per_qty_net_amount > 0) price = data.per_qty_net_amount;
+        else if (data.line_total && data.quantity) price = data.line_total / data.quantity;
+        else if (data.unit_price && data.unit_price > 0) price = data.unit_price;
+      }
+
+      if (price === null) return null;
+      return { price, originalPrice: origPrice, discountPercent: discPct };
     } catch {
       return null;
     }
@@ -357,8 +393,8 @@ export default function SaleReturnEntry() {
       return;
     }
 
-    const fetchedPrice = await getPriceFromSale(variantId, originalSaleId || undefined);
-    let unitPrice = fetchedPrice ?? variant.sale_price;
+    const fetchedResult = await getPriceFromSale(variantId, originalSaleId || undefined, useOriginalPriceForReturn);
+    let unitPrice = fetchedResult?.price ?? variant.sale_price;
 
     const newItem: ReturnItem = {
       productId: product.id,
@@ -372,6 +408,8 @@ export default function SaleReturnEntry() {
       lineTotal: unitPrice,
       hsnCode: product.hsn_code || '',
       maxReturnable,
+      originalPrice: fetchedResult?.originalPrice,
+      discountPercent: fetchedResult?.discountPercent,
     };
 
     setReturnItems([...returnItems, newItem]);
@@ -464,8 +502,8 @@ export default function SaleReturnEntry() {
         setBarcodeInput("");
         return;
       }
-      const fetchedPrice = await getPriceFromSale(variant!.id, originalSaleId || undefined);
-      let unitPrice = fetchedPrice ?? variant!.sale_price;
+      const fetchedResult = await getPriceFromSale(variant!.id, originalSaleId || undefined, useOriginalPriceForReturn);
+      let unitPrice = fetchedResult?.price ?? variant!.sale_price;
 
       const newItem: ReturnItem = {
         productId: product!.id,
@@ -480,6 +518,8 @@ export default function SaleReturnEntry() {
         lineTotal: unitPrice,
         hsnCode: product!.hsn_code || '',
         maxReturnable,
+        originalPrice: fetchedResult?.originalPrice,
+        discountPercent: fetchedResult?.discountPercent,
       };
       setReturnItems(prev => [...prev, newItem]);
     }
@@ -1162,7 +1202,14 @@ export default function SaleReturnEntry() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right text-sm">₹{item.unitPrice.toFixed(2)}</TableCell>
+                    <TableCell className="text-right text-sm">
+                      ₹{item.unitPrice.toFixed(2)}
+                      {useOriginalPriceForReturn && item.discountPercent ? (
+                        <span className="block text-[10px] text-muted-foreground">(before disc)</span>
+                      ) : item.originalPrice && item.originalPrice !== item.unitPrice ? (
+                        <span className="block text-[10px] text-muted-foreground">MRP ₹{item.originalPrice.toFixed(0)}</span>
+                      ) : null}
+                    </TableCell>
                     <TableCell className="text-right text-sm">{item.gstPercent}%</TableCell>
                     <TableCell className="text-right text-sm font-semibold">₹{item.lineTotal.toFixed(2)}</TableCell>
                     <TableCell>
