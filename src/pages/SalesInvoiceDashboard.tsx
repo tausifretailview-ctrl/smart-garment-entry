@@ -2821,6 +2821,19 @@ export default function SalesInvoiceDashboard() {
                   ))}
                 </SelectContent>
               </Select>
+              <Select value={userFilter} onValueChange={setUserFilter}>
+                <SelectTrigger className="w-[145px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white">
+                  <SelectValue placeholder="Billing User" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Users</SelectItem>
+                  {orgUsers.map((user: any) => (
+                    <SelectItem key={user.id} value={user.id} title={user.email}>
+                      {user.email.split("@")[0]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {filteredCustomer && bulkAdvanceBalance > 0 && (
                 <Button
                   variant="outline"
