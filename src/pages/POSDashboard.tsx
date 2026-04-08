@@ -1108,9 +1108,11 @@ const POSDashboard = () => {
         (creditNoteFilter === "with_credit_note" && sale.credit_note_id) ||
         (creditNoteFilter === "without_credit_note" && !sale.credit_note_id);
 
-      return matchesSearch && matchesDateRange && matchesPaymentMethod && matchesPaymentStatus && matchesRefund && matchesCreditNote && matchesSaleType;
+      const matchesUser = userFilter === "all" || sale.created_by === userFilter;
+
+      return matchesSearch && matchesDateRange && matchesPaymentMethod && matchesPaymentStatus && matchesRefund && matchesCreditNote && matchesSaleType && matchesUser;
     });
-  }, [sales, saleItems, searchQuery, startDate, endDate, paymentMethodFilter, paymentStatusFilter, refundFilter, creditNoteFilter, saleTypeFilter]);
+  }, [sales, saleItems, searchQuery, startDate, endDate, paymentMethodFilter, paymentStatusFilter, refundFilter, creditNoteFilter, saleTypeFilter, userFilter]);
 
   // Memoize summary statistics to avoid recalculating on every render
   const summaryStats = useMemo(() => ({
