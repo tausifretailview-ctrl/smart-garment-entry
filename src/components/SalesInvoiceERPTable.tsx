@@ -135,7 +135,7 @@ export function SalesInvoiceERPTable({
             />
           </div>
         ),
-        size: 40,
+        size: 36,
       });
     }
 
@@ -163,7 +163,8 @@ export function SalesInvoiceERPTable({
             </div>
           );
         },
-        size: 140,
+        size: 130,
+        minSize: 110,
       },
       {
         accessorKey: "customer_name",
@@ -186,7 +187,8 @@ export function SalesInvoiceERPTable({
             </span>
           );
         },
-        size: 200,
+        size: 170,
+        minSize: 120,
       });
 
     if (columnSettings.phone) {
