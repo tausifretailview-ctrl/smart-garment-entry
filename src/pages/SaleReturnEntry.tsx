@@ -1070,11 +1070,6 @@ export default function SaleReturnEntry() {
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-sm font-bold text-foreground">₹{item.unitPrice.toFixed(2)}</p>
-                    {useOriginalPriceForReturn && item.discountPercent ? (
-                      <p className="text-[10px] text-muted-foreground">(before disc)</p>
-                    ) : item.originalPrice && item.originalPrice !== item.unitPrice ? (
-                      <p className="text-[10px] text-muted-foreground">MRP ₹{item.originalPrice.toFixed(0)} (-{item.discountPercent?.toFixed(0) || ''}%)</p>
-                    ) : null}
                     <p className="text-xs text-muted-foreground">Qty: {item.quantity} | GST: {item.gstPercent}%</p>
                   </div>
                 </div>
