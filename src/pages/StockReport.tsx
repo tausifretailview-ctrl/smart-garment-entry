@@ -1535,7 +1535,14 @@ export default function StockReport() {
                                 {item.sale_return_qty > 0 ? `+${item.sale_return_qty}` : '0'}
                               </TableCell>
                               <TableCell className="text-right bg-primary/10 font-bold text-primary">
-                                {item.stock_qty}
+                                <div className="flex items-center justify-end gap-1">
+                                  {item.stock_qty}
+                                  {item.stock_qty !== item.db_stock_qty && (
+                                    <span title={`DB stock (${item.db_stock_qty}) differs from calculated (${item.stock_qty}). Run stock reconciliation to fix.`}>
+                                      <AlertTriangle className="h-3 w-3 text-amber-500 inline" />
+                                    </span>
+                                  )}
+                                </div>
                               </TableCell>
                               <TableCell className="text-right">
                                 {item.pur_price ? (
