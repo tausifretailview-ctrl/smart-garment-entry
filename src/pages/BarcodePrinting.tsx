@@ -1795,7 +1795,16 @@ export default function BarcodePrinting() {
     }
   }, [sizeSortOrder]);
 
-  const genEAN8 = () => {
+  // Persist label items to localStorage for reload survival
+  useEffect(() => {
+    if (labelItems.length > 0) {
+      try { localStorage.setItem('barcode_label_items', JSON.stringify(labelItems)); } catch {}
+    } else {
+      localStorage.removeItem('barcode_label_items');
+    }
+  }, [labelItems]);
+
+
     const seven = Array.from({ length: 7 }, () => Math.floor(Math.random() * 10));
     const sum = seven[0] * 3 + seven[1] + seven[2] * 3 + seven[3] + seven[4] * 3 + seven[5] + seven[6] * 3;
     const chk = (10 - (sum % 10)) % 10;
