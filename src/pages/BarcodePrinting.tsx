@@ -1078,7 +1078,13 @@ export default function BarcodePrinting() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [labelItems, setLabelItems] = useState<LabelItem[]>([]);
+  const [labelItems, setLabelItems] = useState<LabelItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('barcode_label_items');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [];
+  });
   const [quantityMode, setQuantityMode] = useState<QuantityMode>("manual");
   const [sizeSortOrder, setSizeSortOrder] = useState<SizeSortOrder>("barcode_asc");
   const [billNumber, setBillNumber] = useState("");
@@ -1789,6 +1795,15 @@ export default function BarcodePrinting() {
     }
   }, [sizeSortOrder]);
 
+  // Persist label items to localStorage for reload survival
+  useEffect(() => {
+    if (labelItems.length > 0) {
+      try { localStorage.setItem('barcode_label_items', JSON.stringify(labelItems)); } catch {}
+    } else {
+      localStorage.removeItem('barcode_label_items');
+    }
+  }, [labelItems]);
+
   const genEAN8 = () => {
     const seven = Array.from({ length: 7 }, () => Math.floor(Math.random() * 10));
     const sum = seven[0] * 3 + seven[1] + seven[2] * 3 + seven[3] + seven[4] * 3 + seven[5] + seven[6] * 3;
@@ -2256,6 +2271,7 @@ export default function BarcodePrinting() {
 
   const handleClearAll = () => {
     setLabelItems([]);
+    localStorage.removeItem('barcode_label_items');
     setSearchQuery("");
     toast.success("Cleared all labels");
   };
