@@ -1665,14 +1665,47 @@ const PurchaseEntry = () => {
     focusSearchBar();
   };
 
-  const addInlineRow = (variant: ProductVariant) => {
+  const addInlineRow = async (variant: ProductVariant) => {
+    let skuId = variant.id;
+    let barcode = variant.barcode;
+
+    // Smart barcode logic: system-generated → new barcode+variant, branded → reuse
+    if (barcode && isSystemGeneratedBarcode(barcode)) {
+      const result = await createNewVariantWithBarcode({
+        product_id: variant.product_id,
+        size: variant.size,
+        color: variant.color,
+        pur_price: variant.pur_price,
+        sale_price: variant.sale_price,
+        mrp: variant.mrp,
+      });
+      if (result) {
+        skuId = result.id;
+        barcode = result.barcode;
+      }
+    } else if (!barcode && isAutoBarcode) {
+      const result = await createNewVariantWithBarcode({
+        product_id: variant.product_id,
+        size: variant.size,
+        color: variant.color,
+        pur_price: variant.pur_price,
+        sale_price: variant.sale_price,
+        mrp: variant.mrp,
+      });
+      if (result) {
+        skuId = result.id;
+        barcode = result.barcode;
+      }
+    }
+    // Branded barcode or no barcode + scan mode → reuse as-is
+
     const subTotal = 1 * variant.pur_price;
     const discountAmount = 0;
     const lineTotal = subTotal - discountAmount;
     const newItem: LineItem = {
       temp_id: Date.now().toString() + Math.random(),
       product_id: variant.product_id,
-      sku_id: variant.id,
+      sku_id: skuId,
       product_name: variant.product_name,
       size: variant.size,
       qty: 1,
@@ -1681,7 +1714,7 @@ const PurchaseEntry = () => {
       mrp: variant.mrp || 0,
       gst_per: variant.gst_per,
       hsn_code: variant.hsn_code,
-      barcode: variant.barcode,
+      barcode: barcode,
       discount_percent: 0,
       line_total: lineTotal,
       brand: variant.brand || "",
