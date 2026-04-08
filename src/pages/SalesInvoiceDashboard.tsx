@@ -143,6 +143,17 @@ export default function SalesInvoiceDashboard() {
     enabled: !!currentOrganization?.id,
     staleTime: 300000,
   });
+
+  // Default userFilter to logged-in user
+  useEffect(() => {
+    if (userFilter === "__pending__" && orgUsers.length > 0 && user?.id) {
+      const isOrgMember = orgUsers.some((u: any) => u.id === user.id);
+      setUserFilter(isOrgMember ? user.id : "all");
+    } else if (userFilter === "__pending__" && orgUsers.length > 0) {
+      setUserFilter("all");
+    }
+  }, [orgUsers, user?.id]);
+
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
