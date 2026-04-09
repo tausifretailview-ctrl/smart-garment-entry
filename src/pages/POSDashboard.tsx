@@ -2499,17 +2499,31 @@ const POSDashboard = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <span className="text-muted-foreground">Customer:</span>
-              <span className="font-medium">{selectedSaleForPayment?.customer_name?.toUpperCase()}</span>
-              <span className="text-muted-foreground">Sale Amount:</span>
-              <span className="font-medium">₹{Math.round(selectedSaleForPayment?.net_amount || 0).toLocaleString('en-IN')}</span>
-              <span className="text-muted-foreground">Paid Amount:</span>
-              <span className="font-medium">₹{Math.round(selectedSaleForPayment?.paid_amount || 0).toLocaleString('en-IN')}</span>
-              <span className="text-muted-foreground">Pending Amount:</span>
-              <span className="font-semibold text-orange-600">
-                ₹{Math.round((selectedSaleForPayment?.net_amount || 0) - (selectedSaleForPayment?.paid_amount || 0)).toLocaleString('en-IN')}
-              </span>
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Customer:</span>
+                <span className="font-medium">{selectedSaleForPayment?.customer_name?.toUpperCase()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Invoice Amount:</span>
+                <span className="font-medium">₹{Math.round(selectedSaleForPayment?.net_amount || 0).toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Already Paid:</span>
+                <span className="font-medium">₹{Math.round(selectedSaleForPayment?.paid_amount || 0).toLocaleString('en-IN')}</span>
+              </div>
+              {(selectedSaleForPayment?.sale_return_adjust || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">CN Adjusted:</span>
+                  <span className="font-medium">₹{Math.round(selectedSaleForPayment.sale_return_adjust).toLocaleString('en-IN')}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-semibold border-t pt-1">
+                <span>Pending:</span>
+                <span className="text-destructive">
+                  ₹{Math.max(0, Math.round((selectedSaleForPayment?.net_amount || 0) - (selectedSaleForPayment?.paid_amount || 0) - (selectedSaleForPayment?.sale_return_adjust || 0))).toLocaleString('en-IN')}
+                </span>
+              </div>
             </div>
             <div>
               <Label>Payment Amount *</Label>
@@ -2550,6 +2564,11 @@ const POSDashboard = () => {
                   <SelectItem value="card">Card</SelectItem>
                   <SelectItem value="cheque">Cheque</SelectItem>
                   <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  {advanceBalance > 0 && (
+                    <SelectItem value="advance">
+                      Advance (₹{Math.round(advanceBalance).toLocaleString('en-IN')})
+                    </SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
