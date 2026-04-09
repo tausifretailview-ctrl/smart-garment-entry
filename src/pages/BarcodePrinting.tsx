@@ -5488,6 +5488,13 @@ export default function BarcodePrinting() {
               )}
             </div>
 
+            {(!precisionConfigReady || isLoadingSettings) ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
+                <span className="text-muted-foreground">Loading label design...</span>
+              </div>
+            ) : (
+            <>
             <p className="text-sm text-muted-foreground">
               Configure exact field positions (in mm) for pixel-perfect label printing. Drag fields to reposition them on the live preview.
             </p>
