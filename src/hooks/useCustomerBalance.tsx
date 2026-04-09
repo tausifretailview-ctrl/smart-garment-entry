@@ -78,16 +78,16 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
         }
       });
 
-      // Calculate totals
-      const totalSales = sales?.reduce((sum, sale) => sum + (sale.net_amount || 0), 0) || 0;
+      // Use gross amount (net_amount + sale_return_adjust) because
+      // saleReturnTotal already subtracts sale return amounts separately
+      const totalSales = sales?.reduce((sum, sale) => sum + (sale.net_amount || 0) + (sale.sale_return_adjust || 0), 0) || 0;
       
       let totalPaidOnSales = 0;
       sales?.forEach(sale => {
         const salePaidAmount = sale.paid_amount || 0;
-        const cnAdjusted = sale.sale_return_adjust || 0;
         const voucherAmount = invoiceVoucherPayments[sale.id] || 0;
-        // Subtract CN adjustment from paid_amount to avoid double-counting with saleReturnTotal
-        totalPaidOnSales += voucherAmount > 0 ? voucherAmount : (salePaidAmount - cnAdjusted);
+        // Don't subtract sale_return_adjust — it's in totalSales (gross) and subtracted once via saleReturnTotal
+        totalPaidOnSales += voucherAmount > 0 ? voucherAmount : salePaidAmount;
       });
 
       const totalPaid = totalPaidOnSales + openingBalanceVoucherPayments;
