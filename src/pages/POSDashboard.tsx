@@ -243,6 +243,7 @@ const POSDashboard = () => {
   const [paymentMode, setPaymentMode] = useState("cash");
   const [paymentNarration, setPaymentNarration] = useState("");
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+  const [advanceBalance, setAdvanceBalance] = useState(0);
   
   // Receipt state
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
@@ -935,12 +936,27 @@ const POSDashboard = () => {
 
   const openPaymentDialog = (sale: Sale) => {
     setSelectedSaleForPayment(sale);
-    const pendingAmount = sale.net_amount - (sale.paid_amount || 0);
-    setPaidAmount(pendingAmount.toString());
+    const pending = Math.max(0, Math.round(sale.net_amount - (sale.paid_amount || 0) - (sale.sale_return_adjust || 0)));
+    setPaidAmount(pending > 0 ? pending.toString() : "");
     setPaymentDate(new Date());
     setPaymentMode("cash");
     setPaymentNarration("");
+    setAdvanceBalance(0);
     setShowPaymentDialog(true);
+
+    // Fetch advance balance if customer exists
+    if (sale.customer_id && currentOrganization?.id) {
+      supabase
+        .from('customer_advances')
+        .select('amount, used_amount')
+        .eq('customer_id', sale.customer_id)
+        .eq('organization_id', currentOrganization.id)
+        .in('status', ['active', 'partially_used'])
+        .then(({ data }) => {
+          const unused = (data || []).reduce((sum, a) => sum + Math.max(0, (a.amount || 0) - (a.used_amount || 0)), 0);
+          setAdvanceBalance(unused);
+        });
+    }
   };
 
   const handleRecordPayment = async () => {
@@ -956,8 +972,9 @@ const POSDashboard = () => {
       return;
     }
 
-    const currentPaid = (selectedSaleForPayment as any).paid_amount || 0;
-    const pendingAmount = selectedSaleForPayment.net_amount - currentPaid;
+    const currentPaid = selectedSaleForPayment.paid_amount || 0;
+    const currentCNAdjust = selectedSaleForPayment.sale_return_adjust || 0;
+    const pendingAmount = Math.max(0, Math.round(selectedSaleForPayment.net_amount - currentPaid - currentCNAdjust));
 
     if (amount > pendingAmount) {
       toast({
@@ -971,8 +988,9 @@ const POSDashboard = () => {
     setIsRecordingPayment(true);
     try {
       const newPaidAmount = currentPaid + amount;
-      const newStatus = newPaidAmount >= selectedSaleForPayment.net_amount ? 'completed' : 
-                       newPaidAmount > 0 ? 'partial' : 'pending';
+      const newStatus = (newPaidAmount + currentCNAdjust) >= selectedSaleForPayment.net_amount - 1
+        ? 'completed'
+        : newPaidAmount > 0 || currentCNAdjust > 0 ? 'partial' : 'pending';
 
       const { error: updateError } = await supabase
         .from('sales')
@@ -1023,8 +1041,8 @@ const POSDashboard = () => {
         invoiceDate: selectedSaleForPayment.sale_date,
         invoiceAmount: selectedSaleForPayment.net_amount,
         paidAmount: amount,
-        previousBalance: selectedSaleForPayment.net_amount - currentPaid,
-        currentBalance: selectedSaleForPayment.net_amount - newPaidAmount,
+        previousBalance: Math.max(0, Math.round(selectedSaleForPayment.net_amount - currentPaid - currentCNAdjust)),
+        currentBalance: Math.max(0, Math.round(selectedSaleForPayment.net_amount - newPaidAmount - currentCNAdjust)),
         paymentMethod: paymentMode,
         narration: paymentNarration,
       };
@@ -2481,17 +2499,31 @@ const POSDashboard = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <span className="text-muted-foreground">Customer:</span>
-              <span className="font-medium">{selectedSaleForPayment?.customer_name?.toUpperCase()}</span>
-              <span className="text-muted-foreground">Sale Amount:</span>
-              <span className="font-medium">₹{Math.round(selectedSaleForPayment?.net_amount || 0).toLocaleString('en-IN')}</span>
-              <span className="text-muted-foreground">Paid Amount:</span>
-              <span className="font-medium">₹{Math.round(selectedSaleForPayment?.paid_amount || 0).toLocaleString('en-IN')}</span>
-              <span className="text-muted-foreground">Pending Amount:</span>
-              <span className="font-semibold text-orange-600">
-                ₹{Math.round((selectedSaleForPayment?.net_amount || 0) - (selectedSaleForPayment?.paid_amount || 0)).toLocaleString('en-IN')}
-              </span>
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Customer:</span>
+                <span className="font-medium">{selectedSaleForPayment?.customer_name?.toUpperCase()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Invoice Amount:</span>
+                <span className="font-medium">₹{Math.round(selectedSaleForPayment?.net_amount || 0).toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Already Paid:</span>
+                <span className="font-medium">₹{Math.round(selectedSaleForPayment?.paid_amount || 0).toLocaleString('en-IN')}</span>
+              </div>
+              {(selectedSaleForPayment?.sale_return_adjust || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">CN Adjusted:</span>
+                  <span className="font-medium">₹{Math.round(selectedSaleForPayment.sale_return_adjust).toLocaleString('en-IN')}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-semibold border-t pt-1">
+                <span>Pending:</span>
+                <span className="text-destructive">
+                  ₹{Math.max(0, Math.round((selectedSaleForPayment?.net_amount || 0) - (selectedSaleForPayment?.paid_amount || 0) - (selectedSaleForPayment?.sale_return_adjust || 0))).toLocaleString('en-IN')}
+                </span>
+              </div>
             </div>
             <div>
               <Label>Payment Amount *</Label>
@@ -2532,6 +2564,11 @@ const POSDashboard = () => {
                   <SelectItem value="card">Card</SelectItem>
                   <SelectItem value="cheque">Cheque</SelectItem>
                   <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  {advanceBalance > 0 && (
+                    <SelectItem value="advance">
+                      Advance (₹{Math.round(advanceBalance).toLocaleString('en-IN')})
+                    </SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
