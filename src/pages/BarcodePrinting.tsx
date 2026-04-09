@@ -1211,6 +1211,7 @@ export default function BarcodePrinting() {
     thermalCols: 1,
   });
   const [dbPresets, setDbPresets] = useState<import("@/components/precision-barcode/LabelCalibrationUI").CalibrationPreset[]>([]);
+  const [precisionConfigReady, setPrecisionConfigReady] = useState(false);
   const precisionPrintRef = useRef<HTMLDivElement>(null);
   const testPrintRef = useRef<HTMLDivElement>(null);
   const [testPrintActive, setTestPrintActive] = useState(false);
@@ -1422,6 +1423,8 @@ export default function BarcodePrinting() {
         setSizeSortOrder(defaultFormat.sizeSortOrder);
       }
     }
+    // Mark precision config as ready after initial load completes
+    setPrecisionConfigReady(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoadingSettings, dbLabelTemplates, dbMarginPresets, dbCustomPresets, activePrecisionTemplateName]);
 
@@ -1432,6 +1435,7 @@ export default function BarcodePrinting() {
   useEffect(() => {
     hasLoadedDefaultsRef.current = false;
     hasLoadedPrecisionConfigRef.current = false;
+    setPrecisionConfigReady(false);
   }, [currentOrganization?.id]);
 
   // Debounced auto-save for precision designer changes
@@ -5484,6 +5488,13 @@ export default function BarcodePrinting() {
               )}
             </div>
 
+            {(!precisionConfigReady || isLoadingSettings) ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
+                <span className="text-muted-foreground">Loading label design...</span>
+              </div>
+            ) : (
+            <>
             <p className="text-sm text-muted-foreground">
               Configure exact field positions (in mm) for pixel-perfect label printing. Drag fields to reposition them on the live preview.
             </p>
@@ -5555,6 +5566,8 @@ export default function BarcodePrinting() {
                 }
               }}
             />
+            </>
+            )}
           </div>
         </TabsContent>
       </Tabs>
@@ -5569,7 +5582,7 @@ export default function BarcodePrinting() {
           </DialogHeader>
           {precisionSettings.enabled ? (
             <div className="mt-4 border rounded-md p-4 bg-white overflow-auto">
-              {isLoadingSettings ? (
+              {(isLoadingSettings || !precisionConfigReady) ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
                   <span className="text-muted-foreground">Loading label design settings...</span>
