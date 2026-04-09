@@ -1211,6 +1211,7 @@ export default function BarcodePrinting() {
     thermalCols: 1,
   });
   const [dbPresets, setDbPresets] = useState<import("@/components/precision-barcode/LabelCalibrationUI").CalibrationPreset[]>([]);
+  const [precisionConfigReady, setPrecisionConfigReady] = useState(false);
   const precisionPrintRef = useRef<HTMLDivElement>(null);
   const testPrintRef = useRef<HTMLDivElement>(null);
   const [testPrintActive, setTestPrintActive] = useState(false);
