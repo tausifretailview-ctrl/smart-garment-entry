@@ -715,7 +715,7 @@ export default function SalesInvoiceDashboard() {
               .eq('organization_id', orgId).eq('customer_id', customerId).is('deleted_at', null),
             supabase.from('customer_balance_adjustments').select('outstanding_difference')
               .eq('organization_id', orgId).eq('customer_id', customerId),
-            supabase.from('voucher_entries').select('reference_id, total_amount, reference_type, voucher_type')
+            supabase.from('voucher_entries').select('reference_id, total_amount, reference_type, voucher_type, description')
               .eq('organization_id', orgId).eq('voucher_type', 'receipt').is('deleted_at', null),
             supabase.from('voucher_entries').select('reference_id, total_amount')
               .eq('organization_id', orgId).eq('voucher_type', 'payment')
@@ -729,6 +729,9 @@ export default function SalesInvoiceDashboard() {
           const invoiceVoucherMap = new Map<string, number>();
           let openingBalancePaymentTotal = 0;
           (customerVouchers || []).forEach((v: any) => {
+            // Skip CN adjustment vouchers to avoid double-counting with creditNoteTotal
+            const desc = (v.description || '').toLowerCase();
+            if (desc.includes('credit note adjusted') || desc.includes('cn adjusted')) return;
             if (v.reference_id && saleIds.has(v.reference_id)) {
               invoiceVoucherMap.set(v.reference_id, (invoiceVoucherMap.get(v.reference_id) || 0) + (v.total_amount || 0));
             } else if (v.reference_type === 'customer' && v.reference_id === customerId && v.voucher_type === 'receipt') {
