@@ -1433,6 +1433,7 @@ export default function BarcodePrinting() {
   useEffect(() => {
     hasLoadedDefaultsRef.current = false;
     hasLoadedPrecisionConfigRef.current = false;
+    setPrecisionConfigReady(false);
   }, [currentOrganization?.id]);
 
   // Debounced auto-save for precision designer changes
