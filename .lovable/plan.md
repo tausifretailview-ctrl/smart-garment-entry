@@ -1,28 +1,32 @@
 
 
-## Analysis
+# Plan: Update Invoice POS/26-27/10 for Mulund Mobility
 
-After reviewing `EInvoicePrint.tsx`, most of the bugs listed are **already fixed** in the current code:
+## What needs to happen
 
-- **Bug 1 (GST per-item calc)**: Already fixed at lines 82–93 — computes per-item taxable/CGST/SGST.
-- **Bug 2 (CGST/SGST columns)**: Already present at lines 226–228 with per-line values.
-- **Amount in Words**: Already present at line 341 using `numberToWords`.
+A single data update on one specific invoice record in the database:
 
-The only missing feature is:
+- **Record ID**: `ebd478fe-7c0e-48d4-83e2-b3975441fc42`
+- **Change date**: from 2026-04-08 → **2026-03-31**
+- **Change invoice number**: from `POS/26-27/10` → **975623**
 
-### What needs to be added: e-Way Bill Number block
+## Steps
 
-The edge function sends `EwbDtls` but the print template doesn't display the e-Way Bill number.
+### Step 1: Update the sale record
+Run a database update (via insert tool) to change both fields:
 
-### Plan
+```sql
+UPDATE sales 
+SET sale_date = '2026-03-31 14:31:27.625598+00',
+    sale_number = '975623'
+WHERE id = 'ebd478fe-7c0e-48d4-83e2-b3975441fc42';
+```
 
-**File: `src/components/EInvoicePrint.tsx`**
+### Step 2: Verify the update
+Query the record to confirm both fields were updated correctly.
 
-1. Add `ewb_number` and `ewb_date` to the invoice interface (optional fields).
-2. Add an e-Way Bill section below the IRN block — only shown when `ewb_number` exists. Display:
-   - e-Way Bill Number
-   - e-Way Bill Date
-   - Styled similarly to the IRN green box but with a blue/teal accent.
-
-This is a single-file, ~15-line change.
+## What will NOT change
+- No code changes needed
+- No other invoices affected
+- No triggers or functions modified
 
