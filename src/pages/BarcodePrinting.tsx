@@ -5566,6 +5566,8 @@ export default function BarcodePrinting() {
                 }
               }}
             />
+            </>
+            )}
           </div>
         </TabsContent>
       </Tabs>
