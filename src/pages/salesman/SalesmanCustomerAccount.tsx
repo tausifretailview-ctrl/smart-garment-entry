@@ -345,6 +345,8 @@ const SalesmanCustomerAccount = () => {
     if (!customer?.phone || pendingInvoices.length === 0) return;
 
     const totalOutstanding = authoritativeBalance;
+    const openingBal = customer.opening_balance || 0;
+    const billWisePending = Math.round(totalOutstanding - openingBal);
     const invoiceLines = pendingInvoices
       .map(inv =>
         `• ${inv.sale_number} (${format(new Date(inv.sale_date), 'dd MMM')})` +
@@ -353,12 +355,16 @@ const SalesmanCustomerAccount = () => {
       )
       .join('\n');
 
+    const openingLine = openingBal > 0
+      ? `\n💰 Opening Balance: ₹${Math.round(openingBal).toLocaleString('en-IN')}\n📋 Bill-wise Pending: ₹${billWisePending.toLocaleString('en-IN')}\n`
+      : '';
+
     const message =
       `🔔 *Outstanding Invoice Reminder*\n\n` +
       `Dear *${customer.customer_name}*,\n\n` +
       `You have *${pendingInvoices.length} pending invoice${pendingInvoices.length > 1 ? 's' : ''}*:\n\n` +
       `${invoiceLines}\n\n` +
-      `────────────────\n` +
+      `────────────────${openingLine}\n` +
       `*Total Outstanding: ₹${Math.round(totalOutstanding).toLocaleString('en-IN')}*\n\n` +
       `Please clear your dues at the earliest.\n` +
       `Thank you for your business! 🙏`;

@@ -1477,6 +1477,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       .filter(t => t.remaining > 0);
 
     let txnSummary = "";
+    const billWisePending = pendingInvoices.reduce((sum, t) => sum + t.remaining, 0);
     if (pendingInvoices.length > 0) {
       txnSummary = "\n\n📋 *Pending Invoices:*";
       pendingInvoices.forEach((t) => {
@@ -1490,13 +1491,17 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     const feesLabel = isSchool ? ((selectedCustomer as any).hasStructures === false ? 'Opening Balance' : 'Total Fees') : 'Total Sales';
     const paidLabel = isSchool ? 'Fees Paid' : 'Total Paid';
 
+    const balanceBreakdown = openingBalance > 0
+      ? `\n📋 Bill-wise Pending: ₹${Math.round(billWisePending).toLocaleString("en-IN")}\n💰 Opening Balance: ₹${Math.round(openingBalance).toLocaleString("en-IN")}`
+      : '';
+
     const message = `📊 *Account Statement*
 
 👤 *${selectedCustomer.customer_name}*${dateRange}
 ${showOpeningInMsg ? `\n💰 Opening Balance: ₹${Math.round(openingBalance).toLocaleString("en-IN")}` : ''}
 📈 ${feesLabel}: ₹${Math.round(selectedCustomer.totalSales).toLocaleString("en-IN")}
 ✅ ${paidLabel}: ₹${Math.round(selectedCustomer.totalPaid).toLocaleString("en-IN")}
-────────────────
+────────────────${balanceBreakdown}
 💵 *Outstanding: ₹${Math.abs(Math.round(selectedCustomer.balance)).toLocaleString("en-IN")}${selectedCustomer.balance < 0 ? " (Advance)" : ""}*${txnSummary}
 
 Please clear your dues at the earliest. Thank you!`;
