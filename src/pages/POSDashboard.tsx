@@ -1041,8 +1041,8 @@ const POSDashboard = () => {
         invoiceDate: selectedSaleForPayment.sale_date,
         invoiceAmount: selectedSaleForPayment.net_amount,
         paidAmount: amount,
-        previousBalance: selectedSaleForPayment.net_amount - currentPaid,
-        currentBalance: selectedSaleForPayment.net_amount - newPaidAmount,
+        previousBalance: Math.max(0, Math.round(selectedSaleForPayment.net_amount - currentPaid - currentCNAdjust)),
+        currentBalance: Math.max(0, Math.round(selectedSaleForPayment.net_amount - newPaidAmount - currentCNAdjust)),
         paymentMethod: paymentMode,
         narration: paymentNarration,
       };
