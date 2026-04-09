@@ -848,13 +848,23 @@ export default function POSSales() {
           
           setNextInvoicePreview(`${basePattern}${sequence}`);
         } else {
-          // Use the database function to get the next invoice number
-          const { data: nextNumber, error } = await supabase.rpc('generate_pos_number', {
-            p_organization_id: currentOrganization.id
-          });
+          // Peek at the next POS number WITHOUT incrementing the sequence
+          const ist = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+          const m = ist.getMonth() + 1;
+          const y = ist.getFullYear();
+          const fyStart = m >= 4 ? y : y - 1;
+          const fyEnd = fyStart + 1;
+          const series = `POS/${String(fyStart).slice(-2)}-${String(fyEnd).slice(-2)}`;
           
-          if (error) throw error;
-          setNextInvoicePreview(nextNumber || 'POS/25-26/1');
+          const { data: seqRow } = await supabase
+            .from('bill_number_sequences')
+            .select('last_number')
+            .eq('organization_id', currentOrganization.id)
+            .eq('series', series)
+            .maybeSingle();
+          
+          const nextNum = (seqRow?.last_number || 0) + 1;
+          setNextInvoicePreview(`${series}/${nextNum}`);
         }
       } catch (error) {
         console.error('Error previewing next invoice:', error);
