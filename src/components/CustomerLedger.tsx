@@ -900,7 +900,6 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           // Total paid_amount includes all payments, but voucher payments are recorded separately
           const totalPaidOnSale = sale.paid_amount || 0;
           const voucherPayments = voucherPaymentsBySaleId[sale.id] || 0;
-          const saleReturnAdjust = sale.sale_return_adjust || 0;
           const paidAtSale = Math.max(0, totalPaidOnSale - voucherPayments - saleReturnAdjust);
           
           if (paidAtSale > 0) {
