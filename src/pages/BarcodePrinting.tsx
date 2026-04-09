@@ -5582,7 +5582,7 @@ export default function BarcodePrinting() {
           </DialogHeader>
           {precisionSettings.enabled ? (
             <div className="mt-4 border rounded-md p-4 bg-white overflow-auto">
-              {isLoadingSettings ? (
+              {(isLoadingSettings || !precisionConfigReady) ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
                   <span className="text-muted-foreground">Loading label design settings...</span>
