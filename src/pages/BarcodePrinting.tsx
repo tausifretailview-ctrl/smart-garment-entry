@@ -1423,6 +1423,8 @@ export default function BarcodePrinting() {
         setSizeSortOrder(defaultFormat.sizeSortOrder);
       }
     }
+    // Mark precision config as ready after initial load completes
+    setPrecisionConfigReady(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoadingSettings, dbLabelTemplates, dbMarginPresets, dbCustomPresets, activePrecisionTemplateName]);
 
