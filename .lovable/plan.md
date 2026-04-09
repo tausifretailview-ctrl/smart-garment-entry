@@ -1,49 +1,42 @@
 
 
-# Plan: Fix False Advance Balance on Sales Dashboard
+# Fix: Double-Deduction of Sale Return Adjustment in Customer Ledger
 
-## Root Cause
+## Problem
+When POS saves an exchange (return ₹1,895, buy ₹2,895, pay ₹1,000), `net_amount` is saved as ₹1,000 (already deducted SR). But the sale return also appears as a separate ₹1,895 credit entry in the ledger — deducting it twice, producing a false ₹895 credit balance instead of ₹0.
 
-The dashboard's advance/credit balance calculation on line 718 fetches **all receipt vouchers** — including Credit Note (CN) adjustment vouchers. These CN adjustment vouchers (with descriptions like "Credit note adjusted against invoice INV/...") are added to the `invoiceVoucherMap`, which inflates the `totalPaid` figure. Since `creditNoteTotal` (from `sale_returns`) also subtracts the same CN amounts, they get **double-counted**, producing a false negative balance (credit of ₹3,200).
+## Fix (all in `src/components/CustomerLedger.tsx`)
 
-The Customer Ledger already handles this correctly by filtering out CN adjustment vouchers. The dashboard code does not.
-
-### Proof (Arezah Nathani)
-
-- Total sales: ₹15,850
-- Actual cash received: ₹12,650 (3300+3100+6250)
-- CN adjustments: ₹6,500 (3300+3200)
-- Correct balance: 0 + 15850 - 12650 - 6500 + 3300(refund offset) = **₹0** ✓
-- Dashboard currently computes: **-₹3,200** due to CN vouchers being counted as payments AND as credit notes
-
-## Fix
-
-**File: `src/pages/SalesInvoiceDashboard.tsx`** — one change in the `fetchCombinedBalance` effect (~line 718):
-
-1. Add `description` to the voucher select query
-2. When building `invoiceVoucherMap`, skip vouchers where description contains "credit note adjusted" or "cn adjusted" — matching the Customer Ledger's existing filter logic
+### Change 1: Ledger invoice debit → show gross amount (line ~862-888)
+Use `net_amount + sale_return_adjust` as the debit so the SR credit entry balances correctly.
 
 ```typescript
-// Line 718: Add description to select
-supabase.from('voucher_entries')
-  .select('reference_id, total_amount, reference_type, voucher_type, description')
-  .eq('organization_id', orgId).eq('voucher_type', 'receipt').is('deleted_at', null),
+const saleReturnAdjust = sale.sale_return_adjust || 0;
+const grossInvoiceAmount = sale.net_amount + saleReturnAdjust;
 
-// Line 731-737: Filter out CN adjustment vouchers
-(customerVouchers || []).forEach((v: any) => {
-  const desc = (v.description || '').toLowerCase();
-  if (desc.includes('credit note adjusted') || desc.includes('cn adjusted')) return; // skip
-  if (v.reference_id && saleIds.has(v.reference_id)) {
-    invoiceVoucherMap.set(v.reference_id, ...);
-  } else if (...) {
-    openingBalancePaymentTotal += ...;
-  }
-});
+if (!isCancelled) {
+  runningBalance += grossInvoiceAmount;
+}
+// ...
+debit: isCancelled ? 0 : grossInvoiceAmount,
+description: `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status}${saleReturnAdjust > 0 ? ` (Incl. SR Adj ₹${saleReturnAdjust.toLocaleString('en-IN')})` : ''}`,
 ```
 
-## What will NOT change
-- Customer Ledger (already correct)
-- Accounts payment tabs
-- Any database tables or functions
-- Per-invoice balance column in dashboard rows (already correct)
+### Change 2: Summary `totalSales` → use gross amounts (line ~359)
+```typescript
+const totalSales = customerSales.reduce((sum: number, s: any) => 
+  sum + (s.net_amount || 0) + (s.sale_return_adjust || 0), 0);
+```
+
+### Change 3: Summary `totalPaid` → stop subtracting SR adjust (line ~368)
+```typescript
+const actualPaid = Math.max(salePaidAmount, voucherAmount);
+```
+Remove the `- saleReturnAdjust` since SR is now in `totalSales` (gross) and subtracted once via `creditNoteTotal`.
+
+### What won't change
+- How POS saves `net_amount` (correct as-is)
+- Sale return triggers/stock logic
+- Voucher creation flow
+- Other pages (SalesInvoiceDashboard, Accounts tabs)
 
