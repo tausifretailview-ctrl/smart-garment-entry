@@ -53,6 +53,7 @@ import { useDraftSave } from "@/hooks/useDraftSave";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { checkBarcodeExists } from "@/utils/barcodeValidation";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
+import { compareSizes } from "@/utils/sizeSort";
 
 interface PriceChange {
   sku_id: string;
@@ -110,6 +111,17 @@ interface SizeQuantity {
   barcode: string;
 }
 
+interface SizeGridVariant {
+  id: string;
+  size: string;
+  sale_price?: number;
+  pur_price?: number;
+  mrp?: number;
+  barcode?: string;
+  color?: string;
+  stock_qty?: number;
+}
+
 // Helper function to format product description
 const formatProductDescription = (item: {
   product_name: string;
@@ -127,6 +139,43 @@ const formatProductDescription = (item: {
   return parts.join('-');
 };
 
+const normalizeSizeGridVariants = (variants: SizeGridVariant[]): SizeGridVariant[] => {
+  const grouped = new Map<string, SizeGridVariant>();
+
+  variants.forEach((variant) => {
+    const color = (variant.color || "").trim();
+    const size = (variant.size || "").trim();
+    const key = `${color.toUpperCase()}||${size.toUpperCase()}`;
+    const existing = grouped.get(key);
+
+    if (!existing) {
+      grouped.set(key, {
+        ...variant,
+        color,
+        size,
+        stock_qty: variant.stock_qty || 0,
+      });
+      return;
+    }
+
+    grouped.set(key, {
+      ...existing,
+      stock_qty: (existing.stock_qty || 0) + (variant.stock_qty || 0),
+      pur_price: existing.pur_price || variant.pur_price,
+      sale_price: existing.sale_price || variant.sale_price,
+      mrp: existing.mrp || variant.mrp,
+      barcode: existing.barcode || variant.barcode,
+      id: existing.id || variant.id,
+    });
+  });
+
+  return Array.from(grouped.values()).sort((a, b) => {
+    const colorCompare = (a.color || "").localeCompare(b.color || "");
+    if (colorCompare !== 0) return colorCompare;
+    return compareSizes(a.size, b.size);
+  });
+};
+
 const PurchaseEntry = () => {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
@@ -139,7 +188,7 @@ const PurchaseEntry = () => {
   const [searchResults, setSearchResults] = useState<ProductVariant[]>([]);
   const [showSearch, setShowSearch] = useState(false);
   const [showSizeGrid, setShowSizeGrid] = useState(false);
-  const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
+  const [sizeGridVariants, setSizeGridVariants] = useState<SizeGridVariant[]>([]);
   const [sizeQty, setSizeQty] = useState<{ [size: string]: number }>({});
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
@@ -1117,7 +1166,7 @@ const PurchaseEntry = () => {
         (document.activeElement as HTMLElement)?.blur();
       } else {
         // No qty entered — fallback to size grid
-        const mappedVariants = product.variants.map((v: any) => ({
+        const mappedVariants = normalizeSizeGridVariants(product.variants.map((v: any) => ({
           id: v.id,
           size: v.size,
           sale_price: v.sale_price,
@@ -1126,7 +1175,7 @@ const PurchaseEntry = () => {
           barcode: v.barcode,
           color: v.color || product.color || "",
           stock_qty: v.stock_qty || 0,
-        }));
+        })));
 
         setSelectedProduct({
           id: product.id,
@@ -1546,7 +1595,7 @@ const PurchaseEntry = () => {
     }
 
     // Map variants with color info for SizeGridDialog
-    const mappedVariants = data.map((v: any) => ({
+    const mappedVariants = normalizeSizeGridVariants(data.map((v: any) => ({
       id: v.id,
       size: v.size,
       sale_price: v.sale_price || v.products?.default_sale_price,
@@ -1554,7 +1603,7 @@ const PurchaseEntry = () => {
       mrp: v.mrp || 0,
       barcode: v.barcode,
       color: v.color || v.products?.color || "",
-    }));
+    })));
 
     // Show size grid modal
     setSelectedProduct(data[0].products);
