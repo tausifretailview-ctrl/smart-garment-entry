@@ -133,66 +133,111 @@ export function CustomerBalanceAdjustmentDialog({
         .select("opening_balance")
         .eq("id", selectedCustomerId)
         .single();
-
       const openingBalance = customer?.opening_balance || 0;
 
+      // 1. Gross invoices (net_amount + sale_return_adjust)
       const { data: sales } = await supabase
         .from("sales")
-        .select("id, net_amount, paid_amount")
+        .select("id, net_amount, sale_return_adjust")
         .eq("customer_id", selectedCustomerId)
         .eq("organization_id", organizationId)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .neq("payment_status", "cancelled");
+      const totalGrossInvoices = (sales || []).reduce(
+        (sum, s) => sum + (s.net_amount || 0) + (s.sale_return_adjust || 0), 0);
+      const saleIdSet = new Set((sales || []).map((s: any) => s.id));
 
-      const saleIds = sales?.map((s) => s.id) || [];
-
+      // 2. Cash/card/UPI payments ONLY (exclude advance & CN adjustments)
       const { data: vouchers } = await supabase
         .from("voucher_entries")
-        .select("reference_id, reference_type, total_amount")
+        .select("reference_id, reference_type, total_amount, payment_method, description")
         .eq("organization_id", organizationId)
         .eq("voucher_type", "receipt")
         .is("deleted_at", null);
 
-      const invoiceVoucherPayments = new Map<string, number>();
-      let openingBalancePayments = 0;
-      const saleIdSet = new Set(saleIds);
-
-      vouchers?.forEach((v) => {
+      let totalCashPayments = 0;
+      (vouchers || []).forEach((v: any) => {
         if (!v.reference_id) return;
-        if (saleIdSet.has(v.reference_id)) {
-          invoiceVoucherPayments.set(
-            v.reference_id,
-            (invoiceVoucherPayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0)
-          );
-        } else if (v.reference_type === "customer" && v.reference_id === selectedCustomerId) {
-          openingBalancePayments += Number(v.total_amount) || 0;
+        if (v.payment_method === 'advance_adjustment' || v.payment_method === 'credit_note_adjustment') return;
+        const desc = (v.description || '').toLowerCase();
+        if (desc.includes('adjusted from advance balance') || desc.includes('advance adjusted')) return;
+        if (desc.includes('credit note adjusted') || desc.includes('cn adjusted')) return;
+        // Count if it's a sale payment for this customer or an opening balance payment
+        if (saleIdSet.has(v.reference_id) || (v.reference_type === 'customer' && v.reference_id === selectedCustomerId)) {
+          totalCashPayments += Number(v.total_amount) || 0;
         }
       });
 
-      let totalSales = 0;
-      let totalPaid = 0;
-      sales?.forEach((sale) => {
-        totalSales += sale.net_amount || 0;
-        const salePaid = sale.paid_amount || 0;
-        const voucherPaid = invoiceVoucherPayments.get(sale.id) || 0;
-        totalPaid += Math.max(salePaid, voucherPaid);
-      });
-      totalPaid += openingBalancePayments;
-
-      const outstanding = Math.round(openingBalance + totalSales - totalPaid);
-
+      // 3. Customer advances (total booked)
       const { data: advances } = await supabase
         .from("customer_advances")
-        .select("amount, used_amount")
+        .select("id, amount, used_amount")
+        .eq("customer_id", selectedCustomerId)
+        .eq("organization_id", organizationId);
+      const totalAdvanceBooked = (advances || []).reduce((sum, a) => sum + (a.amount || 0), 0);
+      const totalAdvanceUsed = (advances || []).reduce((sum, a) => sum + (a.used_amount || 0), 0);
+
+      // 4. Sale returns
+      const { data: returns } = await supabase
+        .from("sale_returns")
+        .select("net_amount")
         .eq("customer_id", selectedCustomerId)
         .eq("organization_id", organizationId)
-        .in("status", ["active", "partially_used"]);
+        .is("deleted_at", null);
+      const totalReturns = (returns || []).reduce((sum, r) => sum + (r.net_amount || 0), 0);
 
-      const totalAdvance = advances?.reduce(
-        (sum, a) => sum + ((a.amount || 0) - (a.used_amount || 0)),
-        0
-      ) || 0;
+      // 5. Advance refunds
+      const advanceIds = (advances || []).map((a: any) => a.id);
+      let totalRefunds = 0;
+      if (advanceIds.length > 0) {
+        const { data: refunds } = await supabase
+          .from("advance_refunds")
+          .select("refund_amount")
+          .in("advance_id", advanceIds);
+        totalRefunds = (refunds || []).reduce((sum, r) => sum + (r.refund_amount || 0), 0);
+      }
 
-      return { outstanding, advance: Math.round(totalAdvance) };
+      // 6. Refund vouchers (payment type, reference_type=customer)
+      const { data: refundVouchers } = await supabase
+        .from("voucher_entries")
+        .select("total_amount")
+        .eq("organization_id", organizationId)
+        .eq("voucher_type", "payment")
+        .eq("reference_type", "customer")
+        .eq("reference_id", selectedCustomerId)
+        .is("deleted_at", null);
+      const totalRefundsPaid = (refundVouchers || []).reduce((s, v) => s + (v.total_amount || 0), 0);
+
+      // 7. Previous balance adjustments
+      const { data: adjustments } = await supabase
+        .from("customer_balance_adjustments")
+        .select("outstanding_difference")
+        .eq("customer_id", selectedCustomerId)
+        .eq("organization_id", organizationId);
+      const totalAdjustments = (adjustments || []).reduce(
+        (sum, a) => sum + (a.outstanding_difference || 0), 0);
+
+      // Balance = Opening + GrossInvoices - CashPayments - Advances - Returns + Refunds + Adjustments + RefundsPaid
+      const outstanding = Math.round(
+        openingBalance + totalGrossInvoices - totalCashPayments
+        - totalAdvanceBooked - totalReturns + totalRefunds + totalAdjustments + totalRefundsPaid
+      );
+      const advanceAvailable = Math.round(Math.max(0, totalAdvanceBooked - totalAdvanceUsed - totalRefunds));
+
+      return {
+        outstanding,
+        advance: advanceAvailable,
+        breakdown: {
+          openingBalance: Math.round(openingBalance),
+          totalGrossInvoices: Math.round(totalGrossInvoices),
+          totalCashPayments: Math.round(totalCashPayments),
+          totalAdvanceBooked: Math.round(totalAdvanceBooked),
+          totalReturns: Math.round(totalReturns),
+          totalRefunds: Math.round(totalRefunds),
+          totalAdjustments: Math.round(totalAdjustments),
+          totalRefundsPaid: Math.round(totalRefundsPaid),
+        },
+      };
     },
     enabled: !!selectedCustomerId && !!organizationId,
   });
@@ -472,6 +517,36 @@ export function CustomerBalanceAdjustmentDialog({
                   </p>
                 </div>
               </div>
+            )}
+
+            {/* Balance Breakdown */}
+            {selectedCustomerId && !balanceLoading && currentBalance?.breakdown && (
+              <details className="text-xs border rounded-md">
+                <summary className="px-3 py-2 cursor-pointer text-muted-foreground hover:text-foreground font-medium">
+                  Balance Breakdown
+                </summary>
+                <div className="px-3 pb-2 space-y-1">
+                  {[
+                    ["Opening Balance", currentBalance.breakdown.openingBalance],
+                    ["+ Gross Invoices", currentBalance.breakdown.totalGrossInvoices],
+                    ["− Cash/UPI Payments", currentBalance.breakdown.totalCashPayments],
+                    ["− Advances Booked", currentBalance.breakdown.totalAdvanceBooked],
+                    ["− Sale Returns", currentBalance.breakdown.totalReturns],
+                    ["+ Advance Refunds", currentBalance.breakdown.totalRefunds],
+                    ["+ Refunds Paid", currentBalance.breakdown.totalRefundsPaid],
+                    ["± Adjustments", currentBalance.breakdown.totalAdjustments],
+                  ].map(([label, val]) => (
+                    <div key={String(label)} className="flex justify-between">
+                      <span className="text-muted-foreground">{label}</span>
+                      <span className="font-mono">₹{Number(val).toLocaleString("en-IN")}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between border-t pt-1 font-semibold">
+                    <span>= Outstanding</span>
+                    <span className="font-mono">₹{currentBalance.outstanding.toLocaleString("en-IN")}</span>
+                  </div>
+                </div>
+              </details>
             )}
 
             {/* New Values */}
