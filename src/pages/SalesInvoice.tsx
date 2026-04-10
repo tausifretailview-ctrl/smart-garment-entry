@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { isDecimalUOM } from "@/constants/uom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
 import { supabase } from "@/integrations/supabase/client";
@@ -100,6 +101,7 @@ interface LineItem {
   gstPercent: number;
   lineTotal: number;
   hsnCode: string;
+  uom?: string;
 }
 
 const customerSchema = z.object({
