@@ -1,42 +1,43 @@
 
 
-# Fix: Double-Deduction of Sale Return Adjustment in Customer Ledger
+## School ERP: Fix Duplicate Fee Receipts (5 Students)
 
-## Problem
-When POS saves an exchange (return ₹1,895, buy ₹2,895, pay ₹1,000), `net_amount` is saved as ₹1,000 (already deducted SR). But the sale return also appears as a separate ₹1,895 credit entry in the ledger — deducting it twice, producing a false ₹895 credit balance instead of ₹0.
+### What Happened
 
-## Fix (all in `src/components/CustomerLedger.tsx`)
+On 09/03/2026, fees were collected for 5 students, but each was entered **twice** — once in the morning batch (receipts 25-29) and again in a later batch (receipts 30-37). This doubled the recorded payments and inflated collection totals.
 
-### Change 1: Ledger invoice debit → show gross amount (line ~862-888)
-Use `net_amount + sale_return_adjust` as the debit so the SR credit entry balances correctly.
+### Affected Students
 
-```typescript
-const saleReturnAdjust = sale.sale_return_adjust || 0;
-const grossInvoiceAmount = sale.net_amount + saleReturnAdjust;
+| Student | Original Receipt | Duplicate Receipt | Amount |
+|---------|-----------------|-------------------|--------|
+| MST. ARUSH AJAY SHELKE | RCT/2025-26/26 (₹6,000) | RCT/2025-26/30 | ₹6,000 |
+| MST. GITESH MAHESH MOKAL | RCT/2025-26/27 (₹3,000) | RCT/2025-26/32 | ₹3,000 |
+| MST. VIHAAN RAMCHANDRA SHARMA | RCT/2025-26/28 (₹4,000) | RCT/2025-26/33 | ₹4,000 |
+| MST. VEDANT SANDESH MODSING | RCT/2025-26/25 (₹8,000) | RCT/2025-26/36 | ₹8,000 |
+| MS. HANSIKA LAXMAN KAMBLE | RCT/2025-26/29 (₹8,000) | RCT/2025-26/37 | ₹8,000 |
 
-if (!isCancelled) {
-  runningBalance += grossInvoiceAmount;
-}
-// ...
-debit: isCancelled ? 0 : grossInvoiceAmount,
-description: `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status}${saleReturnAdjust > 0 ? ` (Incl. SR Adj ₹${saleReturnAdjust.toLocaleString('en-IN')})` : ''}`,
-```
+**Total over-recorded: ₹29,000**
 
-### Change 2: Summary `totalSales` → use gross amounts (line ~359)
-```typescript
-const totalSales = customerSales.reduce((sum: number, s: any) => 
-  sum + (s.net_amount || 0) + (s.sale_return_adjust || 0), 0);
-```
+### Fix Plan
 
-### Change 3: Summary `totalPaid` → stop subtracting SR adjust (line ~368)
-```typescript
-const actualPaid = Math.max(salePaidAmount, voucherAmount);
-```
-Remove the `- saleReturnAdjust` since SR is now in `totalSales` (gross) and subtracted once via `creditNoteTotal`.
+**Step 1: Database migration** to soft-delete the 5 duplicate `student_fees` records and their matching `voucher_entries`:
 
-### What won't change
-- How POS saves `net_amount` (correct as-is)
-- Sale return triggers/stock logic
-- Voucher creation flow
-- Other pages (SalesInvoiceDashboard, Accounts tabs)
+- Set `status = 'deleted'` on the 5 duplicate `student_fees` rows (IDs identified above)
+- Set `deleted_at = now()` on the 5 matching `voucher_entries` (by receipt number)
+- Insert audit trail entries in `student_balance_audit` for each deletion
+
+**Step 2: Add duplicate prevention** in `FeeCollectionDialog.tsx`:
+
+- Before inserting a new fee record, check if a record with the same `student_id + paid_date + paid_amount + fee_head_id` already exists (within the last 5 minutes) — if so, warn the user and block submission unless confirmed
+
+### No Code File Changes Needed for Data Fix
+
+The data cleanup is purely a SQL migration. The duplicate prevention guard is the only code change.
+
+### Technical Details
+
+The migration SQL will:
+1. Soft-delete 5 `student_fees` rows by their specific IDs
+2. Soft-delete 5 `voucher_entries` by matching receipt numbers (RCT/2025-26/30, 32, 33, 36, 37)
+3. Create audit records documenting each deletion with reason "duplicate_receipt_cleanup"
 
