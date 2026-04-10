@@ -267,6 +267,11 @@ const PurchaseEntry = () => {
   const [isBillLocked, setIsBillLocked] = useState(false);
   const [showUnlockConfirm, setShowUnlockConfirm] = useState(false);
 
+  // Duplicate bill detection state
+  const [showDuplicateBillWarning, setShowDuplicateBillWarning] = useState(false);
+  const [duplicateBillInfo, setDuplicateBillInfo] = useState<{ bill_no: string; bill_date: string } | null>(null);
+  const pendingSaveRef = useRef(false);
+
   // IMEI Scan Dialog state (Mobile ERP mode)
   const [showIMEIScanDialog, setShowIMEIScanDialog] = useState(false);
   const [imeiScanItem, setImeiScanItem] = useState<{ tempId: string; qty: number; item: LineItem } | null>(null);
@@ -2282,7 +2287,9 @@ const PurchaseEntry = () => {
             original.color !== item.color ||
             original.style !== item.style ||
             original.category !== item.category ||
-            original.hsn_code !== item.hsn_code
+            original.hsn_code !== item.hsn_code ||
+            original.sku_id !== item.sku_id ||
+            original.size !== item.size
           );
         });
 
@@ -2291,6 +2298,8 @@ const PurchaseEntry = () => {
             .from("purchase_items")
             .update({
               product_name: item.product_name,
+              sku_id: item.sku_id,
+              size: item.size,
               qty: Math.round(item.qty),
               pur_price: item.pur_price,
               sale_price: item.sale_price,
@@ -2416,6 +2425,32 @@ const PurchaseEntry = () => {
       } else {
         // Insert new purchase bill
         if (!currentOrganization?.id) throw new Error("No organization selected");
+
+        // Duplicate bill detection: check if a bill with same supplier + date + amount already exists
+        if (!pendingSaveRef.current) {
+          const formattedDate = format(billDate, "yyyy-MM-dd");
+          const { data: existingBills } = await supabase
+            .from("purchase_bills")
+            .select("software_bill_no, bill_date")
+            .eq("organization_id", currentOrganization.id)
+            .eq("supplier_name", billData.supplier_name)
+            .eq("bill_date", formattedDate)
+            .gte("net_amount", calculatedNet - 1)
+            .lte("net_amount", calculatedNet + 1)
+            .is("deleted_at", null)
+            .limit(1);
+
+          if (existingBills && existingBills.length > 0) {
+            setDuplicateBillInfo({
+              bill_no: existingBills[0].software_bill_no,
+              bill_date: existingBills[0].bill_date,
+            });
+            setShowDuplicateBillWarning(true);
+            setLoading(false);
+            return;
+          }
+        }
+        pendingSaveRef.current = false;
         
         // Generate bill number right before saving
         const { data: newBillNo, error: billNoError } = await supabase.rpc("generate_purchase_bill_number_atomic", {
@@ -4392,6 +4427,36 @@ const PurchaseEntry = () => {
             >
               <LockOpen className="h-4 w-4 mr-1.5" />
               Unlock & Edit
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Duplicate Bill Warning Dialog */}
+      <AlertDialog open={showDuplicateBillWarning} onOpenChange={setShowDuplicateBillWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              Possible Duplicate Bill
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              A purchase bill with the same supplier, date, and amount already exists
+              {duplicateBillInfo ? ` (Bill: ${duplicateBillInfo.bill_no}, Date: ${duplicateBillInfo.bill_date})` : ''}.
+              Are you sure you want to save another bill?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-amber-600 hover:bg-amber-700"
+              onClick={() => {
+                setShowDuplicateBillWarning(false);
+                pendingSaveRef.current = true;
+                handleSave();
+              }}
+            >
+              Save Anyway
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
