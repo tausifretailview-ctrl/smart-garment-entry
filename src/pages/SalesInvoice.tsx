@@ -1107,6 +1107,7 @@ export default function SalesInvoice() {
           gstPercent: product.sale_gst_percent || product.gst_per || 0,
           lineTotal: 0,
           hsnCode: product.hsn_code || '',
+          uom: product.uom || 'NOS',
         });
         
         if (emptyRowIndex >= 0) {
