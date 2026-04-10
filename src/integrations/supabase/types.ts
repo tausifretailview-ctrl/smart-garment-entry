@@ -7232,6 +7232,23 @@ export type Database = {
             }
             Returns: Json
           }
+      reconcile_customer_balances: {
+        Args: { p_organization_id: string }
+        Returns: {
+          advance_available: number
+          calculated_balance: number
+          customer_id: string
+          customer_name: string
+          notes: string
+          phone: string
+          total_advance_used: number
+          total_advances: number
+          total_cash_payments: number
+          total_invoices: number
+          total_refunds_paid: number
+          total_sale_returns: number
+        }[]
+      }
       record_login_attempt: {
         Args: {
           p_attempt_type: string
