@@ -58,20 +58,22 @@ export default function EInvoiceReport() {
     queryKey: ['einvoice-report', currentOrganization?.id, periodFilter],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
-      // Only fetch B2B invoices (those with customer GSTIN)
+      // Fetch all invoices (B2B + non-B2B) that have e-invoice activity OR have GSTIN
       const { data, error } = await supabase
         .from('sales')
         .select('id, sale_number, sale_date, customer_name, customer_phone, net_amount, irn, ack_no, ack_date, einvoice_status, einvoice_error, einvoice_qr_code, is_cancelled, customers:customer_id (gst_number)')
         .eq('organization_id', currentOrganization.id)
         .eq('sale_type', 'invoice')
-        .eq('is_cancelled', false)
+        .is('deleted_at', null)
         .gte('sale_date', dateRange.start.toISOString())
         .lte('sale_date', dateRange.end.toISOString())
         .order('sale_date', { ascending: false });
 
       if (error) throw error;
-      // Filter to B2B only (has GSTIN)
-      return (data || []).filter((inv: any) => inv.customers?.gst_number);
+      // Show invoices that have GSTIN (B2B) OR have any e-invoice activity (IRN generated/cancelled/failed)
+      return (data || []).filter((inv: any) => 
+        inv.customers?.gst_number || inv.irn || inv.einvoice_status
+      );
     },
     enabled: !!currentOrganization?.id,
   });
@@ -104,10 +106,10 @@ export default function EInvoiceReport() {
     if (!invoices) return { total: 0, generated: 0, pending: 0, failed: 0, cancelled: 0 };
     return {
       total: invoices.length,
-      generated: invoices.filter((i: any) => i.irn && i.einvoice_status !== 'cancelled').length,
-      pending: invoices.filter((i: any) => !i.irn && i.einvoice_status !== 'failed').length,
+      generated: invoices.filter((i: any) => i.irn && i.einvoice_status !== 'cancelled' && !i.is_cancelled).length,
+      pending: invoices.filter((i: any) => !i.irn && i.einvoice_status !== 'failed' && !i.is_cancelled).length,
       failed: invoices.filter((i: any) => i.einvoice_status === 'failed').length,
-      cancelled: invoices.filter((i: any) => i.einvoice_status === 'cancelled').length,
+      cancelled: invoices.filter((i: any) => i.einvoice_status === 'cancelled' || i.is_cancelled).length,
     };
   }, [invoices]);
 
@@ -287,7 +289,7 @@ export default function EInvoiceReport() {
   ];
 
   return (
-    <div className="p-4 md:p-6 space-y-4 max-w-7xl mx-auto">
+    <div className="p-4 md:p-6 space-y-4 w-full">
       <BackToDashboard />
 
       <div className="flex items-center justify-between">
