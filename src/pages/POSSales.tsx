@@ -1392,6 +1392,34 @@ export default function POSSales() {
             return;
           }
         }
+
+        // Fallback: search purchase_items for IMEI barcode (for legacy IMEI purchases)
+        if (mobileERP.enabled) {
+          const { data: purchaseItem } = await supabase
+            .from('purchase_items')
+            .select('sku_id, barcode, product_name, size')
+            .eq('barcode', searchTerm)
+            .is('deleted_at', null)
+            .limit(1)
+            .maybeSingle();
+
+          if (purchaseItem?.sku_id) {
+            const { data: variant } = await supabase
+              .from('product_variants')
+              .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status)')
+              .eq('id', purchaseItem.sku_id)
+              .is('deleted_at', null)
+              .maybeSingle();
+
+            if (variant && (variant as any).products) {
+              const prod = (variant as any).products;
+              setSearchInput("");
+              const variantWithIMEI = { ...variant, barcode: searchTerm };
+              await addItemToCart(prod, variantWithIMEI);
+              return;
+            }
+          }
+        }
       }
 
       // Clear input and show error for product not found
