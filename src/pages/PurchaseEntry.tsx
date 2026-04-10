@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { isDecimalUOM } from "@/constants/uom";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -1027,7 +1028,8 @@ const PurchaseEntry = () => {
             default_sale_price,
             size_group_id,
             purchase_discount_type,
-            purchase_discount_value
+            purchase_discount_value,
+            uom
           )
         `)
         .eq("organization_id", currentOrganization?.id)
@@ -1088,6 +1090,7 @@ const PurchaseEntry = () => {
           gst_per: v.products?.purchase_gst_percent || v.products?.gst_per || 0,
           hsn_code: v.products?.hsn_code || "",
           size_range: sizeRange,
+          uom: v.products?.uom || 'NOS',
         };
       });
 
@@ -1406,7 +1409,8 @@ const PurchaseEntry = () => {
             default_sale_price,
             size_group_id,
             purchase_discount_type,
-            purchase_discount_value
+            purchase_discount_value,
+            uom
           )
         `)
         .eq("organization_id", currentOrganization?.id)
@@ -1472,6 +1476,7 @@ const PurchaseEntry = () => {
           gst_per: v.products?.purchase_gst_percent || v.products?.gst_per || 0,
           hsn_code: v.products?.hsn_code || "",
           size_range: sizeRange,
+          uom: v.products?.uom || 'NOS',
         };
       });
 
@@ -1552,7 +1557,8 @@ const PurchaseEntry = () => {
           default_pur_price,
           default_sale_price,
           purchase_discount_type,
-          purchase_discount_value
+          purchase_discount_value,
+          uom
         )
       `)
       .eq("product_id", productId)
