@@ -29,6 +29,63 @@ const safeErrorString = (val: any): string => {
 type PeriodFilter = 'today' | 'yesterday' | 'last7' | 'last30' | 'this_month' | 'all';
 type StatusFilter = 'all' | 'generated' | 'not_generated' | 'cancelled' | 'failed';
 
+type EInvoiceRecord = {
+  id: string;
+  sale_number: string | null;
+  sale_date: string | null;
+  created_at: string | null;
+  cancelled_at: string | null;
+  customer_name: string | null;
+  customer_phone: string | null;
+  net_amount: number | null;
+  irn: string | null;
+  ack_no: string | null;
+  ack_date: string | null;
+  einvoice_status: string | null;
+  einvoice_error: any;
+  einvoice_qr_code: string | null;
+  is_cancelled: boolean | null;
+  customers?: {
+    gst_number?: string | null;
+  } | null;
+};
+
+const getEffectiveStatus = (invoice: EInvoiceRecord): Exclude<StatusFilter, 'all'> => {
+  if (invoice.is_cancelled || invoice.einvoice_status === 'cancelled') return 'cancelled';
+  if (invoice.einvoice_status === 'failed') return 'failed';
+  if (invoice.irn || invoice.einvoice_status === 'generated') return 'generated';
+  return 'not_generated';
+};
+
+const getActivityDate = (invoice: EInvoiceRecord): string | null => {
+  const status = getEffectiveStatus(invoice);
+
+  if (status === 'cancelled') {
+    return invoice.cancelled_at || invoice.ack_date || invoice.sale_date || invoice.created_at;
+  }
+
+  if (status === 'generated') {
+    return invoice.ack_date || invoice.sale_date || invoice.created_at;
+  }
+
+  return invoice.sale_date || invoice.created_at;
+};
+
+const getStatusLabel = (invoice: EInvoiceRecord) => {
+  const status = getEffectiveStatus(invoice);
+
+  switch (status) {
+    case 'cancelled':
+      return 'Cancelled';
+    case 'generated':
+      return 'Generated';
+    case 'failed':
+      return 'Failed';
+    default:
+      return 'Pending';
+  }
+};
+
 export default function EInvoiceReport() {
   const { currentOrganization } = useOrganization();
   const { data: settings } = useSettings();
@@ -54,44 +111,50 @@ export default function EInvoiceReport() {
 
   const dateRange = getDateRange(periodFilter);
 
-  const { data: invoices, isLoading, refetch } = useQuery({
-    queryKey: ['einvoice-report', currentOrganization?.id, periodFilter],
+  const { data: invoices = [], isLoading, refetch } = useQuery<EInvoiceRecord[]>({
+    queryKey: ['einvoice-report', currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
-      // Fetch all invoices (B2B + non-B2B) that have e-invoice activity OR have GSTIN
+
       const { data, error } = await supabase
         .from('sales')
-        .select('id, sale_number, sale_date, customer_name, customer_phone, net_amount, irn, ack_no, ack_date, einvoice_status, einvoice_error, einvoice_qr_code, is_cancelled, customers:customer_id (gst_number)')
+        .select('id, sale_number, sale_date, created_at, cancelled_at, customer_name, customer_phone, net_amount, irn, ack_no, ack_date, einvoice_status, einvoice_error, einvoice_qr_code, is_cancelled, customers:customer_id (gst_number)')
         .eq('organization_id', currentOrganization.id)
         .eq('sale_type', 'invoice')
         .is('deleted_at', null)
-        .gte('sale_date', dateRange.start.toISOString())
-        .lte('sale_date', dateRange.end.toISOString())
-        .order('sale_date', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
-      // Show invoices that have GSTIN (B2B) OR have any e-invoice activity (IRN generated/cancelled/failed)
-      return (data || []).filter((inv: any) => 
-        inv.customers?.gst_number || inv.irn || inv.einvoice_status
+
+      return (data || []).filter((inv: EInvoiceRecord) => 
+        !!(inv.customers?.gst_number || inv.irn || inv.einvoice_status || inv.is_cancelled)
       );
     },
     enabled: !!currentOrganization?.id,
   });
 
+  const periodInvoices = useMemo(() => {
+    return invoices.filter((inv) => {
+      if (periodFilter === 'all') return true;
+
+      const activityDate = getActivityDate(inv);
+      if (!activityDate) return false;
+
+      const reportDate = new Date(activityDate);
+      return reportDate >= dateRange.start && reportDate <= dateRange.end;
+    });
+  }, [invoices, periodFilter, dateRange]);
+
   const filteredInvoices = useMemo(() => {
-    if (!invoices) return [];
-    let filtered = invoices;
+    let filtered = periodInvoices;
 
     if (statusFilter !== 'all') {
-      filtered = filtered.filter((inv: any) => {
-        const status = inv.irn ? (inv.einvoice_status || 'generated') : (inv.einvoice_status === 'failed' ? 'failed' : 'not_generated');
-        return status === statusFilter;
-      });
+      filtered = filtered.filter((inv) => getEffectiveStatus(inv) === statusFilter);
     }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      filtered = filtered.filter((inv: any) =>
+      filtered = filtered.filter((inv) =>
         inv.sale_number?.toLowerCase().includes(q) ||
         inv.customer_name?.toLowerCase().includes(q) ||
         inv.irn?.toLowerCase().includes(q) ||
@@ -100,21 +163,22 @@ export default function EInvoiceReport() {
     }
 
     return filtered;
-  }, [invoices, statusFilter, searchQuery]);
+  }, [periodInvoices, statusFilter, searchQuery]);
 
   const summary = useMemo(() => {
-    if (!invoices) return { total: 0, generated: 0, pending: 0, failed: 0, cancelled: 0 };
+    if (!periodInvoices.length) return { total: 0, generated: 0, pending: 0, failed: 0, cancelled: 0 };
+
     return {
-      total: invoices.length,
-      generated: invoices.filter((i: any) => i.irn && i.einvoice_status !== 'cancelled' && !i.is_cancelled).length,
-      pending: invoices.filter((i: any) => !i.irn && i.einvoice_status !== 'failed' && !i.is_cancelled).length,
-      failed: invoices.filter((i: any) => i.einvoice_status === 'failed').length,
-      cancelled: invoices.filter((i: any) => i.einvoice_status === 'cancelled' || i.is_cancelled).length,
+      total: periodInvoices.length,
+      generated: periodInvoices.filter((i) => getEffectiveStatus(i) === 'generated').length,
+      pending: periodInvoices.filter((i) => getEffectiveStatus(i) === 'not_generated').length,
+      failed: periodInvoices.filter((i) => getEffectiveStatus(i) === 'failed').length,
+      cancelled: periodInvoices.filter((i) => getEffectiveStatus(i) === 'cancelled').length,
     };
-  }, [invoices]);
+  }, [periodInvoices]);
 
   const handleRetryAllFailed = async () => {
-    const failedInvoices = (invoices || []).filter((i: any) => i.einvoice_status === 'failed');
+    const failedInvoices = periodInvoices.filter((i) => getEffectiveStatus(i) === 'failed');
     if (failedInvoices.length === 0) return;
     setIsRetryingAll(true);
     const testMode = (settings?.sale_settings as any)?.einvoice_settings?.test_mode ?? true;
@@ -137,17 +201,17 @@ export default function EInvoiceReport() {
 
   const handleExportExcel = () => {
     if (!filteredInvoices.length) return;
-    const rows = filteredInvoices.map((inv: any, idx: number) => ({
+    const rows = filteredInvoices.map((inv, idx: number) => ({
       'S.No': idx + 1,
       'Invoice No': inv.sale_number,
-      'Date': inv.sale_date ? format(new Date(inv.sale_date), 'dd/MM/yyyy') : '',
+      'Date': getActivityDate(inv) ? format(new Date(getActivityDate(inv)!), 'dd/MM/yyyy') : '',
       'Customer': inv.customer_name,
       'GSTIN': inv.customers?.gst_number || '',
       'Amount': inv.net_amount,
       'IRN': inv.irn || '',
       'Ack No': inv.ack_no || '',
       'Ack Date': inv.ack_date ? format(new Date(inv.ack_date), 'dd/MM/yyyy HH:mm') : '',
-      'Status': inv.irn ? (inv.einvoice_status === 'cancelled' ? 'Cancelled' : 'Generated') : (inv.einvoice_status === 'failed' ? 'Failed' : 'Pending'),
+      'Status': getStatusLabel(inv),
       'Error': inv.einvoice_error || '',
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -156,14 +220,16 @@ export default function EInvoiceReport() {
     XLSX.writeFile(wb, `E-Invoice_Report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
-  const getStatusBadge = (inv: any) => {
-    if (inv.einvoice_status === 'cancelled') {
+  const getStatusBadge = (inv: EInvoiceRecord) => {
+    const status = getEffectiveStatus(inv);
+
+    if (status === 'cancelled') {
       return <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" /> Cancelled</Badge>;
     }
-    if (inv.irn) {
+    if (status === 'generated') {
       return <Badge className="gap-1 bg-green-100 text-green-800 border-green-200"><CheckCircle2 className="h-3 w-3" /> Generated</Badge>;
     }
-    if (inv.einvoice_status === 'failed') {
+    if (status === 'failed') {
       return <Badge variant="outline" className="gap-1 border-orange-300 text-orange-700 bg-orange-50"><AlertTriangle className="h-3 w-3" /> Failed</Badge>;
     }
     return <Badge variant="secondary" className="gap-1"><Clock className="h-3 w-3" /> Pending</Badge>;
@@ -179,7 +245,10 @@ export default function EInvoiceReport() {
     {
       accessorKey: 'sale_date',
       header: 'Date',
-      cell: ({ row }) => row.original.sale_date ? format(new Date(row.original.sale_date), 'dd/MM/yy') : '-',
+      cell: ({ row }) => {
+        const activityDate = getActivityDate(row.original);
+        return activityDate ? format(new Date(activityDate), 'dd/MM/yy') : '-';
+      },
       size: 90,
     },
     {
@@ -239,10 +308,12 @@ export default function EInvoiceReport() {
       header: '',
       cell: ({ row }) => {
         const inv = row.original;
-        if (inv.irn && inv.einvoice_status !== 'cancelled') {
+        const status = getEffectiveStatus(inv);
+
+        if (inv.irn && status !== 'cancelled') {
           return <Button variant="ghost" size="sm" onClick={() => { navigator.clipboard.writeText(inv.irn); toast({ title: "Copied", description: "IRN copied to clipboard" }); }}>Copy IRN</Button>;
         }
-        if (!inv.irn || inv.einvoice_status === 'failed') {
+        if (status !== 'cancelled' && (!inv.irn || status === 'failed')) {
           return (
             <Button variant="outline" size="sm" onClick={async () => {
               try {
@@ -392,7 +463,7 @@ export default function EInvoiceReport() {
         data={filteredInvoices}
         columns={columns as any}
         isLoading={isLoading}
-        emptyMessage="No B2B invoices found for this period"
+        emptyMessage="No e-invoice records found for the selected filters"
       />
     </div>
   );
