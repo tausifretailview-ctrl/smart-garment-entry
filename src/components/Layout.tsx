@@ -19,6 +19,7 @@ interface LayoutProps {
 
 export const Layout = ({ children }: LayoutProps) => {
   const { isOpen, setIsOpen } = useKeyboardShortcuts("general");
+  useEscapeBack();
 
   return (
     <ChatProvider>
