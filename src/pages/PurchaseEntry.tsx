@@ -102,6 +102,7 @@ interface LineItem {
   category?: string;
   color?: string;
   style?: string;
+  uom?: string;
 }
 
 interface SizeQuantity {
