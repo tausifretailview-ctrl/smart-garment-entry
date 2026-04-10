@@ -313,6 +313,29 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
       }
       const paidDate = new Date().toISOString();
 
+      // Duplicate prevention: check if same student already has a fee record on the same date with same amount
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const { data: recentDuplicates } = await supabase
+        .from("student_fees")
+        .select("id, paid_amount, payment_receipt_id")
+        .eq("organization_id", currentOrganization.id)
+        .eq("student_id", student.id)
+        .gte("created_at", fiveMinAgo)
+        .neq("status", "deleted");
+      
+      if (recentDuplicates && recentDuplicates.length > 0) {
+        const dupAmounts = recentDuplicates.map((d: any) => d.paid_amount);
+        const matchingDup = selectedItems.some(item => dupAmounts.includes(item.paying));
+        if (matchingDup) {
+          const confirmed = window.confirm(
+            `Warning: A fee receipt was already created for ${student.student_name} in the last 5 minutes (${recentDuplicates[0]?.payment_receipt_id}). This may be a duplicate. Continue anyway?`
+          );
+          if (!confirmed) {
+            throw new Error("Duplicate fee collection cancelled by user");
+          }
+        }
+      }
+
       for (const item of selectedItems) {
         const newStatus = item.paying >= item.balance ? "paid" : "partial";
         const isImported = item.fee_head_id === "__imported_balance__";
