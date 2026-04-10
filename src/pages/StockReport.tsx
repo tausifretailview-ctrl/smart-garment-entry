@@ -643,6 +643,7 @@ export default function StockReport() {
           supplier_invoice_no: supplierInfo.supplier_invoice_no || "",
           category: item.products?.category || "",
           department: item.products?.style || "",
+          uom: item.products?.uom || "NOS",
         };
       }) || [];
 
