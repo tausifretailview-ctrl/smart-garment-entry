@@ -1830,9 +1830,12 @@ export default function SalesInvoiceDashboard() {
           voucher_number: voucherData,
           voucher_type: 'receipt',
           voucher_date: format(paymentDate, 'yyyy-MM-dd'),
-          reference_type: 'customer',
+          reference_type: 'sale',
           reference_id: selectedInvoiceForPayment.id,
           total_amount: amount,
+          payment_method: paymentMode === "advance" ? "advance_adjustment"
+            : paymentMode === "credit_note" ? "credit_note_adjustment"
+            : paymentMode,
           description: paymentMode === "advance" 
             ? `Adjusted from advance balance for invoice ${selectedInvoiceForPayment.sale_number}${paymentNarration ? ' - ' + paymentNarration : ''}`
             : paymentMode === "credit_note"
