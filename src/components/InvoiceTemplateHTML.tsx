@@ -19,6 +19,7 @@ interface InvoiceTemplateHTMLProps {
     rate: number;
     discPercent: number;
     total: number;
+    uom?: string;
   }>;
   subTotal: number;
   discountAmount: number;
@@ -128,7 +129,7 @@ export const InvoiceTemplateHTML: React.FC<InvoiceTemplateHTMLProps> = ({
               <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px' }}>{item.sr}</td>
               <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px' }}>{item.particulars}</td>
               <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px', textAlign: 'center' }}>{item.size}</td>
-              <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px', textAlign: 'center' }}>{item.qty}</td>
+              <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px', textAlign: 'center' }}>{item.qty}{item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' ? ` ${item.uom}` : ''}</td>
               <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px', textAlign: 'right' }}>{item.rate.toFixed(2)}</td>
               <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px', textAlign: 'right' }}>{item.discPercent.toFixed(1)}%</td>
               <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px', textAlign: 'right' }}>{item.total.toFixed(2)}</td>
