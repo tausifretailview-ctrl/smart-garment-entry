@@ -1218,34 +1218,92 @@ export default function POSSales() {
     setIsProductSearchLoading(true);
 
     const runSearch = async () => {
-      let query = supabase
-        .from('product_variants')
-        .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status, deleted_at)')
-        .eq('products.organization_id', currentOrganization.id)
-        .eq('products.status', 'active')
-        .eq('active', true)
-        .is('deleted_at', null)
-        .is('products.deleted_at', null)
-        .limit(20);
-
-      if (selectedProductType !== 'all') {
-        query = query.eq('products.product_type', selectedProductType);
-      }
-
+      const variantSelect = 'id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status, deleted_at)';
       const escapedTerm = term.replace(/[%_,]/g, '');
       const isNumeric = /^\d+$/.test(term);
 
+      const baseFilters = (q: any) => {
+        q = q
+          .eq('products.organization_id', currentOrganization.id)
+          .eq('products.status', 'active')
+          .eq('active', true)
+          .is('deleted_at', null)
+          .is('products.deleted_at', null);
+        if (selectedProductType !== 'all') {
+          q = q.eq('products.product_type', selectedProductType);
+        }
+        return q;
+      };
+
+      let allData: any[] = [];
+
       if (isNumeric) {
+        // Barcode search - variant-level only, works fine in .or()
+        let query = baseFilters(supabase.from('product_variants').select(variantSelect));
         query = query.or(`barcode.eq.${escapedTerm},barcode.ilike.%${escapedTerm}%`);
+        const { data, error } = await query.order('stock_qty', { ascending: false }).limit(20);
+        if (requestSeq !== productSearchSeqRef.current) return;
+        if (error) throw error;
+        allData = data || [];
       } else {
-        query = query.or(`barcode.ilike.%${escapedTerm}%,size.ilike.%${escapedTerm}%,color.ilike.%${escapedTerm}%,products.product_name.ilike.%${escapedTerm}%,products.brand.ilike.%${escapedTerm}%,products.category.ilike.%${escapedTerm}%,products.style.ilike.%${escapedTerm}%`);
+        // Split: variant-level fields in one query, product-level fields via product table
+        // Query 1: variant-level matches (barcode, size, color)
+        const variantQuery = baseFilters(supabase.from('product_variants').select(variantSelect))
+          .or(`barcode.ilike.%${escapedTerm}%,size.ilike.%${escapedTerm}%,color.ilike.%${escapedTerm}%`)
+          .order('stock_qty', { ascending: false })
+          .limit(20);
+
+        // Query 2: product-level matches (name, brand, category, style) — filter on products table, then fetch variants
+        const productQuery = supabase
+          .from('products')
+          .select('id')
+          .eq('organization_id', currentOrganization.id)
+          .eq('status', 'active')
+          .is('deleted_at', null)
+          .or(`product_name.ilike.%${escapedTerm}%,brand.ilike.%${escapedTerm}%,category.ilike.%${escapedTerm}%,style.ilike.%${escapedTerm}%`);
+
+        if (selectedProductType !== 'all') {
+          productQuery.eq('product_type', selectedProductType);
+        }
+
+        const [variantResult, productResult] = await Promise.all([
+          variantQuery,
+          productQuery.limit(30),
+        ]);
+
+        if (requestSeq !== productSearchSeqRef.current) return;
+        if (variantResult.error) throw variantResult.error;
+
+        const variantData = variantResult.data || [];
+        const seenVariantIds = new Set(variantData.map((v: any) => v.id));
+        allData = [...variantData];
+
+        // Fetch variants for product-level matches (excluding already found)
+        if (!productResult.error && productResult.data && productResult.data.length > 0) {
+          const productIds = productResult.data.map((p: any) => p.id);
+          const { data: productVariants } = await supabase
+            .from('product_variants')
+            .select(variantSelect)
+            .in('product_id', productIds)
+            .eq('active', true)
+            .is('deleted_at', null)
+            .order('stock_qty', { ascending: false })
+            .limit(30);
+
+          if (requestSeq !== productSearchSeqRef.current) return;
+          if (productVariants) {
+            for (const pv of productVariants) {
+              if (!seenVariantIds.has(pv.id)) {
+                allData.push(pv);
+                seenVariantIds.add(pv.id);
+              }
+              if (allData.length >= 20) break;
+            }
+          }
+        }
       }
 
-      const { data, error } = await query.order('stock_qty', { ascending: false });
-      if (requestSeq !== productSearchSeqRef.current) return;
-      if (error) throw error;
-
-      const formatted = (data || [])
+      const formatted = allData
         .filter((item: any) => {
           const product = item.products;
           return product?.product_type === 'service' || product?.product_type === 'combo' || (item.stock_qty || 0) > 0;
