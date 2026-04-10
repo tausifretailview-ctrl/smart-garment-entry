@@ -11,6 +11,7 @@ import { OwnerBottomNav } from "@/components/mobile/OwnerBottomNav";
 import { MobileFAB } from "@/components/mobile/MobileFAB";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { StatusBar } from "@/components/StatusBar";
+import { useEscapeBack } from "@/hooks/useEscapeBack";
 
 interface LayoutProps {
   children: ReactNode;
@@ -18,6 +19,7 @@ interface LayoutProps {
 
 export const Layout = ({ children }: LayoutProps) => {
   const { isOpen, setIsOpen } = useKeyboardShortcuts("general");
+  useEscapeBack();
 
   return (
     <ChatProvider>
