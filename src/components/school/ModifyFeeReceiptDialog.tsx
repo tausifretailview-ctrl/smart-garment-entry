@@ -61,6 +61,22 @@ export function ModifyFeeReceiptDialog({ open, onOpenChange, fee }: ModifyFeeRec
       if (!fee?.id || !currentOrganization?.id) throw new Error("Missing data");
       if (paidAmount <= 0) throw new Error("Amount must be greater than 0");
 
+      // Record edit audit trail before modifying
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      await (supabase.from("student_balance_audit" as any) as any).insert({
+        organization_id: currentOrganization.id,
+        student_id: fee.student_id,
+        adjustment_type: paidAmount > (fee.paid_amount || 0) ? 'credit' : 'debit',
+        old_balance: fee.paid_amount || 0,
+        new_balance: paidAmount,
+        change_amount: Math.abs(paidAmount - (fee.paid_amount || 0)),
+        reason_code: 'receipt_modified',
+        reason_code_label: `Receipt Modified: ${fee.payment_receipt_id} (₹${fee.paid_amount} → ₹${paidAmount})`,
+        voucher_number: 'MOD-' + fee.payment_receipt_id,
+        adjusted_by_name: currentUser?.email || 'Unknown',
+        created_at: new Date().toISOString(),
+      });
+
       // Update the student_fees record
       const { error } = await supabase
         .from("student_fees")

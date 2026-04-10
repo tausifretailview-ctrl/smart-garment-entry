@@ -167,11 +167,27 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
       const voucherNumber = `BAL-ADJ-${Date.now()}`;
       const reasonLabel = REASON_CODES[adjustmentType].find(r => r.value === reasonCode)?.label || reasonCode;
 
-      const { error } = await supabase
-        .from("students")
-        .update({ closing_fees_balance: newBalance })
-        .eq("id", student.id);
-      if (error) throw error;
+      // Check if student has fee structures (structure-based vs imported balance)
+      let hasActiveStructures = false;
+      if (student.class_id && currentYear?.id) {
+        const { count } = await supabase
+          .from("fee_structures")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", currentOrganization.id)
+          .eq("class_id", student.class_id)
+          .eq("academic_year_id", currentYear.id);
+        hasActiveStructures = (count || 0) > 0;
+      }
+
+      if (!hasActiveStructures) {
+        // Imported balance mode: update closing_fees_balance
+        const { error } = await supabase
+          .from("students")
+          .update({ closing_fees_balance: newBalance })
+          .eq("id", student.id);
+        if (error) throw error;
+      }
+      // For structure-based students, adjustment is tracked ONLY via student_balance_audit
 
       const auditRecord = {
         organization_id: currentOrganization.id,

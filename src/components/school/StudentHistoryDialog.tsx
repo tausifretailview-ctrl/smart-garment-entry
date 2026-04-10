@@ -111,13 +111,20 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
   const totalExpected = hasStructures ? structureTotal : importedBalance;
   
   // Separate real payments from balance adjustments
-  const allRealPayments = (feePayments || []).filter((p: any) => p.status !== "balance_adjustment");
+  const allRealPayments = (feePayments || []).filter((p: any) => p.status !== "balance_adjustment" && p.status !== "deleted");
   // For structure-based: only count current year payments; for imported balance: count all
   const realPayments = hasStructures && currentYear?.id
     ? allRealPayments.filter((p: any) => p.academic_year_id === currentYear.id)
     : allRealPayments;
   const totalPaid = realPayments.reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
-  const totalDue = Math.max(0, totalExpected - totalPaid);
+
+  // Calculate net adjustment impact
+  const adjustmentNet = (adjustmentLog || []).reduce((sum: number, adj: any) => {
+    if (adj.adjustment_type === 'credit') return sum + (adj.change_amount || 0);
+    if (adj.adjustment_type === 'debit') return sum - (adj.change_amount || 0);
+    return 0; // 'set' type handled differently
+  }, 0);
+  const totalDue = Math.max(0, totalExpected + adjustmentNet - totalPaid);
 
   // Head-wise summary
   const headSummary = (feeStructures || []).map((fs: any) => {
@@ -134,15 +141,36 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
     };
   });
 
-  // Build ledger entries chronologically (oldest first) for running balance
-  const sortedPayments = [...allRealPayments].sort((a: any, b: any) =>
-    new Date(a.paid_date || a.created_at).getTime() - new Date(b.paid_date || b.created_at).getTime()
-  );
+  // Build combined ledger: payments + adjustments, sorted chronologically
+  const combinedEntries = [
+    ...allRealPayments.map((p: any) => ({
+      type: 'payment' as const,
+      date: p.paid_date || p.created_at,
+      data: p,
+    })),
+    ...(adjustmentLog || []).map((adj: any) => ({
+      type: 'adjustment' as const,
+      date: adj.created_at,
+      data: adj,
+    })),
+  ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   let runningBalance = totalExpected;
-  const ledgerEntries = sortedPayments.map((p: any) => {
-    runningBalance -= (p.paid_amount || 0);
-    return { ...p, balanceAfter: runningBalance };
+  const ledgerEntries = combinedEntries.map((entry) => {
+    if (entry.type === 'payment') {
+      runningBalance -= (entry.data.paid_amount || 0);
+      return { ...entry, balanceAfter: runningBalance };
+    } else {
+      const adj = entry.data;
+      if (adj.adjustment_type === 'credit') {
+        runningBalance += (adj.change_amount || 0);
+      } else if (adj.adjustment_type === 'debit') {
+        runningBalance -= (adj.change_amount || 0);
+      } else {
+        runningBalance = (adj.new_balance || 0);
+      }
+      return { ...entry, balanceAfter: runningBalance };
+    }
   });
 
   const fmtINR = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2 });
