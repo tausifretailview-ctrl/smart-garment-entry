@@ -273,7 +273,7 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
                     {displayShowHSN && <td>{item.hsn}</td>}
                   </>
                 )}
-                <td>{item.qty}</td>
+                <td>{item.qty}{item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' ? ` ${item.uom}` : ''}</td>
                 <td>{item.rate.toFixed(2)}</td>
                 <td>{item.total.toFixed(2)}</td>
               </tr>
