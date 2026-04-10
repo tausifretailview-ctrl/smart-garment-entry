@@ -1805,6 +1805,7 @@ const PurchaseEntry = () => {
       category: variant.category || "",
       color: variant.color || "",
       style: variant.style || "",
+      uom: variant.uom || 'NOS',
     };
     setLineItems([...lineItems, newItem]);
   };
