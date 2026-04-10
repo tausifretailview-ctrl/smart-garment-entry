@@ -317,14 +317,14 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       allVouchers?.forEach((v: any) => {
         if (!v.reference_id) return;
         
-        // Skip credit note adjustment vouchers — these amounts are already
-        // accounted for via creditNoteTotal (from sale_returns.net_amount)
-        if (v.description) {
-          const desc = v.description.toLowerCase();
-          if (desc.includes('credit note adjusted') || desc.includes('cn adjusted')) {
-            return;
-          }
-        }
+        // Skip advance adjustment vouchers — already accounted via customer_advances
+        if (v.payment_method === 'advance_adjustment') return;
+        const desc = (v.description || '').toLowerCase();
+        if (desc.includes('adjusted from advance balance') || desc.includes('advance adjusted')) return;
+        // Skip credit note adjustment vouchers — already accounted via creditNoteTotal
+        if (desc.includes('credit note adjusted') || desc.includes('cn adjusted')) return;
+        
+        if (v.payment_method === 'credit_note_adjustment') return;
         
         const customerId = saleToCustomerMap.get(v.reference_id);
         if (v.reference_type === 'sale' || customerId) {
@@ -814,7 +814,13 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           .map((voucher: any) => ({
             date: voucher.voucher_date,
             timestamp: voucher.created_at,
-            type: voucher.payment_method === 'advance_adjustment' ? 'advance_application' as const : 'payment' as const,
+            type: (
+              voucher.payment_method === 'advance_adjustment' ||
+              (voucher.description && (
+                voucher.description.toLowerCase().includes('adjusted from advance balance') ||
+                voucher.description.toLowerCase().includes('advance adjusted')
+              ))
+            ) ? 'advance_application' as const : 'payment' as const,
             data: voucher,
           })),
         ...(advancesData || []).map((advance) => ({
@@ -850,11 +856,15 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             data: cn,
           })),
       ].sort((a, b) => {
-        // Sort by timestamp (created_at) for accurate chronological ordering
-        const tsA = a.timestamp ? new Date(a.timestamp).getTime() : new Date(a.date).getTime();
-        const tsB = b.timestamp ? new Date(b.timestamp).getTime() : new Date(b.date).getTime();
+        // Primary sort by transaction date (not created_at) for correct chronological order
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        if (dateA !== dateB) return dateA - dateB;
+        // Secondary sort by created_at for same-date entries
+        const tsA = a.timestamp ? new Date(a.timestamp).getTime() : dateA;
+        const tsB = b.timestamp ? new Date(b.timestamp).getTime() : dateB;
         if (tsA !== tsB) return tsA - tsB;
-        // Stable tiebreaker: invoice < cn_adjustment = advance < advance_application < payment < adjustment
+        // Tertiary tiebreaker by type
         const typeOrder: Record<string, number> = { invoice: 0, cn_adjustment: 1, advance: 1, refund: 1, credit_note: 1, advance_application: 1.5, payment: 2, adjustment: 3 };
         return (typeOrder[a.type] ?? 1) - (typeOrder[b.type] ?? 1);
       });
