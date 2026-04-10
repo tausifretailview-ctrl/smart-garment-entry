@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { isDecimalUOM } from "@/constants/uom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useMobileERP, validateIMEI } from "@/hooks/useMobileERP";
 import { useSettings } from "@/hooks/useSettings";
@@ -1014,7 +1015,7 @@ export default function POSSales() {
         const { data: products, error: productsError } = await supabase
           .from('products')
           .select(`
-            id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, product_type, status, category, style, color, sale_discount_type, sale_discount_value,
+            id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, product_type, status, category, style, color, sale_discount_type, sale_discount_value, uom,
             product_variants (
               id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, deleted_at,
               last_purchase_sale_price, last_purchase_mrp, last_purchase_date, is_dc_product
