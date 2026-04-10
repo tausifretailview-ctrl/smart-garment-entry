@@ -518,6 +518,18 @@ const App = () => {
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="customer-reconciliation"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin"]}>
+                        <Layout>
+                          <CustomerReconciliation />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
 
                 {/* School Module Routes */}
                 <Route
@@ -1303,19 +1315,6 @@ const App = () => {
     </RootErrorBoundary>
   );
 };
-
-                <Route
-                  path="customer-reconciliation"
-                  element={
-                    <ProtectedRoute>
-                      <RoleProtectedRoute allowedRoles={["admin"]}>
-                        <Layout>
-                          <CustomerReconciliation />
-                        </Layout>
-                      </RoleProtectedRoute>
-                    </ProtectedRoute>
-                  }
-                />
 
 
 export default App;
