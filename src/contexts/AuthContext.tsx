@@ -2,12 +2,13 @@ import { createContext, useContext, useEffect, useState, ReactNode, useCallback,
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { storeOrgSlug } from "@/lib/orgSlug";
+import { toast } from "sonner";
 
 // Global constants for cross-tab refresh coordination
 const REFRESH_LOCK_KEY = 'auth_refresh_lock';
 const REFRESH_COOLDOWN = 5000; // 5 seconds cooldown between refreshes
 const SESSION_EXPIRY_BUFFER = 900; // 15 minutes buffer before expiry
-const PERIODIC_CHECK_INTERVAL = 2 * 60 * 1000; // Check every 2 minutes
+const PERIODIC_CHECK_INTERVAL = 4 * 60 * 1000; // Check every 4 minutes
 const SESSION_TIMEOUT = 10000; // 10 seconds timeout for initial session fetch
 const MAX_REFRESH_RETRIES = 3;
 const RETRY_DELAY = 2000; // 2 seconds between retries
@@ -302,28 +303,92 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     sessionPromise.finally(() => clearTimeout(timeoutId));
 
-    // Visibility change handler - use ref to access current session without stale closure
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && sessionRef.current && isSessionNeedsRefresh(sessionRef.current)) {
-        console.log("App became visible and session needs refresh, refreshing...");
-        safelyRefreshSession();
+    // Robust visibility change handler for Windows 11 Home tab suspension
+    // Always revalidate session on tab resume — don't rely only on expiry buffer
+    let periodicCheckId: ReturnType<typeof setInterval> | null = null;
+
+    const startPeriodicCheck = () => {
+      if (periodicCheckId) return;
+      periodicCheckId = setInterval(() => {
+        if (sessionRef.current && isSessionNeedsRefresh(sessionRef.current)) {
+          console.log("Periodic check: session needs refresh");
+          safelyRefreshSession();
+        }
+      }, PERIODIC_CHECK_INTERVAL);
+    };
+
+    const stopPeriodicCheck = () => {
+      if (periodicCheckId) {
+        clearInterval(periodicCheckId);
+        periodicCheckId = null;
+      }
+    };
+
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        // Tab resumed — always revalidate, OS may have suspended for hours
+        if (!sessionRef.current) {
+          startPeriodicCheck();
+          return;
+        }
+
+        try {
+          const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+
+          if (error || !currentSession) {
+            // Session gone — try refresh
+            console.warn("Session lost after tab resume, attempting refresh...");
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+            if (refreshError || !refreshData.session) {
+              console.warn("Refresh failed after tab resume — signing out");
+              toast.error("Session expired, please login again");
+              await safeSignOut(setSession, setUser);
+            } else {
+              toast.success("Session restored");
+              if (refreshData.session.user?.id !== sessionRef.current?.user?.id) {
+                setSession(refreshData.session);
+                setUser(refreshData.session.user);
+              } else {
+                sessionRef.current = refreshData.session;
+              }
+            }
+          } else if (isSessionNeedsRefresh(currentSession)) {
+            // Session exists but nearing expiry — proactive refresh
+            console.log("Session near expiry after tab resume, refreshing...");
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+            if (!refreshError && refreshData.session) {
+              toast.success("Session restored");
+              if (refreshData.session.user?.id !== sessionRef.current?.user?.id) {
+                setSession(refreshData.session);
+                setUser(refreshData.session.user);
+              } else {
+                sessionRef.current = refreshData.session;
+              }
+            }
+          }
+          // else: session valid and fresh — do nothing
+        } catch (err) {
+          console.error("Error revalidating session on tab resume:", err);
+        }
+
+        startPeriodicCheck();
+      } else {
+        // Tab hidden — stop periodic checks to save resources
+        stopPeriodicCheck();
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Periodic session check to prevent expiry during long active usage
-    const periodicCheck = setInterval(() => {
-      if (document.visibilityState === 'visible' && sessionRef.current && isSessionNeedsRefresh(sessionRef.current)) {
-        console.log("Periodic check: session needs refresh");
-        safelyRefreshSession();
-      }
-    }, PERIODIC_CHECK_INTERVAL);
+    // Start periodic check if tab is currently visible
+    if (document.visibilityState === 'visible') {
+      startPeriodicCheck();
+    }
 
     return () => {
       subscription.unsubscribe();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      clearInterval(periodicCheck);
+      stopPeriodicCheck();
     };
   }, [safelyRefreshSession]); // Remove session from deps - use ref instead
 
