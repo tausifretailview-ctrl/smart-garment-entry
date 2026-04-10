@@ -339,7 +339,8 @@ export function CustomerHistoryDialog({
         .from('student_fees')
         .select('paid_amount')
         .eq('student_id', student.id)
-        .eq('organization_id', organizationId);
+        .eq('organization_id', organizationId)
+        .neq('status', 'deleted');
       const feesPaid = (payments || []).reduce((sum, p) => sum + (p.paid_amount || 0), 0);
 
       const hasStructures = structureTotal > 0;

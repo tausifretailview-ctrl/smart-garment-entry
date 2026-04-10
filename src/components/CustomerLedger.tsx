@@ -156,7 +156,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         const { data: feeTotals } = await supabase
           .from('student_fees')
           .select('student_id, paid_amount, academic_year_id, status')
-          .eq('organization_id', organizationId);
+          .eq('organization_id', organizationId)
+          .neq('status', 'deleted');
 
         // Build two maps: year-scoped (for structure students) and all-time (for imported balance students)
         const studentPaidInYear = new Map<string, number>();
@@ -464,7 +465,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           .from('student_fees')
           .select('*, fee_heads(head_name)')
           .eq('student_id', studentId)
-          .eq('organization_id', organizationId);
+          .eq('organization_id', organizationId)
+          .neq('status', 'deleted');
         
         if (startDate) feesQuery = feesQuery.gte('created_at', format(startDate, 'yyyy-MM-dd'));
         if (endDate) feesQuery = feesQuery.lte('created_at', format(endDate, 'yyyy-MM-dd') + 'T23:59:59');

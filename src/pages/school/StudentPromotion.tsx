@@ -165,7 +165,8 @@ const StudentPromotion = () => {
         .select("student_id, paid_amount")
         .eq("organization_id", orgId)
         .eq("academic_year_id", fromYearId)
-        .gt("paid_amount", 0);
+        .gt("paid_amount", 0)
+        .neq("status", "deleted");
       if (error) throw error;
       const map: Record<string, number> = {};
       (data || []).forEach((f: any) => {

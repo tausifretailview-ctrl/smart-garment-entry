@@ -32,6 +32,7 @@ export function FeeReceiptReprintDialog({ open, onOpenChange, receiptId }: FeeRe
         .select("*, students!inner(student_name, admission_number, parent_name, parent_phone, class_id, school_classes:class_id(class_name)), fee_heads(head_name), academic_years!inner(year_name)")
         .eq("organization_id", currentOrganization.id)
         .eq("payment_receipt_id", receiptId)
+        .neq("status", "deleted")
         .order("created_at", { ascending: true });
 
       if (error) throw error;
@@ -46,7 +47,8 @@ export function FeeReceiptReprintDialog({ open, onOpenChange, receiptId }: FeeRe
         .from("student_fees")
         .select("paid_amount, amount, fee_head_id")
         .eq("student_id", first.student_id)
-        .eq("organization_id", currentOrganization.id);
+        .eq("organization_id", currentOrganization.id)
+        .neq("status", "deleted");
 
       const totalPaid = (allFees || []).reduce((s: number, f: any) => s + (f.paid_amount || 0), 0);
 
