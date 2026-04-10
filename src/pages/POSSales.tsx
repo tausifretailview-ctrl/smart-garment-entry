@@ -1720,6 +1720,7 @@ export default function POSSales() {
         hsnCode: product.hsn_code || '',
         productType: product.product_type,
         isDcProduct: variant.is_dc_product === true,
+        uom: product.uom || 'NOS',
       };
       setItems(prev => [...prev, newItem]);
       
@@ -1763,7 +1764,9 @@ export default function POSSales() {
   };
 
   const updateQuantity = async (index: number, newQty: number) => {
-    if (newQty < 1) return;
+    const item = items[index];
+    const isDecimal = isDecimalUOM(item?.uom);
+    if (isDecimal ? newQty <= 0 : newQty < 1) return;
     
     // Real-time stock validation before updating quantity
     const item = items[index];
