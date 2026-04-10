@@ -1185,9 +1185,9 @@ export default function StockReport() {
                 </div>
                 <div className="text-right shrink-0 ml-3">
                   <p className={cn("text-lg font-bold tabular-nums", item.stock_qty <= 0 ? "text-destructive" : item.stock_qty <= lowStockThreshold ? "text-amber-600" : "text-foreground")}>
-                    {item.stock_qty}
+                    {item.stock_qty}{item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' ? ` ${item.uom}` : ''}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">qty</p>
+                  <p className="text-[10px] text-muted-foreground">{item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' ? item.uom : 'qty'}</p>
                   {item.pur_price && item.stock_qty > 0 && (
                     <p className="text-[10px] text-muted-foreground tabular-nums">
                       ₹{Math.round(item.pur_price * item.stock_qty).toLocaleString("en-IN")}
@@ -1529,7 +1529,7 @@ export default function StockReport() {
                                 {item.sale_return_qty > 0 ? `+${item.sale_return_qty}` : '0'}
                               </TableCell>
                               <TableCell className="text-right bg-primary/10 font-bold text-primary">
-                                {item.stock_qty}
+                                {item.stock_qty}{item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' ? ` ${item.uom}` : ''}
                               </TableCell>
                               <TableCell className="text-right">
                                 {item.pur_price ? (
