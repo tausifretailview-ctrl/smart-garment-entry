@@ -15,6 +15,7 @@ interface InvoiceItem {
   qty: number;
   rate: number;
   total: number;
+  uom?: string;
 }
 
 interface InvoicePrintProps {
