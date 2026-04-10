@@ -519,8 +519,36 @@ export function CustomerBalanceAdjustmentDialog({
               </div>
             )}
 
-            {/* New Values */}
-            {selectedCustomerId && !balanceLoading && (
+            {/* Balance Breakdown */}
+            {selectedCustomerId && !balanceLoading && currentBalance?.breakdown && (
+              <details className="text-xs border rounded-md">
+                <summary className="px-3 py-2 cursor-pointer text-muted-foreground hover:text-foreground font-medium">
+                  Balance Breakdown
+                </summary>
+                <div className="px-3 pb-2 space-y-1">
+                  {[
+                    ["Opening Balance", currentBalance.breakdown.openingBalance],
+                    ["+ Gross Invoices", currentBalance.breakdown.totalGrossInvoices],
+                    ["− Cash/UPI Payments", currentBalance.breakdown.totalCashPayments],
+                    ["− Advances Booked", currentBalance.breakdown.totalAdvanceBooked],
+                    ["− Sale Returns", currentBalance.breakdown.totalReturns],
+                    ["+ Advance Refunds", currentBalance.breakdown.totalRefunds],
+                    ["+ Refunds Paid", currentBalance.breakdown.totalRefundsPaid],
+                    ["± Adjustments", currentBalance.breakdown.totalAdjustments],
+                  ].map(([label, val]) => (
+                    <div key={String(label)} className="flex justify-between">
+                      <span className="text-muted-foreground">{label}</span>
+                      <span className="font-mono">₹{Number(val).toLocaleString("en-IN")}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between border-t pt-1 font-semibold">
+                    <span>= Outstanding</span>
+                    <span className="font-mono">₹{currentBalance.outstanding.toLocaleString("en-IN")}</span>
+                  </div>
+                </div>
+              </details>
+            )}
+
               <>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
