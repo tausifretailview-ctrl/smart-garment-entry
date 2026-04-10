@@ -81,6 +81,7 @@ interface ProductVariant {
   gst_per: number;
   hsn_code: string;
   size_range?: string | null;
+  uom?: string;
 }
 
 interface LineItem {
