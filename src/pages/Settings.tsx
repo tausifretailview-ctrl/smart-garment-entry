@@ -5062,6 +5062,21 @@ export default function Settings() {
             <div className="mt-6">
               <StockReconciliation />
             </div>
+
+            {/* Customer Balance Reconciliation */}
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle>Customer Balance Reconciliation</CardTitle>
+                <CardDescription>
+                  Cross-verify customer balances from raw transactions vs ledger display
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button onClick={() => navigate("/customer-reconciliation")}>
+                  🔍 Reconcile Customer Balances
+                </Button>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="users">
