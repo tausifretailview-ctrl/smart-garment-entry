@@ -679,6 +679,14 @@ export const useSaveSale = () => {
     setIsSaving(true);
 
     try {
+      // Fetch current paid_amount to preserve partial payments during edit
+      const { data: existingSale } = await supabase
+        .from('sales')
+        .select('paid_amount, payment_status, sale_return_adjust')
+        .eq('id', saleId)
+        .single();
+      const existingPaidAmount = existingSale?.paid_amount || 0;
+
       // Calculate payment status and amounts
       let cashAmt = 0;
       let cardAmt = 0;
@@ -704,15 +712,25 @@ export const useSaveSale = () => {
           payStatus = 'pending';
         }
       } else {
-        paidAmt = paymentMethod === 'pay_later' ? 0 : saleData.netAmount;
-        payStatus = paymentMethod === 'pay_later' ? 'pending' : 'completed';
-        
-        if (paymentMethod === 'cash') {
-          cashAmt = saleData.netAmount;
-        } else if (paymentMethod === 'card') {
-          cardAmt = saleData.netAmount;
-        } else if (paymentMethod === 'upi') {
-          upiAmt = saleData.netAmount;
+        if (paymentMethod === 'pay_later') {
+          // Pay later: preserve existing paid amount (could be partial payment received later)
+          paidAmt = existingPaidAmount;
+          payStatus = paidAmt >= saleData.netAmount ? 'completed' : paidAmt > 0 ? 'partial' : 'pending';
+        } else {
+          // Full payment method (cash/card/upi): only set to full if it was already completed
+          // or if no prior payment existed
+          if (existingPaidAmount === 0 || existingSale?.payment_status === 'completed') {
+            paidAmt = saleData.netAmount;
+            payStatus = 'completed';
+          } else {
+            // Preserve existing partial payment
+            paidAmt = existingPaidAmount;
+            payStatus = paidAmt >= saleData.netAmount ? 'completed' : 'partial';
+          }
+
+          if (paymentMethod === 'cash') cashAmt = paidAmt;
+          else if (paymentMethod === 'card') cardAmt = paidAmt;
+          else if (paymentMethod === 'upi') upiAmt = paidAmt;
         }
       }
 
