@@ -98,6 +98,7 @@ const StockSettlement = lazyWithRetry(() => import("./pages/StockSettlement"));
 const DailySaleAnalysis = lazyWithRetry(() => import("./pages/DailySaleAnalysis"));
 const EInvoiceReport = lazyWithRetry(() => import("./pages/EInvoiceReport"));
 const CustomerLedgerPage = lazyWithRetry(() => import("./pages/CustomerLedgerPage"));
+const CustomerReconciliation = lazyWithRetry(() => import("./pages/CustomerReconciliation"));
 const BulkProductUpdate = lazyWithRetry(() => import("./pages/BulkProductUpdate"));
 const DeliveryChallanEntry = lazyWithRetry(() => import("./pages/DeliveryChallanEntry"));
 const DeliveryChallanDashboard = lazyWithRetry(() => import("./pages/DeliveryChallanDashboard"));
@@ -1302,6 +1303,19 @@ const App = () => {
     </RootErrorBoundary>
   );
 };
+
+                <Route
+                  path="customer-reconciliation"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin"]}>
+                        <Layout>
+                          <CustomerReconciliation />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
 
 
 export default App;
