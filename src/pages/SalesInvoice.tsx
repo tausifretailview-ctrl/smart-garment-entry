@@ -3418,13 +3418,17 @@ Thank you for choosing us!`;
                       <td className="text-center px-1.5 py-1">
                         <Input
                           type="number"
-                          min="1"
+                          min={isDecimalUOM(item.uom) ? "0.001" : "1"}
+                          step={isDecimalUOM(item.uom) ? "0.001" : "1"}
                           value={item.quantity || ""}
                           placeholder="1"
-                          onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
+                          onChange={(e) => updateQuantity(item.id, isDecimalUOM(item.uom) ? (parseFloat(e.target.value) || 0.001) : (parseInt(e.target.value) || 1))}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           className="w-16 h-9 text-center font-bold text-[14px] bg-warning/10 border-warning/30 focus:border-warning mx-auto tabular-nums"
                         />
+                        {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
+                          <span className="text-[10px] text-muted-foreground text-center block">{item.uom}</span>
+                        )}
                       </td>
                       <td className="text-center px-1.5 py-1">
                         <Input
