@@ -267,6 +267,11 @@ const PurchaseEntry = () => {
   const [isBillLocked, setIsBillLocked] = useState(false);
   const [showUnlockConfirm, setShowUnlockConfirm] = useState(false);
 
+  // Duplicate bill detection state
+  const [showDuplicateBillWarning, setShowDuplicateBillWarning] = useState(false);
+  const [duplicateBillInfo, setDuplicateBillInfo] = useState<{ bill_no: string; bill_date: string } | null>(null);
+  const pendingSaveRef = useRef(false);
+
   // IMEI Scan Dialog state (Mobile ERP mode)
   const [showIMEIScanDialog, setShowIMEIScanDialog] = useState(false);
   const [imeiScanItem, setImeiScanItem] = useState<{ tempId: string; qty: number; item: LineItem } | null>(null);
@@ -2291,6 +2296,8 @@ const PurchaseEntry = () => {
             .from("purchase_items")
             .update({
               product_name: item.product_name,
+              sku_id: item.sku_id,
+              size: item.size,
               qty: Math.round(item.qty),
               pur_price: item.pur_price,
               sale_price: item.sale_price,
