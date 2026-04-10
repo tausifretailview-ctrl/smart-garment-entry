@@ -431,7 +431,8 @@ export default function StockReport() {
               category,
               style,
               product_type,
-              deleted_at
+              deleted_at,
+              uom
             )
           `)
           .eq("organization_id", currentOrganization.id)
