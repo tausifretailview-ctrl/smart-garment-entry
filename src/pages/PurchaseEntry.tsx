@@ -2287,7 +2287,9 @@ const PurchaseEntry = () => {
             original.color !== item.color ||
             original.style !== item.style ||
             original.category !== item.category ||
-            original.hsn_code !== item.hsn_code
+            original.hsn_code !== item.hsn_code ||
+            original.sku_id !== item.sku_id ||
+            original.size !== item.size
           );
         });
 
