@@ -106,10 +106,10 @@ export default function EInvoiceReport() {
     if (!invoices) return { total: 0, generated: 0, pending: 0, failed: 0, cancelled: 0 };
     return {
       total: invoices.length,
-      generated: invoices.filter((i: any) => i.irn && i.einvoice_status !== 'cancelled').length,
-      pending: invoices.filter((i: any) => !i.irn && i.einvoice_status !== 'failed').length,
+      generated: invoices.filter((i: any) => i.irn && i.einvoice_status !== 'cancelled' && !i.is_cancelled).length,
+      pending: invoices.filter((i: any) => !i.irn && i.einvoice_status !== 'failed' && !i.is_cancelled).length,
       failed: invoices.filter((i: any) => i.einvoice_status === 'failed').length,
-      cancelled: invoices.filter((i: any) => i.einvoice_status === 'cancelled').length,
+      cancelled: invoices.filter((i: any) => i.einvoice_status === 'cancelled' || i.is_cancelled).length,
     };
   }, [invoices]);
 
