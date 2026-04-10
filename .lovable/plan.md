@@ -1,34 +1,30 @@
 
 
-## Fix: Exclude Soft-Deleted Fee Receipts from All Queries
+## Fix: False Duplicate Barcode Warnings When Editing Old Purchase Bills
 
 ### Problem
-The recent soft-delete fix for fee receipts (setting `status = 'deleted'`) only works if all queries filter out deleted records. Several queries across the codebase do NOT filter by status, meaning deleted receipts still appear in ledgers, balance calculations, and reports.
+When editing old purchase bills, the barcode duplicate detection fires false positives because:
+1. Two rows with the same barcode but the **same variant** (same `sku_id`) are flagged — these should merge quantities, not warn
+2. Items already in the bill being edited exist in the database, so the cross-bill RPC check finds them as "duplicates" of themselves
 
-### Affected Files (6 locations need fixing)
+### Changes — `src/pages/PurchaseEntry.tsx`
 
-| File | Line | Issue |
-|------|------|-------|
-| **CustomerLedger.tsx** ~line 157 | Fetches all `student_fees` without status filter | Deleted fees counted in student balance list |
-| **CustomerLedger.tsx** ~line 463 | Fetches student fees for ledger view without status filter | Deleted receipts appear in ledger timeline |
-| **CustomerHistoryDialog.tsx** ~line 338 | Fetches `paid_amount` without status filter | Deleted fees inflate "fees paid" total |
-| **FeeReceiptReprintDialog.tsx** ~line 30 | Fetches receipt by ID without status filter | Can reprint deleted receipts |
-| **FeeReceiptReprintDialog.tsx** ~line 45 | Fetches `allFees` without status filter | Balance calc includes deleted amounts |
-| **StudentPromotion.tsx** ~line 163 | Fetches paid amounts without status filter | Promotion screen shows wrong paid totals |
+**Fix 1 (lines 443-452): Smarter in-bill duplicate detection**
 
-### Fix (all 6 locations)
+Change the in-bill duplicate map to track `sku_id` alongside `temp_id`. Only flag as duplicate when the same barcode appears on rows with **different** `sku_id` values. Same barcode + same variant = not a real duplicate.
 
-Add `.neq("status", "deleted")` to each query. Specific changes:
+**Fix 2 (lines 467-473): Exclude original bill items from cross-bill check**
 
-1. **CustomerLedger.tsx line ~159**: Add `.neq("status", "deleted")` after `.eq("organization_id", organizationId)`
-2. **CustomerLedger.tsx line ~467**: Add `.neq("status", "deleted")` after `.eq("organization_id", organizationId)`
-3. **CustomerHistoryDialog.tsx line ~342**: Add `.neq("status", "deleted")` after `.eq("organization_id", organizationId)`
-4. **FeeReceiptReprintDialog.tsx line ~34**: Add `.neq("status", "deleted")` after `.eq("payment_receipt_id", receiptId)`
-5. **FeeReceiptReprintDialog.tsx line ~49**: Add `.neq("status", "deleted")` after `.eq("organization_id", currentOrganization.id)`
-6. **StudentPromotion.tsx line ~168**: Add `.neq("status", "deleted")` after `.gt("paid_amount", 0)`
+After the `check_barcode_duplicate` RPC returns results, also filter out any `variant_id` that belongs to the original bill's items (`originalLineItems`). This prevents the system from treating the bill's own existing items as external duplicates.
+
+**Fix 3: No auto-merge change** — The auto-merge of duplicate rows when re-adding the same variant is a separate UX enhancement and risks changing purchase entry behavior (per-piece tracking relies on separate rows). Will skip this to avoid breaking existing flows.
+
+### Files Modified
+- `src/pages/PurchaseEntry.tsx` — lines ~443-473 (duplicate detection logic only)
 
 ### What Won't Change
-- StudentHistoryDialog (already filters `.in("status", ["paid", "partial"])`)
-- FeeCollectionDialog (already filters correctly)
-- FeeCollection dashboard queries (already filter correctly)
+- Barcode generation logic
+- Save flow and `originalLineItems` tracking
+- IMEI scan dialog
+- Size grid or any other pages
 
