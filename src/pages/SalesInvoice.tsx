@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { isDecimalUOM } from "@/constants/uom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
 import { supabase } from "@/integrations/supabase/client";
@@ -100,6 +101,7 @@ interface LineItem {
   gstPercent: number;
   lineTotal: number;
   hsnCode: string;
+  uom?: string;
 }
 
 const customerSchema = z.object({
@@ -448,7 +450,7 @@ export default function SalesInvoice() {
         const { data, error } = await supabase
           .from('products')
           .select(`
-            id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, product_type, status, category, style, color, sale_discount_type, sale_discount_value,
+            id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, product_type, status, category, style, color, sale_discount_type, sale_discount_value, uom,
             product_variants (
               id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, deleted_at,
               last_purchase_sale_price, last_purchase_mrp, last_purchase_date
@@ -914,7 +916,7 @@ export default function SalesInvoice() {
           .select(`
             id, size, pur_price, sale_price, mrp, barcode, active, color, stock_qty, product_id,
             last_purchase_sale_price, last_purchase_mrp, last_purchase_date,
-            products (id, product_name, brand, category, style, color, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, size_group_id, sale_discount_type, sale_discount_value)
+            products (id, product_name, brand, category, style, color, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, size_group_id, sale_discount_type, sale_discount_value, uom)
           `)
           .eq("organization_id", currentOrganization.id)
           .eq("active", true)
@@ -1105,6 +1107,7 @@ export default function SalesInvoice() {
           gstPercent: product.sale_gst_percent || product.gst_per || 0,
           lineTotal: 0,
           hsnCode: product.hsn_code || '',
+          uom: product.uom || 'NOS',
         });
         
         if (emptyRowIndex >= 0) {
@@ -1323,6 +1326,7 @@ export default function SalesInvoice() {
         gstPercent: product.sale_gst_percent || product.gst_per || 0,
         lineTotal: 0,
         hsnCode: product.hsn_code || '',
+        uom: product.uom || 'NOS',
       };
       
       const emptyRowIndex = prev.findIndex(item => item.productId === '');
@@ -1543,10 +1547,11 @@ export default function SalesInvoice() {
   };
 
   const updateQuantity = async (id: string, quantity: number) => {
-    if (quantity < 1) return;
+    const item = lineItems.find(i => i.id === id);
+    const isDecimal = isDecimalUOM(item?.uom);
+    if (isDecimal ? quantity <= 0 : quantity < 1) return;
     
     // Find the item being updated
-    const item = lineItems.find(i => i.id === id);
     if (!item || !item.variantId) return;
     
     // In edit mode, calculate freed stock from original invoice for this variant
@@ -3413,13 +3418,17 @@ Thank you for choosing us!`;
                       <td className="text-center px-1.5 py-1">
                         <Input
                           type="number"
-                          min="1"
+                          min={isDecimalUOM(item.uom) ? "0.001" : "1"}
+                          step={isDecimalUOM(item.uom) ? "0.001" : "1"}
                           value={item.quantity || ""}
                           placeholder="1"
-                          onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
+                          onChange={(e) => updateQuantity(item.id, isDecimalUOM(item.uom) ? (parseFloat(e.target.value) || 0.001) : (parseInt(e.target.value) || 1))}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           className="w-16 h-9 text-center font-bold text-[14px] bg-warning/10 border-warning/30 focus:border-warning mx-auto tabular-nums"
                         />
+                        {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
+                          <span className="text-[10px] text-muted-foreground text-center block">{item.uom}</span>
+                        )}
                       </td>
                       <td className="text-center px-1.5 py-1">
                         <Input

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { isDecimalUOM } from "@/constants/uom";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -81,6 +82,7 @@ interface ProductVariant {
   gst_per: number;
   hsn_code: string;
   size_range?: string | null;
+  uom?: string;
 }
 
 interface LineItem {
@@ -102,6 +104,7 @@ interface LineItem {
   category?: string;
   color?: string;
   style?: string;
+  uom?: string;
 }
 
 interface SizeQuantity {
@@ -1025,7 +1028,8 @@ const PurchaseEntry = () => {
             default_sale_price,
             size_group_id,
             purchase_discount_type,
-            purchase_discount_value
+            purchase_discount_value,
+            uom
           )
         `)
         .eq("organization_id", currentOrganization?.id)
@@ -1086,6 +1090,7 @@ const PurchaseEntry = () => {
           gst_per: v.products?.purchase_gst_percent || v.products?.gst_per || 0,
           hsn_code: v.products?.hsn_code || "",
           size_range: sizeRange,
+          uom: v.products?.uom || 'NOS',
         };
       });
 
@@ -1404,7 +1409,8 @@ const PurchaseEntry = () => {
             default_sale_price,
             size_group_id,
             purchase_discount_type,
-            purchase_discount_value
+            purchase_discount_value,
+            uom
           )
         `)
         .eq("organization_id", currentOrganization?.id)
@@ -1470,6 +1476,7 @@ const PurchaseEntry = () => {
           gst_per: v.products?.purchase_gst_percent || v.products?.gst_per || 0,
           hsn_code: v.products?.hsn_code || "",
           size_range: sizeRange,
+          uom: v.products?.uom || 'NOS',
         };
       });
 
@@ -1550,7 +1557,8 @@ const PurchaseEntry = () => {
           default_pur_price,
           default_sale_price,
           purchase_discount_type,
-          purchase_discount_value
+          purchase_discount_value,
+          uom
         )
       `)
       .eq("product_id", productId)
@@ -1797,6 +1805,7 @@ const PurchaseEntry = () => {
       category: variant.category || "",
       color: variant.color || "",
       style: variant.style || "",
+      uom: variant.uom || 'NOS',
     };
     setLineItems([...lineItems, newItem]);
   };
@@ -2300,7 +2309,7 @@ const PurchaseEntry = () => {
               product_name: item.product_name,
               sku_id: item.sku_id,
               size: item.size,
-              qty: Math.round(item.qty),
+              qty: item.qty,
               pur_price: item.pur_price,
               sale_price: item.sale_price,
               mrp: item.mrp || 0,
@@ -2330,7 +2339,7 @@ const PurchaseEntry = () => {
             sku_id: item.sku_id,
             product_name: item.product_name,
             size: item.size,
-            qty: Math.round(item.qty),
+            qty: item.qty,
             pur_price: item.pur_price,
             sale_price: item.sale_price,
             mrp: item.mrp || 0,
@@ -2491,7 +2500,7 @@ const PurchaseEntry = () => {
           sku_id: item.sku_id,
           product_name: item.product_name,
           size: item.size,
-          qty: Math.round(item.qty),
+          qty: item.qty,
           pur_price: item.pur_price,
           sale_price: item.sale_price,
           mrp: item.mrp || 0,
@@ -3729,21 +3738,27 @@ const PurchaseEntry = () => {
                           })()}
                         </TableCell>
                         <TableCell className="w-[80px]">
-                          <Input
-                            ref={index === lineItems.length - 1 ? lastQtyInputRef : undefined}
-                            type="number"
-                            min="1"
-                            value={item.qty || ""}
-                            onChange={(e) =>
-                              updateLineItem(
-                                item.temp_id,
-                                "qty",
-                                parseInt(e.target.value) || 0
-                              )
-                            }
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-full text-right px-2 bg-amber-50 border-amber-200 text-center font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
+                          <div className="flex items-center gap-0.5">
+                            <Input
+                              ref={index === lineItems.length - 1 ? lastQtyInputRef : undefined}
+                              type="number"
+                              min={isDecimalUOM(item.uom) ? "0.001" : "1"}
+                              step={isDecimalUOM(item.uom) ? "0.001" : "1"}
+                              value={item.qty || ""}
+                              onChange={(e) =>
+                                updateLineItem(
+                                  item.temp_id,
+                                  "qty",
+                                  isDecimalUOM(item.uom) ? (parseFloat(e.target.value) || 0) : (parseInt(e.target.value) || 0)
+                                )
+                              }
+                              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                              className="w-full text-right px-2 bg-amber-50 border-amber-200 text-center font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
+                              <span className="text-[10px] text-muted-foreground whitespace-nowrap">{item.uom}</span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="w-[120px]">
                           <CalculatorInput

@@ -26,6 +26,13 @@ export const getUOMLabel = (uom: string | null | undefined): string => {
   return option ? option.value : uom;
 };
 
+// UOMs that support decimal/fractional quantities
+export const DECIMAL_UOMS = ['MTR', 'KG', 'GMS', 'LTR'] as const;
+
+export const isDecimalUOM = (uom: string | null | undefined): boolean => {
+  return DECIMAL_UOMS.includes((uom || '') as any);
+};
+
 // Get full UOM description
 export const getUOMFullLabel = (uom: string | null | undefined): string => {
   if (!uom) return 'NOS - Numbers/Pieces';

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { isDecimalUOM } from "@/constants/uom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useMobileERP, validateIMEI } from "@/hooks/useMobileERP";
 import { useSettings } from "@/hooks/useSettings";
@@ -113,6 +114,7 @@ interface CartItem {
   hsnCode?: string;
   productType?: string; // Track product type to handle service items differently
   isDcProduct?: boolean; // DC (Direct Cash) product flag
+  uom?: string;
 }
 
 export default function POSSales() {
@@ -1013,7 +1015,7 @@ export default function POSSales() {
         const { data: products, error: productsError } = await supabase
           .from('products')
           .select(`
-            id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, product_type, status, category, style, color, sale_discount_type, sale_discount_value,
+            id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, product_type, status, category, style, color, sale_discount_type, sale_discount_value, uom,
             product_variants (
               id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, deleted_at,
               last_purchase_sale_price, last_purchase_mrp, last_purchase_date, is_dc_product
@@ -1718,6 +1720,7 @@ export default function POSSales() {
         hsnCode: product.hsn_code || '',
         productType: product.product_type,
         isDcProduct: variant.is_dc_product === true,
+        uom: product.uom || 'NOS',
       };
       setItems(prev => [...prev, newItem]);
       
@@ -1761,10 +1764,11 @@ export default function POSSales() {
   };
 
   const updateQuantity = async (index: number, newQty: number) => {
-    if (newQty < 1) return;
+    const item = items[index];
+    const isDecimal = isDecimalUOM(item?.uom);
+    if (isDecimal ? newQty <= 0 : newQty < 1) return;
     
     // Real-time stock validation before updating quantity
-    const item = items[index];
     const stockCheck = await checkStock(item.variantId, newQty);
     
     if (!stockCheck.isAvailable) {
@@ -3788,6 +3792,7 @@ export default function POSSales() {
               total: item.netAmount,
               gstPercent: item.gstPer || 0,
               discountPercent: item.discountPercent || 0,
+              uom: item.uom || 'NOS',
             })) : items.map((item, index) => ({
               sr: index + 1,
               particulars: item.productName,
@@ -3802,6 +3807,7 @@ export default function POSSales() {
               total: item.netAmount,
               gstPercent: item.gstPer || 0,
               discountPercent: item.discountPercent || 0,
+              uom: item.uom || 'NOS',
             }))}
             subTotal={savedInvoiceData?.totals.subtotal || totals.subtotal}
             discount={savedInvoiceData ? (savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount) : (totals.discount + flatDiscountAmount)}
@@ -4592,11 +4598,15 @@ export default function POSSales() {
                             <Input
                               type="number"
                               value={item.quantity || ""}
-                              onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
+                              onChange={(e) => updateQuantity(index, isDecimalUOM(item.uom) ? (parseFloat(e.target.value) || 0.001) : (parseInt(e.target.value) || 1))}
                               placeholder="1"
+                              step={isDecimalUOM(item.uom) ? "0.001" : "1"}
                               className="h-8 text-sm w-full text-center bg-muted/30 border-border/60"
-                              min="1"
+                              min={isDecimalUOM(item.uom) ? "0.001" : "1"}
                             />
+                            {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
+                              <span className="text-[10px] text-muted-foreground text-center block">{item.uom}</span>
+                            )}
                           </div>
                           <div>
                             <Input
