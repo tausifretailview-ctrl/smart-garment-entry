@@ -439,20 +439,33 @@ const PurchaseEntry = () => {
       // Collect all sku_ids in this bill to suppress cross-row false warnings
       const allBillSkuIds = new Set(lineItems.map(i => i.sku_id).filter(Boolean));
 
-      // Detect in-bill duplicates (same barcode on different line items)
-      const billBarcodeMap = new Map<string, string>(); // barcode → temp_id of first occurrence
+      // Detect REAL in-bill duplicates: same barcode on DIFFERENT variants (sku_ids)
+      // Same barcode + same sku_id = same product added twice (OK, not a real duplicate)
+      // Same barcode + different sku_id = genuine duplicate barcode problem
+      const billBarcodeMap = new Map<string, { temp_id: string; sku_id: string }>();
       const inBillDuplicates = new Set<string>();
       for (const item of lineItems) {
         if (!item.barcode) continue;
-        if (billBarcodeMap.has(item.barcode)) {
-          inBillDuplicates.add(item.temp_id);
+        const existing = billBarcodeMap.get(item.barcode);
+        if (existing) {
+          // Only flag as duplicate if different variant (different sku_id)
+          if (existing.sku_id !== item.sku_id) {
+            inBillDuplicates.add(item.temp_id);
+            inBillDuplicates.add(existing.temp_id);
+          }
+          // Same sku_id = same variant, not a real duplicate — skip
         } else {
-          billBarcodeMap.set(item.barcode, item.temp_id);
+          billBarcodeMap.set(item.barcode, { temp_id: item.temp_id, sku_id: item.sku_id });
         }
       }
 
+      // Collect original bill's variant IDs to exclude from cross-bill check
+      const originalSkuIds = new Set(
+        (isEditMode ? originalLineItems : []).map(i => i.sku_id).filter(Boolean)
+      );
+
       for (const item of barcodesToCheck) {
-        // In-bill duplicate: same barcode on two different items
+        // In-bill duplicate: same barcode on two different variants
         if (inBillDuplicates.has(item.temp_id)) {
           warnings.set(item.temp_id, `⚠️ Duplicate barcode in this bill — same barcode assigned to multiple items`);
           continue;
@@ -465,8 +478,10 @@ const PurchaseEntry = () => {
             p_exclude_variant_id: item.sku_id || null
           });
           if (data && data.length > 0) {
-            // Filter out variants that belong to THIS bill (not real duplicates)
-            const realConflicts = (data as any[]).filter((d: any) => !allBillSkuIds.has(d.variant_id));
+            // Filter out variants in THIS bill AND variants from the original bill being edited
+            const realConflicts = (data as any[]).filter((d: any) => 
+              !allBillSkuIds.has(d.variant_id) && !originalSkuIds.has(d.variant_id)
+            );
             if (realConflicts.length > 0) {
               const existing = realConflicts[0];
               warnings.set(item.temp_id, `⚠️ Barcode already used: "${existing.product_name}" ${existing.size}${existing.color ? ' / ' + existing.color : ''} (Stock: ${existing.stock_qty})`);
