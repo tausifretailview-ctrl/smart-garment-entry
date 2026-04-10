@@ -1547,7 +1547,9 @@ export default function SalesInvoice() {
   };
 
   const updateQuantity = async (id: string, quantity: number) => {
-    if (quantity < 1) return;
+    const item = lineItems.find(i => i.id === id);
+    const isDecimal = isDecimalUOM(item?.uom);
+    if (isDecimal ? quantity <= 0 : quantity < 1) return;
     
     // Find the item being updated
     const item = lineItems.find(i => i.id === id);
