@@ -3738,21 +3738,27 @@ const PurchaseEntry = () => {
                           })()}
                         </TableCell>
                         <TableCell className="w-[80px]">
-                          <Input
-                            ref={index === lineItems.length - 1 ? lastQtyInputRef : undefined}
-                            type="number"
-                            min="1"
-                            value={item.qty || ""}
-                            onChange={(e) =>
-                              updateLineItem(
-                                item.temp_id,
-                                "qty",
-                                parseInt(e.target.value) || 0
-                              )
-                            }
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-full text-right px-2 bg-amber-50 border-amber-200 text-center font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          />
+                          <div className="flex items-center gap-0.5">
+                            <Input
+                              ref={index === lineItems.length - 1 ? lastQtyInputRef : undefined}
+                              type="number"
+                              min={isDecimalUOM(item.uom) ? "0.001" : "1"}
+                              step={isDecimalUOM(item.uom) ? "0.001" : "1"}
+                              value={item.qty || ""}
+                              onChange={(e) =>
+                                updateLineItem(
+                                  item.temp_id,
+                                  "qty",
+                                  isDecimalUOM(item.uom) ? (parseFloat(e.target.value) || 0) : (parseInt(e.target.value) || 0)
+                                )
+                              }
+                              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                              className="w-full text-right px-2 bg-amber-50 border-amber-200 text-center font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
+                              <span className="text-[10px] text-muted-foreground whitespace-nowrap">{item.uom}</span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="w-[120px]">
                           <CalculatorInput
