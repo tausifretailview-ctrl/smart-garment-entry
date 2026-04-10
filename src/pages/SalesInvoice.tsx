@@ -1552,7 +1552,6 @@ export default function SalesInvoice() {
     if (isDecimal ? quantity <= 0 : quantity < 1) return;
     
     // Find the item being updated
-    const item = lineItems.find(i => i.id === id);
     if (!item || !item.variantId) return;
     
     // In edit mode, calculate freed stock from original invoice for this variant
