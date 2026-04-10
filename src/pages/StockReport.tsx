@@ -46,6 +46,7 @@ interface StockItem {
   supplier_invoice_no: string;
   category: string;
   department: string;
+  uom: string;
 }
 
 
