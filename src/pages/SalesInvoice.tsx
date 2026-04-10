@@ -2004,6 +2004,25 @@ Thank you for choosing us!`;
 
         if (updateError) throw updateError;
 
+        // Recalculate payment_status if net_amount changed
+        const { data: updatedSale } = await supabase
+          .from('sales')
+          .select('paid_amount, net_amount, sale_return_adjust')
+          .eq('id', editingInvoiceId)
+          .single();
+
+        if (updatedSale) {
+          const totalSettled = (updatedSale.paid_amount || 0) + (updatedSale.sale_return_adjust || 0);
+          const correctStatus = totalSettled >= updatedSale.net_amount - 1
+            ? 'completed'
+            : totalSettled > 0 ? 'partial' : 'pending';
+
+          await supabase
+            .from('sales')
+            .update({ payment_status: correctStatus })
+            .eq('id', editingInvoiceId);
+        }
+
         toast({
           title: "Invoice Updated",
           description: "Invoice has been updated successfully",
