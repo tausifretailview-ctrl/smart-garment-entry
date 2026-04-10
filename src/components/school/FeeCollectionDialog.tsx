@@ -356,8 +356,9 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           reference_id: student.id,
           payment_method: mappedMethod,
         });
-      } catch (voucherErr) {
-        console.error("Voucher entry creation failed (non-blocking):", voucherErr);
+      } catch (voucherErr: any) {
+        console.error("Voucher entry creation failed:", voucherErr);
+        toast.error("Warning: Fee collected but accounting entry failed. Please contact admin.");
       }
 
       // Calculate remaining balance after this payment

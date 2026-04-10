@@ -111,13 +111,20 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
   const totalExpected = hasStructures ? structureTotal : importedBalance;
   
   // Separate real payments from balance adjustments
-  const allRealPayments = (feePayments || []).filter((p: any) => p.status !== "balance_adjustment");
+  const allRealPayments = (feePayments || []).filter((p: any) => p.status !== "balance_adjustment" && p.status !== "deleted");
   // For structure-based: only count current year payments; for imported balance: count all
   const realPayments = hasStructures && currentYear?.id
     ? allRealPayments.filter((p: any) => p.academic_year_id === currentYear.id)
     : allRealPayments;
   const totalPaid = realPayments.reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
-  const totalDue = Math.max(0, totalExpected - totalPaid);
+
+  // Calculate net adjustment impact
+  const adjustmentNet = (adjustmentLog || []).reduce((sum: number, adj: any) => {
+    if (adj.adjustment_type === 'credit') return sum + (adj.change_amount || 0);
+    if (adj.adjustment_type === 'debit') return sum - (adj.change_amount || 0);
+    return 0; // 'set' type handled differently
+  }, 0);
+  const totalDue = Math.max(0, totalExpected + adjustmentNet - totalPaid);
 
   // Head-wise summary
   const headSummary = (feeStructures || []).map((fs: any) => {
@@ -134,15 +141,36 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
     };
   });
 
-  // Build ledger entries chronologically (oldest first) for running balance
-  const sortedPayments = [...allRealPayments].sort((a: any, b: any) =>
-    new Date(a.paid_date || a.created_at).getTime() - new Date(b.paid_date || b.created_at).getTime()
-  );
+  // Build combined ledger: payments + adjustments, sorted chronologically
+  const combinedEntries = [
+    ...allRealPayments.map((p: any) => ({
+      type: 'payment' as const,
+      date: p.paid_date || p.created_at,
+      data: p,
+    })),
+    ...(adjustmentLog || []).map((adj: any) => ({
+      type: 'adjustment' as const,
+      date: adj.created_at,
+      data: adj,
+    })),
+  ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   let runningBalance = totalExpected;
-  const ledgerEntries = sortedPayments.map((p: any) => {
-    runningBalance -= (p.paid_amount || 0);
-    return { ...p, balanceAfter: runningBalance };
+  const ledgerEntries = combinedEntries.map((entry) => {
+    if (entry.type === 'payment') {
+      runningBalance -= (entry.data.paid_amount || 0);
+      return { ...entry, balanceAfter: runningBalance };
+    } else {
+      const adj = entry.data;
+      if (adj.adjustment_type === 'credit') {
+        runningBalance += (adj.change_amount || 0);
+      } else if (adj.adjustment_type === 'debit') {
+        runningBalance -= (adj.change_amount || 0);
+      } else {
+        runningBalance = (adj.new_balance || 0);
+      }
+      return { ...entry, balanceAfter: runningBalance };
+    }
   });
 
   const fmtINR = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2 });
@@ -367,70 +395,76 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
                       </TableCell>
                     </TableRow>
                   ) : (
-                    ledgerEntries.map((entry: any) => (
-                        <TableRow key={entry.id}>
-                          <TableCell className="text-sm">
-                            {entry.paid_date ? format(new Date(entry.paid_date), 'dd/MM/yyyy') : '—'}
-                          </TableCell>
-                          <TableCell className="text-sm font-medium text-primary">
-                            {entry.payment_receipt_id || '—'}
-                          </TableCell>
-                          <TableCell className="text-sm">
-                            {entry.fee_heads?.head_name || 'Fees Paid'}
-                            {entry.notes && <span className="text-xs text-muted-foreground ml-1">({entry.notes})</span>}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-xs">{entry.payment_method || '—'}</Badge>
-                          </TableCell>
-                          <TableCell className="text-right text-sm text-muted-foreground">—</TableCell>
-                          <TableCell className="text-right font-semibold text-sm text-green-600">
-                            ₹{fmtINR(entry.paid_amount || 0)}
-                          </TableCell>
-                          <TableCell className="text-right font-bold text-sm">
-                            <span className={entry.balanceAfter > 0 ? 'text-red-600' : 'text-green-600'}>
+                    ledgerEntries.map((entry: any, idx: number) => {
+                      if (entry.type === 'payment') {
+                        const p = entry.data;
+                        return (
+                          <TableRow key={`pay-${p.id}-${idx}`}>
+                            <TableCell className="text-sm">
+                              {p.paid_date ? format(new Date(p.paid_date), 'dd/MM/yyyy') : '—'}
+                            </TableCell>
+                            <TableCell className="text-sm font-medium text-primary">
+                              {p.payment_receipt_id || '—'}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {p.fee_heads?.head_name || 'Fees Paid'}
+                              {p.notes && <span className="text-xs text-muted-foreground ml-1">({p.notes})</span>}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs">{p.payment_method || '—'}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right text-sm text-muted-foreground">—</TableCell>
+                            <TableCell className="text-right font-semibold text-sm text-green-600">
+                              ₹{fmtINR(p.paid_amount || 0)}
+                            </TableCell>
+                            <TableCell className="text-right font-bold text-sm">
+                              <span className={entry.balanceAfter > 0 ? 'text-red-600' : 'text-green-600'}>
+                                ₹{fmtINR(entry.balanceAfter)}
+                                {entry.balanceAfter === 0 && ' ✓'}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      } else {
+                        const adj = entry.data;
+                        return (
+                          <TableRow key={`adj-${adj.id}-${idx}`} className="bg-amber-50/30 dark:bg-amber-950/10">
+                            <TableCell className="text-sm">
+                              {adj.created_at ? format(new Date(adj.created_at), "dd/MM/yyyy") : "—"}
+                            </TableCell>
+                            <TableCell className="text-xs text-amber-600 font-mono">{adj.voucher_number}</TableCell>
+                            <TableCell className="text-sm">
+                              <div className="flex items-center gap-1.5">
+                                <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-700">
+                                  ⚙ Adjustment
+                                </Badge>
+                                <span>{adj.adjustment_type === "credit" ? "Balance Added" : adj.adjustment_type === "debit" ? "Balance Reduced" : "Balance Set"}</span>
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-0.5">
+                                {adj.reason_code_label || adj.reason_code}
+                                {adj.reason_detail && ` — ${adj.reason_detail}`}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground">By: {adj.adjusted_by_name || "—"}</div>
+                            </TableCell>
+                            <TableCell>—</TableCell>
+                            <TableCell className="text-right">
+                              {adj.adjustment_type === "credit" && (
+                                <span className="text-red-600 font-semibold">₹{fmtINR(adj.change_amount || 0)}</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {adj.adjustment_type === "debit" && (
+                                <span className="text-green-600 font-semibold">₹{fmtINR(adj.change_amount || 0)}</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-bold text-amber-700 dark:text-amber-400">
                               ₹{fmtINR(entry.balanceAfter)}
-                              {entry.balanceAfter === 0 && ' ✓'}
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                    ))
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }
+                    })
                   )}
-                  {/* Balance Adjustment entries from audit log */}
-                  {adjustmentLog.map((adj: any) => (
-                    <TableRow key={`adj-${adj.id}`} className="bg-amber-50/30 dark:bg-amber-950/10">
-                      <TableCell className="text-sm">
-                        {adj.created_at ? format(new Date(adj.created_at), "dd/MM/yyyy") : "—"}
-                      </TableCell>
-                      <TableCell className="text-xs text-amber-600 font-mono">{adj.voucher_number}</TableCell>
-                      <TableCell className="text-sm">
-                        <div className="flex items-center gap-1.5">
-                          <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-700">
-                            ⚙ Adjustment
-                          </Badge>
-                          <span>{adj.adjustment_type === "credit" ? "Balance Added" : adj.adjustment_type === "debit" ? "Balance Reduced" : "Balance Set"}</span>
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {adj.reason_code_label || adj.reason_code}
-                          {adj.reason_detail && ` — ${adj.reason_detail}`}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground">By: {adj.adjusted_by_name || "—"}</div>
-                      </TableCell>
-                      <TableCell>—</TableCell>
-                      <TableCell className="text-right">
-                        {adj.adjustment_type === "credit" && (
-                          <span className="text-red-600 font-semibold">₹{fmtINR(adj.change_amount || 0)}</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {adj.adjustment_type === "debit" && (
-                          <span className="text-green-600 font-semibold">₹{fmtINR(adj.change_amount || 0)}</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-bold text-amber-700 dark:text-amber-400">
-                        ₹{fmtINR(adj.new_balance || 0)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
                   {/* Totals row */}
                   {ledgerEntries.length > 0 && (
                     <TableRow className="bg-muted/30 font-bold border-t-2">
