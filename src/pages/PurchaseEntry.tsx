@@ -1817,42 +1817,89 @@ const PurchaseEntry = () => {
     );
   };
 
-  // Handle IMEI scan confirmation - split single row into multiple rows with individual IMEIs
-  const handleIMEIScanConfirm = (imeiNumbers: string[]) => {
-    if (!imeiScanItem) return;
+  // Handle IMEI scan confirmation - each IMEI becomes its own product_variant
+  const handleIMEIScanConfirm = async (imeiNumbers: string[]) => {
+    if (!imeiScanItem || !currentOrganization) return;
     const { tempId, item } = imeiScanItem;
 
-    setLineItems(prev => {
-      // Remove the original row
-      const filtered = prev.filter(i => i.temp_id !== tempId);
-      // Find insertion index (where original was)
-      const originalIndex = prev.findIndex(i => i.temp_id === tempId);
-      
-      // Create individual rows for each IMEI
-      const newRows: LineItem[] = imeiNumbers.map((imei, idx) => {
+    try {
+      const newRows: LineItem[] = [];
+
+      for (let idx = 0; idx < imeiNumbers.length; idx++) {
+        const imei = imeiNumbers[idx];
+
+        // Create a NEW product_variant with this IMEI as barcode
+        const { data: newVariant, error: varError } = await supabase
+          .from('product_variants')
+          .insert({
+            organization_id: currentOrganization.id,
+            product_id: item.product_id,
+            size: item.size || 'None',
+            color: item.color || null,
+            barcode: imei,
+            pur_price: item.pur_price,
+            sale_price: item.sale_price,
+            mrp: item.mrp || 0,
+            stock_qty: 0,
+            active: true,
+          })
+          .select('id')
+          .single();
+
+        let variantId: string;
+
+        if (varError) {
+          // If barcode already exists, find the existing variant
+          const { data: existing } = await supabase
+            .from('product_variants')
+            .select('id')
+            .eq('barcode', imei)
+            .eq('organization_id', currentOrganization.id)
+            .is('deleted_at', null)
+            .maybeSingle();
+
+          if (existing) {
+            variantId = existing.id;
+          } else {
+            throw varError;
+          }
+        } else {
+          variantId = newVariant.id;
+        }
+
         const subTotal = 1 * item.pur_price;
         const discountAmount = subTotal * (item.discount_percent / 100);
-        return {
+        newRows.push({
           ...item,
           temp_id: Date.now().toString() + Math.random() + idx,
           qty: 1,
+          sku_id: variantId,
           barcode: imei,
           line_total: subTotal - discountAmount,
-        };
+        });
+      }
+
+      setLineItems(prev => {
+        const filtered = prev.filter(i => i.temp_id !== tempId);
+        const originalIndex = prev.findIndex(i => i.temp_id === tempId);
+        filtered.splice(originalIndex >= 0 ? originalIndex : filtered.length, 0, ...newRows);
+        return filtered;
       });
 
-      // Insert at original position
-      filtered.splice(originalIndex >= 0 ? originalIndex : filtered.length, 0, ...newRows);
-      return filtered;
-    });
+      toast({
+        title: "IMEI Numbers Added",
+        description: `${imeiNumbers.length} items with individual IMEI barcodes created`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: `Failed to create IMEI variants: ${error.message}`,
+        variant: "destructive",
+      });
+    }
 
     setShowIMEIScanDialog(false);
     setImeiScanItem(null);
-
-    toast({
-      title: "IMEI Numbers Added",
-      description: `${imeiNumbers.length} items added with individual IMEI numbers`,
-    });
   };
 
   const removeLineItem = (temp_id: string) => {
