@@ -2425,6 +2425,32 @@ const PurchaseEntry = () => {
       } else {
         // Insert new purchase bill
         if (!currentOrganization?.id) throw new Error("No organization selected");
+
+        // Duplicate bill detection: check if a bill with same supplier + date + amount already exists
+        if (!pendingSaveRef.current) {
+          const formattedDate = format(billDate, "yyyy-MM-dd");
+          const { data: existingBills } = await supabase
+            .from("purchase_bills")
+            .select("software_bill_no, bill_date")
+            .eq("organization_id", currentOrganization.id)
+            .eq("supplier_name", billData.supplier_name)
+            .eq("bill_date", formattedDate)
+            .gte("net_amount", calculatedNet - 1)
+            .lte("net_amount", calculatedNet + 1)
+            .is("deleted_at", null)
+            .limit(1);
+
+          if (existingBills && existingBills.length > 0) {
+            setDuplicateBillInfo({
+              bill_no: existingBills[0].software_bill_no,
+              bill_date: existingBills[0].bill_date,
+            });
+            setShowDuplicateBillWarning(true);
+            setLoading(false);
+            return;
+          }
+        }
+        pendingSaveRef.current = false;
         
         // Generate bill number right before saving
         const { data: newBillNo, error: billNoError } = await supabase.rpc("generate_purchase_bill_number_atomic", {
