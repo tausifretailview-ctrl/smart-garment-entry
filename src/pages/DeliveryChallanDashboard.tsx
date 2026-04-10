@@ -184,20 +184,29 @@ export default function DeliveryChallanDashboard() {
 
       if (saleError) throw saleError;
 
-      // Insert sale items WITHOUT triggering stock (we need to bypass the trigger)
-      // For now, we'll insert directly - the trigger will try to deduct stock again
-      // We need to handle this carefully
-      const saleItemsWithSaleId = saleItems.map((item: any) => ({
-        ...item,
-        sale_id: saleData.id,
-      }));
+      // Step 1: Delete DC items to restore stock (triggers stock restoration)
+      await supabase.from('delivery_challan_items').delete().eq('challan_id', challan.id);
 
-      // Note: This will trigger stock deduction again. In production, you'd want to:
-      // 1. Either skip stock deduction for converted invoices
-      // 2. Or add stock back when converting (restore from challan, deduct for sale)
-      // For now, we'll skip the sale items insertion and just link the challan
-      
-      // Update challan status
+      // Step 2: Insert sale_items (triggers stock deduction — net effect = 0)
+      const saleItemsData = saleItems.map((item: any) => ({
+        sale_id: saleData.id,
+        product_id: item.product_id,
+        variant_id: item.variant_id,
+        product_name: item.product_name,
+        size: item.size,
+        barcode: item.barcode,
+        color: item.color,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        mrp: item.mrp,
+        discount_percent: item.discount_percent,
+        line_total: item.line_total,
+        hsn_code: item.hsn_code,
+      }));
+      const { error: itemsError } = await supabase.from('sale_items').insert(saleItemsData);
+      if (itemsError) throw itemsError;
+
+      // Step 3: Update challan status
       await supabase
         .from('delivery_challans')
         .update({
@@ -209,7 +218,7 @@ export default function DeliveryChallanDashboard() {
 
       toast({ 
         title: "Invoice Created", 
-        description: `Invoice ${saleNumber} created from challan ${challan.challan_number}. Note: Items not transferred to avoid double stock deduction.` 
+        description: `Invoice ${saleNumber} created from challan ${challan.challan_number}` 
       });
       
       refetch();
