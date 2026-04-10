@@ -1769,7 +1769,6 @@ export default function POSSales() {
     if (isDecimal ? newQty <= 0 : newQty < 1) return;
     
     // Real-time stock validation before updating quantity
-    const item = items[index];
     const stockCheck = await checkStock(item.variantId, newQty);
     
     if (!stockCheck.isAvailable) {
