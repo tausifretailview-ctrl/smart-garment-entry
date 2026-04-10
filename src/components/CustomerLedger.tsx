@@ -326,11 +326,6 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         
         if (v.payment_method === 'credit_note_adjustment') return;
         
-        // Re-check description wasn't already handled
-        if (false) {
-          // placeholder removed
-        }
-        
         const customerId = saleToCustomerMap.get(v.reference_id);
         if (v.reference_type === 'sale' || customerId) {
           invoiceVoucherPayments.set(v.reference_id, 
