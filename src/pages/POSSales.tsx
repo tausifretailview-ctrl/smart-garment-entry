@@ -4596,11 +4596,15 @@ export default function POSSales() {
                             <Input
                               type="number"
                               value={item.quantity || ""}
-                              onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
+                              onChange={(e) => updateQuantity(index, isDecimalUOM(item.uom) ? (parseFloat(e.target.value) || 0.001) : (parseInt(e.target.value) || 1))}
                               placeholder="1"
+                              step={isDecimalUOM(item.uom) ? "0.001" : "1"}
                               className="h-8 text-sm w-full text-center bg-muted/30 border-border/60"
-                              min="1"
+                              min={isDecimalUOM(item.uom) ? "0.001" : "1"}
                             />
+                            {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
+                              <span className="text-[10px] text-muted-foreground text-center block">{item.uom}</span>
+                            )}
                           </div>
                           <div>
                             <Input
