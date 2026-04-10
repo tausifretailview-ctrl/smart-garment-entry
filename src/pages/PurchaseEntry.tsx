@@ -4431,6 +4431,36 @@ const PurchaseEntry = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Duplicate Bill Warning Dialog */}
+      <AlertDialog open={showDuplicateBillWarning} onOpenChange={setShowDuplicateBillWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              Possible Duplicate Bill
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              A purchase bill with the same supplier, date, and amount already exists
+              {duplicateBillInfo ? ` (Bill: ${duplicateBillInfo.bill_no}, Date: ${duplicateBillInfo.bill_date})` : ''}.
+              Are you sure you want to save another bill?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-amber-600 hover:bg-amber-700"
+              onClick={() => {
+                setShowDuplicateBillWarning(false);
+                pendingSaveRef.current = true;
+                handleSave();
+              }}
+            >
+              Save Anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
