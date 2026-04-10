@@ -120,7 +120,7 @@ export default function EInvoiceReport() {
         .from('sales')
         .select('id, sale_number, sale_date, created_at, cancelled_at, customer_name, customer_phone, net_amount, irn, ack_no, ack_date, einvoice_status, einvoice_error, einvoice_qr_code, is_cancelled, customers:customer_id (gst_number)')
         .eq('organization_id', currentOrganization.id)
-        .eq('sale_type', 'invoice')
+        .in('sale_type', ['invoice', 'pos'])
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
