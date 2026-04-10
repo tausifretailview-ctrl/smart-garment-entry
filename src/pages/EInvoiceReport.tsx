@@ -127,7 +127,7 @@ export default function EInvoiceReport() {
       if (error) throw error;
 
       return (data || []).filter((inv: EInvoiceRecord) => 
-        !!(inv.customers?.gst_number || inv.irn || inv.einvoice_status || inv.is_cancelled)
+        !!(inv.customers?.gst_number)
       );
     },
     enabled: !!currentOrganization?.id,
