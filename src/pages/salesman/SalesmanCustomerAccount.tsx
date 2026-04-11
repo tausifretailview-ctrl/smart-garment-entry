@@ -55,6 +55,7 @@ interface Summary {
   totalPaid: number;
   currentBalance: number;
   pendingInvoices: number;
+  totalDiscount: number;
 }
 
 const SalesmanCustomerAccount = () => {
