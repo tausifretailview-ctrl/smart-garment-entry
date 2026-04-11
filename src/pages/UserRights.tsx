@@ -176,6 +176,15 @@ const columnConfig = [
       { id: "mrp", name: "MRP" },
     ],
   },
+  {
+    id: "product_entry",
+    name: "Add New Product Form (Purchase)",
+    columns: [
+      { id: "pur_gst", name: "Purchase GST %" },
+      { id: "sale_gst", name: "Sale GST %" },
+      { id: "markup", name: "Markup %" },
+    ],
+  },
 ];
 
 // Default basic permissions for new users
