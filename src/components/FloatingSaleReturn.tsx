@@ -48,6 +48,7 @@ interface SaleItemRecord {
   barcode: string | null;
   quantity: number;
   per_qty_net_amount: number;
+  unit_price: number;
   line_total: number;
 }
 
