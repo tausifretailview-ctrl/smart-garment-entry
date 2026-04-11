@@ -3372,8 +3372,8 @@ Thank you for choosing us!`;
                   const optCols = [showCol.color, showCol.hsn, showCol.box, showCol.disc_percent, showCol.disc_amount, showCol.gst].filter(Boolean).length;
                   const totalCols = baseCols + optCols;
                   return Array.from({ length: 5 }, (_, i) => (
-                    <tr key={`empty-${i}`} className="h-[32px] border-b border-muted/30">
-                      <td className="text-center text-[11px] text-muted-foreground/40 px-3">{i + 1}</td>
+                    <tr key={`empty-${i}`} className="h-[38px] border-b border-muted/30">
+                      <td className="text-center text-[12px] text-muted-foreground/40 px-3">{i + 1}</td>
                       {Array.from({ length: totalCols - 1 }, (_, j) => (
                         <td key={j} className="px-3"></td>
                       ))}
@@ -3393,12 +3393,12 @@ Thank you for choosing us!`;
                       key={item.id}
                       className={`group border-b border-border/40 transition-colors ${displayIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} hover:bg-blue-50/50`}
                     >
-                      <td className="text-center text-sm text-muted-foreground px-3 py-2">{srNo}</td>
+                      <td className="text-center text-[13px] text-muted-foreground px-3 py-2.5">{srNo}</td>
                       <td className="px-3 py-2">
                         <button
                           type="button"
                           onClick={() => setHistoryProduct({ id: item.productId, name: item.productName })}
-                          className="text-primary hover:underline text-left font-semibold break-words whitespace-normal leading-tight text-sm"
+                          className="text-primary hover:underline text-left font-semibold break-words whitespace-normal leading-tight text-[14px]"
                         >
                           {item.productName}
                         </button>
@@ -3419,13 +3419,13 @@ Thank you for choosing us!`;
                           </span>
                         ) : <span className="text-slate-300">—</span>}
                       </td>
-                      {showCol.color && <td className="text-center text-sm text-muted-foreground px-3 py-2 hidden lg:table-cell">
+                      {showCol.color && <td className="text-center text-[13px] text-muted-foreground px-3 py-2.5 hidden lg:table-cell">
                         {item.color || <span className="text-slate-300">—</span>}
                       </td>}
                       <td className="text-center px-3 py-2">
-                        <span className="font-mono text-sm text-muted-foreground">{item.barcode || <span className="text-slate-300">—</span>}</span>
+                        <span className="font-mono text-[13px] text-muted-foreground">{item.barcode || <span className="text-slate-300">—</span>}</span>
                       </td>
-                      {showCol.hsn && <td className="text-center text-sm text-muted-foreground px-3 py-2">{item.hsnCode || <span className="text-slate-300">—</span>}</td>}
+                      {showCol.hsn && <td className="text-center text-[13px] text-muted-foreground px-3 py-2.5">{item.hsnCode || <span className="text-slate-300">—</span>}</td>}
                       <td className="text-center px-1.5 py-1">
                         <Input
                           type="number"
@@ -3435,7 +3435,7 @@ Thank you for choosing us!`;
                           placeholder="1"
                           onChange={(e) => updateQuantity(item.id, isDecimalUOM(item.uom) ? (parseFloat(e.target.value) || 0.001) : (parseInt(e.target.value) || 1))}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-16 h-9 text-center font-bold text-[14px] bg-warning/10 border-warning/30 focus:border-warning mx-auto tabular-nums"
+                          className="w-16 h-10 text-center font-bold text-[15px] bg-warning/10 border-warning/30 focus:border-warning mx-auto tabular-nums"
                         />
                         {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
                           <span className="text-[10px] text-muted-foreground text-center block">{item.uom}</span>
@@ -3447,7 +3447,7 @@ Thank you for choosing us!`;
                           value={item.box || ''}
                           onChange={(e) => updateBox(item.id, e.target.value)}
                           placeholder=""
-                          className="w-14 h-9 text-center text-sm mx-auto"
+                          className="w-14 h-10 text-center text-[13px] mx-auto"
                         />
                       </td>}
                       <td className="text-right px-1.5 py-1">
@@ -3458,7 +3458,7 @@ Thank you for choosing us!`;
                           placeholder="0"
                           onChange={(e) => updateMRP(item.id, parseFloat(e.target.value) || 0)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-[90px] h-9 text-right text-[14px] tabular-nums ml-auto"
+                          className="w-[90px] h-10 text-right text-[15px] tabular-nums ml-auto"
                         />
                       </td>
                       <td className="text-right px-1.5 py-1">
@@ -3469,7 +3469,7 @@ Thank you for choosing us!`;
                           placeholder="0"
                           onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-[90px] h-9 text-right text-[14px] font-semibold tabular-nums ml-auto"
+                          className="w-[90px] h-10 text-right text-[15px] font-semibold tabular-nums ml-auto"
                         />
                       </td>
                       {showCol.disc_percent && <td className="text-right px-1.5 py-1">
@@ -3481,7 +3481,7 @@ Thank you for choosing us!`;
                           placeholder="0"
                           onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-16 h-9 text-right text-[14px] tabular-nums ml-auto"
+                          className="w-16 h-10 text-right text-[15px] tabular-nums ml-auto"
                         />
                       </td>}
                       {showCol.disc_amount && <td className="text-right px-1.5 py-1">
@@ -3492,14 +3492,14 @@ Thank you for choosing us!`;
                           placeholder="-"
                           onChange={(e) => updateDiscountAmount(item.id, parseFloat(e.target.value) || 0)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-20 h-9 text-right text-[14px] tabular-nums ml-auto text-destructive"
+                          className="w-20 h-10 text-right text-[15px] tabular-nums ml-auto text-destructive"
                         />
                       </td>}
                       {showCol.gst && <td className="text-center px-3 py-2">
-                        <span className="text-sm font-semibold text-muted-foreground">{item.gstPercent}%</span>
+                        <span className="text-[13px] font-semibold text-muted-foreground">{item.gstPercent}%</span>
                       </td>}
                       <td className="text-right px-3 py-2 bg-blue-50/40">
-                        <span className="text-[14px] font-bold text-blue-700 font-mono tabular-nums">
+                        <span className="text-[15px] font-bold text-blue-700 font-mono tabular-nums">
                           ₹{item.lineTotal.toFixed(2)}
                         </span>
                       </td>
