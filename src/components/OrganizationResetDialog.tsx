@@ -24,6 +24,8 @@ import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
 const OrganizationResetDialog = () => {
   const navigate = useNavigate();
   const { currentOrganization } = useOrganization();
+  const { hasSpecialPermission } = useUserPermissions();
+  const canReset = hasSpecialPermission("reset_data");
   const {
     dataCounts,
     isLoadingCounts,
