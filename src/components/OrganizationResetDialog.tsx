@@ -72,7 +72,7 @@ const OrganizationResetDialog = () => {
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogTrigger asChild>
-        <Button variant="destructive" className="gap-2">
+        <Button variant="destructive" className="gap-2" disabled={!hasResetPermission} title={!hasResetPermission ? "You don't have permission to reset data. Ask admin to enable 'Reset Organization Data' in User Rights." : undefined}>
           <Trash2 className="h-4 w-4" />
           Reset All Data
         </Button>
