@@ -106,7 +106,8 @@ export default function StockReport() {
     colors: [] as string[],
     suppliers: [] as string[],
     supplierInvoices: [] as string[],
-    productNames: [] as string[]
+    productNames: [] as string[],
+    rawProducts: [] as Array<{ product_name: string; brand: string; category: string; style: string }>,
   });
   
   // Pagination for All Stock tab
@@ -158,15 +159,17 @@ export default function StockReport() {
         supabase.from("product_variants").select("size, color").eq("organization_id", currentOrganization.id).eq("active", true).is("deleted_at", null),
         supabase.from("batch_stock").select("purchase_bills(supplier_name, supplier_invoice_no)").eq("organization_id", currentOrganization.id),
       ]);
+      const rawProducts = products || [];
       return {
-        brands: [...new Set((products || []).map(p => p.brand).filter(Boolean))].sort() as string[],
-        categories: [...new Set((products || []).map(p => p.category).filter(Boolean))].sort() as string[],
-        departments: [...new Set((products || []).map(p => p.style).filter(Boolean))].sort() as string[],
+        brands: [...new Set(rawProducts.map(p => p.brand).filter(Boolean))].sort() as string[],
+        categories: [...new Set(rawProducts.map(p => p.category).filter(Boolean))].sort() as string[],
+        departments: [...new Set(rawProducts.map(p => p.style).filter(Boolean))].sort() as string[],
         sizes: [...new Set((variants || []).map(v => v.size).filter(Boolean))].sort() as string[],
         colors: [...new Set((variants || []).map(v => v.color).filter(Boolean))].sort() as string[],
         suppliers: [...new Set((batchData || []).map((b: any) => b.purchase_bills?.supplier_name).filter(Boolean))].sort() as string[],
         supplierInvoices: [...new Set((batchData || []).map((b: any) => b.purchase_bills?.supplier_invoice_no).filter(Boolean))].sort() as string[],
-        productNames: [...new Set((products || []).map(p => p.product_name).filter(Boolean))].sort() as string[],
+        productNames: [...new Set(rawProducts.map(p => p.product_name).filter(Boolean))].sort() as string[],
+        rawProducts: rawProducts as Array<{ product_name: string; brand: string; category: string; style: string }>,
       };
     },
     enabled: !!currentOrganization?.id,
