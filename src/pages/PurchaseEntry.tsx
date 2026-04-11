@@ -1356,7 +1356,7 @@ const PurchaseEntry = () => {
         .select("id, size_group_id")
         .eq("organization_id", currentOrganization?.id)
         .is("deleted_at", null)
-        .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%`);
+        .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%,category.ilike.%${query}%`);
 
       // Check if aborted before continuing
       if (currentController.signal.aborted) return;

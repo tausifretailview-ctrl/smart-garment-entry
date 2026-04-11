@@ -4072,8 +4072,8 @@ export default function POSSales() {
                 </div>
               </div>
             </PopoverTrigger>
-            <PopoverContent 
-              className="w-[400px] p-0 z-50" 
+             <PopoverContent 
+              className="w-[480px] p-0 z-50" 
               align="start"
               onOpenAutoFocus={(e) => e.preventDefault()}
             >
@@ -4090,63 +4090,82 @@ export default function POSSales() {
                     </div>
                   ) : filteredProducts.length === 0 ? (
                     <div className="p-4 text-sm text-muted-foreground">No products found.</div>
-                  ) : (
-                    <CommandGroup heading="Products">
-                      {filteredProducts.slice(0, 10).map((item: any, index: number) => {
-                        const product = item.product;
-                        const descriptionParts = [product.product_name];
-                        if (product.category) descriptionParts.push(product.category);
-                        if (product.style) descriptionParts.push(product.style);
-                        
-                        let displayName = descriptionParts.join('-');
-                        
-                        const extraParts = [];
-                        if (product.brand) extraParts.push(product.brand);
-                        if (item.variant.color && item.variant.color !== '-') extraParts.push(item.variant.color);
-                        
-                        if (extraParts.length > 0) {
-                          displayName += ',' + extraParts.join('-');
-                        }
-                        
-                        return (
-                          <CommandItem
-                            key={`${product.id}-${item.variant.id}-${index}`}
-                            value={item.searchText}
-                            onSelect={() => {
-                              addItemToCart(product, item.variant);
-                            }}
-                            className="cursor-pointer group"
-                          >
-                             <Check className="mr-2 h-4 w-4 opacity-0" />
-                            <div className="flex flex-col flex-1">
-                              <span className="font-medium">{displayName}</span>
-                              <span className="text-sm text-foreground/70 group-data-[selected=true]:text-accent-foreground/80">
-                                Size: {item.variant.size} | 
-                                {item.variant.barcode && ` Barcode: ${item.variant.barcode} | `}
-                                Price: ₹{item.variant.sale_price} | 
-                                Stock: {item.variant.stock_qty}
-                              </span>
-                              {item.variant.batch_stock && item.variant.batch_stock.length > 0 && (
-                                <span className="text-xs text-foreground/60 group-data-[selected=true]:text-accent-foreground/70 mt-1">
-                                  <span className="font-semibold">Bills: </span>
-                                  {item.variant.batch_stock
-                                    .slice(0, 3)
-                                    .map((batch: any, idx: number) => (
-                                      <span key={batch.bill_number} className="font-mono">
-                                        {batch.bill_number}({batch.quantity})
-                                        {idx < Math.min(item.variant.batch_stock.length - 1, 2) ? ', ' : ''}
-                                      </span>
-                                    ))}
-                                  {item.variant.batch_stock.length > 3 && (
-                                    <span> +{item.variant.batch_stock.length - 3} more</span>
+                   ) : (
+                    <>
+                      <div className="px-3 py-1.5 text-xs text-muted-foreground border-b bg-muted/40">
+                        {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} found
+                      </div>
+                      <CommandGroup heading="Products">
+                        {filteredProducts.slice(0, 10).map((item: any, index: number) => {
+                          const product = item.product;
+                          return (
+                            <CommandItem
+                              key={`${product.id}-${item.variant.id}-${index}`}
+                              value={item.searchText}
+                              onSelect={() => {
+                                addItemToCart(product, item.variant);
+                              }}
+                              className="cursor-pointer group"
+                            >
+                              <Check className="mr-2 h-4 w-4 opacity-0" />
+                              <div className="flex flex-col flex-1 gap-0.5">
+                                <span className="font-semibold text-sm">{product.product_name}</span>
+                                <div className="flex flex-wrap gap-1">
+                                  {product.brand && (
+                                    <span className="text-[10px] bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-1 py-0.5 rounded">
+                                      {product.brand}
+                                    </span>
                                   )}
-                                </span>
-                              )}
-                            </div>
-                          </CommandItem>
-                        );
-                      })}
-                    </CommandGroup>
+                                  {product.category && (
+                                    <span className="text-[10px] bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-1 py-0.5 rounded">
+                                      {product.category}
+                                    </span>
+                                  )}
+                                  {product.style && (
+                                    <span className="text-[10px] bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800 px-1 py-0.5 rounded">
+                                      {product.style}
+                                    </span>
+                                  )}
+                                  {item.variant.color && item.variant.color !== '-' && (
+                                    <span className="text-[10px] bg-muted text-muted-foreground px-1 py-0.5 rounded">
+                                      {item.variant.color}
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] bg-muted text-muted-foreground px-1 py-0.5 rounded font-mono">
+                                    Size: {item.variant.size}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  {item.variant.barcode && (
+                                    <span className="font-mono">{item.variant.barcode}</span>
+                                  )}
+                                  <span className="font-bold text-primary">₹{item.variant.sale_price}</span>
+                                  <span className={item.variant.stock_qty > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}>
+                                    Stock: {item.variant.stock_qty}
+                                  </span>
+                                </div>
+                                {item.variant.batch_stock && item.variant.batch_stock.length > 0 && (
+                                  <span className="text-xs text-foreground/60 group-data-[selected=true]:text-accent-foreground/70">
+                                    <span className="font-semibold">Bills: </span>
+                                    {item.variant.batch_stock
+                                      .slice(0, 3)
+                                      .map((batch: any, idx: number) => (
+                                        <span key={batch.bill_number} className="font-mono">
+                                          {batch.bill_number}({batch.quantity})
+                                          {idx < Math.min(item.variant.batch_stock.length - 1, 2) ? ', ' : ''}
+                                        </span>
+                                      ))}
+                                    {item.variant.batch_stock.length > 3 && (
+                                      <span> +{item.variant.batch_stock.length - 3} more</span>
+                                    )}
+                                  </span>
+                                )}
+                              </div>
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    </>
                   )}
                 </CommandList>
               </Command>
