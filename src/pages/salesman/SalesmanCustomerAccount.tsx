@@ -78,6 +78,7 @@ const SalesmanCustomerAccount = () => {
     paid_amount: number;
     balance: number;
     days_overdue: number;
+    discount_amount: number;
   }>>([]);
 
   useEffect(() => {
