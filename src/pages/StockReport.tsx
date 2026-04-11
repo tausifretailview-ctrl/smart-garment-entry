@@ -95,6 +95,7 @@ export default function StockReport() {
   const [stockStatusFilter, setStockStatusFilter] = useState<string>("all");
   const [colorFilter, setColorFilter] = useState<string>("all");
   const [oldBarcodeVariantMap, setOldBarcodeVariantMap] = useState<Map<string, string>>(new Map());
+  const [pinnedProducts, setPinnedProducts] = useState<Array<{ id: string; product_name: string; brand: string; category: string; style: string }>>([]); 
   
   // Cached filter options from last search
   const [filterOptions, setFilterOptions] = useState({
@@ -687,6 +688,12 @@ export default function StockReport() {
     }
 
     return stockItems.filter(item => {
+      // Pinned product filter
+      if (pinnedProducts.length > 0) {
+        const pinnedNames = new Set(pinnedProducts.map(p => p.product_name.toLowerCase()));
+        if (!pinnedNames.has((item.product_name || '').toLowerCase())) return false;
+      }
+      
       // Product name filter
       if (productNameFilter) {
         const nameSearch = productNameFilter.toLowerCase();
@@ -727,7 +734,7 @@ export default function StockReport() {
       
       return true;
     });
-  }, [stockItems, searchTerm, productNameFilter, brandFilter, departmentFilter, sizeFilter, colorFilter, supplierFilter, supplierInvoiceFilter, categoryFilter, stockStatusFilter, lowStockThreshold, oldBarcodeVariantMap]);
+  }, [stockItems, searchTerm, productNameFilter, brandFilter, departmentFilter, sizeFilter, colorFilter, supplierFilter, supplierInvoiceFilter, categoryFilter, stockStatusFilter, lowStockThreshold, oldBarcodeVariantMap, pinnedProducts]);
 
 
   // Size-wise stock report data
@@ -1244,24 +1251,54 @@ export default function StockReport() {
             value={searchTerm}
             onChange={setSearchTerm}
             onSelect={(product) => {
-              setSearchTerm(product.product_name);
-              handleSearch();
+              // Add as pinned product instead of just setting search term
+              setPinnedProducts(prev => {
+                if (prev.some(p => p.product_name === product.product_name)) return prev;
+                return [...prev, { id: product.id, product_name: product.product_name, brand: product.brand, category: product.category || '', style: product.style || '' }];
+              });
+              setSearchTerm('');
+              if (!hasSearched) handleSearch();
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Search name, brand, barcode, size... (multi-word AND)"
+            placeholder="Search name, brand, category, style or barcode..."
             className="flex-1"
           />
-          <Button onClick={handleSearch} disabled={loading || !hasActiveFilters} className="shadow-sm font-semibold px-6">
+          <Button onClick={handleSearch} disabled={loading || (!hasActiveFilters && pinnedProducts.length === 0)} className="shadow-sm font-semibold px-6">
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
             Search
           </Button>
-          {hasActiveFilters && (
-            <Button variant="ghost" onClick={clearFilters} className="h-11">
+          {(hasActiveFilters || pinnedProducts.length > 0) && (
+            <Button variant="ghost" onClick={() => { clearFilters(); setPinnedProducts([]); }} className="h-11">
               Clear All
             </Button>
           )}
         </div>
-        
+
+        {/* Pinned product chips */}
+        {pinnedProducts.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {pinnedProducts.map(p => (
+              <div key={p.id} className="flex items-center gap-1 bg-primary/10 text-primary text-xs px-2 py-1 rounded-full border border-primary/20">
+                <span className="font-medium">{p.product_name}</span>
+                {p.brand && <span className="opacity-70">· {p.brand}</span>}
+                {p.category && <span className="opacity-70">· {p.category}</span>}
+                <button
+                  onClick={() => setPinnedProducts(prev => prev.filter(x => x.id !== p.id))}
+                  className="ml-1 opacity-60 hover:opacity-100 text-sm font-bold"
+                >×</button>
+              </div>
+            ))}
+            {pinnedProducts.length > 1 && (
+              <button
+                onClick={() => setPinnedProducts([])}
+                className="text-xs text-muted-foreground hover:text-destructive px-2 py-1"
+              >
+                Clear pins
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Always visible multi-field filters */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
           <div className="space-y-2 relative">

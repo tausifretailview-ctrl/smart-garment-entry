@@ -59,6 +59,8 @@ interface SelectedProduct {
   id: string;
   product_name: string;
   brand: string;
+  category?: string;
+  style?: string;
   barcode: string;
   size: string;
   color: string;
@@ -73,6 +75,7 @@ export default function StockAnalysis() {
   const [loading, setLoading] = useState(false);
   const [lowStockThreshold, setLowStockThreshold] = useState(10);
   const [selectedProduct, setSelectedProduct] = useState<SelectedProduct | null>(null);
+  const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
   const [activeTab, setActiveTab] = useState("low");
 
   const loadStockAnalysis = useCallback(async (product: SelectedProduct) => {
@@ -355,6 +358,7 @@ export default function StockAnalysis() {
 
   const handleClear = useCallback(() => {
     setSelectedProduct(null);
+    setSelectedProducts([]);
     setStockItems([]);
     setMovements([]);
     setBatchStock([]);
@@ -391,10 +395,45 @@ export default function StockAnalysis() {
       {/* Search */}
       <div className="max-w-lg">
         <StockAnalysisSearch
-          onProductSelect={loadStockAnalysis}
+          onProductSelect={(product) => {
+            setSelectedProducts(prev => {
+              if (prev.some(p => p.id === product.id)) return prev;
+              return [...prev, product];
+            });
+            loadStockAnalysis(product);
+          }}
           onClear={handleClear}
           disabled={loading}
         />
+        {/* Selected products chip strip */}
+        {selectedProducts.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {selectedProducts.map(p => (
+              <div key={p.id} className="flex items-center gap-1 bg-primary/10 text-primary text-xs px-2 py-1 rounded-full border border-primary/20">
+                <span className="font-medium">{p.product_name}</span>
+                {p.brand && <span className="opacity-70">· {p.brand}</span>}
+                {p.size && <span className="opacity-70">· {p.size}</span>}
+                <button
+                  onClick={() => {
+                    setSelectedProducts(prev => prev.filter(x => x.id !== p.id));
+                    if (selectedProduct?.id === p.id) {
+                      setSelectedProduct(null);
+                    }
+                  }}
+                  className="ml-1 opacity-60 hover:opacity-100 text-sm font-bold"
+                >×</button>
+              </div>
+            ))}
+            {selectedProducts.length > 1 && (
+              <button
+                onClick={handleClear}
+                className="text-xs text-muted-foreground hover:text-destructive px-2 py-1"
+              >
+                Clear all
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {!selectedProduct ? (
