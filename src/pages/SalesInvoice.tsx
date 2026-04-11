@@ -3349,16 +3349,16 @@ Thank you for choosing us!`;
                 <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-10 rounded-tl-lg">#</th>
                 <th className="text-left text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 min-w-[200px]">PRODUCT</th>
                 <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">SIZE</th>
-                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">COLOR</th>
+                {showCol.color && <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">COLOR</th>}
                 <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-24">BARCODE</th>
-                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">HSN</th>
+                {showCol.hsn && <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">HSN</th>}
                 <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-16">QTY</th>
-                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-16">BOX</th>
+                {showCol.box && <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-16">BOX</th>}
                 <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-24">MRP</th>
                 <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-24">PRICE</th>
-                <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">DISC%</th>
-                <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-24">DISC ₹</th>
-                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-16">GST%</th>
+                {showCol.disc_percent && <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">DISC%</th>}
+                {showCol.disc_amount && <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-24">DISC ₹</th>}
+                {showCol.gst && <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-16">GST%</th>}
                 <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-28 bg-blue-700 rounded-tr-lg">TOTAL</th>
                 <th className="w-8 px-1 h-10 bg-slate-800"></th>
               </tr>
