@@ -3515,11 +3515,11 @@ Thank you for choosing us!`;
               {/* Total Row */}
               {lineItems.some(item => item.productId) && (
                 <tr className="bg-muted/50 font-medium">
-                  <td className="px-3 py-2" colSpan={6} />
+                  <td className="px-3 py-2" colSpan={3 + (showCol.color ? 1 : 0) + 1 + (showCol.hsn ? 1 : 0)} />
                   <td className="text-center font-bold text-primary text-sm tabular-nums px-3 py-2">
                     {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
                   </td>
-                  <td className="px-3 py-2" colSpan={6} />
+                  <td className="px-3 py-2" colSpan={(showCol.box ? 1 : 0) + 2 + (showCol.disc_percent ? 1 : 0) + (showCol.disc_amount ? 1 : 0) + (showCol.gst ? 1 : 0)} />
                   <td className="text-right font-bold text-sm tabular-nums px-3 py-2">₹{grossAmount.toFixed(2)}</td>
                   <td className="px-1 py-2" />
                 </tr>
