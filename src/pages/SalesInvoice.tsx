@@ -2819,18 +2819,51 @@ Thank you for choosing us!`;
           </div>
         </div>
 
-        {/* Last invoice info row */}
-        {lastInvoice && !editingInvoiceId && (
-          <div className="h-[34px] bg-slate-800/80 border-t border-white/10 flex items-center justify-center gap-2 text-[12px] px-5">
-            <span className="text-white/50">Last:</span>
-            <span className="text-blue-300 font-mono font-bold text-[11px]">{lastInvoice.sale_number}</span>
-            <span className="text-white/25">|</span>
-            <span className="text-white/50">Qty:</span>
-            <span className="text-white font-bold">{lastInvoice.total_qty}</span>
-            <span className="text-white/25">|</span>
-            <span className="text-white font-bold">₹{Math.round(lastInvoice.net_amount || 0).toLocaleString('en-IN')}</span>
-            <span className="text-white/25">|</span>
-            <span className="text-white/70">{lastInvoice.customer_name}</span>
+        {/* Last invoice info row + Search Invoice */}
+        {!editingInvoiceId && (
+          <div className="h-[34px] bg-slate-800/80 border-t border-white/10 flex items-center justify-between gap-2 text-[12px] px-5">
+            <div className="flex items-center gap-2">
+              {lastInvoice ? (
+                <>
+                  <span className="text-white/50">Last:</span>
+                  <span className="text-blue-300 font-mono font-bold text-[11px]">{lastInvoice.sale_number}</span>
+                  <span className="text-white/25">|</span>
+                  <span className="text-white/50">Qty:</span>
+                  <span className="text-white font-bold">{lastInvoice.total_qty}</span>
+                  <span className="text-white/25">|</span>
+                  <span className="text-white font-bold">₹{Math.round(lastInvoice.net_amount || 0).toLocaleString('en-IN')}</span>
+                  <span className="text-white/25">|</span>
+                  <span className="text-white/70">{lastInvoice.customer_name}</span>
+                </>
+              ) : (
+                <span className="text-white/40">No invoices yet</span>
+              )}
+            </div>
+            <div className="relative flex items-center">
+              <Search className="absolute left-2 h-3.5 w-3.5 text-white/40" />
+              <input
+                placeholder="Search Invoice & Enter"
+                className="no-uppercase h-[26px] w-[200px] bg-white/10 border border-white/15 rounded text-[11px] text-white font-mono pl-7 pr-2 placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-blue-400/50 focus:bg-white/15"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const searchVal = (e.target as HTMLInputElement).value.trim();
+                    if (!searchVal || !allInvoiceIds?.length) return;
+                    const match = allInvoiceIds.find(inv => 
+                      inv.sale_number?.toLowerCase() === searchVal.toLowerCase() ||
+                      inv.sale_number?.toLowerCase().includes(searchVal.toLowerCase())
+                    );
+                    if (match) {
+                      const idx = allInvoiceIds.indexOf(match);
+                      setNavInvoiceIndex(idx);
+                      loadInvoiceById(match.id);
+                      (e.target as HTMLInputElement).value = '';
+                    } else {
+                      toast({ variant: 'destructive', title: 'Not Found', description: `Invoice "${searchVal}" not found` });
+                    }
+                  }
+                }}
+              />
+            </div>
           </div>
         )}
       </header>
@@ -2847,7 +2880,7 @@ Thank you for choosing us!`;
           <span className="text-[15px] font-bold text-slate-700 tracking-tight">Customer & Invoice Details</span>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 items-start">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-start">
           {/* Customer Selection */}
           <div className="col-span-2 md:col-span-1 lg:col-span-2">
             <Label className="text-[13px] font-semibold text-slate-500">Customer <span className="text-red-500">*</span></Label>
@@ -3144,35 +3177,6 @@ Thank you for choosing us!`;
             </Select>
           </div>
 
-          {/* Search Invoice Number */}
-          <div>
-            <label className="text-[13px] font-medium text-muted-foreground mb-1 block">Search Invoice</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Type invoice no & Enter"
-                className="pl-9 h-10 text-sm font-mono"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const searchVal = (e.target as HTMLInputElement).value.trim();
-                    if (!searchVal || !allInvoiceIds?.length) return;
-                    const match = allInvoiceIds.find(inv => 
-                      inv.sale_number?.toLowerCase() === searchVal.toLowerCase() ||
-                      inv.sale_number?.toLowerCase().includes(searchVal.toLowerCase())
-                    );
-                    if (match) {
-                      const idx = allInvoiceIds.indexOf(match);
-                      setNavInvoiceIndex(idx);
-                      loadInvoiceById(match.id);
-                      (e.target as HTMLInputElement).value = '';
-                    } else {
-                      toast({ variant: 'destructive', title: 'Not Found', description: `Invoice "${searchVal}" not found` });
-                    }
-                  }
-                }}
-              />
-            </div>
-          </div>
         </div>
       </section>
 
