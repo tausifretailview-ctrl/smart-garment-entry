@@ -1194,9 +1194,9 @@ input.no-uppercase {
 
 /* ─── ERP Desktop Table Feel — compact rows like Tally/Busy ─── */
 .erp-desktop-table th {
-  padding: 4px 8px;
-  font-size: 11px;
-  height: 26px;
+  padding: 6px 10px;
+  font-size: 12px;
+  height: 32px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1210,9 +1210,9 @@ input.no-uppercase {
 }
 
 .erp-desktop-table td {
-  padding: 2px 8px;
-  font-size: 12px;
-  height: 28px;
+  padding: 4px 10px;
+  font-size: 13px;
+  height: 34px;
   border-bottom: 0.5px solid hsl(var(--border) / 0.5);
   vertical-align: middle;
 }
