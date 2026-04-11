@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
-import { Search, Printer, FileSpreadsheet, Package, IndianRupee, TrendingUp, X, Info, FileText, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Printer, FileSpreadsheet, Package, IndianRupee, TrendingUp, X, FileText, ChevronLeft, ChevronRight } from "lucide-react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 
@@ -60,7 +60,10 @@ export default function ItemWiseStockReport() {
   const [supplierFilter, setSupplierFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
-  const hasActiveFilter = useMemo(() => {
+  // Auto-load data when any groupBy is selected (always true) OR any filter/search is active
+  const hasActiveFilter = true;
+
+  const hasActiveSearchOrFilter = useMemo(() => {
     return Boolean(
       searchQuery.trim().length > 0 ||
       (brandFilter && brandFilter !== "__all__") ||
@@ -105,9 +108,9 @@ export default function ItemWiseStockReport() {
     staleTime: 60000,
   });
 
-  // Fetch stock data with supplier info - only when filter is active
+  // Fetch stock data - always enabled now
   const { data: stockData = [], isLoading } = useQuery({
-    queryKey: ["item-wise-stock", currentOrganization?.id, brandFilter, categoryFilter, departmentFilter, searchQuery],
+    queryKey: ["item-wise-stock", currentOrganization?.id, brandFilter, categoryFilter, departmentFilter, groupBy === "product_name" ? searchQuery : ""],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
@@ -144,7 +147,8 @@ export default function ItemWiseStockReport() {
         if (departmentFilter && departmentFilter !== "__all__") {
           query = query.eq("products.style", departmentFilter);
         }
-        if (searchQuery.trim()) {
+        // Only apply DB-level search for product_name grouping
+        if (groupBy === "product_name" && searchQuery.trim()) {
           query = query.ilike("products.product_name", `%${searchQuery.trim()}%`);
         }
         return query;
@@ -152,11 +156,10 @@ export default function ItemWiseStockReport() {
 
       return allVariants;
     },
-    enabled: !!currentOrganization?.id && hasActiveFilter,
+    enabled: !!currentOrganization?.id,
   });
 
-  // Fetch supplier map for variants (only when groupBy=supplier or supplierFilter active)
-  const needsSupplier = groupBy === "supplier" || (supplierFilter && supplierFilter !== "__all__");
+  // Fetch supplier map for variants - always load since groupBy can change anytime
   const { data: supplierMap = {} } = useQuery({
     queryKey: ["item-stock-supplier-map", currentOrganization?.id],
     queryFn: async () => {
@@ -175,7 +178,7 @@ export default function ItemWiseStockReport() {
       });
       return map;
     },
-    enabled: !!currentOrganization?.id && (needsSupplier || hasActiveFilter),
+    enabled: !!currentOrganization?.id,
     staleTime: 60000,
   });
 
@@ -232,8 +235,14 @@ export default function ItemWiseStockReport() {
       }
     });
 
-    return Array.from(groupMap.values()).sort((a, b) => a.key.localeCompare(b.key));
-  }, [stockData, groupBy, supplierMap, supplierFilter]);
+    // Client-side search for non-product_name groupings
+    let results = Array.from(groupMap.values()).sort((a, b) => a.key.localeCompare(b.key));
+    if (groupBy !== "product_name" && searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      results = results.filter(r => r.key.toLowerCase().includes(q));
+    }
+    return results;
+  }, [stockData, groupBy, supplierMap, supplierFilter, searchQuery]);
 
   // Paginate
   const paginatedData = useMemo(() => {
@@ -390,11 +399,11 @@ export default function ItemWiseStockReport() {
             <Printer className="h-4 w-4 mr-2" />
             Print
           </Button>
-          <Button variant="outline" size="sm" onClick={exportToExcel} disabled={!hasActiveFilter}>
+          <Button variant="outline" size="sm" onClick={exportToExcel} disabled={aggregatedData.length === 0}>
             <FileSpreadsheet className="h-4 w-4 mr-2" />
             Excel
           </Button>
-          <Button variant="outline" size="sm" onClick={exportToPDF} disabled={!hasActiveFilter}>
+          <Button variant="outline" size="sm" onClick={exportToPDF} disabled={aggregatedData.length === 0}>
             <FileText className="h-4 w-4 mr-2" />
             PDF
           </Button>
@@ -402,7 +411,7 @@ export default function ItemWiseStockReport() {
       </div>
 
       {/* Summary Cards */}
-      {hasActiveFilter && (
+      {aggregatedData.length > 0 && (
         <div className="grid grid-cols-3 gap-4 print:hidden">
           <Card>
             <CardContent className="p-4">
@@ -529,34 +538,20 @@ export default function ItemWiseStockReport() {
         )}
       </div>
 
-      {/* Prompt when no filter active */}
-      {!hasActiveFilter && (
-        <Card className="print:hidden">
-          <CardContent className="p-8 text-center">
-            <Info className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-            <h3 className="text-lg font-medium text-foreground mb-1">Select a filter or search to view stock data</h3>
-            <p className="text-sm text-muted-foreground">
-              Use the Group By, search box, or any filter above to load stock data.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Data Table */}
-      {hasActiveFilter && (
-        <Card className="print:shadow-none print:border-0">
-          <CardContent className="p-0">
-            <div className="border rounded-lg overflow-hidden print:border-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50 print:bg-transparent">
-                    <TableHead className="w-[80px] print:text-xs print:py-1">Sr.No</TableHead>
-                    <TableHead className="print:text-xs print:py-1">{GROUP_BY_LABELS[groupBy]}</TableHead>
-                    <TableHead className="text-right print:text-xs print:py-1">Stock</TableHead>
-                    <TableHead className="text-right print:text-xs print:py-1">Purchase Value</TableHead>
-                    <TableHead className="text-right print:text-xs print:py-1">Sales Value</TableHead>
-                  </TableRow>
-                </TableHeader>
+      <Card className="print:shadow-none print:border-0">
+        <CardContent className="p-0">
+          <div className="border rounded-lg overflow-hidden print:border-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50 print:bg-transparent">
+                  <TableHead className="w-[80px] print:text-xs print:py-1">Sr.No</TableHead>
+                  <TableHead className="print:text-xs print:py-1">{GROUP_BY_LABELS[groupBy]}</TableHead>
+                  <TableHead className="text-right print:text-xs print:py-1">Stock</TableHead>
+                  <TableHead className="text-right print:text-xs print:py-1">Purchase Value</TableHead>
+                  <TableHead className="text-right print:text-xs print:py-1">Sales Value</TableHead>
+                </TableRow>
+              </TableHeader>
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
@@ -627,7 +622,6 @@ export default function ItemWiseStockReport() {
             )}
           </CardContent>
         </Card>
-      )}
     </div>
   );
 }
