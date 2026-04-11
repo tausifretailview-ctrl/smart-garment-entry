@@ -55,6 +55,7 @@ import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { checkBarcodeExists } from "@/utils/barcodeValidation";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 import { compareSizes } from "@/utils/sizeSort";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 interface PriceChange {
   sku_id: string;
@@ -186,6 +187,12 @@ const PurchaseEntry = () => {
   const { currentOrganization } = useOrganization();
   const { invalidatePurchases } = useDashboardInvalidation();
   const queryClient = useQueryClient();
+  const { isColumnVisible } = useUserPermissions();
+  const showPurCol = {
+    gst: isColumnVisible('purchase_bill', 'gst'),
+    disc_percent: isColumnVisible('purchase_bill', 'disc_percent'),
+    mrp: isColumnVisible('purchase_bill', 'mrp'),
+  };
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ProductVariant[]>([]);
