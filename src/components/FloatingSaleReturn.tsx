@@ -90,12 +90,12 @@ export const FloatingSaleReturn = ({
   useEffect(() => {
     if (organizationId) {
       supabase
-        .from("organization_settings")
+        .from("settings")
         .select("sale_settings")
         .eq("organization_id", organizationId)
         .maybeSingle()
         .then(({ data }) => {
-          const saleSettings = data?.sale_settings as any;
+          const saleSettings = (data as any)?.sale_settings;
           setUseOriginalPrice(!!saleSettings?.sale_return_use_original_price);
         });
     }
