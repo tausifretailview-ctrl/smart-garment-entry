@@ -251,7 +251,8 @@ export default function StockReport() {
         colors,
         suppliers,
         supplierInvoices,
-        productNames: [...new Set((products || []).map(p => p.product_name).filter(Boolean))].sort() as string[]
+        productNames: [...new Set((products || []).map(p => p.product_name).filter(Boolean))].sort() as string[],
+        rawProducts: (products || []) as Array<{ product_name: string; brand: string; category: string; style: string }>,
       });
     } catch (error) {
       console.error("Error fetching filter options:", error);
