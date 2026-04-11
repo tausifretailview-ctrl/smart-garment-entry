@@ -227,8 +227,8 @@ const SalesmanCustomerAccount = () => {
 
       setTransactions(txns);
 
-      // Calculate summary using MAX logic to avoid double-counting
       const totalSales = (salesData || []).reduce((sum, s) => sum + (s.net_amount || 0), 0);
+      const totalDiscount = (salesData || []).reduce((sum, s) => sum + (s.discount_amount || 0) + (s.flat_discount_amount || 0), 0);
       
       // Use MAX of paid_amount or voucher payments for each sale (same logic as useCustomerBalance)
       let totalPaidOnSales = 0;
