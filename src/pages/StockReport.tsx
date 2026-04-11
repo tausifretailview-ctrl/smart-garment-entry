@@ -1307,19 +1307,24 @@ export default function StockReport() {
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
           <div className="space-y-2 relative">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Product Name</label>
-            <Input
-              placeholder="Filter by name..."
-              value={productNameFilter}
-              onChange={(e) => setProductNameFilter(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="h-10 !bg-white !text-gray-900"
-              list="product-name-suggestions"
+            <SearchableSelect
+              value={productNameFilter || "all"}
+              onValueChange={(val) => {
+                const name = val === "all" ? "" : val;
+                setProductNameFilter(name);
+                if (name) {
+                  const match = filterOptions.rawProducts.find(p => p.product_name === name);
+                  if (match) {
+                    if (match.brand) setBrandFilter(match.brand);
+                    if (match.category) setCategoryFilter(match.category);
+                    if (match.style) setDepartmentFilter(match.style);
+                  }
+                }
+              }}
+              options={filterOptions.productNames}
+              allLabel="All Products"
+              placeholder="All Products"
             />
-            <datalist id="product-name-suggestions">
-              {filterOptions.productNames.map(name => (
-                <option key={name} value={name} />
-              ))}
-            </datalist>
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Brand</label>
