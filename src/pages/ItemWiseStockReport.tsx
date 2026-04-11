@@ -159,8 +159,7 @@ export default function ItemWiseStockReport() {
     enabled: !!currentOrganization?.id,
   });
 
-  // Fetch supplier map for variants (only when groupBy=supplier or supplierFilter active)
-  const needsSupplier = groupBy === "supplier" || (supplierFilter && supplierFilter !== "__all__");
+  // Fetch supplier map for variants - always load since groupBy can change anytime
   const { data: supplierMap = {} } = useQuery({
     queryKey: ["item-stock-supplier-map", currentOrganization?.id],
     queryFn: async () => {
@@ -179,7 +178,7 @@ export default function ItemWiseStockReport() {
       });
       return map;
     },
-    enabled: !!currentOrganization?.id && (needsSupplier || hasActiveFilter),
+    enabled: !!currentOrganization?.id,
     staleTime: 60000,
   });
 
