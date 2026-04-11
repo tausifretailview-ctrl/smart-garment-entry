@@ -410,6 +410,7 @@ const SalesmanCustomerAccount = () => {
   const summaryCards = [
     { label: "Opening", value: summary.openingBalance, icon: Clock, color: "text-blue-500" },
     { label: "Total Sales", value: summary.totalSales, icon: TrendingUp, color: "text-green-500" },
+    { label: "Total Discount", value: summary.totalDiscount, icon: Percent, color: "text-orange-500" },
     { label: "Total Paid", value: summary.totalPaid, icon: TrendingDown, color: "text-purple-500" },
     { label: "Outstanding", value: displayBalance, icon: IndianRupee, color: displayBalance > 0 ? "text-red-500" : "text-green-500" },
   ];
