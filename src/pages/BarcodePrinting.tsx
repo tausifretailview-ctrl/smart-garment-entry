@@ -236,6 +236,7 @@ const sheetPresets = {
   // Medium Labels
   novajet40: { cols: 5, rows: 8, width: "38mm", height: "35mm", gap: "1mm", category: "a4" },
   a4_40sheet: { cols: 5, rows: 8, width: "38mm", height: "35mm", gap: "1mm", category: "a4" },
+  a4_39x35_40sheet: { cols: 5, rows: 8, width: "39mm", height: "35mm", gap: "0.6mm", category: "a4" },
   a4_35x37: { cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "1.2mm", category: "a4" },
   a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm", category: "a4" },
   a4_36sheet: { cols: 4, width: "48mm", height: "30mm", gap: "1mm", category: "a4" },
@@ -293,6 +294,7 @@ const sheetPresetLabels: Record<string, { label: string; description: string; gr
   // A4 Sheets - Medium
   novajet40: { label: "Novajet 40", description: "38×35mm, 5×8 (40 labels)", group: "A4 - Medium Labels" },
   a4_40sheet: { label: "A4 40-Sheet", description: "38×35mm, 5×8 (40 labels) ✓ Exact", group: "A4 - Medium Labels" },
+  a4_39x35_40sheet: { label: "A4 40-Sheet (39×35mm)", description: "39×35mm, 5×8 (40 labels) — Al Nisa", group: "A4 - Medium Labels" },
   a4_35x37: { label: "A4 35×37mm", description: "35×37mm, 5×8 (40 labels)", group: "A4 - Medium Labels" },
   a4_12x4: { label: "A4 48-Sheet", description: "50×24mm, 4×12", group: "A4 - Medium Labels" },
   a4_36sheet: { label: "A4 36-Sheet", description: "48×30mm, 4×9", group: "A4 - Medium Labels" },
@@ -3282,13 +3284,16 @@ export default function BarcodePrinting() {
               break-after: page;
             `
           : `
-              display: grid;
-              grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
-              grid-template-rows: repeat(${rowsOnPage}, ${dimensions.height}mm);
-              gap: ${dimensions.gap}mm;
-              page-break-after: always;
-              break-after: page;
-            `;
+               display: grid;
+               grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
+               grid-template-rows: repeat(${rowsOnPage}, ${dimensions.height}mm);
+               gap: ${dimensions.gap}mm;
+               align-content: start;
+               width: ${dimensions.cols * dimensions.width + (dimensions.cols - 1) * dimensions.gap}mm;
+               height: ${rowsOnPage * dimensions.height + (rowsOnPage - 1) * dimensions.gap}mm;
+               page-break-after: always;
+               break-after: page;
+             `;
 
         if (isThermal1Up() && page > 0) {
           gridDiv.style.pageBreakBefore = 'always';
@@ -3451,6 +3456,7 @@ export default function BarcodePrinting() {
     display: grid;
     page-break-after: always;
     break-after: page;
+    align-content: start;
   }
   .label-grid:last-child {
     page-break-after: auto;
@@ -3465,6 +3471,8 @@ export default function BarcodePrinting() {
     text-align: center;
     page-break-inside: avoid;
     break-inside: avoid;
+    align-self: start;
+    flex-shrink: 0;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
