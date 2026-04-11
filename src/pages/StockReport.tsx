@@ -107,7 +107,8 @@ export default function StockReport() {
     suppliers: [] as string[],
     supplierInvoices: [] as string[],
     productNames: [] as string[],
-    rawProducts: [] as Array<{ product_name: string; brand: string; category: string; style: string }>,
+    rawProducts: [] as Array<{ id: string; product_name: string; brand: string; category: string; style: string }>,
+    variantsByProductId: {} as Record<string, { sizes: string[]; colors: string[] }>,
   });
   
   // Pagination for All Stock tab
@@ -149,27 +150,64 @@ export default function StockReport() {
     ...REPORT_CACHE,
   });
 
+  // Paginated fetch helper to bypass 1000-row PostgREST default
+  const fetchAllPages = async (query: any) => {
+    const PAGE_SIZE = 1000;
+    let all: any[] = [];
+    let from = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const { data: page } = await query.range(from, from + PAGE_SIZE - 1);
+      if (!page || page.length === 0) break;
+      all = [...all, ...page];
+      if (page.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
+    }
+    return all;
+  };
+
   // Fetch filter options with useQuery for caching
   const { data: cachedFilterOptions } = useQuery({
     queryKey: ["stock-report-filter-options", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
-      const [{ data: products }, { data: variants }, { data: batchData }] = await Promise.all([
-        supabase.from("products").select("product_name, brand, category, style").eq("organization_id", currentOrganization.id).is("deleted_at", null).neq("product_type", "service"),
-        supabase.from("product_variants").select("size, color").eq("organization_id", currentOrganization.id).eq("active", true).is("deleted_at", null),
-        supabase.from("batch_stock").select("purchase_bills(supplier_name, supplier_invoice_no)").eq("organization_id", currentOrganization.id),
+
+      // Paginate products, variants, and batch_stock in parallel
+      const [allProducts, allVariants, batchData] = await Promise.all([
+        fetchAllPages(
+          supabase.from("products").select("id, product_name, brand, category, style").eq("organization_id", currentOrganization.id).is("deleted_at", null).neq("product_type", "service").order("product_name")
+        ),
+        fetchAllPages(
+          supabase.from("product_variants").select("product_id, size, color").eq("organization_id", currentOrganization.id).eq("active", true).is("deleted_at", null)
+        ),
+        fetchAllPages(
+          supabase.from("batch_stock").select("purchase_bills(supplier_name, supplier_invoice_no)").eq("organization_id", currentOrganization.id)
+        ),
       ]);
-      const rawProducts = products || [];
+
+      // Build variants-by-product map for cascading filters
+      const variantsByProductId: Record<string, { sizes: string[]; colors: string[] }> = {};
+      allVariants.forEach((v: any) => {
+        if (!v.product_id) return;
+        if (!variantsByProductId[v.product_id]) {
+          variantsByProductId[v.product_id] = { sizes: [], colors: [] };
+        }
+        const entry = variantsByProductId[v.product_id];
+        if (v.size && !entry.sizes.includes(v.size)) entry.sizes.push(v.size);
+        if (v.color && !entry.colors.includes(v.color)) entry.colors.push(v.color);
+      });
+
       return {
-        brands: [...new Set(rawProducts.map(p => p.brand).filter(Boolean))].sort() as string[],
-        categories: [...new Set(rawProducts.map(p => p.category).filter(Boolean))].sort() as string[],
-        departments: [...new Set(rawProducts.map(p => p.style).filter(Boolean))].sort() as string[],
-        sizes: [...new Set((variants || []).map(v => v.size).filter(Boolean))].sort() as string[],
-        colors: [...new Set((variants || []).map(v => v.color).filter(Boolean))].sort() as string[],
-        suppliers: [...new Set((batchData || []).map((b: any) => b.purchase_bills?.supplier_name).filter(Boolean))].sort() as string[],
-        supplierInvoices: [...new Set((batchData || []).map((b: any) => b.purchase_bills?.supplier_invoice_no).filter(Boolean))].sort() as string[],
-        productNames: [...new Set(rawProducts.map(p => p.product_name).filter(Boolean))].sort() as string[],
-        rawProducts: rawProducts as Array<{ product_name: string; brand: string; category: string; style: string }>,
+        brands: [...new Set(allProducts.map((p: any) => p.brand).filter(Boolean))].sort() as string[],
+        categories: [...new Set(allProducts.map((p: any) => p.category).filter(Boolean))].sort() as string[],
+        departments: [...new Set(allProducts.map((p: any) => p.style).filter(Boolean))].sort() as string[],
+        sizes: [...new Set(allVariants.map((v: any) => v.size).filter(Boolean))].sort() as string[],
+        colors: [...new Set(allVariants.map((v: any) => v.color).filter(Boolean))].sort() as string[],
+        suppliers: [...new Set(batchData.map((b: any) => b.purchase_bills?.supplier_name).filter(Boolean))].sort() as string[],
+        supplierInvoices: [...new Set(batchData.map((b: any) => b.purchase_bills?.supplier_invoice_no).filter(Boolean))].sort() as string[],
+        productNames: [...new Set(allProducts.map((p: any) => p.product_name).filter(Boolean))].sort() as string[],
+        rawProducts: allProducts as Array<{ id: string; product_name: string; brand: string; category: string; style: string }>,
+        variantsByProductId,
       };
     },
     enabled: !!currentOrganization?.id,
@@ -196,52 +234,85 @@ export default function StockReport() {
     }
   }, [currentOrganization?.id]);
 
-  // Pre-load filter dropdown options from products and variants
+  // Derived cascading filter options based on selected product name
+  const derivedFilterOptions = useMemo(() => {
+    if (!productNameFilter) {
+      return {
+        brands: filterOptions.brands,
+        categories: filterOptions.categories,
+        departments: filterOptions.departments,
+        sizes: filterOptions.sizes,
+        colors: filterOptions.colors,
+      };
+    }
+    const matchingProducts = filterOptions.rawProducts.filter(
+      p => p.product_name === productNameFilter
+    );
+    if (matchingProducts.length === 0) {
+      return {
+        brands: filterOptions.brands,
+        categories: filterOptions.categories,
+        departments: filterOptions.departments,
+        sizes: filterOptions.sizes,
+        colors: filterOptions.colors,
+      };
+    }
+    const matchingBrands = [...new Set(matchingProducts.map(p => p.brand).filter(Boolean))].sort();
+    const matchingCategories = [...new Set(matchingProducts.map(p => p.category).filter(Boolean))].sort();
+    const matchingDepartments = [...new Set(matchingProducts.map(p => p.style).filter(Boolean))].sort();
+    const matchingSizes = new Set<string>();
+    const matchingColors = new Set<string>();
+    matchingProducts.forEach(p => {
+      const variants = filterOptions.variantsByProductId[p.id];
+      if (variants) {
+        variants.sizes.forEach(s => matchingSizes.add(s));
+        variants.colors.forEach(c => matchingColors.add(c));
+      }
+    });
+    return {
+      brands: matchingBrands,
+      categories: matchingCategories,
+      departments: matchingDepartments,
+      sizes: [...matchingSizes].sort(),
+      colors: [...matchingColors].sort(),
+    };
+  }, [productNameFilter, filterOptions]);
+
+  // Pre-load filter dropdown options from products and variants (non-cached fallback)
   const fetchFilterOptions = async () => {
     if (!currentOrganization?.id) return;
     
     try {
-      // Fetch distinct brands, categories, styles from products
-      const { data: products } = await supabase
-        .from("products")
-        .select("product_name, brand, category, style")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .neq("product_type", "service");
-      
-      // Fetch distinct sizes and colors from product_variants
-      const { data: variants } = await supabase
-        .from("product_variants")
-        .select("size, color")
-        .eq("organization_id", currentOrganization.id)
-        .eq("active", true)
-        .is("deleted_at", null);
-      
-      // Fetch distinct suppliers from batch_stock
-      const { data: batchData } = await supabase
-        .from("batch_stock")
-        .select(`
-          purchase_bills (
-            supplier_name,
-            supplier_invoice_no
-          )
-        `)
-        .eq("organization_id", currentOrganization.id);
-      
-      // Extract unique values
-      const brands = [...new Set((products || []).map(p => p.brand).filter(Boolean))].sort() as string[];
-      const categories = [...new Set((products || []).map(p => p.category).filter(Boolean))].sort() as string[];
-      const departments = [...new Set((products || []).map(p => p.style).filter(Boolean))].sort() as string[];
-      const sizes = [...new Set((variants || []).map(v => v.size).filter(Boolean))].sort() as string[];
-      const colors = [...new Set((variants || []).map(v => v.color).filter(Boolean))].sort() as string[];
+      const [allProducts, allVariants, batchData] = await Promise.all([
+        fetchAllPages(
+          supabase.from("products").select("id, product_name, brand, category, style").eq("organization_id", currentOrganization.id).is("deleted_at", null).neq("product_type", "service").order("product_name")
+        ),
+        fetchAllPages(
+          supabase.from("product_variants").select("product_id, size, color").eq("organization_id", currentOrganization.id).eq("active", true).is("deleted_at", null)
+        ),
+        fetchAllPages(
+          supabase.from("batch_stock").select("purchase_bills(supplier_name, supplier_invoice_no)").eq("organization_id", currentOrganization.id)
+        ),
+      ]);
 
-      const suppliers = [...new Set((batchData || [])
-        .map((b: any) => b.purchase_bills?.supplier_name)
-        .filter(Boolean))].sort() as string[];
-      
-      const supplierInvoices = [...new Set((batchData || [])
-        .map((b: any) => b.purchase_bills?.supplier_invoice_no)
-        .filter(Boolean))].sort() as string[];
+      const variantsByProductId: Record<string, { sizes: string[]; colors: string[] }> = {};
+      allVariants.forEach((v: any) => {
+        if (!v.product_id) return;
+        if (!variantsByProductId[v.product_id]) {
+          variantsByProductId[v.product_id] = { sizes: [], colors: [] };
+        }
+        const entry = variantsByProductId[v.product_id];
+        if (v.size && !entry.sizes.includes(v.size)) entry.sizes.push(v.size);
+        if (v.color && !entry.colors.includes(v.color)) entry.colors.push(v.color);
+      });
+
+      const brands = [...new Set(allProducts.map((p: any) => p.brand).filter(Boolean))].sort() as string[];
+      const categories = [...new Set(allProducts.map((p: any) => p.category).filter(Boolean))].sort() as string[];
+      const departments = [...new Set(allProducts.map((p: any) => p.style).filter(Boolean))].sort() as string[];
+      const sizes = [...new Set(allVariants.map((v: any) => v.size).filter(Boolean))].sort() as string[];
+      const colors = [...new Set(allVariants.map((v: any) => v.color).filter(Boolean))].sort() as string[];
+      const suppliers = [...new Set(batchData.map((b: any) => b.purchase_bills?.supplier_name).filter(Boolean))].sort() as string[];
+      const supplierInvoices = [...new Set(batchData.map((b: any) => b.purchase_bills?.supplier_invoice_no).filter(Boolean))].sort() as string[];
       
       setFilterOptions({
         brands,
@@ -251,8 +322,9 @@ export default function StockReport() {
         colors,
         suppliers,
         supplierInvoices,
-        productNames: [...new Set((products || []).map(p => p.product_name).filter(Boolean))].sort() as string[],
-        rawProducts: (products || []) as Array<{ product_name: string; brand: string; category: string; style: string }>,
+        productNames: [...new Set(allProducts.map((p: any) => p.product_name).filter(Boolean))].sort() as string[],
+        rawProducts: allProducts as Array<{ id: string; product_name: string; brand: string; category: string; style: string }>,
+        variantsByProductId,
       });
     } catch (error) {
       console.error("Error fetching filter options:", error);
@@ -1312,13 +1384,21 @@ export default function StockReport() {
               onValueChange={(val) => {
                 const name = val === "all" ? "" : val;
                 setProductNameFilter(name);
+                // Reset dependent filters
+                setBrandFilter("all");
+                setCategoryFilter("all");
+                setDepartmentFilter("all");
+                setSizeFilter("all");
+                setColorFilter("all");
+                // Auto-select if only one value matches
                 if (name) {
-                  const match = filterOptions.rawProducts.find(p => p.product_name === name);
-                  if (match) {
-                    if (match.brand) setBrandFilter(match.brand);
-                    if (match.category) setCategoryFilter(match.category);
-                    if (match.style) setDepartmentFilter(match.style);
-                  }
+                  const matches = filterOptions.rawProducts.filter(p => p.product_name === name);
+                  const brands = [...new Set(matches.map(p => p.brand).filter(Boolean))];
+                  const cats = [...new Set(matches.map(p => p.category).filter(Boolean))];
+                  const styles = [...new Set(matches.map(p => p.style).filter(Boolean))];
+                  if (brands.length === 1) setBrandFilter(brands[0]);
+                  if (cats.length === 1) setCategoryFilter(cats[0]);
+                  if (styles.length === 1) setDepartmentFilter(styles[0]);
                 }
               }}
               options={filterOptions.productNames}
@@ -1328,23 +1408,23 @@ export default function StockReport() {
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Brand</label>
-            <SearchableSelect value={brandFilter} onValueChange={setBrandFilter} options={filterOptions.brands} allLabel="All Brands" placeholder="All Brands" />
+            <SearchableSelect value={brandFilter} onValueChange={setBrandFilter} options={derivedFilterOptions.brands} allLabel="All Brands" placeholder="All Brands" />
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Category</label>
-            <SearchableSelect value={categoryFilter} onValueChange={setCategoryFilter} options={filterOptions.categories} allLabel="All Categories" placeholder="All Categories" />
+            <SearchableSelect value={categoryFilter} onValueChange={setCategoryFilter} options={derivedFilterOptions.categories} allLabel="All Categories" placeholder="All Categories" />
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Department</label>
-            <SearchableSelect value={departmentFilter} onValueChange={setDepartmentFilter} options={filterOptions.departments} allLabel="All Departments" placeholder="All Departments" />
+            <SearchableSelect value={departmentFilter} onValueChange={setDepartmentFilter} options={derivedFilterOptions.departments} allLabel="All Departments" placeholder="All Departments" />
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Size</label>
-            <SearchableSelect value={sizeFilter} onValueChange={setSizeFilter} options={filterOptions.sizes} allLabel="All Sizes" placeholder="All Sizes" />
+            <SearchableSelect value={sizeFilter} onValueChange={setSizeFilter} options={derivedFilterOptions.sizes} allLabel="All Sizes" placeholder="All Sizes" />
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Color</label>
-            <SearchableSelect value={colorFilter} onValueChange={setColorFilter} options={filterOptions.colors} allLabel="All Colors" placeholder="All Colors" />
+            <SearchableSelect value={colorFilter} onValueChange={setColorFilter} options={derivedFilterOptions.colors} allLabel="All Colors" placeholder="All Colors" />
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Stock Status</label>
