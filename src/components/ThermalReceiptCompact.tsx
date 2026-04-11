@@ -183,11 +183,11 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
         {/* ITEMS — compact table */}
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
           <thead>
-            <tr style={{ borderBottom: '1px solid #000' }}>
-              <th style={{ textAlign: 'left', padding: '1px 0', fontWeight: 900, width: '44%' }}>Item</th>
-              <th style={{ textAlign: 'center', padding: '1px 0', fontWeight: 900, width: '12%' }}>Qty</th>
-              <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 900, width: '20%' }}>Rate</th>
-              <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 900, width: '24%' }}>Amt</th>
+            <tr style={{ borderBottom: '2px solid #000' }}>
+              <th style={{ textAlign: 'left', padding: '2px 0', fontWeight: 900, fontSize: '14px', letterSpacing: '0.5px', width: '44%' }}>ITEM</th>
+              <th style={{ textAlign: 'center', padding: '2px 0', fontWeight: 900, fontSize: '14px', letterSpacing: '0.5px', width: '12%' }}>QTY</th>
+              <th style={{ textAlign: 'right', padding: '2px 0', fontWeight: 900, fontSize: '14px', letterSpacing: '0.5px', width: '20%' }}>RATE</th>
+              <th style={{ textAlign: 'right', padding: '2px 0', fontWeight: 900, fontSize: '14px', letterSpacing: '0.5px', width: '24%' }}>AMT</th>
             </tr>
           </thead>
           <tbody>
@@ -313,9 +313,12 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
           </div>
         )}
 
-        {/* TERMS */}
+        {/* TERMS — auto-cut before terms so items section ends cleanly */}
         {termsConditions && (
           <>
+            {items.length > 10 && (
+              <div style={{ pageBreakAfter: 'always' as any }} className="thermal-auto-cut" />
+            )}
             <div style={singleLine} />
             <div style={{ fontSize: '13px', fontWeight: 'bold', textAlign: 'center', marginBottom: '2px' }}>TERMS & CONDITIONS</div>
             <div style={{ fontSize: '12px', lineHeight: '1.4', whiteSpace: 'pre-wrap', wordBreak: 'break-word', textAlign: 'left' }}>{termsConditions}</div>
