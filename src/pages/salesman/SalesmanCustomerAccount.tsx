@@ -177,6 +177,7 @@ const SalesmanCustomerAccount = () => {
 
       allTxns.forEach(txn => {
         if (txn.type === "sale") {
+          const totalDisc = (txn.data.discount_amount || 0) + (txn.data.flat_discount_amount || 0);
           runningBalance += txn.data.net_amount;
           txns.push({
             id: txn.data.id,
@@ -187,6 +188,8 @@ const SalesmanCustomerAccount = () => {
             debit: txn.data.net_amount,
             credit: 0,
             balance: runningBalance,
+            discountAmount: totalDisc,
+            grossAmount: txn.data.gross_amount || 0,
           });
 
           // Add at-sale payment ONLY if it's NOT covered by voucher receipts
