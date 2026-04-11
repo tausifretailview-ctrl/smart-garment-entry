@@ -196,7 +196,6 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         .from("student_fees")
         .select("*")
         .eq("student_id", student.id)
-        .eq("academic_year_id", usedYear!.id)
         .eq("organization_id", currentOrganization!.id)
         .in("status", ["paid", "partial"]);
 
