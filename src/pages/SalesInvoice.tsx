@@ -120,6 +120,15 @@ export default function SalesInvoice() {
   const { currentOrganization } = useOrganization();
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const shopName = useShopName();
+  const { isColumnVisible } = useUserPermissions();
+  const showCol = {
+    hsn: isColumnVisible('sales_invoice', 'hsn'),
+    box: isColumnVisible('sales_invoice', 'box'),
+    color: isColumnVisible('sales_invoice', 'color'),
+    disc_percent: isColumnVisible('sales_invoice', 'disc_percent'),
+    disc_amount: isColumnVisible('sales_invoice', 'disc_amount'),
+    gst: isColumnVisible('sales_invoice', 'gst'),
+  };
   const location = useLocation();
   const { orgNavigate: navigate } = useOrgNavigation();
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
