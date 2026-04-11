@@ -108,9 +108,9 @@ export default function ItemWiseStockReport() {
     staleTime: 60000,
   });
 
-  // Fetch stock data with supplier info - only when filter is active
+  // Fetch stock data - always enabled now
   const { data: stockData = [], isLoading } = useQuery({
-    queryKey: ["item-wise-stock", currentOrganization?.id, brandFilter, categoryFilter, departmentFilter, searchQuery],
+    queryKey: ["item-wise-stock", currentOrganization?.id, brandFilter, categoryFilter, departmentFilter, groupBy === "product_name" ? searchQuery : ""],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
@@ -147,7 +147,8 @@ export default function ItemWiseStockReport() {
         if (departmentFilter && departmentFilter !== "__all__") {
           query = query.eq("products.style", departmentFilter);
         }
-        if (searchQuery.trim()) {
+        // Only apply DB-level search for product_name grouping
+        if (groupBy === "product_name" && searchQuery.trim()) {
           query = query.ilike("products.product_name", `%${searchQuery.trim()}%`);
         }
         return query;
@@ -155,7 +156,7 @@ export default function ItemWiseStockReport() {
 
       return allVariants;
     },
-    enabled: !!currentOrganization?.id && hasActiveFilter,
+    enabled: !!currentOrganization?.id,
   });
 
   // Fetch supplier map for variants (only when groupBy=supplier or supplierFilter active)
