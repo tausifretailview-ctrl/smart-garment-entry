@@ -399,11 +399,11 @@ export default function ItemWiseStockReport() {
             <Printer className="h-4 w-4 mr-2" />
             Print
           </Button>
-          <Button variant="outline" size="sm" onClick={exportToExcel} disabled={!hasActiveFilter}>
+          <Button variant="outline" size="sm" onClick={exportToExcel} disabled={aggregatedData.length === 0}>
             <FileSpreadsheet className="h-4 w-4 mr-2" />
             Excel
           </Button>
-          <Button variant="outline" size="sm" onClick={exportToPDF} disabled={!hasActiveFilter}>
+          <Button variant="outline" size="sm" onClick={exportToPDF} disabled={aggregatedData.length === 0}>
             <FileText className="h-4 w-4 mr-2" />
             PDF
           </Button>
