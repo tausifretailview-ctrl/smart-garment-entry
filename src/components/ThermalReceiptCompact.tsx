@@ -192,15 +192,20 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
           </thead>
           <tbody>
             {items.map((item, i) => (
-              <tr key={i} style={{ borderBottom: '0.5px dotted #888' }}>
-                <td style={{ padding: '2px 0', lineHeight: '1.3', wordBreak: 'break-word', fontWeight: 700 }}>
-                  {item.particulars.length > 20 ? item.particulars.substring(0, 18) + '..' : item.particulars}
-                  {item.barcode && <div style={{ fontSize: '11px' }}>BC:{item.barcode}</div>}
-                </td>
-                <td style={{ textAlign: 'center', padding: '2px 0', fontWeight: 900 }}>{item.qty}</td>
-                <td style={{ textAlign: 'right', padding: '2px 0' }}>{fmtAmt(item.rate)}</td>
-                <td style={{ textAlign: 'right', padding: '2px 0', fontWeight: 900 }}>{fmtAmt(item.total)}</td>
-              </tr>
+              <React.Fragment key={i}>
+                <tr style={{ borderBottom: '0.5px dotted #888' }}>
+                  <td style={{ padding: '2px 0', lineHeight: '1.3', wordBreak: 'break-word', fontWeight: 700 }}>
+                    {item.particulars.length > 20 ? item.particulars.substring(0, 18) + '..' : item.particulars}
+                    {item.barcode && <div style={{ fontSize: '11px' }}>BC:{item.barcode}</div>}
+                  </td>
+                  <td style={{ textAlign: 'center', padding: '2px 0', fontWeight: 900 }}>{item.qty}</td>
+                  <td style={{ textAlign: 'right', padding: '2px 0' }}>{fmtAmt(item.rate)}</td>
+                  <td style={{ textAlign: 'right', padding: '2px 0', fontWeight: 900 }}>{fmtAmt(item.total)}</td>
+                </tr>
+                {(i + 1) % 12 === 0 && i + 1 < items.length && (
+                  <tr className="thermal-auto-cut"><td colSpan={4} style={{ pageBreakAfter: 'always' as any, height: 0, padding: 0, border: 'none' }} /></tr>
+                )}
+              </React.Fragment>
             ))}
           </tbody>
         </table>

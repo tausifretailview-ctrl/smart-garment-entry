@@ -201,22 +201,28 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         </table>
 
         {items.map((item, i) => (
-          <div key={i} style={{ fontSize: '13px', marginBottom: '4px' }}>
-            {/* Item name — full width */}
-            <div style={{ fontWeight: 900, lineHeight: '1.3', wordBreak: 'break-word' }}>
-              {item.particulars}
+          <React.Fragment key={i}>
+            <div style={{ fontSize: '13px', marginBottom: '4px' }}>
+              {/* Item name — full width */}
+              <div style={{ fontWeight: 900, lineHeight: '1.3', wordBreak: 'break-word' }}>
+                {item.particulars}
+              </div>
+              {/* Barcode */}
+              {item.barcode && (
+                <div style={{ fontSize: '12px', fontWeight: 700 }}>BC: {item.barcode}</div>
+              )}
+              {/* Qty, Rate, Amount — right aligned */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <span style={{ width: '50px', textAlign: 'right', fontWeight: 900 }}>{item.qty}</span>
+                <span style={{ width: '70px', textAlign: 'right', fontWeight: 700 }}>{fmtAmt(item.rate)}</span>
+                <span style={{ width: '80px', textAlign: 'right', fontWeight: 900 }}>{fmtAmt(item.total)}</span>
+              </div>
             </div>
-            {/* Barcode */}
-            {item.barcode && (
-              <div style={{ fontSize: '12px', fontWeight: 700 }}>BC: {item.barcode}</div>
+            {/* Auto-cut after every 12 items (not after last chunk) */}
+            {(i + 1) % 12 === 0 && i + 1 < items.length && (
+              <div style={{ pageBreakAfter: 'always' as any }} className="thermal-auto-cut" />
             )}
-            {/* Qty, Rate, Amount — right aligned */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <span style={{ width: '50px', textAlign: 'right', fontWeight: 900 }}>{item.qty}</span>
-              <span style={{ width: '70px', textAlign: 'right', fontWeight: 700 }}>{fmtAmt(item.rate)}</span>
-              <span style={{ width: '80px', textAlign: 'right', fontWeight: 900 }}>{fmtAmt(item.total)}</span>
-            </div>
-          </div>
+          </React.Fragment>
         ))}
 
         <div style={singleLine} />
