@@ -3220,7 +3220,7 @@ const PurchaseEntry = () => {
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-slate-100">
+    <div className="h-screen flex flex-col overflow-hidden bg-slate-100" data-entry-form>
       {/* Draft loading overlay for large bills */}
       {draftLoading && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
