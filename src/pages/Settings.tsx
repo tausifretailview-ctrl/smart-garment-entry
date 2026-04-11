@@ -174,7 +174,7 @@ interface SaleSettings {
   show_mrp_column?: boolean;
   // E-Invoice Settings
   einvoice_settings?: EInvoiceSettings;
-  thermal_receipt_style?: 'classic' | 'compact';
+  thermal_receipt_style?: 'classic' | 'compact' | 'modern';
   auto_apply_advance?: boolean;
   pos_series_start?: string;
   invoice_series_start?: string;
@@ -2344,7 +2344,7 @@ export default function Settings() {
                             ...settings,
                             sale_settings: {
                               ...settings.sale_settings,
-                              thermal_receipt_style: value as 'classic' | 'compact',
+                              thermal_receipt_style: value as 'classic' | 'compact' | 'modern',
                             },
                           })
                         }
@@ -2355,6 +2355,7 @@ export default function Settings() {
                         <SelectContent>
                           <SelectItem value="classic">Classic — Monospace receipt</SelectItem>
                           <SelectItem value="compact">Compact — Sans-serif, denser</SelectItem>
+                          <SelectItem value="modern">Modern — Stylish, pill headers</SelectItem>
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">Applies to all thermal printers (sale + POS)</p>
