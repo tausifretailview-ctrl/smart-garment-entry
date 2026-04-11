@@ -113,6 +113,7 @@ export default function SalesInvoiceDashboard() {
   const { sendWhatsApp, copyInvoiceLink } = useWhatsAppSend();
   const { settings: whatsAppAPISettings, sendMessageAsync, isSending: isSendingWhatsAppAPI } = useWhatsAppAPI();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loadedItems, setLoadedItems] = useState<Record<string, any[]>>({});
@@ -145,9 +146,10 @@ export default function SalesInvoiceDashboard() {
   });
 
   // Default userFilter to logged-in user (single-user orgs default to "all")
+  // On mobile, always default to "all" so owner can see all invoices
   useEffect(() => {
     if (userFilter === "__pending__" && orgUsers.length > 0 && user?.id) {
-      if (orgUsers.length === 1) {
+      if (orgUsers.length === 1 || isMobile) {
         setUserFilter("all");
       } else {
         const isOrgMember = orgUsers.some((u: any) => u.id === user.id);
@@ -156,7 +158,7 @@ export default function SalesInvoiceDashboard() {
     } else if (userFilter === "__pending__" && orgUsers.length > 0) {
       setUserFilter("all");
     }
-  }, [orgUsers, user?.id]);
+  }, [orgUsers, user?.id, isMobile]);
 
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
@@ -2263,7 +2265,7 @@ export default function SalesInvoiceDashboard() {
 
   // Check if e-invoice is enabled
   const isEInvoiceEnabled = (settings?.sale_settings as any)?.einvoice_settings?.enabled ?? false;
-  const isMobile = useIsMobile();
+  // isMobile already declared at top of component
 
   if (isMobile) {
     const fmt = (n: number) => n >= 100000 ? `₹${(n/100000).toFixed(1)}L` : `₹${Math.round(n).toLocaleString("en-IN")}`;
