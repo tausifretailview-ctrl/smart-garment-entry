@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrganizationReset } from "@/hooks/useOrganizationReset";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
 
