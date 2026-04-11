@@ -285,6 +285,7 @@ const UserRights = () => {
   const [mainMenuEnabled, setMainMenuEnabled] = useState<Record<string, boolean>>({});
   const [specialPermissions, setSpecialPermissions] = useState<Record<string, boolean>>({});
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({});
 
   // Fetch organization members (excluding admins - they have full access)
   const { data: members = [], isLoading: membersLoading } = useQuery({
