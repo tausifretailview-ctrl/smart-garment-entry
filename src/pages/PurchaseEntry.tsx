@@ -3220,7 +3220,7 @@ const PurchaseEntry = () => {
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-slate-100">
+    <div className="h-screen flex flex-col overflow-hidden bg-slate-100" data-entry-form>
       {/* Draft loading overlay for large bills */}
       {draftLoading && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
@@ -3638,7 +3638,7 @@ const PurchaseEntry = () => {
               </div>
           </div>
           <div className='flex-1 overflow-auto border-0'>
-            <Table className='table-fixed min-w-[1460px] border-separate border-spacing-0'>
+            <Table className='table-fixed min-w-[1460px] border-separate border-spacing-0 erp-desktop-table'>
               <TableHeader className='sticky top-0 z-10 erp-invoice-table-header'>
                   <TableRow>
                     <TableHead className="w-[40px]">
@@ -4135,7 +4135,7 @@ const PurchaseEntry = () => {
               {loading ? (
                 <><Loader2 className="h-3 w-3 animate-spin" /> Saving...</>
               ) : (
-                <><Check className="h-3 w-3" /> ✓ Save Bill</>
+                <><Check className="h-3 w-3" /> <span className="kbd-hint">✓ Save Bill <kbd>Ctrl+S</kbd></span></>
               )}
             </Button>
           </div>

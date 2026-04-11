@@ -124,3 +124,25 @@ export function buildProductDisplayName(product: {
   ].filter(p => p && p.trim() && p.trim() !== '-');
   return parts.join('-') || product.product_name || '';
 }
+
+/**
+ * Makes Enter key behave like Tab in form fields — ERP/Tally style.
+ * Add onKeyDown={handleEnterAsTab} to any input or form wrapper.
+ */
+export const handleEnterAsTab = (e: React.KeyboardEvent) => {
+  if (e.key !== 'Enter') return;
+  const tag = (e.target as HTMLElement).tagName;
+  if (tag === 'TEXTAREA' || tag === 'BUTTON') return;
+  e.preventDefault();
+  const form = (e.target as HTMLElement).closest('form, [data-entry-form]');
+  if (!form) return;
+  const fields = Array.from(
+    form.querySelectorAll<HTMLElement>(
+      'input:not([disabled]):not([type="hidden"]):not([readonly]), select:not([disabled]), textarea:not([disabled])'
+    )
+  );
+  const idx = fields.indexOf(e.target as HTMLElement);
+  if (idx >= 0 && idx < fields.length - 1) {
+    (fields[idx + 1] as HTMLElement).focus();
+  }
+};
