@@ -229,7 +229,7 @@ export function ProductSearchDropdown({
               className={cn(
                 "px-3 py-2.5 cursor-pointer border-b border-border/50 last:border-0 transition-colors",
                 selectedIndex === index
-                  ? "bg-primary/10 border-l-2 border-l-primary"
+                  ? "bg-primary text-primary-foreground border-l-2 border-l-primary"
                   : "hover:bg-accent"
               )}
               onMouseDown={(e) => e.preventDefault()}
@@ -238,14 +238,16 @@ export function ProductSearchDropdown({
             >
               {/* Row 1: Product name + stock badge */}
               <div className="flex justify-between items-start gap-2">
-                <span className="font-semibold text-sm text-foreground leading-tight">
+                <span className={cn("font-semibold text-sm leading-tight", selectedIndex === index ? "text-primary-foreground" : "text-foreground")}>
                   {product.product_name}
                 </span>
                 <span className={cn(
                   "text-xs font-medium px-1.5 py-0.5 rounded shrink-0",
-                  product.stock_qty > 0
-                    ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
-                    : "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                  selectedIndex === index
+                    ? "bg-primary-foreground/20 text-primary-foreground"
+                    : product.stock_qty > 0
+                      ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
+                      : "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
                 )}>
                   Stock: {product.stock_qty}
                 </span>
@@ -253,37 +255,37 @@ export function ProductSearchDropdown({
               {/* Row 2: Attribute chips */}
               <div className="flex flex-wrap gap-1 mt-1">
                 {product.brand && (
-                  <span className="text-[11px] bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-1.5 py-0.5 rounded">
+                  <span className={cn("text-[11px] px-1.5 py-0.5 rounded border", selectedIndex === index ? "bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30" : "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-800")}>
                     {product.brand}
                   </span>
                 )}
                 {product.category && (
-                  <span className="text-[11px] bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-1.5 py-0.5 rounded">
+                  <span className={cn("text-[11px] px-1.5 py-0.5 rounded border", selectedIndex === index ? "bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30" : "bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border-purple-200 dark:border-purple-800")}>
                     {product.category}
                   </span>
                 )}
                 {product.style && (
-                  <span className="text-[11px] bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800 px-1.5 py-0.5 rounded">
+                  <span className={cn("text-[11px] px-1.5 py-0.5 rounded border", selectedIndex === index ? "bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30" : "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800")}>
                     {product.style}
                   </span>
                 )}
                 {product.color && product.color !== '-' && (
-                  <span className="text-[11px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                  <span className={cn("text-[11px] px-1.5 py-0.5 rounded", selectedIndex === index ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground")}>
                     {product.color}
                   </span>
                 )}
                 {product.size && (
-                  <span className="text-[11px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-mono">
+                  <span className={cn("text-[11px] px-1.5 py-0.5 rounded font-mono", selectedIndex === index ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground")}>
                     Size: {product.size}
                   </span>
                 )}
               </div>
               {/* Row 3: Barcode + Price */}
               <div className="flex justify-between items-center mt-1">
-                <span className="text-[11px] text-muted-foreground font-mono">
+                <span className={cn("text-[11px] font-mono", selectedIndex === index ? "text-primary-foreground/80" : "text-muted-foreground")}>
                   {product.barcode || '—'}
                 </span>
-                <span className="text-sm font-bold text-primary">
+                <span className={cn("text-sm font-bold", selectedIndex === index ? "text-primary-foreground" : "text-primary")}>
                   ₹{product.sale_price}
                 </span>
               </div>
