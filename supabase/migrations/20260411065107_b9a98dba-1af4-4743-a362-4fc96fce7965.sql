@@ -1,0 +1,1 @@
+ALTER TABLE public.product_variants ADD CONSTRAINT stock_not_negative CHECK (stock_qty >= -999);
