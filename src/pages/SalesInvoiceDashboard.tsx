@@ -2265,7 +2265,7 @@ export default function SalesInvoiceDashboard() {
 
   // Check if e-invoice is enabled
   const isEInvoiceEnabled = (settings?.sale_settings as any)?.einvoice_settings?.enabled ?? false;
-  const isMobile = useIsMobile();
+  // isMobile already declared at top of component
 
   if (isMobile) {
     const fmt = (n: number) => n >= 100000 ? `₹${(n/100000).toFixed(1)}L` : `₹${Math.round(n).toLocaleString("en-IN")}`;
