@@ -150,6 +150,7 @@ const specialRights = [
   { id: "view_gross_profit", name: "View Gross Profit", description: "View profit margins and cost data on dashboard" },
   { id: "ai_chatbot", name: "AI Chatbot", description: "Access AI assistant for queries" },
   { id: "fee_structure_edit", name: "Edit Fee Structure", description: "Allow editing fee amounts and saving fee structure" },
+  { id: "reset_data", name: "Reset Organization Data", description: "Allow resetting all organization data" },
 ];
 
 // Default basic permissions for new users
