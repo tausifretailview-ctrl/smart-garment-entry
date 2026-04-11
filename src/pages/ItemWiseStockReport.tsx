@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
-import { Search, Printer, FileSpreadsheet, Package, IndianRupee, TrendingUp, X, Info, FileText, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Printer, FileSpreadsheet, Package, IndianRupee, TrendingUp, X, FileText, ChevronLeft, ChevronRight } from "lucide-react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 
