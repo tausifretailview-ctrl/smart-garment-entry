@@ -20,7 +20,8 @@ import {
   TrendingDown,
   Clock,
   FileText,
-  MessageCircle
+  MessageCircle,
+  Percent
 } from "lucide-react";
 import { format } from "date-fns";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
@@ -44,6 +45,9 @@ interface Transaction {
   debit: number;
   credit: number;
   balance: number;
+  discountAmount?: number;
+  flatDiscountAmount?: number;
+  grossAmount?: number;
 }
 
 interface Summary {
@@ -52,6 +56,7 @@ interface Summary {
   totalPaid: number;
   currentBalance: number;
   pendingInvoices: number;
+  totalDiscount: number;
 }
 
 const SalesmanCustomerAccount = () => {
@@ -73,6 +78,7 @@ const SalesmanCustomerAccount = () => {
     paid_amount: number;
     balance: number;
     days_overdue: number;
+    discount_amount: number;
   }>>([]);
 
   useEffect(() => {
@@ -96,7 +102,7 @@ const SalesmanCustomerAccount = () => {
       // Fetch sales
       const { data: salesData, error: salesError } = await supabase
         .from("sales")
-        .select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, created_at")
+        .select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, created_at, discount_amount, flat_discount_amount, gross_amount")
         .eq("customer_id", customerId!)
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null)
@@ -173,6 +179,7 @@ const SalesmanCustomerAccount = () => {
 
       allTxns.forEach(txn => {
         if (txn.type === "sale") {
+          const totalDisc = (txn.data.discount_amount || 0) + (txn.data.flat_discount_amount || 0);
           runningBalance += txn.data.net_amount;
           txns.push({
             id: txn.data.id,
@@ -183,6 +190,8 @@ const SalesmanCustomerAccount = () => {
             debit: txn.data.net_amount,
             credit: 0,
             balance: runningBalance,
+            discountAmount: totalDisc,
+            grossAmount: txn.data.gross_amount || 0,
           });
 
           // Add at-sale payment ONLY if it's NOT covered by voucher receipts
@@ -220,8 +229,8 @@ const SalesmanCustomerAccount = () => {
 
       setTransactions(txns);
 
-      // Calculate summary using MAX logic to avoid double-counting
       const totalSales = (salesData || []).reduce((sum, s) => sum + (s.net_amount || 0), 0);
+      const totalDiscount = (salesData || []).reduce((sum, s) => sum + (s.discount_amount || 0) + (s.flat_discount_amount || 0), 0);
       
       // Use MAX of paid_amount or voucher payments for each sale (same logic as useCustomerBalance)
       let totalPaidOnSales = 0;
@@ -253,6 +262,7 @@ const SalesmanCustomerAccount = () => {
             paid_amount: effectivePaid,
             balance,
             days_overdue: daysOverdue,
+            discount_amount: (sale.discount_amount || 0) + (sale.flat_discount_amount || 0),
           };
         })
         .filter(inv => inv.balance >= 1)
@@ -266,6 +276,7 @@ const SalesmanCustomerAccount = () => {
         totalPaid,
         currentBalance: (customerData.opening_balance || 0) + totalSales - totalPaid,
         pendingInvoices: pendingList.length,
+        totalDiscount,
       });
 
     } catch (error) {
@@ -401,6 +412,7 @@ const SalesmanCustomerAccount = () => {
   const summaryCards = [
     { label: "Opening", value: summary.openingBalance, icon: Clock, color: "text-blue-500" },
     { label: "Total Sales", value: summary.totalSales, icon: TrendingUp, color: "text-green-500" },
+    { label: "Total Discount", value: summary.totalDiscount, icon: Percent, color: "text-orange-500" },
     { label: "Total Paid", value: summary.totalPaid, icon: TrendingDown, color: "text-purple-500" },
     { label: "Outstanding", value: displayBalance, icon: IndianRupee, color: displayBalance > 0 ? "text-red-500" : "text-green-500" },
   ];
@@ -501,6 +513,11 @@ const SalesmanCustomerAccount = () => {
                           </>
                         )}
                       </p>
+                      {txn.type === "sale" && (txn.discountAmount || 0) > 0 && (
+                        <p className="text-xs text-orange-500 mt-0.5">
+                          Disc: ₹{(txn.discountAmount || 0).toLocaleString("en-IN")}
+                        </p>
+                      )}
                     </div>
                     <div className="text-right">
                       {txn.debit > 0 && (
@@ -553,6 +570,11 @@ const SalesmanCustomerAccount = () => {
                               </span>
                             )}
                           </p>
+                          {invoice.discount_amount > 0 && (
+                            <p className="text-xs text-orange-500">
+                              Disc: ₹{invoice.discount_amount.toLocaleString("en-IN")}
+                            </p>
+                          )}
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-red-600">
