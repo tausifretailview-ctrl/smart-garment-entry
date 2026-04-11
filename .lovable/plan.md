@@ -1,29 +1,88 @@
 
 
-## Plan: Reorganize Sales Invoice Form Layout
+## Plan: Column Visibility Settings in User Rights
 
-### Current Layout
-- **Row 1 (header bar)**: Last invoice details (Last: INV/25-26/9 | Qty: 1 | ₹80,999 | customer)
-- **Form Row 1**: Customer (2-col span), Invoice No, Invoice Date, Tax Type
-- **Form Row 2**: Salesman, Search Invoice
+### Overview
+Add a new "Column Visibility" section in the User Rights page that lets admins toggle which columns appear in Sales Invoice and Purchase Bill tables. This is an organization-level setting stored in the existing `user_permissions` JSON alongside `menu`, `mainMenu`, and `special`. Both SalesInvoice and PurchaseEntry will read these settings and conditionally render columns.
 
-### Proposed Layout
-- **Row 1 (header bar)**: Last invoice details + Search Invoice field (moved here, right-aligned)
-- **Form Row 1**: Customer (2-col span), Invoice No, Invoice Date, Tax Type, Salesman — all in one row (6-col grid)
+### Toggleable Columns
 
-This eliminates the second form row entirely, saving vertical space.
+**Sales Invoice**: HSN, Box, Color, Disc%, Disc ₹, GST%
+
+**Purchase Bill**: GST%, Disc%, MRP (already has a toggle — will integrate)
 
 ### Technical Changes
 
-**File: `src/pages/SalesInvoice.tsx`**
+#### 1. User Rights page (`src/pages/UserRights.tsx`)
 
-1. **Last invoice info bar (lines ~2822-2835)**: Add the Search Invoice input inside this bar, right-aligned. Remove the search field from the form section below. Style the input to match the dark header bar (transparent bg, white text, compact).
+Add a new `columnVisibility` section to the permissions data structure:
 
-2. **Form grid (line ~2850)**: Change from `grid-cols-5` to include Salesman in the same row:
-   - Customer (col-span-2), Invoice No, Invoice Date, Tax Type, Salesman — 6 columns on lg
-   - Grid: `grid-cols-2 md:grid-cols-3 lg:grid-cols-6`
+```ts
+const columnConfig = [
+  {
+    id: "sales_invoice",
+    name: "Sales Invoice Columns",
+    columns: [
+      { id: "hsn", name: "HSN" },
+      { id: "box", name: "Box" },
+      { id: "color", name: "Color" },
+      { id: "disc_percent", name: "Disc%" },
+      { id: "disc_amount", name: "Disc ₹" },
+      { id: "gst", name: "GST%" },
+    ],
+  },
+  {
+    id: "purchase_bill",
+    name: "Purchase Bill Columns",
+    columns: [
+      { id: "hsn", name: "HSN" },
+      { id: "gst", name: "GST%" },
+      { id: "disc_percent", name: "Disc%" },
+      { id: "mrp", name: "MRP" },
+    ],
+  },
+];
+```
 
-3. **Remove the standalone Search Invoice div** (lines ~3147-3175) from the form section entirely.
+- Add state: `columnVisibility` object keyed by `module.column_id` (e.g., `sales_invoice.hsn: true`)
+- All columns default to **enabled** (visible) when no setting exists
+- Render a new Card section "Column Visibility" with checkboxes grouped by module
+- Save into `permissionData.columns` alongside `menu`, `mainMenu`, `special`
 
-4. **Always show the header bar** (even without lastInvoice) so the search field is always accessible — show "No invoices yet" or just the search field when there's no last invoice data.
+#### 2. Permissions hook (`src/hooks/useUserPermissions.tsx`)
+
+- Extend `UserPermissions` interface to include `columns?: Record<string, boolean>`
+- Add helper: `isColumnVisible(module: string, columnId: string): boolean` — returns `true` if no setting exists (default visible), otherwise reads from `permissions.columns`
+
+#### 3. Sales Invoice (`src/pages/SalesInvoice.tsx`)
+
+- Import `useUserPermissions` and call `isColumnVisible('sales_invoice', 'hsn')` etc.
+- Conditionally render `<th>` headers and corresponding `<td>` cells for: HSN, Box, Color, Disc%, Disc ₹, GST%
+- Adjust the empty-row placeholder cell count and footer `colSpan` dynamically based on visible column count
+
+#### 4. Purchase Entry (`src/pages/PurchaseEntry.tsx`)
+
+- Same pattern: conditionally render HSN, GST%, Disc%, MRP columns based on `isColumnVisible('purchase_bill', ...)`
+- The existing `showMrp` toggle for MRP can be unified into this system
+
+### Storage Format
+
+The permissions JSON in `user_permissions.permissions` will look like:
+```json
+{
+  "menu": { ... },
+  "mainMenu": { ... },
+  "special": { ... },
+  "columns": {
+    "sales_invoice.hsn": false,
+    "sales_invoice.box": false,
+    "purchase_bill.gst": false
+  }
+}
+```
+
+Missing keys = column visible (backward compatible).
+
+### No Database Migration Needed
+The `permissions` column is already a JSONB field — adding a new `columns` key requires no schema change.
 
