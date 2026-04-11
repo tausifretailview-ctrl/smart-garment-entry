@@ -95,6 +95,7 @@ export default function StockReport() {
   const [stockStatusFilter, setStockStatusFilter] = useState<string>("all");
   const [colorFilter, setColorFilter] = useState<string>("all");
   const [oldBarcodeVariantMap, setOldBarcodeVariantMap] = useState<Map<string, string>>(new Map());
+  const [pinnedProducts, setPinnedProducts] = useState<Array<{ id: string; product_name: string; brand: string; category: string; style: string }>>([]); 
   
   // Cached filter options from last search
   const [filterOptions, setFilterOptions] = useState({
