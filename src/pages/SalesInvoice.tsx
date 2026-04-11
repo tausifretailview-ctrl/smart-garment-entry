@@ -83,6 +83,7 @@ import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
 import { useShopName } from "@/hooks/useShopName";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 interface LineItem {
   id: string;
