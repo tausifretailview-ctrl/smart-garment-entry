@@ -1108,7 +1108,7 @@ export const useSaveSale = () => {
         .from('sales')
         .update({
           sale_number: newSaleNumber,
-          sale_date: new Date().toISOString().split('T')[0],
+          sale_date: new Date().toISOString(),
           customer_id: saleData.customerId || null,
           customer_name: saleData.customerName,
           customer_phone: saleData.customerPhone || null,
