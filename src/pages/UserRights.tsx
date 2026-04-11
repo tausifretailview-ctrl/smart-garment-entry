@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, ChevronDown, ChevronRight, Shield, Users, Save, LayoutDashboard, Package, ShoppingCart, FileText, Truck, Wallet, UserCog, Calculator, Settings, Trash2 } from "lucide-react";
+import { Loader2, ChevronDown, ChevronRight, Shield, Users, Save, LayoutDashboard, Package, ShoppingCart, FileText, Truck, Wallet, UserCog, Calculator, Settings, Trash2, Columns } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { cn } from "@/lib/utils";
@@ -151,6 +151,31 @@ const specialRights = [
   { id: "ai_chatbot", name: "AI Chatbot", description: "Access AI assistant for queries" },
   { id: "fee_structure_edit", name: "Edit Fee Structure", description: "Allow editing fee amounts and saving fee structure" },
   { id: "reset_data", name: "Reset Organization Data", description: "Allow resetting all organization data" },
+];
+
+// Column visibility config for modules
+const columnConfig = [
+  {
+    id: "sales_invoice",
+    name: "Sales Invoice Columns",
+    columns: [
+      { id: "hsn", name: "HSN" },
+      { id: "box", name: "Box" },
+      { id: "color", name: "Color" },
+      { id: "disc_percent", name: "Disc%" },
+      { id: "disc_amount", name: "Disc ₹" },
+      { id: "gst", name: "GST%" },
+    ],
+  },
+  {
+    id: "purchase_bill",
+    name: "Purchase Bill Columns",
+    columns: [
+      { id: "gst", name: "GST%" },
+      { id: "disc_percent", name: "Disc%" },
+      { id: "mrp", name: "MRP" },
+    ],
+  },
 ];
 
 // Default basic permissions for new users
