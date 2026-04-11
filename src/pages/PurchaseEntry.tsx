@@ -531,6 +531,7 @@ const PurchaseEntry = () => {
   // Barcode mode: 'auto' (default) or 'scan' (manual/manufacturer barcode)
   const barcodeMode = (settings?.purchase_settings as any)?.barcode_mode || 'auto';
   const isAutoBarcode = barcodeMode !== 'scan';
+  const sameBarcodeSeriesEnabled = (settings?.purchase_settings as any)?.same_barcode_series === true;
 
   // Detect if a barcode was system-generated (belongs to this org's auto series)
   // System barcodes: orgNumber * 10000000 + sequence (e.g., org #9 → 90001001, 90001002...)
@@ -1588,19 +1589,28 @@ const PurchaseEntry = () => {
       let barcode = v.barcode || "";
       let skuId = v.id;
       
-      // Smart barcode: system-generated → new variant+barcode, branded → reuse
-      if (barcode && isSystemGeneratedBarcode(barcode)) {
-        const result = await createNewVariantWithBarcode({
-          product_id: productId, size: v.size, color: v.color,
-          pur_price: product.default_pur_price, sale_price: product.default_sale_price, mrp: v.mrp,
-        });
-        if (result) { skuId = result.id; barcode = result.barcode; }
-      } else if (!barcode && isAutoBarcode) {
-        const result = await createNewVariantWithBarcode({
-          product_id: productId, size: v.size, color: v.color,
-          pur_price: product.default_pur_price, sale_price: product.default_sale_price, mrp: v.mrp,
-        });
-        if (result) { skuId = result.id; barcode = result.barcode; }
+      // Smart barcode handling
+      if (sameBarcodeSeriesEnabled) {
+        // Same barcode series: reuse existing variant+barcode
+        if (!barcode && isAutoBarcode) {
+          const newBarcode = await generateCentralizedBarcode();
+          await supabase.from("product_variants").update({ barcode: newBarcode }).eq("id", skuId);
+          barcode = newBarcode;
+        }
+      } else {
+        if (barcode && isSystemGeneratedBarcode(barcode)) {
+          const result = await createNewVariantWithBarcode({
+            product_id: productId, size: v.size, color: v.color,
+            pur_price: product.default_pur_price, sale_price: product.default_sale_price, mrp: v.mrp,
+          });
+          if (result) { skuId = result.id; barcode = result.barcode; }
+        } else if (!barcode && isAutoBarcode) {
+          const result = await createNewVariantWithBarcode({
+            product_id: productId, size: v.size, color: v.color,
+            pur_price: product.default_pur_price, sale_price: product.default_sale_price, mrp: v.mrp,
+          });
+          if (result) { skuId = result.id; barcode = result.barcode; }
+        }
       }
 
       addItemRow({
@@ -1701,27 +1711,33 @@ const PurchaseEntry = () => {
         }
       } else {
         // Existing variant - smart barcode handling
-        if (barcode && isSystemGeneratedBarcode(barcode)) {
-          // System-generated barcode → new variant + new barcode
-          const result = await createNewVariantWithBarcode({
-            product_id: selectedProduct.id, size: variant.size,
-            color: newColor || variant.color || selectedProduct.color,
-            pur_price: variant.pur_price || selectedProduct.default_pur_price,
-            sale_price: variant.sale_price || selectedProduct.default_sale_price,
-            mrp: variant.mrp,
-          });
-          if (result) { skuId = result.id; barcode = result.barcode; }
-        } else if (!barcode && isAutoBarcode) {
-          const result = await createNewVariantWithBarcode({
-            product_id: selectedProduct.id, size: variant.size,
-            color: newColor || variant.color || selectedProduct.color,
-            pur_price: variant.pur_price || selectedProduct.default_pur_price,
-            sale_price: variant.sale_price || selectedProduct.default_sale_price,
-            mrp: variant.mrp,
-          });
-          if (result) { skuId = result.id; barcode = result.barcode; }
+        if (sameBarcodeSeriesEnabled) {
+          if (!barcode && isAutoBarcode) {
+            const newBarcode = await generateCentralizedBarcode();
+            await supabase.from("product_variants").update({ barcode: newBarcode }).eq("id", skuId);
+            barcode = newBarcode;
+          }
+        } else {
+          if (barcode && isSystemGeneratedBarcode(barcode)) {
+            const result = await createNewVariantWithBarcode({
+              product_id: selectedProduct.id, size: variant.size,
+              color: newColor || variant.color || selectedProduct.color,
+              pur_price: variant.pur_price || selectedProduct.default_pur_price,
+              sale_price: variant.sale_price || selectedProduct.default_sale_price,
+              mrp: variant.mrp,
+            });
+            if (result) { skuId = result.id; barcode = result.barcode; }
+          } else if (!barcode && isAutoBarcode) {
+            const result = await createNewVariantWithBarcode({
+              product_id: selectedProduct.id, size: variant.size,
+              color: newColor || variant.color || selectedProduct.color,
+              pur_price: variant.pur_price || selectedProduct.default_pur_price,
+              sale_price: variant.sale_price || selectedProduct.default_sale_price,
+              mrp: variant.mrp,
+            });
+            if (result) { skuId = result.id; barcode = result.barcode; }
+          }
         }
-        // Branded barcode → reuse as-is
       }
 
       addItemRow({
@@ -1760,32 +1776,41 @@ const PurchaseEntry = () => {
     let skuId = variant.id;
     let barcode = variant.barcode;
 
-    // Smart barcode logic: system-generated → new barcode+variant, branded → reuse
-    if (barcode && isSystemGeneratedBarcode(barcode)) {
-      const result = await createNewVariantWithBarcode({
-        product_id: variant.product_id,
-        size: variant.size,
-        color: variant.color,
-        pur_price: variant.pur_price,
-        sale_price: variant.sale_price,
-        mrp: variant.mrp,
-      });
-      if (result) {
-        skuId = result.id;
-        barcode = result.barcode;
+    // Smart barcode logic
+    if (sameBarcodeSeriesEnabled) {
+      // Same barcode series: reuse existing variant+barcode
+      if (!barcode && isAutoBarcode) {
+        const newBarcode = await generateCentralizedBarcode();
+        await supabase.from("product_variants").update({ barcode: newBarcode }).eq("id", skuId);
+        barcode = newBarcode;
       }
-    } else if (!barcode && isAutoBarcode) {
-      const result = await createNewVariantWithBarcode({
-        product_id: variant.product_id,
-        size: variant.size,
-        color: variant.color,
-        pur_price: variant.pur_price,
-        sale_price: variant.sale_price,
-        mrp: variant.mrp,
-      });
-      if (result) {
-        skuId = result.id;
-        barcode = result.barcode;
+    } else {
+      if (barcode && isSystemGeneratedBarcode(barcode)) {
+        const result = await createNewVariantWithBarcode({
+          product_id: variant.product_id,
+          size: variant.size,
+          color: variant.color,
+          pur_price: variant.pur_price,
+          sale_price: variant.sale_price,
+          mrp: variant.mrp,
+        });
+        if (result) {
+          skuId = result.id;
+          barcode = result.barcode;
+        }
+      } else if (!barcode && isAutoBarcode) {
+        const result = await createNewVariantWithBarcode({
+          product_id: variant.product_id,
+          size: variant.size,
+          color: variant.color,
+          pur_price: variant.pur_price,
+          sale_price: variant.sale_price,
+          mrp: variant.mrp,
+        });
+        if (result) {
+          skuId = result.id;
+          barcode = result.barcode;
+        }
       }
     }
     // Branded barcode or no barcode + scan mode → reuse as-is
