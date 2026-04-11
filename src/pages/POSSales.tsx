@@ -139,6 +139,7 @@ export default function POSSales() {
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
+  const { orgNavigate: orgNavigatePOS } = useOrgNavigation();
   const _savedCart = (() => {
     try {
       const key = `pos_cart_${currentOrganization?.id || 'default'}`;
