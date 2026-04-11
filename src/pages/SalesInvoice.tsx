@@ -2872,13 +2872,7 @@ Thank you for choosing us!`;
       <main className="flex-1 overflow-auto px-4 py-3 space-y-3">
 
       {/* Invoice & Customer Details Section */}
-      <section className="bg-white border-b border-slate-100 px-5 py-4 shrink-0">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-[22px] h-[22px] bg-blue-50 rounded-[5px] flex items-center justify-center flex-shrink-0">
-            <Lock className="h-3 w-3 text-blue-600" />
-          </div>
-          <span className="text-[15px] font-bold text-slate-700 tracking-tight">Customer & Invoice Details</span>
-        </div>
+      <section className="bg-white border-b border-slate-100 px-5 py-2 shrink-0">
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-start">
           {/* Customer Selection */}
