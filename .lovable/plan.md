@@ -1,14 +1,29 @@
 
 
-## Plan: Tighten Stock Constraint to >= 0
+## Plan: Reorganize Sales Invoice Form Layout
 
-### Single Migration
+### Current Layout
+- **Row 1 (header bar)**: Last invoice details (Last: INV/25-26/9 | Qty: 1 | ₹80,999 | customer)
+- **Form Row 1**: Customer (2-col span), Invoice No, Invoice Date, Tax Type
+- **Form Row 2**: Salesman, Search Invoice
 
-One migration file that executes three statements in order:
+### Proposed Layout
+- **Row 1 (header bar)**: Last invoice details + Search Invoice field (moved here, right-aligned)
+- **Form Row 1**: Customer (2-col span), Invoice No, Invoice Date, Tax Type, Salesman — all in one row (6-col grid)
 
-1. `ALTER TABLE public.product_variants DROP CONSTRAINT stock_not_negative;`
-2. `UPDATE public.product_variants SET stock_qty = 0 WHERE stock_qty < 0;`
-3. `ALTER TABLE public.product_variants ADD CONSTRAINT stock_not_negative CHECK (stock_qty >= 0);`
+This eliminates the second form row entirely, saving vertical space.
 
-No code changes needed — service/combo products are already handled by existing DB triggers and `useStockValidation`.
+### Technical Changes
+
+**File: `src/pages/SalesInvoice.tsx`**
+
+1. **Last invoice info bar (lines ~2822-2835)**: Add the Search Invoice input inside this bar, right-aligned. Remove the search field from the form section below. Style the input to match the dark header bar (transparent bg, white text, compact).
+
+2. **Form grid (line ~2850)**: Change from `grid-cols-5` to include Salesman in the same row:
+   - Customer (col-span-2), Invoice No, Invoice Date, Tax Type, Salesman — 6 columns on lg
+   - Grid: `grid-cols-2 md:grid-cols-3 lg:grid-cols-6`
+
+3. **Remove the standalone Search Invoice div** (lines ~3147-3175) from the form section entirely.
+
+4. **Always show the header bar** (even without lastInvoice) so the search field is always accessible — show "No invoices yet" or just the search field when there's no last invoice data.
 
