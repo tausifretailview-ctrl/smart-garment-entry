@@ -106,7 +106,8 @@ export default function StockReport() {
     colors: [] as string[],
     suppliers: [] as string[],
     supplierInvoices: [] as string[],
-    productNames: [] as string[]
+    productNames: [] as string[],
+    rawProducts: [] as Array<{ product_name: string; brand: string; category: string; style: string }>,
   });
   
   // Pagination for All Stock tab
@@ -158,15 +159,17 @@ export default function StockReport() {
         supabase.from("product_variants").select("size, color").eq("organization_id", currentOrganization.id).eq("active", true).is("deleted_at", null),
         supabase.from("batch_stock").select("purchase_bills(supplier_name, supplier_invoice_no)").eq("organization_id", currentOrganization.id),
       ]);
+      const rawProducts = products || [];
       return {
-        brands: [...new Set((products || []).map(p => p.brand).filter(Boolean))].sort() as string[],
-        categories: [...new Set((products || []).map(p => p.category).filter(Boolean))].sort() as string[],
-        departments: [...new Set((products || []).map(p => p.style).filter(Boolean))].sort() as string[],
+        brands: [...new Set(rawProducts.map(p => p.brand).filter(Boolean))].sort() as string[],
+        categories: [...new Set(rawProducts.map(p => p.category).filter(Boolean))].sort() as string[],
+        departments: [...new Set(rawProducts.map(p => p.style).filter(Boolean))].sort() as string[],
         sizes: [...new Set((variants || []).map(v => v.size).filter(Boolean))].sort() as string[],
         colors: [...new Set((variants || []).map(v => v.color).filter(Boolean))].sort() as string[],
         suppliers: [...new Set((batchData || []).map((b: any) => b.purchase_bills?.supplier_name).filter(Boolean))].sort() as string[],
         supplierInvoices: [...new Set((batchData || []).map((b: any) => b.purchase_bills?.supplier_invoice_no).filter(Boolean))].sort() as string[],
-        productNames: [...new Set((products || []).map(p => p.product_name).filter(Boolean))].sort() as string[],
+        productNames: [...new Set(rawProducts.map(p => p.product_name).filter(Boolean))].sort() as string[],
+        rawProducts: rawProducts as Array<{ product_name: string; brand: string; category: string; style: string }>,
       };
     },
     enabled: !!currentOrganization?.id,
@@ -248,7 +251,8 @@ export default function StockReport() {
         colors,
         suppliers,
         supplierInvoices,
-        productNames: [...new Set((products || []).map(p => p.product_name).filter(Boolean))].sort() as string[]
+        productNames: [...new Set((products || []).map(p => p.product_name).filter(Boolean))].sort() as string[],
+        rawProducts: (products || []) as Array<{ product_name: string; brand: string; category: string; style: string }>,
       });
     } catch (error) {
       console.error("Error fetching filter options:", error);
@@ -1303,19 +1307,24 @@ export default function StockReport() {
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
           <div className="space-y-2 relative">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Product Name</label>
-            <Input
-              placeholder="Filter by name..."
-              value={productNameFilter}
-              onChange={(e) => setProductNameFilter(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="h-10 !bg-white !text-gray-900"
-              list="product-name-suggestions"
+            <SearchableSelect
+              value={productNameFilter || "all"}
+              onValueChange={(val) => {
+                const name = val === "all" ? "" : val;
+                setProductNameFilter(name);
+                if (name) {
+                  const match = filterOptions.rawProducts.find(p => p.product_name === name);
+                  if (match) {
+                    if (match.brand) setBrandFilter(match.brand);
+                    if (match.category) setCategoryFilter(match.category);
+                    if (match.style) setDepartmentFilter(match.style);
+                  }
+                }
+              }}
+              options={filterOptions.productNames}
+              allLabel="All Products"
+              placeholder="All Products"
             />
-            <datalist id="product-name-suggestions">
-              {filterOptions.productNames.map(name => (
-                <option key={name} value={name} />
-              ))}
-            </datalist>
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Brand</label>
