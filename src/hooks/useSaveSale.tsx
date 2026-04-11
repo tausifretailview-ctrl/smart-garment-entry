@@ -1003,6 +1003,27 @@ export const useSaveSale = () => {
     setIsSaving(true);
 
     try {
+      // Generate a NEW running POS number for the resumed sale
+      const { data: settings } = await supabase
+        .from('settings')
+        .select('sale_settings')
+        .eq('organization_id', currentOrganization.id)
+        .maybeSingle();
+
+      const saleSettings = settings?.sale_settings as Record<string, any> | null;
+      let newSaleNumber: string;
+
+      if (saleSettings?.pos_numbering_format) {
+        newSaleNumber = await generateInvoiceNumber(saleSettings.pos_numbering_format, saleSettings?.pos_series_start);
+      } else if (saleSettings?.pos_series_start) {
+        newSaleNumber = await generateInvoiceNumber(saleSettings.pos_series_start, saleSettings.pos_series_start);
+      } else {
+        const { data: defaultNumber, error: numberError } = await supabase
+          .rpc('generate_pos_number_atomic', { p_organization_id: currentOrganization.id });
+        if (numberError) throw numberError;
+        newSaleNumber = defaultNumber;
+      }
+
       // Calculate payment status and amounts
       let cashAmt = 0;
       let cardAmt = 0;
@@ -1082,10 +1103,12 @@ export const useSaveSale = () => {
 
       if (itemsError) throw itemsError;
 
-      // Update the held sale to completed
+      // Update the held sale: assign NEW POS number + current date + completed status
       const { data: sale, error: saleError } = await supabase
         .from('sales')
         .update({
+          sale_number: newSaleNumber,
+          sale_date: new Date().toISOString().split('T')[0],
           customer_id: saleData.customerId || null,
           customer_name: saleData.customerName,
           customer_phone: saleData.customerPhone || null,
@@ -1104,7 +1127,7 @@ export const useSaveSale = () => {
           upi_amount: upiAmt,
           refund_amount: refundAmt,
           salesman: saleData.salesman || null,
-          notes: saleData.notes || null, // Clear held items JSON, use actual user notes
+          notes: saleData.notes || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', heldSaleId)
