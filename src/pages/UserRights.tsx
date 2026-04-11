@@ -456,6 +456,11 @@ const UserRights = () => {
     setSpecialPermissions((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const toggleColumnVisibility = (moduleId: string, columnId: string) => {
+    const key = `${moduleId}.${columnId}`;
+    setColumnVisibility((prev) => ({ ...prev, [key]: prev[key] === false ? true : false }));
+  };
+
   const toggleExpanded = (menuId: string) => {
     setExpandedMenus((prev) => ({ ...prev, [menuId]: !prev[menuId] }));
   };
