@@ -880,25 +880,30 @@ export const useSaveSale = () => {
     setIsSaving(true);
 
     try {
-      // Fetch settings to get invoice format
-      const { data: settings } = await supabase
-        .from('settings')
-        .select('sale_settings')
+      // Generate Hold series number: Hold/YY-YY/N
+      const now = new Date();
+      const fy = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+      const fyStr = `${String(fy).slice(-2)}-${String(fy + 1).slice(-2)}`;
+      const holdPrefix = `Hold/${fyStr}/`;
+
+      // Find the last hold number in this FY
+      const { data: lastHold } = await supabase
+        .from('sales')
+        .select('sale_number')
         .eq('organization_id', currentOrganization.id)
+        .eq('payment_status', 'hold')
+        .is('deleted_at', null)
+        .like('sale_number', `${holdPrefix}%`)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
-      let saleNumber: string;
-      const holdSaleSettings = settings?.sale_settings as Record<string, any> | null;
-      
-      // Use POS series for hold bills (not INV series)
-      if (holdSaleSettings?.pos_numbering_format) {
-        saleNumber = await generateInvoiceNumber(holdSaleSettings.pos_numbering_format);
-      } else {
-        const { data: defaultNumber, error: numberError } = await supabase
-          .rpc('generate_pos_number_atomic', { p_organization_id: currentOrganization.id });
-        if (numberError) throw numberError;
-        saleNumber = defaultNumber;
+      let holdSeq = 1;
+      if (lastHold?.sale_number) {
+        const seqMatch = lastHold.sale_number.match(/(\d+)$/);
+        if (seqMatch) holdSeq = parseInt(seqMatch[1]) + 1;
       }
+      const saleNumber = `${holdPrefix}${holdSeq}`;
 
       // Store items as JSON in notes field for later retrieval
       const holdData = {
@@ -998,6 +1003,27 @@ export const useSaveSale = () => {
     setIsSaving(true);
 
     try {
+      // Generate a NEW running POS number for the resumed sale
+      const { data: settings } = await supabase
+        .from('settings')
+        .select('sale_settings')
+        .eq('organization_id', currentOrganization.id)
+        .maybeSingle();
+
+      const saleSettings = settings?.sale_settings as Record<string, any> | null;
+      let newSaleNumber: string;
+
+      if (saleSettings?.pos_numbering_format) {
+        newSaleNumber = await generateInvoiceNumber(saleSettings.pos_numbering_format, saleSettings?.pos_series_start);
+      } else if (saleSettings?.pos_series_start) {
+        newSaleNumber = await generateInvoiceNumber(saleSettings.pos_series_start, saleSettings.pos_series_start);
+      } else {
+        const { data: defaultNumber, error: numberError } = await supabase
+          .rpc('generate_pos_number_atomic', { p_organization_id: currentOrganization.id });
+        if (numberError) throw numberError;
+        newSaleNumber = defaultNumber;
+      }
+
       // Calculate payment status and amounts
       let cashAmt = 0;
       let cardAmt = 0;
@@ -1077,10 +1103,12 @@ export const useSaveSale = () => {
 
       if (itemsError) throw itemsError;
 
-      // Update the held sale to completed
+      // Update the held sale: assign NEW POS number + current date + completed status
       const { data: sale, error: saleError } = await supabase
         .from('sales')
         .update({
+          sale_number: newSaleNumber,
+          sale_date: new Date().toISOString().split('T')[0],
           customer_id: saleData.customerId || null,
           customer_name: saleData.customerName,
           customer_phone: saleData.customerPhone || null,
@@ -1099,7 +1127,7 @@ export const useSaveSale = () => {
           upi_amount: upiAmt,
           refund_amount: refundAmt,
           salesman: saleData.salesman || null,
-          notes: saleData.notes || null, // Clear held items JSON, use actual user notes
+          notes: saleData.notes || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', heldSaleId)
