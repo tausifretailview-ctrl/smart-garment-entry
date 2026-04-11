@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -9,71 +9,109 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
-import { Search, Printer, FileSpreadsheet, Package, IndianRupee, TrendingUp, X, Info } from "lucide-react";
+import { Search, Printer, FileSpreadsheet, Package, IndianRupee, TrendingUp, X, Info, FileText, ChevronLeft, ChevronRight } from "lucide-react";
 import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
 
-interface StockByProduct {
-  product_name: string;
+type GroupByField = "product_name" | "supplier" | "brand" | "category" | "department";
+
+interface AggregatedRow {
+  key: string;
   total_qty: number;
   purchase_value: number;
   sale_value: number;
-  brand?: string;
-  category?: string;
-  department?: string;
 }
 
+const GROUP_BY_LABELS: Record<GroupByField, string> = {
+  product_name: "Product Name",
+  supplier: "Supplier",
+  brand: "Brand",
+  category: "Category",
+  department: "Department",
+};
+
 const PAGE_SIZE = 200;
+
+async function fetchAllPages(
+  buildQuery: () => any,
+  batchSize = 1000
+): Promise<any[]> {
+  const all: any[] = [];
+  let from = 0;
+  let hasMore = true;
+  while (hasMore) {
+    const { data, error } = await buildQuery().range(from, from + batchSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    hasMore = data.length === batchSize;
+    from += batchSize;
+  }
+  return all;
+}
 
 export default function ItemWiseStockReport() {
   const { currentOrganization } = useOrganization();
   const [searchQuery, setSearchQuery] = useState("");
-  const [brandFilter, setBrandFilter] = useState<string>("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("");
-  const [departmentFilter, setDepartmentFilter] = useState<string>("");
+  const [groupBy, setGroupBy] = useState<GroupByField>("product_name");
+  const [brandFilter, setBrandFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState("");
+  const [supplierFilter, setSupplierFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Check if any filter is active (required before fetching)
   const hasActiveFilter = useMemo(() => {
     return Boolean(
       searchQuery.trim().length > 0 ||
       (brandFilter && brandFilter !== "__all__") ||
       (categoryFilter && categoryFilter !== "__all__") ||
-      (departmentFilter && departmentFilter !== "__all__")
+      (departmentFilter && departmentFilter !== "__all__") ||
+      (supplierFilter && supplierFilter !== "__all__")
     );
-  }, [searchQuery, brandFilter, categoryFilter, departmentFilter]);
+  }, [searchQuery, brandFilter, categoryFilter, departmentFilter, supplierFilter]);
 
-  // Fetch filter options (lightweight query)
+  // Fetch filter options (paginated)
   const { data: filterOptions } = useQuery({
     queryKey: ["item-stock-filters", currentOrganization?.id],
     queryFn: async () => {
-      if (!currentOrganization?.id) return { brands: [], categories: [], departments: [] };
-      const { data } = await supabase
-        .from("products")
-        .select("brand, category, style")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null);
+      if (!currentOrganization?.id) return { brands: [], categories: [], departments: [], suppliers: [] };
 
-      const brands = [...new Set((data || []).map(p => p.brand).filter(Boolean))].sort() as string[];
-      const categories = [...new Set((data || []).map(p => p.category).filter(Boolean))].sort() as string[];
-      const departments = [...new Set((data || []).map(p => p.style).filter(Boolean))].sort() as string[];
-      return { brands, categories, departments };
+      const allProducts = await fetchAllPages(() =>
+        supabase
+          .from("products")
+          .select("brand, category, style")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .neq("product_type", "service")
+          .order("product_name")
+      );
+
+      // Fetch supplier names from batch_stock → purchase_bills
+      const allBatchStock = await fetchAllPages(() =>
+        supabase
+          .from("batch_stock")
+          .select("variant_id, purchase_bills!inner(supplier_name)")
+          .eq("organization_id", currentOrganization.id)
+      );
+
+      const brands = [...new Set(allProducts.map((p: any) => p.brand).filter(Boolean))].sort() as string[];
+      const categories = [...new Set(allProducts.map((p: any) => p.category).filter(Boolean))].sort() as string[];
+      const departments = [...new Set(allProducts.map((p: any) => p.style).filter(Boolean))].sort() as string[];
+      const suppliers = [...new Set(allBatchStock.map((b: any) => b.purchase_bills?.supplier_name).filter(Boolean))].sort() as string[];
+
+      return { brands, categories, departments, suppliers };
     },
     enabled: !!currentOrganization?.id,
     staleTime: 60000,
   });
 
-  // Fetch stock data with server-side pagination - only when filter is active
+  // Fetch stock data with supplier info - only when filter is active
   const { data: stockData = [], isLoading } = useQuery({
     queryKey: ["item-wise-stock", currentOrganization?.id, brandFilter, categoryFilter, departmentFilter, searchQuery],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
-      const allVariants: any[] = [];
-      const batchSize = 1000;
-      let from = 0;
-      let hasMore = true;
-
-      while (hasMore) {
+      const allVariants = await fetchAllPages(() => {
         let query = supabase
           .from("product_variants")
           .select(`
@@ -97,7 +135,6 @@ export default function ItemWiseStockReport() {
           .is("products.deleted_at", null)
           .neq("products.product_type", "service");
 
-        // Server-side filters
         if (brandFilter && brandFilter !== "__all__") {
           query = query.eq("products.brand", brandFilter);
         }
@@ -110,68 +147,95 @@ export default function ItemWiseStockReport() {
         if (searchQuery.trim()) {
           query = query.ilike("products.product_name", `%${searchQuery.trim()}%`);
         }
+        return query;
+      });
 
-        query = query.range(from, from + batchSize - 1);
-        const { data, error } = await query;
-
-        if (error) {
-          console.error("Error fetching stock data:", error);
-          throw error;
-        }
-
-        if (data && data.length > 0) {
-          allVariants.push(...data);
-          from += batchSize;
-          hasMore = data.length === batchSize;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      
       return allVariants;
     },
     enabled: !!currentOrganization?.id && hasActiveFilter,
   });
 
-  // Aggregate data by product name
-  const aggregatedData: StockByProduct[] = useMemo(() => {
-    const productMap = new Map<string, StockByProduct>();
+  // Fetch supplier map for variants (only when groupBy=supplier or supplierFilter active)
+  const needsSupplier = groupBy === "supplier" || (supplierFilter && supplierFilter !== "__all__");
+  const { data: supplierMap = {} } = useQuery({
+    queryKey: ["item-stock-supplier-map", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return {};
+      const allBatch = await fetchAllPages(() =>
+        supabase
+          .from("batch_stock")
+          .select("variant_id, purchase_bills!inner(supplier_name)")
+          .eq("organization_id", currentOrganization.id)
+      );
+      const map: Record<string, string> = {};
+      allBatch.forEach((b: any) => {
+        if (b.variant_id && b.purchase_bills?.supplier_name) {
+          map[b.variant_id] = b.purchase_bills.supplier_name;
+        }
+      });
+      return map;
+    },
+    enabled: !!currentOrganization?.id && (needsSupplier || hasActiveFilter),
+    staleTime: 60000,
+  });
 
-    stockData.forEach((item: any) => {
-      const productName = item.products?.product_name || "Unknown";
-      const brand = item.products?.brand || "";
-      const category = item.products?.category || "";
-      const department = item.products?.style || "";
+  // Aggregate data by selected group field
+  const aggregatedData: AggregatedRow[] = useMemo(() => {
+    let filtered = stockData as any[];
 
-      const existing = productMap.get(productName);
+    // Apply supplier filter
+    if (supplierFilter && supplierFilter !== "__all__") {
+      filtered = filtered.filter((item: any) => {
+        const sup = supplierMap[item.id] || "";
+        return sup === supplierFilter;
+      });
+    }
+
+    const groupMap = new Map<string, AggregatedRow>();
+
+    filtered.forEach((item: any) => {
+      let key = "";
+      switch (groupBy) {
+        case "product_name":
+          key = item.products?.product_name || "Unknown";
+          break;
+        case "supplier":
+          key = supplierMap[item.id] || "Unknown Supplier";
+          break;
+        case "brand":
+          key = item.products?.brand || "No Brand";
+          break;
+        case "category":
+          key = item.products?.category || "No Category";
+          break;
+        case "department":
+          key = item.products?.style || "No Department";
+          break;
+      }
+
       const qty = item.stock_qty || 0;
       const purPrice = item.pur_price || 0;
       const salePrice = item.sale_price || 0;
 
+      const existing = groupMap.get(key);
       if (existing) {
         existing.total_qty += qty;
         existing.purchase_value += purPrice * qty;
         existing.sale_value += salePrice * qty;
       } else {
-        productMap.set(productName, {
-          product_name: productName,
+        groupMap.set(key, {
+          key,
           total_qty: qty,
           purchase_value: purPrice * qty,
           sale_value: salePrice * qty,
-          brand,
-          category,
-          department,
         });
       }
     });
 
-    return Array.from(productMap.values()).sort((a, b) =>
-      a.product_name.localeCompare(b.product_name)
-    );
-  }, [stockData]);
+    return Array.from(groupMap.values()).sort((a, b) => a.key.localeCompare(b.key));
+  }, [stockData, groupBy, supplierMap, supplierFilter]);
 
-  // Paginate aggregated data
+  // Paginate
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
     return aggregatedData.slice(start, start + PAGE_SIZE);
@@ -179,16 +243,16 @@ export default function ItemWiseStockReport() {
 
   const totalPages = Math.ceil(aggregatedData.length / PAGE_SIZE);
 
-  // Clear all filters
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setBrandFilter("");
     setCategoryFilter("");
     setDepartmentFilter("");
+    setSupplierFilter("");
     setSearchQuery("");
     setCurrentPage(1);
-  };
+  }, []);
 
-  const hasActiveFilters = (brandFilter && brandFilter !== "__all__") || (categoryFilter && categoryFilter !== "__all__") || (departmentFilter && departmentFilter !== "__all__") || searchQuery;
+  const hasActiveFilters = (brandFilter && brandFilter !== "__all__") || (categoryFilter && categoryFilter !== "__all__") || (departmentFilter && departmentFilter !== "__all__") || (supplierFilter && supplierFilter !== "__all__") || searchQuery;
 
   // Grand totals
   const grandTotals = useMemo(() => {
@@ -204,9 +268,10 @@ export default function ItemWiseStockReport() {
 
   // Export to Excel
   const exportToExcel = () => {
+    const label = GROUP_BY_LABELS[groupBy];
     const exportData = aggregatedData.map((item, idx) => ({
       "Sr.No": idx + 1,
-      "Particulars": item.product_name,
+      [label]: item.key,
       "Stock": item.total_qty,
       "Purchase Value": item.purchase_value.toFixed(2),
       "Sales Value": item.sale_value.toFixed(2),
@@ -214,7 +279,7 @@ export default function ItemWiseStockReport() {
 
     exportData.push({
       "Sr.No": "" as any,
-      "Particulars": "Grand Totals:",
+      [label]: "Grand Totals:",
       "Stock": grandTotals.total_qty,
       "Purchase Value": grandTotals.purchase_value.toFixed(2),
       "Sales Value": grandTotals.sale_value.toFixed(2),
@@ -222,13 +287,87 @@ export default function ItemWiseStockReport() {
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Item Wise Stock");
-    XLSX.writeFile(wb, `item-wise-stock-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, `${label} Wise Stock`);
+    XLSX.writeFile(wb, `${label.toLowerCase().replace(/\s/g, "-")}-wise-stock-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
   };
 
-  const handlePrint = () => {
-    window.print();
+  // Export to PDF
+  const exportToPDF = () => {
+    const label = GROUP_BY_LABELS[groupBy];
+    const doc = new jsPDF("p", "mm", "a4");
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 10;
+    let y = 15;
+
+    const addHeader = () => {
+      doc.setFontSize(14);
+      doc.text(`${label} Wise Stock Report`, margin, y);
+      y += 6;
+      doc.setFontSize(9);
+      doc.text(`${currentOrganization?.name || ""} | ${format(new Date(), "dd-MM-yyyy hh:mm a")}`, margin, y);
+      y += 8;
+
+      // Table header
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      doc.text("Sr.", margin, y);
+      doc.text(label, margin + 12, y);
+      doc.text("Stock", pageWidth - 80, y, { align: "right" });
+      doc.text("Pur Value", pageWidth - 45, y, { align: "right" });
+      doc.text("Sale Value", pageWidth - margin, y, { align: "right" });
+      y += 1;
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 4;
+      doc.setFont("helvetica", "normal");
+    };
+
+    addHeader();
+
+    aggregatedData.forEach((item, idx) => {
+      if (y > 275) {
+        doc.addPage();
+        y = 15;
+        addHeader();
+      }
+      doc.setFontSize(7);
+      doc.text(String(idx + 1), margin, y);
+      const nameText = item.key.length > 40 ? item.key.substring(0, 40) + "…" : item.key;
+      doc.text(nameText, margin + 12, y);
+      doc.text(String(item.total_qty), pageWidth - 80, y, { align: "right" });
+      doc.text(item.purchase_value.toFixed(2), pageWidth - 45, y, { align: "right" });
+      doc.text(item.sale_value.toFixed(2), pageWidth - margin, y, { align: "right" });
+      y += 5;
+    });
+
+    // Grand totals
+    if (y > 270) { doc.addPage(); y = 15; }
+    y += 2;
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 5;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text("Grand Totals:", margin + 12, y);
+    doc.text(String(grandTotals.total_qty), pageWidth - 80, y, { align: "right" });
+    doc.text(grandTotals.purchase_value.toFixed(2), pageWidth - 45, y, { align: "right" });
+    doc.text(grandTotals.sale_value.toFixed(2), pageWidth - margin, y, { align: "right" });
+
+    doc.save(`${label.toLowerCase().replace(/\s/g, "-")}-wise-stock-${format(new Date(), "yyyy-MM-dd")}.pdf`);
   };
+
+  const handlePrint = () => window.print();
+
+  // Page numbers for pagination
+  const pageNumbers = useMemo(() => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: (number | "...")[] = [1];
+    if (currentPage > 3) pages.push("...");
+    for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+      pages.push(i);
+    }
+    if (currentPage < totalPages - 2) pages.push("...");
+    if (totalPages > 1) pages.push(totalPages);
+    return pages;
+  }, [totalPages, currentPage]);
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-6 space-y-6 print:p-2 print:space-y-2">
@@ -240,7 +379,7 @@ export default function ItemWiseStockReport() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground print:text-lg">
-            ITEM NAME Wise Stock Report ({currentOrganization?.name || ""})
+            {GROUP_BY_LABELS[groupBy]} Wise Stock Report ({currentOrganization?.name || ""})
           </h1>
           <p className="text-sm text-muted-foreground print:text-xs">
             {format(new Date(), "dd-MM-yyyy    hh:mm:ss a")}
@@ -255,10 +394,14 @@ export default function ItemWiseStockReport() {
             <FileSpreadsheet className="h-4 w-4 mr-2" />
             Excel
           </Button>
+          <Button variant="outline" size="sm" onClick={exportToPDF} disabled={!hasActiveFilter}>
+            <FileText className="h-4 w-4 mr-2" />
+            PDF
+          </Button>
         </div>
       </div>
 
-      {/* Summary Cards - only show when data loaded */}
+      {/* Summary Cards */}
       {hasActiveFilter && (
         <div className="grid grid-cols-3 gap-4 print:hidden">
           <Card>
@@ -274,7 +417,6 @@ export default function ItemWiseStockReport() {
               </div>
             </CardContent>
           </Card>
-
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -288,7 +430,6 @@ export default function ItemWiseStockReport() {
               </div>
             </CardContent>
           </Card>
-
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -305,13 +446,26 @@ export default function ItemWiseStockReport() {
         </div>
       )}
 
-      {/* Search & Filters */}
+      {/* Group By + Search & Filters */}
       <div className="flex flex-wrap gap-3 print:hidden">
+        <Select value={groupBy} onValueChange={(v) => { setGroupBy(v as GroupByField); setCurrentPage(1); }}>
+          <SelectTrigger className="w-[170px] border-primary/50 font-medium">
+            <SelectValue placeholder="Group By" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="product_name">Product Name</SelectItem>
+            <SelectItem value="supplier">Supplier</SelectItem>
+            <SelectItem value="brand">Brand</SelectItem>
+            <SelectItem value="category">Category</SelectItem>
+            <SelectItem value="department">Department</SelectItem>
+          </SelectContent>
+        </Select>
+
         <div className="flex-1 min-w-[200px] max-w-md">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search product name... (multi-word AND)"
+              placeholder={`Search ${GROUP_BY_LABELS[groupBy]}...`}
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               className="pl-9"
@@ -320,7 +474,7 @@ export default function ItemWiseStockReport() {
         </div>
 
         <Select value={brandFilter} onValueChange={(v) => { setBrandFilter(v); setCurrentPage(1); }}>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="All Brands" />
           </SelectTrigger>
           <SelectContent>
@@ -332,7 +486,7 @@ export default function ItemWiseStockReport() {
         </Select>
 
         <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setCurrentPage(1); }}>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="All Categories" />
           </SelectTrigger>
           <SelectContent>
@@ -344,13 +498,25 @@ export default function ItemWiseStockReport() {
         </Select>
 
         <Select value={departmentFilter} onValueChange={(v) => { setDepartmentFilter(v); setCurrentPage(1); }}>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="All Departments" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">All Departments</SelectItem>
             {(filterOptions?.departments || []).map((dept) => (
               <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={supplierFilter} onValueChange={(v) => { setSupplierFilter(v); setCurrentPage(1); }}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder="All Suppliers" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All Suppliers</SelectItem>
+            {(filterOptions?.suppliers || []).map((sup) => (
+              <SelectItem key={sup} value={sup}>{sup}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -370,7 +536,7 @@ export default function ItemWiseStockReport() {
             <Info className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
             <h3 className="text-lg font-medium text-foreground mb-1">Select a filter or search to view stock data</h3>
             <p className="text-sm text-muted-foreground">
-              Use the search box, brand, category, or department filter above to load stock data.
+              Use the Group By, search box, or any filter above to load stock data.
             </p>
           </CardContent>
         </Card>
@@ -385,7 +551,7 @@ export default function ItemWiseStockReport() {
                 <TableHeader>
                   <TableRow className="bg-muted/50 print:bg-transparent">
                     <TableHead className="w-[80px] print:text-xs print:py-1">Sr.No</TableHead>
-                    <TableHead className="print:text-xs print:py-1">Particulars</TableHead>
+                    <TableHead className="print:text-xs print:py-1">{GROUP_BY_LABELS[groupBy]}</TableHead>
                     <TableHead className="text-right print:text-xs print:py-1">Stock</TableHead>
                     <TableHead className="text-right print:text-xs print:py-1">Purchase Value</TableHead>
                     <TableHead className="text-right print:text-xs print:py-1">Sales Value</TableHead>
@@ -407,15 +573,14 @@ export default function ItemWiseStockReport() {
                   ) : (
                     <>
                       {paginatedData.map((item, idx) => (
-                        <TableRow key={item.product_name} className="hover:bg-muted/30 print:hover:bg-transparent">
+                        <TableRow key={item.key} className="hover:bg-muted/30 print:hover:bg-transparent">
                           <TableCell className="print:text-xs print:py-1">{(currentPage - 1) * PAGE_SIZE + idx + 1}</TableCell>
-                          <TableCell className="font-medium print:text-xs print:py-1">{item.product_name}</TableCell>
+                          <TableCell className="font-medium print:text-xs print:py-1">{item.key}</TableCell>
                           <TableCell className="text-right print:text-xs print:py-1">{item.total_qty}</TableCell>
                           <TableCell className="text-right print:text-xs print:py-1">{item.purchase_value.toFixed(2)}</TableCell>
                           <TableCell className="text-right print:text-xs print:py-1">{item.sale_value.toFixed(2)}</TableCell>
                         </TableRow>
                       ))}
-                      {/* Grand Total Row */}
                       <TableRow className="bg-muted/70 font-bold print:bg-transparent border-t-2">
                         <TableCell className="print:text-xs print:py-1"></TableCell>
                         <TableCell className="text-primary print:text-xs print:py-1">Grand Totals:</TableCell>
@@ -429,18 +594,33 @@ export default function ItemWiseStockReport() {
               </Table>
             </div>
 
-            {/* Pagination */}
+            {/* Enhanced Pagination */}
             {totalPages > 1 && (
               <div className="flex items-center justify-between px-4 py-3 border-t print:hidden">
                 <p className="text-sm text-muted-foreground">
-                  Page {currentPage} of {totalPages} ({aggregatedData.length} products)
+                  Page {currentPage} of {totalPages} ({aggregatedData.length} records)
                 </p>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
-                    Previous
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
+                    <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}>
-                    Next
+                  {pageNumbers.map((pg, i) =>
+                    pg === "..." ? (
+                      <span key={`dots-${i}`} className="px-1 text-muted-foreground">…</span>
+                    ) : (
+                      <Button
+                        key={pg}
+                        variant={currentPage === pg ? "default" : "outline"}
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => setCurrentPage(pg as number)}
+                      >
+                        {pg}
+                      </Button>
+                    )
+                  )}
+                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}>
+                    <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
