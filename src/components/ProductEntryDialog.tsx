@@ -1409,8 +1409,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                   </div>
                 )}
 
+                {isFieldEnabled("hsn_code") && (
                 <div className="space-y-2">
-                  <Label htmlFor="hsn_code">HSN Code</Label>
+                  <Label htmlFor="hsn_code">{getFieldLabel("hsn_code", "HSN Code")}</Label>
                   <div className="relative">
                       <Input
                         id="hsn_code"
@@ -1428,6 +1429,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     </datalist>
                   </div>
                 </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="purchase_gst" className="text-blue-600 dark:text-blue-400">Purchase GST %</Label>
