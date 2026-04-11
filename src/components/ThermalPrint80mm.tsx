@@ -183,13 +183,13 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         <div style={singleLine} />
 
         {/* ═══ ITEMS TABLE ═══ */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', marginBottom: '3px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', marginBottom: '3px' }}>
           <thead>
-            <tr style={{ borderBottom: '1px solid #000' }}>
-              <th style={{ textAlign: 'left', padding: '2px 0', fontWeight: 900, width: '100%' }}>ITEM</th>
+            <tr style={{ borderBottom: '2px solid #000' }}>
+              <th style={{ textAlign: 'left', padding: '3px 0', fontWeight: 900, width: '100%', fontSize: '14px', letterSpacing: '0.5px' }}>ITEM</th>
             </tr>
-            <tr style={{ borderBottom: '1px solid #000' }}>
-              <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 900 }}>
+            <tr style={{ borderBottom: '2px solid #000' }}>
+              <th style={{ textAlign: 'right', padding: '2px 0', fontWeight: 900, fontSize: '14px', letterSpacing: '0.5px' }}>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0' }}>
                   <span style={{ width: '50px', textAlign: 'right' }}>QTY</span>
                   <span style={{ width: '70px', textAlign: 'right' }}>RATE</span>
@@ -368,9 +368,12 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
           </div>
         )}
 
-        {/* ═══ TERMS ═══ */}
+        {/* ═══ TERMS — auto-cut before terms so items section ends cleanly ═══ */}
         {termsConditions && (
           <>
+            {items.length > 10 && (
+              <div style={{ pageBreakAfter: 'always' as any }} className="thermal-auto-cut" />
+            )}
             <div style={singleLine} />
             <div style={{ fontSize: '13px', fontWeight: 'bold', textAlign: 'center', marginBottom: '2px' }}>TERMS & CONDITIONS</div>
             <div style={{ fontSize: '12px', lineHeight: '1.4', whiteSpace: 'pre-wrap', wordBreak: 'break-word', textAlign: 'left' }}>{termsConditions}</div>
