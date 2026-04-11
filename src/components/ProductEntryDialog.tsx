@@ -35,6 +35,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { validateProduct } from "@/lib/validations";
 import { UOM_OPTIONS, DEFAULT_UOM } from "@/constants/uom";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 type ProductType = 'goods' | 'service' | 'combo';
 
@@ -113,6 +114,7 @@ interface ProductEntryDialogProps {
 export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideOpeningQty, isDcPurchase, isAutoBarcode = true, mobileERPMode }: ProductEntryDialogProps) => {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+  const { isColumnVisible } = useUserPermissions();
   const [loading, setLoading] = useState(false);
   const [sizeGroups, setSizeGroups] = useState<SizeGroup[]>([]);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
@@ -1431,6 +1433,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </div>
                 )}
 
+                {isColumnVisible('product_entry', 'pur_gst') && (
                 <div className="space-y-2">
                   <Label htmlFor="purchase_gst" className="text-blue-600 dark:text-blue-400">Purchase GST %</Label>
                   <Select
@@ -1460,7 +1463,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     </SelectContent>
                   </Select>
                 </div>
+                )}
 
+                {isColumnVisible('product_entry', 'sale_gst') && (
                 <div className="space-y-2">
                   <Label htmlFor="sale_gst" className="text-green-600 dark:text-green-400">Sale GST %</Label>
                   {formData.purchase_gst_percent !== formData.sale_gst_percent && (
@@ -1490,6 +1495,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     </SelectContent>
                   </Select>
                 </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="uom">Unit (UOM)</Label>
@@ -1531,6 +1537,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                   />
                 </div>
 
+                {isColumnVisible('product_entry', 'markup') && (
                 <div className="space-y-2">
                   <Label htmlFor="markup_percent" className="text-xs">Markup %</Label>
                   <Input
@@ -1552,6 +1559,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     className="h-11"
                   />
                 </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="default_sale_price">Sale Price <span className="text-destructive">*</span></Label>
