@@ -313,9 +313,12 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
           </div>
         )}
 
-        {/* TERMS */}
+        {/* TERMS — auto-cut before terms so items section ends cleanly */}
         {termsConditions && (
           <>
+            {items.length > 10 && (
+              <div style={{ pageBreakAfter: 'always' as any }} className="thermal-auto-cut" />
+            )}
             <div style={singleLine} />
             <div style={{ fontSize: '13px', fontWeight: 'bold', textAlign: 'center', marginBottom: '2px' }}>TERMS & CONDITIONS</div>
             <div style={{ fontSize: '12px', lineHeight: '1.4', whiteSpace: 'pre-wrap', wordBreak: 'break-word', textAlign: 'left' }}>{termsConditions}</div>
