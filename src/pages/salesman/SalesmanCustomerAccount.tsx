@@ -44,6 +44,9 @@ interface Transaction {
   debit: number;
   credit: number;
   balance: number;
+  discountAmount?: number;
+  flatDiscountAmount?: number;
+  grossAmount?: number;
 }
 
 interface Summary {
