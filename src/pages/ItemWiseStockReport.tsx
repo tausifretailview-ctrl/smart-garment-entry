@@ -538,34 +538,20 @@ export default function ItemWiseStockReport() {
         )}
       </div>
 
-      {/* Prompt when no filter active */}
-      {!hasActiveFilter && (
-        <Card className="print:hidden">
-          <CardContent className="p-8 text-center">
-            <Info className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-            <h3 className="text-lg font-medium text-foreground mb-1">Select a filter or search to view stock data</h3>
-            <p className="text-sm text-muted-foreground">
-              Use the Group By, search box, or any filter above to load stock data.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Data Table */}
-      {hasActiveFilter && (
-        <Card className="print:shadow-none print:border-0">
-          <CardContent className="p-0">
-            <div className="border rounded-lg overflow-hidden print:border-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50 print:bg-transparent">
-                    <TableHead className="w-[80px] print:text-xs print:py-1">Sr.No</TableHead>
-                    <TableHead className="print:text-xs print:py-1">{GROUP_BY_LABELS[groupBy]}</TableHead>
-                    <TableHead className="text-right print:text-xs print:py-1">Stock</TableHead>
-                    <TableHead className="text-right print:text-xs print:py-1">Purchase Value</TableHead>
-                    <TableHead className="text-right print:text-xs print:py-1">Sales Value</TableHead>
-                  </TableRow>
-                </TableHeader>
+      <Card className="print:shadow-none print:border-0">
+        <CardContent className="p-0">
+          <div className="border rounded-lg overflow-hidden print:border-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50 print:bg-transparent">
+                  <TableHead className="w-[80px] print:text-xs print:py-1">Sr.No</TableHead>
+                  <TableHead className="print:text-xs print:py-1">{GROUP_BY_LABELS[groupBy]}</TableHead>
+                  <TableHead className="text-right print:text-xs print:py-1">Stock</TableHead>
+                  <TableHead className="text-right print:text-xs print:py-1">Purchase Value</TableHead>
+                  <TableHead className="text-right print:text-xs print:py-1">Sales Value</TableHead>
+                </TableRow>
+              </TableHeader>
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
