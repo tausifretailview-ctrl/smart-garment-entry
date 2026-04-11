@@ -353,6 +353,7 @@ const UserRights = () => {
       setPermissions(menuPerms);
       setMainMenuEnabled(mainMenus);
       setSpecialPermissions(perms.special || (selectedUserRole === 'manager' ? defaultManagerSpecialRights : {}));
+      setColumnVisibility(perms.columns || {});
     } else if (selectedUserId) {
       // Use manager defaults if user is a manager, otherwise use basic defaults
       if (selectedUserRole === 'manager') {
@@ -368,6 +369,7 @@ const UserRights = () => {
         });
         setSpecialPermissions({});
       }
+      setColumnVisibility({});
     }
   }, [userPermissions, selectedUserId, selectedUserRole]);
 
