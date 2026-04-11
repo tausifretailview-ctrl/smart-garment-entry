@@ -4016,7 +4016,7 @@ const PurchaseEntry = () => {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell colSpan={showMrp ? 9 : 8} className="text-muted-foreground text-sm">
+                    <TableCell colSpan={(showMrp ? 1 : 0) + (showPurCol.gst ? 1 : 0) + (showPurCol.disc_percent ? 1 : 0) + 6} className="text-muted-foreground text-sm">
                       <span className="hidden md:inline">Type to search or </span>
                       <button 
                         onClick={handleAddNewProductFromInline}
@@ -4033,7 +4033,7 @@ const PurchaseEntry = () => {
                       <TableCell colSpan={4} className="text-right font-semibold">Total:</TableCell>
                       <TableCell className="w-[130px]"></TableCell>
                       <TableCell className="w-[80px] text-right font-semibold tabular-nums">{totals.totalQty}</TableCell>
-                      <TableCell colSpan={showMrp ? 8 : 7}></TableCell>
+                      <TableCell colSpan={(showMrp ? 1 : 0) + (showPurCol.gst ? 1 : 0) + (showPurCol.disc_percent ? 1 : 0) + 5}></TableCell>
                     </TableRow>
                   )}
                 </TableBody>
