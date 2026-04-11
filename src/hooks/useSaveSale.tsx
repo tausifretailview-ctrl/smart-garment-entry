@@ -880,25 +880,30 @@ export const useSaveSale = () => {
     setIsSaving(true);
 
     try {
-      // Fetch settings to get invoice format
-      const { data: settings } = await supabase
-        .from('settings')
-        .select('sale_settings')
+      // Generate Hold series number: Hold/YY-YY/N
+      const now = new Date();
+      const fy = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+      const fyStr = `${String(fy).slice(-2)}-${String(fy + 1).slice(-2)}`;
+      const holdPrefix = `Hold/${fyStr}/`;
+
+      // Find the last hold number in this FY
+      const { data: lastHold } = await supabase
+        .from('sales')
+        .select('sale_number')
         .eq('organization_id', currentOrganization.id)
+        .eq('payment_status', 'hold')
+        .is('deleted_at', null)
+        .like('sale_number', `${holdPrefix}%`)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
-      let saleNumber: string;
-      const holdSaleSettings = settings?.sale_settings as Record<string, any> | null;
-      
-      // Use POS series for hold bills (not INV series)
-      if (holdSaleSettings?.pos_numbering_format) {
-        saleNumber = await generateInvoiceNumber(holdSaleSettings.pos_numbering_format);
-      } else {
-        const { data: defaultNumber, error: numberError } = await supabase
-          .rpc('generate_pos_number_atomic', { p_organization_id: currentOrganization.id });
-        if (numberError) throw numberError;
-        saleNumber = defaultNumber;
+      let holdSeq = 1;
+      if (lastHold?.sale_number) {
+        const seqMatch = lastHold.sale_number.match(/(\d+)$/);
+        if (seqMatch) holdSeq = parseInt(seqMatch[1]) + 1;
       }
+      const saleNumber = `${holdPrefix}${holdSeq}`;
 
       // Store items as JSON in notes field for later retrieval
       const holdData = {
