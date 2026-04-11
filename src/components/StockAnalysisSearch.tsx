@@ -14,6 +14,8 @@ interface ProductResult {
   id: string;
   product_name: string;
   brand: string;
+  category: string;
+  style: string;
   barcode: string;
   size: string;
   color: string;
@@ -121,6 +123,8 @@ export function StockAnalysisSearch({
           id: item.id,
           product_name: item.products?.product_name || "",
           brand: item.products?.brand || "",
+          category: item.products?.category || "",
+          style: item.products?.style || "",
           barcode: item.barcode || "",
           size: item.size || "",
           color: item.color || "",
@@ -175,6 +179,8 @@ export function StockAnalysisSearch({
           id: data.id,
           product_name: (data.products as any)?.product_name || "",
           brand: (data.products as any)?.brand || "",
+          category: (data.products as any)?.category || "",
+          style: (data.products as any)?.style || "",
           barcode: data.barcode || "",
           size: data.size || "",
           color: data.color || "",
@@ -331,43 +337,68 @@ export function StockAnalysisSearch({
           </button>
         </div>
       )}
+      <div className="px-3 py-1.5 bg-muted/50 border-b text-xs text-muted-foreground sticky top-0">
+        {results.length} product{results.length !== 1 ? 's' : ''} found · type more to narrow down
+      </div>
       {results.slice(0, displayLimit).map((product, index) => (
         <div
           key={product.id}
           className={cn(
-            "px-3 py-2.5 cursor-pointer hover:bg-accent text-sm border-b border-border last:border-b-0 transition-colors",
-            selectedIndex === index && "bg-primary text-primary-foreground"
+            "px-3 py-2.5 cursor-pointer border-b border-border/50 last:border-0 transition-colors",
+            selectedIndex === index
+              ? "bg-primary/10 border-l-2 border-l-primary"
+              : "hover:bg-accent"
           )}
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => handleSelect(product)}
           onMouseEnter={() => setSelectedIndex(index)}
         >
-          <div className="flex justify-between items-start gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="font-medium truncate">{product.product_name}</div>
-              <div className="text-xs text-muted-foreground flex flex-wrap gap-1 mt-0.5">
-                {product.brand && <span>{product.brand}</span>}
-                {product.brand && product.size && <span>•</span>}
-                {product.size && <span>Size: {product.size}</span>}
-                {product.color && <span>• {product.color}</span>}
-              </div>
-              {product.barcode && (
-                <div className={cn(
-                  "text-xs mt-0.5 font-mono",
-                  selectedIndex === index ? "text-primary-foreground/70" : "text-muted-foreground"
-                )}>
-                  Barcode: {product.barcode}
-                </div>
-              )}
-            </div>
-            <div className={cn(
-              "text-xs font-semibold px-2 py-1 rounded shrink-0",
-              product.stock_qty > 0 
-                ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" 
-                : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
+          {/* Row 1: Product name + stock badge */}
+          <div className="flex justify-between items-start gap-2">
+            <span className="font-semibold text-sm truncate">{product.product_name}</span>
+            <span className={cn(
+              "text-xs font-medium px-1.5 py-0.5 rounded shrink-0",
+              product.stock_qty > 0
+                ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
+                : "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
             )}>
-              Qty: {product.stock_qty}
-            </div>
+              Stock: {product.stock_qty}
+            </span>
           </div>
+          {/* Row 2: Attribute chips */}
+          <div className="flex flex-wrap gap-1 mt-1">
+            {product.brand && (
+              <span className="text-[11px] bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-1.5 py-0.5 rounded">
+                {product.brand}
+              </span>
+            )}
+            {product.category && (
+              <span className="text-[11px] bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-1.5 py-0.5 rounded">
+                {product.category}
+              </span>
+            )}
+            {product.style && (
+              <span className="text-[11px] bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800 px-1.5 py-0.5 rounded">
+                {product.style}
+              </span>
+            )}
+            {product.color && product.color !== '-' && (
+              <span className="text-[11px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                {product.color}
+              </span>
+            )}
+            {product.size && (
+              <span className="text-[11px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-mono">
+                Size: {product.size}
+              </span>
+            )}
+          </div>
+          {/* Row 3: Barcode */}
+          {product.barcode && (
+            <div className="text-[11px] text-muted-foreground font-mono mt-0.5">
+              {product.barcode}
+            </div>
+          )}
         </div>
       ))}
     </div>
@@ -389,7 +420,7 @@ export function StockAnalysisSearch({
                 setShowDropdown(true);
               }
             }}
-            placeholder="Type product name or scan barcode..."
+            placeholder="Search by name, brand, category, style or barcode..."
             className="pl-10 pr-16 h-10"
             disabled={disabled}
           />
