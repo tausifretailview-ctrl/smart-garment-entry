@@ -120,7 +120,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const [fieldSettings, setFieldSettings] = useState<any>(null);
   const [showMrp, setShowMrp] = useState(false);
   const [showDiscountFields, setShowDiscountFields] = useState(false);
-  const [cursorAfterStyle, setCursorAfterStyle] = useState<'pur_price' | 'hsn'>('pur_price');
+ const [cursorAfterStyle, setCursorAfterStyle] = useState<'pur_price' | 'hsn'>('pur_price');
+  const purGstRef = useRef<HTMLButtonElement>(null);
+  const saleGstRef = useRef<HTMLButtonElement>(null);
   const productNameInputRef = useRef<HTMLInputElement>(null);
   const variantsSectionRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -1167,13 +1169,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       }
       // HSN → Pur GST
       if (currentId === "hsn_code" && cursorAfterStyle === 'hsn') {
-        const purGstEl = document.getElementById("purchase_gst_percent");
-        if (purGstEl) { purGstEl.focus(); return; }
+        purGstRef.current?.focus();
+        return;
       }
       // Pur GST → Sale GST
       if (currentId === "purchase_gst_percent" && cursorAfterStyle === 'hsn') {
-        const saleGstEl = document.getElementById("sale_gst_percent");
-        if (saleGstEl) { saleGstEl.focus(); return; }
+        saleGstRef.current?.focus();
+        return;
       }
       // Sale GST → Pur Price
       if (currentId === "sale_gst_percent" && cursorAfterStyle === 'hsn') {
@@ -1191,7 +1193,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         focusable[idx + 1].focus();
       }
     }
-  }, [cursorAfterStyle]);
+  }, [cursorAfterStyle, purGstRef, saleGstRef]);
 
   const isFieldEnabled = (fieldName: string) => {
     if (!fieldSettings) return true;
@@ -1393,13 +1395,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         id="style"
                         value={formData.style}
                         onChange={(e) => setFormData({ ...formData, style: e.target.value })}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === "Tab") {
-                            e.preventDefault();
-                            const purPriceEl = document.getElementById("default_pur_price");
-                            if (purPriceEl) purPriceEl.focus();
-                          }
-                        }}
+                        onKeyDown={handleEnterAsTab}
                         placeholder="Style"
                         list="style-list"
                         autoComplete="off"
@@ -1446,11 +1442,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       }));
                     }}
                   >
-                    <SelectTrigger id="purchase_gst_percent" className="border-blue-200 dark:border-blue-800"
+                    <SelectTrigger id="purchase_gst_percent" ref={purGstRef} className="border-blue-200 dark:border-blue-800"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && cursorAfterStyle === 'hsn') {
                           e.preventDefault();
-                          document.getElementById("sale_gst_percent")?.focus();
+                          saleGstRef.current?.focus();
                         }
                       }}>
                       <SelectValue />
@@ -1476,7 +1472,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       setFormData(prev => ({ ...prev, sale_gst_percent: parseInt(value) }))
                     }
                   >
-                    <SelectTrigger id="sale_gst_percent" className="border-green-200 dark:border-green-800"
+                    <SelectTrigger id="sale_gst_percent" ref={saleGstRef} className="border-green-200 dark:border-green-800"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && cursorAfterStyle === 'hsn') {
                           e.preventDefault();
