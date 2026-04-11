@@ -3419,13 +3419,13 @@ Thank you for choosing us!`;
                           </span>
                         ) : <span className="text-slate-300">—</span>}
                       </td>
-                      <td className="text-center text-sm text-muted-foreground px-3 py-2 hidden lg:table-cell">
+                      {showCol.color && <td className="text-center text-sm text-muted-foreground px-3 py-2 hidden lg:table-cell">
                         {item.color || <span className="text-slate-300">—</span>}
-                      </td>
+                      </td>}
                       <td className="text-center px-3 py-2">
                         <span className="font-mono text-sm text-muted-foreground">{item.barcode || <span className="text-slate-300">—</span>}</span>
                       </td>
-                      <td className="text-center text-sm text-muted-foreground px-3 py-2">{item.hsnCode || <span className="text-slate-300">—</span>}</td>
+                      {showCol.hsn && <td className="text-center text-sm text-muted-foreground px-3 py-2">{item.hsnCode || <span className="text-slate-300">—</span>}</td>}
                       <td className="text-center px-1.5 py-1">
                         <Input
                           type="number"
@@ -3441,7 +3441,7 @@ Thank you for choosing us!`;
                           <span className="text-[10px] text-muted-foreground text-center block">{item.uom}</span>
                         )}
                       </td>
-                      <td className="text-center px-1.5 py-1">
+                      {showCol.box && <td className="text-center px-1.5 py-1">
                         <Input
                           type="text"
                           value={item.box || ''}
@@ -3449,7 +3449,7 @@ Thank you for choosing us!`;
                           placeholder=""
                           className="w-14 h-9 text-center text-sm mx-auto"
                         />
-                      </td>
+                      </td>}
                       <td className="text-right px-1.5 py-1">
                         <Input
                           type="number"
@@ -3472,7 +3472,7 @@ Thank you for choosing us!`;
                           className="w-[90px] h-9 text-right text-[14px] font-semibold tabular-nums ml-auto"
                         />
                       </td>
-                      <td className="text-right px-1.5 py-1">
+                      {showCol.disc_percent && <td className="text-right px-1.5 py-1">
                         <Input
                           type="number"
                           min="0"
@@ -3483,8 +3483,8 @@ Thank you for choosing us!`;
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           className="w-16 h-9 text-right text-[14px] tabular-nums ml-auto"
                         />
-                      </td>
-                      <td className="text-right px-1.5 py-1">
+                      </td>}
+                      {showCol.disc_amount && <td className="text-right px-1.5 py-1">
                         <Input
                           type="number"
                           min="0"
@@ -3494,10 +3494,10 @@ Thank you for choosing us!`;
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           className="w-20 h-9 text-right text-[14px] tabular-nums ml-auto text-destructive"
                         />
-                      </td>
-                      <td className="text-center px-3 py-2">
+                      </td>}
+                      {showCol.gst && <td className="text-center px-3 py-2">
                         <span className="text-sm font-semibold text-muted-foreground">{item.gstPercent}%</span>
-                      </td>
+                      </td>}
                       <td className="text-right px-3 py-2 bg-blue-50/40">
                         <span className="text-[14px] font-bold text-blue-700 font-mono tabular-nums">
                           ₹{item.lineTotal.toFixed(2)}
