@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { AppSidebar } from "@/components/AppSidebar";
 import { WindowTabsBar } from "@/components/WindowTabsBar";
