@@ -15,6 +15,7 @@ import { RetailERPTemplate } from './invoice-templates/RetailERPTemplate';
 import { A5HorizontalBillFormat } from './A5HorizontalBillFormat';
 import { ThermalPrint80mm } from './ThermalPrint80mm';
 import { ThermalReceiptCompact } from './ThermalReceiptCompact';
+import { ModernThermalReceipt80mm } from './ModernThermalReceipt80mm';
 import QRCode from 'qrcode';
 
 interface InvoiceItem {
@@ -375,7 +376,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       // Use thermal format (handles both 'thermal' and 'thermal-receipt')
       if (format === 'thermal-receipt' || format === 'thermal') {
         const thermalStyle = (settings?.sale_settings as any)?.thermal_receipt_style || 'classic';
-        const ThermalComponent = thermalStyle === 'compact' ? ThermalReceiptCompact : ThermalPrint80mm;
+        const ThermalComponent = thermalStyle === 'modern' ? ModernThermalReceipt80mm : thermalStyle === 'compact' ? ThermalReceiptCompact : ThermalPrint80mm;
         // Compute rate-wise GST breakdown for thermal receipt
         const rateMap = new Map<number, { taxable: number; tax: number }>();
         props.items.forEach(item => {
