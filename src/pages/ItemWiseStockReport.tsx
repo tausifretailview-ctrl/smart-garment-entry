@@ -411,7 +411,7 @@ export default function ItemWiseStockReport() {
       </div>
 
       {/* Summary Cards */}
-      {hasActiveFilter && (
+      {aggregatedData.length > 0 && (
         <div className="grid grid-cols-3 gap-4 print:hidden">
           <Card>
             <CardContent className="p-4">
