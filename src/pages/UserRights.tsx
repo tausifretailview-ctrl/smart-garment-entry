@@ -384,6 +384,7 @@ const UserRights = () => {
         menu: permissions,
         mainMenu: mainMenuEnabled,
         special: specialPermissions,
+        columns: columnVisibility,
       };
 
       // First check if permission record exists
