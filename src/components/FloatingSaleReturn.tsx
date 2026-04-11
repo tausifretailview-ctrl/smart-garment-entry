@@ -225,7 +225,7 @@ export const FloatingSaleReturn = ({
 
       const { data: items } = await supabase
         .from("sale_items")
-        .select("variant_id, product_id, product_name, size, barcode, quantity, per_qty_net_amount, line_total")
+        .select("variant_id, product_id, product_name, size, barcode, quantity, per_qty_net_amount, unit_price, line_total")
         .eq("sale_id", sale.id)
         .is("deleted_at", null);
 
@@ -242,17 +242,23 @@ export const FloatingSaleReturn = ({
   const fetchUnitPrice = async (variantId: string, fallbackPrice: number): Promise<number> => {
     if (billSaleId && billItems.length > 0) {
       const billItem = billItems.find(bi => bi.variant_id === variantId);
-      if (billItem && billItem.per_qty_net_amount && billItem.per_qty_net_amount > 0) {
-        return billItem.per_qty_net_amount;
-      }
-      if (billItem && billItem.line_total && billItem.quantity) {
-        return billItem.line_total / billItem.quantity;
+      if (billItem) {
+        if (useOriginalPrice && billItem.unit_price && billItem.unit_price > 0) {
+          return billItem.unit_price;
+        }
+        if (billItem.per_qty_net_amount && billItem.per_qty_net_amount > 0) {
+          return billItem.per_qty_net_amount;
+        }
+        if (billItem.line_total && billItem.quantity) {
+          return billItem.line_total / billItem.quantity;
+        }
       }
     }
 
+    const priceField = useOriginalPrice ? "unit_price" : "per_qty_net_amount";
     const { data: saleItemData } = await supabase
       .from("sale_items")
-      .select("per_qty_net_amount, line_total, quantity")
+      .select(`${priceField}, unit_price, per_qty_net_amount, line_total, quantity`)
       .eq("variant_id", variantId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
@@ -260,6 +266,9 @@ export const FloatingSaleReturn = ({
       .maybeSingle();
 
     if (saleItemData) {
+      if (useOriginalPrice && saleItemData.unit_price && saleItemData.unit_price > 0) {
+        return saleItemData.unit_price;
+      }
       if (saleItemData.per_qty_net_amount && saleItemData.per_qty_net_amount > 0) {
         return saleItemData.per_qty_net_amount;
       }
