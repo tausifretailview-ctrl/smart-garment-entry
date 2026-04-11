@@ -97,6 +97,7 @@ interface PurchaseSettings {
   barcode_mode?: 'auto' | 'scan';
   auto_focus_search?: boolean;
   size_grid_review_mode?: boolean;
+  cursor_after_style?: 'pur_price' | 'hsn';
 }
 
 interface EInvoiceSettings {
