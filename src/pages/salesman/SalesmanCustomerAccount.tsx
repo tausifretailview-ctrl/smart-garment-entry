@@ -273,6 +273,7 @@ const SalesmanCustomerAccount = () => {
         totalPaid,
         currentBalance: (customerData.opening_balance || 0) + totalSales - totalPaid,
         pendingInvoices: pendingList.length,
+        totalDiscount,
       });
 
     } catch (error) {
