@@ -17,12 +17,15 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrganizationReset } from "@/hooks/useOrganizationReset";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
 
 const OrganizationResetDialog = () => {
   const navigate = useNavigate();
   const { currentOrganization } = useOrganization();
+  const { hasSpecialPermission } = useUserPermissions();
+  const hasResetPermission = hasSpecialPermission("reset_data");
   const {
     dataCounts,
     isLoadingCounts,
@@ -69,7 +72,7 @@ const OrganizationResetDialog = () => {
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogTrigger asChild>
-        <Button variant="destructive" className="gap-2">
+        <Button variant="destructive" className="gap-2" disabled={!hasResetPermission} title={!hasResetPermission ? "You don't have permission to reset data. Ask admin to enable 'Reset Organization Data' in User Rights." : undefined}>
           <Trash2 className="h-4 w-4" />
           Reset All Data
         </Button>
