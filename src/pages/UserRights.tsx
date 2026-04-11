@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, ChevronDown, ChevronRight, Shield, Users, Save, LayoutDashboard, Package, ShoppingCart, FileText, Truck, Wallet, UserCog, Calculator, Settings, Trash2 } from "lucide-react";
+import { Loader2, ChevronDown, ChevronRight, Shield, Users, Save, LayoutDashboard, Package, ShoppingCart, FileText, Truck, Wallet, UserCog, Calculator, Settings, Trash2, Columns } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { cn } from "@/lib/utils";
@@ -153,6 +153,31 @@ const specialRights = [
   { id: "reset_data", name: "Reset Organization Data", description: "Allow resetting all organization data" },
 ];
 
+// Column visibility config for modules
+const columnConfig = [
+  {
+    id: "sales_invoice",
+    name: "Sales Invoice Columns",
+    columns: [
+      { id: "hsn", name: "HSN" },
+      { id: "box", name: "Box" },
+      { id: "color", name: "Color" },
+      { id: "disc_percent", name: "Disc%" },
+      { id: "disc_amount", name: "Disc ₹" },
+      { id: "gst", name: "GST%" },
+    ],
+  },
+  {
+    id: "purchase_bill",
+    name: "Purchase Bill Columns",
+    columns: [
+      { id: "gst", name: "GST%" },
+      { id: "disc_percent", name: "Disc%" },
+      { id: "mrp", name: "MRP" },
+    ],
+  },
+];
+
 // Default basic permissions for new users
 const defaultBasicPermissions: Record<string, boolean> = {
   main_dashboard: true,
@@ -260,6 +285,7 @@ const UserRights = () => {
   const [mainMenuEnabled, setMainMenuEnabled] = useState<Record<string, boolean>>({});
   const [specialPermissions, setSpecialPermissions] = useState<Record<string, boolean>>({});
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({});
 
   // Fetch organization members (excluding admins - they have full access)
   const { data: members = [], isLoading: membersLoading } = useQuery({
@@ -327,6 +353,7 @@ const UserRights = () => {
       setPermissions(menuPerms);
       setMainMenuEnabled(mainMenus);
       setSpecialPermissions(perms.special || (selectedUserRole === 'manager' ? defaultManagerSpecialRights : {}));
+      setColumnVisibility(perms.columns || {});
     } else if (selectedUserId) {
       // Use manager defaults if user is a manager, otherwise use basic defaults
       if (selectedUserRole === 'manager') {
@@ -342,6 +369,7 @@ const UserRights = () => {
         });
         setSpecialPermissions({});
       }
+      setColumnVisibility({});
     }
   }, [userPermissions, selectedUserId, selectedUserRole]);
 
@@ -356,6 +384,7 @@ const UserRights = () => {
         menu: permissions,
         mainMenu: mainMenuEnabled,
         special: specialPermissions,
+        columns: columnVisibility,
       };
 
       // First check if permission record exists
@@ -425,6 +454,11 @@ const UserRights = () => {
 
   const toggleSpecialPermission = (id: string) => {
     setSpecialPermissions((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const toggleColumnVisibility = (moduleId: string, columnId: string) => {
+    const key = `${moduleId}.${columnId}`;
+    setColumnVisibility((prev) => ({ ...prev, [key]: prev[key] === false ? true : false }));
   };
 
   const toggleExpanded = (menuId: string) => {
@@ -641,7 +675,49 @@ const UserRights = () => {
             </CardContent>
           </Card>
 
-          {/* Save Button */}
+          {/* Column Visibility */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Columns className="h-5 w-5" />
+                Column Visibility
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Show or hide specific columns in billing forms
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {columnConfig.map((module) => (
+                  <div key={module.id}>
+                    <h4 className="font-semibold text-sm mb-3">{module.name}</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                      {module.columns.map((col) => {
+                        const key = `${module.id}.${col.id}`;
+                        const isVisible = columnVisibility[key] !== false;
+                        return (
+                          <div
+                            key={col.id}
+                            className="flex items-center space-x-2 p-2 border rounded-lg hover:bg-muted/30 transition-colors"
+                          >
+                            <Checkbox
+                              id={key}
+                              checked={isVisible}
+                              onCheckedChange={() => toggleColumnVisibility(module.id, col.id)}
+                            />
+                            <Label htmlFor={key} className="text-sm cursor-pointer">
+                              {col.name}
+                            </Label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="flex justify-end">
             <Button
               onClick={() => saveMutation.mutate()}

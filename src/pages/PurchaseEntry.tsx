@@ -55,6 +55,7 @@ import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { checkBarcodeExists } from "@/utils/barcodeValidation";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 import { compareSizes } from "@/utils/sizeSort";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 interface PriceChange {
   sku_id: string;
@@ -186,6 +187,12 @@ const PurchaseEntry = () => {
   const { currentOrganization } = useOrganization();
   const { invalidatePurchases } = useDashboardInvalidation();
   const queryClient = useQueryClient();
+  const { isColumnVisible } = useUserPermissions();
+  const showPurCol = {
+    gst: isColumnVisible('purchase_bill', 'gst'),
+    disc_percent: isColumnVisible('purchase_bill', 'disc_percent'),
+    mrp: isColumnVisible('purchase_bill', 'mrp'),
+  };
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ProductVariant[]>([]);
@@ -519,7 +526,7 @@ const PurchaseEntry = () => {
     refetchOnWindowFocus: false,
   });
 
-  const showMrp = (settings?.purchase_settings as any)?.show_mrp || false;
+  const showMrp = ((settings?.purchase_settings as any)?.show_mrp || false) && showPurCol.mrp;
   
   // Barcode mode: 'auto' (default) or 'scan' (manual/manufacturer barcode)
   const barcodeMode = (settings?.purchase_settings as any)?.barcode_mode || 'auto';
@@ -3657,9 +3664,9 @@ const PurchaseEntry = () => {
                     <TableHead className='w-[120px] text-right pur-rate-col'>PUR.RATE</TableHead>
                     <TableHead className='w-[120px] text-right sale-rate-col'>SALE.RATE</TableHead>
                     {showMrp && <TableHead className="w-[120px] text-right">MRP</TableHead>}
-                    <TableHead className="w-[100px] text-right">GST %</TableHead>
+                    {showPurCol.gst && <TableHead className="w-[100px] text-right">GST %</TableHead>}
                     <TableHead className="w-[120px] text-right">SUB TOTAL</TableHead>
-                    <TableHead className="w-[100px] text-right">DISC %</TableHead>
+                    {showPurCol.disc_percent && <TableHead className="w-[100px] text-right">DISC %</TableHead>}
                     <TableHead className='w-[120px] text-right total-col'>TOTAL</TableHead>
                     <TableHead className="w-[40px]"></TableHead>
                     <TableHead className="w-[40px]">Action</TableHead>
@@ -3783,7 +3790,7 @@ const PurchaseEntry = () => {
                             />
                           </TableCell>
                         )}
-                        <TableCell className="w-[100px]">
+                        {showPurCol.gst && <TableCell className="w-[100px]">
                           <Select
                             value={String(item.gst_per)}
                             onValueChange={(value) =>
@@ -3801,11 +3808,11 @@ const PurchaseEntry = () => {
                               <SelectItem value="28">28%</SelectItem>
                             </SelectContent>
                           </Select>
-                        </TableCell>
+                        </TableCell>}
                         <TableCell className="w-[120px] text-right font-semibold tabular-nums">
                           ₹{subTotal.toFixed(2)}
                         </TableCell>
-                        <TableCell className="w-[100px]">
+                        {showPurCol.disc_percent && <TableCell className="w-[100px]">
                           <Input
                             type="number"
                             min="0"
@@ -3822,7 +3829,7 @@ const PurchaseEntry = () => {
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             className="w-full text-right"
                           />
-                        </TableCell>
+                        </TableCell>}
                         <TableCell className="w-[120px] text-right font-bold tabular-nums text-green-700 bg-green-50/40 font-mono">
                           ₹{total.toFixed(2)}
                         </TableCell>
@@ -4009,7 +4016,7 @@ const PurchaseEntry = () => {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell colSpan={showMrp ? 9 : 8} className="text-muted-foreground text-sm">
+                    <TableCell colSpan={(showMrp ? 1 : 0) + (showPurCol.gst ? 1 : 0) + (showPurCol.disc_percent ? 1 : 0) + 6} className="text-muted-foreground text-sm">
                       <span className="hidden md:inline">Type to search or </span>
                       <button 
                         onClick={handleAddNewProductFromInline}
@@ -4026,7 +4033,7 @@ const PurchaseEntry = () => {
                       <TableCell colSpan={4} className="text-right font-semibold">Total:</TableCell>
                       <TableCell className="w-[130px]"></TableCell>
                       <TableCell className="w-[80px] text-right font-semibold tabular-nums">{totals.totalQty}</TableCell>
-                      <TableCell colSpan={showMrp ? 8 : 7}></TableCell>
+                      <TableCell colSpan={(showMrp ? 1 : 0) + (showPurCol.gst ? 1 : 0) + (showPurCol.disc_percent ? 1 : 0) + 5}></TableCell>
                     </TableRow>
                   )}
                 </TableBody>

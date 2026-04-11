@@ -83,6 +83,7 @@ import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
 import { useShopName } from "@/hooks/useShopName";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 interface LineItem {
   id: string;
@@ -119,6 +120,15 @@ export default function SalesInvoice() {
   const { currentOrganization } = useOrganization();
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const shopName = useShopName();
+  const { isColumnVisible } = useUserPermissions();
+  const showCol = {
+    hsn: isColumnVisible('sales_invoice', 'hsn'),
+    box: isColumnVisible('sales_invoice', 'box'),
+    color: isColumnVisible('sales_invoice', 'color'),
+    disc_percent: isColumnVisible('sales_invoice', 'disc_percent'),
+    disc_amount: isColumnVisible('sales_invoice', 'disc_amount'),
+    gst: isColumnVisible('sales_invoice', 'gst'),
+  };
   const location = useLocation();
   const { orgNavigate: navigate } = useOrgNavigation();
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
@@ -3339,16 +3349,16 @@ Thank you for choosing us!`;
                 <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-10 rounded-tl-lg">#</th>
                 <th className="text-left text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 min-w-[200px]">PRODUCT</th>
                 <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">SIZE</th>
-                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">COLOR</th>
+                {showCol.color && <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">COLOR</th>}
                 <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-24">BARCODE</th>
-                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">HSN</th>
+                {showCol.hsn && <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">HSN</th>}
                 <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-16">QTY</th>
-                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-16">BOX</th>
+                {showCol.box && <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-16">BOX</th>}
                 <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-24">MRP</th>
                 <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-24">PRICE</th>
-                <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">DISC%</th>
-                <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-24">DISC ₹</th>
-                <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-16">GST%</th>
+                {showCol.disc_percent && <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-20">DISC%</th>}
+                {showCol.disc_amount && <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-24">DISC ₹</th>}
+                {showCol.gst && <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-16">GST%</th>}
                 <th className="text-right text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-28 bg-blue-700 rounded-tr-lg">TOTAL</th>
                 <th className="w-8 px-1 h-10 bg-slate-800"></th>
               </tr>
@@ -3358,23 +3368,15 @@ Thank you for choosing us!`;
                 const filledItems = lineItems.filter(item => item.productId !== '');
 
                 if (filledItems.length === 0) {
+                  const baseCols = 9; // #, product, size, barcode, qty, mrp, price, total, action
+                  const optCols = [showCol.color, showCol.hsn, showCol.box, showCol.disc_percent, showCol.disc_amount, showCol.gst].filter(Boolean).length;
+                  const totalCols = baseCols + optCols;
                   return Array.from({ length: 5 }, (_, i) => (
                     <tr key={`empty-${i}`} className="h-[32px] border-b border-muted/30">
                       <td className="text-center text-[11px] text-muted-foreground/40 px-3">{i + 1}</td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-1"></td>
+                      {Array.from({ length: totalCols - 1 }, (_, j) => (
+                        <td key={j} className="px-3"></td>
+                      ))}
                     </tr>
                   ));
                 }
@@ -3417,13 +3419,13 @@ Thank you for choosing us!`;
                           </span>
                         ) : <span className="text-slate-300">—</span>}
                       </td>
-                      <td className="text-center text-sm text-muted-foreground px-3 py-2 hidden lg:table-cell">
+                      {showCol.color && <td className="text-center text-sm text-muted-foreground px-3 py-2 hidden lg:table-cell">
                         {item.color || <span className="text-slate-300">—</span>}
-                      </td>
+                      </td>}
                       <td className="text-center px-3 py-2">
                         <span className="font-mono text-sm text-muted-foreground">{item.barcode || <span className="text-slate-300">—</span>}</span>
                       </td>
-                      <td className="text-center text-sm text-muted-foreground px-3 py-2">{item.hsnCode || <span className="text-slate-300">—</span>}</td>
+                      {showCol.hsn && <td className="text-center text-sm text-muted-foreground px-3 py-2">{item.hsnCode || <span className="text-slate-300">—</span>}</td>}
                       <td className="text-center px-1.5 py-1">
                         <Input
                           type="number"
@@ -3439,7 +3441,7 @@ Thank you for choosing us!`;
                           <span className="text-[10px] text-muted-foreground text-center block">{item.uom}</span>
                         )}
                       </td>
-                      <td className="text-center px-1.5 py-1">
+                      {showCol.box && <td className="text-center px-1.5 py-1">
                         <Input
                           type="text"
                           value={item.box || ''}
@@ -3447,7 +3449,7 @@ Thank you for choosing us!`;
                           placeholder=""
                           className="w-14 h-9 text-center text-sm mx-auto"
                         />
-                      </td>
+                      </td>}
                       <td className="text-right px-1.5 py-1">
                         <Input
                           type="number"
@@ -3470,7 +3472,7 @@ Thank you for choosing us!`;
                           className="w-[90px] h-9 text-right text-[14px] font-semibold tabular-nums ml-auto"
                         />
                       </td>
-                      <td className="text-right px-1.5 py-1">
+                      {showCol.disc_percent && <td className="text-right px-1.5 py-1">
                         <Input
                           type="number"
                           min="0"
@@ -3481,8 +3483,8 @@ Thank you for choosing us!`;
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           className="w-16 h-9 text-right text-[14px] tabular-nums ml-auto"
                         />
-                      </td>
-                      <td className="text-right px-1.5 py-1">
+                      </td>}
+                      {showCol.disc_amount && <td className="text-right px-1.5 py-1">
                         <Input
                           type="number"
                           min="0"
@@ -3492,10 +3494,10 @@ Thank you for choosing us!`;
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           className="w-20 h-9 text-right text-[14px] tabular-nums ml-auto text-destructive"
                         />
-                      </td>
-                      <td className="text-center px-3 py-2">
+                      </td>}
+                      {showCol.gst && <td className="text-center px-3 py-2">
                         <span className="text-sm font-semibold text-muted-foreground">{item.gstPercent}%</span>
-                      </td>
+                      </td>}
                       <td className="text-right px-3 py-2 bg-blue-50/40">
                         <span className="text-[14px] font-bold text-blue-700 font-mono tabular-nums">
                           ₹{item.lineTotal.toFixed(2)}
@@ -3513,11 +3515,11 @@ Thank you for choosing us!`;
               {/* Total Row */}
               {lineItems.some(item => item.productId) && (
                 <tr className="bg-muted/50 font-medium">
-                  <td className="px-3 py-2" colSpan={6} />
+                  <td className="px-3 py-2" colSpan={3 + (showCol.color ? 1 : 0) + 1 + (showCol.hsn ? 1 : 0)} />
                   <td className="text-center font-bold text-primary text-sm tabular-nums px-3 py-2">
                     {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
                   </td>
-                  <td className="px-3 py-2" colSpan={6} />
+                  <td className="px-3 py-2" colSpan={(showCol.box ? 1 : 0) + 2 + (showCol.disc_percent ? 1 : 0) + (showCol.disc_amount ? 1 : 0) + (showCol.gst ? 1 : 0)} />
                   <td className="text-right font-bold text-sm tabular-nums px-3 py-2">₹{grossAmount.toFixed(2)}</td>
                   <td className="px-1 py-2" />
                 </tr>

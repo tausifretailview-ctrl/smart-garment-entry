@@ -7,6 +7,7 @@ interface UserPermissions {
   menu: Record<string, boolean>;
   mainMenu: Record<string, boolean>;
   special: Record<string, boolean>;
+  columns?: Record<string, boolean>;
 }
 
 export const useUserPermissions = () => {
@@ -92,6 +93,13 @@ export const useUserPermissions = () => {
     return permissions.special?.[permissionId] === true;
   };
 
+  // Helper to check column visibility
+  const isColumnVisible = (module: string, columnId: string): boolean => {
+    if (permissions === null) return true;
+    const key = `${module}.${columnId}`;
+    return permissions.columns?.[key] !== false;
+  };
+
   // Check if user is admin with full access (only when no custom permissions are set)
   const isAdmin = organizationRole === "admin" && permissions === null;
 
@@ -102,5 +110,6 @@ export const useUserPermissions = () => {
     hasMenuAccess,
     hasMainMenuAccess,
     hasSpecialPermission,
+    isColumnVisible,
   };
 };
