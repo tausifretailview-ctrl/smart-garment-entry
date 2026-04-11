@@ -235,8 +235,14 @@ export default function ItemWiseStockReport() {
       }
     });
 
-    return Array.from(groupMap.values()).sort((a, b) => a.key.localeCompare(b.key));
-  }, [stockData, groupBy, supplierMap, supplierFilter]);
+    // Client-side search for non-product_name groupings
+    let results = Array.from(groupMap.values()).sort((a, b) => a.key.localeCompare(b.key));
+    if (groupBy !== "product_name" && searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      results = results.filter(r => r.key.toLowerCase().includes(q));
+    }
+    return results;
+  }, [stockData, groupBy, supplierMap, supplierFilter, searchQuery]);
 
   // Paginate
   const paginatedData = useMemo(() => {
