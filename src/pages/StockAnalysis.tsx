@@ -358,6 +358,7 @@ export default function StockAnalysis() {
 
   const handleClear = useCallback(() => {
     setSelectedProduct(null);
+    setSelectedProducts([]);
     setStockItems([]);
     setMovements([]);
     setBatchStock([]);
