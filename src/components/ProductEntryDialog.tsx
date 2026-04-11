@@ -35,6 +35,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { validateProduct } from "@/lib/validations";
 import { UOM_OPTIONS, DEFAULT_UOM } from "@/constants/uom";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 type ProductType = 'goods' | 'service' | 'combo';
 
