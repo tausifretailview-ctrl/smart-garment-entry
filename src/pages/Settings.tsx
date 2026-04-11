@@ -95,6 +95,7 @@ interface PurchaseSettings {
   show_mrp?: boolean;
   product_entry_discount_enabled?: boolean;
   barcode_mode?: 'auto' | 'scan';
+  same_barcode_series?: boolean;
   auto_focus_search?: boolean;
   size_grid_review_mode?: boolean;
   cursor_after_style?: 'pur_price' | 'hsn';
@@ -1616,6 +1617,31 @@ export default function Settings() {
                   </p>
                 </div>
                 
+                <div className="flex items-center justify-between py-2 border rounded-lg px-3">
+                  <div>
+                    <p className="text-sm font-medium">Same Barcode Series</p>
+                    <p className="text-xs text-muted-foreground">
+                      When enabled: selecting the same product reuses its existing
+                      barcode and variant — no new barcode generated per purchase.<br/>
+                      Use this when your barcodes are short manual numbers (e.g. 501,
+                      8-9 digits) and you want the same barcode on every purchase of the same item.<br/>
+                      <strong>Default OFF</strong> — most orgs want a new unique barcode per purchase batch.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.purchase_settings?.same_barcode_series === true}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          same_barcode_series: checked,
+                        },
+                      })
+                    }
+                  />
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="purchase_code_alphabet">Purchase Code Alphabet (0-9 mapping)</Label>
                   <Input
