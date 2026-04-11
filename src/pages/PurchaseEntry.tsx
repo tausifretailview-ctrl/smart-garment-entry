@@ -3790,7 +3790,7 @@ const PurchaseEntry = () => {
                             />
                           </TableCell>
                         )}
-                        <TableCell className="w-[100px]">
+                        {showPurCol.gst && <TableCell className="w-[100px]">
                           <Select
                             value={String(item.gst_per)}
                             onValueChange={(value) =>
@@ -3808,11 +3808,11 @@ const PurchaseEntry = () => {
                               <SelectItem value="28">28%</SelectItem>
                             </SelectContent>
                           </Select>
-                        </TableCell>
+                        </TableCell>}
                         <TableCell className="w-[120px] text-right font-semibold tabular-nums">
                           ₹{subTotal.toFixed(2)}
                         </TableCell>
-                        <TableCell className="w-[100px]">
+                        {showPurCol.disc_percent && <TableCell className="w-[100px]">
                           <Input
                             type="number"
                             min="0"
@@ -3829,7 +3829,7 @@ const PurchaseEntry = () => {
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             className="w-full text-right"
                           />
-                        </TableCell>
+                        </TableCell>}
                         <TableCell className="w-[120px] text-right font-bold tabular-nums text-green-700 bg-green-50/40 font-mono">
                           ₹{total.toFixed(2)}
                         </TableCell>
