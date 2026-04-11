@@ -229,7 +229,7 @@ export function ProductSearchDropdown({
               className={cn(
                 "px-3 py-2.5 cursor-pointer border-b border-border/50 last:border-0 transition-colors",
                 selectedIndex === index
-                  ? "bg-primary/10 border-l-2 border-l-primary"
+                  ? "bg-primary text-primary-foreground border-l-2 border-l-primary"
                   : "hover:bg-accent"
               )}
               onMouseDown={(e) => e.preventDefault()}
