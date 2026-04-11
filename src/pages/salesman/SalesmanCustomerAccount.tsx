@@ -20,7 +20,8 @@ import {
   TrendingDown,
   Clock,
   FileText,
-  MessageCircle
+  MessageCircle,
+  Percent
 } from "lucide-react";
 import { format } from "date-fns";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
