@@ -511,6 +511,11 @@ const SalesmanCustomerAccount = () => {
                           </>
                         )}
                       </p>
+                      {txn.type === "sale" && (txn.discountAmount || 0) > 0 && (
+                        <p className="text-xs text-orange-500 mt-0.5">
+                          Disc: ₹{(txn.discountAmount || 0).toLocaleString("en-IN")}
+                        </p>
+                      )}
                     </div>
                     <div className="text-right">
                       {txn.debit > 0 && (
