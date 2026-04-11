@@ -5143,8 +5143,8 @@ export default function BarcodePrinting() {
           <Eye className="h-4 w-4 mr-2" />
           Preview Labels
         </Button>
-        <Button onClick={handlePrint} variant="outline">
-          Print
+        <Button onClick={handlePrint} variant="outline" disabled={settingsLoading || isLoadingSettings} title={settingsLoading ? "Loading print settings..." : "Print labels"}>
+          {settingsLoading ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Loading...</> : "Print"}
         </Button>
         {precisionSettings.enabled && (
           <Dialog>
@@ -5402,8 +5402,8 @@ export default function BarcodePrinting() {
               <Eye className="h-4 w-4 mr-2" />
               Preview Labels
             </Button>
-            <Button onClick={handlePrint} variant="outline">
-              Print
+            <Button onClick={handlePrint} variant="outline" disabled={settingsLoading || isLoadingSettings} title={settingsLoading ? "Loading print settings..." : "Print labels"}>
+              {settingsLoading ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Loading...</> : "Print"}
             </Button>
             <Button variant="outline" onClick={handleTestPrint}>
               🖨️ Print Test Label
