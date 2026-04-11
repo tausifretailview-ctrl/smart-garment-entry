@@ -1191,3 +1191,187 @@ textarea.no-uppercase,
 input.no-uppercase {
   text-transform: none;
 }
+
+/* ─── ERP Desktop Table Feel — compact rows like Tally/Busy ─── */
+.erp-desktop-table th {
+  padding: 4px 8px;
+  font-size: 11px;
+  height: 26px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: hsl(var(--muted));
+  border-bottom: 1px solid hsl(var(--border));
+  white-space: nowrap;
+}
+
+.erp-desktop-table td {
+  padding: 2px 8px;
+  font-size: 12px;
+  height: 28px;
+  border-bottom: 0.5px solid hsl(var(--border) / 0.5);
+  vertical-align: middle;
+}
+
+/* Zebra striping */
+.erp-desktop-table tbody tr:nth-child(even) {
+  background: hsl(var(--muted) / 0.4);
+}
+
+/* Solid left-accent on hover row */
+.erp-desktop-table tbody tr:hover {
+  background: hsl(var(--primary) / 0.06);
+  border-left: 2px solid hsl(var(--primary));
+}
+
+/* Active/selected row */
+.erp-desktop-table tbody tr.selected {
+  background: hsl(var(--primary) / 0.10);
+  border-left: 2px solid hsl(var(--primary));
+}
+
+/* Numeric cells — right-aligned with tabular numbers */
+.erp-desktop-table td.num,
+.erp-desktop-table th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
+  padding-right: 12px;
+}
+
+/* ─── ERP Form Compact — Tally-style entry fields ─── */
+.erp-form-compact .erp-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.erp-form-compact .erp-field label {
+  font-size: 12px;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  width: 110px;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.erp-form-compact .erp-field input,
+.erp-form-compact .erp-field select {
+  height: 24px;
+  font-size: 12px;
+  border-radius: 3px;
+  padding: 0 6px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+}
+
+.erp-form-compact .erp-field input:focus,
+.erp-form-compact .erp-field select:focus {
+  outline: none;
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.15);
+}
+
+/* Required field empty — red border on blur */
+.erp-form-compact .erp-field input:required:invalid:not(:focus):not(:placeholder-shown) {
+  border-color: hsl(var(--destructive));
+  background: hsl(var(--destructive) / 0.04);
+}
+
+/* ─── Keyboard shortcut badge on action buttons ─── */
+.kbd-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kbd-hint kbd {
+  font-size: 9px;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid rgba(255,255,255,0.3);
+  background: rgba(0,0,0,0.15);
+  color: inherit;
+  opacity: 0.85;
+  line-height: 1.4;
+}
+
+/* For buttons on light backgrounds */
+.kbd-hint.light kbd {
+  border-color: hsl(var(--border));
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+
+/* ─── Sticky totals — always visible while scrolling ─── */
+.erp-sticky-totals {
+  position: sticky;
+  bottom: 24px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  padding: 8px 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 24px;
+  align-items: center;
+  z-index: 10;
+  box-shadow: 0 -2px 8px hsl(var(--foreground) / 0.06);
+  margin-top: 8px;
+}
+
+.erp-sticky-totals .total-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.erp-sticky-totals .total-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.erp-sticky-totals .total-value {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
+  color: hsl(var(--foreground));
+}
+
+.erp-sticky-totals .total-value.net {
+  color: hsl(var(--primary));
+  font-size: 18px;
+}
+
+/* ─── Skeleton rows for table loading ─── */
+.erp-skeleton-row {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 8px;
+  border-bottom: 0.5px solid hsl(var(--border) / 0.4);
+}
+
+.erp-skeleton-row:nth-child(even) {
+  background: hsl(var(--muted) / 0.4);
+}
+
+.erp-skeleton-cell {
+  height: 12px;
+  border-radius: 3px;
+  background: hsl(var(--muted));
+  animation: erp-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes erp-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
