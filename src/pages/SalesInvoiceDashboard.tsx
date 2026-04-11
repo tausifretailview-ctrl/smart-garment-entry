@@ -145,9 +145,10 @@ export default function SalesInvoiceDashboard() {
   });
 
   // Default userFilter to logged-in user (single-user orgs default to "all")
+  // On mobile, always default to "all" so owner can see all invoices
   useEffect(() => {
     if (userFilter === "__pending__" && orgUsers.length > 0 && user?.id) {
-      if (orgUsers.length === 1) {
+      if (orgUsers.length === 1 || isMobile) {
         setUserFilter("all");
       } else {
         const isOrgMember = orgUsers.some((u: any) => u.id === user.id);
@@ -156,7 +157,7 @@ export default function SalesInvoiceDashboard() {
     } else if (userFilter === "__pending__" && orgUsers.length > 0) {
       setUserFilter("all");
     }
-  }, [orgUsers, user?.id]);
+  }, [orgUsers, user?.id, isMobile]);
 
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
