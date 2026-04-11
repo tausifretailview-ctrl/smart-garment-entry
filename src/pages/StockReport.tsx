@@ -688,6 +688,12 @@ export default function StockReport() {
     }
 
     return stockItems.filter(item => {
+      // Pinned product filter
+      if (pinnedProducts.length > 0) {
+        const pinnedNames = new Set(pinnedProducts.map(p => p.product_name.toLowerCase()));
+        if (!pinnedNames.has((item.product_name || '').toLowerCase())) return false;
+      }
+      
       // Product name filter
       if (productNameFilter) {
         const nameSearch = productNameFilter.toLowerCase();
@@ -728,7 +734,7 @@ export default function StockReport() {
       
       return true;
     });
-  }, [stockItems, searchTerm, productNameFilter, brandFilter, departmentFilter, sizeFilter, colorFilter, supplierFilter, supplierInvoiceFilter, categoryFilter, stockStatusFilter, lowStockThreshold, oldBarcodeVariantMap]);
+  }, [stockItems, searchTerm, productNameFilter, brandFilter, departmentFilter, sizeFilter, colorFilter, supplierFilter, supplierInvoiceFilter, categoryFilter, stockStatusFilter, lowStockThreshold, oldBarcodeVariantMap, pinnedProducts]);
 
 
   // Size-wise stock report data
