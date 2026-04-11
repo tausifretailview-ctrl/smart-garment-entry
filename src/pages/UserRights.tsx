@@ -675,7 +675,49 @@ const UserRights = () => {
             </CardContent>
           </Card>
 
-          {/* Save Button */}
+          {/* Column Visibility */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Columns className="h-5 w-5" />
+                Column Visibility
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Show or hide specific columns in billing forms
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {columnConfig.map((module) => (
+                  <div key={module.id}>
+                    <h4 className="font-semibold text-sm mb-3">{module.name}</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                      {module.columns.map((col) => {
+                        const key = `${module.id}.${col.id}`;
+                        const isVisible = columnVisibility[key] !== false;
+                        return (
+                          <div
+                            key={col.id}
+                            className="flex items-center space-x-2 p-2 border rounded-lg hover:bg-muted/30 transition-colors"
+                          >
+                            <Checkbox
+                              id={key}
+                              checked={isVisible}
+                              onCheckedChange={() => toggleColumnVisibility(module.id, col.id)}
+                            />
+                            <Label htmlFor={key} className="text-sm cursor-pointer">
+                              {col.name}
+                            </Label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="flex justify-end">
             <Button
               onClick={() => saveMutation.mutate()}
