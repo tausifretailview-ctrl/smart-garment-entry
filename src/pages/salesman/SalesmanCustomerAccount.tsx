@@ -570,6 +570,11 @@ const SalesmanCustomerAccount = () => {
                               </span>
                             )}
                           </p>
+                          {invoice.discount_amount > 0 && (
+                            <p className="text-xs text-orange-500">
+                              Disc: ₹{invoice.discount_amount.toLocaleString("en-IN")}
+                            </p>
+                          )}
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-red-600">
