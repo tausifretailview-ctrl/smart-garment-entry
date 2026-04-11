@@ -1200,9 +1200,13 @@ input.no-uppercase {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  background: hsl(var(--muted));
   border-bottom: 1px solid hsl(var(--border));
   white-space: nowrap;
+}
+
+/* Default header bg — only when no explicit bg is set inline */
+.erp-desktop-table thead tr:not([class*="bg-"]) th {
+  background: hsl(var(--muted));
 }
 
 .erp-desktop-table td {
