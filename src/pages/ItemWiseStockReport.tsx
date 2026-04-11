@@ -60,7 +60,10 @@ export default function ItemWiseStockReport() {
   const [supplierFilter, setSupplierFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
-  const hasActiveFilter = useMemo(() => {
+  // Auto-load data when any groupBy is selected (always true) OR any filter/search is active
+  const hasActiveFilter = true;
+
+  const hasActiveSearchOrFilter = useMemo(() => {
     return Boolean(
       searchQuery.trim().length > 0 ||
       (brandFilter && brandFilter !== "__all__") ||
