@@ -1109,6 +1109,20 @@ const PurchaseEntry = () => {
         productName: 'product_name',
       });
 
+      // Same barcode series mode: exact barcode match → instant add
+      if (sameBarcodeSeriesEnabled && query.trim().length >= 1) {
+        const exactMatch = sortedResults.find(
+          (r: any) => r.barcode?.toLowerCase() === query.trim().toLowerCase()
+        );
+        if (exactMatch) {
+          setInlineSearchResults([]);
+          setShowInlineSearch(false);
+          setInlineSearchQuery("");
+          await handleProductSelectSameBarcode(exactMatch);
+          return;
+        }
+      }
+
       setInlineSearchResults(sortedResults);
       setSelectedInlineIndex(0);
       setShowInlineSearch(true);
