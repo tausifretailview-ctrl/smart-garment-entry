@@ -3664,9 +3664,9 @@ const PurchaseEntry = () => {
                     <TableHead className='w-[120px] text-right pur-rate-col'>PUR.RATE</TableHead>
                     <TableHead className='w-[120px] text-right sale-rate-col'>SALE.RATE</TableHead>
                     {showMrp && <TableHead className="w-[120px] text-right">MRP</TableHead>}
-                    <TableHead className="w-[100px] text-right">GST %</TableHead>
+                    {showPurCol.gst && <TableHead className="w-[100px] text-right">GST %</TableHead>}
                     <TableHead className="w-[120px] text-right">SUB TOTAL</TableHead>
-                    <TableHead className="w-[100px] text-right">DISC %</TableHead>
+                    {showPurCol.disc_percent && <TableHead className="w-[100px] text-right">DISC %</TableHead>}
                     <TableHead className='w-[120px] text-right total-col'>TOTAL</TableHead>
                     <TableHead className="w-[40px]"></TableHead>
                     <TableHead className="w-[40px]">Action</TableHead>
