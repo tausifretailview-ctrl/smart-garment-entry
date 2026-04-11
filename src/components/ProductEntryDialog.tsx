@@ -629,6 +629,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         }
         setShowMrp(purchaseSettings.show_mrp || false);
         setShowDiscountFields(purchaseSettings.product_entry_discount_enabled || false);
+        setCursorAfterStyle(purchaseSettings.cursor_after_style || 'pur_price');
       }
     }
   };
@@ -1146,15 +1147,15 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     });
   };
 
-  // Enter key moves to next field (like Tab), with smart skip from style → purchase price
+  // Enter key moves to next field (like Tab), with configurable skip from style
   const handleEnterAsTab = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
       const currentEl = e.target as HTMLElement;
       const currentId = currentEl.id || currentEl.getAttribute("name") || "";
 
-      // After style field, jump directly to purchase price (skip hsn, gst, uom)
-      if (currentId === "style") {
+      // After style field, jump based on setting: skip to pur_price or go through hsn→gst sequence
+      if (currentId === "style" && cursorAfterStyle === 'pur_price') {
         const purPriceEl = document.getElementById("default_pur_price");
         if (purPriceEl) {
           purPriceEl.focus();
@@ -1172,7 +1173,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         focusable[idx + 1].focus();
       }
     }
-  }, []);
+  }, [cursorAfterStyle]);
 
   const isFieldEnabled = (fieldName: string) => {
     if (!fieldSettings) return true;
