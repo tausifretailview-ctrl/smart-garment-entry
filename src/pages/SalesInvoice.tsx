@@ -3368,23 +3368,15 @@ Thank you for choosing us!`;
                 const filledItems = lineItems.filter(item => item.productId !== '');
 
                 if (filledItems.length === 0) {
+                  const baseCols = 9; // #, product, size, barcode, qty, mrp, price, total, action
+                  const optCols = [showCol.color, showCol.hsn, showCol.box, showCol.disc_percent, showCol.disc_amount, showCol.gst].filter(Boolean).length;
+                  const totalCols = baseCols + optCols;
                   return Array.from({ length: 5 }, (_, i) => (
                     <tr key={`empty-${i}`} className="h-[32px] border-b border-muted/30">
                       <td className="text-center text-[11px] text-muted-foreground/40 px-3">{i + 1}</td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-3"></td>
-                      <td className="px-1"></td>
+                      {Array.from({ length: totalCols - 1 }, (_, j) => (
+                        <td key={j} className="px-3"></td>
+                      ))}
                     </tr>
                   ));
                 }
