@@ -3093,23 +3093,21 @@ const PurchaseEntry = () => {
                   >
                     <div className="flex justify-between items-start gap-2">
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-foreground truncate">
-                          {formatProductDescription({
-                            product_name: result.product_name,
-                            category: result.category,
-                            brand: result.brand,
-                            style: result.style,
-                            color: result.color,
-                            size: result.size
-                          })}
-                        </p>
+                        <p className="text-sm font-semibold text-foreground truncate">{result.product_name}</p>
                         <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                          {result.brand && <span className="text-[11px] bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-1.5 py-0.5 rounded">{result.brand}</span>}
+                          {result.category && <span className="text-[11px] bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-1.5 py-0.5 rounded">{result.category}</span>}
+                          {result.style && <span className="text-[11px] bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800 px-1.5 py-0.5 rounded">{result.style}</span>}
+                          {result.color && result.color !== '-' && <span className="text-[11px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{result.color}</span>}
+                          {result.size && <span className="text-[11px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-mono">Size: {result.size}</span>}
+                        </div>
+                        <div className="flex items-center gap-1 mt-0.5">
                           {result.barcode && <span className="text-[11px] text-muted-foreground font-mono">{result.barcode}</span>}
                           {result.size_range && <span className="text-[11px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">{result.size_range}</span>}
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-sm font-bold text-primary">₹{result.pur_price?.toFixed(2) || '0.00'}</p>
+                        <p className="text-sm font-bold text-primary">Buy: ₹{result.pur_price?.toFixed(2) || '0.00'}</p>
                         <p className="text-[12px] font-bold text-amber-600 dark:text-amber-400">MRP: ₹{result.mrp?.toFixed(2) || '0.00'}</p>
                         <p className="text-[11px] text-muted-foreground">Sale: ₹{result.sale_price?.toFixed(2) || '0.00'}</p>
                       </div>
@@ -3569,36 +3567,32 @@ const PurchaseEntry = () => {
                             idx === selectedSearchIndex ? "bg-accent" : "hover:bg-accent/50"
                           )}
                         >
-                          <div className="font-medium flex items-center gap-2">
-                            <span>
-                              {formatProductDescription({
-                                product_name: result.product_name,
-                                category: result.category,
-                                brand: result.brand,
-                                style: result.style,
-                                color: result.color,
-                                size: result.size
-                              })}
-                            </span>
-                            {result.size_range && (
-                              <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold">
-                                {result.size_range}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                            {result.barcode && (
-                              <span>Barcode: {result.barcode}</span>
-                            )}
-                            <span className="text-primary font-medium">
-                              Pur: ₹{result.pur_price?.toFixed(2) || '0.00'}
-                            </span>
-                            <span className="text-amber-600 dark:text-amber-400 font-bold">
-                              MRP: ₹{result.mrp?.toFixed(2) || '0.00'}
-                            </span>
-                            <span className="text-green-600 dark:text-green-400 font-medium">
-                              Sale: ₹{result.sale_price?.toFixed(2) || '0.00'}
-                            </span>
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="font-semibold text-sm flex items-center gap-2">
+                                <span>{result.product_name}</span>
+                                {result.size_range && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold">
+                                    {result.size_range}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {result.brand && <span className="text-[10px] bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-1 py-0.5 rounded">{result.brand}</span>}
+                                {result.category && <span className="text-[10px] bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-1 py-0.5 rounded">{result.category}</span>}
+                                {result.style && <span className="text-[10px] bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800 px-1 py-0.5 rounded">{result.style}</span>}
+                                {result.color && result.color !== '-' && <span className="text-[10px] bg-muted text-muted-foreground px-1 py-0.5 rounded">{result.color}</span>}
+                                {result.size && <span className="text-[10px] bg-muted text-muted-foreground px-1 py-0.5 rounded font-mono">Size: {result.size}</span>}
+                              </div>
+                              <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
+                                {result.barcode && <span className="font-mono">{result.barcode}</span>}
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="text-primary font-bold text-sm">Buy: ₹{result.pur_price?.toFixed(2) || '0.00'}</span>
+                              <div className="text-[11px] text-amber-600 dark:text-amber-400 font-bold">MRP: ₹{result.mrp?.toFixed(2) || '0.00'}</div>
+                              <div className="text-[11px] text-muted-foreground">Sale: ₹{result.sale_price?.toFixed(2) || '0.00'}</div>
+                            </div>
                           </div>
                         </button>
                       ))}
