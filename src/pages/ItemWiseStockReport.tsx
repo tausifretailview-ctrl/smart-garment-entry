@@ -620,8 +620,8 @@ export default function ItemWiseStockReport() {
                 </div>
               </div>
             )}
+          </CardContent>
         </Card>
-    </div>
     </div>
   );
 }
