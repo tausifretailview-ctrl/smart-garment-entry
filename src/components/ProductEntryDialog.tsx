@@ -1821,7 +1821,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                               : "text-muted-foreground hover:text-primary"
                                           )}
                                         >
-                                          {disabledSizes.has(size) ? '✕' : '✓'} {size}
+                                          {disabledSizes.has(size) ? '✕' : '✓'} {size === 'Free' ? 'Qty' : size}
                                         </button>
                                       </th>
                                     ))}
@@ -1962,7 +1962,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                       ) : (
                                         <Check className="h-3.5 w-3.5 text-emerald-600" />
                                       )}
-                                      {size}
+                                      {size === 'Free' ? 'Qty' : size}
                                     </button>
                                     {/* Remove custom size */}
                                     {isCustom && (
