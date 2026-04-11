@@ -262,6 +262,7 @@ const SalesmanCustomerAccount = () => {
             paid_amount: effectivePaid,
             balance,
             days_overdue: daysOverdue,
+            discount_amount: (sale.discount_amount || 0) + (sale.flat_discount_amount || 0),
           };
         })
         .filter(inv => inv.balance >= 1)
