@@ -1617,15 +1617,17 @@ export default function Settings() {
                   </p>
                 </div>
                 
-                <div className="flex items-center justify-between py-2 border rounded-lg px-3">
-                  <div>
+                <div className="flex items-center justify-between py-3 border rounded-lg px-3">
+                  <div className="space-y-1">
                     <p className="text-sm font-medium">Same Barcode Series</p>
-                    <p className="text-xs text-muted-foreground">
-                      When enabled: selecting the same product reuses its existing
-                      barcode and variant — no new barcode generated per purchase.<br/>
-                      Use this when your barcodes are short manual numbers (e.g. 501,
-                      8-9 digits) and you want the same barcode on every purchase of the same item.<br/>
-                      <strong>Default OFF</strong> — most orgs want a new unique barcode per purchase batch.
+                    <p className="text-xs text-muted-foreground max-w-sm">
+                      For products sold by MTR, KG, dozen — each product has one
+                      permanent barcode (e.g. 501, 8001). Type the barcode in purchase
+                      to instantly load the product and enter quantity. No new barcode
+                      is created on repeat purchases.
+                    </p>
+                    <p className="text-xs text-amber-600">
+                      Default OFF — garment/size-based businesses should keep this OFF.
                     </p>
                   </div>
                   <Switch

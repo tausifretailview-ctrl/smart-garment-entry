@@ -1498,6 +1498,20 @@ const PurchaseEntry = () => {
       // Final abort check before setting state
       if (currentController.signal.aborted) return;
 
+      // Same barcode series mode: exact barcode match → instant add, no dropdown
+      if (sameBarcodeSeriesEnabled && query.trim().length >= 1) {
+        const exactMatch = sortedResults.find(
+          (r: any) => r.barcode?.toLowerCase() === query.trim().toLowerCase()
+        );
+        if (exactMatch) {
+          setSearchResults([]);
+          setShowSearch(false);
+          setSearchQuery("");
+          await handleProductSelectSameBarcode(exactMatch);
+          return;
+        }
+      }
+
       setSearchResults(sortedResults);
       setSelectedSearchIndex(0);
       setShowSearch(true);
@@ -1511,6 +1525,41 @@ const PurchaseEntry = () => {
         variant: "destructive",
       });
     }
+  };
+
+  /**
+   * Same barcode series mode: add the matched variant directly.
+   * Never creates a new variant or new barcode.
+   */
+  const handleProductSelectSameBarcode = async (variant: ProductVariant) => {
+    const subTotal = 1 * (variant.pur_price || 0);
+    const newItem: LineItem = {
+      temp_id: Date.now().toString() + Math.random(),
+      product_id: variant.product_id,
+      sku_id: variant.id,
+      product_name: variant.product_name,
+      size: variant.size || "",
+      qty: 1,
+      pur_price: variant.pur_price || 0,
+      sale_price: variant.sale_price || 0,
+      mrp: variant.mrp || 0,
+      gst_per: variant.gst_per || 0,
+      hsn_code: variant.hsn_code || "",
+      barcode: variant.barcode,
+      discount_percent: 0,
+      line_total: subTotal,
+      brand: variant.brand || "",
+      category: variant.category || "",
+      color: variant.color || "",
+      style: variant.style || "",
+      uom: variant.uom || 'NOS',
+    };
+    setLineItems(prev => [...prev, newItem]);
+    setTimeout(() => {
+      lastQtyInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      lastQtyInputRef.current?.focus();
+      lastQtyInputRef.current?.select();
+    }, 120);
   };
 
   const handleProductSelect = async (variant: ProductVariant) => {
@@ -3771,6 +3820,7 @@ const PurchaseEntry = () => {
                               min={isDecimalUOM(item.uom) ? "0.001" : "1"}
                               step={isDecimalUOM(item.uom) ? "0.001" : "1"}
                               value={item.qty || ""}
+                              onFocus={(e) => { if (sameBarcodeSeriesEnabled) e.target.select(); }}
                               onChange={(e) =>
                                 updateLineItem(
                                   item.temp_id,
