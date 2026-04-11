@@ -1446,7 +1446,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       }));
                     }}
                   >
-                    <SelectTrigger className="border-blue-200 dark:border-blue-800">
+                    <SelectTrigger id="purchase_gst_percent" className="border-blue-200 dark:border-blue-800"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && cursorAfterStyle === 'hsn') {
+                          e.preventDefault();
+                          document.getElementById("sale_gst_percent")?.focus();
+                        }
+                      }}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1470,7 +1476,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       setFormData(prev => ({ ...prev, sale_gst_percent: parseInt(value) }))
                     }
                   >
-                    <SelectTrigger className="border-green-200 dark:border-green-800">
+                    <SelectTrigger id="sale_gst_percent" className="border-green-200 dark:border-green-800"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && cursorAfterStyle === 'hsn') {
+                          e.preventDefault();
+                          document.getElementById("default_pur_price")?.focus();
+                        }
+                      }}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
