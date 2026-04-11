@@ -621,7 +621,7 @@ export function SizeGridDialog({
                       <div className="flex gap-3 flex-wrap mb-2">
                         {colorVariants.map((v, index) => (
                           <div key={v.id} className="flex flex-col items-center gap-1">
-                            <span className="text-sm font-medium">{v.size}</span>
+                            <span className="text-sm font-medium">{v.size.toLowerCase() === 'free' ? 'Qty' : v.size}</span>
                             <input
                               ref={colorIndex === 0 && index === 0 ? firstInputRef : undefined}
                               type="number"
@@ -947,7 +947,7 @@ export function SizeGridDialog({
                   <div className="flex gap-3 mb-4 flex-wrap">
                     {filteredVariants.map((v, index) => (
                       <div key={v.id} className="flex flex-col items-center gap-1">
-                        <span className="text-sm font-medium">{v.size}</span>
+                        <span className="text-sm font-medium">{v.size.toLowerCase() === 'free' ? 'Qty' : v.size}</span>
                         <input
                           ref={index === 0 ? firstInputRef : undefined}
                           type="number"
