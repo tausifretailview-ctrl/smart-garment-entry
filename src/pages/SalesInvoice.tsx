@@ -890,7 +890,7 @@ export default function SalesInvoice() {
           .eq("organization_id", currentOrganization.id)
           .eq("status", "active")
           .is("deleted_at", null)
-          .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%`);
+          .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%,category.ilike.%${query}%`);
 
         const productIds = matchingProducts?.map(p => p.id) || [];
         const sizeGroupIds = [...new Set(matchingProducts?.map(p => p.size_group_id).filter(Boolean) || [])];
@@ -2581,17 +2581,22 @@ Thank you for choosing us!`;
                   >
                     <div className="flex justify-between items-start gap-2">
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-foreground truncate">{product.product_name}</p>
+                        <p className="text-sm font-semibold text-foreground truncate">{product.product_name}</p>
                         <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                          {product.brand && <span className="text-[11px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{product.brand}</span>}
-                          {(variant.color || product.color) && <span className="text-[11px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{variant.color || product.color}</span>}
-                          {variant.size && <span className="text-[11px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">Size: {variant.size}</span>}
+                          {product.brand && <span className="text-[11px] bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-1.5 py-0.5 rounded">{product.brand}</span>}
+                          {product.category && <span className="text-[11px] bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-1.5 py-0.5 rounded">{product.category}</span>}
+                          {product.style && <span className="text-[11px] bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800 px-1.5 py-0.5 rounded">{product.style}</span>}
+                          {(variant.color || product.color) && (variant.color || product.color) !== '-' && <span className="text-[11px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{variant.color || product.color}</span>}
+                          {variant.size && <span className="text-[11px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-mono">Size: {variant.size}</span>}
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                          {variant.barcode && <span className="font-mono">{variant.barcode}</span>}
                         </div>
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-sm font-bold text-primary">₹{variant.sale_price}</p>
-                        <p className={cn("text-[11px] font-medium", (variant.stock_qty || 0) > 0 ? "text-emerald-600" : "text-destructive")}>
-                          Qty: {variant.stock_qty || 0}
+                        <p className={cn("text-[11px] font-medium", (variant.stock_qty || 0) > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
+                          Stock: {variant.stock_qty || 0}
                         </p>
                       </div>
                     </div>

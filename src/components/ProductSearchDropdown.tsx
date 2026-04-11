@@ -14,6 +14,13 @@ interface ProductResult {
   size: string;
   color: string;
   stock_qty: number;
+  sale_price: number;
+  pur_price: number;
+  mrp: number;
+  category: string;
+  style: string;
+  product_id: string;
+  variant_id: string;
 }
 
 interface ProductSearchDropdownProps {
@@ -29,7 +36,7 @@ export function ProductSearchDropdown({
   value,
   onChange,
   onSelect,
-  placeholder = "Search by product, brand, barcode...",
+  placeholder = "Search by name, brand, category, style or barcode...",
   className,
   onKeyDown,
 }: ProductSearchDropdownProps) {
@@ -42,7 +49,6 @@ export function ProductSearchDropdown({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
 
-  // Update dropdown position
   const updatePosition = useCallback(() => {
     if (inputRef.current) {
       const rect = inputRef.current.getBoundingClientRect();
@@ -68,7 +74,6 @@ export function ProductSearchDropdown({
         const trimmed = value.trim();
         const looksLikeBarcode = /\d/.test(trimmed) && trimmed.length >= 5;
 
-        // Build base query
         let query = supabase
           .from("product_variants")
           .select(`
@@ -77,6 +82,10 @@ export function ProductSearchDropdown({
             color,
             stock_qty,
             barcode,
+            sale_price,
+            pur_price,
+            mrp,
+            product_id,
             products!inner (
               product_name,
               brand,
@@ -90,12 +99,10 @@ export function ProductSearchDropdown({
           .is("deleted_at", null)
           .is("products.deleted_at", null);
 
-        // Add server-side filter for barcodes so they're found even beyond limit
         if (looksLikeBarcode) {
           query = query.or(`barcode.eq.${trimmed},barcode.ilike.${trimmed}%`);
         } else {
-          // For text search, filter on product fields server-side
-          const token = trimmed.split(/\s+/)[0]; // use first token for server filter
+          const token = trimmed.split(/\s+/)[0];
           if (token) {
             query = query.or(
               `product_name.ilike.%${token}%,brand.ilike.%${token}%,style.ilike.%${token}%,category.ilike.%${token}%`,
@@ -110,7 +117,6 @@ export function ProductSearchDropdown({
 
         if (error) throw error;
 
-        // Multi-token AND filter across all unified fields
         const tokens = value.trim().toLowerCase().split(/\s+/).filter(Boolean);
         const formatted = (data || [])
           .filter((item: any) => {
@@ -133,11 +139,18 @@ export function ProductSearchDropdown({
             size: item.size || "",
             color: item.color || "",
             stock_qty: item.stock_qty || 0,
+            sale_price: item.sale_price || 0,
+            pur_price: item.pur_price || 0,
+            mrp: item.mrp || 0,
+            category: item.products?.category || "",
+            style: item.products?.style || "",
+            product_id: item.product_id || "",
+            variant_id: item.id,
           }));
 
         const displayResults = formatted.slice(0, 50);
         setResults(displayResults);
-        setShowDropdown(displayResults.length > 0);
+        setShowDropdown(displayResults.length > 0 || (tokens.length > 0 && formatted.length === 0));
         setSelectedIndex(-1);
         updatePosition();
       } catch (error) {
@@ -150,7 +163,6 @@ export function ProductSearchDropdown({
     return () => clearTimeout(timer);
   }, [value, currentOrganization?.id, updatePosition]);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -162,18 +174,15 @@ export function ProductSearchDropdown({
         setShowDropdown(false);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Handle keyboard navigation
   const handleKeyDownInternal = (e: React.KeyboardEvent) => {
     if (!showDropdown || results.length === 0) {
       onKeyDown?.(e);
       return;
     }
-
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setSelectedIndex((prev) => (prev < results.length - 1 ? prev + 1 : prev));
@@ -205,47 +214,87 @@ export function ProductSearchDropdown({
         left: dropdownPosition.left,
         width: dropdownPosition.width,
         zIndex: 9999,
-        maxHeight: "300px",
+        maxHeight: "360px",
         overflowY: "auto",
       }}
     >
-      {results.map((product, index) => (
-        <div
-          key={product.id}
-           className={cn(
-             "px-3 py-2 cursor-pointer hover:bg-accent text-sm border-b border-border last:border-b-0",
-             selectedIndex === index && "bg-primary text-primary-foreground"
-           )}
-           onMouseDown={(e) => e.preventDefault()}
-           onClick={() => handleSelect(product)}
-           onMouseEnter={() => setSelectedIndex(index)}
-        >
-          <div className="flex justify-between items-start gap-2">
-            <div className="flex-1 min-w-0">
-              <div className="font-medium truncate">{product.product_name}</div>
-              <div className="text-xs text-muted-foreground flex flex-wrap gap-1 mt-0.5">
-                {product.brand && <span>{product.brand}</span>}
-                {product.brand && product.size && <span>•</span>}
-                {product.size && <span>Size: {product.size}</span>}
-                {product.color && <span>• {product.color}</span>}
-              </div>
-              {product.barcode && (
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  Barcode: {product.barcode}
-                </div>
-              )}
-            </div>
-            <div className={cn(
-              "text-xs font-medium px-1.5 py-0.5 rounded shrink-0",
-              product.stock_qty > 0 
-                ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" 
-                : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
-            )}>
-              Qty: {product.stock_qty}
-            </div>
+      {results.length > 0 ? (
+        <>
+          <div className="px-3 py-1.5 bg-muted/50 border-b text-xs text-muted-foreground">
+            {results.length} product{results.length !== 1 ? 's' : ''} found · type more to narrow down
           </div>
+          {results.map((product, index) => (
+            <div
+              key={product.id}
+              className={cn(
+                "px-3 py-2.5 cursor-pointer border-b border-border/50 last:border-0 transition-colors",
+                selectedIndex === index
+                  ? "bg-primary/10 border-l-2 border-l-primary"
+                  : "hover:bg-accent"
+              )}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => handleSelect(product)}
+              onMouseEnter={() => setSelectedIndex(index)}
+            >
+              {/* Row 1: Product name + stock badge */}
+              <div className="flex justify-between items-start gap-2">
+                <span className="font-semibold text-sm text-foreground leading-tight">
+                  {product.product_name}
+                </span>
+                <span className={cn(
+                  "text-xs font-medium px-1.5 py-0.5 rounded shrink-0",
+                  product.stock_qty > 0
+                    ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
+                    : "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                )}>
+                  Stock: {product.stock_qty}
+                </span>
+              </div>
+              {/* Row 2: Attribute chips */}
+              <div className="flex flex-wrap gap-1 mt-1">
+                {product.brand && (
+                  <span className="text-[11px] bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-1.5 py-0.5 rounded">
+                    {product.brand}
+                  </span>
+                )}
+                {product.category && (
+                  <span className="text-[11px] bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-1.5 py-0.5 rounded">
+                    {product.category}
+                  </span>
+                )}
+                {product.style && (
+                  <span className="text-[11px] bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800 px-1.5 py-0.5 rounded">
+                    {product.style}
+                  </span>
+                )}
+                {product.color && product.color !== '-' && (
+                  <span className="text-[11px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                    {product.color}
+                  </span>
+                )}
+                {product.size && (
+                  <span className="text-[11px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-mono">
+                    Size: {product.size}
+                  </span>
+                )}
+              </div>
+              {/* Row 3: Barcode + Price */}
+              <div className="flex justify-between items-center mt-1">
+                <span className="text-[11px] text-muted-foreground font-mono">
+                  {product.barcode || '—'}
+                </span>
+                <span className="text-sm font-bold text-primary">
+                  ₹{product.sale_price}
+                </span>
+              </div>
+            </div>
+          ))}
+        </>
+      ) : (
+        <div className="px-3 py-4 text-sm text-muted-foreground text-center">
+          No products found for "{value.trim()}"
         </div>
-      ))}
+      )}
     </div>
   );
 
