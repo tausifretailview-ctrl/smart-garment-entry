@@ -4,6 +4,7 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useMobileERP, validateIMEI } from "@/hooks/useMobileERP";
 import { useSettings } from "@/hooks/useSettings";
 import { useSearchParams } from "react-router-dom";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useVisibilityRefetch } from "@/hooks/useVisibilityRefetch";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -138,6 +139,7 @@ export default function POSSales() {
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
+  const { orgNavigate: orgNavigatePOS } = useOrgNavigation();
   const _savedCart = (() => {
     try {
       const key = `pos_cart_${currentOrganization?.id || 'default'}`;
@@ -623,10 +625,15 @@ export default function POSSales() {
           handleEstimatePrintRef.current?.();
         }
       }
-      // Esc - Clear items
+      // Esc - Clear cart or go to POS Dashboard
       else if (e.key === 'Escape') {
         e.preventDefault();
-        handleClearAll();
+        const hasItems = items.some(i => i.productId !== '');
+        if (hasItems) {
+          handleClearAll();
+        } else {
+          orgNavigatePOS('/pos-dashboard');
+        }
       }
       // Ctrl+P - Print saved invoice
       else if (e.ctrlKey && e.key === 'p') {
