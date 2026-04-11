@@ -1,28 +1,14 @@
 
 
-## Add Tally-Style Esc Key for Back Navigation
+## Plan: Tighten Stock Constraint to >= 0
 
-### What It Does
-Pressing **Esc** on any page navigates back to the previous page, mimicking Tally's behavior. Works globally across all pages.
+### Single Migration
 
-### Safety Guards (to avoid conflicts)
-The Esc handler will **not fire** when:
-- A dialog, modal, popover, or dropdown is open (detected by checking for `[data-state="open"]` overlays or `[role="dialog"]`)
-- Focus is inside an input, textarea, or select element
-- POS Sales page already handles Esc (clear cart) — the existing handler uses `e.preventDefault()`, so the global one will check if default was prevented
+One migration file that executes three statements in order:
 
-### Implementation
+1. `ALTER TABLE public.product_variants DROP CONSTRAINT stock_not_negative;`
+2. `UPDATE public.product_variants SET stock_qty = 0 WHERE stock_qty < 0;`
+3. `ALTER TABLE public.product_variants ADD CONSTRAINT stock_not_negative CHECK (stock_qty >= 0);`
 
-**New hook: `src/hooks/useEscapeBack.ts`**
-- Listens for `keydown` Escape on `window`
-- Checks guards (no open dialogs, no focused inputs)
-- Calls `navigate(-1)` from react-router to go back
-- On the root dashboard page, Esc does nothing (nowhere to go back to)
-
-**Wire it up in `src/components/Layout.tsx`**
-- Call `useEscapeBack()` inside the Layout component so it's active on all pages
-
-### Files
-- **Create** `src/hooks/useEscapeBack.ts` — the hook with all guard logic
-- **Edit** `src/components/Layout.tsx` — add one line to call the hook
+No code changes needed — service/combo products are already handled by existing DB triggers and `useStockValidation`.
 
