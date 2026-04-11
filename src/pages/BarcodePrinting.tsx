@@ -1258,6 +1258,8 @@ export default function BarcodePrinting() {
   // Track whether defaults have been loaded to prevent re-runs
   const hasLoadedDefaultsRef = useRef(false);
   const hasLoadedPrecisionConfigRef = useRef(false);
+  const settingsFullyLoadedRef = useRef(false);
+  const [settingsLoading, setSettingsLoading] = useState(true);
 
   // Auto-save precision label config changes to active template (debounced)
   const autoSavePrecisionConfig = useCallback(async (templateName: string, labelConfig: LabelDesignConfig, labelWidth: number, labelHeight: number, orgId: string) => {
@@ -1438,6 +1440,8 @@ export default function BarcodePrinting() {
     hasLoadedDefaultsRef.current = false;
     hasLoadedPrecisionConfigRef.current = false;
     setPrecisionConfigReady(false);
+    settingsFullyLoadedRef.current = false;
+    setSettingsLoading(true);
   }, [currentOrganization?.id]);
 
   // Debounced auto-save for precision designer changes
@@ -1612,8 +1616,15 @@ export default function BarcodePrinting() {
       }
     };
 
-    fetchBusinessName();
-    fetchDbPresets();
+    settingsFullyLoadedRef.current = false;
+    setSettingsLoading(true);
+    const loadAll = async () => {
+      await fetchBusinessName();
+      await fetchDbPresets();
+      settingsFullyLoadedRef.current = true;
+      setSettingsLoading(false);
+    };
+    loadAll();
   }, [currentOrganization?.id]);
 
   // Set a preset as default for auto-loading from purchase
@@ -3351,8 +3362,25 @@ export default function BarcodePrinting() {
     // Barcodes are now pre-rendered as images in getLabelHTML, no setTimeout needed
   };
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (precisionSettings.enabled) {
+      // Wait for settings to be fully loaded before printing
+      if (!settingsFullyLoadedRef.current) {
+        toast.info("Loading print settings...");
+        const maxWait = 3000;
+        const interval = 100;
+        let waited = 0;
+        await new Promise<void>((resolve) => {
+          const check = setInterval(() => {
+            waited += interval;
+            if (settingsFullyLoadedRef.current || waited >= maxWait) {
+              clearInterval(check);
+              resolve();
+            }
+          }, interval);
+        });
+      }
+
       // Precision Pro mode: open a clean window with only label HTML
       setTimeout(() => {
         const printArea = precisionPrintRef.current;
