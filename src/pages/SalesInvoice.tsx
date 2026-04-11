@@ -3335,7 +3335,7 @@ Thank you for choosing us!`;
       {/* Line Items Table */}
       <section className="flex-1 overflow-auto px-6 pb-2">
         <div ref={tableContainerRef} className="overflow-y-auto isolate">
-          <table className="w-full border-separate border-spacing-0">
+          <table className="w-full border-separate border-spacing-0 erp-desktop-table">
             <thead className="sticky top-0 z-10">
               <tr className="bg-slate-800 border-b-2 border-blue-600">
                 <th className="text-center text-[11px] uppercase tracking-[.06em] font-bold h-11 text-white px-3 w-10 rounded-tl-lg">#</th>
@@ -3661,7 +3661,7 @@ Thank you for choosing us!`;
               {isSaving ? (
                 <><Loader2 className="h-3 w-3 animate-spin" /> Saving...</>
               ) : (
-                <><Check className="h-3 w-3" /> {editingInvoiceId ? 'Save Invoice' : '✓ Save Invoice'}</>
+                <><Check className="h-3 w-3" /> <span className="kbd-hint">{editingInvoiceId ? 'Save Invoice' : '✓ Save Invoice'} <kbd>Ctrl+S</kbd></span></>
               )}
             </Button>
           </div>
