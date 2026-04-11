@@ -1,88 +1,44 @@
 
 
-## Plan: Column Visibility Settings in User Rights
+## Fix: Stock Report — Product Limit & Cascading Filters
 
-### Overview
-Add a new "Column Visibility" section in the User Rights page that lets admins toggle which columns appear in Sales Invoice and Purchase Bill tables. This is an organization-level setting stored in the existing `user_permissions` JSON alongside `menu`, `mainMenu`, and `special`. Both SalesInvoice and PurchaseEntry will read these settings and conditionally render columns.
+### Problem
+1. **1000-row cap**: The `cachedFilterOptions` query fetches products and variants without pagination, so PostgREST silently truncates at 1000 rows — orgs with more products see an incomplete product name dropdown.
+2. **No cascading**: Selecting a product name auto-fills brand/category/department but the dropdown *options* for all filters still show every value across all products. Size and color dropdowns never narrow because `rawProducts` doesn't carry variant data.
 
-### Toggleable Columns
+### Plan
 
-**Sales Invoice**: HSN, Box, Color, Disc%, Disc ₹, GST%
+**File: `src/pages/StockReport.tsx`**
 
-**Purchase Bill**: GST%, Disc%, MRP (already has a toggle — will integrate)
+#### 1. Update `filterOptions` state to include product IDs and variant mapping
+- Add `id` to `rawProducts` type: `Array<{ id: string; product_name: string; brand: string; category: string; style: string }>`
+- Add `variantsByProductId: Record<string, { sizes: string[]; colors: string[] }>`
 
-### Technical Changes
+#### 2. Paginate the `cachedFilterOptions` query (lines 153-177)
+- Replace the single `supabase.from("products").select(...)` call with a `while(hasMore)` loop fetching 1000 rows at a time using `.range()` — same pattern already used elsewhere in this file (e.g., line 275).
+- Include `id` in the select: `.select("id, product_name, brand, category, style")`
+- Do the same for the variants query: paginate `.select("product_id, size, color")` in batches of 1000.
+- Build `variantsByProductId` map from variant results.
+- Return it alongside existing fields.
 
-#### 1. User Rights page (`src/pages/UserRights.tsx`)
+#### 3. Paginate `fetchFilterOptions()` (lines 200-260) with the same pattern
+- This is the non-cached fallback. Apply identical pagination and include `id` + `product_id` selects.
 
-Add a new `columnVisibility` section to the permissions data structure:
+#### 4. Add `derivedFilterOptions` useMemo
+- When `productNameFilter` is set: filter `rawProducts` by name, narrow brands/categories/departments to only matching products, narrow sizes/colors from `variantsByProductId`.
+- When no product selected: return full `filterOptions` lists.
 
-```ts
-const columnConfig = [
-  {
-    id: "sales_invoice",
-    name: "Sales Invoice Columns",
-    columns: [
-      { id: "hsn", name: "HSN" },
-      { id: "box", name: "Box" },
-      { id: "color", name: "Color" },
-      { id: "disc_percent", name: "Disc%" },
-      { id: "disc_amount", name: "Disc ₹" },
-      { id: "gst", name: "GST%" },
-    ],
-  },
-  {
-    id: "purchase_bill",
-    name: "Purchase Bill Columns",
-    columns: [
-      { id: "hsn", name: "HSN" },
-      { id: "gst", name: "GST%" },
-      { id: "disc_percent", name: "Disc%" },
-      { id: "mrp", name: "MRP" },
-    ],
-  },
-];
-```
+#### 5. Update product name `onValueChange` handler (lines 1312-1323)
+- Reset all dependent filters (brand, category, department, size, color) to `"all"`.
+- If only one value exists in the narrowed set, auto-select it.
 
-- Add state: `columnVisibility` object keyed by `module.column_id` (e.g., `sales_invoice.hsn: true`)
-- All columns default to **enabled** (visible) when no setting exists
-- Render a new Card section "Column Visibility" with checkboxes grouped by module
-- Save into `permissionData.columns` alongside `menu`, `mainMenu`, `special`
+#### 6. Update all filter dropdowns (lines 1329-1348) to use `derivedFilterOptions`
+- Brand → `derivedFilterOptions.brands`
+- Category → `derivedFilterOptions.categories`
+- Department → `derivedFilterOptions.departments`
+- Size → `derivedFilterOptions.sizes`
+- Color → `derivedFilterOptions.colors`
 
-#### 2. Permissions hook (`src/hooks/useUserPermissions.tsx`)
-
-- Extend `UserPermissions` interface to include `columns?: Record<string, boolean>`
-- Add helper: `isColumnVisible(module: string, columnId: string): boolean` — returns `true` if no setting exists (default visible), otherwise reads from `permissions.columns`
-
-#### 3. Sales Invoice (`src/pages/SalesInvoice.tsx`)
-
-- Import `useUserPermissions` and call `isColumnVisible('sales_invoice', 'hsn')` etc.
-- Conditionally render `<th>` headers and corresponding `<td>` cells for: HSN, Box, Color, Disc%, Disc ₹, GST%
-- Adjust the empty-row placeholder cell count and footer `colSpan` dynamically based on visible column count
-
-#### 4. Purchase Entry (`src/pages/PurchaseEntry.tsx`)
-
-- Same pattern: conditionally render HSN, GST%, Disc%, MRP columns based on `isColumnVisible('purchase_bill', ...)`
-- The existing `showMrp` toggle for MRP can be unified into this system
-
-### Storage Format
-
-The permissions JSON in `user_permissions.permissions` will look like:
-```json
-{
-  "menu": { ... },
-  "mainMenu": { ... },
-  "special": { ... },
-  "columns": {
-    "sales_invoice.hsn": false,
-    "sales_invoice.box": false,
-    "purchase_bill.gst": false
-  }
-}
-```
-
-Missing keys = column visible (backward compatible).
-
-### No Database Migration Needed
-The `permissions` column is already a JSONB field — adding a new `columns` key requires no schema change.
+### No changes to
+- Stock data fetch query, `filteredStockItems` logic, `multiTokenMatch`, export/print, `SearchableSelect` component, or any other file.
 
