@@ -202,9 +202,6 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
                   <td style={{ textAlign: 'right', padding: '2px 0' }}>{fmtAmt(item.rate)}</td>
                   <td style={{ textAlign: 'right', padding: '2px 0', fontWeight: 900 }}>{fmtAmt(item.total)}</td>
                 </tr>
-                {(i + 1) % 12 === 0 && i + 1 < items.length && (
-                  <tr className="thermal-auto-cut"><td colSpan={4} style={{ pageBreakAfter: 'always' as any, height: 0, padding: 0, border: 'none' }} /></tr>
-                )}
               </React.Fragment>
             ))}
           </tbody>
@@ -316,9 +313,6 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
         {/* TERMS — auto-cut before terms so items section ends cleanly */}
         {termsConditions && (
           <>
-            {items.length > 10 && (
-              <div style={{ pageBreakAfter: 'always' as any }} className="thermal-auto-cut" />
-            )}
             <div style={singleLine} />
             <div style={{ fontSize: '13px', fontWeight: 'bold', textAlign: 'center', marginBottom: '2px' }}>TERMS & CONDITIONS</div>
             <div style={{ fontSize: '12px', lineHeight: '1.4', whiteSpace: 'pre-wrap', wordBreak: 'break-word', textAlign: 'left' }}>{termsConditions}</div>
