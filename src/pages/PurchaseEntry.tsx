@@ -526,7 +526,7 @@ const PurchaseEntry = () => {
     refetchOnWindowFocus: false,
   });
 
-  const showMrp = (settings?.purchase_settings as any)?.show_mrp || false;
+  const showMrp = ((settings?.purchase_settings as any)?.show_mrp || false) && showPurCol.mrp;
   
   // Barcode mode: 'auto' (default) or 'scan' (manual/manufacturer barcode)
   const barcodeMode = (settings?.purchase_settings as any)?.barcode_mode || 'auto';
