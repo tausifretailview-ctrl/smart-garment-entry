@@ -1154,13 +1154,31 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       const currentEl = e.target as HTMLElement;
       const currentId = currentEl.id || currentEl.getAttribute("name") || "";
 
-      // After style field, jump based on setting: skip to pur_price or go through hsn→gst sequence
-      if (currentId === "style" && cursorAfterStyle === 'pur_price') {
-        const purPriceEl = document.getElementById("default_pur_price");
-        if (purPriceEl) {
-          purPriceEl.focus();
-          return;
+      // After style field, jump based on setting
+      if (currentId === "style") {
+        if (cursorAfterStyle === 'pur_price') {
+          const purPriceEl = document.getElementById("default_pur_price");
+          if (purPriceEl) { purPriceEl.focus(); return; }
+        } else {
+          // hsn → pur_gst → sale_gst → pur_price sequence
+          const hsnEl = document.getElementById("hsn_code");
+          if (hsnEl) { hsnEl.focus(); return; }
         }
+      }
+      // HSN → Pur GST
+      if (currentId === "hsn_code" && cursorAfterStyle === 'hsn') {
+        const purGstEl = document.getElementById("purchase_gst_percent");
+        if (purGstEl) { purGstEl.focus(); return; }
+      }
+      // Pur GST → Sale GST
+      if (currentId === "purchase_gst_percent" && cursorAfterStyle === 'hsn') {
+        const saleGstEl = document.getElementById("sale_gst_percent");
+        if (saleGstEl) { saleGstEl.focus(); return; }
+      }
+      // Sale GST → Pur Price
+      if (currentId === "sale_gst_percent" && cursorAfterStyle === 'hsn') {
+        const purPriceEl = document.getElementById("default_pur_price");
+        if (purPriceEl) { purPriceEl.focus(); return; }
       }
 
       const form = currentEl.closest('[data-product-form]');
