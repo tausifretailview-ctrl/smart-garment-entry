@@ -84,6 +84,22 @@ export const FloatingSaleReturn = ({
   const [billLookupLoading, setBillLookupLoading] = useState(false);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const [refundType, setRefundType] = useState<RefundType>("credit_note");
+  const [useOriginalPrice, setUseOriginalPrice] = useState(false);
+
+  // Fetch sale return price setting
+  useEffect(() => {
+    if (organizationId) {
+      supabase
+        .from("organization_settings")
+        .select("sale_settings")
+        .eq("organization_id", organizationId)
+        .maybeSingle()
+        .then(({ data }) => {
+          const saleSettings = data?.sale_settings as any;
+          setUseOriginalPrice(!!saleSettings?.sale_return_use_original_price);
+        });
+    }
+  }, [organizationId]);
 
   // Load sold products when dialog opens
   useEffect(() => {
