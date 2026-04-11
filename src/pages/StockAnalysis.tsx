@@ -59,6 +59,8 @@ interface SelectedProduct {
   id: string;
   product_name: string;
   brand: string;
+  category?: string;
+  style?: string;
   barcode: string;
   size: string;
   color: string;
@@ -73,6 +75,7 @@ export default function StockAnalysis() {
   const [loading, setLoading] = useState(false);
   const [lowStockThreshold, setLowStockThreshold] = useState(10);
   const [selectedProduct, setSelectedProduct] = useState<SelectedProduct | null>(null);
+  const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
   const [activeTab, setActiveTab] = useState("low");
 
   const loadStockAnalysis = useCallback(async (product: SelectedProduct) => {
