@@ -27,9 +27,14 @@ const generalShortcuts: ShortcutGroup[] = [
   {
     title: "Navigation",
     shortcuts: [
+      { keys: ["Esc"], description: "Go back (Tally-style) / Close dialog" },
       { keys: ["Ctrl", "G"], description: "Open Size-wise Stock Report" },
       { keys: ["Ctrl", "P"], description: "Print current document" },
-      { keys: ["Esc"], description: "Close dialog / Clear form" },
+      { keys: ["Alt", "N"], description: "New Sale Invoice" },
+      { keys: ["Alt", "P"], description: "New POS Sale" },
+      { keys: ["Alt", "B"], description: "New Purchase Bill" },
+      { keys: ["Alt", "D"], description: "Go to Dashboard" },
+      { keys: ["Alt", "S"], description: "Stock Report" },
     ],
   },
 ];
@@ -49,7 +54,7 @@ const posShortcuts: ShortcutGroup[] = [
       { keys: ["F9"], description: "Print Estimate (no save)" },
       { keys: ["F10"], description: "Add New Customer" },
       { keys: ["F11"], description: "Size-wise Stock Report" },
-      { keys: ["Esc"], description: "Clear Cart" },
+      { keys: ["Esc"], description: "Clear cart (if items) / Back to POS Dashboard (if empty)" },
       { keys: ["Enter"], description: "Add scanned item to cart" },
     ],
   },

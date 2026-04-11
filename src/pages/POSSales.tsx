@@ -623,10 +623,15 @@ export default function POSSales() {
           handleEstimatePrintRef.current?.();
         }
       }
-      // Esc - Clear items
+      // Esc - Clear cart or go to POS Dashboard
       else if (e.key === 'Escape') {
         e.preventDefault();
-        handleClearAll();
+        const hasItems = items.some(i => i.productId !== '');
+        if (hasItems) {
+          handleClearAll();
+        } else {
+          orgNavigatePOS('/pos-dashboard');
+        }
       }
       // Ctrl+P - Print saved invoice
       else if (e.ctrlKey && e.key === 'p') {

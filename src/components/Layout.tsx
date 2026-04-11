@@ -12,6 +12,7 @@ import { MobileFAB } from "@/components/mobile/MobileFAB";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { StatusBar } from "@/components/StatusBar";
 import { useEscapeBack } from "@/hooks/useEscapeBack";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 
 interface LayoutProps {
   children: ReactNode;
@@ -20,6 +21,28 @@ interface LayoutProps {
 export const Layout = ({ children }: LayoutProps) => {
   const { isOpen, setIsOpen } = useKeyboardShortcuts("general");
   useEscapeBack();
+  const { orgNavigate } = useOrgNavigation();
+
+  // Global Alt+key shortcuts for quick navigation
+  useEffect(() => {
+    const handleGlobalKeys = (e: KeyboardEvent) => {
+      const tag = (document.activeElement?.tagName || "").toUpperCase();
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(tag)) return;
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+
+      if (e.altKey) {
+        switch (e.key.toLowerCase()) {
+          case "n": e.preventDefault(); orgNavigate("/sales-invoice"); break;
+          case "p": e.preventDefault(); orgNavigate("/pos-sales"); break;
+          case "b": e.preventDefault(); orgNavigate("/purchase-entry"); break;
+          case "d": e.preventDefault(); orgNavigate("/"); break;
+          case "s": e.preventDefault(); orgNavigate("/stock-report"); break;
+        }
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKeys);
+    return () => window.removeEventListener("keydown", handleGlobalKeys);
+  }, [orgNavigate]);
 
   return (
     <ChatProvider>
