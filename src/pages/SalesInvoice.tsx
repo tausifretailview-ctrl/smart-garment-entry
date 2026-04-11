@@ -3358,19 +3358,25 @@ Thank you for choosing us!`;
                 const filledItems = lineItems.filter(item => item.productId !== '');
 
                 if (filledItems.length === 0) {
-                  return (
-                    <tr>
-                      <td colSpan={15} className="text-center py-16 text-muted-foreground">
-                        <div className="flex flex-col items-center gap-3">
-                          <Search className="h-10 w-10 text-muted-foreground/30" />
-                          <p className="text-sm font-medium">No items added yet</p>
-                          <p className="text-xs text-muted-foreground">
-                            Scan a barcode or search products above to begin
-                          </p>
-                        </div>
-                      </td>
+                  return Array.from({ length: 5 }, (_, i) => (
+                    <tr key={`empty-${i}`} className="h-[32px] border-b border-muted/30">
+                      <td className="text-center text-[11px] text-muted-foreground/40 px-3">{i + 1}</td>
+                      <td className="px-3"></td>
+                      <td className="px-3"></td>
+                      <td className="px-3"></td>
+                      <td className="px-3"></td>
+                      <td className="px-3"></td>
+                      <td className="px-3"></td>
+                      <td className="px-3"></td>
+                      <td className="px-3"></td>
+                      <td className="px-3"></td>
+                      <td className="px-3"></td>
+                      <td className="px-3"></td>
+                      <td className="px-3"></td>
+                      <td className="px-3"></td>
+                      <td className="px-1"></td>
                     </tr>
-                  );
+                  ));
                 }
 
                 // Reverse filled items so newest appears first
