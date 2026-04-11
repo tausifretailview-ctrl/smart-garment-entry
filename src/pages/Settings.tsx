@@ -1787,6 +1787,33 @@ export default function Settings() {
                 <p className="text-xs text-muted-foreground ml-6">
                   When enabled, the size-wise quantity window shows editable Purchase Price, Sale Price, and MRP per size for review before adding to bill. Use Ctrl+A or the "Add to Bill" button to confirm.
                 </p>
+
+                <div className="space-y-2 pt-4 border-t">
+                  <Label className="text-sm font-semibold">Product Entry — Cursor Position After Style</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Controls where the cursor moves after the Style field when pressing Enter/Tab in Product Entry.
+                  </p>
+                  <Select
+                    value={settings.purchase_settings?.cursor_after_style || 'pur_price'}
+                    onValueChange={(value) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          cursor_after_style: value as 'pur_price' | 'hsn',
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger className="w-72">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pur_price">⚡ Skip to Purchase Price (default)</SelectItem>
+                      <SelectItem value="hsn">📋 Go to HSN → Pur GST → Sale GST → Pur Price</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
