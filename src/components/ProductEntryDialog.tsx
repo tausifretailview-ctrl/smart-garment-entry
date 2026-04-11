@@ -1373,7 +1373,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         id="style"
                         value={formData.style}
                         onChange={(e) => setFormData({ ...formData, style: e.target.value })}
-                        onKeyDown={handleEnterAsTab}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === "Tab") {
+                            e.preventDefault();
+                            const purPriceEl = document.getElementById("default_pur_price");
+                            if (purPriceEl) purPriceEl.focus();
+                          }
+                        }}
                         placeholder="Style"
                         list="style-list"
                         autoComplete="off"
