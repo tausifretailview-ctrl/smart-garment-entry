@@ -9,7 +9,13 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useBackup } from "@/hooks/useBackup";
-import { CloudUpload, ExternalLink, Loader2, HardDrive, CheckCircle2, XCircle, Clock, Key, Eye, EyeOff, Save, Download, FileSpreadsheet, Trash2, AlertTriangle, Cloud, Mail, ChevronDown, Shield } from "lucide-react";
+import type { BackupLog } from "@/hooks/useBackup";
+import { CloudUpload, ExternalLink, Loader2, HardDrive, CheckCircle2, XCircle, Clock, Key, Eye, EyeOff, Save, Download, FileSpreadsheet, Trash2, AlertTriangle, Cloud, Mail, ChevronDown, Shield, RotateCcw } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
+} from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -40,6 +46,7 @@ const BackupSettings = () => {
   const [showRefreshToken, setShowRefreshToken] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [restoreTarget, setRestoreTarget] = useState<BackupLog | null>(null);
 
   // Load settings
   useEffect(() => {
@@ -145,7 +152,7 @@ const BackupSettings = () => {
             Cloud Auto-Backup
           </CardTitle>
            <CardDescription>
-            Automatically backs up your data every Monday at 11:00 PM IST. Backup file is emailed to you.
+            Automatically backs up your data every night at 11:00 PM IST. Backup file is emailed to you.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -157,9 +164,9 @@ const BackupSettings = () => {
             <>
               <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
                 <div>
-                  <h4 className="font-medium">Enable Weekly Auto-Backup (Every Monday, 11:00 PM IST)</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Backup runs automatically every Monday and the file is emailed to you
+                   <h4 className="font-medium">Enable Daily Auto-Backup (Every Night 11:00 PM IST)</h4>
+                   <p className="text-sm text-muted-foreground">
+                     Backup runs automatically every night and the file is emailed to you
                   </p>
                 </div>
                 <Switch
@@ -183,7 +190,7 @@ const BackupSettings = () => {
                     onChange={(e) => setBackupEmail(e.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Weekly backup JSON file will be sent to this email every Monday at 11:00 PM IST
+                    Daily backup JSON file will be sent to this email every night at 11:00 PM IST
                   </p>
                 </div>
 
@@ -377,16 +384,27 @@ const BackupSettings = () => {
                     <TableCell>{getTotalRecords(log.records_count as Record<string, number>)}</TableCell>
                     <TableCell className="flex gap-1">
                       {(log as any).storage_path && log.status === 'completed' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => downloadCloudBackup((log as any).storage_path, log.file_name)}
-                          className="gap-1"
-                        >
-                          <Download className="h-4 w-4" />
-                          Download
-                        </Button>
-                      )}
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => downloadCloudBackup((log as any).storage_path, log.file_name)}
+                            className="gap-1"
+                          >
+                            <Download className="h-4 w-4" />
+                            Download
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="gap-1 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                            onClick={() => setRestoreTarget(log)}
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                            Restore
+                          </Button>
+                        </>
+                       )}
                       {log.drive_file_link && (
                         <Button variant="ghost" size="sm" onClick={() => window.open(log.drive_file_link!, '_blank')} className="gap-1">
                           <ExternalLink className="h-4 w-4" />
@@ -433,6 +451,79 @@ const BackupSettings = () => {
           </CardContent>
         </Card>
       )}
+      <AlertDialog
+        open={!!restoreTarget}
+        onOpenChange={(open) => { if (!open) setRestoreTarget(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="h-5 w-5" />
+              Restore from Backup?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>You are about to restore data from:</p>
+                <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
+                  <div>
+                    <span className="font-medium">Backup date: </span>
+                    {restoreTarget && format(new Date(restoreTarget.created_at), 'dd MMM yyyy, hh:mm a')}
+                  </div>
+                  <div>
+                    <span className="font-medium">Records: </span>
+                    {restoreTarget && Object.values(restoreTarget.records_count || {}).reduce((s: number, n) => s + (n as number), 0).toLocaleString()} total records
+                  </div>
+                  <div>
+                    <span className="font-medium">File: </span>
+                    {restoreTarget?.file_name}
+                  </div>
+                </div>
+                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 text-sm text-destructive space-y-1">
+                  <p className="font-semibold flex items-center gap-1">
+                    <AlertTriangle className="h-4 w-4" /> Warning — This action cannot be undone
+                  </p>
+                  <ul className="list-disc list-inside space-y-0.5 text-xs">
+                    <li>All current sales, purchases and customers will be overwritten</li>
+                    <li>Any data created after this backup date will be lost</li>
+                    <li>Take a fresh manual backup before restoring</li>
+                  </ul>
+                </div>
+                <p className="text-sm font-medium">
+                  Type <span className="font-mono bg-muted px-1 rounded">RESTORE</span> to confirm:
+                </p>
+                <Input
+                  id="restore-confirm-input"
+                  placeholder="Type RESTORE to confirm"
+                  className="font-mono"
+                  onChange={(e) => {
+                    const btn = document.getElementById('restore-confirm-btn') as HTMLButtonElement | null;
+                    if (btn) btn.disabled = e.target.value !== 'RESTORE';
+                  }}
+                />
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setRestoreTarget(null)}>
+              Cancel — Keep Current Data
+            </AlertDialogCancel>
+            <AlertDialogAction
+              id="restore-confirm-btn"
+              disabled={true}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+              onClick={() => {
+                toast.info("Restore feature coming soon. Please download the backup file and contact support to restore.", {
+                  duration: 6000,
+                });
+                setRestoreTarget(null);
+              }}
+            >
+              <RotateCcw className="h-4 w-4 mr-1" />
+              Confirm Restore
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
