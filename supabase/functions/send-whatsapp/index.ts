@@ -1235,8 +1235,30 @@ serve(async (req) => {
       }
     }
 
-    // Send image attachment if provided (e.g., school logo - sent before text/document)
-    if (imageUrl && response.ok) {
+    // Auto-fetch logo from settings if imageUrl not provided by caller
+    let finalImageUrl = imageUrl;
+    let finalImageCaption = imageCaption;
+    if (!finalImageUrl && response.ok) {
+      try {
+        const { data: logoSettings } = await supabase
+          .from('settings')
+          .select('business_name, bill_barcode_settings')
+          .eq('organization_id', organizationId)
+          .maybeSingle();
+        
+        const logoUrl = (logoSettings?.bill_barcode_settings as Record<string, any> | null)?.logo_url;
+        if (logoUrl) {
+          finalImageUrl = logoUrl;
+          finalImageCaption = finalImageCaption || logoSettings?.business_name || '';
+          console.log('Auto-fetched org logo for WhatsApp:', logoUrl);
+        }
+      } catch (logoErr) {
+        console.error('Failed to fetch org logo:', logoErr);
+      }
+    }
+
+    // Send image attachment if available (e.g., org logo - sent before text/document)
+    if (finalImageUrl && response.ok) {
       console.log('Sending image attachment:', imageUrl);
       
       const imagePayload = {
