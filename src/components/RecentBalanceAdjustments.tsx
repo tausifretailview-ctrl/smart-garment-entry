@@ -186,12 +186,14 @@ export function RecentBalanceAdjustments({ organizationId }: Props) {
       if (advDiff !== 0) {
         await applyAdvanceEffects(supabase, organizationId, adj.customer_id, advDiff, `Delete reversal: ${adj.reason}`, user?.id);
       }
-      // Delete the record
-      const { error } = await (supabase as any)
+      // Delete the record and verify it was actually removed
+      const { error, data: deletedRows } = await (supabase as any)
         .from("customer_balance_adjustments")
         .delete()
-        .eq("id", adj.id);
+        .eq("id", adj.id)
+        .select();
       if (error) throw error;
+      if (!deletedRows || deletedRows.length === 0) throw new Error("Delete failed — no rows affected. Please check your permissions.");
     },
     onSuccess: () => {
       invalidateAll();
