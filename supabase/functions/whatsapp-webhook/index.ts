@@ -735,10 +735,24 @@ Deno.serve(async (req) => {
     return new Response('OK', { status: 200 });
   }
 
-  // Handle webhook events (POST request from Meta)
+  // Handle webhook events (POST request)
   if (req.method === 'POST') {
     try {
       const rawBody = await req.text();
+
+      // Handle third-party POST-based challenge verification
+      try {
+        const parsed = JSON.parse(rawBody);
+        if (parsed.challenge || parsed.verify || parsed.hub?.challenge) {
+          console.log('POST challenge verification accepted (third-party provider)');
+          return new Response(JSON.stringify({ status: 'ok', challenge: parsed.challenge || parsed.hub?.challenge || 'accepted' }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      } catch (_) {
+        // Not JSON or no challenge field — continue normal processing
+      }
 
       // Validate Meta webhook signature
       const appSecret = Deno.env.get('META_APP_SECRET');
