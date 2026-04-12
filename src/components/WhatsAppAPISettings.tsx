@@ -400,7 +400,7 @@ export const WhatsAppAPISettings = () => {
                         <Input
                           readOnly
                           value="lovable_whatsapp_webhook"
-                          className="text-xs font-mono bg-background"
+                          className="text-xs font-mono bg-background no-uppercase"
                         />
                         <Button
                           type="button"
