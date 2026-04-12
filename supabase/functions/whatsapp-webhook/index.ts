@@ -732,6 +732,7 @@ Deno.serve(async (req) => {
 
     // Third-party provider verification (WappConnect etc.) — echo challenge token
     const thirdPartyChallenge = url.searchParams.get('challenge') 
+      || url.searchParams.get('challange')  // WappConnect misspelling
       || url.searchParams.get('verify_token')
       || url.searchParams.get('hub.challenge')
       || url.searchParams.get('token');
