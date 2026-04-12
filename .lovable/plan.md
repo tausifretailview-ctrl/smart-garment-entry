@@ -1,31 +1,38 @@
 
 
-## Add Delete & Modify Actions to Balance Adjustment History
+## Fix: Owner WhatsApp Messages Not Routing to Organization
 
-### Current State
-- The **Recent Adjustment History** table (`RecentBalanceAdjustments.tsx`) only allows editing the **reason text** and **printing** a receipt.
-- Full **delete** and **reverse** logic already exists inside `CustomerBalanceAdjustmentDialog.tsx` (with proper financial reversal of advance/outstanding effects).
-- Users need the ability to delete or fully modify adjustment entries directly from the history table.
+### Problem
+When the owner sends a message (like "report" or "hi") to the WhatsApp Business API number, the system needs to first identify **which organization** this owner belongs to. Currently, routing uses customer lookups (`whatsapp_logs`, `whatsapp_conversations`, `customers` table). Since the owner is typically NOT a customer in their own system, the routing fails silently — the message is dropped with "no organization found for customer."
 
-### Changes
+### Root Cause
+In `supabase/functions/whatsapp-webhook/index.ts`:
+- **Line 840-858**: For platform default numbers, `findOrganizationByCustomerPhone()` is called but it only checks customer-related tables
+- The owner's phone number exists in the `settings` table (`owner_phone` column), but the routing function never checks it
+- Same issue for shared phone numbers (line 821-837)
 
-**File: `src/components/RecentBalanceAdjustments.tsx`**
+### Fix
 
-1. **Add Delete button** — A trash icon button in the Actions column. On click, show a confirmation dialog warning that deleting will reverse the financial effect (outstanding/advance changes). Uses the same `applyAdjustmentEffects` logic from `CustomerBalanceAdjustmentDialog`.
+**File: `supabase/functions/whatsapp-webhook/index.ts`**
 
-2. **Add Reverse button** — An undo icon button that creates a counter-adjustment record (same as existing reverse logic in the dialog).
+1. **Add owner phone lookup** to `findOrganizationByCustomerPhone` as a new priority (Priority 4): Query the `settings` table where `owner_phone` matches the sender phone. If found, use that `organization_id` to fetch the corresponding `whatsapp_api_settings`.
 
-3. **Expand Modify dialog** — Currently only edits the reason. Enhance it to also allow editing the outstanding and advance amounts, recalculating differences and applying the financial delta.
+```sql
+-- New lookup (added as Priority 4 in the function):
+SELECT organization_id FROM settings 
+WHERE owner_phone ILIKE '%{cleanPhone}%'
+LIMIT 1
+```
 
-4. **Confirmation dialog** — Add a confirmation step for delete/reverse actions showing the customer name and adjustment details before proceeding.
+2. This ensures that when an owner sends "report", "sales", etc., even if they've never been a customer, the system routes the message to their organization and the existing `handleOwnerCommand` function handles it correctly.
 
-5. **Extract shared helper** — Move the `applyAdjustmentEffects` function to a shared utility (or duplicate the logic inline) so `RecentBalanceAdjustments` can perform delete/reverse without opening the main dialog.
+### Why This Works
+- The `handleOwnerCommand` function (line 300) already works perfectly — it fetches `owner_phone` from settings, compares with the sender, and generates the report
+- The only missing piece is the **routing step** that happens before it — the system couldn't figure out which organization the owner belongs to
+- Adding the `settings.owner_phone` lookup fills this gap
 
-### Technical Details
-
-- Delete: Reverse advance effects (negate `advance_difference`), then delete the `customer_balance_adjustments` row
-- Reverse: Insert a new counter-record with negated differences, apply reverse advance effects
-- Modify: Calculate delta between old and new values, apply the incremental difference to advances, update the adjustment record
-- Invalidate queries: `all-balance-adjustments`, `customer-balance`, `customer-advances` after any mutation
-- Permission check: Only users with `modify_records` permission can edit/reverse; only `delete_records` permission can delete
+### No Other Changes Needed
+- The cashier report generation logic in `handleOwnerCommand` is already complete
+- The `sendWhatsAppMessage` function works correctly
+- Only the routing/lookup function needs the fix
 
