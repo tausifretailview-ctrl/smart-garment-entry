@@ -78,7 +78,7 @@ async function applyAdvanceEffects(
 
 export function RecentBalanceAdjustments({ organizationId }: Props) {
   const { user } = useAuth();
-  const { permissions } = useUserPermissions();
+  const { hasSpecialPermission } = useUserPermissions();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
   const [editAdj, setEditAdj] = useState<any>(null);
@@ -91,8 +91,8 @@ export function RecentBalanceAdjustments({ organizationId }: Props) {
   const [deleteAdj, setDeleteAdj] = useState<any>(null);
   const [reverseAdj, setReverseAdj] = useState<any>(null);
 
-  const canModify = permissions?.modify_records !== false;
-  const canDelete = permissions?.delete_records !== false;
+  const canModify = hasSpecialPermission('modify_records');
+  const canDelete = hasSpecialPermission('delete_records');
 
   const { data, isLoading } = useQuery({
     queryKey: ["all-balance-adjustments", organizationId],
