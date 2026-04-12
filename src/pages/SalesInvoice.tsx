@@ -2879,10 +2879,10 @@ Thank you for choosing us!`;
       </header>
 
       {/* Main content area */}
-      <main className="flex-1 overflow-auto px-4 py-3 space-y-3">
+      <main className="flex-1 flex flex-col overflow-hidden">
 
       {/* Invoice & Customer Details Section */}
-      <section className="bg-white border-b border-slate-100 px-5 py-2 shrink-0">
+      <section className="bg-white border-b border-slate-100 px-5 py-2 shrink-0 shadow-sm">
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-start">
           {/* Customer Selection */}
@@ -3341,7 +3341,7 @@ Thank you for choosing us!`;
       </section>
 
       {/* Line Items Table */}
-      <section className="flex-1 overflow-auto px-6 pb-2">
+      <section className="flex-1 overflow-auto px-6 pb-2 min-h-0">
         <div ref={tableContainerRef} className="overflow-y-auto isolate">
           <table className="w-full border-separate border-spacing-0 erp-desktop-table">
             <thead className="sticky top-0 z-10">
