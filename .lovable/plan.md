@@ -36,3 +36,10 @@ This single line addition will make the webhook correctly echo back `9OIW3C` (or
 ### Files Changed
 - **Edit**: `supabase/functions/whatsapp-webhook/index.ts` — add misspelled `challange` param check
 
+## Database Safety Rules (Permanent)
+
+- **Scoped mutations**: Every `DELETE` or `UPDATE` SQL statement MUST include a `WHERE organization_id = ...` clause. No unscoped mutations allowed.
+- **Safe DDL**: Never `DROP COLUMN` or `DROP TABLE` without `IF EXISTS` guard.
+- **Soft delete over hard delete**: Critical tables (sales, purchases, customers, suppliers, products, returns, orders, quotations, vouchers, credit_notes, employees) must use `deleted_at` / `deleted_by` columns instead of hard `DELETE`. Hard delete is only permitted from the Recycle Bin after explicit user confirmation.
+
+
