@@ -53,7 +53,6 @@ export function PrecisionPrintCSS({ labelWidth, labelHeight, mode }: PrecisionPr
         }
         .precision-print-area > div {
           margin: 0 !important;
-          padding: 0 !important;
           width: ${mode === "thermal" ? `${labelWidth}mm` : "210mm"} !important;
           height: ${mode === "thermal" ? `${labelHeight}mm` : "297mm"} !important;
           min-height: ${mode === "thermal" ? `${labelHeight}mm` : "297mm"} !important;
@@ -61,8 +60,6 @@ export function PrecisionPrintCSS({ labelWidth, labelHeight, mode }: PrecisionPr
           overflow: hidden !important;
           box-sizing: border-box !important;
           position: relative !important;
-          display: flex !important;
-          flex-wrap: nowrap !important;
           page-break-after: always !important;
           page-break-inside: avoid !important;
           break-after: page !important;
@@ -73,8 +70,9 @@ export function PrecisionPrintCSS({ labelWidth, labelHeight, mode }: PrecisionPr
           break-after: auto !important;
         }
         .precision-print-area > div > div {
-          padding: inherit !important;
           box-sizing: border-box !important;
+          align-content: start !important;
+          align-items: start !important;
         }
         .precision-label-container {
           position: relative !important;
