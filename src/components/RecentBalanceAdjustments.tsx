@@ -162,11 +162,13 @@ export function RecentBalanceAdjustments({ organizationId }: Props) {
         updatePayload.advance_difference = newAdvDiff;
       }
 
-      const { error } = await (supabase as any)
+      const { error, data: updatedRows } = await (supabase as any)
         .from("customer_balance_adjustments")
         .update(updatePayload)
-        .eq("id", adj.id);
+        .eq("id", adj.id)
+        .select();
       if (error) throw error;
+      if (!updatedRows || updatedRows.length === 0) throw new Error("Update failed — no rows affected. Please check your permissions.");
     },
     onSuccess: () => {
       invalidateAll();
