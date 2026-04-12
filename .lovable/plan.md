@@ -1,47 +1,38 @@
 
 
-## Fix: WappConnect Webhook Verification Challenge Echo
+## Fix: WappConnect Challenge Parameter Misspelling
 
 ### Problem
-WappConnect sends a GET request with a challenge token (as a query parameter) and expects that exact token echoed back in the response body. Our current code returns the string `"OK"` for non-Meta providers, which WappConnect interprets as a failed challenge.
+WappConnect sends its verification challenge with a **misspelled parameter name**: `challange` instead of `challenge`. The logs prove this:
 
-The logs confirm:
-- Requests ARE reaching the function (`Webhook verification accepted (third-party provider)`)
-- Function returns 200 OK
-- But WappConnect still shows "Failed to verify challenge" because the challenge value isn't echoed
+```
+params: { echo: "true", challange: "9OIW3C" }
+params: { echo: "true", challange: "1H86HK" }
+```
+
+Our code only checks for `challenge` (correct spelling), so it never finds the token and returns "OK" instead of echoing back the actual challenge value.
 
 ### Fix
 
-**File: `supabase/functions/whatsapp-webhook/index.ts`** (lines 733-735)
+**File: `supabase/functions/whatsapp-webhook/index.ts`**
 
-Update the third-party GET verification handler to:
-1. Check for any `challenge` or `token` query parameter
-2. Echo back that value in the response body
-3. If no challenge param found, return `"OK"` as fallback
+Add `challange` (the misspelled variant) to the challenge parameter lookup:
 
 ```typescript
-// Replace the current simple "OK" response:
-const challenge = url.searchParams.get('challenge') 
+const thirdPartyChallenge = url.searchParams.get('challenge') 
+  || url.searchParams.get('challange')  // WappConnect misspelling
   || url.searchParams.get('verify_token')
   || url.searchParams.get('hub.challenge')
   || url.searchParams.get('token');
-
-console.log('Webhook verification accepted (third-party provider)', 
-  { params: Object.fromEntries(url.searchParams) });
-
-return new Response(challenge || 'OK', { 
-  status: 200,
-  headers: { ...corsHeaders, 'Content-Type': 'text/plain' },
-});
 ```
 
-Also update the POST challenge handler to properly echo back the challenge value with correct format.
+This single line addition will make the webhook correctly echo back `9OIW3C` (or whatever token WappConnect sends), passing verification.
 
 ### No Impact on Existing System
-- Meta verification path (lines 722-730) is untouched — existing message sending continues to work
-- Only the third-party verification fallback path is improved
-- POST message processing is unchanged
+- Meta verification path is untouched
+- Message sending continues to work
+- Only the third-party GET verification fallback is updated
 
 ### Files Changed
-- **Edit**: `supabase/functions/whatsapp-webhook/index.ts` — echo challenge token in GET and POST verification responses
+- **Edit**: `supabase/functions/whatsapp-webhook/index.ts` — add misspelled `challange` param check
 
