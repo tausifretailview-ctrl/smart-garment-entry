@@ -1259,7 +1259,7 @@ serve(async (req) => {
 
     // Send image attachment if available (e.g., org logo - sent before text/document)
     if (finalImageUrl && response.ok) {
-      console.log('Sending image attachment:', imageUrl);
+      console.log('Sending image attachment:', finalImageUrl);
       
       const imagePayload = {
         messaging_product: "whatsapp",
@@ -1267,8 +1267,8 @@ serve(async (req) => {
         to: formattedPhone,
         type: "image",
         image: {
-          link: imageUrl,
-          caption: imageCaption || ""
+          link: finalImageUrl,
+          caption: finalImageCaption || ""
         }
       };
 
