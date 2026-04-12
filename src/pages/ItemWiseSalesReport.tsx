@@ -32,7 +32,7 @@ interface SaleItemData {
   color: string | null;
   customer_name: string | null;
   total_qty: number;
-  avg_price: number;
+  stock_qty: number;
   total_amount: number;
 }
 
@@ -212,11 +212,29 @@ export default function ItemWiseSalesReport() {
         }
       }
 
-      // Merge product details and customer name into sale items
+      // Fetch variant stock quantities
+      const variantIds = [...new Set(saleItemsData.map(item => item.variant_id).filter(Boolean))];
+      let variantStockMap: Record<string, number> = {};
+      if (variantIds.length > 0) {
+        const batchSize = 500;
+        for (let i = 0; i < variantIds.length; i += batchSize) {
+          const batch = variantIds.slice(i, i + batchSize);
+          const { data: variants } = await supabase
+            .from("product_variants")
+            .select("id, stock_qty")
+            .in("id", batch);
+          if (variants) {
+            variants.forEach((v: any) => { variantStockMap[v.id] = v.stock_qty || 0; });
+          }
+        }
+      }
+
+      // Merge product details, customer name, and stock into sale items
       return saleItemsData.map(item => ({
         ...item,
         customer_name: salesMap.get(item.sale_id) || null,
-        products: item.product_id ? productsMap[item.product_id] || null : null
+        products: item.product_id ? productsMap[item.product_id] || null : null,
+        stock_qty: item.variant_id ? (variantStockMap[item.variant_id] || 0) : 0,
       }));
     },
     enabled: !!currentOrganization?.id,
@@ -225,7 +243,7 @@ export default function ItemWiseSalesReport() {
 
   // Aggregate data by product
   const aggregatedData: SaleItemData[] = useMemo(() => {
-    const productMap = new Map<string, SaleItemData>();
+    const productMap = new Map<string, SaleItemData & { _variantStocks: Map<string, number> }>();
 
     saleItems.forEach((item: any) => {
       const key = `${item.barcode || ""}-${item.product_name}-${item.size}`;
@@ -234,8 +252,10 @@ export default function ItemWiseSalesReport() {
       if (existing) {
         existing.total_qty += item.quantity;
         existing.total_amount += Number(item.line_total);
-        existing.avg_price = existing.total_amount / existing.total_qty;
+        if (item.variant_id) existing._variantStocks.set(item.variant_id, item.stock_qty || 0);
       } else {
+        const variantStocks = new Map<string, number>();
+        if (item.variant_id) variantStocks.set(item.variant_id, item.stock_qty || 0);
         productMap.set(key, {
           barcode: item.barcode,
           product_name: item.product_name,
@@ -245,13 +265,19 @@ export default function ItemWiseSalesReport() {
           color: item.products?.color || null,
           customer_name: item.customer_name || null,
           total_qty: item.quantity,
-          avg_price: Number(item.unit_price),
+          stock_qty: 0,
           total_amount: Number(item.line_total),
+          _variantStocks: variantStocks,
         });
       }
     });
 
-    return Array.from(productMap.values()).sort((a, b) => b.total_amount - a.total_amount);
+    // Sum unique variant stocks per aggregated row
+    return Array.from(productMap.values()).map(({ _variantStocks, ...rest }) => {
+      let totalStock = 0;
+      _variantStocks.forEach(v => totalStock += v);
+      return { ...rest, stock_qty: totalStock };
+    }).sort((a, b) => b.total_amount - a.total_amount);
   }, [saleItems]);
 
   // Filter data based on search and dropdown filters
@@ -504,7 +530,7 @@ export default function ItemWiseSalesReport() {
         Color: item.color || "-",
         Size: item.size,
         "Qty Sold": item.total_qty,
-        "Avg Price": item.avg_price.toFixed(2),
+        "Stock Qty": item.stock_qty,
         "Total Amount": item.total_amount.toFixed(2),
       }));
       const ws = XLSX.utils.json_to_sheet(exportData);
@@ -883,15 +909,15 @@ export default function ItemWiseSalesReport() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead className="w-[100px]">Barcode</TableHead>
-                      <TableHead>Product Name</TableHead>
-                      <TableHead>Brand</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Color</TableHead>
-                      <TableHead>Size</TableHead>
-                      <TableHead className="text-right">Qty Sold</TableHead>
-                      <TableHead className="text-right">Avg Price</TableHead>
-                      <TableHead className="text-right">Total Amount</TableHead>
+                      <TableHead className="w-[100px] font-bold text-foreground">Barcode</TableHead>
+                      <TableHead className="font-bold text-foreground">Product Name</TableHead>
+                      <TableHead className="font-bold text-foreground">Brand</TableHead>
+                      <TableHead className="font-bold text-foreground">Category</TableHead>
+                      <TableHead className="font-bold text-foreground">Color</TableHead>
+                      <TableHead className="font-bold text-foreground">Size</TableHead>
+                      <TableHead className="text-right font-bold text-foreground">Qty Sold</TableHead>
+                      <TableHead className="text-right font-bold text-foreground">Stock Qty</TableHead>
+                      <TableHead className="text-right font-bold text-foreground">Total Amount</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -921,7 +947,7 @@ export default function ItemWiseSalesReport() {
                               <TableCell>{item.color || "-"}</TableCell>
                               <TableCell>{item.size}</TableCell>
                               <TableCell className="text-right font-medium">{item.total_qty}</TableCell>
-                              <TableCell className="text-right">₹{item.avg_price.toFixed(2)}</TableCell>
+                              <TableCell className="text-right">{item.stock_qty}</TableCell>
                               <TableCell className="text-right font-semibold text-primary">
                                 ₹{item.total_amount.toLocaleString()}
                               </TableCell>
