@@ -483,6 +483,8 @@ export const useSaveSale = () => {
                     useDocumentHeaderTemplate: false,
                     documentHeaderTemplateName: null,
                     pdfBlob: null,
+                    imageUrl: logoUrl,
+                    imageCaption: logoUrl ? companyName : undefined,
                   }
                 });
               } catch (flowAError) {
@@ -558,6 +560,8 @@ export const useSaveSale = () => {
                       documentHeaderTemplateName: whatsappSettings.invoice_document_template_name,
                       pdfBlob: pdfBase64,
                       documentFilename: documentFilename,
+                      imageUrl: logoUrl,
+                      imageCaption: logoUrl ? companyName : undefined,
                     }
                   });
                 }
