@@ -382,7 +382,7 @@ const PurchaseReturnEntry = () => {
   // Lock to prevent multiple processBarcodeInput calls per single scan
   const processingBarcodeRef = useRef(false);
 
-  // Process a scanned barcode: exact match → auto-add, else fall back to search
+  // Process a scanned barcode: exact match → show in dropdown for manual review, else ignore
   const processBarcodeInput = useCallback(async (barcode: string) => {
     if (!barcode || !currentOrganization?.id) return;
     // Prevent duplicate processing from multiple triggers
@@ -392,65 +392,19 @@ const PurchaseReturnEntry = () => {
     try {
       const variant = await handleBarcodeSearch(barcode);
       if (variant) {
-        // Stock validation: check if stock is available for purchase return
-        if ((variant.stock_qty || 0) <= 0) {
-          // Check if item already in cart (they may have stock reserved from previous additions)
-          const currentItems = lineItemsRef.current;
-          const existingItem = currentItems.find(item => item.sku_id === variant.id);
-          if (!existingItem) {
-            setStockAlertMessage(`${variant.product_name} - ${variant.size} is out of stock. Cannot add to purchase return.`);
-            setStockAlertOpen(true);
-            setSearchQuery("");
-            setShowSearch(false);
-            setSearchResults([]);
-            barcodeScanner.reset();
-            setTimeout(() => searchInputRef.current?.focus(), 50);
-            return;
-          }
-          // If already in cart, check if next qty exceeds stock
-          const nextQty = existingItem.qty + 1;
-          if (nextQty > variant.stock_qty) {
-            setStockAlertMessage(`${variant.product_name} - ${variant.size}: Only ${variant.stock_qty} units in stock. Cannot return more.`);
-            setStockAlertOpen(true);
-            setSearchQuery("");
-            barcodeScanner.reset();
-            setTimeout(() => searchInputRef.current?.focus(), 50);
-            return;
-          }
-        }
-
-        const currentItems = lineItemsRef.current;
-        const existingItem = currentItems.find(item => item.sku_id === variant.id);
-        if (existingItem) {
-          // Check if next qty exceeds stock
-          const nextQty = existingItem.qty + 1;
-          if (nextQty > (variant.stock_qty || 0)) {
-            setStockAlertMessage(`${variant.product_name} - ${variant.size}: Only ${variant.stock_qty} units in stock. Cannot return more.`);
-            setStockAlertOpen(true);
-            setSearchQuery("");
-            barcodeScanner.reset();
-            setTimeout(() => searchInputRef.current?.focus(), 50);
-            return;
-          }
-          updateLineItem(existingItem.temp_id, "qty", nextQty);
-          toast({
-            title: "Quantity Updated",
-            description: `${variant.product_name} - ${variant.size} (Qty: ${nextQty})`,
-          });
-        } else {
-          handleProductSelect(variant);
-          toast({
-            title: "Item Added",
-            description: `${variant.product_name} - ${variant.size}`,
-          });
-        }
-        setSearchQuery("");
-        setShowSearch(false);
-        setSearchResults([]);
+        // Show matched product in search dropdown for manual review before adding
+        setSearchQuery(barcode);
+        setSearchResults([variant]);
+        setShowSearch(true);
         barcodeScanner.reset();
-        setTimeout(() => searchInputRef.current?.focus(), 50);
+        toast({
+          title: "Product Found",
+          description: `${variant.product_name} - ${variant.size}. Click to add.`,
+        });
       } else {
-        // No exact barcode match — don't open dropdown for scanner input
+        // No exact barcode match
+        setSearchQuery(barcode);
+        barcodeScanner.reset();
       }
     } finally {
       // Release lock after a short delay to prevent re-triggering from stale effects
