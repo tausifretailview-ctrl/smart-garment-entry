@@ -712,22 +712,27 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
 
-  // Webhook verification (GET request from Meta)
+  // Webhook verification (GET request)
   if (req.method === 'GET') {
     const mode = url.searchParams.get('hub.mode');
     const token = url.searchParams.get('hub.verify_token');
     const challenge = url.searchParams.get('hub.challenge');
 
-    // The verify token should match what you configured in Meta
-    const verifyToken = Deno.env.get('WHATSAPP_VERIFY_TOKEN') || 'lovable_whatsapp_webhook';
-
-    if (mode === 'subscribe' && token === verifyToken) {
-      console.log('Webhook verified successfully');
-      return new Response(challenge, { status: 200 });
-    } else {
-      console.error('Webhook verification failed');
-      return new Response('Forbidden', { status: 403 });
+    // Meta-style verification: hub.mode=subscribe + hub.verify_token
+    if (mode && token) {
+      const verifyToken = Deno.env.get('WHATSAPP_VERIFY_TOKEN') || 'lovable_whatsapp_webhook';
+      if (mode === 'subscribe' && token === verifyToken) {
+        console.log('Webhook verified successfully (Meta)');
+        return new Response(challenge, { status: 200 });
+      } else {
+        console.error('Webhook verification failed (Meta)');
+        return new Response('Forbidden', { status: 403 });
+      }
     }
+
+    // Third-party provider verification (WappConnect etc.) — return 200 OK
+    console.log('Webhook verification accepted (third-party provider)');
+    return new Response('OK', { status: 200 });
   }
 
   // Handle webhook events (POST request from Meta)
