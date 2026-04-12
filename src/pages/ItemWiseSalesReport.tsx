@@ -32,7 +32,7 @@ interface SaleItemData {
   color: string | null;
   customer_name: string | null;
   total_qty: number;
-  avg_price: number;
+  stock_qty: number;
   total_amount: number;
 }
 
