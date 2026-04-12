@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -87,6 +87,8 @@ export default function ItemWiseSalesReport() {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
+  const [customerPage, setCustomerPage] = useState(1);
+  const [brandPage, setBrandPage] = useState(1);
   const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null);
   const ITEMS_PER_PAGE = 100;
 
@@ -988,69 +990,102 @@ export default function ItemWiseSalesReport() {
               <div className="border rounded-lg overflow-hidden">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead className="w-12">#</TableHead>
-                      <TableHead>Customer Name</TableHead>
-                      <TableHead className="text-center">Items</TableHead>
-                      <TableHead className="text-right">Total Qty</TableHead>
-                      <TableHead className="text-right">Total Value (₹)</TableHead>
-                      <TableHead className="text-right">Avg Item Value (₹)</TableHead>
+                     <TableRow className="bg-muted/50">
+                      <TableHead className="w-12 font-bold text-foreground">#</TableHead>
+                      <TableHead className="font-bold text-foreground">Customer Name</TableHead>
+                      <TableHead className="text-center font-bold text-foreground">Items</TableHead>
+                      <TableHead className="text-right font-bold text-foreground">Total Qty</TableHead>
+                      <TableHead className="text-right font-bold text-foreground">Total Value (₹)</TableHead>
+                      <TableHead className="text-right font-bold text-foreground">Avg Item Value (₹)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {customerWiseData.map((row, index) => (
-                      <>
-                        <TableRow
-                          key={row.customer_name}
-                          className={cn("cursor-pointer hover:bg-muted/40", index % 2 === 0 ? "" : "bg-muted/30")}
-                          onClick={() => setExpandedCustomer(expandedCustomer === row.customer_name ? null : row.customer_name)}
-                        >
-                          <TableCell className="font-mono text-muted-foreground">{index + 1}</TableCell>
-                          <TableCell className="font-medium">
-                            <span className="mr-1 text-xs">{expandedCustomer === row.customer_name ? "▼" : "▶"}</span>
-                            {row.customer_name}
-                          </TableCell>
-                          <TableCell className="text-center">{row.item_count}</TableCell>
-                          <TableCell className="text-right font-mono">{row.total_qty}</TableCell>
-                          <TableCell className="text-right font-mono font-semibold">₹{Math.round(row.total_amount).toLocaleString("en-IN")}</TableCell>
-                          <TableCell className="text-right font-mono text-muted-foreground">₹{row.total_qty > 0 ? Math.round(row.total_amount / row.total_qty).toLocaleString("en-IN") : 0}</TableCell>
-                        </TableRow>
-                        {expandedCustomer === row.customer_name && (
-                          <TableRow key={`${row.customer_name}-products`}>
-                            <TableCell colSpan={6} className="p-0">
-                              <div className="bg-muted/20 border-y">
-                                <Table>
-                                  <TableHeader>
-                                    <TableRow className="bg-muted/40">
-                                      <TableHead className="w-12 pl-10">#</TableHead>
-                                      <TableHead className="pl-10">Product Name</TableHead>
-                                      <TableHead className="text-right">Qty</TableHead>
-                                      <TableHead className="text-right">Amount (₹)</TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                    {row.productList.map((p, pi) => (
-                                      <TableRow key={pi} className="hover:bg-muted/30">
-                                        <TableCell className="pl-10 font-mono text-xs text-muted-foreground">{pi + 1}</TableCell>
-                                        <TableCell className="pl-10 text-sm">{p.product_name}</TableCell>
-                                        <TableCell className="text-right font-mono text-sm">{p.qty}</TableCell>
-                                        <TableCell className="text-right font-mono text-sm">₹{Math.round(p.amount).toLocaleString("en-IN")}</TableCell>
-                                      </TableRow>
-                                    ))}
-                                  </TableBody>
-                                </Table>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </>
-                    ))}
+                    {(() => {
+                      const totalPages = Math.ceil(customerWiseData.length / ITEMS_PER_PAGE);
+                      const pageData = customerWiseData.slice((customerPage - 1) * ITEMS_PER_PAGE, customerPage * ITEMS_PER_PAGE);
+                      return (
+                        <>
+                          {pageData.map((row, index) => {
+                            const globalIdx = (customerPage - 1) * ITEMS_PER_PAGE + index;
+                            return (
+                              <React.Fragment key={row.customer_name}>
+                                <TableRow
+                                  className={cn("cursor-pointer hover:bg-muted/40", globalIdx % 2 === 0 ? "" : "bg-muted/30")}
+                                  onClick={() => setExpandedCustomer(expandedCustomer === row.customer_name ? null : row.customer_name)}
+                                >
+                                  <TableCell className="font-mono text-muted-foreground">{globalIdx + 1}</TableCell>
+                                  <TableCell className="font-medium">
+                                    <span className="mr-1 text-xs">{expandedCustomer === row.customer_name ? "▼" : "▶"}</span>
+                                    {row.customer_name}
+                                  </TableCell>
+                                  <TableCell className="text-center">{row.item_count}</TableCell>
+                                  <TableCell className="text-right font-mono">{row.total_qty}</TableCell>
+                                  <TableCell className="text-right font-mono font-semibold">₹{Math.round(row.total_amount).toLocaleString("en-IN")}</TableCell>
+                                  <TableCell className="text-right font-mono text-muted-foreground">₹{row.total_qty > 0 ? Math.round(row.total_amount / row.total_qty).toLocaleString("en-IN") : 0}</TableCell>
+                                </TableRow>
+                                {expandedCustomer === row.customer_name && (
+                                  <TableRow>
+                                    <TableCell colSpan={6} className="p-0">
+                                      <div className="bg-muted/20 border-y">
+                                        <Table>
+                                          <TableHeader>
+                                            <TableRow className="bg-muted/40">
+                                              <TableHead className="w-12 pl-10 font-bold text-foreground">#</TableHead>
+                                              <TableHead className="pl-10 font-bold text-foreground">Product Name</TableHead>
+                                              <TableHead className="text-right font-bold text-foreground">Qty</TableHead>
+                                              <TableHead className="text-right font-bold text-foreground">Amount (₹)</TableHead>
+                                            </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                            {row.productList.map((p, pi) => (
+                                              <TableRow key={pi} className="hover:bg-muted/30">
+                                                <TableCell className="pl-10 font-mono text-xs text-muted-foreground">{pi + 1}</TableCell>
+                                                <TableCell className="pl-10 text-sm">{p.product_name}</TableCell>
+                                                <TableCell className="text-right font-mono text-sm">{p.qty}</TableCell>
+                                                <TableCell className="text-right font-mono text-sm">₹{Math.round(p.amount).toLocaleString("en-IN")}</TableCell>
+                                              </TableRow>
+                                            ))}
+                                          </TableBody>
+                                        </Table>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
+                          {totalPages > 1 && (
+                            <TableRow>
+                              <TableCell colSpan={6}>
+                                <div className="flex items-center justify-between py-2">
+                                  <p className="text-sm text-muted-foreground">
+                                    Showing {(customerPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(customerPage * ITEMS_PER_PAGE, customerWiseData.length)} of {customerWiseData.length}
+                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <Button variant="outline" size="sm" onClick={() => setCustomerPage(p => Math.max(1, p - 1))} disabled={customerPage === 1}>Previous</Button>
+                                    <span className="text-sm text-muted-foreground">Page {customerPage} of {totalPages}</span>
+                                    <Button variant="outline" size="sm" onClick={() => setCustomerPage(p => Math.min(totalPages, p + 1))} disabled={customerPage === totalPages}>Next</Button>
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </>
+                      );
+                    })()}
                   </TableBody>
+                  {customerWiseData.length > 0 && (
+                    <TableFooter>
+                      <TableRow>
+                        <TableCell colSpan={2} className="font-bold">Grand Total</TableCell>
+                        <TableCell className="text-center font-bold">{customerWiseData.reduce((s, r) => s + r.item_count, 0)}</TableCell>
+                        <TableCell className="text-right font-bold">{customerWiseData.reduce((s, r) => s + r.total_qty, 0).toLocaleString()}</TableCell>
+                        <TableCell className="text-right font-bold text-primary">₹{Math.round(customerWiseData.reduce((s, r) => s + r.total_amount, 0)).toLocaleString("en-IN")}</TableCell>
+                        <TableCell className="text-right font-bold">-</TableCell>
+                      </TableRow>
+                    </TableFooter>
+                  )}
                 </Table>
-              </div>
-              <div className="flex justify-end gap-6 mt-3 px-2 text-sm font-semibold">
-                <span>Total Qty: {customerWiseData.reduce((s, r) => s + r.total_qty, 0)}</span>
-                <span>Total Value: ₹{Math.round(customerWiseData.reduce((s, r) => s + r.total_amount, 0)).toLocaleString("en-IN")}</span>
               </div>
             </CardContent>
           </Card>
@@ -1065,11 +1100,11 @@ export default function ItemWiseSalesReport() {
               <div className="border rounded-lg overflow-hidden">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead>Customer Name</TableHead>
-                      <TableHead>Brand</TableHead>
-                      <TableHead className="text-right">Total Qty</TableHead>
-                      <TableHead className="text-right">Total Amount</TableHead>
+                     <TableRow className="bg-muted/50">
+                      <TableHead className="font-bold text-foreground">Customer Name</TableHead>
+                      <TableHead className="font-bold text-foreground">Brand</TableHead>
+                      <TableHead className="text-right font-bold text-foreground">Total Qty</TableHead>
+                      <TableHead className="text-right font-bold text-foreground">Total Amount</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1092,23 +1127,45 @@ export default function ItemWiseSalesReport() {
                         </TableCell>
                       </TableRow>
                     ) : (() => {
-                      let lastCustomer = "";
-                      return brandWiseData.map((item, idx) => {
-                        const showCustomer = item.customer_name !== lastCustomer;
-                        lastCustomer = item.customer_name;
-                        return (
-                          <TableRow key={idx} className={cn("hover:bg-muted/30", showCustomer && idx > 0 && "border-t-2 border-border")}>
-                            <TableCell className="font-medium">
-                              {showCustomer ? item.customer_name : ""}
-                            </TableCell>
-                            <TableCell>{item.brand}</TableCell>
-                            <TableCell className="text-right font-medium">{item.total_qty}</TableCell>
-                            <TableCell className="text-right font-semibold text-primary">
-                              ₹{item.total_amount.toLocaleString()}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      });
+                      const totalPages = Math.ceil(brandWiseData.length / ITEMS_PER_PAGE);
+                      const pageData = brandWiseData.slice((brandPage - 1) * ITEMS_PER_PAGE, brandPage * ITEMS_PER_PAGE);
+                      let lastCustomer = brandPage > 1 ? "" : "";
+                      return (
+                        <>
+                          {pageData.map((item, idx) => {
+                            const showCustomer = item.customer_name !== lastCustomer;
+                            lastCustomer = item.customer_name;
+                            return (
+                              <TableRow key={idx} className={cn("hover:bg-muted/30", showCustomer && idx > 0 && "border-t-2 border-border")}>
+                                <TableCell className="font-medium">
+                                  {showCustomer ? item.customer_name : ""}
+                                </TableCell>
+                                <TableCell>{item.brand}</TableCell>
+                                <TableCell className="text-right font-medium">{item.total_qty}</TableCell>
+                                <TableCell className="text-right font-semibold text-primary">
+                                  ₹{item.total_amount.toLocaleString()}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                          {totalPages > 1 && (
+                            <TableRow>
+                              <TableCell colSpan={4}>
+                                <div className="flex items-center justify-between py-2">
+                                  <p className="text-sm text-muted-foreground">
+                                    Showing {(brandPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(brandPage * ITEMS_PER_PAGE, brandWiseData.length)} of {brandWiseData.length}
+                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <Button variant="outline" size="sm" onClick={() => setBrandPage(p => Math.max(1, p - 1))} disabled={brandPage === 1}>Previous</Button>
+                                    <span className="text-sm text-muted-foreground">Page {brandPage} of {totalPages}</span>
+                                    <Button variant="outline" size="sm" onClick={() => setBrandPage(p => Math.min(totalPages, p + 1))} disabled={brandPage === totalPages}>Next</Button>
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </>
+                      );
                     })()}
                   </TableBody>
                   {brandWiseData.length > 0 && (
@@ -1225,12 +1282,12 @@ export default function ItemWiseSalesReport() {
               <div className="border rounded-lg overflow-hidden">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead className="w-12">SR.NO</TableHead>
-                      <TableHead>{({ product_name: "PRODUCT NAME", brand: "BRAND", category: "CATEGORY", department: "DEPARTMENT" })[saleDetailsGroupBy]}</TableHead>
-                      <TableHead className="text-right">STOCK</TableHead>
-                      <TableHead className="text-right">PURCHASE VALUE</TableHead>
-                      <TableHead className="text-right">SALES VALUE</TableHead>
+                     <TableRow className="bg-muted/50">
+                      <TableHead className="w-12 font-bold text-foreground">SR.NO</TableHead>
+                      <TableHead className="font-bold text-foreground">{({ product_name: "PRODUCT NAME", brand: "BRAND", category: "CATEGORY", department: "DEPARTMENT" })[saleDetailsGroupBy]}</TableHead>
+                      <TableHead className="text-right font-bold text-foreground">STOCK</TableHead>
+                      <TableHead className="text-right font-bold text-foreground">PURCHASE VALUE</TableHead>
+                      <TableHead className="text-right font-bold text-foreground">SALES VALUE</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
