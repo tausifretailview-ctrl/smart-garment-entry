@@ -366,7 +366,57 @@ export default function ItemWiseSalesReport() {
     ...REPORT_CACHE,
   });
 
-  // When brand/category/department filters are active, compute summary from filtered data
+  // Sale Details: aggregate by selected group
+  const saleDetailsData = useMemo(() => {
+    const groups = new Map<string, { key: string; total_qty: number; purchase_value: number; sale_value: number }>();
+
+    saleItems.forEach((item: any) => {
+      // Apply same client-side filters
+      if (selectedBrand !== "all" && item.products?.brand !== selectedBrand) return;
+      if (selectedCategory !== "all" && item.products?.category !== selectedCategory) return;
+      if (selectedDepartment !== "all" && item.products?.color !== selectedDepartment) return;
+      if (selectedColor !== "all" && item.products?.color !== selectedColor) return;
+
+      let groupKey = "";
+      switch (saleDetailsGroupBy) {
+        case "product_name": groupKey = item.product_name || "Unknown"; break;
+        case "brand": groupKey = item.products?.brand || "Unbranded"; break;
+        case "category": groupKey = item.products?.category || "Uncategorized"; break;
+        case "department": groupKey = item.products?.style || "No Department"; break;
+      }
+
+      const existing = groups.get(groupKey);
+      const qty = item.quantity || 0;
+      const saleVal = Number(item.line_total) || 0;
+      const purchaseVal = Number(item.purchase_price || 0) * qty;
+
+      if (existing) {
+        existing.total_qty += qty;
+        existing.sale_value += saleVal;
+        existing.purchase_value += purchaseVal;
+      } else {
+        groups.set(groupKey, { key: groupKey, total_qty: qty, purchase_value: purchaseVal, sale_value: saleVal });
+      }
+    });
+
+    let result = Array.from(groups.values()).sort((a, b) => b.sale_value - a.sale_value);
+
+    // Apply search
+    if (saleDetailsSearch.trim()) {
+      const q = saleDetailsSearch.toLowerCase();
+      result = result.filter(r => r.key.toLowerCase().includes(q));
+    }
+
+    return result;
+  }, [saleItems, saleDetailsGroupBy, selectedBrand, selectedCategory, selectedDepartment, selectedColor, saleDetailsSearch]);
+
+  const saleDetailsTotals = useMemo(() => ({
+    total_qty: saleDetailsData.reduce((s, r) => s + r.total_qty, 0),
+    purchase_value: saleDetailsData.reduce((s, r) => s + r.purchase_value, 0),
+    sale_value: saleDetailsData.reduce((s, r) => s + r.sale_value, 0),
+  }), [saleDetailsData]);
+
+
   const hasClientFilters = selectedBrand !== "all" || selectedCategory !== "all" || selectedDepartment !== "all" || selectedColor !== "all" || searchQuery.trim() !== "";
 
   const summary = useMemo(() => {
