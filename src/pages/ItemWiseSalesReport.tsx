@@ -807,11 +807,12 @@ export default function ItemWiseSalesReport() {
       </div>
 
       {/* Tabs for Item-wise and Brand-wise */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "itemwise" | "customerwise" | "brandwise")}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "itemwise" | "customerwise" | "brandwise" | "saledetails")}>
         <TabsList className="mb-4">
           <TabsTrigger value="itemwise">📦 Item-wise Details</TabsTrigger>
           <TabsTrigger value="customerwise">👤 Customer-wise Sale</TabsTrigger>
           <TabsTrigger value="brandwise">🏷️ Brand-wise Sale</TabsTrigger>
+          <TabsTrigger value="saledetails">📊 Sale Details</TabsTrigger>
         </TabsList>
 
         <TabsContent value="itemwise" className="space-y-6">
