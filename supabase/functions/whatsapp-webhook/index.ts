@@ -730,9 +730,19 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Third-party provider verification (WappConnect etc.) — return 200 OK
-    console.log('Webhook verification accepted (third-party provider)');
-    return new Response('OK', { status: 200 });
+    // Third-party provider verification (WappConnect etc.) — echo challenge token
+    const thirdPartyChallenge = url.searchParams.get('challenge') 
+      || url.searchParams.get('verify_token')
+      || url.searchParams.get('hub.challenge')
+      || url.searchParams.get('token');
+    
+    console.log('Webhook verification accepted (third-party provider)', 
+      { params: Object.fromEntries(url.searchParams) });
+
+    return new Response(thirdPartyChallenge || 'OK', { 
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'text/plain' },
+    });
   }
 
   // Handle webhook events (POST request)
@@ -745,9 +755,10 @@ Deno.serve(async (req) => {
         const parsed = JSON.parse(rawBody);
         if (parsed.challenge || parsed.verify || parsed.hub?.challenge) {
           console.log('POST challenge verification accepted (third-party provider)');
-          return new Response(JSON.stringify({ status: 'ok', challenge: parsed.challenge || parsed.hub?.challenge || 'accepted' }), {
+          const echoChallenge = parsed.challenge || parsed.hub?.challenge || 'accepted';
+          return new Response(String(echoChallenge), {
             status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            headers: { ...corsHeaders, 'Content-Type': 'text/plain' },
           });
         }
       } catch (_) {
