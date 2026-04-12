@@ -1,38 +1,25 @@
 
 
-## Fix: WappConnect Challenge Parameter Misspelling
+## Plan: Add Permanent Project Instruction for Safe Database Practices
 
-### Problem
-WappConnect sends its verification challenge with a **misspelled parameter name**: `challange` instead of `challenge`. The logs prove this:
+### What
+Add a permanent instruction to the project's plan/guidelines file (`.lovable/plan.md`) documenting the following database safety rules:
 
-```
-params: { echo: "true", challange: "9OIW3C" }
-params: { echo: "true", challange: "1H86HK" }
-```
+1. Never write `DELETE` or `UPDATE` queries without a scoped `organization_id` WHERE clause
+2. Never drop columns or tables without an `IF EXISTS` guard
+3. Always use soft delete (`deleted_at`) instead of hard delete on critical tables
 
-Our code only checks for `challenge` (correct spelling), so it never finds the token and returns "OK" instead of echoing back the actual challenge value.
+### Changes
 
-### Fix
+**File: `.lovable/plan.md`** — Append a new section:
 
-**File: `supabase/functions/whatsapp-webhook/index.ts`**
+```markdown
+## Database Safety Rules (Permanent)
 
-Add `challange` (the misspelled variant) to the challenge parameter lookup:
-
-```typescript
-const thirdPartyChallenge = url.searchParams.get('challenge') 
-  || url.searchParams.get('challange')  // WappConnect misspelling
-  || url.searchParams.get('verify_token')
-  || url.searchParams.get('hub.challenge')
-  || url.searchParams.get('token');
+- **Scoped mutations**: Every `DELETE` or `UPDATE` SQL statement MUST include a `WHERE organization_id = ...` clause. No unscoped mutations allowed.
+- **Safe DDL**: Never `DROP COLUMN` or `DROP TABLE` without `IF EXISTS` guard.
+- **Soft delete over hard delete**: Critical tables (sales, purchases, customers, suppliers, products, returns, orders, quotations, vouchers, credit_notes, employees) must use `deleted_at` / `deleted_by` columns instead of hard `DELETE`. Hard delete is only permitted from the Recycle Bin after explicit user confirmation.
 ```
 
-This single line addition will make the webhook correctly echo back `9OIW3C` (or whatever token WappConnect sends), passing verification.
-
-### No Impact on Existing System
-- Meta verification path is untouched
-- Message sending continues to work
-- Only the third-party GET verification fallback is updated
-
-### Files Changed
-- **Edit**: `supabase/functions/whatsapp-webhook/index.ts` — add misspelled `challange` param check
+This is a single-file text addition — no code, schema, or logic changes.
 
