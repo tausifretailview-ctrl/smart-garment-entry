@@ -1103,6 +1103,168 @@ export default function ItemWiseSalesReport() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Sale Details Tab */}
+        <TabsContent value="saledetails">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <CardTitle className="text-lg">
+                  {({ product_name: "Product Name", brand: "Brand", category: "Category", department: "Department" })[saleDetailsGroupBy]} Wise Sale Details ({saleDetailsData.length} rows)
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={exportToExcel}>
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Excel
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {/* Group By + Search */}
+              <div className="flex flex-col md:flex-row gap-3 mb-4">
+                <div className="w-full md:w-48">
+                  <Select value={saleDetailsGroupBy} onValueChange={(v) => { setSaleDetailsGroupBy(v as any); setSaleDetailsPage(1); }}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="product_name">Product Name</SelectItem>
+                      <SelectItem value="brand">Brand</SelectItem>
+                      <SelectItem value="category">Category</SelectItem>
+                      <SelectItem value="department">Department</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder={`Search ${({ product_name: "product name", brand: "brand", category: "category", department: "department" })[saleDetailsGroupBy]}...`}
+                    value={saleDetailsSearch}
+                    onChange={(e) => { setSaleDetailsSearch(e.target.value); setSaleDetailsPage(1); }}
+                    className="pl-9 pr-8 no-uppercase"
+                  />
+                  {saleDetailsSearch && (
+                    <button onClick={() => setSaleDetailsSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-muted">
+                      <X className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Summary Cards */}
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <Card>
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-primary/10 rounded-lg">
+                        <Package className="h-4 w-4 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Total Stock</p>
+                        <p className="text-lg font-bold">{saleDetailsTotals.total_qty.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-green-500/10 rounded-lg">
+                        <IndianRupee className="h-4 w-4 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Purchase Value</p>
+                        <p className="text-lg font-bold">₹{saleDetailsTotals.purchase_value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-orange-500/10 rounded-lg">
+                        <TrendingUp className="h-4 w-4 text-orange-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Sale Value</p>
+                        <p className="text-lg font-bold">₹{saleDetailsTotals.sale_value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Table */}
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="w-12">SR.NO</TableHead>
+                      <TableHead>{({ product_name: "PRODUCT NAME", brand: "BRAND", category: "CATEGORY", department: "DEPARTMENT" })[saleDetailsGroupBy]}</TableHead>
+                      <TableHead className="text-right">STOCK</TableHead>
+                      <TableHead className="text-right">PURCHASE VALUE</TableHead>
+                      <TableHead className="text-right">SALES VALUE</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading...</TableCell>
+                      </TableRow>
+                    ) : saleDetailsData.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No data found</TableCell>
+                      </TableRow>
+                    ) : (() => {
+                      const totalPages = Math.ceil(saleDetailsData.length / SALE_DETAILS_PAGE_SIZE);
+                      const pageData = saleDetailsData.slice((saleDetailsPage - 1) * SALE_DETAILS_PAGE_SIZE, saleDetailsPage * SALE_DETAILS_PAGE_SIZE);
+                      return (
+                        <>
+                          {pageData.map((row, idx) => (
+                            <TableRow key={row.key} className="hover:bg-muted/30">
+                              <TableCell className="font-mono text-muted-foreground">{(saleDetailsPage - 1) * SALE_DETAILS_PAGE_SIZE + idx + 1}</TableCell>
+                              <TableCell className="font-medium text-primary">{row.key}</TableCell>
+                              <TableCell className="text-right font-mono">{row.total_qty}</TableCell>
+                              <TableCell className="text-right font-mono">{row.purchase_value.toFixed(2)}</TableCell>
+                              <TableCell className="text-right font-mono font-semibold">{row.sale_value.toFixed(2)}</TableCell>
+                            </TableRow>
+                          ))}
+                          {totalPages > 1 && (
+                            <TableRow>
+                              <TableCell colSpan={5}>
+                                <div className="flex items-center justify-between py-2">
+                                  <p className="text-sm text-muted-foreground">
+                                    Showing {(saleDetailsPage - 1) * SALE_DETAILS_PAGE_SIZE + 1}–{Math.min(saleDetailsPage * SALE_DETAILS_PAGE_SIZE, saleDetailsData.length)} of {saleDetailsData.length}
+                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <Button variant="outline" size="sm" onClick={() => setSaleDetailsPage(p => Math.max(1, p - 1))} disabled={saleDetailsPage === 1}>Previous</Button>
+                                    <span className="text-sm text-muted-foreground">Page {saleDetailsPage} of {totalPages}</span>
+                                    <Button variant="outline" size="sm" onClick={() => setSaleDetailsPage(p => Math.min(totalPages, p + 1))} disabled={saleDetailsPage === totalPages}>Next</Button>
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </TableBody>
+                  {saleDetailsData.length > 0 && (
+                    <TableFooter>
+                      <TableRow>
+                        <TableCell colSpan={2} className="font-bold">Grand Total</TableCell>
+                        <TableCell className="text-right font-bold">{saleDetailsTotals.total_qty.toLocaleString()}</TableCell>
+                        <TableCell className="text-right font-bold">{saleDetailsTotals.purchase_value.toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-bold text-primary">₹{saleDetailsTotals.sale_value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
+                      </TableRow>
+                    </TableFooter>
+                  )}
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
