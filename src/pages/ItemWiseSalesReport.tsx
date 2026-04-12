@@ -70,7 +70,11 @@ export default function ItemWiseSalesReport() {
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [selectedCustomer, setSelectedCustomer] = useState<string>("all");
   const [selectedColor, setSelectedColor] = useState<string>("all");
-  const [activeTab, setActiveTab] = useState<"itemwise" | "customerwise" | "brandwise">("itemwise");
+  const [activeTab, setActiveTab] = useState<"itemwise" | "customerwise" | "brandwise" | "saledetails">("itemwise");
+  const [saleDetailsGroupBy, setSaleDetailsGroupBy] = useState<"product_name" | "brand" | "category" | "department">("product_name");
+  const [saleDetailsSearch, setSaleDetailsSearch] = useState("");
+  const [saleDetailsPage, setSaleDetailsPage] = useState(1);
+  const SALE_DETAILS_PAGE_SIZE = 200;
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     brands: [],
     categories: [],
