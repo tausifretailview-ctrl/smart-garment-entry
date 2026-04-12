@@ -1,25 +1,31 @@
 
 
-## Add Organization Logo to WhatsApp Messages
+## Add Delete & Modify Actions to Balance Adjustment History
 
 ### Current State
-- **Logo storage**: Already uploaded by users in Settings → stored in `settings.bill_barcode_settings.logo_url` (public Supabase storage URL)
-- **Edge function**: `send-whatsapp` already handles `imageUrl` + `imageCaption` — sends the image before the text/document message
-- **Hook**: `useWhatsAppAPI` already accepts `imageUrl` param
-- **Gap**: The auto-send flow in `useSaveSale.tsx` never fetches or passes the logo URL
+- The **Recent Adjustment History** table (`RecentBalanceAdjustments.tsx`) only allows editing the **reason text** and **printing** a receipt.
+- Full **delete** and **reverse** logic already exists inside `CustomerBalanceAdjustmentDialog.tsx` (with proper financial reversal of advance/outstanding effects).
+- Users need the ability to delete or fully modify adjustment entries directly from the history table.
 
 ### Changes
 
-**File: `src/hooks/useSaveSale.tsx`**
+**File: `src/components/RecentBalanceAdjustments.tsx`**
 
-1. In the WhatsApp auto-send block (~line 418), the code already fetches `companySettings` from the `settings` table. Extend that query to also select `bill_barcode_settings` (which contains `logo_url`).
+1. **Add Delete button** — A trash icon button in the Actions column. On click, show a confirmation dialog warning that deleting will reverse the financial effect (outstanding/advance changes). Uses the same `applyAdjustmentEffects` logic from `CustomerBalanceAdjustmentDialog`.
 
-2. Extract `logoUrl` from `companySettings.bill_barcode_settings?.logo_url`.
+2. **Add Reverse button** — An undo icon button that creates a counter-adjustment record (same as existing reverse logic in the dialog).
 
-3. Pass `imageUrl: logoUrl` in both Flow A (utility template, ~line 467) and Flow B (PDF document template, ~line 544) `supabase.functions.invoke('send-whatsapp')` calls. The edge function will send the logo image before the main message automatically.
+3. **Expand Modify dialog** — Currently only edits the reason. Enhance it to also allow editing the outstanding and advance amounts, recalculating differences and applying the financial delta.
 
-### Result
-- If the org has a logo uploaded → it's sent as a WhatsApp image before the invoice message
-- If no logo → nothing changes (imageUrl is undefined, edge function skips it)
-- No new settings needed — uses existing logo upload
+4. **Confirmation dialog** — Add a confirmation step for delete/reverse actions showing the customer name and adjustment details before proceeding.
+
+5. **Extract shared helper** — Move the `applyAdjustmentEffects` function to a shared utility (or duplicate the logic inline) so `RecentBalanceAdjustments` can perform delete/reverse without opening the main dialog.
+
+### Technical Details
+
+- Delete: Reverse advance effects (negate `advance_difference`), then delete the `customer_balance_adjustments` row
+- Reverse: Insert a new counter-record with negated differences, apply reverse advance effects
+- Modify: Calculate delta between old and new values, apply the incremental difference to advances, update the adjustment record
+- Invalidate queries: `all-balance-adjustments`, `customer-balance`, `customer-advances` after any mutation
+- Permission check: Only users with `modify_records` permission can edit/reverse; only `delete_records` permission can delete
 
