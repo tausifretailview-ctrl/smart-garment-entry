@@ -162,11 +162,13 @@ export function RecentBalanceAdjustments({ organizationId }: Props) {
         updatePayload.advance_difference = newAdvDiff;
       }
 
-      const { error } = await (supabase as any)
+      const { error, data: updatedRows } = await (supabase as any)
         .from("customer_balance_adjustments")
         .update(updatePayload)
-        .eq("id", adj.id);
+        .eq("id", adj.id)
+        .select();
       if (error) throw error;
+      if (!updatedRows || updatedRows.length === 0) throw new Error("Update failed — no rows affected. Please check your permissions.");
     },
     onSuccess: () => {
       invalidateAll();
@@ -184,12 +186,14 @@ export function RecentBalanceAdjustments({ organizationId }: Props) {
       if (advDiff !== 0) {
         await applyAdvanceEffects(supabase, organizationId, adj.customer_id, advDiff, `Delete reversal: ${adj.reason}`, user?.id);
       }
-      // Delete the record
-      const { error } = await (supabase as any)
+      // Delete the record and verify it was actually removed
+      const { error, data: deletedRows } = await (supabase as any)
         .from("customer_balance_adjustments")
         .delete()
-        .eq("id", adj.id);
+        .eq("id", adj.id)
+        .select();
       if (error) throw error;
+      if (!deletedRows || deletedRows.length === 0) throw new Error("Delete failed — no rows affected. Please check your permissions.");
     },
     onSuccess: () => {
       invalidateAll();
