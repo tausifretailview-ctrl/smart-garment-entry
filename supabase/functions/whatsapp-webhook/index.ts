@@ -119,7 +119,27 @@ async function findOrganizationByCustomerPhone(supabase: any, customerPhone: str
       .eq('organization_id', customer.organization_id)
       .maybeSingle();
     
-    return orgSettings;
+    if (orgSettings) return orgSettings;
+  }
+
+  // Priority 4: Check settings table for owner_phone match
+  // This ensures owner messages are routed even if the owner is not a customer
+  const { data: ownerSettings } = await supabase
+    .from('settings')
+    .select('organization_id')
+    .or(`owner_phone.ilike.%${cleanPhone}%,owner_phone.ilike.%${fullPhone}%`)
+    .limit(1)
+    .maybeSingle();
+
+  if (ownerSettings?.organization_id) {
+    console.log(`Found org from settings owner_phone: ${ownerSettings.organization_id}`);
+    const { data: orgSettings } = await supabase
+      .from('whatsapp_api_settings')
+      .select('*')
+      .eq('organization_id', ownerSettings.organization_id)
+      .maybeSingle();
+    
+    if (orgSettings) return orgSettings;
   }
 
   console.log('No organization found for this customer phone');
