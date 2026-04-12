@@ -417,9 +417,11 @@ export const useSaveSale = () => {
             // Fetch company settings from settings table (not organizations.settings)
             const { data: companySettings } = await supabase
               .from('settings')
-              .select('business_name, mobile_number, address, gst_number')
+              .select('business_name, mobile_number, address, gst_number, bill_barcode_settings')
               .eq('organization_id', currentOrganization.id)
               .maybeSingle();
+
+            const logoUrl = (companySettings?.bill_barcode_settings as Record<string, any> | null)?.logo_url as string | undefined;
 
             const companyName = companySettings?.business_name || currentOrganization.name || 'Our Company';
             
@@ -481,6 +483,8 @@ export const useSaveSale = () => {
                     useDocumentHeaderTemplate: false,
                     documentHeaderTemplateName: null,
                     pdfBlob: null,
+                    imageUrl: logoUrl,
+                    imageCaption: logoUrl ? companyName : undefined,
                   }
                 });
               } catch (flowAError) {
@@ -556,6 +560,8 @@ export const useSaveSale = () => {
                       documentHeaderTemplateName: whatsappSettings.invoice_document_template_name,
                       pdfBlob: pdfBase64,
                       documentFilename: documentFilename,
+                      imageUrl: logoUrl,
+                      imageCaption: logoUrl ? companyName : undefined,
                     }
                   });
                 }
