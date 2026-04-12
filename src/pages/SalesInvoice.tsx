@@ -3527,30 +3527,31 @@ Thank you for choosing us!`;
             </tbody>
           </table>
         </div>
-      </section>
 
-      {/* Collapsible Notes Section */}
-      {showNotesSection && (
-        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200">
-          <div className="flex items-center gap-2 mb-2">
-            <Label className="text-[12px] font-semibold text-slate-600">Notes / Remarks</Label>
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-auto" onClick={() => setShowNotesSection(false)}>
-              <X className="h-3.5 w-3.5" />
-            </Button>
+        {/* Collapsible Notes Section */}
+        {showNotesSection && (
+          <div className="px-6 py-3 bg-slate-50 border-t border-slate-200">
+            <div className="flex items-center gap-2 mb-2">
+              <Label className="text-[12px] font-semibold text-slate-600">Notes / Remarks</Label>
+              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-auto" onClick={() => setShowNotesSection(false)}>
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="text-[13px] bg-white" placeholder="Add notes or remarks..." />
           </div>
-          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="text-[13px] bg-white" placeholder="Add notes or remarks..." />
-        </div>
-      )}
+        )}
 
-      {/* Financer Details (Mobile ERP) */}
-      {mobileERP.enabled && mobileERP.financer_billing && (
-        <div className="px-6 py-3 border-t border-slate-200">
-          <FinancerDetailsForm
-            value={financerDetails}
-            onChange={(details) => setFinancerDetails(details)}
-          />
-        </div>
-      )}
+        {/* Financer Details (Mobile ERP) */}
+        {mobileERP.enabled && mobileERP.financer_billing && (
+          <div className="px-6 py-3 border-t border-slate-200">
+            <FinancerDetailsForm
+              value={financerDetails}
+              onChange={(details) => setFinancerDetails(details)}
+            />
+          </div>
+        )}
+
+      </section>
 
       </main>
 
