@@ -755,9 +755,10 @@ Deno.serve(async (req) => {
         const parsed = JSON.parse(rawBody);
         if (parsed.challenge || parsed.verify || parsed.hub?.challenge) {
           console.log('POST challenge verification accepted (third-party provider)');
-          return new Response(JSON.stringify({ status: 'ok', challenge: parsed.challenge || parsed.hub?.challenge || 'accepted' }), {
+          const echoChallenge = parsed.challenge || parsed.hub?.challenge || 'accepted';
+          return new Response(String(echoChallenge), {
             status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            headers: { ...corsHeaders, 'Content-Type': 'text/plain' },
           });
         }
       } catch (_) {
