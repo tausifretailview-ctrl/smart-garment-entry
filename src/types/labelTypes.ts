@@ -39,6 +39,7 @@ export interface LabelDesignConfig {
   size: LabelFieldConfig;
   price: LabelFieldConfig;
   mrp: LabelFieldConfig;
+  qty: LabelFieldConfig;
   customText: LabelFieldConfig;
   barcode: LabelFieldConfig;
   barcodeText: LabelFieldConfig;
@@ -70,6 +71,7 @@ export interface LabelItem {
   businessName?: string;
   bill_number: string;
   qty?: number;
+  uom?: string;
   supplier_code?: string;
 }
 

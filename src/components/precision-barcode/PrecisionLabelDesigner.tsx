@@ -30,6 +30,7 @@ const FIELD_LABELS: Record<FieldKey, string> = {
   size: "Size",
   price: "Sale Price",
   mrp: "MRP",
+  qty: "Qty (UOM)",
   customText: "Custom Text",
   barcode: "Barcode",
   barcodeText: "Barcode Text",
@@ -48,13 +49,14 @@ const DEFAULT_PRECISION_CONFIG: LabelDesignConfig = {
   size: { show: true, fontSize: 8, bold: true, x: 1, y: 7, width: 15 },
   price: { show: true, fontSize: 9, bold: true, x: 30, y: 7, width: 18, textAlign: "right" },
   mrp: { show: false, fontSize: 7, bold: false, x: 30, y: 9, width: 18, textAlign: "right" },
+  qty: { show: false, fontSize: 7, bold: false, x: 1, y: 9, width: 20 },
   customText: { show: false, fontSize: 7, bold: false, x: 1, y: 22, width: 48, textAlign: "center" },
   barcode: { show: true, fontSize: 9, bold: false, x: 3, y: 10, width: 44, height: 8 },
   barcodeText: { show: true, fontSize: 7, bold: false, x: 1, y: 19, width: 48, textAlign: "center" },
   billNumber: { show: false, fontSize: 6, bold: false, x: 1, y: 22, width: 20 },
   supplierCode: { show: false, fontSize: 6, bold: false, x: 25, y: 22, width: 24 },
   purchaseCode: { show: false, fontSize: 6, bold: false, x: 1, y: 23, width: 20 },
-  fieldOrder: ["businessName", "brand", "productName", "category", "color", "style", "size", "price", "mrp", "barcode", "barcodeText", "customText", "billNumber", "supplierCode", "purchaseCode"],
+  fieldOrder: ["businessName", "brand", "productName", "category", "color", "style", "size", "price", "mrp", "qty", "barcode", "barcodeText", "customText", "billNumber", "supplierCode", "purchaseCode"],
   barcodeHeight: 30,
   barcodeWidth: 1.5,
   customTextValue: "",
@@ -75,6 +77,8 @@ const SAMPLE_ITEM = {
   bill_number: "PB-2024-001",
   supplier_code: "SUP-101",
   purchase_code: "ABC",
+  qty: 10,
+  uom: "NOS",
 };
 
 export function PrecisionLabelDesigner({

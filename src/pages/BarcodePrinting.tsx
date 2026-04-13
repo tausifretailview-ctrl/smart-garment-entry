@@ -97,7 +97,7 @@ const sortItemsBySize = (items: LabelItem[], order: SizeSortOrder): LabelItem[] 
 // Helper function to ensure all fields are in fieldOrder (for migrating old configs)
 const ensureCompleteFieldOrder = (config: Partial<LabelDesignConfig>): LabelDesignConfig => {
   const allFields: FieldKey[] = [
-    'businessName', 'brand', 'productName', 'category', 'color', 'style', 'size', 'price', 'mrp',
+    'businessName', 'brand', 'productName', 'category', 'color', 'style', 'size', 'price', 'mrp', 'qty',
     'customText', 'barcode', 'barcodeText', 'billNumber', 'supplierCode', 'purchaseCode'
   ];
   
@@ -114,6 +114,7 @@ const ensureCompleteFieldOrder = (config: Partial<LabelDesignConfig>): LabelDesi
     size: config.size || { show: true, fontSize: 9, bold: false },
     price: config.price || { show: true, fontSize: 9, bold: true },
     mrp: config.mrp || { show: false, fontSize: 9, bold: false },
+    qty: config.qty || { show: false, fontSize: 7, bold: false },
     customText: config.customText || { show: false, fontSize: 8, bold: false },
     barcode: config.barcode || { show: true, fontSize: 9, bold: false },
     barcodeText: config.barcodeText || { show: true, fontSize: 7, bold: false },
@@ -167,6 +168,7 @@ interface SearchResult {
   stock_qty: number;
   supplier_code?: string;
   pur_price?: number;
+  uom?: string;
 }
 
 interface RecentBill {
@@ -352,13 +354,14 @@ const builtInLabelTemplates: LabelTemplate[] = [
       size: { show: true, fontSize: 10, bold: true, textAlign: 'right', x: 25, y: 8, width: 50 },
       price: { show: true, fontSize: 11, bold: true, textAlign: 'center', x: 0, y: 12, width: 100 },
       mrp: { show: false, fontSize: 9, bold: false, textAlign: 'center', x: 0, y: 16, width: 50 },
+      qty: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 16, width: 50 },
       customText: { show: false, fontSize: 8, bold: false, textAlign: 'center', x: 25, y: 16, width: 50 },
       barcode: { show: true, fontSize: 8, bold: false, textAlign: 'center', x: 0, y: 16, width: 100 },
       barcodeText: { show: true, fontSize: 8, bold: false, textAlign: 'center', x: 0, y: 24, width: 100 },
       billNumber: { show: false, fontSize: 6, bold: false, textAlign: 'center', x: 0, y: 27, width: 100 },
       supplierCode: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 27, width: 50 },
       purchaseCode: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 25, y: 27, width: 50 },
-      fieldOrder: ['businessName', 'brand', 'style', 'size', 'price', 'mrp', 'customText', 'barcode', 'barcodeText', 'productName', 'category', 'color', 'billNumber', 'supplierCode', 'purchaseCode'],
+      fieldOrder: ['businessName', 'brand', 'style', 'size', 'price', 'mrp', 'qty', 'customText', 'barcode', 'barcodeText', 'productName', 'category', 'color', 'billNumber', 'supplierCode', 'purchaseCode'],
       barcodeHeight: 25,
       barcodeWidth: 1.5,
     }
@@ -375,13 +378,14 @@ const builtInLabelTemplates: LabelTemplate[] = [
       size: { show: true, fontSize: 10, bold: true, textAlign: 'center', x: 0, y: 4, width: 100 },
       price: { show: true, fontSize: 12, bold: true, textAlign: 'center', x: 0, y: 8, width: 100 },
       mrp: { show: false, fontSize: 9, bold: false, textAlign: 'center', x: 0, y: 12, width: 50 },
+      qty: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 12, width: 50 },
       customText: { show: false, fontSize: 8, bold: false, textAlign: 'center', x: 25, y: 12, width: 50 },
       barcode: { show: true, fontSize: 8, bold: false, textAlign: 'center', x: 0, y: 12, width: 100 },
       barcodeText: { show: true, fontSize: 8, bold: true, textAlign: 'center', x: 0, y: 20, width: 100 },
       billNumber: { show: false, fontSize: 6, bold: false, textAlign: 'center', x: 0, y: 24, width: 100 },
       supplierCode: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 24, width: 100 },
       purchaseCode: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 27, width: 100 },
-      fieldOrder: ['businessName', 'brand', 'size', 'price', 'mrp', 'customText', 'barcode', 'barcodeText', 'productName', 'category', 'style', 'color', 'billNumber', 'supplierCode', 'purchaseCode'],
+      fieldOrder: ['businessName', 'brand', 'size', 'price', 'mrp', 'qty', 'customText', 'barcode', 'barcodeText', 'productName', 'category', 'style', 'color', 'billNumber', 'supplierCode', 'purchaseCode'],
       barcodeHeight: 28,
       barcodeWidth: 1.6,
     }
@@ -398,13 +402,14 @@ const builtInLabelTemplates: LabelTemplate[] = [
       size: { show: true, fontSize: 9, bold: true, textAlign: 'center', x: 0, y: 8, width: 50 },
       price: { show: true, fontSize: 10, bold: true, textAlign: 'center', x: 25, y: 8, width: 50 },
       mrp: { show: false, fontSize: 9, bold: false, textAlign: 'center', x: 0, y: 12, width: 50 },
+      qty: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 12, width: 50 },
       customText: { show: false, fontSize: 8, bold: false, textAlign: 'center', x: 25, y: 12, width: 50 },
       barcode: { show: true, fontSize: 8, bold: false, textAlign: 'center', x: 0, y: 12, width: 100 },
       barcodeText: { show: true, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 20, width: 100 },
       billNumber: { show: false, fontSize: 6, bold: false, textAlign: 'center', x: 0, y: 27, width: 100 },
       supplierCode: { show: true, fontSize: 6, bold: false, textAlign: 'center', x: 0, y: 24, width: 50 },
       purchaseCode: { show: true, fontSize: 6, bold: false, textAlign: 'center', x: 25, y: 24, width: 50 },
-      fieldOrder: ['businessName', 'brand', 'productName', 'category', 'style', 'size', 'price', 'mrp', 'customText', 'barcode', 'barcodeText', 'supplierCode', 'purchaseCode', 'color', 'billNumber'],
+      fieldOrder: ['businessName', 'brand', 'productName', 'category', 'style', 'size', 'price', 'mrp', 'qty', 'customText', 'barcode', 'barcodeText', 'supplierCode', 'purchaseCode', 'color', 'billNumber'],
       barcodeHeight: 22,
       barcodeWidth: 1.4,
     }
@@ -1178,13 +1183,14 @@ export default function BarcodePrinting() {
     size: { show: true, fontSize: 8, bold: false, x: 0, y: 8, width: 50 },
     price: { show: true, fontSize: 8, bold: true, x: 25, y: 8, width: 50 },
     mrp: { show: false, fontSize: 8, bold: false, x: 0, y: 12, width: 50 },
+    qty: { show: false, fontSize: 7, bold: false, x: 25, y: 12, width: 20 },
     customText: { show: false, fontSize: 8, bold: false, x: 25, y: 12, width: 50 },
     barcode: { show: true, fontSize: 8, bold: false, x: 0, y: 16, width: 100 },
     barcodeText: { show: true, fontSize: 7, bold: false, x: 0, y: 24, width: 100 },
     billNumber: { show: false, fontSize: 6, bold: false, x: 0, y: 31, width: 100 },
     supplierCode: { show: true, fontSize: 7, bold: false, x: 0, y: 28, width: 50 },
     purchaseCode: { show: false, fontSize: 7, bold: false, x: 25, y: 28, width: 50 },
-    fieldOrder: ['businessName', 'brand', 'productName', 'category', 'size', 'price', 'mrp', 'customText', 'barcode', 'barcodeText', 'supplierCode', 'purchaseCode', 'billNumber', 'color', 'style'],
+    fieldOrder: ['businessName', 'brand', 'productName', 'category', 'size', 'price', 'mrp', 'qty', 'customText', 'barcode', 'barcodeText', 'supplierCode', 'purchaseCode', 'billNumber', 'color', 'style'],
   });
 
   // Label template state
@@ -1768,6 +1774,7 @@ export default function BarcodePrinting() {
           bill_date: item.bill_date || undefined,
           barcode: item.barcode,
           qty: item.qty,
+          uom: item.uom || 'NOS',
           bill_number: item.bill_number || "",
           supplier_code: item.supplier_code || "",
         };
@@ -1866,7 +1873,8 @@ export default function BarcodePrinting() {
               brand,
               color,
               style,
-              category
+              category,
+              uom
             )
           `
           )
@@ -1970,6 +1978,7 @@ export default function BarcodePrinting() {
           stock_qty: v.stock_qty || 0,
           supplier_code: supplierCodeMap.get(v.id) || "",
           pur_price: v.pur_price || 0,
+          uom: v.products?.uom || "NOS",
         }));
 
         setSearchResults(results);
@@ -2015,6 +2024,7 @@ export default function BarcodePrinting() {
       barcode: result.barcode,
       bill_number: '',
       qty: 1,
+      uom: result.uom || 'NOS',
       supplier_code: result.supplier_code || '',
     };
 
@@ -2213,7 +2223,8 @@ export default function BarcodePrinting() {
             product_name,
             brand,
             color,
-            style
+            style,
+            uom
           )
         `)
         .in("id", skuIds);
@@ -2232,7 +2243,8 @@ export default function BarcodePrinting() {
           size: variant.size,
           barcode: variant.barcode,
           sale_price: variant.sale_price,
-          mrp: variant.mrp
+          mrp: variant.mrp,
+          uom: variant.products?.uom || "NOS",
         });
       });
 
@@ -2261,6 +2273,7 @@ export default function BarcodePrinting() {
             barcode: item.barcode || variantInfo.barcode,
             bill_number: billData.software_bill_no || '',
             qty: item.qty,
+            uom: variantInfo.uom || 'NOS',
             supplier_code: supplierCode
           };
         });
@@ -2529,13 +2542,14 @@ export default function BarcodePrinting() {
           size: preset.labelConfig.size || { show: true, fontSize: 9, bold: false },
           price: preset.labelConfig.price || { show: true, fontSize: 9, bold: true },
           mrp: preset.labelConfig.mrp || { show: false, fontSize: 9, bold: false },
+          qty: preset.labelConfig.qty || { show: false, fontSize: 7, bold: false },
           customText: preset.labelConfig.customText || { show: false, fontSize: 8, bold: false },
           barcode: preset.labelConfig.barcode || { show: true, fontSize: 9, bold: false },
           barcodeText: preset.labelConfig.barcodeText || { show: true, fontSize: 7, bold: false },
           billNumber: preset.labelConfig.billNumber || { show: true, fontSize: 7, bold: false },
           supplierCode: preset.labelConfig.supplierCode || { show: true, fontSize: 7, bold: false },
           purchaseCode: preset.labelConfig.purchaseCode || { show: false, fontSize: 7, bold: false },
-          fieldOrder: preset.labelConfig.fieldOrder || ['businessName', 'brand', 'productName', 'category', 'color', 'style', 'size', 'price', 'mrp', 'customText', 'barcode', 'billNumber', 'barcodeText', 'supplierCode', 'purchaseCode'],
+          fieldOrder: preset.labelConfig.fieldOrder || ['businessName', 'brand', 'productName', 'category', 'color', 'style', 'size', 'price', 'mrp', 'qty', 'customText', 'barcode', 'billNumber', 'barcodeText', 'supplierCode', 'purchaseCode'],
           customTextValue: preset.labelConfig.customTextValue || '',
         };
         setLabelConfig(mergedConfig);
