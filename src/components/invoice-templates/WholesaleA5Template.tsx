@@ -147,7 +147,7 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
     : String(invoiceDate);
 
   const amtWords = numberToWords(Math.round(grandTotal));
-  const MIN_ROWS = 15;
+  const MIN_ROWS = 6;
   const emptyRows = Math.max(0, MIN_ROWS - items.length);
 
   const advReceiptAmt = (amountPaid ?? 0);
