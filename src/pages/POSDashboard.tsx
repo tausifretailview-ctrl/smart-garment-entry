@@ -197,7 +197,7 @@ const POSDashboard = () => {
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [previewSale, setPreviewSale] = useState<Sale | null>(null);
   const [previewFinancerDetails, setPreviewFinancerDetails] = useState<any>(null);
-  const [previewCustomerData, setPreviewCustomerData] = useState<{ gst_number?: string; transport_details?: string } | null>(null);
+  const [previewCustomerData, setPreviewCustomerData] = useState<{ gst_number?: string; transport_details?: string; address?: string } | null>(null);
   const [posBillFormat, setPosBillFormat] = useState<string | null>(null);
   const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<string>('professional');
 
