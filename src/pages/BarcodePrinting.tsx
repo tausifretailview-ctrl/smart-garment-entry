@@ -168,6 +168,7 @@ interface SearchResult {
   stock_qty: number;
   supplier_code?: string;
   pur_price?: number;
+  uom?: string;
 }
 
 interface RecentBill {
@@ -2022,6 +2023,7 @@ export default function BarcodePrinting() {
       barcode: result.barcode,
       bill_number: '',
       qty: 1,
+      uom: result.uom || 'NOS',
       supplier_code: result.supplier_code || '',
     };
 
