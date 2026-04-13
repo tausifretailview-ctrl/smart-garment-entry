@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Save, RotateCcw, ZoomIn, ZoomOut, Move, Plus, Trash2, Minus } from "lucide-react";
 import { LabelDesignConfig, LabelFieldConfig, LabelLineConfig, FieldKey, LabelItem } from "@/types/labelTypes";
 import { DraggableLabelCanvas } from "./DraggableLabelCanvas";
+import { getUOMLabel, getUOMFullLabel } from "@/constants/uom";
 
 interface PrecisionLabelDesignerProps {
   labelWidth: number;
@@ -18,6 +19,7 @@ interface PrecisionLabelDesignerProps {
   onConfigChange: (config: LabelDesignConfig) => void;
   onSave?: () => void;
   sampleItem?: LabelItem;
+  defaultUom?: string;
 }
 
 const FIELD_LABELS: Record<FieldKey, string> = {
@@ -88,6 +90,7 @@ export function PrecisionLabelDesigner({
   onConfigChange,
   onSave,
   sampleItem,
+  defaultUom = "NOS",
 }: PrecisionLabelDesignerProps) {
   const [activeField, setActiveField] = useState<FieldKey | null>(null);
   const [activeLineIndex, setActiveLineIndex] = useState<number | null>(null);
@@ -222,7 +225,7 @@ export function PrecisionLabelDesigner({
                           className="scale-75"
                           onClick={(e) => e.stopPropagation()}
                         />
-                        <span className="text-xs font-medium">{FIELD_LABELS[key]}</span>
+                        <span className="text-xs font-medium">{key === 'qty' ? `Qty (${getUOMLabel(defaultUom)})` : FIELD_LABELS[key]}</span>
                       </div>
                       {field.show && (
                         <span className="text-[10px] text-muted-foreground flex items-center gap-1">
@@ -505,7 +508,7 @@ export function PrecisionLabelDesigner({
         </div>
 
         <DraggableLabelCanvas
-          item={sampleItem || SAMPLE_ITEM}
+          item={sampleItem || { ...SAMPLE_ITEM, uom: defaultUom }}
           width={labelWidth}
           height={labelHeight}
           config={config}

@@ -1204,6 +1204,7 @@ export default function BarcodePrinting() {
   const [purchaseCodeAlphabet, setPurchaseCodeAlphabet] = useState("ABCDEFGHIK");
   const [showPurchaseCode, setShowPurchaseCode] = useState(false);
   const [purchaseCodeIncludeGst, setPurchaseCodeIncludeGst] = useState(false);
+  const [defaultUom, setDefaultUom] = useState("NOS");
   const [isDirectPrintDialogOpen, setIsDirectPrintDialogOpen] = useState(false);
   const [precisionSettings, setPrecisionSettings] = useState({
     enabled: false,
@@ -1519,6 +1520,9 @@ export default function BarcodePrinting() {
           const purchaseSettings = data.purchase_settings as any;
           if (purchaseSettings.purchase_code_alphabet) {
             setPurchaseCodeAlphabet(purchaseSettings.purchase_code_alphabet);
+          }
+          if (purchaseSettings.default_uom) {
+            setDefaultUom(purchaseSettings.default_uom);
           }
           if (purchaseSettings.show_purchase_code !== undefined) {
             setShowPurchaseCode(purchaseSettings.show_purchase_code);
@@ -5556,6 +5560,7 @@ export default function BarcodePrinting() {
                 setPrecisionSettings((prev) => ({ ...prev, labelConfig: cfg }))
               }
               sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
+              defaultUom={defaultUom}
               onSave={async () => {
                 if (!currentOrganization?.id) return;
                 try {
