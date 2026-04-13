@@ -166,7 +166,7 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
       className="wholesale-a5-invoice"
       style={{
         width: '148mm',
-        minHeight: '210mm',
+        height: '210mm',
         margin: '0 auto',
         padding: '3mm',
         fontFamily: 'Arial, Helvetica, sans-serif',
@@ -175,15 +175,30 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
         background: '#fff',
         boxSizing: 'border-box',
         position: 'relative',
+        overflow: 'hidden',
       }}
     >
+      <style>{`
+        @media print {
+          .wholesale-a5-invoice {
+            width: 148mm !important;
+            height: 210mm !important;
+            overflow: hidden !important;
+            margin: 0 !important;
+            padding: 3mm !important;
+            page-break-after: always;
+          }
+          @page { size: 148mm 210mm; margin: 0; }
+        }
+      `}</style>
+
       {/* ===== HEADER: Logo + Business Name ===== */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1mm', background: headerBg, color: headerColor, padding: '2mm 3mm' }}>
         {logoUrl && (
           <img
             src={logoUrl}
             alt="Shop Logo"
-            style={{ width: '12mm', height: '12mm', objectFit: 'contain', marginRight: '3mm', borderRadius: '2px' }}
+            style={{ width: '20mm', height: '20mm', maxHeight: '20mm', objectFit: 'contain', marginRight: '3mm', borderRadius: '2px' }}
           />
         )}
         <div style={{ textAlign: 'center', flex: 1 }}>
@@ -317,6 +332,13 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
               {notes && (
                 <div style={{ fontSize: '8pt', fontWeight: 500, marginTop: '1mm' }}>
                   <strong>Note:</strong> {notes}
+                </div>
+              )}
+
+              {qrCodeUrl && (
+                <div style={{ marginTop: '2mm', display: 'flex', alignItems: 'center', gap: '2mm' }}>
+                  <img src={qrCodeUrl} alt="Payment QR" style={{ width: '18mm', height: '18mm', objectFit: 'contain' }} />
+                  <span style={{ fontSize: '7pt', color: '#444' }}>Scan to Pay</span>
                 </div>
               )}
             </td>
