@@ -17,6 +17,7 @@ import { TaxInvoiceTemplate } from "@/components/invoice-templates/TaxInvoiceTem
 import { TallyTaxInvoiceTemplate } from "@/components/invoice-templates/TallyTaxInvoiceTemplate";
 import { RetailTemplate } from "@/components/invoice-templates/RetailTemplate";
 import { RetailERPTemplate } from "@/components/invoice-templates/RetailERPTemplate";
+import { WholesaleA5Template } from "@/components/invoice-templates/WholesaleA5Template";
 
 // Update document meta tags for link previews
 const updateMetaTags = (businessName: string, invoiceNumber: string, orgSlug?: string, logoUrl?: string) => {
@@ -190,6 +191,8 @@ export default function PublicInvoiceView() {
         return <RetailTemplate {...templateProps} />;
       case 'retail-erp':
         return <RetailERPTemplate {...templateProps} />;
+      case 'wholesale-a5':
+        return <WholesaleA5Template {...templateProps} />;
       case 'professional':
       default:
         return <ProfessionalTemplate {...templateProps} />;

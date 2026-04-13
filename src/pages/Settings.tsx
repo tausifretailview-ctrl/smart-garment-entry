@@ -129,7 +129,7 @@ interface SaleSettings {
   defaultEntryMode?: 'grid' | 'inline';  // Default entry mode for Sale Order
   enable_size_grid_sales?: boolean; // Enable/disable size grid in Sales Invoice
   sales_tax_rate?: number;
-  invoice_template?: 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'retail' | 'retail-erp';
+  invoice_template?: 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'retail' | 'retail-erp' | 'wholesale-a5';
   invoice_color_scheme?: string;
   declaration_text?: string;
   terms_list?: string[];
@@ -2704,7 +2704,7 @@ export default function Settings() {
                           ...settings,
                           sale_settings: {
                             ...settings.sale_settings,
-                            invoice_template: value as 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'retail' | 'retail-erp',
+                            invoice_template: value as 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'retail' | 'retail-erp' | 'wholesale-a5',
                           },
                         })
                       }
@@ -2777,6 +2777,12 @@ export default function Settings() {
                           <span className="flex items-center gap-2">
                             <span className="text-indigo-600 font-bold text-xs w-5">ERP</span>
                             Retail ERP — Tax Invoice ERP style
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="wholesale-a5">
+                          <span className="flex items-center gap-2">
+                            <span className="text-stone-700 font-bold text-xs w-5">A5W</span>
+                            Wholesale A5 — Laser print estimate
                           </span>
                         </SelectItem>
                       </SelectContent>
