@@ -140,6 +140,7 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
   stampPosition = 'bottom-right',
   stampSize = 'medium',
   customHeaderText,
+  qrCodeUrl,
 }) => {
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
   const dateStr = invoiceDate instanceof Date
