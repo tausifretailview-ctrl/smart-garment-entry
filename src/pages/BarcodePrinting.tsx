@@ -2222,7 +2222,8 @@ export default function BarcodePrinting() {
             product_name,
             brand,
             color,
-            style
+            style,
+            uom
           )
         `)
         .in("id", skuIds);
@@ -2241,7 +2242,8 @@ export default function BarcodePrinting() {
           size: variant.size,
           barcode: variant.barcode,
           sale_price: variant.sale_price,
-          mrp: variant.mrp
+          mrp: variant.mrp,
+          uom: variant.products?.uom || "NOS",
         });
       });
 
@@ -2270,6 +2272,7 @@ export default function BarcodePrinting() {
             barcode: item.barcode || variantInfo.barcode,
             bill_number: billData.software_bill_no || '',
             qty: item.qty,
+            uom: variantInfo.uom || 'NOS',
             supplier_code: supplierCode
           };
         });
