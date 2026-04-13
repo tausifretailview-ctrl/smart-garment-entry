@@ -680,6 +680,30 @@ export default function SaleReturnEntry() {
     setSaving(true);
 
     try {
+      // Stock ceiling validation — ensure stock won't exceed total purchased
+      const { validateBatchStockCeiling } = await import("@/utils/stockCeilingValidation");
+      const ceilingItems = returnItems
+        .filter(item => item.variantId)
+        .map(item => ({
+          variantId: item.variantId,
+          qtyToAdd: item.quantity,
+          label: `${item.productName} (${item.size})`,
+        }));
+
+      if (ceilingItems.length > 0) {
+        const ceilingFailures = await validateBatchStockCeiling(supabase, ceilingItems, "Sale Return");
+        if (ceilingFailures.length > 0) {
+          const msg = ceilingFailures.map(f => f.label).join(", ");
+          toast({
+            title: "Stock Ceiling Exceeded",
+            description: `Cannot process return — stock would exceed total purchased for: ${msg}`,
+            variant: "destructive",
+          });
+          setSaving(false);
+          return;
+        }
+      }
+
       const customer = customers.find((c) => c.id === selectedCustomer);
       const totals = calculateTotals();
 
