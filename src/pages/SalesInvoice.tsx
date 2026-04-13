@@ -1229,7 +1229,7 @@ export default function SalesInvoice() {
     if (foundVariant && foundProduct) {
       // If in grid mode, open size grid dialog
       if (entryMode === "grid") {
-        openSizeGridForProduct(foundProduct);
+        openSizeGridForProduct(foundProduct, foundVariant?.sale_price);
         setSearchInput("");
         barcodeInputRef.current?.focus();
         return;
@@ -1254,7 +1254,7 @@ export default function SalesInvoice() {
   const addProductToInvoice = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }) => {
     // If in grid mode, open size grid dialog
     if (entryMode === "grid") {
-      openSizeGridForProduct(product);
+      openSizeGridForProduct(product, variant?.sale_price);
       setOpenProductSearch(false);
       setSearchInput("");
       return;
