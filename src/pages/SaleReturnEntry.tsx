@@ -684,6 +684,14 @@ export default function SaleReturnEntry() {
       const totals = calculateTotals();
 
       if (isEditMode && editId) {
+        // Step 1: Soft-delete items first so the DB trigger skips stock adjustment
+        for (const itemId of originalItemIds) {
+          await supabase
+            .from("sale_return_items")
+            .update({ deleted_at: new Date().toISOString() })
+            .eq("id", itemId);
+        }
+        // Step 2: Hard-delete (trigger sees deleted_at is set → skips stock deduction)
         for (const itemId of originalItemIds) {
           const { error: delError } = await supabase
             .from("sale_return_items")
