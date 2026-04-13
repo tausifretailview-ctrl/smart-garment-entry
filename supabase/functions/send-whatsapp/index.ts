@@ -1202,7 +1202,9 @@ serve(async (req) => {
         
         if (saleId && orgSlug) {
           // Build the invoice link
-          const invoiceLink = `https://app.inventoryshop.in/${orgSlug}/invoice/view/${saleId}`;
+          const posFmt2 = String(saleData?.pos_bill_format || '');
+          const thermalSuffix2 = posFmt2 === 'thermal' ? '?format=thermal' : '';
+          const invoiceLink = `https://app.inventoryshop.in/${orgSlug}/invoice/view/${saleId}${thermalSuffix2}`;
           
           // Store follow-up data with the log entry - will be sent when customer clicks button
           const whatsappLink = `https://wa.me/${orgSettings.phone_number_id?.replace(/\D/g, '')}`;
