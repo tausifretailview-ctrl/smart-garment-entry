@@ -14,6 +14,7 @@ export const PRODUCT_SEARCH_FIELDS = [
   'barcode',
   'hsn_code',
   'size',
+  'sale_price',
 ] as const;
 
 /**
