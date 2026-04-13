@@ -1871,7 +1871,8 @@ export default function BarcodePrinting() {
               brand,
               color,
               style,
-              category
+              category,
+              uom
             )
           `
           )
@@ -1975,6 +1976,7 @@ export default function BarcodePrinting() {
           stock_qty: v.stock_qty || 0,
           supplier_code: supplierCodeMap.get(v.id) || "",
           pur_price: v.pur_price || 0,
+          uom: v.products?.uom || "NOS",
         }));
 
         setSearchResults(results);
