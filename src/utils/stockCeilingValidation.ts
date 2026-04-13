@@ -27,7 +27,7 @@ export const validateStockCeiling = async (
     // 1. Current stock
     const { data: variant, error: vErr } = await supabase
       .from("product_variants")
-      .select("stock_qty, products(product_type)")
+      .select("stock_qty, opening_qty, products(product_type)")
       .eq("id", variantId)
       .single();
 
@@ -40,6 +40,7 @@ export const validateStockCeiling = async (
     }
 
     const currentStock = variant.stock_qty ?? 0;
+    const openingQty = (variant as any).opening_qty ?? 0;
 
     // 2. Total purchased qty for this variant (active rows only)
     const { data: purchaseRows, error: pErr } = await supabase
@@ -69,8 +70,8 @@ export const validateStockCeiling = async (
       0
     );
 
-    // 4. Ceiling = purchased - purchase-returned
-    const maxAllowed = totalPurchased - totalPurchaseReturned;
+    // 4. Ceiling = opening + purchased - purchase-returned
+    const maxAllowed = openingQty + totalPurchased - totalPurchaseReturned;
     const projectedStock = currentStock + qtyToAdd;
 
     if (projectedStock > maxAllowed) {
@@ -82,7 +83,7 @@ export const validateStockCeiling = async (
           `[${operation}] Stock ceiling exceeded. ` +
           `Current: ${currentStock}, Adding: +${qtyToAdd}, ` +
           `Projected: ${projectedStock}, Max allowed: ${maxAllowed} ` +
-          `(Purchased: ${totalPurchased}, Returned: ${totalPurchaseReturned})`,
+          `(Opening: ${openingQty}, Purchased: ${totalPurchased}, Returned: ${totalPurchaseReturned})`,
       };
     }
 
