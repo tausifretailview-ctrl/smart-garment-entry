@@ -1010,7 +1010,7 @@ export default function SalesInvoice() {
     return () => clearTimeout(debounceTimer);
   }, [searchInput, currentOrganization?.id]);
   // Open size grid modal for a product - fetch ALL variants fresh from DB
-  const openSizeGridForProduct = async (product: any) => {
+  const openSizeGridForProduct = async (product: any, selectedSalePrice?: number) => {
     if (!currentOrganization) return;
 
     // Find all product IDs with the same name (handles duplicate products)
