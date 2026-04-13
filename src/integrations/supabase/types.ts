@@ -7249,6 +7249,10 @@ export type Database = {
           total_sale_returns: number
         }[]
       }
+      reconcile_variant_stock_qty: {
+        Args: { p_variant_id: string }
+        Returns: Json
+      }
       record_login_attempt: {
         Args: {
           p_attempt_type: string
