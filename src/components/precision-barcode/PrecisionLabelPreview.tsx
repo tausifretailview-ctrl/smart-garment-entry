@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import JsBarcode from "jsbarcode";
 import { LabelItem, LabelDesignConfig, FieldKey } from "@/types/labelTypes";
+import { getUOMLabel } from "@/constants/uom";
 
 interface PrecisionLabelPreviewProps {
   item: LabelItem;
@@ -23,6 +24,7 @@ const getFieldContent = (key: FieldKey, item: LabelItem, customTextValue?: strin
     case "style": return item.style || "";
     case "size": return item.size || "";
     case "price": return `Rs.${item.sale_price}`;
+    case "qty": return item.qty ? `${item.qty} ${getUOMLabel(item.uom)}` : "";
     case "mrp": return item.mrp ? `MRP: ${item.mrp}` : "";
     case "barcodeText": return item.barcode || "";
     case "billNumber": return item.bill_number || "";
