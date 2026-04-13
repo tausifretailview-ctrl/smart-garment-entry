@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { UOM_OPTIONS } from "@/constants/uom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, Building2, ShoppingCart, Receipt, CreditCard, BarChart2, Users, MessageSquare, MessageCircle, Database, Palette, FileText, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
