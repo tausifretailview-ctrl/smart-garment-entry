@@ -128,6 +128,14 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
       return null;
     })();
 
+    if (!settings) {
+      return (
+        <div ref={ref} data-invoice-loading="true" style={{ padding: '20px', textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
+          Loading...
+        </div>
+      );
+    }
+
     return (
       <div
         ref={ref}
