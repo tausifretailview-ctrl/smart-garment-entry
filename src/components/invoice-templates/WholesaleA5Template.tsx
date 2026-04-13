@@ -114,12 +114,13 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
   address,
   mobile,
   gstNumber,
+  logoUrl,
   invoiceNumber,
   invoiceDate,
   customerName,
   customerMobile,
-  customerAddress,
   salesman,
+  notes,
   items,
   subtotal,
   discount,
@@ -127,6 +128,7 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
   roundOff,
   grandTotal,
   showTotalQuantity = true,
+  showBarcode = true,
   amountWithDecimal = true,
   termsConditions,
   cashAmount,
@@ -134,8 +136,6 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
   upiAmount,
   amountPaid,
   balanceDue,
-  transportDetails,
-  shippingAddress,
   stampImageBase64,
   stampPosition = 'bottom-right',
   stampSize = 'medium',
@@ -156,7 +156,6 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
   const stampSizeMap = { small: 50, medium: 70, large: 90 };
   const sSize = stampSizeMap[stampSize] || 70;
 
-  // Common cell style
   const cellBorder = '1px solid #000';
   const headerBg = '#444';
   const headerColor = '#fff';
@@ -178,53 +177,56 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
         position: 'relative',
       }}
     >
-      {/* ===== HEADER: Business Name ===== */}
-      <div style={{ textAlign: 'center', marginBottom: '2mm' }}>
-        <div style={{ fontSize: '18pt', fontWeight: 900, letterSpacing: 1, background: headerBg, color: headerColor, padding: '2mm 0', marginBottom: '1mm' }}>
-          {businessName}
-        </div>
-        {customHeaderText && (
-          <div style={{ fontSize: '8pt', fontWeight: 600, marginBottom: '0.5mm' }}>{customHeaderText}</div>
+      {/* ===== HEADER: Logo + Business Name ===== */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1mm', background: headerBg, color: headerColor, padding: '2mm 3mm' }}>
+        {logoUrl && (
+          <img
+            src={logoUrl}
+            alt="Shop Logo"
+            style={{ width: '12mm', height: '12mm', objectFit: 'contain', marginRight: '3mm', borderRadius: '2px' }}
+          />
         )}
-        <div style={{ fontSize: '7.5pt', lineHeight: 1.4 }}>
-          {address}
+        <div style={{ textAlign: 'center', flex: 1 }}>
+          <div style={{ fontSize: '18pt', fontWeight: 900, letterSpacing: 1, textTransform: 'uppercase' }}>
+            {businessName}
+          </div>
+          {customHeaderText && (
+            <div style={{ fontSize: '8pt', fontWeight: 600 }}>{customHeaderText}</div>
+          )}
+          <div style={{ fontSize: '7.5pt', lineHeight: 1.4 }}>
+            {address}
+          </div>
+          <div style={{ fontSize: '7.5pt' }}>
+            Mob: {mobile}
+          </div>
+          {gstNumber && (
+            <div style={{ fontSize: '7pt', marginTop: '0.5mm' }}>GSTIN: {gstNumber}</div>
+          )}
         </div>
-        <div style={{ fontSize: '7.5pt' }}>
-          Mob: {mobile}
-        </div>
-        {gstNumber && (
-          <div style={{ fontSize: '7pt', marginTop: '0.5mm' }}>GSTIN: {gstNumber}</div>
-        )}
       </div>
 
-      {/* ===== META: Invoice No, Date, Salesman, Customer ===== */}
+      {/* ===== META: Bill No, Date, Salesman, Customer ===== */}
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1mm', fontSize: '8pt' }}>
         <tbody>
           <tr>
             <td style={{ border: cellBorder, padding: '1mm 2mm', width: '50%', background: '#e8e8e8' }}>
-              <strong>EST NO :</strong> {invoiceNumber}
+              <strong>BILL NO :</strong> {invoiceNumber}
             </td>
             <td style={{ border: cellBorder, padding: '1mm 2mm', background: '#e8e8e8' }}>
-              <strong>EST DATE :</strong> {dateStr}
+              <strong>BILL DATE :</strong> {dateStr}
             </td>
           </tr>
           <tr>
-            <td style={{ border: cellBorder, padding: '1mm 2mm', background: '#e8e8e8' }}>
+            <td colSpan={2} style={{ border: cellBorder, padding: '1mm 2mm', background: '#e8e8e8' }}>
               <strong>SALES PERSON :</strong> {salesman || ''}
             </td>
-            <td style={{ border: cellBorder, padding: '1mm 2mm' }}>
-              <strong>TRANSPORT :</strong> {transportDetails || ''}
-            </td>
           </tr>
           <tr>
-            <td style={{ border: cellBorder, padding: '1mm 2mm' }}>
+            <td colSpan={2} style={{ border: cellBorder, padding: '1mm 2mm' }}>
               <strong>BILL TO :</strong> {customerName}
               {customerMobile && (
-                <div><strong>Whatsapp No :</strong> {customerMobile}</div>
+                <span style={{ marginLeft: '4mm' }}><strong>Whatsapp No :</strong> {customerMobile}</span>
               )}
-            </td>
-            <td style={{ border: cellBorder, padding: '1mm 2mm' }}>
-              <strong>SHIPPING ADD :</strong> {shippingAddress || customerAddress || ''}
             </td>
           </tr>
         </tbody>
@@ -234,11 +236,14 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
         <thead>
           <tr style={{ background: headerBg, color: headerColor, fontWeight: 700 }}>
-            <th style={{ border: cellBorder, padding: '1.5mm 1mm', width: '8%', textAlign: 'center' }}>SR</th>
+            <th style={{ border: cellBorder, padding: '1.5mm 1mm', width: '7%', textAlign: 'center' }}>SR</th>
             <th style={{ border: cellBorder, padding: '1.5mm 2mm', textAlign: 'center' }}>CODE</th>
-            <th style={{ border: cellBorder, padding: '1.5mm 1mm', width: '10%', textAlign: 'center' }}>QTY</th>
-            <th style={{ border: cellBorder, padding: '1.5mm 2mm', width: '18%', textAlign: 'right' }}>RATE</th>
-            <th style={{ border: cellBorder, padding: '1.5mm 2mm', width: '20%', textAlign: 'right' }}>AMOUNT</th>
+            {showBarcode && (
+              <th style={{ border: cellBorder, padding: '1.5mm 2mm', width: '18%', textAlign: 'center' }}>BARCODE</th>
+            )}
+            <th style={{ border: cellBorder, padding: '1.5mm 1mm', width: '9%', textAlign: 'center' }}>QTY</th>
+            <th style={{ border: cellBorder, padding: '1.5mm 2mm', width: '16%', textAlign: 'right' }}>RATE</th>
+            <th style={{ border: cellBorder, padding: '1.5mm 2mm', width: '18%', textAlign: 'right' }}>AMOUNT</th>
           </tr>
         </thead>
         <tbody>
@@ -246,16 +251,19 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
             <tr key={idx}>
               <td style={{ border: cellBorder, padding: '1mm', textAlign: 'center' }}>{idx + 1}</td>
               <td style={{ border: cellBorder, padding: '1mm 2mm', textAlign: 'center' }}>{item.particulars}</td>
+              {showBarcode && (
+                <td style={{ border: cellBorder, padding: '1mm 2mm', textAlign: 'center', fontSize: '7.5pt' }}>{item.barcode || ''}</td>
+              )}
               <td style={{ border: cellBorder, padding: '1mm', textAlign: 'center' }}>{item.qty}</td>
               <td style={{ border: cellBorder, padding: '1mm 2mm', textAlign: 'right' }}>{fmt(item.rate, amountWithDecimal)}</td>
               <td style={{ border: cellBorder, padding: '1mm 2mm', textAlign: 'right' }}>{fmt(item.total, amountWithDecimal)}</td>
             </tr>
           ))}
-          {/* Empty rows to fill the page */}
           {Array.from({ length: emptyRows }).map((_, idx) => (
             <tr key={`empty-${idx}`}>
               <td style={{ border: cellBorder, padding: '1mm', height: '5mm' }}>&nbsp;</td>
               <td style={{ border: cellBorder, padding: '1mm' }}>&nbsp;</td>
+              {showBarcode && <td style={{ border: cellBorder, padding: '1mm' }}>&nbsp;</td>}
               <td style={{ border: cellBorder, padding: '1mm' }}>&nbsp;</td>
               <td style={{ border: cellBorder, padding: '1mm' }}>&nbsp;</td>
               <td style={{ border: cellBorder, padding: '1mm' }}>&nbsp;</td>
@@ -268,13 +276,12 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8pt', marginTop: '0mm' }}>
         <tbody>
           <tr>
-            {/* LEFT: Amount in words, payment, terms */}
+            {/* LEFT: Amount in words, payment, terms, notes */}
             <td style={{ border: cellBorder, padding: '2mm', width: '50%', verticalAlign: 'top' }}>
               <div style={{ marginBottom: '2mm' }}>
                 <strong>Amt in Words :</strong> {amtWords}
               </div>
 
-              {/* Payment method row */}
               <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '2mm' }}>
                 <tbody>
                   <tr style={{ background: darkRowBg, color: headerColor, fontWeight: 700, fontSize: '7.5pt' }}>
@@ -296,15 +303,20 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
                 </tbody>
               </table>
 
-              {/* Terms & Conditions */}
               {termsConditions && termsConditions.length > 0 && (
-                <div>
+                <div style={{ marginBottom: '1.5mm' }}>
                   <div style={{ fontWeight: 700, textDecoration: 'underline', marginBottom: '1mm' }}>Terms &amp; Condition :-</div>
                   {termsConditions.map((t, i) => (
                     <div key={i} style={{ fontSize: '7pt', lineHeight: 1.3 }}>
                       {i + 1}. {t}
                     </div>
                   ))}
+                </div>
+              )}
+
+              {notes && (
+                <div style={{ fontSize: '8pt', fontWeight: 500, marginTop: '1mm' }}>
+                  <strong>Note:</strong> {notes}
                 </div>
               )}
             </td>
@@ -329,25 +341,9 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
                       <td style={{ border: cellBorder, padding: '1mm 2mm', textAlign: 'right' }}>{fmt(discount, amountWithDecimal)}</td>
                     </tr>
                   )}
-                  {totalTax > 0 && (
-                    <tr>
-                      <td style={{ border: cellBorder, padding: '1mm 2mm', fontWeight: 700 }}>T. CHARGE</td>
-                      <td style={{ border: cellBorder, padding: '1mm 2mm', textAlign: 'right' }}>{fmt(totalTax, amountWithDecimal)}</td>
-                    </tr>
-                  )}
-                  {totalTax === 0 && (
-                    <tr>
-                      <td style={{ border: cellBorder, padding: '1mm 2mm', fontWeight: 700 }}>T. CHARGE</td>
-                      <td style={{ border: cellBorder, padding: '1mm 2mm', textAlign: 'right' }}>0.00</td>
-                    </tr>
-                  )}
                   <tr>
                     <td style={{ border: cellBorder, padding: '1mm 2mm', fontWeight: 700 }}>OTHER CHARGE</td>
                     <td style={{ border: cellBorder, padding: '1mm 2mm', textAlign: 'right' }}>0.00</td>
-                  </tr>
-                  <tr>
-                    <td style={{ border: cellBorder, padding: '1mm 2mm', fontWeight: 700 }}>RD AMOUNT</td>
-                    <td style={{ border: cellBorder, padding: '1mm 2mm', textAlign: 'right' }}>{fmt(Math.abs(roundOff), amountWithDecimal)}</td>
                   </tr>
                   <tr style={{ background: '#e8e8e8' }}>
                     <td style={{ border: cellBorder, padding: '1.5mm 2mm', fontWeight: 900, fontSize: '9pt' }}>GRAND TOTAL</td>
