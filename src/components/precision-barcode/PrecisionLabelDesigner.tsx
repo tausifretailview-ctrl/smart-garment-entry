@@ -225,7 +225,7 @@ export function PrecisionLabelDesigner({
                           className="scale-75"
                           onClick={(e) => e.stopPropagation()}
                         />
-                        <span className="text-xs font-medium">{FIELD_LABELS[key]}</span>
+                        <span className="text-xs font-medium">{key === 'qty' ? `Qty (${getUOMLabel(defaultUom)})` : FIELD_LABELS[key]}</span>
                       </div>
                       {field.show && (
                         <span className="text-[10px] text-muted-foreground flex items-center gap-1">
