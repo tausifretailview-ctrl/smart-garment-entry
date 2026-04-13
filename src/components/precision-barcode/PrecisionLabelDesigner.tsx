@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Save, RotateCcw, ZoomIn, ZoomOut, Move, Plus, Trash2, Minus } from "lucide-react";
 import { LabelDesignConfig, LabelFieldConfig, LabelLineConfig, FieldKey, LabelItem } from "@/types/labelTypes";
 import { DraggableLabelCanvas } from "./DraggableLabelCanvas";
+import { getUOMLabel, getUOMFullLabel } from "@/constants/uom";
 
 interface PrecisionLabelDesignerProps {
   labelWidth: number;
@@ -507,7 +508,7 @@ export function PrecisionLabelDesigner({
         </div>
 
         <DraggableLabelCanvas
-          item={sampleItem || SAMPLE_ITEM}
+          item={sampleItem || { ...SAMPLE_ITEM, uom: defaultUom }}
           width={labelWidth}
           height={labelHeight}
           config={config}
