@@ -450,6 +450,7 @@ export const useSaveSale = () => {
               items_count: saleData.items.reduce((sum, item) => sum + item.quantity, 0),
               salesman: saleData.salesman,
               organization_name: companyName,
+              pos_bill_format: (saleSettings as any)?.pos_bill_format || '',
               // Include social links from settings
               website: (whatsappSettings.social_links as Record<string, string> | null)?.website || '',
               instagram: (whatsappSettings.social_links as Record<string, string> | null)?.instagram || '',

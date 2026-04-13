@@ -188,8 +188,10 @@ function buildTemplateParams(
         // Build public invoice URL
         const orgSlug = String(saleData.org_slug || '');
         const saleId = String(saleData.sale_id || saleData.id || '');
+        const posBillFormat = String(saleData.pos_bill_format || '');
+        const thermalSuffix = posBillFormat === 'thermal' ? '?format=thermal' : '';
         return saleId && orgSlug 
-          ? `https://app.inventoryshop.in/${orgSlug}/invoice/view/${saleId}` 
+          ? `https://app.inventoryshop.in/${orgSlug}/invoice/view/${saleId}${thermalSuffix}` 
           : '';
       case 'payment_link':
         return String(saleData.payment_link || '');
