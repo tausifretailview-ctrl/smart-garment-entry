@@ -21,8 +21,8 @@ export const encodePurchasePrice = (price: number, alphabet?: string, billDate?:
   }
   
   // Validate alphabet contains only letters
-  if (!/^[A-Z]{10}$/i.test(codeAlphabet)) {
-    console.warn("Invalid alphabet (must contain only letters A-Z), using default");
+  if (!/^[A-Z0-9]{10}$/i.test(codeAlphabet)) {
+    console.warn("Invalid alphabet (must contain only letters A-Z or digits 0-9), using default");
     return encodePurchasePrice(price, "ABCDEFGHIK", billDate);
   }
   
@@ -35,7 +35,7 @@ export const encodePurchasePrice = (price: number, alphabet?: string, billDate?:
   // Map each digit to corresponding letter from alphabet
   const encodedCode = priceStr.split('').map(digit => {
     const index = parseInt(digit);
-    return codeAlphabet.toUpperCase()[index];
+    return codeAlphabet[index];
   }).join('');
   
   // Use bill date or current date for month/year
@@ -73,7 +73,7 @@ export const validatePurchaseCodeAlphabet = (alphabet: string): boolean => {
   if (alphabet.length !== 10) return false;
   
   // Must be all uppercase letters A-Z
-  if (!/^[A-Z]{10}$/.test(alphabet)) return false;
+  if (!/^[A-Z0-9]{10}$/.test(alphabet)) return false;
   
   // Must have unique characters (no duplicates)
   const uniqueChars = new Set(alphabet.split(''));

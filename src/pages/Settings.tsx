@@ -1682,7 +1682,7 @@ export default function Settings() {
                     id="purchase_code_alphabet"
                     value={settings.purchase_settings?.purchase_code_alphabet || "ABCDEFGHIK"}
                     onChange={(e) => {
-                      const value = e.target.value.toUpperCase();
+                      const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
                       setSettings({
                         ...settings,
                         purchase_settings: {
@@ -1701,13 +1701,13 @@ export default function Settings() {
                     }
                   />
                   <p className="text-xs text-muted-foreground">
-                    Enter 10 unique letters (A-Z). First letter = 0, Second = 1, ... Tenth = 9. 
-                    Example: ABCDEFGHIK means 100 = BAA
+                    Enter 10 unique characters (A-Z or 0-9). First = 0, Second = 1, ... Tenth = 9. 
+                    Example: ABCDEFGHIK means 100 = BAA. Numeric: 0123456789 means 500 = 500
                   </p>
                   {settings.purchase_settings?.purchase_code_alphabet &&
                     !validatePurchaseCodeAlphabet(settings.purchase_settings.purchase_code_alphabet) && (
                       <p className="text-xs text-destructive">
-                        Invalid alphabet: Must be exactly 10 unique uppercase letters (A-Z)
+                        Invalid alphabet: Must be exactly 10 unique characters (A-Z or 0-9)
                       </p>
                     )}
                 </div>
