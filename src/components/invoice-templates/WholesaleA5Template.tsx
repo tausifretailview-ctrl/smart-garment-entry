@@ -336,12 +336,6 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
                 </div>
               )}
 
-              {qrCodeUrl && (
-                <div style={{ marginTop: '2mm', display: 'flex', alignItems: 'center', gap: '2mm' }}>
-                  <img src={qrCodeUrl} alt="Payment QR" style={{ width: '18mm', height: '18mm', objectFit: 'contain' }} />
-                  <span style={{ fontSize: '7pt', color: '#444' }}>Scan to Pay</span>
-                </div>
-              )}
             </td>
 
             {/* RIGHT: Summary totals */}
@@ -380,6 +374,16 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
                     <td style={{ border: cellBorder, padding: '1.5mm 2mm', fontWeight: 900, fontSize: '9pt' }}>BALANCE</td>
                     <td style={{ border: cellBorder, padding: '1.5mm 2mm', textAlign: 'right', fontWeight: 900, fontSize: '9pt' }}>{fmt(balance, amountWithDecimal)}</td>
                   </tr>
+                  {qrCodeUrl && (
+                    <tr>
+                      <td colSpan={2} style={{ border: cellBorder, padding: '2mm', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2mm' }}>
+                          <img src={qrCodeUrl} alt="Payment QR" style={{ width: '18mm', height: '18mm', objectFit: 'contain' }} />
+                          <span style={{ fontSize: '7pt', color: '#444' }}>Scan to Pay</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </td>
