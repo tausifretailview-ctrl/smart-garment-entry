@@ -1182,13 +1182,14 @@ export default function BarcodePrinting() {
     size: { show: true, fontSize: 8, bold: false, x: 0, y: 8, width: 50 },
     price: { show: true, fontSize: 8, bold: true, x: 25, y: 8, width: 50 },
     mrp: { show: false, fontSize: 8, bold: false, x: 0, y: 12, width: 50 },
+    qty: { show: false, fontSize: 7, bold: false, x: 25, y: 12, width: 20 },
     customText: { show: false, fontSize: 8, bold: false, x: 25, y: 12, width: 50 },
     barcode: { show: true, fontSize: 8, bold: false, x: 0, y: 16, width: 100 },
     barcodeText: { show: true, fontSize: 7, bold: false, x: 0, y: 24, width: 100 },
     billNumber: { show: false, fontSize: 6, bold: false, x: 0, y: 31, width: 100 },
     supplierCode: { show: true, fontSize: 7, bold: false, x: 0, y: 28, width: 50 },
     purchaseCode: { show: false, fontSize: 7, bold: false, x: 25, y: 28, width: 50 },
-    fieldOrder: ['businessName', 'brand', 'productName', 'category', 'size', 'price', 'mrp', 'customText', 'barcode', 'barcodeText', 'supplierCode', 'purchaseCode', 'billNumber', 'color', 'style'],
+    fieldOrder: ['businessName', 'brand', 'productName', 'category', 'size', 'price', 'mrp', 'qty', 'customText', 'barcode', 'barcodeText', 'supplierCode', 'purchaseCode', 'billNumber', 'color', 'style'],
   });
 
   // Label template state
@@ -2533,13 +2534,14 @@ export default function BarcodePrinting() {
           size: preset.labelConfig.size || { show: true, fontSize: 9, bold: false },
           price: preset.labelConfig.price || { show: true, fontSize: 9, bold: true },
           mrp: preset.labelConfig.mrp || { show: false, fontSize: 9, bold: false },
+          qty: preset.labelConfig.qty || { show: false, fontSize: 7, bold: false },
           customText: preset.labelConfig.customText || { show: false, fontSize: 8, bold: false },
           barcode: preset.labelConfig.barcode || { show: true, fontSize: 9, bold: false },
           barcodeText: preset.labelConfig.barcodeText || { show: true, fontSize: 7, bold: false },
           billNumber: preset.labelConfig.billNumber || { show: true, fontSize: 7, bold: false },
           supplierCode: preset.labelConfig.supplierCode || { show: true, fontSize: 7, bold: false },
           purchaseCode: preset.labelConfig.purchaseCode || { show: false, fontSize: 7, bold: false },
-          fieldOrder: preset.labelConfig.fieldOrder || ['businessName', 'brand', 'productName', 'category', 'color', 'style', 'size', 'price', 'mrp', 'customText', 'barcode', 'billNumber', 'barcodeText', 'supplierCode', 'purchaseCode'],
+          fieldOrder: preset.labelConfig.fieldOrder || ['businessName', 'brand', 'productName', 'category', 'color', 'style', 'size', 'price', 'mrp', 'qty', 'customText', 'barcode', 'billNumber', 'barcodeText', 'supplierCode', 'purchaseCode'],
           customTextValue: preset.labelConfig.customTextValue || '',
         };
         setLabelConfig(mergedConfig);
