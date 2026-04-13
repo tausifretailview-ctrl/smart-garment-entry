@@ -1,32 +1,26 @@
 
 
-## Plan: Add Permanent Project Instruction for Safe Database Practices
+## Plan: Support Both Alphabetic and Numeric Purchase Code Mappings
 
-### What
-Add a permanent instruction to the project's plan/guidelines file (`.lovable/plan.md`) documenting the following database safety rules:
-
-1. Never write `DELETE` or `UPDATE` queries without a scoped `organization_id` WHERE clause
-2. Never drop columns or tables without an `IF EXISTS` guard
-3. Always use soft delete (`deleted_at`) instead of hard delete on critical tables
+### Problem
+Currently, the purchase code system only accepts uppercase letters (A-Z) as the 10-character mapping alphabet. Some customers want to use digits (0-9) as well — for example, mapping `0123456789` so that a price of 500 encodes directly as `500` within the code format `MM50026`.
 
 ### Changes
 
-**File: `.lovable/plan.md`** — Append a new section:
+**1. Update `purchaseCodeEncoder.ts` — relax validation to allow letters AND digits**
+- `encodePurchasePrice`: Change the regex from `/^[A-Z]{10}$/i` to `/^[A-Z0-9]{10}$/i` so the alphabet can contain digits.
+- Remove the `.toUpperCase()` on the alphabet during encoding (digits don't have case).
+- `validatePurchaseCodeAlphabet`: Change from `/^[A-Z]{10}$/` to `/^[A-Z0-9]{10}$/` to accept mixed alphanumeric mappings. Keep the uniqueness check.
 
-```markdown
-## Database Safety Rules (Permanent)
+**2. Update `Settings.tsx` — allow digits in the input field**
+- Change the input `onChange` handler regex filter from `/[^A-Z]/g` to `/[^A-Z0-9]/g` so digits aren't stripped.
+- Update the validation error message from "Must be exactly 10 unique uppercase letters (A-Z)" to "Must be exactly 10 unique characters (A-Z or 0-9)".
+- Update the helper text/example to show that numeric mappings like `0123456789` are also valid.
 
-- **Scoped mutations**: Every `DELETE` or `UPDATE` SQL statement MUST include a `WHERE organization_id = ...` clause. No unscoped mutations allowed.
-- **Safe DDL**: Never `DROP COLUMN` or `DROP TABLE` without `IF EXISTS` guard.
-- **Soft delete over hard delete**: Critical tables (sales, purchases, customers, suppliers, products, returns, orders, quotations, vouchers, credit_notes, employees) must use `deleted_at` / `deleted_by` columns instead of hard `DELETE`. Hard delete is only permitted from the Recycle Bin after explicit user confirmation.
-```
+### Example
+With alphabet `0123456789` and price 500, bill date Feb 2025:
+- Output: `0250026` (MM=02, code=500, YR=26)
 
-This is a single-file text addition — no code, schema, or logic changes.
-
-## Database Safety Rules (Permanent)
-
-- **Scoped mutations**: Every `DELETE` or `UPDATE` SQL statement MUST include a `WHERE organization_id = ...` clause. No unscoped mutations allowed.
-- **Safe DDL**: Never `DROP COLUMN` or `DROP TABLE` without `IF EXISTS` guard.
-- **Soft delete over hard delete**: Critical tables (sales, purchases, customers, suppliers, products, returns, orders, quotations, vouchers, credit_notes, employees) must use `deleted_at` / `deleted_by` columns instead of hard `DELETE`. Hard delete is only permitted from the Recycle Bin after explicit user confirmation.
-
+With alphabet `ABCDEFGHIJ` and price 500:
+- Output: `02FAA26` (F=5, A=0, A=0)
 
