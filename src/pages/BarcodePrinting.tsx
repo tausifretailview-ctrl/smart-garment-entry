@@ -1774,6 +1774,7 @@ export default function BarcodePrinting() {
           bill_date: item.bill_date || undefined,
           barcode: item.barcode,
           qty: item.qty,
+          uom: item.uom || 'NOS',
           bill_number: item.bill_number || "",
           supplier_code: item.supplier_code || "",
         };
