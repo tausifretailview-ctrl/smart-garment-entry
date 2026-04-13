@@ -1,43 +1,55 @@
 
 
-## Plan: Fix Sale Return Stock Drift Bug
+## Plan: Add Stock Ceiling Validation — Stock Cannot Exceed Total Purchased
 
 ### Problem
-Barcode 150006822 shows stock_qty = 12 but the correct value is 10 (Purchase 10 - Sale 1 + Active Return 1 = 10). The `batch_stock` table is correct at 10, but `product_variants.stock_qty` has drifted by +2.
+Stock can drift above the total purchased quantity through sale return creation, sale return deletion bugs, or manual stock imports. A ceiling guard is needed at both the database trigger level and the frontend.
 
-### Root Cause
-The Sale Return edit flow in `SaleReturnEntry.tsx` deletes old `sale_return_items` and inserts new ones. This fires two database triggers:
-1. `handle_sale_return_item_delete` — deducts stock
-2. `restore_stock_on_sale_return` — adds stock
-
-While these should net to zero, there's a subtle inconsistency: the delete trigger only deducts from `batch_stock` where `quantity > 0`, but the insert trigger always adds to `stock_qty` first. If any timing or transaction issue occurs, `stock_qty` can drift from `batch_stock`.
+### Important: Schema Corrections
+The Gemini prompt references tables that **don't exist** in your database. Here's the mapping:
+- `purchase_bill_items` → your table is **`purchase_items`**
+- `stock_transactions` → your table is **`stock_movements`** (and it has no `credit_qty` column)
+- `org_id` on purchase_items → the org is on `purchase_bills.organization_id`, not directly on `purchase_items`
 
 ### Changes
 
-**1. Fix the immediate data — Database Migration**
-- Correct the `stock_qty` for variant `9d41a175-6eff-4319-af73-342181622d39` from 12 to 10.
-- Add a `stock_movement` record documenting this correction.
+**1. Create `src/utils/stockCeilingValidation.ts` — Frontend guard function**
+- `validateStockCeiling(supabase, variantId, qtyToAdd, operation)` 
+- Queries `purchase_items` (joined via `purchase_bills` for org filtering) to get total purchased qty for the variant
+- Queries `purchase_return_items` to get total returned qty
+- Compares: `current_stock + qtyToAdd` must not exceed `total_purchased - total_purchase_returned`
+- Returns `{ valid, reason }` with a clear error message
 
-**2. Fix Sale Return Edit flow — `SaleReturnEntry.tsx`**
-- Before deleting old items in edit mode, soft-delete them first (set `deleted_at`) so the `handle_sale_return_item_delete` trigger SKIPS stock adjustment (it already checks `IF OLD.deleted_at IS NOT NULL THEN RETURN OLD`).
-- Then hard-delete them (trigger skips, no stock change).
-- New items are inserted as before (INSERT trigger adds stock normally).
-- This ensures stock is only adjusted ONCE per edit (via the INSERT trigger), not twice (DELETE deduction + INSERT addition).
+**2. Database trigger — Strongest protection layer (Migration)**
+- Create function `check_stock_ceiling_on_return()` that runs BEFORE INSERT on `sale_return_items`
+- Calculates total purchased for the variant from `purchase_items` (via `sku_id`)
+- Calculates total purchase-returned from `purchase_return_items` (via `sku_id`)
+- Gets current `stock_qty` from `product_variants`
+- If `current_stock + NEW.quantity > total_purchased - total_purchase_returned`, raises an exception
+- This blocks stock inflation regardless of frontend bugs
 
-**3. Add a stock reconciliation safety net — Database Migration**
-- Create a `reconcile_variant_stock_qty` RPC that recalculates `stock_qty` from: `opening_qty + SUM(batch_stock.quantity) - active_sale_items_qty + active_return_items_qty` for any given variant, and updates if there's a mismatch. This gives users a way to fix future drift.
+**3. Apply frontend guard in Sale Return creation — `SaleReturnEntry.tsx`**
+- Before saving new sale return items, call `validateStockCeiling` for each item
+- Show toast error and block save if ceiling would be exceeded
 
-### Technical Details
+**4. Apply frontend guard in Sale Return delete — `useSoftDelete.tsx`**
+- The delete trigger already correctly deducts stock (no ceiling check needed for deductions)
+- No change needed here — the DB trigger on INSERT is the key guard
 
-**File: `src/pages/SaleReturnEntry.tsx` (edit mode, ~line 686)**
-```
-Current: DELETE items → INSERT items (both triggers fire)
-Fixed:   UPDATE items SET deleted_at=now() → DELETE items (trigger skips) → INSERT items (trigger fires once)
-```
+**5. Apply frontend guard in Stock Import — `StockImportTab.tsx`**
+- Before applying imported stock quantities, validate each row against the ceiling
+- Skip rows that would exceed the ceiling and show a warning summary
 
-**Migration SQL (data fix)**
-```sql
-UPDATE product_variants SET stock_qty = 10 WHERE id = '9d41a175-...';
-INSERT INTO stock_movements (...) VALUES (..., 'adjustment', -2, ..., 'Stock reconciliation correction');
-```
+### What This Does NOT Do
+- Does not add a `stock_transactions` table (doesn't exist in your schema)
+- Does not run bulk audit/fix queries (that would be a separate data operation if needed)
+- The DB trigger is the strongest layer — even if frontend is bypassed, stock cannot exceed purchases
+
+### Files
+| File | Action |
+|---|---|
+| `src/utils/stockCeilingValidation.ts` | Create — ceiling check utility |
+| `supabase/migrations/...` | Create — DB trigger `check_stock_ceiling_on_return` |
+| `src/pages/SaleReturnEntry.tsx` | Edit — add ceiling check before save |
+| `src/components/StockImportTab.tsx` | Edit — add ceiling check during import |
 
