@@ -660,6 +660,16 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
           </div>
         </div>
 
+        {/* Terms & Conditions */}
+        {termsConditions && termsConditions.filter(t => t && t.trim()).length > 0 && (
+          <div style={{ borderTop: b, padding: "4px 8px", flexShrink: 0 }}>
+            <div style={{ fontWeight: "bold", fontSize: "10px", marginBottom: "2px", textDecoration: "underline" }}>Terms & Conditions:</div>
+            {termsConditions.filter(t => t && t.trim()).map((term, idx) => (
+              <div key={idx} style={{ fontSize: "9.5px", lineHeight: "1.5", paddingLeft: "8px" }}>{term}</div>
+            ))}
+          </div>
+        )}
+
         {/* Notes Section */}
         {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
           <div style={{ borderTop: b, padding: "4px 8px", flexShrink: 0 }}>
@@ -670,23 +680,27 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
           </div>
         )}
 
-        {/* HSN Tax Breakup Table - Added fixed widths to enforce structure */}
+        {/* HSN Tax Breakup Table */}
         {showGSTBreakdown && Object.keys(hsnBreakup).length > 0 && (
           <div style={{ borderTop: b, flexShrink: 0 }}>
             <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
               <thead>
                 <tr>
-                  <th style={{ ...hCell, textAlign: "center", width: "20%" }}>HSN/SAC</th>
+                  <th style={{ ...hCell, textAlign: "center", width: "18%" }}>HSN/SAC</th>
                   <th style={{ ...hCell, textAlign: "right", width: "20%" }}>Taxable Value</th>
                   {isInterState ? (
-                    <th style={{ ...hCell, textAlign: "right", width: "40%" }}>Integrated Tax (IGST)</th>
+                    <>
+                      <th style={{ ...hCell, textAlign: "center", width: "10%" }}>GST %</th>
+                      <th style={{ ...hCell, textAlign: "right", width: "32%" }}>IGST Amount</th>
+                    </>
                   ) : (
                     <>
-                      <th style={{ ...hCell, textAlign: "right", width: "20%" }}>Central Tax (CGST)</th>
-                      <th style={{ ...hCell, textAlign: "right", width: "20%" }}>State Tax (SGST)</th>
+                      <th style={{ ...hCell, textAlign: "center", width: "10%" }}>GST %</th>
+                      <th style={{ ...hCell, textAlign: "right", width: "16%" }}>CGST Amount</th>
+                      <th style={{ ...hCell, textAlign: "right", width: "16%" }}>SGST Amount</th>
                     </>
                   )}
-                  <th style={{ ...hCell, textAlign: "right", width: "20%" }}>Total Tax Amount</th>
+                  <th style={{ ...hCell, textAlign: "right", width: "20%" }}>GST Amount</th>
                 </tr>
               </thead>
               <tbody>
@@ -694,18 +708,13 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                   <tr key={idx}>
                     <td style={{ ...cell, textAlign: "center" }}>{row.hsn}</td>
                     <td style={{ ...cell, textAlign: "right" }}>{fmt(row.taxableValue)}</td>
+                    <td style={{ ...cell, textAlign: "center" }}>{row.rate}%</td>
                     {isInterState ? (
-                      <td style={{ ...cell, textAlign: "right" }}>
-                        {fmt(row.igst)} <span style={{ fontSize: "8px", color: "#555" }}>({row.rate}%)</span>
-                      </td>
+                      <td style={{ ...cell, textAlign: "right" }}>{fmt(row.igst)}</td>
                     ) : (
                       <>
-                        <td style={{ ...cell, textAlign: "right" }}>
-                          {fmt(row.cgst)} <span style={{ fontSize: "8px", color: "#555" }}>({row.rate / 2}%)</span>
-                        </td>
-                        <td style={{ ...cell, textAlign: "right" }}>
-                          {fmt(row.sgst)} <span style={{ fontSize: "8px", color: "#555" }}>({row.rate / 2}%)</span>
-                        </td>
+                        <td style={{ ...cell, textAlign: "right" }}>{fmt(row.cgst)}</td>
+                        <td style={{ ...cell, textAlign: "right" }}>{fmt(row.sgst)}</td>
                       </>
                     )}
                     <td style={{ ...cell, textAlign: "right" }}>{fmt(row.total)}</td>
@@ -714,6 +723,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                 <tr style={{ backgroundColor: "#f0f0f0" }}>
                   <td style={{ ...cell, fontWeight: "bold", textAlign: "right" }}>Total</td>
                   <td style={{ ...cell, textAlign: "right", fontWeight: "bold" }}>{fmt(taxableAmount)}</td>
+                  <td style={cell}></td>
                   {isInterState ? (
                     <td style={{ ...cell, textAlign: "right", fontWeight: "bold" }}>{fmt(totalIgst)}</td>
                   ) : (
@@ -749,44 +759,22 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
 
             {/* Bank Details */}
             {showBankDetails && normBank && (normBank.bankName || normBank.accountNumber) && (
-              <div style={{ borderTop: "1px dashed #ccc", paddingTop: "4px", marginTop: "auto" }}>
-                <div style={{ fontWeight: "bold", marginBottom: "2px" }}>Company's Bank Details:</div>
-                <table style={{ fontSize: "9.5px", lineHeight: "1.4" }}>
-                  <tbody>
-                    {normBank.accountHolder && (
-                      <tr>
-                        <td style={{ width: "70px", color: "#444" }}>A/c Holder:</td>
-                        <td>
-                          <strong>{normBank.accountHolder}</strong>
-                        </td>
-                      </tr>
-                    )}
-                    {normBank.bankName && (
-                      <tr>
-                        <td style={{ color: "#444" }}>Bank Name:</td>
-                        <td>
-                          <strong>{normBank.bankName}</strong>
-                        </td>
-                      </tr>
-                    )}
-                    {normBank.accountNumber && (
-                      <tr>
-                        <td style={{ color: "#444" }}>A/c No.:</td>
-                        <td>
-                          <strong>{normBank.accountNumber}</strong>
-                        </td>
-                      </tr>
-                    )}
-                    {(normBank.branch || normBank.ifscCode) && (
-                      <tr>
-                        <td style={{ color: "#444" }}>Branch & IFSC:</td>
-                        <td>
-                          <strong>{[normBank.branch, normBank.ifscCode].filter(Boolean).join(" & ")}</strong>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+              <div style={{ borderTop: "1px dashed #ccc", paddingTop: "4px", marginTop: "4px" }}>
+                <div style={{ fontWeight: "bold", marginBottom: "3px" }}>Company's Bank Details:</div>
+                <div style={{ fontSize: "10px", lineHeight: "1.5" }}>
+                  {normBank.accountHolder && (
+                    <div>A/c Holder: <strong>{normBank.accountHolder}</strong></div>
+                  )}
+                  {normBank.bankName && (
+                    <div>Bank: <strong>{normBank.bankName}</strong></div>
+                  )}
+                  {normBank.accountNumber && (
+                    <div>A/c No.: <strong>{normBank.accountNumber}</strong></div>
+                  )}
+                  {(normBank.branch || normBank.ifscCode) && (
+                    <div>Branch & IFSC: <strong>{[normBank.branch, normBank.ifscCode].filter(Boolean).join(" & ")}</strong></div>
+                  )}
+                </div>
               </div>
             )}
           </div>
