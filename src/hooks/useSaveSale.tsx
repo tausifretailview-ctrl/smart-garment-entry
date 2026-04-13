@@ -458,11 +458,10 @@ export const useSaveSale = () => {
 
             // ============================================
             // FLOW A: Utility/Text Template (TEXT or NONE header)
-            // Send immediate invoice notification without PDF
+            // Always send when a utility template is configured
             // This template MUST have TEXT or NONE header type
             // ============================================
-            const hasUtilityTemplate = whatsappSettings.invoice_template_name && 
-              !whatsappSettings.use_document_header_template;
+            const hasUtilityTemplate = !!whatsappSettings.invoice_template_name;
 
             if (hasUtilityTemplate) {
               try {
@@ -495,11 +494,11 @@ export const useSaveSale = () => {
 
             // ============================================
             // FLOW B: Document Header Template with PDF
-            // Only if "Direct PDF Delivery" is enabled
+            // Only if "Direct PDF Delivery" is enabled AND document template is set
             // This uses DOCUMENT header template (bypasses 24h window)
             // ============================================
             const shouldSendPdfFlow = whatsappSettings.use_document_header_template && 
-              whatsappSettings.invoice_document_template_name &&
+              !!whatsappSettings.invoice_document_template_name &&
               (saleData.netAmount ?? 0) >= (whatsappSettings.pdf_min_amount ?? 0);
 
             if (shouldSendPdfFlow) {
