@@ -18,6 +18,7 @@ interface PrecisionLabelDesignerProps {
   onConfigChange: (config: LabelDesignConfig) => void;
   onSave?: () => void;
   sampleItem?: LabelItem;
+  defaultUom?: string;
 }
 
 const FIELD_LABELS: Record<FieldKey, string> = {
@@ -88,6 +89,7 @@ export function PrecisionLabelDesigner({
   onConfigChange,
   onSave,
   sampleItem,
+  defaultUom = "NOS",
 }: PrecisionLabelDesignerProps) {
   const [activeField, setActiveField] = useState<FieldKey | null>(null);
   const [activeLineIndex, setActiveLineIndex] = useState<number | null>(null);
