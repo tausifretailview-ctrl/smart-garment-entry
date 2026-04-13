@@ -77,6 +77,8 @@ const SAMPLE_ITEM = {
   bill_number: "PB-2024-001",
   supplier_code: "SUP-101",
   purchase_code: "ABC",
+  qty: 10,
+  uom: "NOS",
 };
 
 export function PrecisionLabelDesigner({
