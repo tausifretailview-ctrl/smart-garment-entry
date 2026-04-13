@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ import { TallyTaxInvoiceTemplate } from "@/components/invoice-templates/TallyTax
 import { RetailTemplate } from "@/components/invoice-templates/RetailTemplate";
 import { RetailERPTemplate } from "@/components/invoice-templates/RetailERPTemplate";
 import { WholesaleA5Template } from "@/components/invoice-templates/WholesaleA5Template";
+import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";
+import { ModernThermalReceipt80mm } from "@/components/ModernThermalReceipt80mm";
 
 // Update document meta tags for link previews
 const updateMetaTags = (businessName: string, invoiceNumber: string, orgSlug?: string, logoUrl?: string) => {
@@ -38,6 +40,8 @@ const updateMetaTags = (businessName: string, invoiceNumber: string, orgSlug?: s
 
 export default function PublicInvoiceView() {
   const { saleId } = useParams<{ saleId: string }>();
+  const [searchParams] = useSearchParams();
+  const formatParam = searchParams.get('format');
   const printRef = useRef<HTMLDivElement>(null);
 
   // Fetch sanitized invoice data via secure edge function
@@ -107,7 +111,8 @@ export default function PublicInvoiceView() {
 
   const saleItems = sale.sale_items || [];
   const template = settings?.invoice_template || 'professional';
-
+  const isThermalFormat = formatParam === 'thermal' || settings?.pos_bill_format === 'thermal';
+  const thermalStyle = settings?.thermal_receipt_style || 'classic';
   const templateProps = {
     businessName: settings?.business_name || "Business",
     address: settings?.address || "",
@@ -170,6 +175,37 @@ export default function PublicInvoiceView() {
   };
 
   const renderTemplate = () => {
+    // If thermal format requested (via URL param or POS setting)
+    if (formatParam === 'thermal') {
+      const thermalItems = saleItems.map((item: any, index: number) => ({
+        sr: index + 1,
+        particulars: item.product_name,
+        barcode: item.barcode || '',
+        qty: item.quantity,
+        rate: item.unit_price,
+        total: item.line_total,
+      }));
+
+      const thermalProps = {
+        billNo: sale.sale_number,
+        date: new Date(sale.sale_date),
+        customerName: sale.customer_name,
+        items: thermalItems,
+        subTotal: sale.gross_amount,
+        discount: sale.discount_amount + sale.flat_discount_amount,
+        roundOff: sale.round_off,
+        grandTotal: sale.net_amount,
+        paymentMethod: sale.payment_method,
+        documentType: 'pos' as const,
+        termsConditions: sale.terms_conditions || '',
+      };
+
+      if (thermalStyle === 'modern') {
+        return <ModernThermalReceipt80mm ref={printRef} {...thermalProps} />;
+      }
+      return <ThermalPrint80mm ref={printRef} {...thermalProps} />;
+    }
+
     switch (template) {
       case 'classic':
         return <ClassicTemplate {...templateProps} />;
@@ -201,7 +237,7 @@ export default function PublicInvoiceView() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 md:p-8">
-      <div className="max-w-4xl mx-auto">
+      <div className={formatParam === 'thermal' ? 'max-w-[80mm] mx-auto' : 'max-w-4xl mx-auto'}>
         {/* Action Buttons */}
         <div className="flex justify-center gap-4 mb-6 print:hidden">
           <Button onClick={() => handlePrint()} className="gap-2">
@@ -217,7 +253,7 @@ export default function PublicInvoiceView() {
         {/* Invoice Content - multi-page print support */}
         <style>{`
           @media print {
-            @page { size: A4 portrait; margin: 5mm; }
+            @page { size: ${formatParam === 'thermal' ? '80mm auto' : 'A4 portrait'}; margin: ${formatParam === 'thermal' ? '3mm' : '5mm'}; }
             body { margin: 0; padding: 0; }
             .public-invoice-print-wrap {
               box-shadow: none !important;
@@ -227,7 +263,7 @@ export default function PublicInvoiceView() {
             }
           }
         `}</style>
-        <div ref={printRef} className="public-invoice-print-wrap bg-white rounded-lg shadow-lg" style={{ overflow: 'visible' }}>
+        <div ref={formatParam === 'thermal' ? undefined : printRef} className="public-invoice-print-wrap bg-white rounded-lg shadow-lg" style={{ overflow: 'visible' }}>
           {renderTemplate()}
         </div>
 

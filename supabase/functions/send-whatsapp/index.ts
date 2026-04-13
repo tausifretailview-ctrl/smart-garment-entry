@@ -188,8 +188,10 @@ function buildTemplateParams(
         // Build public invoice URL
         const orgSlug = String(saleData.org_slug || '');
         const saleId = String(saleData.sale_id || saleData.id || '');
+        const posBillFormat = String(saleData.pos_bill_format || '');
+        const thermalSuffix = posBillFormat === 'thermal' ? '?format=thermal' : '';
         return saleId && orgSlug 
-          ? `https://app.inventoryshop.in/${orgSlug}/invoice/view/${saleId}` 
+          ? `https://app.inventoryshop.in/${orgSlug}/invoice/view/${saleId}${thermalSuffix}` 
           : '';
       case 'payment_link':
         return String(saleData.payment_link || '');
@@ -804,7 +806,9 @@ serve(async (req) => {
                 orgSlug = org?.slug;
               }
               if (saleId && orgSlug) {
-                const invoiceLink = `https://app.inventoryshop.in/${orgSlug}/invoice/view/${saleId}`;
+                const posFmt = String(saleData?.pos_bill_format || '');
+                const thermalSuffix = posFmt === 'thermal' ? '?format=thermal' : '';
+                const invoiceLink = `https://app.inventoryshop.in/${orgSlug}/invoice/view/${saleId}${thermalSuffix}`;
                 const whatsappLink = `https://wa.me/${orgSettings.phone_number_id?.replace(/\D/g, '')}`;
                 await supabase
                   .from('whatsapp_logs')
@@ -1198,7 +1202,9 @@ serve(async (req) => {
         
         if (saleId && orgSlug) {
           // Build the invoice link
-          const invoiceLink = `https://app.inventoryshop.in/${orgSlug}/invoice/view/${saleId}`;
+          const posFmt2 = String(saleData?.pos_bill_format || '');
+          const thermalSuffix2 = posFmt2 === 'thermal' ? '?format=thermal' : '';
+          const invoiceLink = `https://app.inventoryshop.in/${orgSlug}/invoice/view/${saleId}${thermalSuffix2}`;
           
           // Store follow-up data with the log entry - will be sent when customer clicks button
           const whatsappLink = `https://wa.me/${orgSettings.phone_number_id?.replace(/\D/g, '')}`;
