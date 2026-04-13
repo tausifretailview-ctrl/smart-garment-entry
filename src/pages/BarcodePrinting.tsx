@@ -97,7 +97,7 @@ const sortItemsBySize = (items: LabelItem[], order: SizeSortOrder): LabelItem[] 
 // Helper function to ensure all fields are in fieldOrder (for migrating old configs)
 const ensureCompleteFieldOrder = (config: Partial<LabelDesignConfig>): LabelDesignConfig => {
   const allFields: FieldKey[] = [
-    'businessName', 'brand', 'productName', 'category', 'color', 'style', 'size', 'price', 'mrp',
+    'businessName', 'brand', 'productName', 'category', 'color', 'style', 'size', 'price', 'mrp', 'qty',
     'customText', 'barcode', 'barcodeText', 'billNumber', 'supplierCode', 'purchaseCode'
   ];
   
@@ -114,6 +114,7 @@ const ensureCompleteFieldOrder = (config: Partial<LabelDesignConfig>): LabelDesi
     size: config.size || { show: true, fontSize: 9, bold: false },
     price: config.price || { show: true, fontSize: 9, bold: true },
     mrp: config.mrp || { show: false, fontSize: 9, bold: false },
+    qty: config.qty || { show: false, fontSize: 7, bold: false },
     customText: config.customText || { show: false, fontSize: 8, bold: false },
     barcode: config.barcode || { show: true, fontSize: 9, bold: false },
     barcodeText: config.barcodeText || { show: true, fontSize: 7, bold: false },
