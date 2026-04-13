@@ -128,6 +128,8 @@ export function ProductSearchDropdown({
               item.barcode,
               item.size,
               item.color,
+              String(item.sale_price || ''),
+              String(item.mrp || ''),
             ].map(f => (f || '')).join(' ').toLowerCase();
             return tokens.every(t => haystack.includes(t));
           })

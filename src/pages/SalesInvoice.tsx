@@ -893,14 +893,20 @@ export default function SalesInvoice() {
       try {
         const query = searchInput;
         
-        // Search products by name, brand, style
+        // Separate price tokens (pure numbers like 695, 795) from text tokens
+        const allTokens = query.trim().split(/\s+/).filter(Boolean);
+        const priceTokens = allTokens.filter(t => /^\d+(\.\d+)?$/.test(t) && Number(t) >= 10);
+        const textTokens = allTokens.filter(t => !(/^\d+(\.\d+)?$/.test(t) && Number(t) >= 10));
+        const textQuery = textTokens.length > 0 ? textTokens.join(' ') : query;
+        
+        // Search products by name, brand, style (using text tokens only)
         const { data: matchingProducts } = await supabase
           .from("products")
           .select("id, size_group_id")
           .eq("organization_id", currentOrganization.id)
           .eq("status", "active")
           .is("deleted_at", null)
-          .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%,category.ilike.%${query}%`);
+          .or(`product_name.ilike.%${textQuery}%,brand.ilike.%${textQuery}%,style.ilike.%${textQuery}%,category.ilike.%${textQuery}%`);
 
         const productIds = matchingProducts?.map(p => p.id) || [];
         const sizeGroupIds = [...new Set(matchingProducts?.map(p => p.size_group_id).filter(Boolean) || [])];
@@ -943,11 +949,11 @@ export default function SalesInvoice() {
             variantsQuery = variantsQuery.or(`barcode.eq.${query.trim()},barcode.ilike.${query.trim()}%`);
           }
         } else {
-          // Fuzzy search — uses trgm index
+          // Fuzzy search — uses trgm index (use textQuery to avoid price tokens in text search)
           if (productIds.length > 0) {
-            variantsQuery = variantsQuery.or(`barcode.ilike.%${query}%,color.ilike.%${query}%,size.ilike.%${query}%,product_id.in.(${productIds.join(",")})`);
+            variantsQuery = variantsQuery.or(`barcode.ilike.%${textQuery}%,color.ilike.%${textQuery}%,size.ilike.%${textQuery}%,product_id.in.(${productIds.join(",")})`);
           } else {
-            variantsQuery = variantsQuery.or(`barcode.ilike.%${query}%,color.ilike.%${query}%,size.ilike.%${query}%`);
+            variantsQuery = variantsQuery.or(`barcode.ilike.%${textQuery}%,color.ilike.%${textQuery}%,size.ilike.%${textQuery}%`);
           }
         }
 
@@ -956,7 +962,7 @@ export default function SalesInvoice() {
         if (error) throw error;
 
         // Map results
-        const results = (data || []).map((v: any) => {
+        let results = (data || []).map((v: any) => {
           const sizeGroupId = v.products?.size_group_id;
           const sizeGroup = sizeGroupId ? sizeGroupsMap[sizeGroupId] : null;
           const sizeRange = sizeGroup && Array.isArray(sizeGroup.sizes) && sizeGroup.sizes.length > 1
@@ -974,6 +980,15 @@ export default function SalesInvoice() {
             product_name: v.products?.product_name || '',
           };
         });
+
+        // Client-side price filtering: if user typed price tokens (e.g., "695"), filter by sale_price match
+        if (priceTokens.length > 0) {
+          results = results.filter(r => {
+            const salePrice = String(Math.round(r.variant.sale_price || 0));
+            const mrpPrice = String(Math.round(r.variant.mrp || 0));
+            return priceTokens.every(pt => salePrice === pt || mrpPrice === pt || salePrice.includes(pt) || mrpPrice.includes(pt));
+          });
+        }
 
         // Sort with smart sorting
         const sortedResults = sortSearchResults(results, searchInput, {
