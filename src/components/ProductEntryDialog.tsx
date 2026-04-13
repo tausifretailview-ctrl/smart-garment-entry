@@ -631,6 +631,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         if (purchaseSettings.default_tax_rate !== undefined) {
           setFormData(prev => ({ ...prev, gst_per: purchaseSettings.default_tax_rate, purchase_gst_percent: purchaseSettings.default_tax_rate, sale_gst_percent: purchaseSettings.default_tax_rate }));
         }
+        if (purchaseSettings.default_uom) {
+          setFormData(prev => ({ ...prev, uom: purchaseSettings.default_uom }));
+        }
         setShowMrp(purchaseSettings.show_mrp || false);
         setShowDiscountFields(purchaseSettings.product_entry_discount_enabled || false);
         setCursorAfterStyle(purchaseSettings.cursor_after_style || 'pur_price');
