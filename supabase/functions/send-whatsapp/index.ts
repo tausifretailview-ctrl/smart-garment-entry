@@ -806,7 +806,9 @@ serve(async (req) => {
                 orgSlug = org?.slug;
               }
               if (saleId && orgSlug) {
-                const invoiceLink = `https://app.inventoryshop.in/${orgSlug}/invoice/view/${saleId}`;
+                const posFmt = String(saleData?.pos_bill_format || '');
+                const thermalSuffix = posFmt === 'thermal' ? '?format=thermal' : '';
+                const invoiceLink = `https://app.inventoryshop.in/${orgSlug}/invoice/view/${saleId}${thermalSuffix}`;
                 const whatsappLink = `https://wa.me/${orgSettings.phone_number_id?.replace(/\D/g, '')}`;
                 await supabase
                   .from('whatsapp_logs')
