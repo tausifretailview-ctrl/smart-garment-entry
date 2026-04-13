@@ -111,7 +111,8 @@ export default function PublicInvoiceView() {
 
   const saleItems = sale.sale_items || [];
   const template = settings?.invoice_template || 'professional';
-
+  const isThermalFormat = formatParam === 'thermal' || settings?.pos_bill_format === 'thermal';
+  const thermalStyle = settings?.thermal_receipt_style || 'classic';
   const templateProps = {
     businessName: settings?.business_name || "Business",
     address: settings?.address || "",
