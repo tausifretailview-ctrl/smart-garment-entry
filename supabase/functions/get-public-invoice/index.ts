@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     // Fetch only display-safe settings (no API keys, no WhatsApp config, no sensitive data)
     const { data: settings } = await supabase
       .from('settings')
-      .select('business_name, address, mobile_number, email_id, gst_number, sale_settings')
+      .select('business_name, address, mobile_number, email_id, gst_number, sale_settings, bill_barcode_settings')
       .eq('organization_id', sale.organization_id)
       .maybeSingle()
 
@@ -97,6 +97,15 @@ Deno.serve(async (req) => {
       font_family: saleSettings?.font_family || 'inter',
       bank_details: saleSettings?.bank_details || null,
       show_bank_details: saleSettings?.show_bank_details ?? false,
+      pos_bill_format: saleSettings?.pos_bill_format || 'thermal',
+      thermal_receipt_style: saleSettings?.thermal_receipt_style || 'classic',
+      bill_barcode_settings: settings?.bill_barcode_settings ? {
+        logo_url: (settings.bill_barcode_settings as any)?.logo_url || '',
+        stamp_image_base64: (settings.bill_barcode_settings as any)?.stamp_image_base64 || '',
+        stamp_show_sale: (settings.bill_barcode_settings as any)?.stamp_show_sale ?? true,
+        stamp_position: (settings.bill_barcode_settings as any)?.stamp_position || 'bottom-right',
+        stamp_size: (settings.bill_barcode_settings as any)?.stamp_size || 'medium',
+      } : null,
     } : null
 
     // Return sanitized data (no customer_phone, customer_email, customer_address, payment details)
