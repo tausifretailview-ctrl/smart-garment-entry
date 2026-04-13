@@ -89,6 +89,7 @@ interface PurchaseSettings {
   payment_terms?: string;
   auto_approve_threshold?: number;
   default_tax_rate?: number;
+  default_uom?: string;
   purchase_code_alphabet?: string;
   show_purchase_code?: boolean;
   purchase_code_include_gst?: boolean;
@@ -1587,6 +1588,36 @@ export default function Settings() {
                     }
                     placeholder="e.g., 18"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Default Unit of Measurement (UOM)</Label>
+                  <Select
+                    value={settings.purchase_settings?.default_uom || 'NOS'}
+                    onValueChange={(value) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          default_uom: value,
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger className="w-56">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {UOM_OPTIONS.map((uom) => (
+                        <SelectItem key={uom.value} value={uom.value}>
+                          {uom.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Default UOM pre-selected when adding a new product. Default: NOS - Numbers/Pieces
+                  </p>
                 </div>
 
                 <div className="space-y-2">
