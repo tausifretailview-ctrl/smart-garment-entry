@@ -759,44 +759,22 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
 
             {/* Bank Details */}
             {showBankDetails && normBank && (normBank.bankName || normBank.accountNumber) && (
-              <div style={{ borderTop: "1px dashed #ccc", paddingTop: "4px", marginTop: "auto" }}>
-                <div style={{ fontWeight: "bold", marginBottom: "2px" }}>Company's Bank Details:</div>
-                <table style={{ fontSize: "9.5px", lineHeight: "1.4" }}>
-                  <tbody>
-                    {normBank.accountHolder && (
-                      <tr>
-                        <td style={{ width: "70px", color: "#444" }}>A/c Holder:</td>
-                        <td>
-                          <strong>{normBank.accountHolder}</strong>
-                        </td>
-                      </tr>
-                    )}
-                    {normBank.bankName && (
-                      <tr>
-                        <td style={{ color: "#444" }}>Bank Name:</td>
-                        <td>
-                          <strong>{normBank.bankName}</strong>
-                        </td>
-                      </tr>
-                    )}
-                    {normBank.accountNumber && (
-                      <tr>
-                        <td style={{ color: "#444" }}>A/c No.:</td>
-                        <td>
-                          <strong>{normBank.accountNumber}</strong>
-                        </td>
-                      </tr>
-                    )}
-                    {(normBank.branch || normBank.ifscCode) && (
-                      <tr>
-                        <td style={{ color: "#444" }}>Branch & IFSC:</td>
-                        <td>
-                          <strong>{[normBank.branch, normBank.ifscCode].filter(Boolean).join(" & ")}</strong>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+              <div style={{ borderTop: "1px dashed #ccc", paddingTop: "4px", marginTop: "4px" }}>
+                <div style={{ fontWeight: "bold", marginBottom: "3px" }}>Company's Bank Details:</div>
+                <div style={{ fontSize: "10px", lineHeight: "1.5" }}>
+                  {normBank.accountHolder && (
+                    <div>A/c Holder: <strong>{normBank.accountHolder}</strong></div>
+                  )}
+                  {normBank.bankName && (
+                    <div>Bank: <strong>{normBank.bankName}</strong></div>
+                  )}
+                  {normBank.accountNumber && (
+                    <div>A/c No.: <strong>{normBank.accountNumber}</strong></div>
+                  )}
+                  {(normBank.branch || normBank.ifscCode) && (
+                    <div>Branch & IFSC: <strong>{[normBank.branch, normBank.ifscCode].filter(Boolean).join(" & ")}</strong></div>
+                  )}
+                </div>
               </div>
             )}
           </div>
