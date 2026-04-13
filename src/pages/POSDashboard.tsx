@@ -919,7 +919,7 @@ const POSDashboard = () => {
     const [{ data: finData }, { data: custData }] = await Promise.all([
       supabase.from('sale_financer_details').select('*').eq('sale_id', sale.id).maybeSingle(),
       sale.customer_id
-        ? supabase.from('customers').select('gst_number, transport_details').eq('id', sale.customer_id).maybeSingle()
+        ? supabase.from('customers').select('gst_number, transport_details, address').eq('id', sale.customer_id).maybeSingle()
         : Promise.resolve({ data: null }),
     ]);
     setPreviewFinancerDetails(finData ? {
@@ -2345,7 +2345,7 @@ const POSDashboard = () => {
               billNo={previewSale.sale_number}
               date={new Date(previewSale.sale_date)}
               customerName={previewSale.customer_name}
-              customerAddress={previewSale.customer_address || ''}
+              customerAddress={previewSale.customer_address || previewCustomerData?.address || ''}
               customerMobile={previewSale.customer_phone || ''}
               customerGSTIN={previewCustomerData?.gst_number || ''}
               customerTransportDetails={previewCustomerData?.transport_details || ''}
