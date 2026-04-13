@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ import { TallyTaxInvoiceTemplate } from "@/components/invoice-templates/TallyTax
 import { RetailTemplate } from "@/components/invoice-templates/RetailTemplate";
 import { RetailERPTemplate } from "@/components/invoice-templates/RetailERPTemplate";
 import { WholesaleA5Template } from "@/components/invoice-templates/WholesaleA5Template";
+import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";
+import { ModernThermalReceipt80mm } from "@/components/ModernThermalReceipt80mm";
 
 // Update document meta tags for link previews
 const updateMetaTags = (businessName: string, invoiceNumber: string, orgSlug?: string, logoUrl?: string) => {
