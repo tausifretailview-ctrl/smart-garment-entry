@@ -457,6 +457,7 @@ export function BarTenderLabelDesigner({
         case 'style': return sampleItem.style || '';
         case 'price': return `₹${sampleItem.sale_price}`;
         case 'mrp': return sampleItem.mrp ? `MRP ₹${sampleItem.mrp}` : '';
+        case 'qty': return sampleItem.qty ? `${sampleItem.qty} ${getUOMLabel(sampleItem.uom)}` : '';
         case 'customText': return labelConfig.customTextValue || '';
         case 'barcodeText': return sampleItem.barcode || '';
         case 'billNumber': return sampleItem.bill_number || '';
@@ -475,6 +476,7 @@ export function BarTenderLabelDesigner({
       case 'style': return 'ST-001';
       case 'price': return '₹999';
       case 'mrp': return 'MRP ₹1299';
+      case 'qty': return '10 NOS';
       case 'customText': return labelConfig.customTextValue || 'Custom Text';
       case 'barcodeText': return '12345678';
       case 'billNumber': return 'B0125001';
