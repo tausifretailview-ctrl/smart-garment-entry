@@ -660,6 +660,16 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
           </div>
         </div>
 
+        {/* Terms & Conditions */}
+        {termsConditions && termsConditions.filter(t => t && t.trim()).length > 0 && (
+          <div style={{ borderTop: b, padding: "4px 8px", flexShrink: 0 }}>
+            <div style={{ fontWeight: "bold", fontSize: "10px", marginBottom: "2px", textDecoration: "underline" }}>Terms & Conditions:</div>
+            {termsConditions.filter(t => t && t.trim()).map((term, idx) => (
+              <div key={idx} style={{ fontSize: "9.5px", lineHeight: "1.5", paddingLeft: "8px" }}>{term}</div>
+            ))}
+          </div>
+        )}
+
         {/* Notes Section */}
         {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
           <div style={{ borderTop: b, padding: "4px 8px", flexShrink: 0 }}>
@@ -670,23 +680,27 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
           </div>
         )}
 
-        {/* HSN Tax Breakup Table - Added fixed widths to enforce structure */}
+        {/* HSN Tax Breakup Table */}
         {showGSTBreakdown && Object.keys(hsnBreakup).length > 0 && (
           <div style={{ borderTop: b, flexShrink: 0 }}>
             <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
               <thead>
                 <tr>
-                  <th style={{ ...hCell, textAlign: "center", width: "20%" }}>HSN/SAC</th>
+                  <th style={{ ...hCell, textAlign: "center", width: "18%" }}>HSN/SAC</th>
                   <th style={{ ...hCell, textAlign: "right", width: "20%" }}>Taxable Value</th>
                   {isInterState ? (
-                    <th style={{ ...hCell, textAlign: "right", width: "40%" }}>Integrated Tax (IGST)</th>
+                    <>
+                      <th style={{ ...hCell, textAlign: "center", width: "10%" }}>GST %</th>
+                      <th style={{ ...hCell, textAlign: "right", width: "32%" }}>IGST Amount</th>
+                    </>
                   ) : (
                     <>
-                      <th style={{ ...hCell, textAlign: "right", width: "20%" }}>Central Tax (CGST)</th>
-                      <th style={{ ...hCell, textAlign: "right", width: "20%" }}>State Tax (SGST)</th>
+                      <th style={{ ...hCell, textAlign: "center", width: "10%" }}>GST %</th>
+                      <th style={{ ...hCell, textAlign: "right", width: "16%" }}>CGST Amount</th>
+                      <th style={{ ...hCell, textAlign: "right", width: "16%" }}>SGST Amount</th>
                     </>
                   )}
-                  <th style={{ ...hCell, textAlign: "right", width: "20%" }}>Total Tax Amount</th>
+                  <th style={{ ...hCell, textAlign: "right", width: "20%" }}>GST Amount</th>
                 </tr>
               </thead>
               <tbody>
@@ -694,18 +708,13 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                   <tr key={idx}>
                     <td style={{ ...cell, textAlign: "center" }}>{row.hsn}</td>
                     <td style={{ ...cell, textAlign: "right" }}>{fmt(row.taxableValue)}</td>
+                    <td style={{ ...cell, textAlign: "center" }}>{row.rate}%</td>
                     {isInterState ? (
-                      <td style={{ ...cell, textAlign: "right" }}>
-                        {fmt(row.igst)} <span style={{ fontSize: "8px", color: "#555" }}>({row.rate}%)</span>
-                      </td>
+                      <td style={{ ...cell, textAlign: "right" }}>{fmt(row.igst)}</td>
                     ) : (
                       <>
-                        <td style={{ ...cell, textAlign: "right" }}>
-                          {fmt(row.cgst)} <span style={{ fontSize: "8px", color: "#555" }}>({row.rate / 2}%)</span>
-                        </td>
-                        <td style={{ ...cell, textAlign: "right" }}>
-                          {fmt(row.sgst)} <span style={{ fontSize: "8px", color: "#555" }}>({row.rate / 2}%)</span>
-                        </td>
+                        <td style={{ ...cell, textAlign: "right" }}>{fmt(row.cgst)}</td>
+                        <td style={{ ...cell, textAlign: "right" }}>{fmt(row.sgst)}</td>
                       </>
                     )}
                     <td style={{ ...cell, textAlign: "right" }}>{fmt(row.total)}</td>
@@ -714,6 +723,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                 <tr style={{ backgroundColor: "#f0f0f0" }}>
                   <td style={{ ...cell, fontWeight: "bold", textAlign: "right" }}>Total</td>
                   <td style={{ ...cell, textAlign: "right", fontWeight: "bold" }}>{fmt(taxableAmount)}</td>
+                  <td style={cell}></td>
                   {isInterState ? (
                     <td style={{ ...cell, textAlign: "right", fontWeight: "bold" }}>{fmt(totalIgst)}</td>
                   ) : (
