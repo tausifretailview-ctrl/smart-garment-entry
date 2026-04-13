@@ -143,9 +143,9 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
         {/* Payment Details Table */}
         <table className="w-full border border-gray-300 mb-2 text-[11px]">
           <thead>
-            <tr className="bg-gray-100">
-              <th className="border border-gray-300 p-1.5 text-left font-semibold">Description</th>
-              <th className="border border-gray-300 p-1.5 text-right font-semibold w-28">Amount</th>
+            <tr style={{ backgroundColor: '#000', color: '#fff', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+              <th className="border border-gray-300 p-2 text-left text-[13px] font-extrabold tracking-wide" style={{ color: '#fff', backgroundColor: '#000' }}>DESCRIPTION</th>
+              <th className="border border-gray-300 p-2 text-right text-[13px] font-extrabold tracking-wide w-28" style={{ color: '#fff', backgroundColor: '#000' }}>AMOUNT</th>
             </tr>
           </thead>
           <tbody>
