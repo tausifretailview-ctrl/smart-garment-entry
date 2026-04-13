@@ -42,6 +42,7 @@ const defaultFieldLabels: Record<FieldKey, string> = {
   size: 'Size',
   price: 'Sale Price',
   mrp: 'MRP',
+  qty: 'Qty (UOM)',
   customText: 'Custom Text',
   barcode: 'Barcode',
   barcodeText: 'Barcode Number',
