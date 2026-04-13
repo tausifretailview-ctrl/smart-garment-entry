@@ -130,6 +130,14 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
     const dblLine: React.CSSProperties = { borderTop: '2px solid #000', margin: '3px 0' };
     const singleLine: React.CSSProperties = { borderTop: '1px dashed #000', margin: '3px 0' };
 
+    if (!settings) {
+      return (
+        <div ref={ref} data-invoice-loading="true" style={{ ...base, textAlign: 'center', padding: '20px' }}>
+          Loading...
+        </div>
+      );
+    }
+
     return (
       <div ref={ref} className="thermal-print-80mm thermal-receipt-container" style={base}>
 
