@@ -1036,12 +1036,23 @@ export default function SalesInvoice() {
       return;
     }
 
-    // Deduplicate by size+color (prefer higher stock)
+    // Deduplicate by size+color (prefer matching selected price, then higher stock)
     const uniqueMap = new Map<string, any>();
     for (const v of data) {
       const key = `${(v.size || '').toLowerCase()}_${(v.color || '').toLowerCase()}`;
       const existing = uniqueMap.get(key);
-      if (!existing || (v.stock_qty || 0) > (existing.stock_qty || 0)) {
+      if (!existing) {
+        uniqueMap.set(key, v);
+      } else if (selectedSalePrice) {
+        // If user searched by price, prefer the variant matching that price
+        const existingMatchesPrice = Math.round(existing.sale_price || 0) === Math.round(selectedSalePrice);
+        const newMatchesPrice = Math.round(v.sale_price || 0) === Math.round(selectedSalePrice);
+        if (newMatchesPrice && !existingMatchesPrice) {
+          uniqueMap.set(key, v);
+        } else if (!newMatchesPrice && !existingMatchesPrice && (v.stock_qty || 0) > (existing.stock_qty || 0)) {
+          uniqueMap.set(key, v);
+        }
+      } else if ((v.stock_qty || 0) > (existing.stock_qty || 0)) {
         uniqueMap.set(key, v);
       }
     }
