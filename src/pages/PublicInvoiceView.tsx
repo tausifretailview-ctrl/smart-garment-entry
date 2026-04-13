@@ -40,6 +40,8 @@ const updateMetaTags = (businessName: string, invoiceNumber: string, orgSlug?: s
 
 export default function PublicInvoiceView() {
   const { saleId } = useParams<{ saleId: string }>();
+  const [searchParams] = useSearchParams();
+  const formatParam = searchParams.get('format');
   const printRef = useRef<HTMLDivElement>(null);
 
   // Fetch sanitized invoice data via secure edge function
