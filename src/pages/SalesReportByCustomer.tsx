@@ -58,6 +58,7 @@ async function fetchSalesForReport(
       .select("id, sale_date, sale_number, customer_name, gross_amount, discount_amount, net_amount, payment_method, payment_status, salesman")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
+      .eq("is_cancelled", false)
       .order("sale_date", { ascending: false })
       .range(offset, offset + pageSize - 1);
 

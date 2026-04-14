@@ -343,6 +343,7 @@ const POSDashboard = () => {
           .eq("organization_id", currentOrganization.id)
           .in("sale_type", ["pos", "delivery_challan"])
           .is("deleted_at", null)
+          .eq("is_cancelled", false)
           .order("sale_date", { ascending: false })
           .order("id")
           .range(offset, offset + pageSize - 1);

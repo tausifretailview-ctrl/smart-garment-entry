@@ -533,6 +533,7 @@ export async function fetchAllSalesWithFilters(
       .select("id, sale_date, sale_number, customer_name, customer_id, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, cash_amount, card_amount, upi_amount, payment_method, payment_status, sale_type, refund_amount, sale_return_adjust, points_redeemed_amount")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
+      .eq("is_cancelled", false)
       .order("sale_date", { ascending: false })
       .range(offset, offset + pageSize - 1);
 
