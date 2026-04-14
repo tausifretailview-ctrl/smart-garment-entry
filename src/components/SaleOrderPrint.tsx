@@ -200,29 +200,29 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
     }, [items, invoiceFormat]);
 
     // ── Compact styling ─────────────────────────────────────────────────────
-    const baseFontSize = isA4 ? '7.5pt' : '6.5pt';
-    const smallFont = '7pt';
-    const tinyFont = '6pt';
+    const baseFontSize = isA4 ? '8.5pt' : '7.5pt';
+    const smallFont = '8pt';
+    const tinyFont = '7pt';
 
     const thStyle = (extra: React.CSSProperties = {}): React.CSSProperties => ({
       border: `1px solid ${BORDER}`,
-      padding: '1px 3px',
+      padding: isA4 ? '5px 4px' : '4px 3px',
       background: '#f4f4f4',
       color: '#000',
       fontWeight: 700,
-      fontSize: isA4 ? '7pt' : '6pt',
+      fontSize: isA4 ? '8.5pt' : '7pt',
       textTransform: 'uppercase',
       letterSpacing: '0.03em',
-      lineHeight: 1.1,
+      lineHeight: 1.25,
       ...extra,
     });
 
     const tdStyle = (extra: React.CSSProperties = {}): React.CSSProperties => ({
       border: `1px solid ${BORDER}`,
-      padding: '1px 3px',
+      padding: isA4 ? '5px 4px' : '4px 3px',
       fontSize: baseFontSize,
       verticalAlign: 'middle',
-      lineHeight: 1.1,
+      lineHeight: 1.25,
       ...extra,
     });
 
