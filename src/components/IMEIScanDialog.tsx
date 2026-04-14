@@ -39,22 +39,16 @@ export function IMEIScanDialog({
   }, [open, quantity]);
 
   const updateIMEI = useCallback((index: number, value: string) => {
-    // Only allow digits
+    // Only allow alphanumeric characters
     const cleaned = value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, maxLength);
     setImeiValues(prev => {
       const updated = [...prev];
       updated[index] = cleaned;
       return updated;
     });
-
-    // Auto-advance to next empty field when valid length reached
-    if (cleaned.length >= minLength) {
-      const nextEmpty = imeiValues.findIndex((v, i) => i > index && (!v || v.length < minLength));
-      if (nextEmpty >= 0) {
-        setTimeout(() => inputRefs.current[nextEmpty]?.focus(), 50);
-      }
-    }
-  }, [imeiValues, minLength, maxLength]);
+    // No auto-advance here — scanners send chars too fast and cause split.
+    // Advance only happens on Enter key (onKeyDown handler).
+  }, [maxLength]);
 
   const isValid = (val: string) => val.length >= minLength && val.length <= maxLength;
   const allFilled = imeiValues.length === quantity && imeiValues.every(isValid);
