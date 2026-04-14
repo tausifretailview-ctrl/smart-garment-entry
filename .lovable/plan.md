@@ -1,41 +1,44 @@
 
 
-## Fix Stock Accuracy Across All Organizations
+## Fix Sale Return Edit Double-Stock Bug
 
-### The Problem
-There are **3,328+ stock discrepancies** across 20 organizations. The root cause: the `reset_stock_from_transactions` RPC formula is missing **pending delivery challans** (which deduct stock but aren't sales yet), and past reconciliation runs used the flawed `batch_stock`-based formula that drifts due to FIFO depletion.
+### Problem
+When editing a sale return in `SaleReturnEntry.tsx` (lines 710-745), the soft-delete→hard-delete→insert pattern causes stock inflation. The soft-delete sets `deleted_at`, so the hard-delete trigger skips stock reversal, but the new INSERT trigger adds stock again — resulting in +2× instead of +1×.
 
-### Current Discrepancy Counts (Top 5)
+### Solution: Match the Sale Edit Pattern (Simplest Fix)
+
+The sale edit flow in `useSaveSale.tsx` works correctly: it hard-deletes items directly (no soft-delete first), letting the DELETE trigger properly reverse stock, then INSERTs new items. We apply the same pattern to sale return edits.
+
+### Changes
+
+**1. `src/pages/SaleReturnEntry.tsx` — Fix edit flow (lines 710-725)**
+
+Remove the soft-delete step entirely. Just hard-delete the old items directly so the `handle_sale_return_item_delete` trigger fires normally (sees `deleted_at IS NULL` → reverses stock), then INSERT new items (trigger adds stock).
+
 ```text
-Organization                          Discrepancies
-4bc73037... (largest org)                     1,055
-0b3a8035...                                    535
-e8fbf0d8...                                    429
-dafc3d0c... (Velvet)                           301
-e50803d3...                                    173
+BEFORE (broken):
+  soft-delete items (set deleted_at) → hard-delete (trigger SKIPS) → INSERT (trigger adds)
+  Net: old stock never reversed, new stock added = INFLATED
+
+AFTER (fixed):
+  hard-delete items (trigger FIRES, reverses stock) → INSERT (trigger adds)
+  Net: old stock reversed, new stock added = CORRECT
 ```
 
-### Plan
+**2. DB Migration — Add `deleted_at` guard to UPDATE triggers**
 
-**Step 1 — Fix the RPC formula (migration)**
-Update `reset_stock_from_transactions` and `detect_stock_discrepancies` to include pending delivery challans in the stock formula:
+Add `IF OLD.deleted_at IS NOT NULL OR NEW.deleted_at IS NOT NULL THEN RETURN NEW` to:
+- `handle_purchase_item_update`
+- `handle_sale_item_update`
 
-```
-Stock = Opening + Purchases - Sales - Purchase Returns + Sale Returns - Pending Challans
-```
+This prevents accidental stock adjustments if an UPDATE touches a soft-deleted row.
 
-Where "Pending Challans" = challan items where `converted_to_invoice_id IS NULL` (unconverted challans that already deducted stock).
+**3. Run global reconciliation after fix**
 
-Also update `reconcile_variant_stock_qty` to use the same transaction-based formula instead of `batch_stock`, ensuring all three RPCs agree.
+After deploying the code fix, re-run the reconciliation to correct historically inflated variants from past edits.
 
-**Step 2 — Run global reconciliation (data fix)**
-Execute a one-time migration that runs the corrected formula across ALL organizations, updating every variant's `stock_qty` to match the authoritative transaction calculation. Each correction logged as a `reconciliation` movement for audit.
-
-**Step 3 — Add nightly auto-reconciliation (optional enhancement)**
-Add a lightweight scheduled check that runs `detect_stock_discrepancies` and auto-fixes any drift, ensuring stock stays accurate without manual intervention. This would use an edge function on a cron schedule.
-
-### What This Achieves
-- Single authoritative formula across all RPCs
-- Immediate correction of all 3,328+ discrepancies
-- Prevents future drift from edit flows, FIFO bugs, or missed triggers
+### Impact
+- Fixes the #1 root cause of inflated stock across all organizations
+- Low risk: mirrors the already-working sale edit pattern
+- No changes to any other stock logic
 
