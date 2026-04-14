@@ -350,26 +350,30 @@ const SalesmanOrderEntry = () => {
         arr.findIndex(x => x.id === v.id) === i
       );
 
-      // Group variants by product
+      // Group variants by product name (merge products with same name but different MRPs)
       const productMap = new Map<string, { product: Product; variants: Variant[] }>();
       uniqueVariants.forEach((v: any) => {
-        const productId = v.products.id;
-        if (!productMap.has(productId)) {
-          productMap.set(productId, {
+        const groupKey = v.products.product_name;
+        if (!productMap.has(groupKey)) {
+          productMap.set(groupKey, {
             product: v.products as Product,
             variants: [],
           });
         }
-        productMap.get(productId)!.variants.push({
-          id: v.id,
-          product_id: v.product_id,
-          size: v.size,
-          color: v.color,
-          barcode: v.barcode,
-          mrp: v.mrp,
-          sale_price: v.sale_price,
-          stock_qty: v.stock_qty,
-        } as Variant);
+        const existing = productMap.get(groupKey)!;
+        // Avoid duplicate variants when merging
+        if (!existing.variants.some(ev => ev.id === v.id)) {
+          existing.variants.push({
+            id: v.id,
+            product_id: v.product_id,
+            size: v.size,
+            color: v.color,
+            barcode: v.barcode,
+            mrp: v.mrp,
+            sale_price: v.sale_price,
+            stock_qty: v.stock_qty,
+          } as Variant);
+        }
       });
 
       // Apply smart sorting based on product name
