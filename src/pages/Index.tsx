@@ -1007,50 +1007,57 @@ const DesktopDashboard = () => {
         </div>
         )}
 
-        {/* Right side - New Updates panel + Customer Cards */}
-        <div className="self-start space-y-3">
-          <NewUpdatesPanel />
-          
-          {/* Customer Category Cards */}
-          <div className="grid grid-cols-2 gap-2">
-            <Card 
-              className="border border-border bg-card shadow-elevated border-l-[3px] border-l-warning cursor-pointer hover:bg-muted/50 transition-colors active:scale-[0.98]"
-              onClick={() => navigate("/sales-analytics?tab=customers")}
-            >
-              <CardContent className="p-3 text-center">
-                <div className="text-2xl font-bold text-warning">5</div>
-                <div className="text-xs text-muted-foreground font-medium">VIP Customer</div>
-              </CardContent>
-            </Card>
-            <Card 
-              className="border border-border bg-card shadow-elevated border-l-[3px] border-l-success cursor-pointer hover:bg-muted/50 transition-colors active:scale-[0.98]"
-              onClick={() => navigate("/sales-analytics?tab=customers")}
-            >
-              <CardContent className="p-3 text-center">
-                <div className="text-2xl font-bold text-success">22</div>
-                <div className="text-xs text-muted-foreground font-medium">Regular Customer</div>
-              </CardContent>
-            </Card>
-            <Card 
-              className="border border-border bg-card shadow-elevated border-l-[3px] border-l-warning cursor-pointer hover:bg-muted/50 transition-colors active:scale-[0.98]"
-              onClick={() => navigate("/sales-analytics?tab=customers")}
-            >
-              <CardContent className="p-3 text-center">
-                <div className="text-2xl font-bold text-warning">410</div>
-                <div className="text-xs text-muted-foreground font-medium">Risk Customer</div>
-              </CardContent>
-            </Card>
-            <Card 
-              className="border border-border bg-card shadow-elevated border-l-[3px] border-l-destructive cursor-pointer hover:bg-muted/50 transition-colors active:scale-[0.98]"
-              onClick={() => navigate("/sales-analytics?tab=customers")}
-            >
-              <CardContent className="p-3 text-center">
-                <div className="text-2xl font-bold text-destructive">6221</div>
-                <div className="text-xs text-muted-foreground font-medium">Lost Customer</div>
-              </CardContent>
-            </Card>
-          </div>
+        {/* Customer Category Cards — inline row */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <Card 
+            className="border border-border bg-card shadow-sm hover:shadow-md transition-shadow border-l-[3px] border-l-warning cursor-pointer"
+            onClick={() => navigate("/sales-analytics?tab=customers")}
+          >
+            <CardContent className="p-3 text-center">
+              <div className="text-xl font-semibold tabular-nums text-warning">5</div>
+              <div className="text-xs text-muted-foreground font-medium">VIP Customer</div>
+            </CardContent>
+          </Card>
+          <Card 
+            className="border border-border bg-card shadow-sm hover:shadow-md transition-shadow border-l-[3px] border-l-success cursor-pointer"
+            onClick={() => navigate("/sales-analytics?tab=customers")}
+          >
+            <CardContent className="p-3 text-center">
+              <div className="text-xl font-semibold tabular-nums text-success">22</div>
+              <div className="text-xs text-muted-foreground font-medium">Regular Customer</div>
+            </CardContent>
+          </Card>
+          <Card 
+            className="border border-border bg-card shadow-sm hover:shadow-md transition-shadow border-l-[3px] border-l-warning cursor-pointer"
+            onClick={() => navigate("/sales-analytics?tab=customers")}
+          >
+            <CardContent className="p-3 text-center">
+              <div className="text-xl font-semibold tabular-nums text-warning">410</div>
+              <div className="text-xs text-muted-foreground font-medium">Risk Customer</div>
+            </CardContent>
+          </Card>
+          <Card 
+            className="border border-border bg-card shadow-sm hover:shadow-md transition-shadow border-l-[3px] border-l-destructive cursor-pointer"
+            onClick={() => navigate("/sales-analytics?tab=customers")}
+          >
+            <CardContent className="p-3 text-center">
+              <div className="text-xl font-semibold tabular-nums text-destructive">6221</div>
+              <div className="text-xs text-muted-foreground font-medium">Lost Customer</div>
+            </CardContent>
+          </Card>
         </div>
+
+        {/* New Updates — Collapsible below main content */}
+        <details className="group">
+          <summary className="cursor-pointer text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2 py-2 select-none">
+            <Megaphone className="h-3.5 w-3.5" />
+            New Updates &amp; Changelog
+            <span className="text-[10px] group-open:rotate-180 transition-transform">▼</span>
+          </summary>
+          <div className="mt-2">
+            <NewUpdatesPanel />
+          </div>
+        </details>
       </div>
     </div>
     </TooltipProvider>
