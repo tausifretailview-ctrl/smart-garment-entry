@@ -69,7 +69,7 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
-// Dashboard Metric Card using design system tokens
+// Odoo-style Dashboard Metric Card — clean, professional, left-accent
 const AnimatedMetricCard = ({
   title,
   value,
@@ -89,60 +89,55 @@ const AnimatedMetricCard = ({
 }) => {
   const displayValue = isCurrency ? formatCurrency(value) : value.toLocaleString("en-IN");
 
-  // Map accent colors to semantic status classes for dark mode compatibility
-  const getAccentClasses = (color: string) => {
-    const colorMap: Record<string, { border: string; bg: string; text: string }> = {
-      'bg-blue-500': { border: 'border-t-primary', bg: 'bg-primary/10', text: 'text-primary' },
-      'bg-blue-600': { border: 'border-t-primary', bg: 'bg-primary/10', text: 'text-primary' },
-      'bg-green-500': { border: 'border-t-success', bg: 'bg-success/10', text: 'text-success' },
-      'bg-green-600': { border: 'border-t-success', bg: 'bg-success/10', text: 'text-success' },
-      'bg-emerald-500': { border: 'border-t-success', bg: 'bg-success/10', text: 'text-success' },
-      'bg-orange-500': { border: 'border-t-warning', bg: 'bg-warning/10', text: 'text-warning' },
-      'bg-amber-500': { border: 'border-t-warning', bg: 'bg-warning/10', text: 'text-warning' },
-      'bg-red-500': { border: 'border-t-destructive', bg: 'bg-destructive/10', text: 'text-destructive' },
-      'bg-pink-500': { border: 'border-t-accent', bg: 'bg-accent/10', text: 'text-accent' },
-      'bg-purple-500': { border: 'border-t-accent', bg: 'bg-accent/10', text: 'text-accent' },
-      'bg-violet-500': { border: 'border-t-accent', bg: 'bg-accent/10', text: 'text-accent' },
-      'bg-indigo-500': { border: 'border-t-primary', bg: 'bg-primary/10', text: 'text-primary' },
-      'bg-cyan-500': { border: 'border-t-primary', bg: 'bg-primary/10', text: 'text-primary' },
-      'bg-teal-500': { border: 'border-t-success', bg: 'bg-success/10', text: 'text-success' },
-      'bg-slate-500': { border: 'border-t-muted-foreground', bg: 'bg-muted', text: 'text-muted-foreground' },
+  // Map accent colors to semantic left-border classes
+  const getAccentBorder = (color: string) => {
+    const colorMap: Record<string, string> = {
+      'bg-blue-500': 'border-l-primary',
+      'bg-blue-600': 'border-l-primary',
+      'bg-green-500': 'border-l-success',
+      'bg-green-600': 'border-l-success',
+      'bg-emerald-500': 'border-l-success',
+      'bg-orange-500': 'border-l-warning',
+      'bg-amber-500': 'border-l-warning',
+      'bg-red-500': 'border-l-destructive',
+      'bg-pink-500': 'border-l-accent',
+      'bg-purple-500': 'border-l-accent',
+      'bg-violet-500': 'border-l-accent',
+      'bg-indigo-500': 'border-l-primary',
+      'bg-cyan-500': 'border-l-primary',
+      'bg-teal-500': 'border-l-success',
+      'bg-slate-500': 'border-l-muted-foreground',
     };
-    return colorMap[color] || { border: 'border-t-primary', bg: 'bg-primary/10', text: 'text-primary' };
+    return colorMap[color] || 'border-l-primary';
   };
 
-  const accentClasses = getAccentClasses(accentColor);
+  const accentBorder = getAccentBorder(accentColor);
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className="group relative animate-in fade-in-0 slide-in-from-bottom-2 duration-300" onClick={onClick}>
-          <Card 
+        <div className="group" onClick={onClick}>
+          <Card
             className={cn(
-              "bg-card relative overflow-hidden border border-border shadow-elevated cursor-pointer",
-              "transition-all duration-150 ease-out",
-              "hover:shadow-md hover:border-primary/30 hover:-translate-y-0.5",
-              "active:translate-y-0 active:shadow-sm",
-              "border-t-4",
-              accentClasses.border
+              "bg-card relative overflow-hidden border border-border cursor-pointer",
+              "shadow-sm hover:shadow-md transition-shadow duration-150",
+              "border-l-[3px]",
+              accentBorder
             )}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1 pl-4">
-              <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                {title}
-              </CardTitle>
-              <div className={cn("p-1.5 rounded-md transition-transform duration-150 group-hover:scale-110", accentClasses.bg)}>
-                <Icon className={cn("h-4 w-4", accentClasses.text)} />
+            <CardContent className="p-4 flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground truncate">
+                  {title}
+                </p>
+                <p className="text-xl font-semibold text-foreground tabular-nums font-mono mt-1 truncate">
+                  {displayValue}
+                </p>
+                <span className="text-[10px] text-muted-foreground mt-0.5 block">
+                  {isCurrency ? "Amount" : "Count"}
+                </span>
               </div>
-            </CardHeader>
-            <CardContent className="p-3 pt-0 pl-4">
-              <div className="text-2xl font-bold text-card-foreground tracking-tight font-mono">
-                {displayValue}
-              </div>
-              <div className="flex items-center justify-between mt-1">
-                <span className="text-[11px] text-muted-foreground">{isCurrency ? "Amount" : "Count"}</span>
-                <span className="text-[10px] font-semibold text-success bg-success/10 px-1.5 py-0.5 rounded-sm">↑ Live</span>
-              </div>
+              <Icon className="h-4 w-4 text-muted-foreground/60 flex-shrink-0 mt-0.5 group-hover:text-foreground transition-colors" />
             </CardContent>
           </Card>
         </div>
