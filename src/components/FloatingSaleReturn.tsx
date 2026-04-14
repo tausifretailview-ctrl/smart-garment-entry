@@ -427,6 +427,7 @@ export const FloatingSaleReturn = ({
     }
 
     setSaving(true);
+    let createdReturnId: string | null = null;
     try {
       const { data: returnNumber, error: rnError } = await supabase
         .rpc('generate_sale_return_number', { p_organization_id: organizationId });
@@ -465,6 +466,7 @@ export const FloatingSaleReturn = ({
         .single();
 
       if (returnError) throw returnError;
+      createdReturnId = returnData.id;
 
       const itemsToInsert = returnItems.map(item => {
         const v = variants.find(vv => vv.id === item.variantId);
@@ -537,9 +539,19 @@ export const FloatingSaleReturn = ({
       toast({ title: "Return Saved", description: `Return ${returnNumber} — ₹${Math.round(grossAmount)} (${refundLabel})` });
       onReturnSaved(grossAmount, returnNumber, refundType);
       onOpenChange(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving return:", error);
-      toast({ title: "Error", description: "Failed to save sale return", variant: "destructive" });
+      // Clean up orphan parent record if it was created but items failed
+      if (createdReturnId) {
+        try {
+          await supabase.from("sale_return_items").delete().eq("return_id", createdReturnId);
+          await supabase.from("sale_returns").delete().eq("id", createdReturnId);
+          console.log("Cleaned up orphan sale return:", createdReturnId);
+        } catch (cleanupErr) {
+          console.error("Cleanup failed:", cleanupErr);
+        }
+      }
+      toast({ title: "Error", description: error?.message || "Failed to save sale return", variant: "destructive" });
     } finally {
       setSaving(false);
     }
