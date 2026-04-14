@@ -386,10 +386,10 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', tableLayout: 'fixed', fontFamily: 'monospace' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #000' }}>
-                  <th style={{ textAlign: 'left', padding: '1px 0', fontWeight: 800, width: '15%' }}>GST%</th>
-                  <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 800, width: '30%' }}>Taxable</th>
-                  <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 800, width: '27%' }}>CGST</th>
-                  <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 800, width: '28%' }}>SGST</th>
+                  <th style={{ textAlign: 'left', padding: '1px 0', fontWeight: 900, width: '15%', color: '#000', WebkitPrintColorAdjust: 'exact' as any }}>GST%</th>
+                  <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 900, width: '30%', color: '#000', WebkitPrintColorAdjust: 'exact' as any }}>Taxable</th>
+                  <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 900, width: '27%', color: '#000', WebkitPrintColorAdjust: 'exact' as any }}>CGST</th>
+                  <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 900, width: '28%', color: '#000', WebkitPrintColorAdjust: 'exact' as any }}>SGST</th>
                 </tr>
               </thead>
               <tbody>
