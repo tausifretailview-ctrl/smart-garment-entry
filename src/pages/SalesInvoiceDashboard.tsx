@@ -484,8 +484,8 @@ export default function SalesInvoiceDashboard() {
       if (deliveryFilter !== 'all') {
         query = query.eq('delivery_status', deliveryFilter);
       }
-      if (paymentStatusFilter !== 'all') {
-        query = query.eq('payment_status', paymentStatusFilter);
+      if (paymentStatusFilter.length > 0) {
+        query = query.in('payment_status', paymentStatusFilter);
       }
       if (shopFilter !== 'all') {
         query = query.eq('shop_name', shopFilter);
@@ -616,7 +616,7 @@ export default function SalesInvoiceDashboard() {
         p_org_id: currentOrganization.id,
         p_search: debouncedSearch || '',
         p_delivery_status: deliveryFilter || 'all',
-        p_payment_status: paymentStatusFilter || 'all',
+        p_payment_status: paymentStatusFilter.length > 0 ? paymentStatusFilter.join(',') : 'all',
         p_date_start: queryDateRange.start || '',
         p_date_end: queryDateRange.end || '',
       });
@@ -1041,7 +1041,7 @@ export default function SalesInvoiceDashboard() {
           .range(offset, offset + pageSize - 1);
 
         if (deliveryFilter !== 'all') query = query.eq('delivery_status', deliveryFilter);
-        if (paymentStatusFilter !== 'all') query = query.eq('payment_status', paymentStatusFilter);
+        if (paymentStatusFilter.length > 0) query = query.in('payment_status', paymentStatusFilter);
         if (userFilter !== 'all' && userFilter !== '__pending__') query = query.eq('created_by', userFilter);
         if (queryDateRange.start) query = query.gte('sale_date', queryDateRange.start);
         if (queryDateRange.end) query = query.lte('sale_date', queryDateRange.end);
@@ -2295,17 +2295,17 @@ export default function SalesInvoiceDashboard() {
 
         <MobileStatStrip stats={[
           { label: "Total", value: fmt(effectiveStats.totalAmount), color: "text-blue-600", bg: "bg-blue-50" },
-          { label: "Pending", value: fmt(effectiveStats.pendingAmount), color: "text-amber-600", bg: "bg-amber-50", onClick: () => setPaymentStatusFilter("pending") },
+          { label: "Pending", value: fmt(effectiveStats.pendingAmount), color: "text-amber-600", bg: "bg-amber-50", onClick: () => setPaymentStatusFilter(["pending"]) },
           { label: "Invoices", value: String(effectiveStats.totalInvoices), color: "text-purple-600", bg: "bg-purple-50" },
           { label: "Qty", value: String(effectiveStats.totalQty), color: "text-emerald-600", bg: "bg-emerald-50" },
         ]} />
 
         <div className="flex gap-2 px-4 py-2 overflow-x-auto no-scrollbar">
           {[{v:"all",l:"All"},{v:"pending",l:"Pending"},{v:"partial",l:"Partial"},{v:"completed",l:"Paid"}].map((s) => (
-            <button key={s.v} onClick={() => { setPaymentStatusFilter(s.v); setCurrentPage(1); }}
+            <button key={s.v} onClick={() => { setPaymentStatusFilter(s.v === 'all' ? [] : [s.v]); setCurrentPage(1); }}
               className={cn(
                 "flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition-all touch-manipulation",
-                paymentStatusFilter === s.v ? "bg-foreground text-background border-transparent" : "bg-card text-muted-foreground border-border"
+                (s.v === 'all' && paymentStatusFilter.length === 0) || (paymentStatusFilter.length === 1 && paymentStatusFilter[0] === s.v) ? "bg-foreground text-background border-transparent" : "bg-card text-muted-foreground border-border"
               )}>
               {s.l}
             </button>
