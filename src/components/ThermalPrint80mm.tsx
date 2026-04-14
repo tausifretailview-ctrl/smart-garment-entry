@@ -217,13 +217,13 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
               </div>
               {/* Barcode */}
               {item.barcode && (
-                <div style={{ fontSize: '12px', fontWeight: 700 }}>BC: {item.barcode}</div>
+                <div style={{ fontSize: '14px', fontWeight: 900 }}>BC: {item.barcode}</div>
               )}
               {/* Qty, Rate, Amount — right aligned */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '14px' }}>
                 <span style={{ width: '50px', textAlign: 'right', fontWeight: 900 }}>{item.qty}</span>
-                <span style={{ width: '70px', textAlign: 'right', fontWeight: 700 }}>{fmtAmt(item.rate)}</span>
-                <span style={{ width: '80px', textAlign: 'right', fontWeight: 900 }}>{fmtAmt(item.total)}</span>
+                <span style={{ width: '70px', textAlign: 'right', fontWeight: 900 }}>₹{fmtAmt(item.rate)}</span>
+                <span style={{ width: '80px', textAlign: 'right', fontWeight: 900 }}>₹{fmtAmt(item.total)}</span>
               </div>
             </div>
           </React.Fragment>
@@ -232,9 +232,13 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         <div style={singleLine} />
 
         {/* ═══ TOTALS ═══ */}
-        <div style={{ fontSize: '12px' }}>
+        <div style={{ fontSize: '13px' }}>
           <div style={row}>
-            <span>SubTotal ({totalQty} items)</span>
+            <span style={{ fontWeight: 900 }}>Total Items: {items.length}</span>
+            <span style={{ fontWeight: 900 }}>Total Qty: {totalQty}</span>
+          </div>
+          <div style={row}>
+            <span>Subtotal</span>
             <span style={{ fontWeight: 900 }}>₹{fmtAmt(subTotal)}</span>
           </div>
 
@@ -376,8 +380,8 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         {termsConditions && (
           <>
             <div style={singleLine} />
-            <div style={{ fontSize: '13px', fontWeight: 'bold', textAlign: 'center', marginBottom: '2px' }}>TERMS & CONDITIONS</div>
-            <div style={{ fontSize: '12px', lineHeight: '1.4', whiteSpace: 'pre-wrap', wordBreak: 'break-word', textAlign: 'left' }}>{termsConditions}</div>
+            <div style={{ fontSize: '14px', fontWeight: 900, textAlign: 'center', marginBottom: '2px' }}>Terms & Conditions</div>
+            <div style={{ fontSize: '13px', fontWeight: 700, lineHeight: '1.4', whiteSpace: 'pre-wrap', wordBreak: 'break-word', textAlign: 'left' }}>{termsConditions}</div>
           </>
         )}
 

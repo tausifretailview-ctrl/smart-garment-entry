@@ -266,7 +266,7 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
               {item.particulars}
             </div>
             {item.barcode && (
-              <div style={{ fontSize: '9px', color: '#000' }}>BC: {item.barcode}</div>
+              <div style={{ fontSize: '12px', fontWeight: 900, color: '#000' }}>BC: {item.barcode}</div>
             )}
             {/* Line 2: Qty × Rate ... Amount */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1px' }}>
@@ -288,9 +288,9 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
 
         {/* ═══ TOTALS ═══ */}
         <div style={{ fontSize: '10px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-            <span>Total Items: <strong>{items.length}</strong></span>
-            <span>Total Qty: <strong>{totalQty}</strong></span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', fontSize: '13px', fontWeight: 900 }}>
+            <span>Total Items: {items.length}</span>
+            <span>Total Qty: {totalQty}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>Subtotal</span>
@@ -453,8 +453,8 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
         {termsConditions && (
           <>
             <div style={{ borderBottom: '1px dashed #000', margin: '4px 0' }} />
-            <div style={{ fontSize: '9px', color: '#000', lineHeight: '1.35', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-              <div style={{ fontWeight: 700, marginBottom: '1px', color: '#000' }}>Terms & Conditions</div>
+            <div style={{ fontSize: '13px', color: '#000', lineHeight: '1.35', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontWeight: 700 }}>
+              <div style={{ fontWeight: 900, marginBottom: '1px', color: '#000', fontSize: '14px' }}>Terms & Conditions</div>
               {termsConditions}
             </div>
           </>
