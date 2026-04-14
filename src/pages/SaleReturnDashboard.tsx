@@ -689,8 +689,8 @@ export default function SaleReturnDashboard() {
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Sale Return?</AlertDialogTitle>
               <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the return record.
-                Note: Stock will NOT be automatically adjusted.
+                This will move the return to Recycle Bin. Stock will be automatically reversed.
+                You can permanently delete it later from the Recycle Bin.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
