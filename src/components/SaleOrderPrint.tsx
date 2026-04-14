@@ -87,9 +87,9 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
     const totalQty = items.reduce((s, i) => s + i.orderQty, 0);
 
     // ── Smart pagination with product grouping ──────────────────────────────
-    const FIRST_PAGE_ROWS = isA4 ? 40 : isHorizontal ? 14 : 18;
-    const MIDDLE_PAGE_ROWS = isA4 ? 45 : isHorizontal ? 16 : 20;
-    const LAST_PAGE_ROWS = isA4 ? 35 : isHorizontal ? 10 : 14;
+    const FIRST_PAGE_ROWS = isA4 ? 30 : isHorizontal ? 12 : 15;
+    const MIDDLE_PAGE_ROWS = isA4 ? 35 : isHorizontal ? 14 : 18;
+    const LAST_PAGE_ROWS = isA4 ? 25 : isHorizontal ? 9 : 12;
 
     const pages: SaleOrderItem[][] = React.useMemo(() => {
       if (items.length === 0) return [[]];
