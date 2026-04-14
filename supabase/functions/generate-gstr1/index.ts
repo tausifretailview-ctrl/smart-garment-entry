@@ -83,6 +83,7 @@ Deno.serve(async (req) => {
       )
       .eq("organization_id", organization_id)
       .is("deleted_at", null)
+      .eq("is_cancelled", false)
       .gte("sale_date", from_date)
       .lte("sale_date", toDateEnd)
       .order("sale_date", { ascending: true });

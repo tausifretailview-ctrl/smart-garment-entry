@@ -86,6 +86,7 @@ export default function SalesAnalyticsDashboard() {
         .select("id, sale_date, sale_number, customer_name, customer_id, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, payment_method, payment_status, sale_type")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
+        .eq("is_cancelled", false)
         .gte("sale_date", format(dateRange.start, "yyyy-MM-dd"))
         .lte("sale_date", format(dateRange.end, "yyyy-MM-dd'T'23:59:59"))
         .order("sale_date", { ascending: true });
@@ -128,6 +129,7 @@ export default function SalesAnalyticsDashboard() {
         .select("net_amount, gross_amount")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
+        .eq("is_cancelled", false)
         .gte("sale_date", format(previousPeriodRange.start, "yyyy-MM-dd"))
         .lte("sale_date", format(previousPeriodRange.end, "yyyy-MM-dd'T'23:59:59"));
       if (error) throw error;
@@ -148,6 +150,7 @@ export default function SalesAnalyticsDashboard() {
         .select("customer_id, customer_name")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
+        .eq("is_cancelled", false)
         .gte("sale_date", format(dateRange.start, "yyyy-MM-dd"))
         .lte("sale_date", format(dateRange.end, "yyyy-MM-dd'T'23:59:59"))
         .not("customer_id", "is", null);

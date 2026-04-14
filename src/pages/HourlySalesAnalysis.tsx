@@ -84,7 +84,8 @@ export default function HourlySalesAnalysis() {
         .eq("organization_id", currentOrganization.id)
         .gte("sale_date", fromDate)
         .lte("sale_date", toDate)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .eq("is_cancelled", false);
 
       if (error) throw error;
 

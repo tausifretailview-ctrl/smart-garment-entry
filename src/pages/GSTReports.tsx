@@ -213,6 +213,7 @@ const GSTReports = () => {
         `)
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
+        .eq("is_cancelled", false)
         .gte("sale_date", fromDateObj.toISOString())
         .lte("sale_date", toDateObj.toISOString())
         .order("sale_date", { ascending: true });

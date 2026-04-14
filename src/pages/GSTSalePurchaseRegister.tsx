@@ -142,6 +142,7 @@ const GSTSalePurchaseRegister = () => {
         .eq("organization_id", currentOrganization.id)
         .eq("sale_type", "invoice")
         .is("deleted_at", null)
+        .eq("is_cancelled", false)
         .gte("sale_date", fromDateObj.toISOString())
         .lte("sale_date", toDateObj.toISOString())
         .order("sale_date", { ascending: true });
@@ -156,6 +157,7 @@ const GSTSalePurchaseRegister = () => {
         .eq("organization_id", currentOrganization.id)
         .eq("sale_type", "pos")
         .is("deleted_at", null)
+        .eq("is_cancelled", false)
         .gte("sale_date", fromDateObj.toISOString())
         .lte("sale_date", toDateObj.toISOString())
         .order("sale_date", { ascending: true });
