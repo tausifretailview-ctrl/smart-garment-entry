@@ -537,9 +537,19 @@ export const FloatingSaleReturn = ({
       toast({ title: "Return Saved", description: `Return ${returnNumber} — ₹${Math.round(grossAmount)} (${refundLabel})` });
       onReturnSaved(grossAmount, returnNumber, refundType);
       onOpenChange(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving return:", error);
-      toast({ title: "Error", description: "Failed to save sale return", variant: "destructive" });
+      // Clean up orphan parent record if it was created but items failed
+      if (typeof returnData !== 'undefined' && returnData?.id) {
+        try {
+          await supabase.from("sale_return_items").delete().eq("return_id", returnData.id);
+          await supabase.from("sale_returns").delete().eq("id", returnData.id);
+          console.log("Cleaned up orphan sale return:", returnData.id);
+        } catch (cleanupErr) {
+          console.error("Cleanup failed:", cleanupErr);
+        }
+      }
+      toast({ title: "Error", description: error?.message || "Failed to save sale return", variant: "destructive" });
     } finally {
       setSaving(false);
     }
