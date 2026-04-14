@@ -1651,8 +1651,9 @@ export default function POSSales() {
       const lastPurchaseSalePrice = variant.last_purchase_sale_price ? parseFloat(variant.last_purchase_sale_price) : null;
       const lastPurchaseMrp = variant.last_purchase_mrp ? parseFloat(variant.last_purchase_mrp) : null;
       
-      // If no override provided and last purchase prices differ, show dialog
-      if (!overridePrice && lastPurchaseSalePrice !== null && lastPurchaseSalePrice !== masterSalePrice) {
+      // If no override provided and last purchase prices differ, show dialog (unless disabled in settings)
+      const askPriceOnScan = (settingsData as any)?.sale_settings?.ask_price_on_scan ?? true;
+      if (!overridePrice && askPriceOnScan && lastPurchaseSalePrice !== null && lastPurchaseSalePrice !== masterSalePrice) {
         setPendingPriceSelection({
           product,
           variant,
