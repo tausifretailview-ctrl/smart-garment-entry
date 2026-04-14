@@ -1,42 +1,48 @@
 
 
-## Stock Reconciliation Audit — Findings & Fix Plan
+## Odoo-Style Dashboard Redesign
 
-### Current State
-- **86 total discrepancies** found across 15 organizations
-- **43 are service products** — these are **false positives** (services don't track stock; triggers keep them at 0, but the formula calculates negative values from sales)
-- **43 are goods** — most are items sold without purchase history (stock is 0 but formula says it should be negative; the `stock_not_negative` DB constraint prevents this)
-- The reconciliation formula itself is correct: `opening + purchases - sales - purchase_returns + sale_returns - pending_challans`
+### What Changes
 
-### Issues Found
+**1. Full-Width Layout**
+- Remove the `xl:grid-cols-[1fr_280px]` sidebar layout constraint
+- Use `w-full px-6` wrapper with no max-width cap
+- Move the "New Updates" panel into a collapsible section or a smaller row below metrics instead of a fixed sidebar
 
-**1. Service products not excluded from scan (false positives)**
-The `detect_stock_discrepancies` SQL function does not filter `p.product_type != 'service'`. This causes ~50% of reported discrepancies to be noise — services like "HAIR CUT", "SHAVING" etc. that correctly sit at 0 stock.
+**2. Odoo-Style MetricCard (`AnimatedMetricCard`)**
+- Replace the current `border-t-4` accent + gradient approach with a clean Odoo look:
+  - White background (`bg-card`), subtle `border border-border`, `shadow-sm hover:shadow-md`
+  - Small colored dot or thin left accent (`border-l-3`) instead of heavy top border
+  - Tighter padding: `p-4` with `text-sm` title, `text-2xl font-semibold` value
+  - Remove the "↑ Live" badge — replace with a subtle count/label below the value
+- Keep existing props (`title`, `value`, `icon`, `accentColor`, `onClick`, `tooltip`, `isCurrency`)
 
-The `reconcile_variant_stock_qty` single-variant function also lacks this filter.
+**3. Grid Layout for Cards**
+- Use `grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6` with `gap-4` (currently `gap-3`)
+- Ensures cards don't stack too early on medium screens
 
-**2. "Reset Stock from Bills" would set goods to negative (blocked by constraint)**
-For goods items sold without purchase records (e.g., items that existed before the system), the calculated stock is negative. Running "Fix" or "Reset" would attempt to set `stock_qty` to a negative number, which the `stock_not_negative` constraint blocks — causing a silent failure.
+**4. Performance Metrics Section**
+- Wrap Row 3 (Inventory & Financial: Products, Stock Qty, Stock Value, Gross Profit, Receivables, Cash Collection) in a distinct section with:
+  - Light gray background `bg-muted/30 rounded-lg p-4 border border-border`
+  - Section heading: "Inventory & Financial Overview"
 
-**3. Cancelled sales already handled correctly**
-The `cancel_invoice` RPC hard-deletes `sale_items`, so they don't appear in the formula. No issue here.
+**5. Typography & Alignment**
+- All numerical values use `tabular-nums font-mono text-right` or `text-center` alignment
+- Titles: `text-xs font-medium uppercase tracking-wider text-muted-foreground`
+- Values: `text-xl font-semibold text-foreground` (slightly smaller than current `text-2xl`)
 
-### Fix Plan
+**6. Visual Polish**
+- Cards: `shadow-sm` default, `shadow-md` on hover with `transition-shadow duration-150`
+- Remove the animated slide-in (`animate-in fade-in-0 slide-in-from-bottom-2`) for cleaner feel
+- Command toolbar styling stays but gets tighter spacing
 
-**Migration — Update all 3 SQL functions to exclude services and combos:**
+### Files Modified
+- `src/pages/Index.tsx` — AnimatedMetricCard component restyling, layout grid changes, section grouping
 
-1. `detect_stock_discrepancies` — Add `AND p.product_type NOT IN ('service', 'combo')` to the WHERE clause
-2. `fix_stock_discrepancies` — Already calls `detect_stock_discrepancies`, so it inherits the filter automatically
-3. `reset_stock_from_transactions` — Add the same product_type filter
-4. `reconcile_variant_stock_qty` — Add product_type check and return early for service/combo
-
-**Frontend — Minor UI improvements in StockReconciliation.tsx:**
-
-5. Show product type in the discrepancy table so users can identify item types
-6. Add a note clarifying that service products are excluded from stock tracking
-
-### Impact
-- Eliminates ~50% of false-positive discrepancies immediately
-- Prevents failed reconciliation attempts on constrained items
-- No risk to existing stock data — these are read/filter changes only
+### What Does NOT Change
+- All `useQuery` hooks, Supabase RPC calls, `OrganizationContext` integration
+- Data extraction logic (salesData, purchaseData, etc.)
+- Mobile dashboard (`MobileDashboardWrapper`)
+- Navigation click handlers
+- Context menu functionality
 
