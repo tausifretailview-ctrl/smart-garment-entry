@@ -120,7 +120,7 @@ export default function SalesInvoiceDashboard() {
   const loadedItemsRef = useRef<Record<string, any[]>>({});
   const [deliveryFilter, setDeliveryFilter] = useState<string>("all");
   const [periodFilter, setPeriodFilter] = useState<string>("monthly");
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string[]>([]);
   const [shopFilter, setShopFilter] = useState<string>("all");
   const [userFilter, setUserFilter] = useState<string>("__pending__");
 
@@ -484,8 +484,8 @@ export default function SalesInvoiceDashboard() {
       if (deliveryFilter !== 'all') {
         query = query.eq('delivery_status', deliveryFilter);
       }
-      if (paymentStatusFilter !== 'all') {
-        query = query.eq('payment_status', paymentStatusFilter);
+      if (paymentStatusFilter.length > 0) {
+        query = query.in('payment_status', paymentStatusFilter);
       }
       if (shopFilter !== 'all') {
         query = query.eq('shop_name', shopFilter);
@@ -616,7 +616,7 @@ export default function SalesInvoiceDashboard() {
         p_org_id: currentOrganization.id,
         p_search: debouncedSearch || '',
         p_delivery_status: deliveryFilter || 'all',
-        p_payment_status: paymentStatusFilter || 'all',
+        p_payment_status: paymentStatusFilter.length > 0 ? paymentStatusFilter.join(',') : 'all',
         p_date_start: queryDateRange.start || '',
         p_date_end: queryDateRange.end || '',
       });
@@ -1041,7 +1041,7 @@ export default function SalesInvoiceDashboard() {
           .range(offset, offset + pageSize - 1);
 
         if (deliveryFilter !== 'all') query = query.eq('delivery_status', deliveryFilter);
-        if (paymentStatusFilter !== 'all') query = query.eq('payment_status', paymentStatusFilter);
+        if (paymentStatusFilter.length > 0) query = query.in('payment_status', paymentStatusFilter);
         if (userFilter !== 'all' && userFilter !== '__pending__') query = query.eq('created_by', userFilter);
         if (queryDateRange.start) query = query.gte('sale_date', queryDateRange.start);
         if (queryDateRange.end) query = query.lte('sale_date', queryDateRange.end);
@@ -2295,17 +2295,17 @@ export default function SalesInvoiceDashboard() {
 
         <MobileStatStrip stats={[
           { label: "Total", value: fmt(effectiveStats.totalAmount), color: "text-blue-600", bg: "bg-blue-50" },
-          { label: "Pending", value: fmt(effectiveStats.pendingAmount), color: "text-amber-600", bg: "bg-amber-50", onClick: () => setPaymentStatusFilter("pending") },
+          { label: "Pending", value: fmt(effectiveStats.pendingAmount), color: "text-amber-600", bg: "bg-amber-50", onClick: () => setPaymentStatusFilter(["pending"]) },
           { label: "Invoices", value: String(effectiveStats.totalInvoices), color: "text-purple-600", bg: "bg-purple-50" },
           { label: "Qty", value: String(effectiveStats.totalQty), color: "text-emerald-600", bg: "bg-emerald-50" },
         ]} />
 
         <div className="flex gap-2 px-4 py-2 overflow-x-auto no-scrollbar">
           {[{v:"all",l:"All"},{v:"pending",l:"Pending"},{v:"partial",l:"Partial"},{v:"completed",l:"Paid"}].map((s) => (
-            <button key={s.v} onClick={() => { setPaymentStatusFilter(s.v); setCurrentPage(1); }}
+            <button key={s.v} onClick={() => { setPaymentStatusFilter(s.v === 'all' ? [] : [s.v]); setCurrentPage(1); }}
               className={cn(
                 "flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition-all touch-manipulation",
-                paymentStatusFilter === s.v ? "bg-foreground text-background border-transparent" : "bg-card text-muted-foreground border-border"
+                (s.v === 'all' && paymentStatusFilter.length === 0) || (paymentStatusFilter.length === 1 && paymentStatusFilter[0] === s.v) ? "bg-foreground text-background border-transparent" : "bg-card text-muted-foreground border-border"
               )}>
               {s.l}
             </button>
@@ -2811,17 +2811,37 @@ export default function SalesInvoiceDashboard() {
                   </Popover>
                 </>
               )}
-              <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
-                <SelectTrigger className="w-[145px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white">
-                  <SelectValue placeholder="Payment Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Payments</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="partial">Partial</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-[155px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white justify-between">
+                    {paymentStatusFilter.length === 0 ? 'All Payments' : paymentStatusFilter.length === 1 ? paymentStatusFilter[0].charAt(0).toUpperCase() + paymentStatusFilter[0].slice(1) : `${paymentStatusFilter.length} Selected`}
+                    <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[180px] p-2" align="start">
+                  <div className="space-y-1">
+                    {[{v:"pending",l:"Pending"},{v:"partial",l:"Partial"},{v:"completed",l:"Completed"}].map((s) => (
+                      <label key={s.v} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+                        <Checkbox
+                          checked={paymentStatusFilter.includes(s.v)}
+                          onCheckedChange={(checked) => {
+                            setPaymentStatusFilter(prev =>
+                              checked ? [...prev, s.v] : prev.filter(f => f !== s.v)
+                            );
+                            setCurrentPage(1);
+                          }}
+                        />
+                        {s.l}
+                      </label>
+                    ))}
+                    {paymentStatusFilter.length > 0 && (
+                      <Button variant="ghost" size="sm" className="w-full text-xs mt-1" onClick={() => { setPaymentStatusFilter([]); setCurrentPage(1); }}>
+                        Clear All
+                      </Button>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
               <Select value={deliveryFilter} onValueChange={setDeliveryFilter}>
                 <SelectTrigger className="w-[145px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Delivery Status" />
