@@ -935,6 +935,7 @@ const DesktopDashboard = () => {
               tooltip="Total cash collected from sales. Click to view Cashier Report."
               isCurrency
             />
+            </div>
           </div>
 
           {/* Field Sales App Section - Only visible for users with field sales access */}
@@ -944,13 +945,12 @@ const DesktopDashboard = () => {
                 <div className="h-1 w-8 bg-primary rounded-full" />
                 Field Sales App
               </h2>
-              <Card className="border border-border bg-card shadow-elevated border-l-[3px] border-l-warning">
+              <Card className="border border-border bg-card shadow-sm border-l-[3px] border-l-warning">
                 <CardHeader className="p-3 pb-2">
                   <div className="flex items-center gap-2">
                     <div className="p-1.5 rounded-md bg-warning/10">
                       <Smartphone className="h-4 w-4 text-warning" />
-          </div>
-          </div>
+                    </div>
                     <div>
                       <CardTitle className="text-sm text-card-foreground">Field Sales Mobile App</CardTitle>
                       <CardDescription className="text-xs text-muted-foreground">
