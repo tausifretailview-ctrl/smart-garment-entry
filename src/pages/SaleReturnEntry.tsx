@@ -708,14 +708,9 @@ export default function SaleReturnEntry() {
       const totals = calculateTotals();
 
       if (isEditMode && editId) {
-        // Step 1: Soft-delete items first so the DB trigger skips stock adjustment
-        for (const itemId of originalItemIds) {
-          await supabase
-            .from("sale_return_items")
-            .update({ deleted_at: new Date().toISOString() })
-            .eq("id", itemId);
-        }
-        // Step 2: Hard-delete (trigger sees deleted_at is set → skips stock deduction)
+        // Hard-delete items directly so the DB trigger fires normally
+        // (trigger sees deleted_at IS NULL → reverses stock correctly)
+        // This matches the sale edit pattern in useSaveSale.tsx
         for (const itemId of originalItemIds) {
           const { error: delError } = await supabase
             .from("sale_return_items")
