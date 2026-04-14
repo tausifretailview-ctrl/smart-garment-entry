@@ -6883,7 +6883,7 @@ export type Database = {
         Returns: undefined
       }
       detect_stock_discrepancies: {
-        Args: { p_organization_id?: string }
+        Args: { p_organization_id: string }
         Returns: {
           barcode: string
           calculated_stock_qty: number
@@ -6896,7 +6896,7 @@ export type Database = {
         }[]
       }
       fix_stock_discrepancies: {
-        Args: { p_organization_id?: string }
+        Args: { p_organization_id: string }
         Returns: {
           details: Json
           fixed_count: number
