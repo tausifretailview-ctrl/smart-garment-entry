@@ -490,25 +490,8 @@ export const FloatingSaleReturn = ({
 
       if (itemsError) throw itemsError;
 
-      // Add back stock for returned items
-      try {
-        for (const item of returnItems) {
-          const { data: variant } = await supabase
-            .from("product_variants")
-            .select("stock_qty, product_id, products(product_type)")
-            .eq("id", item.variantId)
-            .single();
-          const isService = (variant?.products as any)?.product_type === 'service';
-          if (!isService && variant) {
-            await supabase
-              .from("product_variants")
-              .update({ stock_qty: (variant.stock_qty || 0) + item.quantity })
-              .eq("id", item.variantId);
-          }
-        }
-      } catch (stockErr) {
-        console.error("Stock add-back failed (non-critical):", stockErr);
-      }
+      // Stock is restored automatically by the database trigger
+      // (restore_stock_on_sale_return) — no manual increment needed
 
       // For cash_refund: create payment voucher so ledger balance updates
       if (refundType === "cash_refund" && customerId) {
@@ -551,7 +534,8 @@ export const FloatingSaleReturn = ({
           console.error("Cleanup failed:", cleanupErr);
         }
       }
-      toast({ title: "Error", description: error?.message || "Failed to save sale return", variant: "destructive" });
+      const errMsg = error?.details || error?.hint || error?.message || "Failed to save sale return";
+      toast({ title: "Error", description: errMsg, variant: "destructive" });
     } finally {
       setSaving(false);
     }

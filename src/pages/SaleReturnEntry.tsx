@@ -824,7 +824,8 @@ export default function SaleReturnEntry() {
       navigate("/sale-returns");
     } catch (error) {
       console.error("Error saving sale return:", error);
-      toast({ title: "Error", description: "Failed to save sale return", variant: "destructive" });
+      const errMsg = (error as any)?.details || (error as any)?.hint || (error as any)?.message || "Failed to save sale return";
+      toast({ title: "Error", description: errMsg, variant: "destructive" });
     } finally {
       setSaving(false);
     }
