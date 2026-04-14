@@ -510,15 +510,15 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                 const rowBg = '#fff';
                 return (
                   <tr key={item.sr} style={{ background: rowBg }}>
-                    <td style={tdStyle({ textAlign: 'center', color: '#888' })}>{item.sr}</td>
+                    <td style={tdStyle({ textAlign: 'center', color: '#333' })}>{item.sr}</td>
                     <td style={tdStyle({ textAlign: 'left' })}>
                       {item.particulars}
                       {details && (
-                        <span style={{ color: '#888', marginLeft: '3px', fontSize: '85%' }}>({details})</span>
+                        <span style={{ color: '#333', marginLeft: '3px', fontSize: '85%' }}>({details})</span>
                       )}
                     </td>
                     {showColor && (
-                      <td style={tdStyle({ textAlign: 'center', fontWeight: 600 })}>{item.color || '—'}</td>
+                      <td style={tdStyle({ textAlign: 'center', fontWeight: 600, color: '#000' })}>{item.color || '—'}</td>
                     )}
                     <td style={tdStyle({ textAlign: 'center', fontWeight: 700, fontSize: isA4 ? '9pt' : '7.5pt' })}>
                       {item.size}
@@ -690,12 +690,12 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                 const rowBg = '#fff';
                 return (
                   <tr key={idx} style={{ background: rowBg }}>
-                    <td style={tdStyle({ textAlign: 'center', color: '#888' })}>{idx + 1}</td>
+                    <td style={tdStyle({ textAlign: 'center', color: '#333' })}>{idx + 1}</td>
                     <td style={tdStyle({ textAlign: 'left' })}>
                       {g.productName}
-                      {details && <span style={{ color: '#888', marginLeft: '4px', fontSize: '85%' }}>({details})</span>}
+                      {details && <span style={{ color: '#333', marginLeft: '4px', fontSize: '85%' }}>({details})</span>}
                     </td>
-                    {showColor && <td style={tdStyle({ textAlign: 'center', fontWeight: 600 })}>{g.color || '—'}</td>}
+                    {showColor && <td style={tdStyle({ textAlign: 'center', fontWeight: 600, color: '#000' })}>{g.color || '—'}</td>}
                     {uniqueSizes.map(sz => (
                       <td key={sz} style={tdStyle({
                         textAlign: 'center', fontWeight: 700,
