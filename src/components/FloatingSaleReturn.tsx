@@ -466,6 +466,7 @@ export const FloatingSaleReturn = ({
         .single();
 
       if (returnError) throw returnError;
+      createdReturnId = returnData.id;
 
       const itemsToInsert = returnItems.map(item => {
         const v = variants.find(vv => vv.id === item.variantId);
@@ -541,11 +542,11 @@ export const FloatingSaleReturn = ({
     } catch (error: any) {
       console.error("Error saving return:", error);
       // Clean up orphan parent record if it was created but items failed
-      if (typeof returnData !== 'undefined' && returnData?.id) {
+      if (createdReturnId) {
         try {
-          await supabase.from("sale_return_items").delete().eq("return_id", returnData.id);
-          await supabase.from("sale_returns").delete().eq("id", returnData.id);
-          console.log("Cleaned up orphan sale return:", returnData.id);
+          await supabase.from("sale_return_items").delete().eq("return_id", createdReturnId);
+          await supabase.from("sale_returns").delete().eq("id", createdReturnId);
+          console.log("Cleaned up orphan sale return:", createdReturnId);
         } catch (cleanupErr) {
           console.error("Cleanup failed:", cleanupErr);
         }
