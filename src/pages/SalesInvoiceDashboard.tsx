@@ -2544,7 +2544,7 @@ export default function SalesInvoiceDashboard() {
   return (
     <div className="min-h-screen bg-slate-50 px-6 py-6 pb-24 lg:pb-6">
       
-      <div className="w-full max-w-[1600px] mx-auto space-y-5">
+      <div className="w-full px-6 space-y-5">
         <div className="flex items-center justify-between mb-1">
           <div>
             <h1 className="text-[26px] font-extrabold text-blue-600 tracking-tight leading-tight">
@@ -2637,7 +2637,7 @@ export default function SalesInvoiceDashboard() {
         )}
 
         {/* Summary Statistics - Vasy ERP Style Vibrant Cards - 7 cards in 1 row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 w-full">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 w-full">
           <Card 
             className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-md rounded-xl min-w-0"
             onClick={() => setDeliveryFilter("all")}
