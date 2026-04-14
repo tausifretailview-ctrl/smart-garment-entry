@@ -427,6 +427,7 @@ export const FloatingSaleReturn = ({
     }
 
     setSaving(true);
+    let createdReturnId: string | null = null;
     try {
       const { data: returnNumber, error: rnError } = await supabase
         .rpc('generate_sale_return_number', { p_organization_id: organizationId });
