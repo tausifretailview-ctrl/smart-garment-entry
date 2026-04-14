@@ -403,7 +403,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         )}
 
         <div style={dblLine} />
-        <div style={{ ...center, fontSize: '8px', marginTop: '2px', color: '#555' }}>{format(date, 'dd-MM-yyyy HH:mm:ss')}</div>
+        <div style={{ ...center, fontSize: '8px', marginTop: '2px', color: '#000' }}>{format(date, 'dd-MM-yyyy HH:mm:ss')}</div>
       </div>
     );
   }
