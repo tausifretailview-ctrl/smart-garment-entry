@@ -767,7 +767,7 @@ const DesktopDashboard = () => {
         ) : (
         <div className="space-y-3">
           {/* Row 1 - Sales Metrics */}
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
             <AnimatedMetricCard
               title="Total Sales"
               value={salesData?.total || 0}
@@ -821,7 +821,7 @@ const DesktopDashboard = () => {
           </div>
 
           {/* Row 2 - Purchase Metrics */}
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
             <AnimatedMetricCard
               title="Total Purchase"
               value={purchaseData?.total || 0}
@@ -874,8 +874,13 @@ const DesktopDashboard = () => {
             />
           </div>
 
-          {/* Row 3 - Inventory & Financial Metrics */}
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+          {/* Row 3 - Inventory & Financial Metrics (Grouped Section) */}
+          <div className="bg-muted/30 rounded-lg p-4 border border-border">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+              <Layers className="h-3.5 w-3.5" />
+              Inventory &amp; Financial Overview
+            </h3>
+            <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
             <AnimatedMetricCard
               title="Products"
               value={productsCount || 0}
@@ -944,7 +949,8 @@ const DesktopDashboard = () => {
                   <div className="flex items-center gap-2">
                     <div className="p-1.5 rounded-md bg-warning/10">
                       <Smartphone className="h-4 w-4 text-warning" />
-                    </div>
+          </div>
+          </div>
                     <div>
                       <CardTitle className="text-sm text-card-foreground">Field Sales Mobile App</CardTitle>
                       <CardDescription className="text-xs text-muted-foreground">
