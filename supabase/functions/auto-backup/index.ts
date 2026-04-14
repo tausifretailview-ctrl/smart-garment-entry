@@ -166,44 +166,6 @@ Deno.serve(async (req) => {
       last_auto_backup_at: new Date().toISOString(),
     }).eq('organization_id', organizationId);
 
-    // Cleanup old backups based on retention
-    const { data: settings } = await supabase
-      .from('settings')
-      .select('backup_retention_days')
-      .eq('organization_id', organizationId)
-      .single();
-
-    const retentionDays = (settings as any)?.backup_retention_days || 30;
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
-
-    // Delete old backup files from storage
-    const { data: oldFiles } = await supabase.storage
-      .from('organization-backups')
-      .list(organizationId);
-
-    if (oldFiles?.length) {
-      const filesToDelete = oldFiles
-        .filter(f => {
-          const dateStr = f.name.replace('.json', '');
-          const fileDate = new Date(dateStr);
-          return fileDate < cutoffDate;
-        })
-        .map(f => `${organizationId}/${f.name}`);
-
-      if (filesToDelete.length > 0) {
-        await supabase.storage.from('organization-backups').remove(filesToDelete);
-        console.log(`Cleaned up ${filesToDelete.length} old backup files`);
-      }
-    }
-
-    // Delete old backup log entries
-    await supabase.from('backup_logs')
-      .delete()
-      .eq('organization_id', organizationId)
-      .eq('backup_type', 'automatic')
-      .lt('created_at', cutoffDate.toISOString());
-
     return new Response(
       JSON.stringify({
         success: true,

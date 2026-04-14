@@ -238,34 +238,6 @@ Deno.serve(async (req) => {
           console.warn('RESEND_API_KEY not set, skipping email');
         }
 
-        // Cleanup old backups
-        const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
-
-        const { data: oldFiles } = await supabase.storage
-          .from('organization-backups')
-          .list(orgId);
-
-        if (oldFiles?.length) {
-          const filesToDelete = oldFiles
-            .filter(f => {
-              const dateStr = f.name.replace('.json', '');
-              const fileDate = new Date(dateStr);
-              return fileDate < cutoffDate;
-            })
-            .map(f => `${orgId}/${f.name}`);
-
-          if (filesToDelete.length > 0) {
-            await supabase.storage.from('organization-backups').remove(filesToDelete);
-          }
-        }
-
-        await supabase.from('backup_logs')
-          .delete()
-          .eq('organization_id', orgId)
-          .eq('backup_type', 'automatic')
-          .lt('created_at', cutoffDate.toISOString());
-
         results.push({ orgId, success: true });
         console.log(`Backup completed for ${orgName}`);
 
