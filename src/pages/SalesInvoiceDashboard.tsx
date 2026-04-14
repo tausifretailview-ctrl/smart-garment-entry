@@ -120,7 +120,7 @@ export default function SalesInvoiceDashboard() {
   const loadedItemsRef = useRef<Record<string, any[]>>({});
   const [deliveryFilter, setDeliveryFilter] = useState<string>("all");
   const [periodFilter, setPeriodFilter] = useState<string>("monthly");
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string[]>([]);
   const [shopFilter, setShopFilter] = useState<string>("all");
   const [userFilter, setUserFilter] = useState<string>("__pending__");
 

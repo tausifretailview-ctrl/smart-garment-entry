@@ -140,7 +140,7 @@ const POSDashboard = () => {
   const [endDate, setEndDate] = useState(today);
   const [periodFilter, setPeriodFilter] = useState<string>("daily");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("all");
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string[]>([]);
   const [saleTypeFilter, setSaleTypeFilter] = useState<string>("all");
   const [refundFilter, setRefundFilter] = useState<string>("all");
   const [creditNoteFilter, setCreditNoteFilter] = useState<string>("all");
