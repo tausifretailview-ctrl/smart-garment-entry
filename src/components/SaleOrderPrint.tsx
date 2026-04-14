@@ -87,9 +87,9 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
     const totalQty = items.reduce((s, i) => s + i.orderQty, 0);
 
     // ── Smart pagination with product grouping ──────────────────────────────
-    const FIRST_PAGE_ROWS = isA4 ? 40 : isHorizontal ? 14 : 18;
-    const MIDDLE_PAGE_ROWS = isA4 ? 45 : isHorizontal ? 16 : 20;
-    const LAST_PAGE_ROWS = isA4 ? 35 : isHorizontal ? 10 : 14;
+    const FIRST_PAGE_ROWS = isA4 ? 30 : isHorizontal ? 12 : 15;
+    const MIDDLE_PAGE_ROWS = isA4 ? 35 : isHorizontal ? 14 : 18;
+    const LAST_PAGE_ROWS = isA4 ? 25 : isHorizontal ? 9 : 12;
 
     const pages: SaleOrderItem[][] = React.useMemo(() => {
       if (items.length === 0) return [[]];
@@ -200,29 +200,29 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
     }, [items, invoiceFormat]);
 
     // ── Compact styling ─────────────────────────────────────────────────────
-    const baseFontSize = isA4 ? '7.5pt' : '6.5pt';
-    const smallFont = '7pt';
-    const tinyFont = '6pt';
+    const baseFontSize = isA4 ? '8.5pt' : '7.5pt';
+    const smallFont = '8pt';
+    const tinyFont = '7pt';
 
     const thStyle = (extra: React.CSSProperties = {}): React.CSSProperties => ({
       border: `1px solid ${BORDER}`,
-      padding: '1px 3px',
+      padding: isA4 ? '5px 4px' : '4px 3px',
       background: '#f4f4f4',
       color: '#000',
       fontWeight: 700,
-      fontSize: isA4 ? '7pt' : '6pt',
+      fontSize: isA4 ? '8.5pt' : '7pt',
       textTransform: 'uppercase',
       letterSpacing: '0.03em',
-      lineHeight: 1.1,
+      lineHeight: 1.25,
       ...extra,
     });
 
     const tdStyle = (extra: React.CSSProperties = {}): React.CSSProperties => ({
       border: `1px solid ${BORDER}`,
-      padding: '1px 3px',
+      padding: isA4 ? '5px 4px' : '4px 3px',
       fontSize: baseFontSize,
       verticalAlign: 'middle',
-      lineHeight: 1.1,
+      lineHeight: 1.25,
       ...extra,
     });
 
@@ -510,15 +510,15 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                 const rowBg = '#fff';
                 return (
                   <tr key={item.sr} style={{ background: rowBg }}>
-                    <td style={tdStyle({ textAlign: 'center', color: '#888' })}>{item.sr}</td>
+                    <td style={tdStyle({ textAlign: 'center', color: '#333' })}>{item.sr}</td>
                     <td style={tdStyle({ textAlign: 'left' })}>
                       {item.particulars}
                       {details && (
-                        <span style={{ color: '#888', marginLeft: '3px', fontSize: '85%' }}>({details})</span>
+                        <span style={{ color: '#333', marginLeft: '3px', fontSize: '85%' }}>({details})</span>
                       )}
                     </td>
                     {showColor && (
-                      <td style={tdStyle({ textAlign: 'center', fontWeight: 600 })}>{item.color || '—'}</td>
+                      <td style={tdStyle({ textAlign: 'center', fontWeight: 600, color: '#000' })}>{item.color || '—'}</td>
                     )}
                     <td style={tdStyle({ textAlign: 'center', fontWeight: 700, fontSize: isA4 ? '9pt' : '7.5pt' })}>
                       {item.size}
@@ -690,12 +690,12 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                 const rowBg = '#fff';
                 return (
                   <tr key={idx} style={{ background: rowBg }}>
-                    <td style={tdStyle({ textAlign: 'center', color: '#888' })}>{idx + 1}</td>
+                    <td style={tdStyle({ textAlign: 'center', color: '#333' })}>{idx + 1}</td>
                     <td style={tdStyle({ textAlign: 'left' })}>
                       {g.productName}
-                      {details && <span style={{ color: '#888', marginLeft: '4px', fontSize: '85%' }}>({details})</span>}
+                      {details && <span style={{ color: '#333', marginLeft: '4px', fontSize: '85%' }}>({details})</span>}
                     </td>
-                    {showColor && <td style={tdStyle({ textAlign: 'center', fontWeight: 600 })}>{g.color || '—'}</td>}
+                    {showColor && <td style={tdStyle({ textAlign: 'center', fontWeight: 600, color: '#000' })}>{g.color || '—'}</td>}
                     {uniqueSizes.map(sz => (
                       <td key={sz} style={tdStyle({
                         textAlign: 'center', fontWeight: 700,
