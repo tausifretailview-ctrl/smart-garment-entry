@@ -212,7 +212,8 @@ export const StockReconciliation = () => {
           Stock Reconciliation
         </CardTitle>
         <CardDescription>
-          Detect and fix discrepancies between recorded stock levels and calculated movements
+          Detect and fix discrepancies between recorded stock levels and calculated movements.
+          <span className="block text-xs mt-1 text-muted-foreground/70">Note: Service &amp; combo products are excluded from stock tracking.</span>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
