@@ -1126,7 +1126,7 @@ const POSDashboard = () => {
         paymentMethodFilter === "all" || sale.payment_method === paymentMethodFilter;
 
       const matchesPaymentStatus =
-        paymentStatusFilter === "all" || sale.payment_status === paymentStatusFilter;
+        paymentStatusFilter.length === 0 || paymentStatusFilter.includes(sale.payment_status);
 
       const matchesSaleType =
         saleTypeFilter === "all" ||
@@ -1454,7 +1454,7 @@ const POSDashboard = () => {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
           <Card 
             className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-blue-500 border-0 shadow-none"
-            onClick={() => setPaymentStatusFilter("all")}
+            onClick={() => setPaymentStatusFilter([])}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-1">
               <CardDescription className="text-xs font-semibold text-white/90">Total Bills</CardDescription>
@@ -1468,7 +1468,7 @@ const POSDashboard = () => {
 
           <Card 
             className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-amber-500 border-0 shadow-none"
-            onClick={() => setPaymentStatusFilter("hold")}
+            onClick={() => setPaymentStatusFilter(["hold"])}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-1">
               <CardDescription className="text-xs font-semibold text-white/90">On Hold</CardDescription>
@@ -1482,7 +1482,7 @@ const POSDashboard = () => {
 
           <Card 
             className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-emerald-500 border-0 shadow-none"
-            onClick={() => setPaymentStatusFilter("completed")}
+            onClick={() => setPaymentStatusFilter(["completed"])}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-1">
               <CardDescription className="text-xs font-semibold text-white/90">Completed</CardDescription>
@@ -1496,7 +1496,7 @@ const POSDashboard = () => {
 
           <Card 
             className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-orange-500 border-0 shadow-none"
-            onClick={() => setPaymentStatusFilter("pending")}
+            onClick={() => setPaymentStatusFilter(["pending"])}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-1">
               <CardDescription className="text-xs font-semibold text-white/90">Pending/Partial</CardDescription>
@@ -1510,7 +1510,7 @@ const POSDashboard = () => {
 
           <Card 
             className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-violet-500 border-0 shadow-none"
-            onClick={() => setPaymentStatusFilter("all")}
+            onClick={() => setPaymentStatusFilter([])}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-1">
               <CardDescription className="text-xs font-semibold text-white/90">Sale Amount</CardDescription>
@@ -1569,7 +1569,7 @@ const POSDashboard = () => {
 
           <Card 
             className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-red-500 border-0 shadow-none"
-            onClick={() => setPaymentStatusFilter("pending")}
+            onClick={() => setPaymentStatusFilter(["pending"])}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-1">
               <CardDescription className="text-xs font-semibold text-white/90">Total Balance</CardDescription>
@@ -1644,18 +1644,36 @@ const POSDashboard = () => {
                   <SelectItem value="pay_later">Pay Later</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Payment Status" />
-                </SelectTrigger>
-                <SelectContent className="bg-popover z-50">
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="hold">On Hold</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="partial">Partial</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-40 justify-between">
+                    {paymentStatusFilter.length === 0 ? 'All Status' : paymentStatusFilter.length === 1 ? paymentStatusFilter[0].charAt(0).toUpperCase() + paymentStatusFilter[0].slice(1) : `${paymentStatusFilter.length} Selected`}
+                    <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[180px] p-2" align="start">
+                  <div className="space-y-1">
+                    {[{v:"hold",l:"On Hold"},{v:"completed",l:"Completed"},{v:"partial",l:"Partial"},{v:"pending",l:"Pending"}].map((s) => (
+                      <label key={s.v} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+                        <Checkbox
+                          checked={paymentStatusFilter.includes(s.v)}
+                          onCheckedChange={(checked) => {
+                            setPaymentStatusFilter(prev =>
+                              checked ? [...prev, s.v] : prev.filter(f => f !== s.v)
+                            );
+                          }}
+                        />
+                        {s.l}
+                      </label>
+                    ))}
+                    {paymentStatusFilter.length > 0 && (
+                      <Button variant="ghost" size="sm" className="w-full text-xs mt-1" onClick={() => setPaymentStatusFilter([])}>
+                        Clear All
+                      </Button>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
               <Select value={saleTypeFilter} onValueChange={setSaleTypeFilter}>
                 <SelectTrigger className="w-36">
                   <SelectValue placeholder="Bill Type" />
