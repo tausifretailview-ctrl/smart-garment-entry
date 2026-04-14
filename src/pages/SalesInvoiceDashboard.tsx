@@ -2811,17 +2811,37 @@ export default function SalesInvoiceDashboard() {
                   </Popover>
                 </>
               )}
-              <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
-                <SelectTrigger className="w-[145px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white">
-                  <SelectValue placeholder="Payment Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Payments</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="partial">Partial</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-[155px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white justify-between">
+                    {paymentStatusFilter.length === 0 ? 'All Payments' : paymentStatusFilter.length === 1 ? paymentStatusFilter[0].charAt(0).toUpperCase() + paymentStatusFilter[0].slice(1) : `${paymentStatusFilter.length} Selected`}
+                    <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[180px] p-2" align="start">
+                  <div className="space-y-1">
+                    {[{v:"pending",l:"Pending"},{v:"partial",l:"Partial"},{v:"completed",l:"Completed"}].map((s) => (
+                      <label key={s.v} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+                        <Checkbox
+                          checked={paymentStatusFilter.includes(s.v)}
+                          onCheckedChange={(checked) => {
+                            setPaymentStatusFilter(prev =>
+                              checked ? [...prev, s.v] : prev.filter(f => f !== s.v)
+                            );
+                            setCurrentPage(1);
+                          }}
+                        />
+                        {s.l}
+                      </label>
+                    ))}
+                    {paymentStatusFilter.length > 0 && (
+                      <Button variant="ghost" size="sm" className="w-full text-xs mt-1" onClick={() => { setPaymentStatusFilter([]); setCurrentPage(1); }}>
+                        Clear All
+                      </Button>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
               <Select value={deliveryFilter} onValueChange={setDeliveryFilter}>
                 <SelectTrigger className="w-[145px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Delivery Status" />
