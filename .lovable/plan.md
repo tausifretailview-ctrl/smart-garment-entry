@@ -1,44 +1,30 @@
 
 
-## Fix Sale Return Edit Double-Stock Bug
+## Add Toggle to Control Price Selection Dialog in POS
 
 ### Problem
-When editing a sale return in `SaleReturnEntry.tsx` (lines 710-745), the soft-delete→hard-delete→insert pattern causes stock inflation. The soft-delete sets `deleted_at`, so the hard-delete trigger skips stock reversal, but the new INSERT trigger adds stock again — resulting in +2× instead of +1×.
+During POS sales, the "Select Price" dialog pops up every time a product's last purchase price differs from the master price. This interrupts the fast scanning flow for many users.
 
-### Solution: Match the Sale Edit Pattern (Simplest Fix)
-
-The sale edit flow in `useSaveSale.tsx` works correctly: it hard-deletes items directly (no soft-delete first), letting the DELETE trigger properly reverse stock, then INSERTs new items. We apply the same pattern to sale return edits.
+### Solution
+Add a new toggle **"Ask Price When Last Purchase Differs"** in Settings under the Sale Settings section, and check it before showing the dialog in both POS Sales and Sales Invoice.
 
 ### Changes
 
-**1. `src/pages/SaleReturnEntry.tsx` — Fix edit flow (lines 710-725)**
+**1. Settings.tsx — Add new toggle**
+Add a switch for `ask_price_on_scan` in the Sale Settings section (after the "Customer Price Memory" toggle, around line 2069):
+- Label: "Ask Price When Last Purchase Differs"
+- Description: "Show price selection dialog when last purchase price differs from master price during billing"
+- Default: `true` (preserves current behavior)
 
-Remove the soft-delete step entirely. Just hard-delete the old items directly so the `handle_sale_return_item_delete` trigger fires normally (sees `deleted_at IS NULL` → reverses stock), then INSERT new items (trigger adds stock).
+**2. POSSales.tsx — Check the setting before showing dialog**
+At line 1655, wrap the price dialog trigger in a check:
+- Read `sale_settings.ask_price_on_scan` from the settings hook
+- If `false`, skip the dialog and use master price silently
+- If `true` (or not set), show the dialog as before
 
-```text
-BEFORE (broken):
-  soft-delete items (set deleted_at) → hard-delete (trigger SKIPS) → INSERT (trigger adds)
-  Net: old stock never reversed, new stock added = INFLATED
+**3. SalesInvoice.tsx — Same check**
+Apply the same guard around the price dialog trigger in the Sales Invoice page.
 
-AFTER (fixed):
-  hard-delete items (trigger FIRES, reverses stock) → INSERT (trigger adds)
-  Net: old stock reversed, new stock added = CORRECT
-```
-
-**2. DB Migration — Add `deleted_at` guard to UPDATE triggers**
-
-Add `IF OLD.deleted_at IS NOT NULL OR NEW.deleted_at IS NOT NULL THEN RETURN NEW` to:
-- `handle_purchase_item_update`
-- `handle_sale_item_update`
-
-This prevents accidental stock adjustments if an UPDATE touches a soft-deleted row.
-
-**3. Run global reconciliation after fix**
-
-After deploying the code fix, re-run the reconciliation to correct historically inflated variants from past edits.
-
-### Impact
-- Fixes the #1 root cause of inflated stock across all organizations
-- Low risk: mirrors the already-working sale edit pattern
-- No changes to any other stock logic
+### No database changes needed
+The setting is stored inside the existing `sale_settings` JSONB column — no migration required.
 
