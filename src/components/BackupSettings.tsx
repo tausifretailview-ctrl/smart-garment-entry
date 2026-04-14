@@ -33,7 +33,7 @@ const BackupSettings = () => {
   // Auto-backup settings
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(false);
   const [backupEmail, setBackupEmail] = useState("");
-  const [retentionDays, setRetentionDays] = useState("30");
+  const [retentionDays, setRetentionDays] = useState("0");
   const [lastAutoBackupAt, setLastAutoBackupAt] = useState<string | null>(null);
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
@@ -62,7 +62,7 @@ const BackupSettings = () => {
         if (data) {
           setAutoBackupEnabled((data as any).auto_backup_enabled || false);
           setBackupEmail((data as any).backup_email || "");
-          setRetentionDays(String((data as any).backup_retention_days || 30));
+          setRetentionDays(String((data as any).backup_retention_days || 0));
           setLastAutoBackupAt((data as any).last_auto_backup_at);
         }
       } catch (e) {
@@ -176,44 +176,21 @@ const BackupSettings = () => {
                 />
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="backupEmail" className="flex items-center gap-1">
-                    <Mail className="h-3.5 w-3.5" />
-                    Backup Email (receives backup file)
-                  </Label>
-                  <Input
-                    id="backupEmail"
-                    type="email"
-                    placeholder="admin@company.com"
-                    value={backupEmail}
-                    onChange={(e) => setBackupEmail(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Daily backup JSON file will be sent to this email every night at 11:00 PM IST
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="retention" className="flex items-center gap-1">
-                    <Shield className="h-3.5 w-3.5" />
-                    Retention Period
-                  </Label>
-                  <Select value={retentionDays} onValueChange={setRetentionDays}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="7">7 days</SelectItem>
-                      <SelectItem value="14">14 days</SelectItem>
-                      <SelectItem value="30">30 days</SelectItem>
-                      <SelectItem value="60">60 days</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Older backups are automatically removed
-                  </p>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="backupEmail" className="flex items-center gap-1">
+                  <Mail className="h-3.5 w-3.5" />
+                  Backup Email (receives backup file)
+                </Label>
+                <Input
+                  id="backupEmail"
+                  type="email"
+                  placeholder="admin@company.com"
+                  value={backupEmail}
+                  onChange={(e) => setBackupEmail(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Daily backup JSON file will be sent to this email every night at 11:00 PM IST
+                </p>
               </div>
 
               <div className="flex items-center justify-between">
@@ -261,10 +238,7 @@ const BackupSettings = () => {
               {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
               Download Excel
             </Button>
-            <Button onClick={startCloudBackup} disabled={isCloudBackingUp} className="gap-2">
-              {isCloudBackingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
-              Cloud Backup Now
-            </Button>
+            
           </div>
 
           <div className="text-sm text-muted-foreground">
