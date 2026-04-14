@@ -2070,6 +2070,30 @@ export default function Settings() {
 
                 <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
                   <div className="space-y-0.5">
+                    <Label htmlFor="ask_price_on_scan" className="text-sm font-medium">
+                      Ask Price When Last Purchase Differs
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Show price selection dialog when last purchase price differs from master price during billing
+                    </p>
+                  </div>
+                  <Switch
+                    id="ask_price_on_scan"
+                    checked={(settings.sale_settings as any)?.ask_price_on_scan ?? true}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          ask_price_on_scan: checked,
+                        } as any,
+                      })
+                    }
+                />
+                </div>
+
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div className="space-y-0.5">
                     <Label htmlFor="auto_apply_advance" className="text-sm font-medium">
                       Auto-Apply Advance Balance
                     </Label>

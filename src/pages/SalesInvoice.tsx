@@ -1297,7 +1297,8 @@ export default function SalesInvoice() {
     
     // If no override provided, check if prices differ and show selection dialog
     if (!overridePrice) {
-      const hasLastPurchaseDiff = lastPurchaseSalePrice !== null && lastPurchaseSalePrice !== masterSalePrice;
+      const askPriceOnScan = (settingsData as any)?.sale_settings?.ask_price_on_scan ?? true;
+      const hasLastPurchaseDiff = askPriceOnScan && lastPurchaseSalePrice !== null && lastPurchaseSalePrice !== masterSalePrice;
       const hasCustomerDiff = customerPrice !== null;
 
       if (hasLastPurchaseDiff || hasCustomerDiff) {
