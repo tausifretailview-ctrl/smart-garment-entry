@@ -187,11 +187,11 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
           }}>
             {settings?.business_name || 'STORE NAME'}
           </div>
-          <div style={{ fontSize: '10px', lineHeight: '1.35', color: '#333', maxWidth: '260px', margin: '0 auto' }}>
+          <div style={{ fontSize: '10px', lineHeight: '1.35', color: '#000', maxWidth: '260px', margin: '0 auto' }}>
             {settings?.address || ''}
           </div>
           {settings?.mobile_number && (
-            <div style={{ fontSize: '10px', color: '#333' }}>Tel: {settings.mobile_number}</div>
+            <div style={{ fontSize: '10px', color: '#000' }}>Tel: {settings.mobile_number}</div>
           )}
           {settings?.gst_number && (
             <div style={{ fontSize: '11px', fontWeight: 800, marginTop: '2px' }}>
@@ -215,7 +215,7 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
         </div>
 
         {/* ═══ DASHED SEPARATOR ═══ */}
-        <div style={{ borderBottom: '2px dashed #555', margin: '6px 0' }} />
+        <div style={{ borderBottom: '2px dashed #000', margin: '6px 0' }} />
 
         {/* ═══ META DETAILS ═══ */}
         <div style={{ fontSize: '10px', marginBottom: '4px' }}>
@@ -238,7 +238,7 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
         </div>
 
         {/* ═══ DASHED SEPARATOR ═══ */}
-        <div style={{ borderBottom: '2px dashed #555', margin: '6px 0' }} />
+        <div style={{ borderBottom: '2px dashed #000', margin: '6px 0' }} />
 
         {/* ═══ ITEMS TABLE HEADER ═══ */}
         <div style={{
@@ -266,11 +266,11 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
               {item.particulars}
             </div>
             {item.barcode && (
-              <div style={{ fontSize: '9px', color: '#555' }}>BC: {item.barcode}</div>
+              <div style={{ fontSize: '9px', color: '#000' }}>BC: {item.barcode}</div>
             )}
             {/* Line 2: Qty × Rate ... Amount */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1px' }}>
-              <span style={{ fontFamily: 'monospace', fontSize: '10px', color: '#444' }}>
+              <span style={{ fontFamily: 'monospace', fontSize: '10px', color: '#000' }}>
                 {item.qty} × ₹{fmtAmt(item.rate)}
               </span>
               <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '10.5px' }}>
@@ -278,13 +278,13 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
               </span>
             </div>
             {i < items.length - 1 && (
-              <div style={{ borderBottom: '1px dotted #ccc', margin: '3px 0 0' }} />
+              <div style={{ borderBottom: '1px dotted #000', margin: '3px 0 0' }} />
             )}
           </div>
         ))}
 
         {/* ═══ DASHED SEPARATOR ═══ */}
-        <div style={{ borderBottom: '2px dashed #555', margin: '6px 0' }} />
+        <div style={{ borderBottom: '2px dashed #000', margin: '6px 0' }} />
 
         {/* ═══ TOTALS ═══ */}
         <div style={{ fontSize: '10px' }}>
@@ -381,11 +381,11 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
         {/* ═══ GST DETAILS ═══ */}
         {gstRateBreakdown && gstRateBreakdown.length > 0 ? (
           <>
-            <div style={{ borderBottom: '1px dashed #999', margin: '4px 0' }} />
+            <div style={{ borderBottom: '1px dashed #000', margin: '4px 0' }} />
             <div style={{ textAlign: 'center', fontSize: '9px', fontWeight: 800, marginBottom: '2px', letterSpacing: '1px' }}>GST DETAILS</div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', tableLayout: 'fixed', fontFamily: 'monospace' }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid #999' }}>
+                <tr style={{ borderBottom: '1px solid #000' }}>
                   <th style={{ textAlign: 'left', padding: '1px 0', fontWeight: 800, width: '15%' }}>GST%</th>
                   <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 800, width: '30%' }}>Taxable</th>
                   <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 800, width: '27%' }}>CGST</th>
@@ -401,7 +401,7 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
                     <td style={{ textAlign: 'right', padding: '1px 0' }}>{fmtDec(entry.sgst)}</td>
                   </tr>
                 ))}
-                <tr style={{ borderTop: '1px solid #999', fontWeight: 800 }}>
+                <tr style={{ borderTop: '1px solid #000', fontWeight: 800 }}>
                   <td style={{ padding: '1px 0' }}>Total</td>
                   <td style={{ textAlign: 'right', padding: '1px 0' }}>{fmtDec(gstRateBreakdown.reduce((s, e) => s + e.taxableAmount, 0))}</td>
                   <td style={{ textAlign: 'right', padding: '1px 0' }}>{fmtDec(gstRateBreakdown.reduce((s, e) => s + e.cgst, 0))}</td>
@@ -412,7 +412,7 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
           </>
         ) : (gst.cgst > 0 || gst.sgst > 0) ? (
           <>
-            <div style={{ borderBottom: '1px dashed #999', margin: '4px 0' }} />
+            <div style={{ borderBottom: '1px dashed #000', margin: '4px 0' }} />
             <div style={{ textAlign: 'center', fontSize: '9px', fontWeight: 800, marginBottom: '2px', letterSpacing: '1px' }}>GST DETAILS</div>
             <div style={{ fontSize: '9px', fontFamily: 'monospace' }}>
               {gst.cgst > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>CGST</span><span>₹{fmtDec(gst.cgst)}</span></div>}
@@ -443,7 +443,7 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
           <div style={{ textAlign: 'center', margin: '6px 0' }}>
             <div style={{ fontSize: '10px', fontWeight: 800, marginBottom: '3px', letterSpacing: '0.5px' }}>SCAN TO PAY</div>
             <img src={qrCodeUrl} alt="UPI QR" style={{ width: '80px', height: '80px', margin: '0 auto', display: 'block' }} />
-            <div style={{ fontSize: '9px', marginTop: '2px', color: '#555' }}>
+            <div style={{ fontSize: '9px', marginTop: '2px', color: '#000' }}>
               {(isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id) ? settings.bill_barcode_settings.dc_upi_id : settings.bill_barcode_settings.upi_id}
             </div>
           </div>
@@ -452,8 +452,8 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
         {/* ═══ TERMS ═══ */}
         {termsConditions && (
           <>
-            <div style={{ borderBottom: '1px dashed #999', margin: '4px 0' }} />
-            <div style={{ fontSize: '9px', color: '#555', lineHeight: '1.35', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            <div style={{ borderBottom: '1px dashed #000', margin: '4px 0' }} />
+            <div style={{ fontSize: '9px', color: '#000', lineHeight: '1.35', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
               <div style={{ fontWeight: 700, marginBottom: '1px', color: '#000' }}>Terms & Conditions</div>
               {termsConditions}
             </div>
@@ -463,7 +463,7 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
         {/* ═══ NOTE ═══ */}
         {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
           <>
-            <div style={{ borderBottom: '1px dashed #999', margin: '4px 0' }} />
+            <div style={{ borderBottom: '1px dashed #000', margin: '4px 0' }} />
             <div style={{ fontSize: '10px', lineHeight: '1.3' }}>
               <span style={{ fontWeight: 800 }}>Note: </span>
               <span style={{ whiteSpace: 'pre-wrap' }}>{notes.trim()}</span>
@@ -472,7 +472,7 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
         )}
 
         {/* ═══ FOOTER ═══ */}
-        <div style={{ borderBottom: '2px dashed #555', margin: '6px 0' }} />
+        <div style={{ borderBottom: '2px dashed #000', margin: '6px 0' }} />
         <div style={{ textAlign: 'center', margin: '6px 0' }}>
           <div style={{
             fontSize: '13px',
@@ -485,16 +485,16 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
         </div>
 
         {settings?.bill_barcode_settings?.footer_text && (
-          <div style={{ textAlign: 'center', fontSize: '9px', marginTop: '2px', whiteSpace: 'pre-wrap', color: '#555' }}>
+          <div style={{ textAlign: 'center', fontSize: '9px', marginTop: '2px', whiteSpace: 'pre-wrap', color: '#000' }}>
             {settings.bill_barcode_settings.footer_text}
           </div>
         )}
 
-        <div style={{ borderBottom: '1px solid #ccc', margin: '4px 0' }} />
-        <div style={{ textAlign: 'center', fontSize: '8px', color: '#999', marginTop: '2px' }}>
+        <div style={{ borderBottom: '1px solid #000', margin: '4px 0' }} />
+        <div style={{ textAlign: 'center', fontSize: '8px', color: '#000', marginTop: '2px' }}>
           Powered by Ezzy ERP
         </div>
-        <div style={{ textAlign: 'center', fontSize: '7px', color: '#bbb', marginTop: '1px' }}>
+        <div style={{ textAlign: 'center', fontSize: '7px', color: '#000', marginTop: '1px' }}>
           {format(date, 'dd-MM-yyyy HH:mm:ss')}
         </div>
       </div>
