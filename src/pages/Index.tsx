@@ -612,7 +612,7 @@ const DesktopDashboard = () => {
     <>
     <TooltipProvider>
     <div 
-      className="space-y-6 bg-background min-h-full"
+      className="w-full px-6 py-4 space-y-4 bg-background min-h-full"
       onContextMenu={handlePageContextMenu}
     >
       {/* Desktop Context Menu */}
@@ -744,8 +744,8 @@ const DesktopDashboard = () => {
         )}
       </div>
 
-      {/* Main Content Grid with New Updates Sidebar */}
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-4">
+      {/* Main Content — Full Width */}
+      <div className="space-y-4">
 
         {/* Left side - Metric cards */}
         {!hasLoaded ? (
