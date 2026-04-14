@@ -201,7 +201,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
           <tbody>
             {items.map((item, i) => (
               <React.Fragment key={i}>
-                <tr style={{ borderBottom: '0.5px dotted #888' }}>
+                <tr style={{ borderBottom: '0.5px dotted #000' }}>
                   <td style={{ padding: '2px 0', lineHeight: '1.3', wordBreak: 'break-word', fontWeight: 700 }}>
                     {item.particulars.length > 20 ? item.particulars.substring(0, 18) + '..' : item.particulars}
                     {item.barcode && <div style={{ fontSize: '11px' }}>BC:{item.barcode}</div>}
