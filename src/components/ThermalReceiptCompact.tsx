@@ -204,7 +204,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
                 <tr style={{ borderBottom: '0.5px dotted #000' }}>
                   <td style={{ padding: '2px 0', lineHeight: '1.3', wordBreak: 'break-word', fontWeight: 700 }}>
                     {item.particulars.length > 20 ? item.particulars.substring(0, 18) + '..' : item.particulars}
-                    {item.barcode && <div style={{ fontSize: '11px' }}>BC:{item.barcode}</div>}
+                    {item.barcode && <div style={{ fontSize: '13px', fontWeight: 900 }}>BC:{item.barcode}</div>}
                   </td>
                   <td style={{ textAlign: 'center', padding: '2px 0', fontWeight: 900 }}>{item.qty}</td>
                   <td style={{ textAlign: 'right', padding: '2px 0' }}>{fmtAmt(item.rate)}</td>
@@ -219,7 +219,8 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
 
         {/* TOTALS */}
         <div style={{ fontSize: '13px' }}>
-          <div style={row}><span>SubTotal ({totalQty} items)</span><span><b>₹{fmtAmt(subTotal)}</b></span></div>
+          <div style={row}><span style={{ fontWeight: 900 }}>Total Items: {items.length}</span><span style={{ fontWeight: 900 }}>Total Qty: {totalQty}</span></div>
+          <div style={row}><span>Subtotal</span><span><b>₹{fmtAmt(subTotal)}</b></span></div>
           {discount > 0 && <div style={row}><span>Discount</span><span><b>-₹{fmtAmt(discount)}</b></span></div>}
           <div style={{ borderTop: '1px dashed #000', margin: '2px 0' }} />
           <div style={row}><span>Net Amount</span><span><b>₹{fmtAmt(netAmount)}</b></span></div>
@@ -322,8 +323,8 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
         {termsConditions && (
           <>
             <div style={singleLine} />
-            <div style={{ fontSize: '13px', fontWeight: 'bold', textAlign: 'center', marginBottom: '2px' }}>TERMS & CONDITIONS</div>
-            <div style={{ fontSize: '12px', lineHeight: '1.4', whiteSpace: 'pre-wrap', wordBreak: 'break-word', textAlign: 'left' }}>{termsConditions}</div>
+            <div style={{ fontSize: '14px', fontWeight: 900, textAlign: 'center', marginBottom: '2px' }}>Terms & Conditions</div>
+            <div style={{ fontSize: '13px', fontWeight: 700, lineHeight: '1.4', whiteSpace: 'pre-wrap', wordBreak: 'break-word', textAlign: 'left' }}>{termsConditions}</div>
           </>
         )}
 
