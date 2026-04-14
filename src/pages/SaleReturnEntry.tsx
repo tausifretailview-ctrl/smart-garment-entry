@@ -763,47 +763,62 @@ export default function SaleReturnEntry() {
 
         if (returnNumberError) throw returnNumberError;
 
-        const { data: returnData, error: returnError } = await supabase
-          .from("sale_returns")
-          .insert({
-            return_number: returnNumber,
-            organization_id: currentOrganization?.id,
-            customer_id: selectedCustomer || null,
-            customer_name: customer?.customer_name || "Walk-in Customer",
-            original_sale_number: originalSaleNumber || null,
-            return_date: returnDate,
-            gross_amount: totals.grossAmount,
-            gst_amount: totals.gstAmount,
-            net_amount: totals.netAmount,
-            notes,
-          })
-          .select()
-          .single();
+        let createdReturnId: string | null = null;
+        try {
+          const { data: returnData, error: returnError } = await supabase
+            .from("sale_returns")
+            .insert({
+              return_number: returnNumber,
+              organization_id: currentOrganization?.id,
+              customer_id: selectedCustomer || null,
+              customer_name: customer?.customer_name || "Walk-in Customer",
+              original_sale_number: originalSaleNumber || null,
+              return_date: returnDate,
+              gross_amount: totals.grossAmount,
+              gst_amount: totals.gstAmount,
+              net_amount: totals.netAmount,
+              notes,
+            })
+            .select()
+            .single();
 
-        if (returnError) throw returnError;
+          if (returnError) throw returnError;
+          createdReturnId = returnData.id;
 
-        const itemsToInsert = returnItems.map((item) => ({
-          return_id: returnData.id,
-          product_id: item.productId,
-          variant_id: item.variantId,
-          product_name: item.productName,
-          size: item.size,
-          barcode: item.barcode,
-          color: item.color || null,
-          quantity: item.quantity,
-          unit_price: item.unitPrice,
-          gst_percent: item.gstPercent,
-          line_total: item.lineTotal,
-          hsn_code: item.hsnCode || null,
-        }));
+          const itemsToInsert = returnItems.map((item) => ({
+            return_id: returnData.id,
+            product_id: item.productId,
+            variant_id: item.variantId,
+            product_name: item.productName,
+            size: item.size,
+            barcode: item.barcode,
+            color: item.color || null,
+            quantity: item.quantity,
+            unit_price: item.unitPrice,
+            gst_percent: item.gstPercent,
+            line_total: item.lineTotal,
+            hsn_code: item.hsnCode || null,
+          }));
 
-        const { error: itemsError } = await supabase
-          .from("sale_return_items")
-          .insert(itemsToInsert);
+          const { error: itemsError } = await supabase
+            .from("sale_return_items")
+            .insert(itemsToInsert);
 
-        if (itemsError) throw itemsError;
+          if (itemsError) throw itemsError;
 
-        toast({ title: "Success", description: `Sale return ${returnData.return_number} saved successfully` });
+          toast({ title: "Success", description: `Sale return ${returnData.return_number} saved successfully` });
+        } catch (innerError) {
+          // Clean up orphan parent if items failed
+          if (createdReturnId) {
+            try {
+              await supabase.from("sale_return_items").delete().eq("return_id", createdReturnId);
+              await supabase.from("sale_returns").delete().eq("id", createdReturnId);
+            } catch (cleanupErr) {
+              console.error("Cleanup failed:", cleanupErr);
+            }
+          }
+          throw innerError;
+        }
       }
 
       navigate("/sale-returns");
