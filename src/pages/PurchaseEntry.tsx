@@ -2048,6 +2048,89 @@ const PurchaseEntry = () => {
     setImeiScanItem(null);
   };
 
+  // Handle Roll Entry confirmation — each roll becomes a variant with unique barcode
+  const handleRollEntryConfirm = async (rolls: Array<{ color: string; meters: number }>) => {
+    if (!rollEntryProduct || !currentOrganization) return;
+
+    try {
+      const newRows: LineItem[] = [];
+      const product = rollEntryProduct;
+      const discountPercent = (() => {
+        const pdt = product.purchase_discount_type;
+        const pdv = product.purchase_discount_value || 0;
+        if (pdv > 0 && (!pdt || pdt === 'percent')) return pdv;
+        return 0;
+      })();
+
+      for (let idx = 0; idx < rolls.length; idx++) {
+        const roll = rolls[idx];
+        const rollBarcode = isAutoBarcode ? await generateCentralizedBarcode() : '';
+
+        // Create a new product_variant for this roll
+        const { data: newVariant, error: varError } = await supabase
+          .from('product_variants')
+          .insert({
+            organization_id: currentOrganization.id,
+            product_id: product.id,
+            size: roll.meters.toString(),
+            color: roll.color || null,
+            barcode: rollBarcode,
+            pur_price: product.default_pur_price || 0,
+            sale_price: product.default_sale_price || 0,
+            mrp: 0,
+            stock_qty: 0,
+            active: true,
+          })
+          .select('id')
+          .single();
+
+        if (varError) throw varError;
+
+        const purPrice = product.default_pur_price || 0;
+        const subTotal = roll.meters * purPrice;
+        const discAmount = subTotal * (discountPercent / 100);
+
+        newRows.push({
+          temp_id: Date.now().toString() + Math.random() + idx,
+          product_id: product.id,
+          sku_id: newVariant.id,
+          product_name: product.product_name,
+          size: roll.meters.toString(),
+          qty: roll.meters,
+          pur_price: purPrice,
+          sale_price: product.default_sale_price || 0,
+          mrp: 0,
+          gst_per: product.purchase_gst_percent || product.gst_per || 0,
+          hsn_code: product.hsn_code || "",
+          barcode: rollBarcode,
+          discount_percent: discountPercent,
+          line_total: subTotal - discAmount,
+          brand: product.brand || "",
+          category: product.category || "",
+          color: roll.color || "",
+          style: product.style || "",
+          uom: 'MTR',
+        });
+      }
+
+      setLineItems(prev => [...prev, ...newRows]);
+
+      toast({
+        title: "Rolls Added",
+        description: `${rolls.length} rolls (${rolls.reduce((s, r) => s + r.meters, 0).toFixed(1)} MTR) added with individual barcodes`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: `Failed to create roll variants: ${error.message}`,
+        variant: "destructive",
+      });
+    }
+
+    setShowRollEntryDialog(false);
+    setRollEntryProduct(null);
+  };
+
   const removeLineItem = (temp_id: string) => {
     setLineItems((items) => items.filter((item) => item.temp_id !== temp_id));
   };
