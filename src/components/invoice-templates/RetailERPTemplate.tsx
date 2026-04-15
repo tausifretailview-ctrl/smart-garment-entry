@@ -253,18 +253,16 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
   // Determine columns
   const showHSNCol = showHSN;
-  const showGSTCol = showGSTBreakdown;
 
-  // Build column config
+  // Build column config — GST column removed for clean retail look
   const cols: { key: string; label: string; width: string; align: "center" | "left" | "right" }[] = [
     { key: "sr", label: "SN", width: "5%", align: "center" },
-    { key: "description", label: "Description", width: showHSNCol && showGSTCol ? "28%" : showHSNCol || showGSTCol ? "31%" : "38%", align: "left" },
+    { key: "description", label: "Description", width: showHSNCol ? "35%" : "42%", align: "left" },
     { key: "size", label: "Size", width: "8%", align: "center" },
   ];
   if (showHSNCol) cols.push({ key: "hsn", label: "HSN", width: "9%", align: "center" });
   cols.push({ key: "qty", label: "Qty", width: "7%", align: "center" });
   cols.push({ key: "rate", label: "Rate", width: "12%", align: "right" });
-  if (showGSTCol) cols.push({ key: "gst", label: "GST %", width: "7%", align: "center" });
   cols.push({ key: "amount", label: "Amount", width: "14%", align: "right" });
 
   const cellBase: React.CSSProperties = {
