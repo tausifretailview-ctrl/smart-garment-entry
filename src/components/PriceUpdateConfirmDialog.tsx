@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -54,6 +54,11 @@ export function PriceUpdateConfirmDialog({
   const [selectedItems, setSelectedItems] = useState<Set<string>>(
     new Set(priceChanges.map((c) => `${c.sku_id}-${c.field}`))
   );
+
+  // Re-sync selection when priceChanges prop updates (dialog may stay mounted)
+  useEffect(() => {
+    setSelectedItems(new Set(priceChanges.map((c) => `${c.sku_id}-${c.field}`)));
+  }, [priceChanges]);
 
   const handleToggle = (key: string) => {
     const newSet = new Set(selectedItems);
