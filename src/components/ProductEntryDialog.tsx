@@ -777,6 +777,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               barcode: "",
               active: true,
               opening_qty: 0,
+              purchase_qty: 1,
             });
           }
         } else {
@@ -793,6 +794,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 barcode: "",
                 active: true,
                 opening_qty: 0,
+                purchase_qty: 1,
               });
             }
           }
