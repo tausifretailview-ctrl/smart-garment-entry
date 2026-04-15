@@ -24,6 +24,9 @@ export const Layout = ({ children }: LayoutProps) => {
   useEscapeBack();
   const { orgNavigate } = useOrgNavigation();
 
+  // Apply saved UI scale on mount
+  useEffect(() => { initUIScale(); }, []);
+
   // Global Alt+key shortcuts for quick navigation
   useEffect(() => {
     const handleGlobalKeys = (e: KeyboardEvent) => {

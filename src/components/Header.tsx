@@ -1,4 +1,5 @@
 import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid, BoxIcon, ChevronDown, Plus } from "lucide-react";
+import { UIScaleSelector } from "@/components/UIScaleSelector";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
