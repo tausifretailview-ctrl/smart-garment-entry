@@ -4365,6 +4365,16 @@ const PurchaseEntry = () => {
           showPurPrice={sizeGridReviewMode}
         />
 
+        {/* Roll Entry Dialog for MTR products */}
+        <RollEntryDialog
+          open={showRollEntryDialog}
+          onClose={() => { setShowRollEntryDialog(false); setRollEntryProduct(null); }}
+          productName={rollEntryProduct?.product_name || ''}
+          colors={rollEntryColors}
+          rate={rollEntryRate}
+          onConfirm={handleRollEntryConfirm}
+        />
+
         {/* Print Barcode Dialog with Smart Selection */}
         <Dialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
           <DialogContent className="max-w-md">
