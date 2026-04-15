@@ -1,37 +1,38 @@
 
 
 ## Problem
-In the Sales Invoice product search dropdown, the same product appears multiple times when variants have different prices (e.g., ₹120 and ₹60 for "THERMAL ROLL BILL"). This happens because the purchase bill price update creates or updates a variant price, but the old-priced variant still exists. The search returns each variant separately.
+Service products (product_type = 'service') are not working properly in the **Sales Invoice** billing flow. They work in POS because POS has explicit service product handling, but SalesInvoice has several blockers:
+
+1. **Search query filters by stock > 0** (line 940): `.gt("stock_qty", 0)` excludes service products that have 0 stock
+2. **Barcode scan fallback requires stock** (line 1236): `v.stock_qty > 0` prevents barcode-scanned service products from being found
+3. **Stock validation blocks service products** (lines 1119-1132): `checkStock` is called before adding items — the hook already handles services correctly (returns unlimited), so this should work, but the item never reaches validation because it's filtered out earlier
+4. **Size grid variant display filters by stock** (around line 1089): `stock_qty` subtraction may show 0 for services
+
+POS already handles this correctly with product_type checks throughout its flow.
 
 ## Solution
-Deduplicate search results by `product_id + size + color` before displaying, keeping the variant with the most recent/correct price (higher stock or latest price).
+Update `SalesInvoice.tsx` to allow service (and combo) products through stock filters, matching the POS behavior.
 
-## Changes
+## Changes — `src/pages/SalesInvoice.tsx`
 
-### File: `src/pages/SalesInvoice.tsx`
+### 1. Search query: allow service/combo products regardless of stock
+**Line 940** — Change the variants query to include service/combo products alongside stock > 0 items. Since we can't easily do OR with product_type in a joined query, we'll remove the `.gt("stock_qty", 0)` filter and instead filter results client-side after fetching, keeping service/combo products and stock > 0 goods.
 
-After the search results are mapped and price-filtered (~line 992, before sorting), add deduplication logic:
+Replace `.gt("stock_qty", 0)` with a post-fetch filter that checks: if product_type is service/combo, keep it; otherwise require stock > 0.
 
+### 2. Barcode scan fallback: allow service products with 0 stock
+**Line 1236** — Change condition from `v.stock_qty > 0` to also allow service/combo product types:
 ```typescript
-// Deduplicate variants by product_id + size + color
-// Keep variant with higher stock, or if equal, lower sale_price (updated price)
-const dedupeMap = new Map<string, typeof results[0]>();
-for (const r of results) {
-  const key = `${r.variant.product_id}_${(r.variant.size || '').toLowerCase()}_${(r.variant.color || '').toLowerCase()}`;
-  const existing = dedupeMap.get(key);
-  if (!existing) {
-    dedupeMap.set(key, r);
-  } else {
-    // Prefer higher stock; if equal, prefer lower price (newer updated price)
-    if ((r.variant.stock_qty || 0) > (existing.variant.stock_qty || 0)) {
-      dedupeMap.set(key, r);
-    } else if ((r.variant.stock_qty || 0) === (existing.variant.stock_qty || 0) && (r.variant.sale_price || 0) < (existing.variant.sale_price || 0)) {
-      dedupeMap.set(key, r);
-    }
-  }
-}
-results = Array.from(dedupeMap.values());
+v.barcode?.toLowerCase() === searchTerm.toLowerCase() && 
+  (v.stock_qty > 0 || foundProduct?.product_type === 'service' || foundProduct?.product_type === 'combo')
 ```
+Since `foundProduct` isn't set yet at this point, check the parent product's type directly.
 
-This merges duplicate product rows in the dropdown so only one entry per unique product+size+color combination is shown, with the most relevant variant selected.
+### 3. Size grid variant display: show service variants regardless of stock
+In the variant filtering/display for the size grid dialog, ensure service product variants are shown even with 0 stock.
+
+### 4. Deduplication: keep service variants even with 0 stock
+In the deduplication logic (~line 990-1005), service products should not be penalized for having 0 stock.
+
+All changes are confined to `src/pages/SalesInvoice.tsx`. The stock validation hook (`useStockValidation`) already correctly handles service products by returning unlimited availability.
 
