@@ -249,6 +249,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
   // Sync selectedSizes and auto-generate variants when size_group_id or colors change
   useEffect(() => {
+    // Skip auto-generation for roll-wise MTR mode — variants are created via Generate button
+    if (rollWiseMtrEnabled && formData.uom === 'MTR') return;
     if (formData.size_group_id && sizeGroups.length > 0) {
       const group = sizeGroups.find(g => g.id === formData.size_group_id);
       if (group) {
@@ -777,6 +779,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               barcode: "",
               active: true,
               opening_qty: 0,
+              purchase_qty: 1,
             });
           }
         } else {
@@ -793,6 +796,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 barcode: "",
                 active: true,
                 opening_qty: 0,
+                purchase_qty: 1,
               });
             }
           }
