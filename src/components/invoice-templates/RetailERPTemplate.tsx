@@ -1,4 +1,5 @@
 import React from "react";
+import { numberToWords } from "@/lib/utils";
 
 interface InvoiceItem {
   sr: number;
@@ -15,6 +16,7 @@ interface InvoiceItem {
   category?: string;
   color?: string;
   style?: string;
+  gstPercent?: number;
 }
 
 interface RetailERPTemplateProps {
@@ -56,6 +58,7 @@ interface RetailERPTemplateProps {
   creditAmount?: number;
   paidAmount?: number;
   previousBalance?: number;
+  pointsRedeemedAmount?: number;
 
   qrCodeUrl?: string;
   upiId?: string;
@@ -98,6 +101,11 @@ interface RetailERPTemplateProps {
   showProductColor?: boolean;
   showProductBrand?: boolean;
   showProductStyle?: boolean;
+
+  stampImageBase64?: string;
+  stampPosition?: string;
+  stampSize?: string;
+  financerDetails?: any;
 }
 
 const B = "1px solid #000";
@@ -121,6 +129,12 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   subtotal,
   discount,
   saleReturnAdjust = 0,
+  taxableAmount,
+  cgstAmount,
+  sgstAmount,
+  igstAmount,
+  totalTax,
+  roundOff,
   grandTotal,
   paymentMethod,
   cashAmount,
@@ -129,13 +143,20 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   creditAmount,
   paidAmount = 0,
   previousBalance = 0,
+  pointsRedeemedAmount = 0,
   qrCodeUrl,
   termsConditions = [],
   notes,
+  showHSN = true,
+  showGSTBreakdown = true,
   amountWithDecimal = true,
   amountWithGrouping = true,
   format = "a5-vertical",
   salesman,
+  customHeaderText,
+  stampImageBase64,
+  stampPosition = "bottom-right",
+  stampSize = "medium",
 }) => {
   const isA4 = format === "a4";
   const MAX_ITEMS_PER_PAGE = isA4 ? 20 : 15;
@@ -172,14 +193,37 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   }
 
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
-  const subTotalBeforeDiscount = items.reduce((s, i) => s + (i.rate * i.qty), 0);
-  const totalDiscount = subTotalBeforeDiscount - grandTotal - saleReturnAdjust;
-  const billTotal = grandTotal;
-  const receivedToday = paidAmount;
-  const currentBalance = billTotal - receivedToday;
-  const totalDue = currentBalance + previousBalance;
 
-  // Mix payment breakdown
+  // GST breakup calculation — group by rate
+  const gstBreakup: Record<number, { hsn: string; taxableValue: number; cgst: number; sgst: number; igst: number }> = {};
+  const isInterState = igstAmount > 0;
+
+  items.forEach((item) => {
+    const gstPct = item.gstPercent || 0;
+    if (gstPct > 0) {
+      const taxOnItem = (item.total * gstPct) / (100 + gstPct);
+      const taxableVal = item.total - taxOnItem;
+      if (!gstBreakup[gstPct]) {
+        gstBreakup[gstPct] = { hsn: item.hsn || "", taxableValue: 0, cgst: 0, sgst: 0, igst: 0 };
+      }
+      gstBreakup[gstPct].taxableValue += taxableVal;
+      if (isInterState) {
+        gstBreakup[gstPct].igst += taxOnItem;
+      } else {
+        gstBreakup[gstPct].cgst += taxOnItem / 2;
+        gstBreakup[gstPct].sgst += taxOnItem / 2;
+      }
+      if (!gstBreakup[gstPct].hsn && item.hsn) gstBreakup[gstPct].hsn = item.hsn;
+    }
+  });
+
+  const gstRates = Object.keys(gstBreakup).map(Number).sort((a, b) => a - b);
+  const hasGSTData = gstRates.length > 0;
+
+  // Calculate totals
+  const totalBeforeTax = Object.values(gstBreakup).reduce((s, v) => s + v.taxableValue, 0);
+
+  // Payment breakdown
   const paymentParts: string[] = [];
   if (cashAmount && cashAmount > 0) paymentParts.push(`Cash: ₹${fmt(cashAmount)}`);
   if (upiAmount && upiAmount > 0) paymentParts.push(`UPI: ₹${fmt(upiAmount)}`);
@@ -187,25 +231,46 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   if (creditAmount && creditAmount > 0) paymentParts.push(`Credit: ₹${fmt(creditAmount)}`);
   const mixPaymentBreakdown = paymentParts.length > 1 ? paymentParts.join(' | ') : '';
 
+  const billTotal = grandTotal;
+  const receivedToday = paidAmount;
+  const currentBalance = billTotal - receivedToday;
+  const totalDue = currentBalance + previousBalance;
+
   const pageW = isA4 ? "210mm" : "148mm";
   const pageH = isA4 ? "297mm" : "210mm";
   const pad = isA4 ? "10mm" : "5mm";
-  const fsBody = isA4 ? "12px" : "10px";
-  const fsHeader = isA4 ? "13px" : "9px";
-  const fsHeading = isA4 ? "12px" : "10px";
-  const fsTotals = isA4 ? "13px" : "11px";
+  const fsBody = isA4 ? "11px" : "9px";
+  const fsHeader = isA4 ? "12px" : "9px";
+  const fsHeading = isA4 ? "11px" : "9px";
+  const fsTotals = isA4 ? "12px" : "10px";
   const fsGrand = isA4 ? "14px" : "12px";
-  const headerFs = isA4 ? "20px" : "16px";
   const titleFs = isA4 ? "14px" : "11px";
-  const fsCustName = isA4 ? "14px" : "12px";
-  const fsCustDetail = isA4 ? "13px" : "11px";
-  const fsInvoiceNo = isA4 ? "14px" : "12px";
+  const fsCustName = isA4 ? "13px" : "11px";
+  const fsCustDetail = isA4 ? "12px" : "10px";
+  const fsInvoiceNo = isA4 ? "13px" : "11px";
 
-  const ROW_H = isA4 ? "26px" : "22px";
+  const ROW_H = isA4 ? "24px" : "20px";
+
+  // Determine columns
+  const showHSNCol = showHSN;
+  const showGSTCol = showGSTBreakdown;
+
+  // Build column config
+  const cols: { key: string; label: string; width: string; align: "center" | "left" | "right" }[] = [
+    { key: "sr", label: "SN", width: "5%", align: "center" },
+    { key: "description", label: "Description", width: showHSNCol && showGSTCol ? "28%" : showHSNCol || showGSTCol ? "31%" : "38%", align: "left" },
+    { key: "size", label: "Size", width: "8%", align: "center" },
+  ];
+  if (showHSNCol) cols.push({ key: "hsn", label: "HSN", width: "9%", align: "center" });
+  cols.push({ key: "qty", label: "Qty", width: "7%", align: "center" });
+  cols.push({ key: "rate", label: "Rate", width: "12%", align: "right" });
+  if (showGSTCol) cols.push({ key: "gst", label: "GST %", width: "7%", align: "center" });
+  cols.push({ key: "amount", label: "Amount", width: "14%", align: "right" });
+
   const cellBase: React.CSSProperties = {
-    borderLeft: B,
+    borderRight: B,
     borderBottom: B,
-    padding: isA4 ? "3px 6px" : "2px 5px",
+    padding: isA4 ? "2px 5px" : "1px 4px",
     fontSize: fsBody,
     verticalAlign: "middle",
     lineHeight: "1.3",
@@ -214,9 +279,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
     maxHeight: ROW_H,
     overflow: "hidden",
   };
-  const cellR: React.CSSProperties = { ...cellBase, textAlign: "right" };
-  const cellC: React.CSSProperties = { ...cellBase, textAlign: "center" };
-  const cellL: React.CSSProperties = { ...cellBase, textAlign: "left" };
+
+  const stampSizeMap: Record<string, string> = { small: "60px", medium: "90px", large: "120px" };
+  const stampDim = stampSizeMap[stampSize] || "90px";
 
   return (
     <div className="retail-erp-all-pages">
@@ -244,26 +309,27 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
           >
             <div style={{ border: B2, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", justifyContent: "space-between" }}>
 
-              {/* ===== HEADER ===== */}
-              <div style={{ borderBottom: B2, padding: isA4 ? "5px 10px 4px" : "3px 8px 3px", position: "relative" }}>
+              {/* ===== HEADER — Center Aligned ===== */}
+              <div style={{ borderBottom: B2, padding: isA4 ? "6px 10px 4px" : "4px 8px 3px", textAlign: "center", position: "relative" }}>
                 {logoUrl && (
                   <img
                     src={logoUrl}
                     alt="Logo"
                     style={{
-                      height: isA4 ? "80px" : "65px",
-                      maxWidth: isA4 ? "120px" : "100px",
+                      height: isA4 ? "70px" : "55px",
+                      maxWidth: isA4 ? "100px" : "80px",
                       objectFit: "contain",
                       position: "absolute",
-                      right: "10px",
-                      top: "8px",
+                      left: "10px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
                     }}
                   />
                 )}
-                <div style={{ fontSize: isA4 ? "24px" : "20px", fontWeight: "900", textTransform: "uppercase", letterSpacing: "1.5px", color: "#000" }}>
+                <div style={{ fontSize: isA4 ? "26px" : "20px", fontWeight: "900", textTransform: "uppercase", letterSpacing: "2px", color: "#000" }}>
                   {businessName}
                 </div>
-                <div style={{ fontSize: isA4 ? "12px" : "9px", marginTop: "3px", textTransform: "uppercase", lineHeight: 1.5, fontWeight: "600", color: "#111" }}>
+                <div style={{ fontSize: isA4 ? "12px" : "9px", marginTop: "2px", lineHeight: 1.5, fontWeight: "600", color: "#111" }}>
                   {address}
                 </div>
                 <div style={{ fontSize: isA4 ? "12px" : "9px", lineHeight: 1.4, fontWeight: "600", color: "#111" }}>
@@ -271,62 +337,84 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   {email && ` | ${email}`}
                 </div>
                 {gstNumber && (
-                  <div style={{ fontSize: isA4 ? "12px" : "9px", fontWeight: "bold", color: "#000" }}>GSTIN: {gstNumber}</div>
+                  <div style={{ fontSize: isA4 ? "12px" : "9px", fontWeight: "bold", color: "#000", marginTop: "1px" }}>GSTIN: {gstNumber}</div>
+                )}
+                {customHeaderText && (
+                  <div style={{ fontSize: isA4 ? "10px" : "8px", color: "#333", marginTop: "1px" }}>{customHeaderText}</div>
                 )}
               </div>
 
-              {/* ===== TAX INVOICE ===== */}
-              <div style={{ textAlign: "center", fontWeight: "bold", fontSize: titleFs, borderBottom: B, padding: "0px 0", lineHeight: "1.1", margin: 0 }}>
+              {/* ===== TAX INVOICE — flush, no gap ===== */}
+              <div style={{ textAlign: "center", fontWeight: "bold", fontSize: titleFs, borderBottom: B2, padding: "1px 0", lineHeight: "1.2", margin: 0, textTransform: "uppercase", letterSpacing: "1px" }}>
                 {itemPages.length > 1
                   ? `TAX INVOICE${pageIndex > 0 ? ` (Page ${pageIndex + 1} of ${itemPages.length})` : ''}`
                   : 'TAX INVOICE'}
               </div>
 
-              {/* ===== BILL TO + INVOICE INFO ===== */}
-              <div style={{ display: "flex", borderBottom: B, fontSize: fsHeader, lineHeight: 1.3 }}>
+              {/* ===== BILL TO + INVOICE INFO — boxed sub-grid ===== */}
+              <div style={{ display: "flex", borderBottom: B2, fontSize: fsHeader, lineHeight: 1.3 }}>
                 <div style={{ flex: 1, padding: isA4 ? "2px 8px" : "2px 6px", borderRight: B }}>
-                  <div style={{ fontWeight: "bold" }}>BILL TO:</div>
+                  <div style={{ fontWeight: "bold", fontSize: isA4 ? "10px" : "8px" }}>BILL TO:</div>
                   <div style={{ fontWeight: "bold", fontSize: fsCustName }}>{customerName || "Walk-in Customer"}</div>
                   {customerAddress && <div style={{ fontSize: fsCustDetail }}>{customerAddress}</div>}
                   {customerMobile && <div style={{ fontSize: fsCustDetail }}>Ph: {customerMobile}</div>}
                   {customerGSTIN && <div style={{ fontSize: fsCustDetail }}>GSTIN: {customerGSTIN}</div>}
                 </div>
-                <div style={{ width: "40%", padding: isA4 ? "2px 8px" : "2px 6px" }}>
-                  <div style={{ fontSize: fsInvoiceNo, fontWeight: "bold" }}>Invoice No: {invoiceNumber}</div>
-                  <div style={{ fontSize: fsCustDetail }}>
-                    <strong>Date:</strong> {invoiceDate.toLocaleDateString("en-IN")}
-                    {invoiceTime && ` ${invoiceTime}`}
+                <div style={{ width: "40%", padding: "0" }}>
+                  <div style={{ display: "flex", borderBottom: B }}>
+                    <div style={{ flex: 1, padding: isA4 ? "2px 8px" : "2px 6px", fontWeight: "bold", fontSize: fsInvoiceNo }}>
+                      Invoice No: {invoiceNumber}
+                    </div>
                   </div>
-                  {salesman && <div style={{ fontSize: fsCustDetail }}><strong>Salesman:</strong> {salesman}</div>}
-                  {paymentMethod && (
-                    <div style={{ fontSize: fsCustDetail }}><strong>Payment:</strong> {paymentMethod}</div>
+                  <div style={{ display: "flex", borderBottom: B }}>
+                    <div style={{ flex: 1, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: fsCustDetail }}>
+                      <strong>Date:</strong> {invoiceDate.toLocaleDateString("en-IN")}
+                      {invoiceTime && ` ${invoiceTime}`}
+                    </div>
+                  </div>
+                  {gstNumber && (
+                    <div style={{ display: "flex", borderBottom: B }}>
+                      <div style={{ flex: 1, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: fsCustDetail }}>
+                        <strong>State Code:</strong> {gstNumber.substring(0, 2)}
+                      </div>
+                    </div>
                   )}
-                  {mixPaymentBreakdown && (
-                    <div style={{ fontSize: isA4 ? "10px" : "8px", marginTop: "2px" }}>
-                      {mixPaymentBreakdown}
+                  {salesman && (
+                    <div style={{ display: "flex" }}>
+                      <div style={{ flex: 1, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: fsCustDetail }}>
+                        <strong>Salesman:</strong> {salesman}
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* ===== ITEMS TABLE ===== */}
-              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+              {/* ===== ITEMS TABLE — Full Grid ===== */}
+              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", flex: 1 }}>
                 <colgroup>
-                  <col style={{ width: "6%" }} />
-                  <col style={{ width: "34%" }} />
-                  <col style={{ width: "16%" }} />
-                  <col style={{ width: "8%" }} />
-                  <col style={{ width: "16%" }} />
-                  <col style={{ width: "20%" }} />
+                  {cols.map((c) => (
+                    <col key={c.key} style={{ width: c.width }} />
+                  ))}
                 </colgroup>
                 <thead>
                   <tr style={{ height: isA4 ? "22px" : "18px" }}>
-                    <th style={{ ...cellC, borderTop: "none", borderBottom: B2, fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f0f0f0", padding: "2px 4px", width: "6%" }}>SR.</th>
-                    <th style={{ ...cellL, borderTop: "none", borderBottom: B2, fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f0f0f0", padding: "2px 4px" }}>Description</th>
-                    <th style={{ ...cellC, borderTop: "none", borderBottom: B2, fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f0f0f0", padding: "2px 4px" }}>Barcode</th>
-                    <th style={{ ...cellC, borderTop: "none", borderBottom: B2, fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f0f0f0", padding: "2px 4px" }}>Qty</th>
-                    <th style={{ ...cellR, borderTop: "none", borderBottom: B2, fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f0f0f0", padding: "2px 4px" }}>Rate</th>
-                    <th style={{ ...cellR, borderTop: "none", borderBottom: B2, fontWeight: "bold", fontSize: fsHeading, borderRight: "none", backgroundColor: "#f0f0f0", padding: "2px 4px" }}>Amount</th>
+                    {cols.map((c, ci) => (
+                      <th
+                        key={c.key}
+                        style={{
+                          ...cellBase,
+                          textAlign: c.align,
+                          borderTop: "none",
+                          borderBottom: B2,
+                          fontWeight: "bold",
+                          fontSize: fsHeading,
+                          backgroundColor: "#f0f0f0",
+                          borderRight: ci === cols.length - 1 ? "none" : B,
+                        }}
+                      >
+                        {c.label}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -335,164 +423,288 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     const srNo = item ? pageStartSr + srCounter : null;
                     return (
                       <tr key={idx} style={{ height: ROW_H }}>
-                        <td style={{ ...cellC, width: "6%" }}>{srNo || "\u00A0"}</td>
-                        <td style={{ ...cellL, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {item ? (
-                            <>
-                              {item.particulars}
-                              {(item.brand || item.size || item.color) && (
-                                <span style={{ fontSize: "11px", color: "#000", fontWeight: "600", marginLeft: "4px" }}>
-                                  ({[item.brand, item.size, item.color].filter(Boolean).join(" | ")})
-                                </span>
-                              )}
-                            </>
-                          ) : "\u00A0"}
-                        </td>
-                        <td style={{ ...cellC, fontSize: "10px" }}>{item?.barcode || "\u00A0"}</td>
-                        <td style={cellC}>{item ? item.qty : "\u00A0"}</td>
-                        <td style={cellR}>{item ? fmt(item.rate) : "\u00A0"}</td>
-                        <td style={{ ...cellR, borderRight: "none" }}>{item ? fmt(item.total) : "\u00A0"}</td>
+                        {cols.map((c, ci) => {
+                          const isLast = ci === cols.length - 1;
+                          const style: React.CSSProperties = {
+                            ...cellBase,
+                            textAlign: c.align,
+                            borderRight: isLast ? "none" : B,
+                          };
+                          let content: React.ReactNode = "\u00A0";
+                          if (item) {
+                            switch (c.key) {
+                              case "sr": content = srNo; break;
+                              case "description":
+                                content = (
+                                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>
+                                    {item.particulars}
+                                    {item.color && <span style={{ fontSize: "9px", marginLeft: "3px" }}>({item.color})</span>}
+                                  </span>
+                                );
+                                break;
+                              case "size": content = item.size || ""; break;
+                              case "hsn": content = item.hsn || ""; break;
+                              case "qty": content = item.qty; break;
+                              case "rate": content = fmt(item.rate); break;
+                              case "gst": content = item.gstPercent ? `${item.gstPercent}%` : ""; break;
+                              case "amount": content = fmt(item.total); break;
+                            }
+                          }
+                          return <td key={c.key} style={style}>{content}</td>;
+                        })}
                       </tr>
                     );
                   })}
 
                   {/* Totals row */}
                   <tr style={{ borderTop: B2 }}>
-                    <td colSpan={3} style={{ ...cellL, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: isA4 ? "28px" : "22px" }}>
+                    <td
+                      colSpan={cols.findIndex(c => c.key === "qty")}
+                      style={{ ...cellBase, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: isA4 ? "26px" : "20px", textAlign: "left" }}
+                    >
                       {isLastPage ? `Total Qty: ${totalQty}` : `Page ${pageIndex + 1} — Continued...`}
                     </td>
-                    <td style={{ ...cellR, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: isA4 ? "28px" : "22px" }}>
+                    <td style={{ ...cellBase, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, textAlign: "center" }}>
                       {isLastPage ? totalQty : pageItems.filter(Boolean).reduce((s, i) => s + (i?.qty || 0), 0)}
                     </td>
-                    <td style={{ ...cellR, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: isA4 ? "28px" : "22px" }}>
+                    <td
+                      colSpan={cols.length - cols.findIndex(c => c.key === "qty") - 2}
+                      style={{ ...cellBase, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, textAlign: "right" }}
+                    >
                       {isLastPage ? "Sub Total" : "Page Sub"}
                     </td>
-                    <td style={{ ...cellR, fontWeight: "bold", borderRight: "none", borderTop: B2, fontSize: fsTotals, height: isA4 ? "28px" : "22px" }}>
-                      {isLastPage
-                        ? `₹${fmt(subTotalBeforeDiscount)}`
-                        : `₹${fmt(pageItems.filter(Boolean).reduce((s, i) => s + (i?.total || 0), 0))}`}
+                    <td style={{ ...cellBase, fontWeight: "bold", borderRight: "none", borderTop: B2, fontSize: fsTotals, textAlign: "right" }}>
+                      ₹{isLastPage ? fmt(subtotal) : fmt(pageItems.filter(Boolean).reduce((s, i) => s + (i?.total || 0), 0))}
                     </td>
                   </tr>
                 </tbody>
               </table>
 
               {/* ===== FOOTER ===== */}
-              <div
-                className="retail-erp-footer"
-                style={{ display: "grid", gridTemplateColumns: "60% 40%", borderTop: B2, fontSize: fsBody }}
-              >
-                {/* Left Column */}
-                <div style={{ borderRight: B, padding: isA4 ? "6px 8px" : "4px 6px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-                  <div>
-                    {termsConditions.length > 0 && (
-                      <div>
-                        <strong style={{ textDecoration: "underline" }}>Terms & Conditions:</strong>
-                        <ul style={{ margin: "2px 0 0 14px", padding: 0, listStyleType: "disc", fontSize: isA4 ? "11px" : "8px", lineHeight: 1.5 }}>
-                          {termsConditions.map((t, i) => (
-                            <li key={i}>{t}</li>
-                          ))}
-                        </ul>
+              {isLastPage && (
+                <div className="retail-erp-footer" style={{ borderTop: B2, fontSize: fsBody }}>
+
+                  {/* GST Breakup + Amount in Words Row */}
+                  {hasGSTData && showGSTBreakdown && (
+                    <div style={{ borderBottom: B, display: "flex" }}>
+                      {/* GST Breakup Table — Left */}
+                      <div style={{ flex: 1, borderRight: B, padding: "2px" }}>
+                        <div style={{ fontWeight: "bold", fontSize: isA4 ? "10px" : "8px", padding: "1px 4px", textDecoration: "underline" }}>GST Breakup:</div>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: isA4 ? "10px" : "7px" }}>
+                          <thead>
+                            <tr>
+                              <th style={{ borderBottom: B, borderRight: B, padding: "1px 3px", textAlign: "center" }}>HSN/SAC</th>
+                              <th style={{ borderBottom: B, borderRight: B, padding: "1px 3px", textAlign: "right" }}>Taxable</th>
+                              {!isInterState ? (
+                                <>
+                                  <th style={{ borderBottom: B, borderRight: B, padding: "1px 3px", textAlign: "center" }}>CGST%</th>
+                                  <th style={{ borderBottom: B, borderRight: B, padding: "1px 3px", textAlign: "right" }}>CGST</th>
+                                  <th style={{ borderBottom: B, borderRight: B, padding: "1px 3px", textAlign: "center" }}>SGST%</th>
+                                  <th style={{ borderBottom: B, padding: "1px 3px", textAlign: "right" }}>SGST</th>
+                                </>
+                              ) : (
+                                <>
+                                  <th style={{ borderBottom: B, borderRight: B, padding: "1px 3px", textAlign: "center" }}>IGST%</th>
+                                  <th style={{ borderBottom: B, padding: "1px 3px", textAlign: "right" }}>IGST</th>
+                                </>
+                              )}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {gstRates.map((rate) => {
+                              const row = gstBreakup[rate];
+                              return (
+                                <tr key={rate}>
+                                  <td style={{ borderBottom: B, borderRight: B, padding: "1px 3px", textAlign: "center" }}>{row.hsn || "-"}</td>
+                                  <td style={{ borderBottom: B, borderRight: B, padding: "1px 3px", textAlign: "right" }}>{fmt(row.taxableValue)}</td>
+                                  {!isInterState ? (
+                                    <>
+                                      <td style={{ borderBottom: B, borderRight: B, padding: "1px 3px", textAlign: "center" }}>{(rate / 2).toFixed(1)}%</td>
+                                      <td style={{ borderBottom: B, borderRight: B, padding: "1px 3px", textAlign: "right" }}>{fmt(row.cgst)}</td>
+                                      <td style={{ borderBottom: B, borderRight: B, padding: "1px 3px", textAlign: "center" }}>{(rate / 2).toFixed(1)}%</td>
+                                      <td style={{ borderBottom: B, padding: "1px 3px", textAlign: "right" }}>{fmt(row.sgst)}</td>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <td style={{ borderBottom: B, borderRight: B, padding: "1px 3px", textAlign: "center" }}>{rate}%</td>
+                                      <td style={{ borderBottom: B, padding: "1px 3px", textAlign: "right" }}>{fmt(row.igst)}</td>
+                                    </>
+                                  )}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
                       </div>
-                    )}
-                    {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
-                      <div style={{
-                        marginTop: termsConditions.length > 0 ? "4px" : "0",
-                        paddingTop: termsConditions.length > 0 ? "3px" : "0",
-                        borderTop: termsConditions.length > 0 ? "1px dashed #ccc" : "none",
-                        fontSize: isA4 ? "11px" : "8px",
-                        fontWeight: "400",
-                        lineHeight: 1.4,
-                      }}>
-                        <strong>Note:</strong> <span style={{ fontStyle: "italic" }}>{notes}</span>
+
+                      {/* Totals — Right */}
+                      <div style={{ width: "40%", fontSize: fsTotals }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px" }}>
+                          <span>Total Qty</span><span>{totalQty}</span>
+                        </div>
+                        {totalBeforeTax > 0 && (
+                          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px" }}>
+                            <span>Total Before Tax</span><span>₹{fmt(totalBeforeTax)}</span>
+                          </div>
+                        )}
+                        {!isInterState && cgstAmount > 0 && (
+                          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px" }}>
+                            <span>Add: CGST</span><span>₹{fmt(cgstAmount)}</span>
+                          </div>
+                        )}
+                        {!isInterState && sgstAmount > 0 && (
+                          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px" }}>
+                            <span>Add: SGST</span><span>₹{fmt(sgstAmount)}</span>
+                          </div>
+                        )}
+                        {isInterState && igstAmount > 0 && (
+                          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px" }}>
+                            <span>Add: IGST</span><span>₹{fmt(igstAmount)}</span>
+                          </div>
+                        )}
+                        {discount > 0 && (
+                          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px" }}>
+                            <span>Discount</span><span>- ₹{fmt(discount)}</span>
+                          </div>
+                        )}
+                        {saleReturnAdjust > 0 && (
+                          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px", color: "#b45309" }}>
+                            <span>S/R Adjust</span><span>- ₹{fmt(saleReturnAdjust)}</span>
+                          </div>
+                        )}
+                        {roundOff !== 0 && (
+                          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px" }}>
+                            <span>Round Off</span><span>{roundOff > 0 ? "+" : ""}{fmt(roundOff)}</span>
+                          </div>
+                        )}
+                        <div style={{ display: "flex", justifyContent: "space-between", padding: isA4 ? "3px 8px" : "2px 6px", fontWeight: "900", fontSize: fsGrand, backgroundColor: "#e5e5e5" }}>
+                          <span>GRAND TOTAL</span><span>₹{fmt(grandTotal)}</span>
+                        </div>
                       </div>
-                    )}
-                    {qrCodeUrl && isLastPage && (
-                      <div style={{ marginTop: "6px" }}>
-                        <img src={qrCodeUrl} alt="QR Code" style={{ width: isA4 ? "140px" : "75px", height: isA4 ? "140px" : "75px", border: "1px solid #ccc" }} />
+                    </div>
+                  )}
+
+                  {/* If no GST data, show simple totals */}
+                  {(!hasGSTData || !showGSTBreakdown) && (
+                    <div style={{ display: "flex", borderBottom: B }}>
+                      <div style={{ flex: 1, borderRight: B, padding: isA4 ? "4px 8px" : "3px 6px" }}>&nbsp;</div>
+                      <div style={{ width: "40%", fontSize: fsTotals }}>
+                        {discount > 0 && (
+                          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px" }}>
+                            <span>Discount</span><span>- ₹{fmt(discount)}</span>
+                          </div>
+                        )}
+                        {roundOff !== 0 && (
+                          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px" }}>
+                            <span>Round Off</span><span>{roundOff > 0 ? "+" : ""}{fmt(roundOff)}</span>
+                          </div>
+                        )}
+                        <div style={{ display: "flex", justifyContent: "space-between", padding: isA4 ? "3px 8px" : "2px 6px", fontWeight: "900", fontSize: fsGrand, backgroundColor: "#e5e5e5" }}>
+                          <span>GRAND TOTAL</span><span>₹{fmt(grandTotal)}</span>
+                        </div>
                       </div>
-                    )}
-                    <div style={{ marginTop: "4px", fontSize: isA4 ? "10px" : "8px" }}>E. & O.E.</div>
+                    </div>
+                  )}
+
+                  {/* Amount in Words */}
+                  <div style={{ borderBottom: B, padding: isA4 ? "3px 8px" : "2px 6px", fontSize: isA4 ? "11px" : "8px", fontWeight: "600" }}>
+                    <strong>Amount in Words:</strong> {numberToWords(grandTotal)}
                   </div>
-                  <div style={{ marginTop: "12px", paddingTop: "20px" }}>
-                    <div style={{ borderTop: B, display: "inline-block", paddingTop: "2px", minWidth: "100px", textAlign: "center", fontSize: "9px" }}>
-                      Receiver's Signature
+
+                  {/* Payment + Mix breakdown */}
+                  {paymentMethod && (
+                    <div style={{ borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "11px" : "8px" }}>
+                      <strong>Payment:</strong> {paymentMethod}
+                      {mixPaymentBreakdown && ` (${mixPaymentBreakdown})`}
+                    </div>
+                  )}
+
+                  {/* Balance rows */}
+                  <div style={{ display: "flex", borderBottom: B }}>
+                    <div style={{ flex: 1, borderRight: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "11px" : "8px" }}>
+                      <strong>Received:</strong> ₹{fmt(receivedToday)}
+                    </div>
+                    <div style={{ flex: 1, borderRight: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "11px" : "8px" }}>
+                      <strong>Balance:</strong> <span style={{ color: currentBalance > 0 ? "#dc2626" : "#16a34a" }}>₹{fmt(currentBalance)}</span>
+                    </div>
+                    <div style={{ flex: 1, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "11px" : "8px" }}>
+                      <strong>Prev Bal:</strong> ₹{fmt(previousBalance)}
+                      {" | "}
+                      <strong>Total Due:</strong> <span style={{ color: totalDue > 0 ? "#dc2626" : "#16a34a", fontWeight: "bold" }}>₹{fmt(totalDue)}</span>
+                    </div>
+                  </div>
+
+                  {/* Terms + Signature */}
+                  <div style={{ display: "flex", minHeight: isA4 ? "70px" : "50px", position: "relative" }}>
+                    {/* Left — Terms */}
+                    <div style={{ flex: 1, borderRight: B, padding: isA4 ? "4px 8px" : "3px 6px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                      <div>
+                        {termsConditions.length > 0 && (
+                          <div>
+                            <strong style={{ textDecoration: "underline", fontSize: isA4 ? "10px" : "8px" }}>Terms & Conditions:</strong>
+                            <ul style={{ margin: "2px 0 0 14px", padding: 0, listStyleType: "disc", fontSize: isA4 ? "9px" : "7px", lineHeight: 1.5 }}>
+                              {termsConditions.map((t, i) => <li key={i}>{t}</li>)}
+                            </ul>
+                          </div>
+                        )}
+                        {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
+                          <div style={{ marginTop: "2px", fontSize: isA4 ? "9px" : "7px" }}>
+                            <strong>Note:</strong> <span style={{ fontStyle: "italic" }}>{notes}</span>
+                          </div>
+                        )}
+                        {qrCodeUrl && (
+                          <div style={{ marginTop: "4px" }}>
+                            <img src={qrCodeUrl} alt="QR" style={{ width: isA4 ? "80px" : "55px", height: isA4 ? "80px" : "55px", border: "1px solid #ccc" }} />
+                          </div>
+                        )}
+                        <div style={{ fontSize: isA4 ? "9px" : "7px", marginTop: "2px" }}>E. & O.E.</div>
+                      </div>
+                      <div style={{ marginTop: "8px" }}>
+                        <div style={{ borderTop: B, display: "inline-block", paddingTop: "2px", minWidth: "100px", textAlign: "center", fontSize: "9px" }}>
+                          Receiver's Signature
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right — Authorized Signatory */}
+                    <div style={{ width: "40%", padding: isA4 ? "4px 8px" : "3px 6px", display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "center", position: "relative" }}>
+                      {stampImageBase64 && (
+                        <img
+                          src={stampImageBase64}
+                          alt="Stamp"
+                          style={{
+                            width: stampDim,
+                            height: stampDim,
+                            objectFit: "contain",
+                            position: "absolute",
+                            top: "4px",
+                            ...(stampPosition === "bottom-left" ? { left: "8px" } : { right: "8px" }),
+                          }}
+                        />
+                      )}
+                      <div style={{ textAlign: "center", fontSize: isA4 ? "10px" : "8px", fontWeight: "bold", marginBottom: "auto" }}>
+                        For {businessName}
+                      </div>
+                      <div style={{ borderTop: B, paddingTop: "2px", textAlign: "center", fontSize: "9px", minWidth: "120px", marginTop: "auto" }}>
+                        Authorized Signatory
+                      </div>
                     </div>
                   </div>
                 </div>
+              )}
 
-                {/* Right Column */}
-                <div style={{ display: "flex", flexDirection: "column", fontSize: fsTotals }}>
-                  {isLastPage ? (
-                    <>
-                      {saleReturnAdjust > 0 && (
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: isA4 ? "28px" : "22px", borderBottom: B, padding: isA4 ? "0 8px" : "0 6px", color: "#b45309" }}>
-                          <span>S/R Adjust</span>
-                          <span>- ₹{fmt(saleReturnAdjust)}</span>
-                        </div>
-                      )}
-                      {totalDiscount > 0 && (
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: isA4 ? "28px" : "22px", borderBottom: B, padding: isA4 ? "0 8px" : "0 6px" }}>
-                          <span>Discount</span>
-                          <span>- ₹{fmt(totalDiscount)}</span>
-                        </div>
-                      )}
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: isA4 ? "34px" : "26px", borderBottom: B, borderTop: B2, padding: isA4 ? "0 8px" : "0 6px", fontWeight: "900", fontSize: isA4 ? "16px" : "13px", backgroundColor: "#d9d9d9" }}>
-                        <span>Bill Total</span>
-                        <span>₹{fmt(billTotal)}</span>
-                      </div>
-                      {/* Mix payment individual rows */}
-                      {cashAmount && cashAmount > 0 && paymentParts.length > 1 && (
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "24px", borderBottom: B, padding: "0 8px", fontSize: isA4 ? "11px" : "9px" }}>
-                          <span>Cash</span><span>₹{fmt(cashAmount)}</span>
-                        </div>
-                      )}
-                      {upiAmount && upiAmount > 0 && paymentParts.length > 1 && (
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "24px", borderBottom: B, padding: "0 8px", fontSize: isA4 ? "11px" : "9px" }}>
-                          <span>UPI</span><span>₹{fmt(upiAmount)}</span>
-                        </div>
-                      )}
-                      {cardAmount && cardAmount > 0 && paymentParts.length > 1 && (
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "24px", borderBottom: B, padding: "0 8px", fontSize: isA4 ? "11px" : "9px" }}>
-                          <span>Card</span><span>₹{fmt(cardAmount)}</span>
-                        </div>
-                      )}
-                      {creditAmount && creditAmount > 0 && paymentParts.length > 1 && (
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "24px", borderBottom: B, padding: "0 8px", fontSize: isA4 ? "11px" : "9px" }}>
-                          <span>Credit</span><span>₹{fmt(creditAmount)}</span>
-                        </div>
-                      )}
-                      {paymentParts.length <= 1 && (
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: isA4 ? "28px" : "22px", borderBottom: B, padding: isA4 ? "0 8px" : "0 6px" }}>
-                          <span>Received (Today)</span><span>₹{fmt(receivedToday)}</span>
-                        </div>
-                      )}
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: isA4 ? "28px" : "22px", borderBottom: B, padding: isA4 ? "0 8px" : "0 6px" }}>
-                        <span>Current Balance</span>
-                        <span style={{ color: currentBalance > 0 ? "#dc2626" : "#16a34a" }}>₹{fmt(currentBalance)}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: isA4 ? "28px" : "22px", borderBottom: B, padding: isA4 ? "0 8px" : "0 6px" }}>
-                        <span>Previous Balance</span>
-                        <span>₹{fmt(previousBalance)}</span>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: isA4 ? "28px" : "22px", borderBottom: B, padding: isA4 ? "0 8px" : "0 6px", fontWeight: "bold", fontSize: fsGrand, color: totalDue > 0 ? "#dc2626" : "#16a34a" }}>
-                        <span>TOTAL DUE</span>
-                        <span>₹{fmt(totalDue)}</span>
-                      </div>
-                    </>
-                  ) : (
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "34px", borderBottom: B, padding: "0 8px", fontWeight: "900", fontSize: isA4 ? "16px" : "13px", backgroundColor: "#d9d9d9" }}>
+              {/* Non-last page footer */}
+              {!isLastPage && (
+                <div className="retail-erp-footer" style={{ borderTop: B2, fontSize: fsBody }}>
+                  <div style={{ display: "flex" }}>
+                    <div style={{ flex: 1, borderRight: B, padding: "4px 8px" }}>&nbsp;</div>
+                    <div style={{ width: "40%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 8px", fontWeight: "900", fontSize: isA4 ? "14px" : "12px", backgroundColor: "#e5e5e5" }}>
                       <span>Page Total</span>
                       <span>₹{fmt(pageItems.filter(Boolean).reduce((s, i) => s + (i?.total || 0), 0))}</span>
                     </div>
-                  )}
-                  {/* Authorized Signatory */}
-                  <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "8px 8px 4px", minHeight: "40px", marginTop: "auto" }}>
-                    <div style={{ borderTop: B, paddingTop: "2px", textAlign: "center", fontSize: "9px", minWidth: "120px" }}>
-                      Authorized Signatory
-                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
             </div>
           </div>
@@ -508,7 +720,15 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             min-height: ${pageH} !important;
             padding: ${pad} !important;
           }
-          * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          * {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .retail-erp-invoice-template td,
+          .retail-erp-invoice-template th,
+          .retail-erp-invoice-template div {
+            border-color: #000 !important;
+          }
           .retail-erp-footer { page-break-inside: avoid; }
           .retail-erp-all-pages .retail-erp-invoice-template:not(:last-child) {
             page-break-after: always;
