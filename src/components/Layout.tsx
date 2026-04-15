@@ -13,6 +13,7 @@ import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { StatusBar } from "@/components/StatusBar";
 import { useEscapeBack } from "@/hooks/useEscapeBack";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { initUIScale } from "@/components/UIScaleSelector";
 
 interface LayoutProps {
   children: ReactNode;
