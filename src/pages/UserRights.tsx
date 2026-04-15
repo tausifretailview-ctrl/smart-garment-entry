@@ -172,6 +172,7 @@ const columnConfig = [
     id: "purchase_bill",
     name: "Purchase Bill Columns",
     columns: [
+      { id: "size", name: "Size" },
       { id: "gst", name: "GST%" },
       { id: "disc_percent", name: "Disc%" },
       { id: "mrp", name: "MRP" },
