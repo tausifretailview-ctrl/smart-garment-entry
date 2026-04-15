@@ -367,8 +367,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     </div>
                   </div>
                   <div style={{ display: "flex", borderBottom: B }}>
-                    <div style={{ flex: 1, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: fsCustDetail }}>
-                      <strong>Date:</strong> {invoiceDate.toLocaleDateString("en-IN")}
+                    <div style={{ flex: 1, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: fsInvoiceNo, fontWeight: "bold" }}>
+                      Date: {invoiceDate.toLocaleDateString("en-IN")}
                       {invoiceTime && ` ${invoiceTime}`}
                     </div>
                   </div>
@@ -408,7 +408,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           borderBottom: B2,
                           fontWeight: "bold",
                           fontSize: fsHeading,
-                          backgroundColor: "#f0f0f0",
+                          backgroundColor: "#333",
+                          color: "#fff",
                           borderRight: ci === cols.length - 1 ? "none" : B,
                         }}
                       >
@@ -641,8 +642,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       <div>
                         {termsConditions.length > 0 && (
                           <div>
-                            <strong style={{ textDecoration: "underline", fontSize: isA4 ? "10px" : "8px" }}>Terms & Conditions:</strong>
-                            <ul style={{ margin: "2px 0 0 14px", padding: 0, listStyleType: "disc", fontSize: isA4 ? "9px" : "7px", lineHeight: 1.5 }}>
+                            <strong style={{ textDecoration: "underline", fontSize: isA4 ? "11px" : "9px" }}>Terms & Conditions:</strong>
+                            <ul style={{ margin: "2px 0 0 14px", padding: 0, listStyleType: "disc", fontSize: isA4 ? "10px" : "8px", lineHeight: 1.5 }}>
                               {termsConditions.map((t, i) => <li key={i}>{t}</li>)}
                             </ul>
                           </div>
@@ -654,15 +655,10 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         )}
                         {qrCodeUrl && (
                           <div style={{ marginTop: "4px" }}>
-                            <img src={qrCodeUrl} alt="QR" style={{ width: isA4 ? "80px" : "55px", height: isA4 ? "80px" : "55px", border: "1px solid #ccc" }} />
+                            <img src={qrCodeUrl} alt="QR" style={{ width: isA4 ? "110px" : "85px", height: isA4 ? "110px" : "85px", border: "1px solid #ccc" }} />
                           </div>
                         )}
                         <div style={{ fontSize: isA4 ? "9px" : "7px", marginTop: "2px" }}>E. & O.E.</div>
-                      </div>
-                      <div style={{ marginTop: "8px" }}>
-                        <div style={{ borderTop: B, display: "inline-block", paddingTop: "2px", minWidth: "100px", textAlign: "center", fontSize: "9px" }}>
-                          Receiver's Signature
-                        </div>
                       </div>
                     </div>
 
