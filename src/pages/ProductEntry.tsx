@@ -2520,6 +2520,18 @@ const ProductEntry = () => {
               </div>
             </div>
 
+            {/* Roll-wise MTR info banner */}
+            {isRollWiseMtr && (
+              <div className="col-span-full">
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
+                  <span className="text-sm">🧵</span>
+                  <p className="text-xs text-amber-800 font-outfit">
+                    <span className="font-semibold">Roll-wise MTR mode:</span> Individual roll variants with meter lengths & unique barcodes will be created during Purchase Entry. Add colors here, then generate color variants below.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* ── 👟 Size Variants ────────────────────────── */}
             <div className="rounded-xl border-[1.5px] border-violet-200 bg-gradient-to-br from-violet-50/60 via-purple-50/30 to-fuchsia-50/20 p-4 space-y-3">
               {/* Section header */}
