@@ -1,40 +1,54 @@
 
 
-## Roll-wise MTR: Product Entry Adaptation
+## Fix: Price Update Not Persisting in Product Master
 
-When `roll_wise_mtr_entry` is enabled and a product's UOM is set to MTR, the Product Entry page should skip the size grid entirely — individual roll variants are created dynamically during Purchase Entry, not at product creation time.
+### Root Cause Analysis
 
-### Current Problem
-The screenshot shows that even for MTR products, the standard Size Grid appears with size columns (like "Free", "80"). For roll-wise MTR products, sizes represent individual roll lengths that are unknown until purchase time. The Size Group selector and size-wise variant generation are irrelevant.
+After auditing the full flow, I found **two issues**:
+
+1. **No row-count verification**: The `handlePriceUpdateConfirm` function in `PurchaseEntry.tsx` (line 2316) updates `product_variants` but never checks if rows were actually affected. Supabase returns no error when RLS blocks an update — it silently updates 0 rows. The user sees a "success" toast even when nothing changed.
+
+2. **Missing `organization_id` in WHERE clause**: The update uses only `.eq("id", skuId)` without organization scoping. While RLS should handle this, adding explicit `organization_id` filtering ensures correct behavior and follows the project's "Scoped Mutations" core rule.
+
+3. **Stale selection state in dialog**: `PriceUpdateConfirmDialog` initializes `selectedItems` via `useState` — if the dialog component stays mounted between opens, the selection won't reflect new `priceChanges`.
 
 ### Changes
 
-#### 1. `src/pages/ProductEntry.tsx` — Conditional Size Grid Skip for MTR Roll Products
+#### 1. `src/pages/PurchaseEntry.tsx` — `handlePriceUpdateConfirm`
 
-- Read `roll_wise_mtr_entry` from the already-fetched `purchase_settings` (line ~390). Store in a state variable like `rollWiseMtrEnabled`.
-- When `formData.uom === 'MTR'` AND `rollWiseMtrEnabled` is true:
-  - **Hide** the Size Group dropdown selector
-  - **Hide** the "Size-wise Quantity" grid section
-  - **Change** the "Generate Variants" button behavior: generate one variant per color with size = "Roll" (placeholder), instead of color × size matrix
-  - Show an info banner: "Roll-wise MTR mode: Individual roll variants with meter lengths will be created during Purchase Entry."
-- The variant table still shows (COLOR, PUR PRICE, SALE PRICE, BARCODE, ACTIVE) but without the SIZE column — or SIZE shows "Roll" as a fixed label.
+- Add `.eq("organization_id", currentOrganization.id)` to the update query
+- Add `.select()` with count check: if 0 rows returned, throw an error
+- Add console logging for debugging: log the `skuId` and updates being applied
+- On partial failure (some variants updated, some not), show a warning toast listing which ones failed
 
-#### 2. Variant Generation Logic (`handleGenerateSizeVariants`)
+#### 2. `src/components/PriceUpdateConfirmDialog.tsx` — Sync selection state
 
-- Add a branch at the top: if `rollWiseMtrEnabled && formData.uom === 'MTR'`:
-  - Skip size group requirement
-  - Create one variant per color with `size: "Roll"` (or empty)
-  - Each gets a unique barcode
-  - These serve as color placeholders; actual roll variants are added in Purchase Entry
-
-#### 3. Size Group Selector Visibility
-
-- Wrap the Size Group `<Select>` (around line 2079) in a condition: hide when `rollWiseMtrEnabled && formData.uom === 'MTR'`
-- Similarly hide the "Size-wise Quantity" section and custom size input
+- Add `useEffect` that re-initializes `selectedItems` whenever `priceChanges` prop changes, ensuring fresh selection state every time the dialog opens with new data
 
 ### Technical Details
+
+```typescript
+// Before (silent failure):
+const { error } = await supabase
+  .from("product_variants")
+  .update(updates)
+  .eq("id", skuId);
+
+// After (verified update):
+const { data, error } = await supabase
+  .from("product_variants")
+  .update(updates)
+  .eq("id", skuId)
+  .eq("organization_id", currentOrganization.id)
+  .select("id");
+
+if (error) throw error;
+if (!data || data.length === 0) {
+  failedUpdates.push(skuId);
+}
+```
+
 - No database changes needed
-- Uses existing `purchase_settings.roll_wise_mtr_entry` flag already fetched in `fetchDefaultSizeGroup`
-- Only affects Product Entry UI for organizations with the setting enabled AND products with UOM = MTR
-- All other UOM products continue with standard size grid behavior unchanged
+- Follows existing "Scoped Mutations" pattern
+- Audit trail already works via `audit_variant_price_changes` trigger (verified: PRICE_CHANGE logs exist in audit_logs)
 
