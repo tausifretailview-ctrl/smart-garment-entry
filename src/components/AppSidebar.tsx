@@ -37,8 +37,12 @@ import {
   ArrowRight,
   ChevronsLeft,
   ChevronsRight,
+  Monitor,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
+import { UIScaleSelector } from "@/components/UIScaleSelector";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -153,7 +157,19 @@ export function AppSidebar() {
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <SidebarContent className="font-sans text-[16px] text-white pt-0 mt-0 space-y-1">
+      <SidebarContent className="font-sans text-sm text-white pt-0 mt-0 space-y-0.5">
+        {/* Organization Context Badge */}
+        {currentOrganization && (
+          <div className="border-b border-sidebar-border py-2 px-3 flex items-center gap-2 min-h-[40px]">
+            <Building2 className="h-4 w-4 text-primary dark:text-[hsl(187,100%,42%)] flex-shrink-0" />
+            {open && (
+              <span className="text-xs font-semibold truncate dark:text-white text-sidebar-foreground">
+                {currentOrganization.name}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Platform Admin - Only visible to platform admins */}
         {isPlatformAdmin && (
           <SidebarGroup className="pt-0 first:pt-0">
@@ -1046,23 +1062,31 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroup>
         )}
-        {/* Sidebar lock toggle button */}
-        <SidebarGroup className="mt-auto pb-2">
+        {/* Display Settings & Lock */}
+        <SidebarGroup className="mt-auto pb-2 border-t border-sidebar-border pt-2">
           <SidebarMenu>
+            <SidebarMenuItem>
+              <div className="flex items-center gap-2 px-2">
+                <UIScaleSelector />
+                {open && (
+                  <span className="text-xs text-muted-foreground dark:text-white/50">Display</span>
+                )}
+              </div>
+            </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton
                 onClick={handleToggleLock}
                 className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] cursor-pointer opacity-60 hover:opacity-100 transition-opacity"
                 title={isLocked ? "Collapse sidebar" : "Lock sidebar open"}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   {isLocked ? (
                     <ChevronsLeft className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)] flex-shrink-0" />
                   ) : (
                     <ChevronsRight className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)] flex-shrink-0" />
                   )}
                   {open && (
-                    <span className="text-sm font-normal dark:text-white">
+                    <span className="text-xs font-normal dark:text-white">
                       {isLocked ? "Collapse" : "Lock open"}
                     </span>
                   )}
