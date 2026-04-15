@@ -1,55 +1,70 @@
 
 
-## Odoo-Inspired Sidebar Redesign
+## Roll-wise MTR Entry Feature
 
-Restyle the existing `AppSidebar.tsx` to achieve a compact, professional Odoo-like sidebar with active stripe indicators, tighter spacing, and a bottom Display Settings section.
+Fabric/textile businesses need to track individual rolls with specific meter lengths (e.g., Black: 76 MTR, 81 MTR; Cream: 77, 74, 90, 66 MTR). Each roll becomes its own variant with a unique barcode — identical to the existing IMEI "Unit-as-Variant" architecture but for meter-based rolls.
+
+## How It Works
+
+When enabled (per-organization setting), products with UOM = MTR will show a **Roll Entry dialog** instead of the standard size grid. The user enters individual roll lengths per color. Each roll creates a unique `product_variant` row with its own barcode and `stock_qty` matching the roll length.
+
+From the handwritten bill example:
+- Product: FLEXI NL
+- White: 76, 81 → 2 rolls, 2 variants
+- Cream: 77, 74, 90, 66 → 4 rolls, 4 variants  
+- Sky: 85 → 1 roll, 1 variant
+- Total: 7 rolls, 549 MTR
 
 ## Changes
 
-### 1. `src/components/AppSidebar.tsx` — Styling & Structure Overhaul
+### 1. Add Setting: `PurchaseSettings.roll_wise_mtr_entry`
 
-**Active State**: Replace `data-[active=true]:bg-primary data-[active=true]:text-primary-foreground` with a left-border active stripe approach:
-- Remove the `bg-primary` active background from all menu items
-- Add `data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary` to all `SidebarMenuButton` and `SidebarMenuSubButton` elements
+**File: `src/pages/Settings.tsx`**
+- Add `roll_wise_mtr_entry?: boolean` to the `PurchaseSettings` interface
+- Add a new checkbox in the Purchase tab (after the `size_grid_review_mode` section):
+  - Label: "Roll-wise Entry for MTR Products"
+  - Description: "When enabled, products with UOM = MTR show a roll entry dialog where each roll's individual meter length is entered. Each roll gets its own barcode and variant for per-roll stock tracking."
 
-**Compact Spacing**: 
-- Group headers: reduce padding from `p-2` to `py-1 px-2`
-- Group labels: change `text-[15px]` to `text-xs uppercase tracking-wider text-muted-foreground/60` for Odoo-style sub-headers (e.g., "MASTER", "INVENTORY", "SALES", "REPORTS")
-- Sub-items gap: reduce `gap-3` to `gap-2` throughout
+### 2. Create `RollEntryDialog` Component
 
-**Organization Context at Top**: Add a compact org name display at the very top of `SidebarContent` (before Platform Admin group):
-- Show `currentOrganization?.name` truncated in a small `Building2` icon + name bar
-- When collapsed, show only the `Building2` icon
-- Styled with `border-b border-sidebar-border py-2 px-3`
+**New file: `src/components/RollEntryDialog.tsx`**
 
-**Bottom Section**: Add UIScaleSelector (Monitor icon) alongside the existing lock toggle in the `mt-auto` footer group:
-- Import `UIScaleSelector` and render it as a sidebar menu item with Monitor icon + "Display" label
-- Place it above the collapse/lock toggle
+A dialog similar to `IMEIScanDialog` but for roll lengths:
+- **Header**: Product name, total rolls count, total meters
+- **Per-color sections**: Each color gets its own group
+- **Input rows**: One number input per roll (e.g., "76", "81"), with `+ Add Roll` button per color
+- **Auto-barcode**: Each roll gets a unique barcode via `generate_next_barcode` RPC
+- **Variant creation**: Each roll creates a `product_variant` with:
+  - `size`: The roll length as string (e.g., "76")
+  - `color`: The selected color
+  - `barcode`: Auto-generated unique barcode
+  - `stock_qty`: 0 (stock added via purchase_items trigger)
+- **Summary footer**: Shows "7 Rolls · 549 MTR · ₹23,607" style totals
+- **Enter key**: Advances focus to next input (same as IMEI pattern)
 
-**Colors**: Keep existing dark mode slate theme (`dark:bg-[hsl(213,32%,17%)]`), add `border-r border-sidebar-border` for light mode separation.
+### 3. Integrate into Purchase Entry
 
-**Icon Sizes**: Standardize all group header icons to `h-4 w-4` (currently `h-5 w-5`), sub-item icons stay `h-4 w-4`.
+**File: `src/pages/PurchaseEntry.tsx`**
+- Read `roll_wise_mtr_entry` from `settings.purchase_settings`
+- When a product is selected with UOM = MTR and `roll_wise_mtr_entry` is enabled:
+  - Instead of showing `SizeGridDialog`, show `RollEntryDialog`
+  - Pass the product's colors (from existing variants or the product itself)
+  - On confirm: create variants and add line items (one per roll, qty = roll_length in MTR)
+- The confirm handler follows the same pattern as `handleIMEIScanConfirm`:
+  - Create `product_variant` per roll with unique barcode
+  - Add one `LineItem` per roll with `qty` = roll meter length
 
-### 2. `src/index.css` — Active Stripe CSS
+### 4. Line Item Display
 
-Add sidebar-specific styles:
-```css
-/* Odoo-style active stripe for sidebar items */
-[data-sidebar] [data-active="true"] {
-  border-left: 3px solid hsl(var(--primary));
-  background: hsl(var(--primary) / 0.08);
-}
-```
+Each roll appears as a separate line in the purchase bill:
+- Product: FLEXI NL | Color: BLACK | Size: (roll barcode) | Qty: 76 | Rate: 43 | Amount: 3,268
 
-### 3. `src/components/UIScaleSelector.tsx` — Export Sidebar Variant
+## Technical Details
 
-Add an exported `UIScaleSidebarItem` component that renders as a `SidebarMenuButton` with Monitor icon + "Display" label (when expanded), triggering the same dropdown. This avoids duplicating state logic.
-
-### Technical Details
-- All permission checks and menu access logic remain untouched
-- The `collapsible="icon"` mode already handles mini sidebar (48px icon-only strip)
-- Hover expand/lock behavior preserved as-is
-- Group label styling changes are purely CSS class swaps — no structural changes to the Collapsible/CollapsibleTrigger tree
-- Approximately 40-50 class string replacements across the file (batch find-replace pattern)
-- Mobile sidebar (Sheet overlay) unaffected — changes target desktop only
+- **Setting scope**: Per-organization, stored in `organization_settings.purchase_settings.roll_wise_mtr_entry`
+- **UOM check**: Only triggers for products where `products.uom = 'MTR'`
+- **No schema changes**: Uses existing `product_variants` table — each roll is a variant with its meter length stored as size
+- **Barcode**: Uses existing `generate_next_barcode` RPC for auto-generation
+- **Existing orgs unaffected**: Setting defaults to `false`, so all current size-wise logic continues unchanged
+- **Stock tracking**: Each roll variant tracks its own stock (0 or roll_length after purchase)
 
