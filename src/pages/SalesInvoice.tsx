@@ -3011,7 +3011,7 @@ Thank you for choosing us!`;
                                 >
                                   <div className="flex flex-col gap-1 w-full">
                                     <div className="flex items-center justify-between">
-                                      <span className="font-medium">{customer.customer_name}</span>
+                                      <span className="font-medium uppercase">{customer.customer_name}</span>
                                       <div className="flex items-center gap-1.5">
                                         {advanceAmt > 0 && (
                                           <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-600">
