@@ -1,4 +1,5 @@
 import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid, BoxIcon, ChevronDown, Plus } from "lucide-react";
+import { UIScaleSelector } from "@/components/UIScaleSelector";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
@@ -331,6 +332,7 @@ export const Header = () => {
 
         {/* Right icons */}
         <div className="flex items-center gap-1">
+          <UIScaleSelector />
           <Button variant="ghost" size="icon" className="h-7 w-7 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent hidden md:flex">
             <Bell className="h-3.5 w-3.5" />
           </Button>

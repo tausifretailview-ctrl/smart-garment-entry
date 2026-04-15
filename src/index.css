@@ -1379,3 +1379,10 @@ input.no-uppercase {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
+
+/* UI Scale: Compact mode full-width enforcement */
+.scale-compact main {
+  max-width: 100% !important;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}

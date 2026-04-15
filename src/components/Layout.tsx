@@ -13,6 +13,7 @@ import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { StatusBar } from "@/components/StatusBar";
 import { useEscapeBack } from "@/hooks/useEscapeBack";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { initUIScale } from "@/components/UIScaleSelector";
 
 interface LayoutProps {
   children: ReactNode;
@@ -22,6 +23,9 @@ export const Layout = ({ children }: LayoutProps) => {
   const { isOpen, setIsOpen } = useKeyboardShortcuts("general");
   useEscapeBack();
   const { orgNavigate } = useOrgNavigation();
+
+  // Apply saved UI scale on mount
+  useEffect(() => { initUIScale(); }, []);
 
   // Global Alt+key shortcuts for quick navigation
   useEffect(() => {
