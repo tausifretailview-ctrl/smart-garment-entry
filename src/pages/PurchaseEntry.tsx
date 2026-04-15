@@ -2311,20 +2311,48 @@ const PurchaseEntry = () => {
         updatesBySkuId.set(change.sku_id, existing);
       }
       
-      // Update each variant
+      // Update each variant with organization scoping and row-count verification
+      const failedUpdates: string[] = [];
+      let successCount = 0;
+      
       for (const [skuId, updates] of updatesBySkuId) {
-        const { error } = await supabase
+        console.log('[PriceUpdate] Updating variant', skuId, 'with', updates);
+        const { data, error } = await supabase
           .from("product_variants")
           .update(updates)
-          .eq("id", skuId);
+          .eq("id", skuId)
+          .eq("organization_id", currentOrganization.id)
+          .select("id");
         
-        if (error) throw error;
+        if (error) {
+          console.error('[PriceUpdate] Error updating variant', skuId, error);
+          failedUpdates.push(skuId);
+        } else if (!data || data.length === 0) {
+          console.warn('[PriceUpdate] No rows updated for variant', skuId);
+          failedUpdates.push(skuId);
+        } else {
+          successCount++;
+        }
       }
       
-      toast({
-        title: "Prices Updated",
-        description: `Updated ${updatesBySkuId.size} product variant(s) in Product Master`,
-      });
+      if (failedUpdates.length > 0 && successCount > 0) {
+        toast({
+          title: "Partial Update",
+          description: `Updated ${successCount} variant(s), but ${failedUpdates.length} failed to update. Check console for details.`,
+          variant: "destructive",
+        });
+      } else if (failedUpdates.length > 0) {
+        toast({
+          title: "Update Failed",
+          description: `Failed to update ${failedUpdates.length} variant(s) in Product Master. Please try again.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Prices Updated",
+          description: `Updated ${successCount} product variant(s) in Product Master`,
+        });
+      }
     } catch (error: any) {
       toast({
         title: "Error",
