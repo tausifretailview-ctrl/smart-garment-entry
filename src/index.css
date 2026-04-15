@@ -1386,3 +1386,15 @@ input.no-uppercase {
   padding-left: 0.5rem;
   padding-right: 0.5rem;
 }
+
+/* Odoo-style active stripe for sidebar items */
+[data-sidebar] [data-active="true"] {
+  border-left: 3px solid hsl(var(--primary));
+  background: hsl(var(--primary) / 0.08);
+  color: hsl(var(--primary));
+}
+
+/* Compact sidebar spacing */
+[data-sidebar] [data-sidebar-menu-sub] {
+  gap: 0.125rem;
+}
