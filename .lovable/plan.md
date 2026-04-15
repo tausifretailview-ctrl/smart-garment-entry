@@ -1,38 +1,50 @@
 
 
 ## Problem
-Service products (product_type = 'service') are not working properly in the **Sales Invoice** billing flow. They work in POS because POS has explicit service product handling, but SalesInvoice has several blockers:
+The WhatsApp invoice link (public invoice view) is missing several details that appear on the POS print invoice:
 
-1. **Search query filters by stock > 0** (line 940): `.gt("stock_qty", 0)` excludes service products that have 0 stock
-2. **Barcode scan fallback requires stock** (line 1236): `v.stock_qty > 0` prevents barcode-scanned service products from being found
-3. **Stock validation blocks service products** (lines 1119-1132): `checkStock` is called before adding items — the hook already handles services correctly (returns unlimited), so this should work, but the item never reaches validation because it's filtered out earlier
-4. **Size grid variant display filters by stock** (around line 1089): `stock_qty` subtraction may show 0 for services
-
-POS already handles this correctly with product_type checks throughout its flow.
+1. **Customer Details**: `customer_phone`, `customer_address`, `customer_id` (for GSTIN lookup) — currently hardcoded as empty strings
+2. **Finance/EMI Details**: `sale_financer_details` table data not fetched at all
+3. **Salesman**: Not fetched from `sales` table
+4. **Notes**: Not fetched from `sales` table
+5. **Payment Amounts**: `cash_amount`, `card_amount`, `upi_amount`, `paid_amount`, `credit_amount` not fetched
+6. **Item Details**: `hsn_code`, `gst_percent`, `color` not fetched from `sale_items`
+7. **GST Amounts**: CGST/SGST/IGST not calculated (all set to 0)
+8. **Customer GSTIN**: Not fetched from `customers` table
+9. **Sale Return Adjust**: Not fetched
 
 ## Solution
-Update `SalesInvoice.tsx` to allow service (and combo) products through stock filters, matching the POS behavior.
+Update both the **edge function** (`get-public-invoice`) and the **frontend** (`PublicInvoiceView.tsx`) to include all missing data, matching POS print output.
 
-## Changes — `src/pages/SalesInvoice.tsx`
+## Changes
 
-### 1. Search query: allow service/combo products regardless of stock
-**Line 940** — Change the variants query to include service/combo products alongside stock > 0 items. Since we can't easily do OR with product_type in a joined query, we'll remove the `.gt("stock_qty", 0)` filter and instead filter results client-side after fetching, keeping service/combo products and stock > 0 goods.
+### 1. Edge Function: `supabase/functions/get-public-invoice/index.ts`
 
-Replace `.gt("stock_qty", 0)` with a post-fetch filter that checks: if product_type is service/combo, keep it; otherwise require stock > 0.
+**Sales query** — add fields: `salesman, notes, customer_id, customer_phone, customer_address, cash_amount, card_amount, upi_amount, paid_amount, credit_amount, sale_return_adjust, einvoice_qr_code, points_redeemed_amount`
 
-### 2. Barcode scan fallback: allow service products with 0 stock
-**Line 1236** — Change condition from `v.stock_qty > 0` to also allow service/combo product types:
-```typescript
-v.barcode?.toLowerCase() === searchTerm.toLowerCase() && 
-  (v.stock_qty > 0 || foundProduct?.product_type === 'service' || foundProduct?.product_type === 'combo')
-```
-Since `foundProduct` isn't set yet at this point, check the parent product's type directly.
+**Sale items query** — add fields: `hsn_code, gst_percent, color`
 
-### 3. Size grid variant display: show service variants regardless of stock
-In the variant filtering/display for the size grid dialog, ensure service product variants are shown even with 0 stock.
+**New queries**:
+- Fetch `sale_financer_details` for the sale (financer_name, loan_number, emi_amount, tenure, down_payment, down_payment_mode, finance_discount, bank_transfer_amount)
+- Fetch customer GSTIN and transport_details from `customers` table using `customer_id`
 
-### 4. Deduplication: keep service variants even with 0 stock
-In the deduplication logic (~line 990-1005), service products should not be penalized for having 0 stock.
+**Return** all these in the response payload.
 
-All changes are confined to `src/pages/SalesInvoice.tsx`. The stock validation hook (`useStockValidation`) already correctly handles service products by returning unlimited availability.
+### 2. Frontend: `src/pages/PublicInvoiceView.tsx`
+
+**templateProps** — populate from fetched data:
+- `customerMobile` → `sale.customer_phone`
+- `customerAddress` → `sale.customer_address`
+- `customerGSTIN` → fetched customer GSTIN
+- `salesman` → `sale.salesman`
+- `notes` → `sale.notes`
+- `cashAmount`, `cardAmount`, `upiAmount`, `creditAmount`, `paidAmount`
+- `financerDetails` → from fetched financer data
+- `saleReturnAdjust` → `sale.sale_return_adjust`
+- Items: `hsn`, `gstPercent`, `color` from sale_items
+- Calculate CGST/SGST/IGST from item-level GST percentages
+- `qrCodeUrl` → `sale.einvoice_qr_code`
+- `customerTransportDetails` → from customer data
+
+This ensures the WhatsApp invoice link shows identical content to the POS print invoice.
 
