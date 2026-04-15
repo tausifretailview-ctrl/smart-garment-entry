@@ -54,6 +54,7 @@ import { useDraftSave } from "@/hooks/useDraftSave";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { checkBarcodeExists } from "@/utils/barcodeValidation";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
+import { RollEntryDialog } from "@/components/RollEntryDialog";
 import { compareSizes } from "@/utils/sizeSort";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 
@@ -285,6 +286,12 @@ const PurchaseEntry = () => {
   // IMEI Scan Dialog state (Mobile ERP mode)
   const [showIMEIScanDialog, setShowIMEIScanDialog] = useState(false);
   const [imeiScanItem, setImeiScanItem] = useState<{ tempId: string; qty: number; item: LineItem } | null>(null);
+
+  // Roll Entry Dialog state (MTR products)
+  const [showRollEntryDialog, setShowRollEntryDialog] = useState(false);
+  const [rollEntryProduct, setRollEntryProduct] = useState<any>(null);
+  const [rollEntryColors, setRollEntryColors] = useState<string[]>([]);
+  const [rollEntryRate, setRollEntryRate] = useState(0);
 
   const [billData, setBillData] = useState({
     supplier_id: "",
@@ -583,6 +590,7 @@ const PurchaseEntry = () => {
   
   const autoFocusSearch = (settings?.purchase_settings as any)?.auto_focus_search || false;
   const sizeGridReviewMode = (settings?.purchase_settings as any)?.size_grid_review_mode || false;
+  const rollWiseMtrEntry = (settings?.purchase_settings as any)?.roll_wise_mtr_entry || false;
   
   const focusSearchBar = useCallback(() => {
     if (autoFocusSearch) {
