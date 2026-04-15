@@ -29,13 +29,13 @@ function applyScale(key: ScaleKey) {
 }
 
 export function initUIScale() {
-  const saved = (localStorage.getItem("ui-scale") as ScaleKey) || "standard";
+  const saved = (localStorage.getItem("ui-scale") as ScaleKey) || "large";
   applyScale(saved);
 }
 
 export const UIScaleSelector = () => {
   const [scale, setScale] = useState<ScaleKey>(() => {
-    return (localStorage.getItem("ui-scale") as ScaleKey) || "standard";
+    return (localStorage.getItem("ui-scale") as ScaleKey) || "large";
   });
 
   useEffect(() => {
