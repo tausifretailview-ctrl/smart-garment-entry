@@ -125,6 +125,7 @@ export default function SalesInvoice() {
     hsn: isColumnVisible('sales_invoice', 'hsn'),
     box: isColumnVisible('sales_invoice', 'box'),
     color: isColumnVisible('sales_invoice', 'color'),
+    mrp: isColumnVisible('sales_invoice', 'mrp'),
     disc_percent: isColumnVisible('sales_invoice', 'disc_percent'),
     disc_amount: isColumnVisible('sales_invoice', 'disc_amount'),
     gst: isColumnVisible('sales_invoice', 'gst'),
@@ -3403,7 +3404,7 @@ Thank you for choosing us!`;
                 {showCol.hsn && <th className="text-center text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">HSN</th>}
                 <th className="text-center text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-16">QTY</th>
                 {showCol.box && <th className="text-center text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-16">BOX</th>}
-                <th className="text-right text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">MRP</th>
+                {showCol.mrp && <th className="text-right text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">MRP</th>}
                 <th className="text-right text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">PRICE</th>
                 {showCol.disc_percent && <th className="text-right text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">DISC%</th>}
                 {showCol.disc_amount && <th className="text-right text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">DISC ₹</th>}
@@ -3417,8 +3418,8 @@ Thank you for choosing us!`;
                 const filledItems = lineItems.filter(item => item.productId !== '');
 
                 if (filledItems.length === 0) {
-                  const baseCols = 9; // #, product, size, barcode, qty, mrp, price, total, action
-                  const optCols = [showCol.color, showCol.hsn, showCol.box, showCol.disc_percent, showCol.disc_amount, showCol.gst].filter(Boolean).length;
+                  const baseCols = 8; // #, product, size, barcode, qty, price, total, action
+                  const optCols = [showCol.color, showCol.hsn, showCol.box, showCol.mrp, showCol.disc_percent, showCol.disc_amount, showCol.gst].filter(Boolean).length;
                   const totalCols = baseCols + optCols;
                   return Array.from({ length: 5 }, (_, i) => (
                     <tr key={`empty-${i}`} className="h-[38px] border-b border-muted/30">
@@ -3499,7 +3500,7 @@ Thank you for choosing us!`;
                           className="w-14 h-10 text-center text-[13px] mx-auto"
                         />
                       </td>}
-                      <td className="text-right px-1.5 py-1">
+                      {showCol.mrp && <td className="text-right px-1.5 py-1">
                         <Input
                           type="number"
                           min="0"
@@ -3509,7 +3510,7 @@ Thank you for choosing us!`;
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           className="w-[90px] h-10 text-right text-[15px] tabular-nums ml-auto"
                         />
-                      </td>
+                      </td>}
                       <td className="text-right px-1.5 py-1">
                         <Input
                           type="number"
