@@ -1232,18 +1232,28 @@ const PurchaseEntry = () => {
           stock_qty: v.stock_qty || 0,
         })));
 
-        setSelectedProduct({
-          id: product.id,
-          product_name: product.product_name,
-          brand: product.brand,
-          category: product.category,
-          gst_per: product.gst_per,
-          hsn_code: product.hsn_code,
-          color: product.color,
-        });
-        setSizeGridVariants(mappedVariants);
-        setSizeQty({});
-        setShowSizeGrid(true);
+        // Check if MTR product with roll-wise entry enabled
+        if (rollWiseMtrEntry && product.uom === 'MTR') {
+          const uniqueColors = [...new Set(mappedVariants.map((v: any) => v.color || '').filter(Boolean))];
+          if (uniqueColors.length === 0) uniqueColors.push(product.color || 'DEFAULT');
+          setRollEntryProduct(product);
+          setRollEntryColors(uniqueColors);
+          setRollEntryRate(product.default_pur_price || 0);
+          setShowRollEntryDialog(true);
+        } else {
+          setSelectedProduct({
+            id: product.id,
+            product_name: product.product_name,
+            brand: product.brand,
+            category: product.category,
+            gst_per: product.gst_per,
+            hsn_code: product.hsn_code,
+            color: product.color,
+          });
+          setSizeGridVariants(mappedVariants);
+          setSizeQty({});
+          setShowSizeGrid(true);
+        }
 
         toast({
           title: "Product Created",
