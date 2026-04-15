@@ -1721,8 +1721,22 @@ const PurchaseEntry = () => {
       color: v.color || v.products?.color || "",
     })));
 
+    // Check if this is a MTR product and roll-wise entry is enabled
+    const productData = data[0].products as any;
+    const productUom = productData?.uom || 'NOS';
+    if (rollWiseMtrEntry && productUom === 'MTR') {
+      // Collect unique colors from variants
+      const uniqueColors = [...new Set(mappedVariants.map((v: any) => v.color || '').filter(Boolean))];
+      if (uniqueColors.length === 0) uniqueColors.push(productData?.color || 'DEFAULT');
+      setRollEntryProduct(productData);
+      setRollEntryColors(uniqueColors);
+      setRollEntryRate(productData?.default_pur_price || 0);
+      setShowRollEntryDialog(true);
+      return;
+    }
+
     // Show size grid modal
-    setSelectedProduct(data[0].products);
+    setSelectedProduct(productData);
     setSizeGridVariants(mappedVariants);
     setSizeQty({});
     setShowSizeGrid(true);
