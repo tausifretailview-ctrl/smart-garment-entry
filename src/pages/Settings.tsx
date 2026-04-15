@@ -100,6 +100,7 @@ interface PurchaseSettings {
   same_barcode_series?: boolean;
   auto_focus_search?: boolean;
   size_grid_review_mode?: boolean;
+  roll_wise_mtr_entry?: boolean;
   cursor_after_style?: 'pur_price' | 'hsn';
 }
 
@@ -1846,6 +1847,28 @@ export default function Settings() {
                 </div>
                 <p className="text-xs text-muted-foreground ml-6">
                   When enabled, the size-wise quantity window shows editable Purchase Price, Sale Price, and MRP per size for review before adding to bill. Use Ctrl+A or the "Add to Bill" button to confirm.
+                </p>
+
+                <div className="flex items-center space-x-2 pt-4">
+                  <Checkbox
+                    id="roll_wise_mtr_entry"
+                    checked={settings.purchase_settings?.roll_wise_mtr_entry || false}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          roll_wise_mtr_entry: checked as boolean,
+                        },
+                      })
+                    }
+                  />
+                  <Label htmlFor="roll_wise_mtr_entry" className="font-normal cursor-pointer">
+                    Roll-wise Entry for MTR Products
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground ml-6">
+                  When enabled, products with UOM = MTR show a roll entry dialog where each roll's individual meter length is entered. Each roll gets its own barcode and variant for per-roll stock tracking.
                 </p>
 
                 <div className="space-y-2 pt-4 border-t">

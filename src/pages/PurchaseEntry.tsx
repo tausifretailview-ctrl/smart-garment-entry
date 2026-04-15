@@ -54,6 +54,7 @@ import { useDraftSave } from "@/hooks/useDraftSave";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { checkBarcodeExists } from "@/utils/barcodeValidation";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
+import { RollEntryDialog } from "@/components/RollEntryDialog";
 import { compareSizes } from "@/utils/sizeSort";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 
@@ -285,6 +286,12 @@ const PurchaseEntry = () => {
   // IMEI Scan Dialog state (Mobile ERP mode)
   const [showIMEIScanDialog, setShowIMEIScanDialog] = useState(false);
   const [imeiScanItem, setImeiScanItem] = useState<{ tempId: string; qty: number; item: LineItem } | null>(null);
+
+  // Roll Entry Dialog state (MTR products)
+  const [showRollEntryDialog, setShowRollEntryDialog] = useState(false);
+  const [rollEntryProduct, setRollEntryProduct] = useState<any>(null);
+  const [rollEntryColors, setRollEntryColors] = useState<string[]>([]);
+  const [rollEntryRate, setRollEntryRate] = useState(0);
 
   const [billData, setBillData] = useState({
     supplier_id: "",
@@ -583,6 +590,7 @@ const PurchaseEntry = () => {
   
   const autoFocusSearch = (settings?.purchase_settings as any)?.auto_focus_search || false;
   const sizeGridReviewMode = (settings?.purchase_settings as any)?.size_grid_review_mode || false;
+  const rollWiseMtrEntry = (settings?.purchase_settings as any)?.roll_wise_mtr_entry || false;
   
   const focusSearchBar = useCallback(() => {
     if (autoFocusSearch) {
@@ -1224,18 +1232,28 @@ const PurchaseEntry = () => {
           stock_qty: v.stock_qty || 0,
         })));
 
-        setSelectedProduct({
-          id: product.id,
-          product_name: product.product_name,
-          brand: product.brand,
-          category: product.category,
-          gst_per: product.gst_per,
-          hsn_code: product.hsn_code,
-          color: product.color,
-        });
-        setSizeGridVariants(mappedVariants);
-        setSizeQty({});
-        setShowSizeGrid(true);
+        // Check if MTR product with roll-wise entry enabled
+        if (rollWiseMtrEntry && (product as any).uom === 'MTR') {
+          const uniqueColors = [...new Set(mappedVariants.map((v: any) => v.color || '').filter(Boolean))];
+          if (uniqueColors.length === 0) uniqueColors.push(product.color || 'DEFAULT');
+          setRollEntryProduct(product);
+          setRollEntryColors(uniqueColors);
+          setRollEntryRate((product as any).default_pur_price || 0);
+          setShowRollEntryDialog(true);
+        } else {
+          setSelectedProduct({
+            id: product.id,
+            product_name: product.product_name,
+            brand: product.brand,
+            category: product.category,
+            gst_per: product.gst_per,
+            hsn_code: product.hsn_code,
+            color: product.color,
+          });
+          setSizeGridVariants(mappedVariants);
+          setSizeQty({});
+          setShowSizeGrid(true);
+        }
 
         toast({
           title: "Product Created",
@@ -1713,8 +1731,22 @@ const PurchaseEntry = () => {
       color: v.color || v.products?.color || "",
     })));
 
+    // Check if this is a MTR product and roll-wise entry is enabled
+    const productData = data[0].products as any;
+    const productUom = productData?.uom || 'NOS';
+    if (rollWiseMtrEntry && productUom === 'MTR') {
+      // Collect unique colors from variants
+      const uniqueColors = [...new Set(mappedVariants.map((v: any) => v.color || '').filter(Boolean))];
+      if (uniqueColors.length === 0) uniqueColors.push(productData?.color || 'DEFAULT');
+      setRollEntryProduct(productData);
+      setRollEntryColors(uniqueColors);
+      setRollEntryRate(productData?.default_pur_price || 0);
+      setShowRollEntryDialog(true);
+      return;
+    }
+
     // Show size grid modal
-    setSelectedProduct(data[0].products);
+    setSelectedProduct(productData);
     setSizeGridVariants(mappedVariants);
     setSizeQty({});
     setShowSizeGrid(true);
@@ -2024,6 +2056,89 @@ const PurchaseEntry = () => {
 
     setShowIMEIScanDialog(false);
     setImeiScanItem(null);
+  };
+
+  // Handle Roll Entry confirmation — each roll becomes a variant with unique barcode
+  const handleRollEntryConfirm = async (rolls: Array<{ color: string; meters: number }>) => {
+    if (!rollEntryProduct || !currentOrganization) return;
+
+    try {
+      const newRows: LineItem[] = [];
+      const product = rollEntryProduct;
+      const discountPercent = (() => {
+        const pdt = product.purchase_discount_type;
+        const pdv = product.purchase_discount_value || 0;
+        if (pdv > 0 && (!pdt || pdt === 'percent')) return pdv;
+        return 0;
+      })();
+
+      for (let idx = 0; idx < rolls.length; idx++) {
+        const roll = rolls[idx];
+        const rollBarcode = isAutoBarcode ? await generateCentralizedBarcode() : '';
+
+        // Create a new product_variant for this roll
+        const { data: newVariant, error: varError } = await supabase
+          .from('product_variants')
+          .insert({
+            organization_id: currentOrganization.id,
+            product_id: product.id,
+            size: roll.meters.toString(),
+            color: roll.color || null,
+            barcode: rollBarcode,
+            pur_price: product.default_pur_price || 0,
+            sale_price: product.default_sale_price || 0,
+            mrp: 0,
+            stock_qty: 0,
+            active: true,
+          })
+          .select('id')
+          .single();
+
+        if (varError) throw varError;
+
+        const purPrice = product.default_pur_price || 0;
+        const subTotal = roll.meters * purPrice;
+        const discAmount = subTotal * (discountPercent / 100);
+
+        newRows.push({
+          temp_id: Date.now().toString() + Math.random() + idx,
+          product_id: product.id,
+          sku_id: newVariant.id,
+          product_name: product.product_name,
+          size: roll.meters.toString(),
+          qty: roll.meters,
+          pur_price: purPrice,
+          sale_price: product.default_sale_price || 0,
+          mrp: 0,
+          gst_per: product.purchase_gst_percent || product.gst_per || 0,
+          hsn_code: product.hsn_code || "",
+          barcode: rollBarcode,
+          discount_percent: discountPercent,
+          line_total: subTotal - discAmount,
+          brand: product.brand || "",
+          category: product.category || "",
+          color: roll.color || "",
+          style: product.style || "",
+          uom: 'MTR',
+        });
+      }
+
+      setLineItems(prev => [...prev, ...newRows]);
+
+      toast({
+        title: "Rolls Added",
+        description: `${rolls.length} rolls (${rolls.reduce((s, r) => s + r.meters, 0).toFixed(1)} MTR) added with individual barcodes`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: `Failed to create roll variants: ${error.message}`,
+        variant: "destructive",
+      });
+    }
+
+    setShowRollEntryDialog(false);
+    setRollEntryProduct(null);
   };
 
   const removeLineItem = (temp_id: string) => {
@@ -4258,6 +4373,16 @@ const PurchaseEntry = () => {
           showSizePrices={sizeGridReviewMode ? true : false}
           reviewMode={sizeGridReviewMode}
           showPurPrice={sizeGridReviewMode}
+        />
+
+        {/* Roll Entry Dialog for MTR products */}
+        <RollEntryDialog
+          open={showRollEntryDialog}
+          onClose={() => { setShowRollEntryDialog(false); setRollEntryProduct(null); }}
+          productName={rollEntryProduct?.product_name || ''}
+          colors={rollEntryColors}
+          rate={rollEntryRate}
+          onConfirm={handleRollEntryConfirm}
         />
 
         {/* Print Barcode Dialog with Smart Selection */}
