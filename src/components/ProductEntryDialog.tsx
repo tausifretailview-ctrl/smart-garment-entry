@@ -135,6 +135,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const [creatingSizeGroup, setCreatingSizeGroup] = useState(false);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [rollWiseMtrEnabled, setRollWiseMtrEnabled] = useState(false);
+  const [colorRollLengths, setColorRollLengths] = useState<Record<string, string>>({});
   const [disabledSizes, setDisabledSizes] = useState<Set<string>>(new Set());
   const [customSizes, setCustomSizes] = useState<string[]>([]);
   const [customSizeInput, setCustomSizeInput] = useState("");
@@ -755,20 +756,52 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       return;
     }
 
-    // Roll-wise MTR: skip size grid, create one variant per color with size="Roll"
+    // Roll-wise MTR: create color × roll-length variants
     const isRollWiseMtr = rollWiseMtrEnabled && formData.uom === 'MTR';
     if (isRollWiseMtr) {
       const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
-      const newVariants: ProductVariant[] = colorsToUse.map(color => ({
-        color,
-        size: "Roll",
-        pur_price: formData.default_pur_price ?? 0,
-        sale_price: formData.default_sale_price ?? 0,
-        mrp: formData.default_mrp ?? null,
-        barcode: "",
-        active: true,
-        opening_qty: 0,
-      }));
+      const newVariants: ProductVariant[] = [];
+      for (const color of colorsToUse) {
+        const lengthsStr = colorRollLengths[color] || "";
+        const lengths = lengthsStr.split(",").map(s => s.trim()).filter(s => s && !isNaN(Number(s)));
+        if (lengths.length === 0) {
+          // Fallback: one "Roll" variant if no lengths specified
+          const exists = variants.some(v => v.color === color && v.size === "Roll");
+          if (!exists) {
+            newVariants.push({
+              color,
+              size: "Roll",
+              pur_price: formData.default_pur_price ?? 0,
+              sale_price: formData.default_sale_price ?? 0,
+              mrp: formData.default_mrp ?? null,
+              barcode: "",
+              active: true,
+              opening_qty: 0,
+            });
+          }
+        } else {
+          for (const len of lengths) {
+            const sizeLabel = `${len} MTR`;
+            const exists = variants.some(v => v.color === color && v.size === sizeLabel);
+            if (!exists) {
+              newVariants.push({
+                color,
+                size: sizeLabel,
+                pur_price: formData.default_pur_price ?? 0,
+                sale_price: formData.default_sale_price ?? 0,
+                mrp: formData.default_mrp ?? null,
+                barcode: "",
+                active: true,
+                opening_qty: 0,
+              });
+            }
+          }
+        }
+      }
+      if (newVariants.length === 0) {
+        toast({ title: "No new variants", description: "All roll lengths already exist or no lengths specified", variant: "destructive" });
+        return;
+      }
       if (isAutoBarcode) autoBarcodePending.current = true;
       setVariants([...variants, ...newVariants]);
       setShowVariants(true);
@@ -1725,18 +1758,28 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     </Button>
                   </div>
                   {formData.colors.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
+                    <div className="space-y-2 mt-2">
                       {formData.colors.map((color, i) => (
-                        <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium border border-primary/20">
-                          {color}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveColor(color)}
-                            className="hover:text-destructive hover:bg-destructive/10 rounded-full p-0.5 transition-colors"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </span>
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium border border-primary/20 shrink-0">
+                            {color}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveColor(color)}
+                              className="hover:text-destructive hover:bg-destructive/10 rounded-full p-0.5 transition-colors"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                          {rollWiseMtrEnabled && formData.uom === 'MTR' && (
+                            <Input
+                              value={colorRollLengths[color] || ""}
+                              onChange={(e) => setColorRollLengths(prev => ({ ...prev, [color]: e.target.value }))}
+                              placeholder="Roll lengths e.g. 75,80,85,90"
+                              className="h-8 text-xs flex-1"
+                            />
+                          )}
+                        </div>
                       ))}
                     </div>
                   )}
@@ -2257,9 +2300,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
               {/* Roll-wise MTR info banner */}
               {rollWiseMtrEnabled && formData.uom === 'MTR' && (
-                <div className="rounded-lg border border-blue-200 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-800 p-3">
+                 <div className="rounded-lg border border-blue-200 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-800 p-3">
                   <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">
-                    📏 Roll-wise MTR mode: Individual roll variants with meter lengths will be created during Purchase Entry. Generate color variants below as placeholders.
+                    📏 Roll-wise MTR mode: Enter comma-separated roll lengths (e.g. 75,80,85) next to each color above, then click "Generate Color Variants".
                   </p>
                 </div>
               )}
