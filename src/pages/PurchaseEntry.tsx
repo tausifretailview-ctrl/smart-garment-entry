@@ -1233,12 +1233,12 @@ const PurchaseEntry = () => {
         })));
 
         // Check if MTR product with roll-wise entry enabled
-        if (rollWiseMtrEntry && product.uom === 'MTR') {
+        if (rollWiseMtrEntry && (product as any).uom === 'MTR') {
           const uniqueColors = [...new Set(mappedVariants.map((v: any) => v.color || '').filter(Boolean))];
           if (uniqueColors.length === 0) uniqueColors.push(product.color || 'DEFAULT');
           setRollEntryProduct(product);
           setRollEntryColors(uniqueColors);
-          setRollEntryRate(product.default_pur_price || 0);
+          setRollEntryRate((product as any).default_pur_price || 0);
           setShowRollEntryDialog(true);
         } else {
           setSelectedProduct({
