@@ -190,6 +190,7 @@ const PurchaseEntry = () => {
   const queryClient = useQueryClient();
   const { isColumnVisible } = useUserPermissions();
   const showPurCol = {
+    size: isColumnVisible('purchase_bill', 'size'),
     gst: isColumnVisible('purchase_bill', 'gst'),
     disc_percent: isColumnVisible('purchase_bill', 'disc_percent'),
     mrp: isColumnVisible('purchase_bill', 'mrp'),
@@ -3889,7 +3890,7 @@ const PurchaseEntry = () => {
                     </TableHead>
                     <TableHead className="w-[60px]">SR.NO</TableHead>
                     <TableHead className="w-[260px]">ITEM NAME</TableHead>
-                    <TableHead className="w-[50px]">SIZE</TableHead>
+                    {showPurCol.size && <TableHead className="w-[50px]">SIZE</TableHead>}
                     <TableHead className="w-[120px]">{isMobileERPMode ? 'IMEI NUMBER' : 'BARCODE'}</TableHead>
                     <TableHead className="w-[80px] text-right">QTY</TableHead>
                     <TableHead className='w-[120px] text-right pur-rate-col'>PUR.RATE</TableHead>
@@ -3948,7 +3949,7 @@ const PurchaseEntry = () => {
                           onDoubleClick={() => openEditPanel(index, "product_name")}>
                           <div className="text-sm leading-snug break-words">{formatProductDescription(item)}</div>
                         </TableCell>
-                        <TableCell className="w-[50px] text-sm">{item.size || "—"}</TableCell>
+                        {showPurCol.size && <TableCell className="w-[50px] text-sm">{item.size || "—"}</TableCell>}
                         <TableCell className="w-[120px]">
                           <Badge variant="outline" className={cn("text-xs", isMobileERPMode ? "font-mono tracking-wider" : "font-mono")}>
                             {item.barcode || "—"}
