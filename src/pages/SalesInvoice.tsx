@@ -990,6 +990,23 @@ export default function SalesInvoice() {
           });
         }
 
+        // Deduplicate variants by product_id + size + color
+        const dedupeMap = new Map<string, typeof results[0]>();
+        for (const r of results) {
+          const key = `${r.variant.product_id}_${(r.variant.size || '').toLowerCase()}_${(r.variant.color || '').toLowerCase()}`;
+          const existing = dedupeMap.get(key);
+          if (!existing) {
+            dedupeMap.set(key, r);
+          } else {
+            if ((r.variant.stock_qty || 0) > (existing.variant.stock_qty || 0)) {
+              dedupeMap.set(key, r);
+            } else if ((r.variant.stock_qty || 0) === (existing.variant.stock_qty || 0) && (r.variant.sale_price || 0) < (existing.variant.sale_price || 0)) {
+              dedupeMap.set(key, r);
+            }
+          }
+        }
+        results = Array.from(dedupeMap.values());
+
         // Sort with smart sorting
         const sortedResults = sortSearchResults(results, searchInput, {
           barcode: 'barcode',
