@@ -198,7 +198,7 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                   <NavLink to="/" className="flex items-center gap-2 group">
-                    <LayoutDashboard className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    <LayoutDashboard className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
                     {open && <span className="font-medium dark:text-white">Dashboard</span>}
                   </NavLink>
                 </SidebarMenuButton>
@@ -214,7 +214,7 @@ export function AppSidebar() {
               <SidebarGroupLabel asChild>
                 <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 dark:hover:bg-[hsl(213,32%,22%)] rounded-md py-1 px-2 transition-all duration-200 group">
                   <div className="flex items-center gap-2">
-                    <GraduationCap className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    <GraduationCap className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
                     {open && <span className="font-semibold text-xs uppercase tracking-wider dark:text-white">School</span>}
                   </div>
                   {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary dark:text-white" />}
@@ -321,7 +321,7 @@ export function AppSidebar() {
               <SidebarGroupLabel asChild>
                 <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 dark:hover:bg-[hsl(213,32%,22%)] rounded-md py-1 px-2 transition-all duration-200 group">
                   <div className="flex items-center gap-2">
-                    <Users className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    <Users className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
                     {open && <span className="font-semibold text-xs uppercase tracking-wider dark:text-white">Master</span>}
                   </div>
                   {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary dark:text-white" />}
@@ -388,7 +388,7 @@ export function AppSidebar() {
               <SidebarGroupLabel asChild>
                 <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 dark:hover:bg-[hsl(213,32%,22%)] rounded-md py-1 px-2 transition-all duration-200 group">
                   <div className="flex items-center gap-2">
-                    <Package className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    <Package className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
                     {open && <span className="font-semibold text-xs uppercase tracking-wider dark:text-white">Inventory</span>}
                   </div>
                   {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary dark:text-white" />}
@@ -505,7 +505,7 @@ export function AppSidebar() {
               <SidebarGroupLabel asChild>
                 <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 dark:hover:bg-[hsl(213,32%,22%)] rounded-md py-1 px-2 transition-all duration-200 group">
                   <div className="flex items-center gap-2">
-                    <ShoppingCart className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    <ShoppingCart className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
                     {open && <span className="font-semibold text-xs uppercase tracking-wider dark:text-white">Sales</span>}
                   </div>
                   {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary dark:text-white" />}
@@ -660,7 +660,7 @@ export function AppSidebar() {
               <SidebarGroupLabel asChild>
                 <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 dark:hover:bg-[hsl(213,32%,22%)] rounded-md py-1 px-2 transition-all duration-200 group">
                   <div className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    <BarChart3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
                     {open && <span className="font-semibold text-xs uppercase tracking-wider dark:text-white">Reports</span>}
                   </div>
                   {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary dark:text-white" />}
@@ -887,7 +887,7 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/delivery-dashboard")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                   <NavLink to="/delivery-dashboard" className="flex items-center gap-2 group">
-                    <PackageCheck className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    <PackageCheck className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
                     {open && <span className="font-medium dark:text-white">Delivery Status</span>}
                   </NavLink>
                 </SidebarMenuButton>
@@ -903,7 +903,7 @@ export function AppSidebar() {
               <SidebarGroupLabel asChild>
                 <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 dark:hover:bg-[hsl(213,32%,22%)] rounded-md py-1 px-2 transition-all duration-200 group">
                   <div className="flex items-center gap-2">
-                    <Wallet className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    <Wallet className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
                     {open && <span className="font-semibold text-xs uppercase tracking-wider dark:text-white">Accounts</span>}
                   </div>
                   {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary dark:text-white" />}
@@ -950,7 +950,7 @@ export function AppSidebar() {
             <SidebarGroupLabel asChild>
               <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 dark:hover:bg-[hsl(213,32%,22%)] rounded-md py-1 px-2 transition-all duration-200 group">
                 <div className="flex items-center gap-2">
-                  <Settings className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)] group-hover:animate-icon-spin-slow" />
+                  <Settings className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)] group-hover:animate-icon-spin-slow" />
                   {open && <span className="font-semibold text-xs uppercase tracking-wider dark:text-white">Settings</span>}
                 </div>
                 {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary dark:text-white" />}
@@ -1035,7 +1035,7 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/recycle-bin")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                   <NavLink to="/recycle-bin" className="flex items-center gap-2 group">
-                    <Archive className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    <Archive className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
                     {open && <span className="font-medium dark:text-white">Recycle Bin</span>}
                   </NavLink>
                 </SidebarMenuButton>
@@ -1054,7 +1054,7 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/whatsapp-inbox")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                   <NavLink to="/whatsapp-inbox" className="flex items-center gap-2 group">
-                    <MessageSquare className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    <MessageSquare className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
                     {open && <span className="font-medium dark:text-white">WhatsApp Inbox</span>}
                   </NavLink>
                 </SidebarMenuButton>
@@ -1119,7 +1119,7 @@ function AIAssistantMenuItem({ open }: { open: boolean }) {
             className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] cursor-pointer"
           >
             <div className="flex items-center gap-2 group">
-              <Bot className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+              <Bot className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
               {open && <span className="font-medium dark:text-white">AI Assistant</span>}
             </div>
           </SidebarMenuButton>
