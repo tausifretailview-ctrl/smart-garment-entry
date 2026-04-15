@@ -162,6 +162,7 @@ const columnConfig = [
       { id: "hsn", name: "HSN" },
       { id: "box", name: "Box" },
       { id: "color", name: "Color" },
+      { id: "mrp", name: "MRP" },
       { id: "disc_percent", name: "Disc%" },
       { id: "disc_amount", name: "Disc ₹" },
       { id: "gst", name: "GST%" },
