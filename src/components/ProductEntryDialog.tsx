@@ -135,6 +135,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const [creatingSizeGroup, setCreatingSizeGroup] = useState(false);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [rollWiseMtrEnabled, setRollWiseMtrEnabled] = useState(false);
+  const [colorRollLengths, setColorRollLengths] = useState<Record<string, string>>({});
   const [disabledSizes, setDisabledSizes] = useState<Set<string>>(new Set());
   const [customSizes, setCustomSizes] = useState<string[]>([]);
   const [customSizeInput, setCustomSizeInput] = useState("");
