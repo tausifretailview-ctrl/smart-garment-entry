@@ -21,7 +21,6 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (!uuidRegex.test(saleId)) {
       return new Response(
@@ -30,16 +29,15 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Use service role to bypass RLS
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    // Fetch sale with items
+    // Fetch sale with items - include all display-relevant fields
     const { data: sale, error: saleError } = await supabase
       .from('sales')
-      .select('id, sale_number, sale_date, customer_name, gross_amount, discount_amount, flat_discount_amount, round_off, net_amount, payment_method, terms_conditions, organization_id, sale_items (id, product_name, barcode, size, mrp, quantity, unit_price, line_total, discount_percent)')
+      .select('id, sale_number, sale_date, customer_name, customer_id, customer_phone, customer_address, gross_amount, discount_amount, flat_discount_amount, round_off, net_amount, payment_method, terms_conditions, organization_id, salesman, notes, cash_amount, card_amount, upi_amount, paid_amount, credit_amount, sale_return_adjust, einvoice_qr_code, points_redeemed_amount, sale_items (id, product_name, barcode, size, mrp, quantity, unit_price, line_total, discount_percent, hsn_code, gst_percent, color)')
       .eq('id', saleId)
       .is('deleted_at', null)
       .maybeSingle()
@@ -59,21 +57,37 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Fetch only display-safe settings (no API keys, no WhatsApp config, no sensitive data)
+    // Fetch financer details for this sale
+    const { data: financerDetails } = await supabase
+      .from('sale_financer_details')
+      .select('financer_name, loan_number, emi_amount, tenure, down_payment, down_payment_mode, finance_discount, bank_transfer_amount')
+      .eq('sale_id', saleId)
+      .maybeSingle()
+
+    // Fetch customer GSTIN and transport details if customer_id exists
+    let customerExtra: { gst_number?: string; transport_details?: string } | null = null
+    if (sale.customer_id) {
+      const { data: cust } = await supabase
+        .from('customers')
+        .select('gst_number, transport_details')
+        .eq('id', sale.customer_id)
+        .maybeSingle()
+      customerExtra = cust
+    }
+
+    // Fetch settings
     const { data: settings } = await supabase
       .from('settings')
       .select('business_name, address, mobile_number, email_id, gst_number, sale_settings, bill_barcode_settings')
       .eq('organization_id', sale.organization_id)
       .maybeSingle()
 
-    // Fetch org slug for meta tags
     const { data: org } = await supabase
       .from('organizations')
       .select('slug, name')
       .eq('id', sale.organization_id)
       .single()
 
-    // Sanitize settings - return logo + invoice display settings from sale_settings
     const saleSettings = settings?.sale_settings as any || {};
     const sanitizedSettings = settings ? {
       business_name: settings.business_name,
@@ -108,7 +122,6 @@ Deno.serve(async (req) => {
       } : null,
     } : null
 
-    // Return sanitized data (no customer_phone, customer_email, customer_address, payment details)
     return new Response(
       JSON.stringify({
         sale: {
@@ -116,6 +129,8 @@ Deno.serve(async (req) => {
           sale_number: sale.sale_number,
           sale_date: sale.sale_date,
           customer_name: sale.customer_name,
+          customer_phone: sale.customer_phone || '',
+          customer_address: sale.customer_address || '',
           gross_amount: sale.gross_amount,
           discount_amount: sale.discount_amount,
           flat_discount_amount: sale.flat_discount_amount,
@@ -124,7 +139,19 @@ Deno.serve(async (req) => {
           payment_method: sale.payment_method,
           terms_conditions: sale.terms_conditions,
           sale_items: sale.sale_items,
+          salesman: sale.salesman || '',
+          notes: sale.notes || '',
+          cash_amount: sale.cash_amount || 0,
+          card_amount: sale.card_amount || 0,
+          upi_amount: sale.upi_amount || 0,
+          paid_amount: sale.paid_amount || 0,
+          credit_amount: sale.credit_amount || 0,
+          sale_return_adjust: sale.sale_return_adjust || 0,
+          einvoice_qr_code: sale.einvoice_qr_code || '',
+          points_redeemed_amount: sale.points_redeemed_amount || 0,
         },
+        financerDetails: financerDetails || null,
+        customerExtra: customerExtra || null,
         settings: sanitizedSettings,
         organization: org ? { slug: org.slug, name: org.name } : null,
       }),
