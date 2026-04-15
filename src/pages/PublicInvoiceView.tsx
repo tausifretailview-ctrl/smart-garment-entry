@@ -21,16 +21,13 @@ import { WholesaleA5Template } from "@/components/invoice-templates/WholesaleA5T
 import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";
 import { ModernThermalReceipt80mm } from "@/components/ModernThermalReceipt80mm";
 
-// Update document meta tags for link previews
 const updateMetaTags = (businessName: string, invoiceNumber: string, orgSlug?: string, logoUrl?: string) => {
   document.title = `Invoice ${invoiceNumber} - ${businessName}`;
-  
   const ogTitle = document.querySelector('meta[property="og:title"]');
   const ogDesc = document.querySelector('meta[property="og:description"]');
   const ogUrl = document.querySelector('meta[property="og:url"]');
   const ogImage = document.querySelector('meta[property="og:image"]');
   const twitterImage = document.querySelector('meta[name="twitter:image"]');
-  
   if (ogTitle) ogTitle.setAttribute('content', businessName);
   if (ogDesc) ogDesc.setAttribute('content', `Invoice ${invoiceNumber} - ${businessName}`);
   if (ogUrl && orgSlug) ogUrl.setAttribute('content', `https://app.inventoryshop.in/${orgSlug}/`);
@@ -44,25 +41,18 @@ export default function PublicInvoiceView() {
   const formatParam = searchParams.get('format');
   const printRef = useRef<HTMLDivElement>(null);
 
-  // Fetch sanitized invoice data via secure edge function
   const { data, isLoading, error } = useQuery({
     queryKey: ['public-invoice', saleId],
     queryFn: async () => {
       if (!saleId) return null;
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-public-invoice?saleId=${saleId}`,
-        {
-          headers: {
-            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          },
-        }
+        { headers: { 'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY } },
       );
-      
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
         throw new Error(err.error || 'Failed to fetch invoice');
       }
-      
       return response.json();
     },
     enabled: !!saleId,
@@ -71,8 +61,9 @@ export default function PublicInvoiceView() {
   const sale = data?.sale;
   const settings = data?.settings;
   const organization = data?.organization;
+  const financerDetails = data?.financerDetails;
+  const customerExtra = data?.customerExtra;
 
-  // Update meta tags when data loads
   useEffect(() => {
     if (settings?.business_name && sale?.sale_number) {
       updateMetaTags(settings.business_name, sale.sale_number, organization?.slug, settings.invoiceLogo);
@@ -111,8 +102,29 @@ export default function PublicInvoiceView() {
 
   const saleItems = sale.sale_items || [];
   const template = settings?.invoice_template || 'professional';
-  const isThermalFormat = formatParam === 'thermal' || settings?.pos_bill_format === 'thermal';
   const thermalStyle = settings?.thermal_receipt_style || 'classic';
+
+  // Calculate GST from item-level data
+  let totalCGST = 0, totalSGST = 0, totalIGST = 0;
+  const customerGSTIN = customerExtra?.gst_number || '';
+  const isInterState = customerGSTIN && settings?.gst_number
+    ? customerGSTIN.substring(0, 2) !== settings.gst_number.substring(0, 2)
+    : false;
+
+  saleItems.forEach((item: any) => {
+    const gstPercent = item.gst_percent || 0;
+    if (gstPercent > 0) {
+      const taxableValue = item.line_total;
+      const totalTaxOnItem = taxableValue * gstPercent / (100 + gstPercent);
+      if (isInterState) {
+        totalIGST += totalTaxOnItem;
+      } else {
+        totalCGST += totalTaxOnItem / 2;
+        totalSGST += totalTaxOnItem / 2;
+      }
+    }
+  });
+
   const templateProps = {
     businessName: settings?.business_name || "Business",
     address: settings?.address || "",
@@ -124,34 +136,45 @@ export default function PublicInvoiceView() {
     invoiceNumber: sale.sale_number,
     invoiceDate: new Date(sale.sale_date),
     customerName: sale.customer_name,
-    customerAddress: "",
-    customerMobile: "",
-    customerGSTIN: "",
+    customerAddress: sale.customer_address || "",
+    customerMobile: sale.customer_phone || "",
+    customerGSTIN,
+    customerTransportDetails: customerExtra?.transport_details || "",
+    salesman: sale.salesman || "",
+    notes: sale.notes || "",
     items: saleItems.map((item: any, index: number) => ({
       sr: index + 1,
       barcode: item.barcode || "",
       particulars: item.product_name,
       size: item.size,
-      hsn: "",
+      hsn: item.hsn_code || "",
       sp: item.mrp,
       qty: item.quantity,
       rate: item.unit_price,
       total: item.line_total,
       brand: "",
       category: "",
-      color: "",
+      color: item.color || "",
       style: "",
+      gstPercent: item.gst_percent || 0,
     })),
     subtotal: sale.gross_amount,
     discount: sale.discount_amount + sale.flat_discount_amount,
     taxableAmount: sale.gross_amount - sale.discount_amount - sale.flat_discount_amount,
-    cgstAmount: 0,
-    sgstAmount: 0,
-    igstAmount: 0,
-    totalTax: 0,
+    cgstAmount: Math.round(totalCGST * 100) / 100,
+    sgstAmount: Math.round(totalSGST * 100) / 100,
+    igstAmount: Math.round(totalIGST * 100) / 100,
+    totalTax: Math.round((totalCGST + totalSGST + totalIGST) * 100) / 100,
     roundOff: sale.round_off,
     grandTotal: sale.net_amount,
     paymentMethod: sale.payment_method,
+    cashAmount: sale.cash_amount || 0,
+    cardAmount: sale.card_amount || 0,
+    upiAmount: sale.upi_amount || 0,
+    paidAmount: sale.paid_amount || 0,
+    creditAmount: sale.credit_amount || 0,
+    saleReturnAdjust: sale.sale_return_adjust || 0,
+    pointsRedeemedAmount: sale.points_redeemed_amount || 0,
     termsConditions: settings?.terms_list?.length > 0
       ? settings.terms_list.filter((t: string) => t && t.trim())
       : sale.terms_conditions ? [sale.terms_conditions] : [],
@@ -172,10 +195,11 @@ export default function PublicInvoiceView() {
       : undefined,
     stampPosition: settings?.bill_barcode_settings?.stamp_position || 'bottom-right',
     stampSize: settings?.bill_barcode_settings?.stamp_size || 'medium',
+    qrCodeUrl: sale.einvoice_qr_code || "",
+    financerDetails: financerDetails || undefined,
   };
 
   const renderTemplate = () => {
-    // If thermal format requested (via URL param or POS setting)
     if (formatParam === 'thermal') {
       const thermalItems = saleItems.map((item: any, index: number) => ({
         sr: index + 1,
@@ -185,7 +209,6 @@ export default function PublicInvoiceView() {
         rate: item.unit_price,
         total: item.line_total,
       }));
-
       const thermalProps = {
         billNo: sale.sale_number,
         date: new Date(sale.sale_date),
@@ -199,7 +222,6 @@ export default function PublicInvoiceView() {
         documentType: 'pos' as const,
         termsConditions: sale.terms_conditions || '',
       };
-
       if (thermalStyle === 'modern') {
         return <ModernThermalReceipt80mm ref={printRef} {...thermalProps} />;
       }
@@ -207,38 +229,25 @@ export default function PublicInvoiceView() {
     }
 
     switch (template) {
-      case 'classic':
-        return <ClassicTemplate {...templateProps} />;
-      case 'modern':
-        return <ModernTemplate {...templateProps} />;
-      case 'modern-wholesale':
-        return <ModernWholesaleTemplate {...templateProps} />;
-      case 'minimal':
-        return <MinimalTemplate {...templateProps} />;
-      case 'compact':
-        return <CompactTemplate {...templateProps} />;
-      case 'detailed':
-        return <DetailedTemplate {...templateProps} />;
-      case 'tax-invoice':
-        return <TaxInvoiceTemplate {...templateProps} />;
-      case 'tally-tax-invoice':
-        return <TallyTaxInvoiceTemplate {...templateProps} />;
-      case 'retail':
-        return <RetailTemplate {...templateProps} />;
-      case 'retail-erp':
-        return <RetailERPTemplate {...templateProps} />;
-      case 'wholesale-a5':
-        return <WholesaleA5Template {...templateProps} />;
+      case 'classic': return <ClassicTemplate {...templateProps} />;
+      case 'modern': return <ModernTemplate {...templateProps} />;
+      case 'modern-wholesale': return <ModernWholesaleTemplate {...templateProps} />;
+      case 'minimal': return <MinimalTemplate {...templateProps} />;
+      case 'compact': return <CompactTemplate {...templateProps} />;
+      case 'detailed': return <DetailedTemplate {...templateProps} />;
+      case 'tax-invoice': return <TaxInvoiceTemplate {...templateProps} />;
+      case 'tally-tax-invoice': return <TallyTaxInvoiceTemplate {...templateProps} />;
+      case 'retail': return <RetailTemplate {...templateProps} />;
+      case 'retail-erp': return <RetailERPTemplate {...templateProps} />;
+      case 'wholesale-a5': return <WholesaleA5Template {...templateProps} />;
       case 'professional':
-      default:
-        return <ProfessionalTemplate {...templateProps} />;
+      default: return <ProfessionalTemplate {...templateProps} />;
     }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 md:p-8">
       <div className={formatParam === 'thermal' ? 'max-w-[80mm] mx-auto' : 'max-w-4xl mx-auto'}>
-        {/* Action Buttons */}
         <div className="flex justify-center gap-4 mb-6 print:hidden">
           <Button onClick={() => handlePrint()} className="gap-2">
             <Printer className="h-4 w-4" />
@@ -250,7 +259,6 @@ export default function PublicInvoiceView() {
           </Button>
         </div>
 
-        {/* Invoice Content - multi-page print support */}
         <style>{`
           @media print {
             @page { size: ${formatParam === 'thermal' ? '80mm auto' : 'A4 portrait'}; margin: ${formatParam === 'thermal' ? '3mm' : '5mm'}; }
@@ -267,7 +275,6 @@ export default function PublicInvoiceView() {
           {renderTemplate()}
         </div>
 
-        {/* Footer */}
         <div className="text-center mt-6 text-sm text-muted-foreground print:hidden">
           <p>Invoice #{sale.sale_number} • Generated on {format(new Date(), 'dd MMM yyyy, hh:mm a')}</p>
         </div>
