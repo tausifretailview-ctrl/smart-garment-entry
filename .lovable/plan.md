@@ -1,54 +1,52 @@
 
 
-## Fix: Price Update Not Persisting in Product Master
+## Apply Roll-wise MTR Logic to ProductEntryDialog
 
-### Root Cause Analysis
-
-After auditing the full flow, I found **two issues**:
-
-1. **No row-count verification**: The `handlePriceUpdateConfirm` function in `PurchaseEntry.tsx` (line 2316) updates `product_variants` but never checks if rows were actually affected. Supabase returns no error when RLS blocks an update — it silently updates 0 rows. The user sees a "success" toast even when nothing changed.
-
-2. **Missing `organization_id` in WHERE clause**: The update uses only `.eq("id", skuId)` without organization scoping. While RLS should handle this, adding explicit `organization_id` filtering ensures correct behavior and follows the project's "Scoped Mutations" core rule.
-
-3. **Stale selection state in dialog**: `PriceUpdateConfirmDialog` initializes `selectedItems` via `useState` — if the dialog component stays mounted between opens, the selection won't reflect new `priceChanges`.
+The roll-wise MTR changes were only applied to the standalone `ProductEntry.tsx` page, but the "Purchase Bill — Add New Product" dialog (`src/components/ProductEntryDialog.tsx`) is a separate component that lacks these changes. This is what the user sees in their screenshot.
 
 ### Changes
 
-#### 1. `src/pages/PurchaseEntry.tsx` — `handlePriceUpdateConfirm`
+#### `src/components/ProductEntryDialog.tsx`
 
-- Add `.eq("organization_id", currentOrganization.id)` to the update query
-- Add `.select()` with count check: if 0 rows returned, throw an error
-- Add console logging for debugging: log the `skuId` and updates being applied
-- On partial failure (some variants updated, some not), show a warning toast listing which ones failed
+1. **Add state**: `const [rollWiseMtrEnabled, setRollWiseMtrEnabled] = useState(false);`
 
-#### 2. `src/components/PriceUpdateConfirmDialog.tsx` — Sync selection state
+2. **Read setting** (line ~629, inside the `purchase_settings` block): Add `setRollWiseMtrEnabled(purchaseSettings.roll_wise_mtr_entry || false);`
 
-- Add `useEffect` that re-initializes `selectedItems` whenever `priceChanges` prop changes, ensuring fresh selection state every time the dialog opens with new data
+3. **Derive flag**: `const isRollWiseMtr = rollWiseMtrEnabled && formData.uom === 'MTR';`
 
-### Technical Details
+4. **Hide Size Group selector** (line ~1773): Add `&& !isRollWiseMtr` to the condition:
+   ```
+   {formData.product_type !== 'service' && !mobileERPMode?.locked_size_qty && !isRollWiseMtr && (
+   ```
 
-```typescript
-// Before (silent failure):
-const { error } = await supabase
-  .from("product_variants")
-  .update(updates)
-  .eq("id", skuId);
+5. **Hide Size-wise Quantity grid**: Find the size-wise quantity section and wrap with `!isRollWiseMtr`
 
-// After (verified update):
-const { data, error } = await supabase
-  .from("product_variants")
-  .update(updates)
-  .eq("id", skuId)
-  .eq("organization_id", currentOrganization.id)
-  .select("id");
+6. **Update `handleGenerateSizeVariants`** (line ~736): Add a branch after the service check:
+   ```typescript
+   if (isRollWiseMtr) {
+     const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
+     const newVariants = colorsToUse.map(color => ({
+       color,
+       size: "Roll",
+       pur_price: formData.default_pur_price ?? 0,
+       sale_price: formData.default_sale_price ?? 0,
+       mrp: formData.default_mrp ?? null,
+       barcode: "",
+       active: true,
+       opening_qty: 0,
+     }));
+     if (isAutoBarcode) autoBarcodePending.current = true;
+     setVariants([...variants, ...newVariants]);
+     setShowVariants(true);
+     return;
+   }
+   ```
 
-if (error) throw error;
-if (!data || data.length === 0) {
-  failedUpdates.push(skuId);
-}
-```
+7. **Add info banner** before the variants section when `isRollWiseMtr`:
+   - "Roll-wise MTR mode: Individual roll variants with meter lengths will be created during Purchase Entry."
 
-- No database changes needed
-- Follows existing "Scoped Mutations" pattern
-- Audit trail already works via `audit_variant_price_changes` trigger (verified: PRICE_CHANGE logs exist in audit_logs)
+8. **Update Generate button label**: Show "Generate Color Variants" when `isRollWiseMtr`, disable size group requirement
+
+### No other files affected
+This mirrors the exact same logic already working in `ProductEntry.tsx`, applied to the dialog variant.
 
