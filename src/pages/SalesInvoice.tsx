@@ -932,12 +932,11 @@ export default function SalesInvoice() {
           .select(`
             id, size, pur_price, sale_price, mrp, barcode, active, color, stock_qty, product_id,
             last_purchase_sale_price, last_purchase_mrp, last_purchase_date,
-            products (id, product_name, brand, category, style, color, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, size_group_id, sale_discount_type, sale_discount_value, uom)
+            products (id, product_name, brand, category, style, color, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, size_group_id, sale_discount_type, sale_discount_value, uom, product_type)
           `)
           .eq("organization_id", currentOrganization.id)
           .eq("active", true)
-          .is("deleted_at", null)
-          .gt("stock_qty", 0);
+          .is("deleted_at", null);
 
         const isBarcode = /^[A-Z]{2,4}[0-9]{5,}$|^[0-9]{6,}$/.test(query.trim());
 
@@ -961,8 +960,14 @@ export default function SalesInvoice() {
 
         if (error) throw error;
 
+        // Filter: keep service/combo products regardless of stock, require stock > 0 for goods
+        const filtered = (data || []).filter((v: any) => {
+          const pType = v.products?.product_type;
+          return pType === 'service' || pType === 'combo' || (v.stock_qty || 0) > 0;
+        });
+
         // Map results
-        let results = (data || []).map((v: any) => {
+        let results = filtered.map((v: any) => {
           const sizeGroupId = v.products?.size_group_id;
           const sizeGroup = sizeGroupId ? sizeGroupsMap[sizeGroupId] : null;
           const sizeRange = sizeGroup && Array.isArray(sizeGroup.sizes) && sizeGroup.sizes.length > 1
@@ -1233,7 +1238,7 @@ export default function SalesInvoice() {
     if (!foundVariant) {
       for (const product of productsData) {
         const variantMatch = product.product_variants?.find((v: any) => 
-          v.barcode?.toLowerCase() === searchTerm.toLowerCase() && v.stock_qty > 0
+          v.barcode?.toLowerCase() === searchTerm.toLowerCase() && (v.stock_qty > 0 || product.product_type === 'service' || product.product_type === 'combo')
         );
         if (variantMatch) {
           foundVariant = variantMatch;
