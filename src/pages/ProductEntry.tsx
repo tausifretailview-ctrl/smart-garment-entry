@@ -126,6 +126,7 @@ const ProductEntry = () => {
   const [styles, setStyles] = useState<string[]>([]);
   
   const [showDiscountFields, setShowDiscountFields] = useState(false);
+  const [rollWiseMtrEnabled, setRollWiseMtrEnabled] = useState(false);
   const [showQuickSettings, setShowQuickSettings] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [formData, setFormData] = useState<ProductForm>({
@@ -399,6 +400,8 @@ const ProductEntry = () => {
         setShowMrp(purchaseSettings.show_mrp || false);
         // Set discount fields visibility
         setShowDiscountFields(purchaseSettings.product_entry_discount_enabled || false);
+        // Set roll-wise MTR entry
+        setRollWiseMtrEnabled(purchaseSettings.roll_wise_mtr_entry || false);
       }
     }
   };
@@ -827,6 +830,8 @@ const ProductEntry = () => {
     }
   };
 
+  const isRollWiseMtr = rollWiseMtrEnabled && formData.uom === 'MTR';
+
   const handleGenerateSizeVariants = () => {
     // For service type, auto-generate a single "Standard" variant
     if (formData.product_type === 'service') {
@@ -850,6 +855,34 @@ const ProductEntry = () => {
     }, 100);
     return;
   }
+
+    // Roll-wise MTR mode: one variant per color, no size grid needed
+    if (isRollWiseMtr) {
+      const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
+      const newVariants: ProductVariant[] = [];
+      for (const color of colorsToUse) {
+        const exists = variants.some(v => v.color === color && v.size === 'Roll');
+        if (!exists) {
+          newVariants.push({
+            color,
+            size: "Roll",
+            pur_price: formData.default_pur_price ?? 0,
+            sale_price: formData.default_sale_price ?? 0,
+            mrp: formData.default_mrp ?? null,
+            barcode: "",
+            active: true,
+            opening_qty: 0,
+          });
+        }
+      }
+      setVariants([...variants, ...newVariants]);
+      setShowVariants(true);
+      setTimeout(() => {
+        variantsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setTimeout(() => { autoGenerateBtnRef.current?.focus(); }, 400);
+      }, 100);
+      return;
+    }
 
     const selectedGroup = sizeGroups.find((g) => g.id === formData.size_group_id);
     if (!selectedGroup) {
@@ -2073,8 +2106,8 @@ const ProductEntry = () => {
                 </div>
               )}
 
-              {/* Size Group - Hidden for service type */}
-              {formData.product_type !== 'service' && (
+              {/* Size Group - Hidden for service type and roll-wise MTR */}
+              {formData.product_type !== 'service' && !isRollWiseMtr && (
                 <div className="space-y-2">
                   <Label htmlFor="size_group">Size Group</Label>
                   <Select
@@ -2487,6 +2520,18 @@ const ProductEntry = () => {
               </div>
             </div>
 
+            {/* Roll-wise MTR info banner */}
+            {isRollWiseMtr && (
+              <div className="col-span-full">
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
+                  <span className="text-sm">🧵</span>
+                  <p className="text-xs text-amber-800 font-outfit">
+                    <span className="font-semibold">Roll-wise MTR mode:</span> Individual roll variants with meter lengths & unique barcodes will be created during Purchase Entry. Add colors here, then generate color variants below.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* ── 👟 Size Variants ────────────────────────── */}
             <div className="rounded-xl border-[1.5px] border-violet-200 bg-gradient-to-br from-violet-50/60 via-purple-50/30 to-fuchsia-50/20 p-4 space-y-3">
               {/* Section header */}
@@ -2502,13 +2547,13 @@ const ProductEntry = () => {
                 </div>
                 <Button
                   onClick={handleGenerateSizeVariants}
-                  disabled={formData.product_type !== 'service' && !formData.size_group_id}
+                  disabled={formData.product_type !== 'service' && !isRollWiseMtr && !formData.size_group_id}
                   variant="outline"
                   size="sm"
                   className="gap-1.5 font-outfit font-semibold text-violet-700 border-violet-300 hover:bg-violet-100/60 hover:border-violet-400 transition-all"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  {formData.product_type === 'service' ? 'Generate Service Variant' : 'Generate Variants'}
+                  {formData.product_type === 'service' ? 'Generate Service Variant' : isRollWiseMtr ? 'Generate Color Variants' : 'Generate Variants'}
                 </Button>
               </div>
 
