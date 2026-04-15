@@ -1009,6 +1009,7 @@ export default function Settings() {
                   <Label htmlFor="business_name">Business Name</Label>
                   <Input
                     id="business_name"
+                    className="no-uppercase"
                     value={settings.business_name || ""}
                     onChange={(e) =>
                       setSettings({ ...settings, business_name: e.target.value })
