@@ -134,6 +134,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [creatingSizeGroup, setCreatingSizeGroup] = useState(false);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
+  const [rollWiseMtrEnabled, setRollWiseMtrEnabled] = useState(false);
   const [disabledSizes, setDisabledSizes] = useState<Set<string>>(new Set());
   const [customSizes, setCustomSizes] = useState<string[]>([]);
   const [customSizeInput, setCustomSizeInput] = useState("");
@@ -637,6 +638,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         setShowMrp(purchaseSettings.show_mrp || false);
         setShowDiscountFields(purchaseSettings.product_entry_discount_enabled || false);
         setCursorAfterStyle(purchaseSettings.cursor_after_style || 'pur_price');
+        setRollWiseMtrEnabled(purchaseSettings.roll_wise_mtr_entry || false);
       }
     }
   };
@@ -749,6 +751,26 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       // Only auto-generate if in auto mode AND barcode is blank
       if (isAutoBarcode) autoBarcodePending.current = true;
       setVariants([newVariant]);
+      setShowVariants(true);
+      return;
+    }
+
+    // Roll-wise MTR: skip size grid, create one variant per color with size="Roll"
+    const isRollWiseMtr = rollWiseMtrEnabled && formData.uom === 'MTR';
+    if (isRollWiseMtr) {
+      const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
+      const newVariants: ProductVariant[] = colorsToUse.map(color => ({
+        color,
+        size: "Roll",
+        pur_price: formData.default_pur_price ?? 0,
+        sale_price: formData.default_sale_price ?? 0,
+        mrp: formData.default_mrp ?? null,
+        barcode: "",
+        active: true,
+        opening_qty: 0,
+      }));
+      if (isAutoBarcode) autoBarcodePending.current = true;
+      setVariants([...variants, ...newVariants]);
       setShowVariants(true);
       return;
     }
@@ -1770,7 +1792,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </div>
               )}
 
-              {formData.product_type !== 'service' && !mobileERPMode?.locked_size_qty && (
+              {formData.product_type !== 'service' && !mobileERPMode?.locked_size_qty && !(rollWiseMtrEnabled && formData.uom === 'MTR') && (
                 <div className="space-y-2">
                   <Label>Size Group</Label>
                   <div className="flex gap-2">
@@ -2233,6 +2255,15 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </div>
               )}
 
+              {/* Roll-wise MTR info banner */}
+              {rollWiseMtrEnabled && formData.uom === 'MTR' && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-800 p-3">
+                  <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">
+                    📏 Roll-wise MTR mode: Individual roll variants with meter lengths will be created during Purchase Entry. Generate color variants below as placeholders.
+                  </p>
+                </div>
+              )}
+
               {/* ── 👟 Size Variants ────────────────────────── */}
               <div className="rounded-xl border-[1.5px] border-violet-200 bg-gradient-to-br from-violet-50/60 via-purple-50/30 to-fuchsia-50/20 p-4 space-y-3">
                 <div className="flex items-center justify-between">
@@ -2241,19 +2272,23 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       <span className="text-white text-sm">👟</span>
                     </div>
                     <div>
-                      <span className="text-[13px] font-bold text-violet-800 font-outfit">Size Variants</span>
-                      <p className="text-[10px] text-violet-500/80 font-outfit">Generate size-wise entries</p>
+                      <span className="text-[13px] font-bold text-violet-800 font-outfit">
+                        {rollWiseMtrEnabled && formData.uom === 'MTR' ? 'Color Variants' : 'Size Variants'}
+                      </span>
+                      <p className="text-[10px] text-violet-500/80 font-outfit">
+                        {rollWiseMtrEnabled && formData.uom === 'MTR' ? 'Generate color-wise roll entries' : 'Generate size-wise entries'}
+                      </p>
                     </div>
                   </div>
                   <Button
                     type="button"
                     onClick={handleGenerateSizeVariants}
-                    disabled={formData.product_type !== 'service' && !formData.size_group_id}
+                    disabled={formData.product_type !== 'service' && !(rollWiseMtrEnabled && formData.uom === 'MTR') && !formData.size_group_id}
                     className="gap-1.5 font-outfit font-semibold bg-violet-600 hover:bg-violet-700 text-white shadow-sm"
                     size="sm"
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    Generate Variants
+                    {rollWiseMtrEnabled && formData.uom === 'MTR' ? 'Generate Color Variants' : 'Generate Variants'}
                   </Button>
                 </div>
 
