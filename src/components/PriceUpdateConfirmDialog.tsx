@@ -55,6 +55,11 @@ export function PriceUpdateConfirmDialog({
     new Set(priceChanges.map((c) => `${c.sku_id}-${c.field}`))
   );
 
+  // Re-sync selection when priceChanges prop updates (dialog may stay mounted)
+  useEffect(() => {
+    setSelectedItems(new Set(priceChanges.map((c) => `${c.sku_id}-${c.field}`)));
+  }, [priceChanges]);
+
   const handleToggle = (key: string) => {
     const newSet = new Set(selectedItems);
     if (newSet.has(key)) {
