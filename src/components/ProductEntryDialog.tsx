@@ -2300,9 +2300,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
               {/* Roll-wise MTR info banner */}
               {rollWiseMtrEnabled && formData.uom === 'MTR' && (
-                <div className="rounded-lg border border-blue-200 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-800 p-3">
+                 <div className="rounded-lg border border-blue-200 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-800 p-3">
                   <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">
-                    📏 Roll-wise MTR mode: Individual roll variants with meter lengths will be created during Purchase Entry. Generate color variants below as placeholders.
+                    📏 Roll-wise MTR mode: Enter comma-separated roll lengths (e.g. 75,80,85) next to each color above, then click "Generate Color Variants".
                   </p>
                 </div>
               )}
