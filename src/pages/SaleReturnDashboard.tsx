@@ -14,6 +14,7 @@ import { ChevronDown, ChevronUp, Printer, Trash2, Plus, Search, Receipt, Trendin
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useReactToPrint } from "react-to-print";
 import { SaleReturnPrint } from "@/components/SaleReturnPrint";
+import { SaleReturnThermalPrint } from "@/components/SaleReturnThermalPrint";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { AdjustCustomerCreditNoteDialog } from "@/components/AdjustCustomerCreditNoteDialog";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
@@ -82,6 +83,7 @@ export default function SaleReturnDashboard() {
 
   const [returnToPrint, setReturnToPrint] = useState<SaleReturn | null>(null);
   const [businessDetails, setBusinessDetails] = useState<BusinessDetails | null>(null);
+  const [billFormat, setBillFormat] = useState<string>('a4');
   const printRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
 
@@ -92,8 +94,13 @@ export default function SaleReturnDashboard() {
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
   const queryClient = useQueryClient();
 
+  const isThermal = billFormat === 'thermal';
+
   const handlePrint = useReactToPrint({
     contentRef: printRef,
+    pageStyle: isThermal
+      ? '@page { size: 80mm auto; margin: 2mm; }'
+      : '@page { size: A4 portrait; margin: 5mm; }',
   });
 
   const handlePrintTable = useReactToPrint({
@@ -237,7 +244,7 @@ export default function SaleReturnDashboard() {
   const fetchBusinessDetails = async () => {
     const { data, error } = await supabase
       .from("settings")
-      .select("business_name, address, mobile_number, gst_number")
+      .select("business_name, address, mobile_number, gst_number, sale_settings")
       .eq("organization_id", currentOrganization?.id)
       .single();
 
@@ -247,6 +254,10 @@ export default function SaleReturnDashboard() {
     }
 
     setBusinessDetails(data);
+    const saleSettings = data?.sale_settings as any;
+    if (saleSettings?.pos_bill_format) {
+      setBillFormat(saleSettings.pos_bill_format);
+    }
   };
 
   // Cache for loaded items
@@ -717,11 +728,19 @@ export default function SaleReturnDashboard() {
 
         <div style={{ display: "none" }}>
           {returnToPrint && businessDetails && (
-            <SaleReturnPrint
-              ref={printRef}
-              saleReturn={returnToPrint}
-              businessDetails={businessDetails}
-            />
+            isThermal ? (
+              <SaleReturnThermalPrint
+                ref={printRef}
+                saleReturn={returnToPrint}
+                businessDetails={businessDetails}
+              />
+            ) : (
+              <SaleReturnPrint
+                ref={printRef}
+                saleReturn={returnToPrint}
+                businessDetails={businessDetails}
+              />
+            )
           )}
         </div>
 
