@@ -1190,11 +1190,18 @@ export default function POSSales() {
     // Detect if this looks like scanner input
     const isScannerLike = detectScannerInput(value, timeSinceLastKeystroke);
     
-    // For scanner input: DON'T open dropdown, wait for Enter key
+    // For scanner input: DON'T open dropdown, wait for Enter key or auto-submit
     if (isScannerLike || (value.length >= 4 && timeSinceLastKeystroke < 50)) {
       setOpenProductSearch(false);
       setProductSearchResults([]);
       setIsProductSearchLoading(false);
+      // Schedule auto-submit for scanners that don't send Enter
+      scheduleAutoSubmit(value, (val) => {
+        searchAndAddProduct(val);
+        setSearchInput("");
+        resetScannerDetection();
+        setTimeout(() => barcodeInputRef.current?.focus(), 50);
+      });
       return;
     }
     
