@@ -166,7 +166,7 @@ export default function SalesInvoice() {
   const dropdownDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Barcode scanner detection for instant add (like POS)
-  const { recordKeystroke, reset: resetScannerDetection, detectScannerInput } = useBarcodeScanner();
+  const { recordKeystroke, reset: resetScannerDetection, detectScannerInput, scheduleAutoSubmit, cancelAutoSubmit, markSubmitted } = useBarcodeScanner();
   const { playSuccessBeep, playErrorBeep } = useBeepSound();
   
   // Initialize 5 empty rows for predefined table
@@ -1207,25 +1207,37 @@ export default function SalesInvoice() {
     // Detect scanner input - don't trigger any search for fast input
     const isScannerLike = detectScannerInput(value, timeSinceLastKeystroke);
     if (isScannerLike || (value.length >= 4 && timeSinceLastKeystroke < 50)) {
-      return; // Wait for Enter key from scanner
+      // Schedule auto-submit for scanners that don't send Enter
+      scheduleAutoSubmit(value, (val) => {
+        searchAndAddProduct(val);
+        setSearchInput("");
+        resetScannerDetection();
+        setTimeout(() => barcodeInputRef.current?.focus(), 50);
+      });
+      return; // Wait for Enter key or auto-submit
     }
-  }, [recordKeystroke, detectScannerInput]);
+  }, [recordKeystroke, detectScannerInput, scheduleAutoSubmit, resetScannerDetection]);
 
-  // Handle barcode/product search on Enter (like POS) - optimized for scanner input
+  // Handle barcode/product search on Enter - reads DOM value to avoid React state lag
   const handleBarcodeSearch = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && searchInput.trim()) {
+    if (e.key === 'Enter') {
+      // Read directly from the input element to avoid stale React state
+      const rawValue = (e.currentTarget || e.target as HTMLInputElement)?.value?.trim();
+      if (!rawValue) return;
       e.preventDefault();
       
-      // Clear any pending debounce timer
+      // Clear any pending debounce / auto-submit timer
       if (dropdownDebounceTimer.current) {
         clearTimeout(dropdownDebounceTimer.current);
         dropdownDebounceTimer.current = null;
       }
+      cancelAutoSubmit();
+      markSubmitted(rawValue);
       
-      searchAndAddProduct(searchInput.trim());
+      searchAndAddProduct(rawValue);
       resetScannerDetection();
     }
-  }, [searchInput, resetScannerDetection]);
+  }, [resetScannerDetection, cancelAutoSubmit, markSubmitted]);
 
   const searchAndAddProduct = useCallback(async (searchTerm: string) => {
     const normalizedSearchTerm = searchTerm.trim().toLowerCase();
@@ -2638,12 +2650,8 @@ Thank you for choosing us!`;
                   placeholder="Scan barcode or search product…"
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && searchInput.trim()) {
-                      e.preventDefault();
-                      handleBarcodeSearch(e as any);
-                    }
-                  }}
+                  onKeyDown={handleBarcodeSearch}
+
                   className="pl-10 h-11 text-base rounded-xl"
                   autoComplete="off"
                   autoCapitalize="off"
@@ -2654,14 +2662,13 @@ Thank you for choosing us!`;
               </div>
               <CameraScanButton
                 onBarcodeScanned={(barcode) => {
-                  setSearchInput(barcode);
-                  setTimeout(() => {
-                    if (barcodeInputRef.current) {
-                      barcodeInputRef.current.focus();
-                      const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
-                      barcodeInputRef.current.dispatchEvent(enterEvent);
-                    }
-                  }, 100);
+                  const trimmed = barcode.trim();
+                  if (!trimmed) return;
+                  markSubmitted(trimmed);
+                  cancelAutoSubmit();
+                  setSearchInput("");
+                  searchAndAddProduct(trimmed);
+                  setTimeout(() => barcodeInputRef.current?.focus(), 50);
                 }}
                 className="h-11 w-11 rounded-xl shrink-0"
               />
@@ -3306,14 +3313,13 @@ Thank you for choosing us!`;
               </div>
               <CameraScanButton
                 onBarcodeScanned={(barcode) => {
-                  setSearchInput(barcode);
-                  setTimeout(() => {
-                    if (barcodeInputRef.current) {
-                      barcodeInputRef.current.focus();
-                      const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
-                      barcodeInputRef.current.dispatchEvent(enterEvent);
-                    }
-                  }, 100);
+                  const trimmed = barcode.trim();
+                  if (!trimmed) return;
+                  markSubmitted(trimmed);
+                  cancelAutoSubmit();
+                  setSearchInput("");
+                  searchAndAddProduct(trimmed);
+                  setTimeout(() => barcodeInputRef.current?.focus(), 50);
                 }}
                 className="h-10 w-10 shrink-0"
               />

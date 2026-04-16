@@ -326,7 +326,7 @@ export default function POSSales() {
   }, []);
 
   // Barcode scanner detection for instant cart add
-  const { recordKeystroke, reset: resetScannerDetection, detectScannerInput } = useBarcodeScanner();
+  const { recordKeystroke, reset: resetScannerDetection, detectScannerInput, scheduleAutoSubmit, cancelAutoSubmit, markSubmitted } = useBarcodeScanner();
   const lastInputTime = useRef<number>(0);
   const dropdownDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const productSearchSeqRef = useRef(0);
@@ -1136,22 +1136,27 @@ export default function POSSales() {
     }
   }, [customerId, customers, hasBrandDiscounts]);
 
-  // Handle barcode/product search on Enter - optimized for scanner input
+  // Handle barcode/product search on Enter - reads DOM value to avoid React state lag
   const handleSearch = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if ((e.key === 'Enter' || e.key === 'Go' || e.keyCode === 13) && searchInput.trim()) {
+    if (e.key === 'Enter' || e.key === 'Go' || e.keyCode === 13) {
+      // Read directly from the input element to avoid stale React state
+      const rawValue = (e.currentTarget || e.target as HTMLInputElement)?.value?.trim();
+      if (!rawValue) return;
       e.preventDefault();
       
-      // Clear any pending dropdown timer
+      // Clear any pending dropdown / auto-submit timer
       if (dropdownDebounceTimer.current) {
         clearTimeout(dropdownDebounceTimer.current);
         dropdownDebounceTimer.current = null;
       }
+      cancelAutoSubmit();
+      markSubmitted(rawValue);
       
       // Close dropdown immediately for scanner input
       setOpenProductSearch(false);
       
       // Search and add product directly
-      searchAndAddProduct(searchInput.trim());
+      searchAndAddProduct(rawValue);
       
       // Reset scanner detection for next input
       resetScannerDetection();
@@ -1161,7 +1166,7 @@ export default function POSSales() {
         barcodeInputRef.current?.focus();
       }, 50);
     }
-  }, [searchInput, resetScannerDetection]);
+  }, [resetScannerDetection, cancelAutoSubmit, markSubmitted]);
 
   // Optimized input change handler with scanner detection
   const handleBarcodeInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1185,11 +1190,18 @@ export default function POSSales() {
     // Detect if this looks like scanner input
     const isScannerLike = detectScannerInput(value, timeSinceLastKeystroke);
     
-    // For scanner input: DON'T open dropdown, wait for Enter key
+    // For scanner input: DON'T open dropdown, wait for Enter key or auto-submit
     if (isScannerLike || (value.length >= 4 && timeSinceLastKeystroke < 50)) {
       setOpenProductSearch(false);
       setProductSearchResults([]);
       setIsProductSearchLoading(false);
+      // Schedule auto-submit for scanners that don't send Enter
+      scheduleAutoSubmit(value, (val) => {
+        searchAndAddProduct(val);
+        setSearchInput("");
+        resetScannerDetection();
+        setTimeout(() => barcodeInputRef.current?.focus(), 50);
+      });
       return;
     }
     
@@ -3482,8 +3494,11 @@ export default function POSSales() {
             if (value.length > 0) setOpenProductSearch(true);
           }}
           onBarcodeSubmit={() => {
-            if (searchInput.trim()) {
-              searchAndAddProduct(searchInput.trim());
+            const rawValue = barcodeInputRef.current?.value?.trim() || searchInput.trim();
+            if (rawValue) {
+              markSubmitted(rawValue);
+              cancelAutoSubmit();
+              searchAndAddProduct(rawValue);
               setSearchInput("");
             }
           }}
@@ -3616,8 +3631,11 @@ export default function POSSales() {
             }
           }}
           onBarcodeSubmit={() => {
-            if (searchInput.trim()) {
-              searchAndAddProduct(searchInput.trim());
+            const rawValue = barcodeInputRef.current?.value?.trim() || searchInput.trim();
+            if (rawValue) {
+              markSubmitted(rawValue);
+              cancelAutoSubmit();
+              searchAndAddProduct(rawValue);
               setSearchInput("");
             }
           }}
@@ -4054,14 +4072,13 @@ export default function POSSales() {
                   </div>
                   <CameraScanButton
                     onBarcodeScanned={(barcode) => {
-                      setSearchInput(barcode);
-                      setTimeout(() => {
-                        if (barcodeInputRef.current) {
-                          barcodeInputRef.current.focus();
-                          const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
-                          barcodeInputRef.current.dispatchEvent(enterEvent);
-                        }
-                      }, 100);
+                      const trimmed = barcode.trim();
+                      if (!trimmed) return;
+                      markSubmitted(trimmed);
+                      cancelAutoSubmit();
+                      setSearchInput("");
+                      searchAndAddProduct(trimmed);
+                      setTimeout(() => barcodeInputRef.current?.focus(), 50);
                     }}
                     className="h-10 w-10 shrink-0"
                   />
