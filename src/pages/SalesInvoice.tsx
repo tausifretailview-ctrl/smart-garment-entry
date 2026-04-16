@@ -1309,7 +1309,7 @@ export default function SalesInvoice() {
     });
     setSearchInput("");
     barcodeInputRef.current?.focus();
-  }, [productsData, barcodeIndex, currentOrganization?.id, entryMode, playSuccessBeep, playErrorBeep, toast, addProductToInvoice]);
+  }, [productsData, barcodeIndex, currentOrganization?.id, entryMode, playSuccessBeep, playErrorBeep, toast]);
 
   const addProductToInvoice = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }) => {
     // If in grid mode, open size grid dialog
