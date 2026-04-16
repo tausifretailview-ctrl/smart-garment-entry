@@ -315,8 +315,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     src={logoUrl}
                     alt="Logo"
                     style={{
-                      height: isA4 ? "70px" : "55px",
-                      maxWidth: isA4 ? "100px" : "80px",
+                      height: isA4 ? "80px" : "60px",
+                      maxWidth: isA4 ? "160px" : "120px",
                       objectFit: "contain",
                       position: "absolute",
                       left: "10px",
