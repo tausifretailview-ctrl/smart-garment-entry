@@ -869,53 +869,59 @@ const CustomerMaster = () => {
                     Add Customer
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="sm:max-w-lg">
                   <DialogHeader>
                     <DialogTitle>{editingCustomer ? "Edit Customer" : "Add New Customer"}</DialogTitle>
                   </DialogHeader>
-                  <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                      <Label htmlFor="phone">Mobile Number *</Label>
-                      <Input id="phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} required autoFocus placeholder="Enter mobile number" />
-                    </div>
-                    <div>
-                      <Label htmlFor="customer_name">Customer Name</Label>
-                      <Input id="customer_name" value={formData.customer_name} onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })} placeholder="Enter customer name (optional)" />
-                    </div>
-                    <div>
-                      <Label htmlFor="email">Email</Label>
-                      <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
-                    </div>
-                    <div>
-                      <Label htmlFor="address">Address</Label>
-                      <Textarea id="address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} />
-                    </div>
-                    <div>
-                      <Label htmlFor="gst_number">GST Number</Label>
-                      <Input id="gst_number" value={formData.gst_number} onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })} />
-                    </div>
-                    <div>
-                      <Label htmlFor="opening_balance">Opening Balance (₹)</Label>
-                      <Input id="opening_balance" type="number" step="0.01" value={formData.opening_balance} onChange={(e) => setFormData({ ...formData, opening_balance: e.target.value })} placeholder="Receivable from customer" />
-                      <p className="text-xs text-muted-foreground mt-1">Positive = Receivable from customer</p>
-                    </div>
-                    <div>
-                      <Label htmlFor="discount_percent">Discount %</Label>
-                      <Input id="discount_percent" type="number" step="0.01" min="0" max="100" value={formData.discount_percent} onChange={(e) => setFormData({ ...formData, discount_percent: e.target.value })} placeholder="Fixed discount for this customer" />
-                      <p className="text-xs text-muted-foreground mt-1">Auto-applied on POS & invoices</p>
-                    </div>
-                    <div>
-                      <Label htmlFor="transport_details">Transport Details</Label>
-                      <Input id="transport_details" value={formData.transport_details} onChange={(e) => setFormData({ ...formData, transport_details: e.target.value })} placeholder="e.g., VRL Logistics, Navi Mumbai" />
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg border p-3">
+                  <form onSubmit={handleSubmit} className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <Label className="text-sm font-medium">Buyer Portal Access</Label>
-                        <p className="text-xs text-muted-foreground">Customer can login to portal and place orders</p>
+                        <Label htmlFor="phone" className="text-xs">Mobile Number *</Label>
+                        <Input id="phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} required autoFocus placeholder="Enter mobile number" className="h-9" />
+                      </div>
+                      <div>
+                        <Label htmlFor="customer_name" className="text-xs">Customer Name</Label>
+                        <Input id="customer_name" value={formData.customer_name} onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })} placeholder="Optional" className="h-9" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor="email" className="text-xs">Email</Label>
+                        <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="h-9" />
+                      </div>
+                      <div>
+                        <Label htmlFor="gst_number" className="text-xs">GST Number</Label>
+                        <Input id="gst_number" value={formData.gst_number} onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })} className="h-9" />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="address" className="text-xs">Address</Label>
+                      <Textarea id="address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="min-h-[60px]" />
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <Label htmlFor="opening_balance" className="text-xs">Opening Balance (₹)</Label>
+                        <Input id="opening_balance" type="number" step="0.01" value={formData.opening_balance} onChange={(e) => setFormData({ ...formData, opening_balance: e.target.value })} placeholder="Receivable" className="h-9" />
+                        <p className="text-[10px] text-muted-foreground mt-0.5">Positive = Receivable</p>
+                      </div>
+                      <div>
+                        <Label htmlFor="discount_percent" className="text-xs">Discount %</Label>
+                        <Input id="discount_percent" type="number" step="0.01" min="0" max="100" value={formData.discount_percent} onChange={(e) => setFormData({ ...formData, discount_percent: e.target.value })} placeholder="Fixed" className="h-9" />
+                        <p className="text-[10px] text-muted-foreground mt-0.5">Auto-applied on POS</p>
+                      </div>
+                      <div>
+                        <Label htmlFor="transport_details" className="text-xs">Transport</Label>
+                        <Input id="transport_details" value={formData.transport_details} onChange={(e) => setFormData({ ...formData, transport_details: e.target.value })} placeholder="e.g., VRL" className="h-9" />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border p-2.5">
+                      <div>
+                        <Label className="text-xs font-medium">Buyer Portal Access</Label>
+                        <p className="text-[10px] text-muted-foreground">Customer can login to portal and place orders</p>
                       </div>
                       <Switch checked={formData.portal_enabled} onCheckedChange={(checked) => setFormData({ ...formData, portal_enabled: !!checked })} />
                     </div>
-                    <Button type="submit" className="w-full">{editingCustomer ? "Update" : "Create"} Customer</Button>
+                    <Button type="submit" className="w-full h-9">{editingCustomer ? "Update" : "Create"} Customer</Button>
                   </form>
                 </DialogContent>
               </Dialog>
