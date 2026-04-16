@@ -239,7 +239,7 @@ export default function SaleReturnDashboard() {
   const fetchBusinessDetails = async () => {
     const { data, error } = await supabase
       .from("settings")
-      .select("business_name, address, mobile_number, gst_number")
+      .select("business_name, address, mobile_number, gst_number, sale_settings")
       .eq("organization_id", currentOrganization?.id)
       .single();
 
@@ -249,6 +249,10 @@ export default function SaleReturnDashboard() {
     }
 
     setBusinessDetails(data);
+    const saleSettings = data?.sale_settings as any;
+    if (saleSettings?.pos_bill_format) {
+      setBillFormat(saleSettings.pos_bill_format);
+    }
   };
 
   // Cache for loaded items
