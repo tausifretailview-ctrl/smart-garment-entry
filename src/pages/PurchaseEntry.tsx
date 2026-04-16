@@ -2471,9 +2471,9 @@ const PurchaseEntry = () => {
     
     try {
       // Calculate totals directly from lineItems to avoid stale state issues
-      const calculatedGrossBeforeDiscount = lineItems.reduce((sum, r) => sum + (r.qty * r.pur_price), 0);
+      const calculatedGrossBeforeDiscount = lineItems.reduce((sum, r) => sum + (getMtrMultiplier(r) * r.pur_price), 0);
       const calculatedItemDiscount = lineItems.reduce((sum, r) => {
-        const sub = r.qty * r.pur_price;
+        const sub = getMtrMultiplier(r) * r.pur_price;
         return sum + (sub * r.discount_percent / 100);
       }, 0);
       const calculatedTotalDiscount = calculatedItemDiscount + discountAmount;
@@ -2878,7 +2878,7 @@ const PurchaseEntry = () => {
   };
 
   const itemDiscountTotal = lineItems.reduce((sum, r) => {
-    const sub = r.qty * r.pur_price;
+    const sub = getMtrMultiplier(r) * r.pur_price;
     return sum + (sub * r.discount_percent / 100);
   }, 0);
 
