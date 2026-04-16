@@ -1136,22 +1136,27 @@ export default function POSSales() {
     }
   }, [customerId, customers, hasBrandDiscounts]);
 
-  // Handle barcode/product search on Enter - optimized for scanner input
+  // Handle barcode/product search on Enter - reads DOM value to avoid React state lag
   const handleSearch = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if ((e.key === 'Enter' || e.key === 'Go' || e.keyCode === 13) && searchInput.trim()) {
+    if (e.key === 'Enter' || e.key === 'Go' || e.keyCode === 13) {
+      // Read directly from the input element to avoid stale React state
+      const rawValue = (e.currentTarget || e.target as HTMLInputElement)?.value?.trim();
+      if (!rawValue) return;
       e.preventDefault();
       
-      // Clear any pending dropdown timer
+      // Clear any pending dropdown / auto-submit timer
       if (dropdownDebounceTimer.current) {
         clearTimeout(dropdownDebounceTimer.current);
         dropdownDebounceTimer.current = null;
       }
+      cancelAutoSubmit();
+      markSubmitted(rawValue);
       
       // Close dropdown immediately for scanner input
       setOpenProductSearch(false);
       
       // Search and add product directly
-      searchAndAddProduct(searchInput.trim());
+      searchAndAddProduct(rawValue);
       
       // Reset scanner detection for next input
       resetScannerDetection();
@@ -1161,7 +1166,7 @@ export default function POSSales() {
         barcodeInputRef.current?.focus();
       }, 50);
     }
-  }, [searchInput, resetScannerDetection]);
+  }, [resetScannerDetection, cancelAutoSubmit, markSubmitted]);
 
   // Optimized input change handler with scanner detection
   const handleBarcodeInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
