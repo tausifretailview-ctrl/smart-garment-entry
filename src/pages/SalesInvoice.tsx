@@ -2643,12 +2643,8 @@ Thank you for choosing us!`;
                   placeholder="Scan barcode or search product…"
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && searchInput.trim()) {
-                      e.preventDefault();
-                      handleBarcodeSearch(e as any);
-                    }
-                  }}
+                  onKeyDown={handleBarcodeSearch}
+
                   className="pl-10 h-11 text-base rounded-xl"
                   autoComplete="off"
                   autoCapitalize="off"
@@ -2659,14 +2655,14 @@ Thank you for choosing us!`;
               </div>
               <CameraScanButton
                 onBarcodeScanned={(barcode) => {
-                  setSearchInput(barcode);
-                  setTimeout(() => {
-                    if (barcodeInputRef.current) {
-                      barcodeInputRef.current.focus();
-                      const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
-                      barcodeInputRef.current.dispatchEvent(enterEvent);
-                    }
-                  }, 100);
+                  const trimmed = barcode.trim();
+                  if (!trimmed) return;
+                  markSubmitted(trimmed);
+                  cancelAutoSubmit();
+                  setSearchInput("");
+                  searchAndAddProduct(trimmed);
+                  setTimeout(() => barcodeInputRef.current?.focus(), 50);
+                }}
                 }}
                 className="h-11 w-11 rounded-xl shrink-0"
               />
