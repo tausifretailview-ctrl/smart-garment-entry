@@ -1207,9 +1207,16 @@ export default function SalesInvoice() {
     // Detect scanner input - don't trigger any search for fast input
     const isScannerLike = detectScannerInput(value, timeSinceLastKeystroke);
     if (isScannerLike || (value.length >= 4 && timeSinceLastKeystroke < 50)) {
-      return; // Wait for Enter key from scanner
+      // Schedule auto-submit for scanners that don't send Enter
+      scheduleAutoSubmit(value, (val) => {
+        searchAndAddProduct(val);
+        setSearchInput("");
+        resetScannerDetection();
+        setTimeout(() => barcodeInputRef.current?.focus(), 50);
+      });
+      return; // Wait for Enter key or auto-submit
     }
-  }, [recordKeystroke, detectScannerInput]);
+  }, [recordKeystroke, detectScannerInput, scheduleAutoSubmit, resetScannerDetection]);
 
   // Handle barcode/product search on Enter - reads DOM value to avoid React state lag
   const handleBarcodeSearch = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
