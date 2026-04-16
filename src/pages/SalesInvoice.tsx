@@ -1228,23 +1228,59 @@ export default function SalesInvoice() {
   }, [searchInput, resetScannerDetection]);
 
   const searchAndAddProduct = useCallback(async (searchTerm: string) => {
-    if (!productsData) return;
+    const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+    if (!normalizedSearchTerm) return;
 
     // O(1) barcode lookup from in-memory index
-    const indexMatch = barcodeIndex.get(searchTerm.toLowerCase());
+    const indexMatch = barcodeIndex.get(normalizedSearchTerm);
     let foundVariant: any = indexMatch?.variant || null;
     let foundProduct: any = indexMatch?.product || null;
 
-    // Fallback: linear search if not found in index (handles partial matches)
-    if (!foundVariant) {
+    // Fallback: local linear search when cache/index misses
+    if (!foundVariant && productsData) {
       for (const product of productsData) {
-        const variantMatch = product.product_variants?.find((v: any) => 
-          v.barcode?.toLowerCase() === searchTerm.toLowerCase() && (v.stock_qty > 0 || product.product_type === 'service' || product.product_type === 'combo')
+        const variantMatch = product.product_variants?.find((v: any) =>
+          v.barcode?.toLowerCase() === normalizedSearchTerm && (v.stock_qty > 0 || product.product_type === 'service' || product.product_type === 'combo')
         );
         if (variantMatch) {
           foundVariant = variantMatch;
           foundProduct = product;
           break;
+        }
+      }
+    }
+
+    // Recovery path: exact DB barcode lookup when cache is stale/not loaded
+    if (!foundVariant && currentOrganization?.id) {
+      const { data: dbVariant, error: dbError } = await supabase
+        .from('product_variants')
+        .select(`
+          id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active,
+          last_purchase_sale_price, last_purchase_mrp, last_purchase_date,
+          products!inner(
+            id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent,
+            category, style, color, product_type, organization_id, size_group_id,
+            sale_discount_type, sale_discount_value, uom, status, deleted_at
+          )
+        `)
+        .eq('organization_id', currentOrganization.id)
+        .eq('barcode', searchTerm.trim())
+        .eq('active', true)
+        .is('deleted_at', null)
+        .eq('products.organization_id', currentOrganization.id)
+        .eq('products.status', 'active')
+        .is('products.deleted_at', null)
+        .maybeSingle();
+
+      if (dbError) {
+        console.error('Barcode lookup failed:', dbError);
+      }
+
+      if (dbVariant && (dbVariant as any).products) {
+        const dbProduct = (dbVariant as any).products;
+        if ((dbVariant.stock_qty || 0) > 0 || dbProduct.product_type === 'service' || dbProduct.product_type === 'combo') {
+          foundVariant = dbVariant;
+          foundProduct = dbProduct;
         }
       }
     }
@@ -1257,22 +1293,23 @@ export default function SalesInvoice() {
         barcodeInputRef.current?.focus();
         return;
       }
-      
+
       playSuccessBeep();
       await addProductToInvoice(foundProduct, foundVariant);
       setSearchInput("");
       setTimeout(() => barcodeInputRef.current?.focus(), 50);
-    } else {
-      playErrorBeep();
-      toast({
-        title: "Product not found",
-        description: "No product matches the scanned barcode.",
-        variant: "destructive",
-      });
-      setSearchInput("");
-      barcodeInputRef.current?.focus();
+      return;
     }
-  }, [productsData, barcodeIndex, entryMode, playSuccessBeep, playErrorBeep, toast]);
+
+    playErrorBeep();
+    toast({
+      title: "Product not found",
+      description: "No product matches the scanned barcode.",
+      variant: "destructive",
+    });
+    setSearchInput("");
+    barcodeInputRef.current?.focus();
+  }, [productsData, barcodeIndex, currentOrganization?.id, entryMode, playSuccessBeep, playErrorBeep, toast]);
 
   const addProductToInvoice = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }) => {
     // If in grid mode, open size grid dialog
