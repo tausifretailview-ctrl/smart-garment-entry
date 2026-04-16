@@ -175,13 +175,13 @@ export default function StockReport() {
       // Paginate products, variants, and batch_stock in parallel
       const [allProducts, allVariants, batchData] = await Promise.all([
         fetchAllPages(
-          supabase.from("products").select("id, product_name, brand, category, style").eq("organization_id", currentOrganization.id).is("deleted_at", null).neq("product_type", "service").order("product_name")
+          () => supabase.from("products").select("id, product_name, brand, category, style").eq("organization_id", currentOrganization.id).is("deleted_at", null).neq("product_type", "service").order("product_name")
         ),
         fetchAllPages(
-          supabase.from("product_variants").select("product_id, size, color").eq("organization_id", currentOrganization.id).eq("active", true).is("deleted_at", null)
+          () => supabase.from("product_variants").select("product_id, size, color").eq("organization_id", currentOrganization.id).eq("active", true).is("deleted_at", null)
         ),
         fetchAllPages(
-          supabase.from("batch_stock").select("purchase_bills(supplier_name, supplier_invoice_no)").eq("organization_id", currentOrganization.id)
+          () => supabase.from("batch_stock").select("purchase_bills(supplier_name, supplier_invoice_no)").eq("organization_id", currentOrganization.id)
         ),
       ]);
 
@@ -285,13 +285,13 @@ export default function StockReport() {
     try {
       const [allProducts, allVariants, batchData] = await Promise.all([
         fetchAllPages(
-          supabase.from("products").select("id, product_name, brand, category, style").eq("organization_id", currentOrganization.id).is("deleted_at", null).neq("product_type", "service").order("product_name")
+          () => supabase.from("products").select("id, product_name, brand, category, style").eq("organization_id", currentOrganization.id).is("deleted_at", null).neq("product_type", "service").order("product_name")
         ),
         fetchAllPages(
-          supabase.from("product_variants").select("product_id, size, color").eq("organization_id", currentOrganization.id).eq("active", true).is("deleted_at", null)
+          () => supabase.from("product_variants").select("product_id, size, color").eq("organization_id", currentOrganization.id).eq("active", true).is("deleted_at", null)
         ),
         fetchAllPages(
-          supabase.from("batch_stock").select("purchase_bills(supplier_name, supplier_invoice_no)").eq("organization_id", currentOrganization.id)
+          () => supabase.from("batch_stock").select("purchase_bills(supplier_name, supplier_invoice_no)").eq("organization_id", currentOrganization.id)
         ),
       ]);
 
