@@ -325,7 +325,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     }}
                   />
                 )}
-                <div style={{ fontSize: isA4 ? "26px" : "20px", fontWeight: "900", textTransform: "uppercase", letterSpacing: "2px", color: "#000" }}>
+                <div style={{ fontSize: isA4 ? "26px" : "20px", fontWeight: "900", letterSpacing: "2px", color: "#000" }}>
                   {businessName}
                 </div>
                 <div style={{ fontSize: isA4 ? "12px" : "9px", marginTop: "2px", lineHeight: 1.5, fontWeight: "600", color: "#111" }}>
