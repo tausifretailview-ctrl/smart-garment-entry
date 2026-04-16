@@ -409,11 +409,12 @@ const PurchaseBillDashboard = () => {
         }
       }
 
-      // Server-side date filtering
-      if (startDate) {
+      // Server-side date filtering — skip when searching by barcode/numeric to find bills across all dates
+      const isBarcodeLikeSearch = debouncedSearch && /^\d{4,}$/.test(debouncedSearch.trim());
+      if (startDate && !isBarcodeLikeSearch) {
         query = query.gte("bill_date", startDate);
       }
-      if (endDate) {
+      if (endDate && !isBarcodeLikeSearch) {
         query = query.lte("bill_date", endDate);
       }
 
