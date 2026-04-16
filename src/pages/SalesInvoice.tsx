@@ -166,7 +166,7 @@ export default function SalesInvoice() {
   const dropdownDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Barcode scanner detection for instant add (like POS)
-  const { recordKeystroke, reset: resetScannerDetection, detectScannerInput } = useBarcodeScanner();
+  const { recordKeystroke, reset: resetScannerDetection, detectScannerInput, scheduleAutoSubmit, cancelAutoSubmit, markSubmitted } = useBarcodeScanner();
   const { playSuccessBeep, playErrorBeep } = useBeepSound();
   
   // Initialize 5 empty rows for predefined table
@@ -1211,21 +1211,26 @@ export default function SalesInvoice() {
     }
   }, [recordKeystroke, detectScannerInput]);
 
-  // Handle barcode/product search on Enter (like POS) - optimized for scanner input
+  // Handle barcode/product search on Enter - reads DOM value to avoid React state lag
   const handleBarcodeSearch = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && searchInput.trim()) {
+    if (e.key === 'Enter') {
+      // Read directly from the input element to avoid stale React state
+      const rawValue = (e.currentTarget || e.target as HTMLInputElement)?.value?.trim();
+      if (!rawValue) return;
       e.preventDefault();
       
-      // Clear any pending debounce timer
+      // Clear any pending debounce / auto-submit timer
       if (dropdownDebounceTimer.current) {
         clearTimeout(dropdownDebounceTimer.current);
         dropdownDebounceTimer.current = null;
       }
+      cancelAutoSubmit();
+      markSubmitted(rawValue);
       
-      searchAndAddProduct(searchInput.trim());
+      searchAndAddProduct(rawValue);
       resetScannerDetection();
     }
-  }, [searchInput, resetScannerDetection]);
+  }, [resetScannerDetection, cancelAutoSubmit, markSubmitted]);
 
   const searchAndAddProduct = useCallback(async (searchTerm: string) => {
     const normalizedSearchTerm = searchTerm.trim().toLowerCase();
