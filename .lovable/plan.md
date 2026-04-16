@@ -1,26 +1,40 @@
 
 
-## Roll-wise Entry: Fix Amount Calculation & Default Qty
+## Fix MTR/Roll Line Total Calculation in Purchase Bill
 
-**Problem**: When roll-wise entry is enabled for MTR products in Purchase Invoice, the current logic sets `qty = roll.meters` (e.g., 79). The user wants:
-- **Qty = 1** per roll (each roll is one piece)
-- **Subtotal = meters × purchase price** (e.g., 79 MTR × ₹95 = ₹7,505)
+**Problem**: When roll-wise entry is enabled, pur_price and sale_price represent **per-meter** cost. Qty is set to 1 (one physical roll). But the line_total and gross calculations use `qty × pur_price` = `1 × 95 = ₹95`, when it should be `meters × pur_price` = `75 × 95 = ₹7,125`.
 
-The size field already stores the meter value correctly. The fix is simply changing qty to 1 while keeping the line_total as `meters × purPrice`.
+**Solution**: Create a helper that extracts meters from the `size` field for MTR items and uses that as the multiplier instead of qty.
 
-### Changes
+### Changes in `src/pages/PurchaseEntry.tsx`
 
-**File: `src/pages/PurchaseEntry.tsx`** (lines 2100-2118)
+1. **Add helper function** near the top:
+```typescript
+const getMtrMultiplier = (item: LineItem): number => {
+  if (item.uom === 'MTR') {
+    const meters = parseFloat(item.size);
+    if (!isNaN(meters) && meters > 0) return meters;
+  }
+  return item.qty;
+};
+```
 
-Update the roll entry row creation:
-- Change `qty: roll.meters` → `qty: 1`
-- Keep `line_total: roll.meters * purPrice - discAmount` (subtotal based on meters, not qty)
+2. **Fix 6 calculation points** to use `getMtrMultiplier(item)` instead of `item.qty`:
 
-This means each roll row will show:
-- Size: `79 MTR`
-- Qty: `1`
-- Pur. Rate: `₹95`
-- Subtotal: `₹7,505` (79 × 95)
+| Line | Current | Fixed |
+|------|---------|-------|
+| ~318 | `(pur_price * item.qty)` | `(pur_price * getMtrMultiplier({...item, ...updates}))` |
+| ~1327 | `r.qty * r.pur_price` | `getMtrMultiplier(r) * r.pur_price` |
+| ~1329 | `r.qty * r.pur_price` | `getMtrMultiplier(r) * r.pur_price` |
+| ~1943 | `item.qty * item.pur_price` | `getMtrMultiplier(item) * item.pur_price` (addItemRow) |
+| ~1966 | `updated.qty * updated.pur_price` | `getMtrMultiplier(updated) * updated.pur_price` (updateLineItem) |
+| ~1568 | `1 * pur_price` for same-barcode | Use `getMtrMultiplier` with parsed size |
 
-The qty=1 makes sense because each roll is one physical unit being purchased. The meter value in the size column describes the roll length, and the total is meters-based.
+3. **Display column**: The SUB TOTAL and TOTAL columns in the table (line ~3934) also use `item.qty * item.pur_price` — fix to use `getMtrMultiplier`.
+
+This ensures:
+- Roll entry: 75 MTR × ₹95/mtr = ₹7,125 total
+- Regular items: unchanged (qty × price)
+- Editing pur_price inline recalculates correctly
+- Gross totals sum correctly
 
