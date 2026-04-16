@@ -326,7 +326,7 @@ export default function POSSales() {
   }, []);
 
   // Barcode scanner detection for instant cart add
-  const { recordKeystroke, reset: resetScannerDetection, detectScannerInput } = useBarcodeScanner();
+  const { recordKeystroke, reset: resetScannerDetection, detectScannerInput, scheduleAutoSubmit, cancelAutoSubmit, markSubmitted } = useBarcodeScanner();
   const lastInputTime = useRef<number>(0);
   const dropdownDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const productSearchSeqRef = useRef(0);
