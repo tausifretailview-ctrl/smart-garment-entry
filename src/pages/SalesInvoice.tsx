@@ -2663,7 +2663,6 @@ Thank you for choosing us!`;
                   searchAndAddProduct(trimmed);
                   setTimeout(() => barcodeInputRef.current?.focus(), 50);
                 }}
-                }}
                 className="h-11 w-11 rounded-xl shrink-0"
               />
             </div>
