@@ -287,19 +287,19 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
         <div style={{ borderBottom: '2px dashed #000', margin: '6px 0' }} />
 
         {/* ═══ TOTALS ═══ */}
-        <div style={{ fontSize: '10px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 700 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', fontSize: '13px', fontWeight: 900 }}>
             <span>Total Items: {items.length}</span>
             <span>Total Qty: {totalQty}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Subtotal</span>
-            <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>₹{fmtAmt(subTotal)}</span>
+            <span style={{ fontWeight: 800 }}>Subtotal</span>
+            <span style={{ fontFamily: 'monospace', fontWeight: 800 }}>₹{fmtAmt(subTotal)}</span>
           </div>
           {discount > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#c00' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#000', fontSize: '12px', fontWeight: 900 }}>
               <span>Discount</span>
-              <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>-₹{fmtAmt(discount)}</span>
+              <span style={{ fontFamily: 'monospace', fontWeight: 900 }}>-₹{fmtAmt(discount)}</span>
             </div>
           )}
           {saleReturnAdjust > 0 && (
@@ -341,19 +341,19 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
 
         {/* ═══ PAYMENT MODE ═══ */}
         {paymentModeLabel && (
-          <div style={{ textAlign: 'center', fontSize: '10px', fontWeight: 700, marginBottom: '4px' }}>
+          <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 900, marginBottom: '4px' }}>
             Paid via <span style={{ textTransform: 'uppercase', letterSpacing: '0.5px' }}>{paymentModeLabel}</span>
           </div>
         )}
 
         {/* ═══ PAYMENT DETAILS ═══ */}
         {(cashPaid > 0 || upiPaid > 0 || cardPaid > 0 || creditPaid > 0) && (
-          <div style={{ fontSize: '10px', marginBottom: '4px' }}>
-            {cashPaid > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Cash</span><span style={{ fontFamily: 'monospace' }}>₹{fmtAmt(cashPaid)}</span></div>}
-            {upiPaid > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>UPI</span><span style={{ fontFamily: 'monospace' }}>₹{fmtAmt(upiPaid)}</span></div>}
-            {cardPaid > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Card</span><span style={{ fontFamily: 'monospace' }}>₹{fmtAmt(cardPaid)}</span></div>}
-            {creditPaid > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Credit</span><span style={{ fontFamily: 'monospace' }}>₹{fmtAmt(creditPaid)}</span></div>}
-            {refundCash > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Change</span><span style={{ fontFamily: 'monospace' }}>₹{fmtAmt(refundCash)}</span></div>}
+          <div style={{ fontSize: '11px', fontWeight: 800, marginBottom: '4px' }}>
+            {cashPaid > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Cash</span><span style={{ fontFamily: 'monospace', fontWeight: 900 }}>₹{fmtAmt(cashPaid)}</span></div>}
+            {upiPaid > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>UPI</span><span style={{ fontFamily: 'monospace', fontWeight: 900 }}>₹{fmtAmt(upiPaid)}</span></div>}
+            {cardPaid > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Card</span><span style={{ fontFamily: 'monospace', fontWeight: 900 }}>₹{fmtAmt(cardPaid)}</span></div>}
+            {creditPaid > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Credit</span><span style={{ fontFamily: 'monospace', fontWeight: 900 }}>₹{fmtAmt(creditPaid)}</span></div>}
+            {refundCash > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Change</span><span style={{ fontFamily: 'monospace', fontWeight: 900 }}>₹{fmtAmt(refundCash)}</span></div>}
             {balanceDue > 1 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800 }}>
                 <span>BALANCE DUE</span>
