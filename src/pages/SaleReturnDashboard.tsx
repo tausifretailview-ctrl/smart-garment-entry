@@ -94,8 +94,13 @@ export default function SaleReturnDashboard() {
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
   const queryClient = useQueryClient();
 
+  const isThermal = billFormat === 'thermal';
+
   const handlePrint = useReactToPrint({
     contentRef: printRef,
+    pageStyle: isThermal
+      ? '@page { size: 80mm auto; margin: 2mm; }'
+      : '@page { size: A4 portrait; margin: 5mm; }',
   });
 
   const handlePrintTable = useReactToPrint({
