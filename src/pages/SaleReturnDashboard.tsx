@@ -83,6 +83,7 @@ export default function SaleReturnDashboard() {
 
   const [returnToPrint, setReturnToPrint] = useState<SaleReturn | null>(null);
   const [businessDetails, setBusinessDetails] = useState<BusinessDetails | null>(null);
+  const [billFormat, setBillFormat] = useState<string>('a4');
   const printRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
 
