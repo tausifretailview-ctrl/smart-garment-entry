@@ -83,7 +83,7 @@ interface LineItem {
 
 const customerSchema = z.object({
   customer_name: z.string().trim().max(100).optional().or(z.literal("")),
-  phone: z.string().trim().min(1, "Mobile number is required").max(20),
+  phone: z.string().trim().max(20).optional().or(z.literal("")),
   email: z.string().trim().email("Invalid email").max(255).optional().or(z.literal("")),
   address: z.string().trim().max(500).optional(),
   gst_number: z.string().trim().max(15).optional(),
