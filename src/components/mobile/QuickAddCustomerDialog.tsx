@@ -56,8 +56,8 @@ export const QuickAddCustomerDialog = ({
       return;
     }
     
-    if (!phone.trim()) {
-      toast.error("Phone number is required");
+    if (!customerName.trim() && !phone.trim()) {
+      toast.error("Either customer name or phone number is required");
       return;
     }
 
@@ -119,7 +119,7 @@ export const QuickAddCustomerDialog = ({
             Add Customer
           </DialogTitle>
           <DialogDescription>
-            Quick add a new customer. Only name and phone are required.
+            Quick add a new customer. Name or phone is required.
           </DialogDescription>
         </DialogHeader>
 
@@ -139,7 +139,7 @@ export const QuickAddCustomerDialog = ({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="customer-phone">Mobile Number *</Label>
+            <Label htmlFor="customer-phone">Mobile Number</Label>
             <Input
               id="customer-phone"
               type="tel"

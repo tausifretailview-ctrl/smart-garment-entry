@@ -282,22 +282,24 @@ const CustomerMaster = () => {
   const createCustomer = useMutation({
     mutationFn: async (data: typeof formData) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
-      const normalizedPhone = normalizePhoneNumber(data.phone);
-      if (!normalizedPhone) throw new Error("Valid phone number is required");
+      if (!data.customer_name.trim() && !data.phone.trim()) throw new Error("Either customer name or phone number is required");
+      const normalizedPhone = data.phone.trim() ? normalizePhoneNumber(data.phone) : null;
       
-      const { data: existingCustomers, error: checkError } = await supabase
-        .from("customers")
-        .select("id, customer_name, phone")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null);
-      if (checkError) throw checkError;
-      
-      const duplicate = existingCustomers?.find(c => normalizePhoneNumber(c.phone) === normalizedPhone);
-      if (duplicate) throw new Error(`Customer with this phone already exists: ${duplicate.customer_name || duplicate.phone}`);
+      if (normalizedPhone) {
+        const { data: existingCustomers, error: checkError } = await supabase
+          .from("customers")
+          .select("id, customer_name, phone")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null);
+        if (checkError) throw checkError;
+        
+        const duplicate = existingCustomers?.find(c => normalizePhoneNumber(c.phone) === normalizedPhone);
+        if (duplicate) throw new Error(`Customer with this phone already exists: ${duplicate.customer_name || duplicate.phone}`);
+      }
       
       const customerData: any = {
-        customer_name: (data.customer_name.trim() || normalizedPhone).toUpperCase(),
-        phone: normalizedPhone,
+        customer_name: (data.customer_name.trim() || normalizedPhone || "WALK-IN").toUpperCase(),
+        phone: normalizedPhone || null,
         email: data.email,
         address: data.address,
         gst_number: data.gst_number,
@@ -325,23 +327,25 @@ const CustomerMaster = () => {
   const updateCustomer = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
-      const normalizedPhone = normalizePhoneNumber(data.phone);
-      if (!normalizedPhone) throw new Error("Valid phone number is required");
+      if (!data.customer_name.trim() && !data.phone.trim()) throw new Error("Either customer name or phone number is required");
+      const normalizedPhone = data.phone.trim() ? normalizePhoneNumber(data.phone) : null;
       
-      const { data: existingCustomers, error: checkError } = await supabase
-        .from("customers")
-        .select("id, customer_name, phone")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .neq("id", id);
-      if (checkError) throw checkError;
-      
-      const duplicate = existingCustomers?.find(c => normalizePhoneNumber(c.phone) === normalizedPhone);
-      if (duplicate) throw new Error(`Customer with this phone already exists: ${duplicate.customer_name || duplicate.phone}`);
+      if (normalizedPhone) {
+        const { data: existingCustomers, error: checkError } = await supabase
+          .from("customers")
+          .select("id, customer_name, phone")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .neq("id", id);
+        if (checkError) throw checkError;
+        
+        const duplicate = existingCustomers?.find(c => normalizePhoneNumber(c.phone) === normalizedPhone);
+        if (duplicate) throw new Error(`Customer with this phone already exists: ${duplicate.customer_name || duplicate.phone}`);
+      }
       
       const customerData: any = {
-        customer_name: (data.customer_name.trim() || normalizedPhone).toUpperCase(),
-        phone: normalizedPhone,
+        customer_name: (data.customer_name.trim() || normalizedPhone || "WALK-IN").toUpperCase(),
+        phone: normalizedPhone || null,
         email: data.email,
         address: data.address,
         gst_number: data.gst_number,
@@ -773,7 +777,7 @@ const CustomerMaster = () => {
               <DialogTitle>{editingCustomer ? "Edit Customer" : "Add New Customer"}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div><Label htmlFor="m-phone">Mobile Number *</Label><Input id="m-phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} required autoFocus placeholder="Enter mobile number" /></div>
+              <div><Label htmlFor="m-phone">Mobile Number</Label><Input id="m-phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} autoFocus placeholder="Enter mobile number (optional)" /></div>
               <div><Label htmlFor="m-name">Customer Name</Label><Input id="m-name" value={formData.customer_name} onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })} placeholder="Enter customer name" /></div>
               <div><Label htmlFor="m-address">Address</Label><Textarea id="m-address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} /></div>
               <div><Label htmlFor="m-gst">GST Number</Label><Input id="m-gst" value={formData.gst_number} onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })} /></div>
@@ -876,8 +880,8 @@ const CustomerMaster = () => {
                   <form onSubmit={handleSubmit} className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <Label htmlFor="phone" className="text-xs">Mobile Number *</Label>
-                        <Input id="phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} required autoFocus placeholder="Enter mobile number" className="h-9" />
+                        <Label htmlFor="phone" className="text-xs">Mobile Number</Label>
+                        <Input id="phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} autoFocus placeholder="Optional" className="h-9" />
                       </div>
                       <div>
                         <Label htmlFor="customer_name" className="text-xs">Customer Name</Label>
