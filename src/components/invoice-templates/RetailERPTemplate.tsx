@@ -257,13 +257,14 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   // Build column config — GST column removed for clean retail look
   const cols: { key: string; label: string; width: string; align: "center" | "left" | "right" }[] = [
     { key: "sr", label: "SN", width: "5%", align: "center" },
-    { key: "description", label: "Description", width: showHSNCol ? "35%" : "42%", align: "left" },
-    { key: "size", label: "Size", width: "8%", align: "center" },
+    { key: "description", label: "DESCRIPTION", width: showHSNCol ? "28%" : "34%", align: "left" },
+    { key: "size", label: "SIZE", width: "7%", align: "center" },
+    { key: "barcode", label: "BARCODE", width: "10%", align: "center" },
   ];
-  if (showHSNCol) cols.push({ key: "hsn", label: "HSN", width: "9%", align: "center" });
-  cols.push({ key: "qty", label: "Qty", width: "7%", align: "center" });
-  cols.push({ key: "rate", label: "Rate", width: "12%", align: "right" });
-  cols.push({ key: "amount", label: "Amount", width: "14%", align: "right" });
+  if (showHSNCol) cols.push({ key: "hsn", label: "HSN", width: "8%", align: "center" });
+  cols.push({ key: "qty", label: "QTY", width: "6%", align: "center" });
+  cols.push({ key: "rate", label: "RATE", width: "12%", align: "right" });
+  cols.push({ key: "amount", label: "AMOUNT", width: "14%", align: "right" });
 
   const cellBase: React.CSSProperties = {
     borderRight: B,
@@ -442,6 +443,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                                 );
                                 break;
                               case "size": content = item.size || ""; break;
+                              case "barcode": content = item.barcode || ""; break;
                               case "hsn": content = item.hsn || ""; break;
                               case "qty": content = item.qty; break;
                               case "rate": content = fmt(item.rate); break;
@@ -544,34 +546,25 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     </div>
                   </div>
 
-                  {/* Terms + QR + Signatures */}
+                  {/* Terms + QR Code */}
                   <div style={{ display: "flex", minHeight: isA4 ? "80px" : "60px", position: "relative" }}>
-                    {/* Left — Terms & QR */}
+                    {/* Left — Terms */}
                     <div style={{ flex: 1, borderRight: B, padding: isA4 ? "4px 8px" : "3px 6px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                       <div>
                         {termsConditions.length > 0 && (
                           <div>
-                            <strong style={{ textDecoration: "underline", fontSize: isA4 ? "11px" : "9px" }}>Terms & Conditions:</strong>
-                            <ul style={{ margin: "2px 0 0 14px", padding: 0, listStyleType: "disc", fontSize: isA4 ? "10px" : "8px", lineHeight: 1.5 }}>
+                            <strong style={{ textDecoration: "underline", fontSize: isA4 ? "13px" : "11px" }}>Terms & Conditions:</strong>
+                            <ul style={{ margin: "2px 0 0 14px", padding: 0, listStyleType: "disc", fontSize: isA4 ? "12px" : "10px", lineHeight: 1.6 }}>
                               {termsConditions.map((t, i) => <li key={i}>{t}</li>)}
                             </ul>
                           </div>
                         )}
-                        {qrCodeUrl && (
-                          <div style={{ marginTop: "4px" }}>
-                            <img src={qrCodeUrl} alt="QR" style={{ width: isA4 ? "110px" : "85px", height: isA4 ? "110px" : "85px", border: "1px solid #ccc" }} />
-                          </div>
-                        )}
                         <div style={{ fontSize: isA4 ? "9px" : "7px", marginTop: "2px" }}>E. & O.E.</div>
-                      </div>
-                      {/* Customer Signature */}
-                      <div style={{ borderTop: B, paddingTop: "2px", textAlign: "center", fontSize: isA4 ? "9px" : "7px", minWidth: "100px", marginTop: "auto" }}>
-                        Customer Signature
                       </div>
                     </div>
 
-                    {/* Right — Authorized Signatory */}
-                    <div style={{ width: "40%", padding: isA4 ? "4px 8px" : "3px 6px", display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "center", position: "relative" }}>
+                    {/* Right — QR Code + For Business */}
+                    <div style={{ width: "40%", padding: isA4 ? "4px 8px" : "3px 6px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative" }}>
                       {stampImageBase64 && (
                         <img
                           src={stampImageBase64}
@@ -586,12 +579,12 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           }}
                         />
                       )}
-                      <div style={{ textAlign: "center", fontSize: isA4 ? "10px" : "8px", fontWeight: "bold", marginBottom: "auto" }}>
+                      <div style={{ textAlign: "center", fontSize: isA4 ? "10px" : "8px", fontWeight: "bold", marginBottom: "4px" }}>
                         For {businessName}
                       </div>
-                      <div style={{ borderTop: B, paddingTop: "2px", textAlign: "center", fontSize: "9px", minWidth: "120px", marginTop: "auto" }}>
-                        Authorized Signatory
-                      </div>
+                      {qrCodeUrl && (
+                        <img src={qrCodeUrl} alt="QR" style={{ width: isA4 ? "110px" : "85px", height: isA4 ? "110px" : "85px", border: "1px solid #ccc" }} />
+                      )}
                     </div>
                   </div>
                 </div>
