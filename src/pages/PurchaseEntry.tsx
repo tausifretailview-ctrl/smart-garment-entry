@@ -1727,6 +1727,7 @@ const PurchaseEntry = () => {
         category: product.category || "",
         color: v.color || product.color || "",
         style: product.style || "",
+        uom: product.uom || 'NOS',
       });
       return;
     }
