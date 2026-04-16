@@ -4066,14 +4066,13 @@ export default function POSSales() {
                   </div>
                   <CameraScanButton
                     onBarcodeScanned={(barcode) => {
-                      setSearchInput(barcode);
-                      setTimeout(() => {
-                        if (barcodeInputRef.current) {
-                          barcodeInputRef.current.focus();
-                          const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
-                          barcodeInputRef.current.dispatchEvent(enterEvent);
-                        }
-                      }, 100);
+                      const trimmed = barcode.trim();
+                      if (!trimmed) return;
+                      markSubmitted(trimmed);
+                      cancelAutoSubmit();
+                      setSearchInput("");
+                      searchAndAddProduct(trimmed);
+                      setTimeout(() => barcodeInputRef.current?.focus(), 50);
                     }}
                     className="h-10 w-10 shrink-0"
                   />
