@@ -3631,8 +3631,11 @@ export default function POSSales() {
             }
           }}
           onBarcodeSubmit={() => {
-            if (searchInput.trim()) {
-              searchAndAddProduct(searchInput.trim());
+            const rawValue = barcodeInputRef.current?.value?.trim() || searchInput.trim();
+            if (rawValue) {
+              markSubmitted(rawValue);
+              cancelAutoSubmit();
+              searchAndAddProduct(rawValue);
               setSearchInput("");
             }
           }}
