@@ -1268,36 +1268,80 @@ export default function BarcodePrinting() {
   const settingsFullyLoadedRef = useRef(false);
   const [settingsLoading, setSettingsLoading] = useState(true);
 
-  // Auto-save precision label config changes to active template (debounced)
-  const autoSavePrecisionConfig = useCallback(async (templateName: string, labelConfig: LabelDesignConfig, labelWidth: number, labelHeight: number, orgId: string) => {
-    const configToSave = { ...labelConfig };
-    
-    // Save to barcode_label_settings (template)
-    const updatedTemplate: LabelTemplate = {
-      name: templateName,
-      config: configToSave,
-      labelWidth,
-      labelHeight,
-    };
-    
-    const success = await saveTemplateToDb(updatedTemplate);
-    
-    // Also update printer_presets table so default preset stays in sync
-    await supabase
-      .from("printer_presets")
-      .update({ label_config: configToSave as any })
+  const savePrecisionConfigToSettings = useCallback(async (configToSave: LabelDesignConfig, orgId: string) => {
+    const { data: existing, error: fetchError } = await supabase
+      .from("settings")
+      .select("bill_barcode_settings")
       .eq("organization_id", orgId)
-      .eq("name", templateName);
-    
-    // Update local dbPresets state
-    setDbPresets(prev => prev.map(p => 
-      p.name === templateName 
-        ? { ...p, labelConfig: configToSave } 
-        : p
-    ));
-    
-    if (success) {
-      
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+
+    const currentBbs = (existing?.bill_barcode_settings as any) || {};
+    const { error: updateError } = await supabase
+      .from("settings")
+      .update({
+        bill_barcode_settings: {
+          ...currentBbs,
+          precision_label_config: configToSave,
+        } as any,
+      })
+      .eq("organization_id", orgId);
+
+    if (updateError) throw updateError;
+  }, []);
+
+  // Auto-save precision label config changes to active template/preset (debounced)
+  const autoSavePrecisionConfig = useCallback(async (targetName: string, labelConfig: LabelDesignConfig, labelWidth: number, labelHeight: number, orgId: string) => {
+    const configToSave = { ...labelConfig };
+    const cleanName = targetName.startsWith("preset:")
+      ? targetName.replace("preset:", "")
+      : targetName;
+
+    try {
+      if (targetName.startsWith("preset:")) {
+        const { error } = await supabase
+          .from("printer_presets")
+          .update({
+            label_config: configToSave as any,
+            label_width: labelWidth,
+            label_height: labelHeight,
+          })
+          .eq("organization_id", orgId)
+          .eq("name", cleanName);
+
+        if (error) throw error;
+
+        setDbPresets(prev => prev.map(p =>
+          p.name === cleanName
+            ? { ...p, labelConfig: configToSave, width: labelWidth, height: labelHeight }
+            : p
+        ));
+
+        return true;
+      }
+
+      const updatedTemplate: LabelTemplate = {
+        name: cleanName,
+        config: configToSave,
+        labelWidth,
+        labelHeight,
+      };
+
+      const success = await saveTemplateToDb(updatedTemplate);
+
+      if (success) {
+        setDbPresets(prev => prev.map(p =>
+          p.name === cleanName
+            ? { ...p, labelConfig: configToSave, width: labelWidth, height: labelHeight }
+            : p
+        ));
+      }
+
+      return success;
+    } catch (error) {
+      console.error("Failed to auto-save precision design:", error);
+      return false;
     }
   }, [saveTemplateToDb]);
 
@@ -1308,14 +1352,17 @@ export default function BarcodePrinting() {
     // Sync label templates (always keep in sync)
     setSavedLabelTemplates(dbLabelTemplates);
     
-    // Fix race condition: if activePrecisionTemplateName has "preset:" prefix
-    // but the name matches a real label template, correct it now that templates are loaded
+    // Normalize active precision target once templates/presets are loaded
     if (activePrecisionTemplateName) {
       const nameWithoutPrefix = activePrecisionTemplateName.startsWith("preset:") 
         ? activePrecisionTemplateName.replace("preset:", "") : activePrecisionTemplateName;
       const isActuallyLabelTemplate = dbLabelTemplates.some((t: LabelTemplate) => t.name === nameWithoutPrefix);
+      const isActuallyPrinterPreset = dbPresets.some((p) => p.name === nameWithoutPrefix);
+
       if (activePrecisionTemplateName.startsWith("preset:") && isActuallyLabelTemplate) {
         setActivePrecisionTemplateName(nameWithoutPrefix);
+      } else if (!activePrecisionTemplateName.startsWith("preset:") && !isActuallyLabelTemplate && isActuallyPrinterPreset) {
+        setActivePrecisionTemplateName(`preset:${nameWithoutPrefix}`);
       }
     }
     
@@ -1437,7 +1484,7 @@ export default function BarcodePrinting() {
     // Mark precision config as ready after initial load completes
     setPrecisionConfigReady(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoadingSettings, dbLabelTemplates, dbMarginPresets, dbCustomPresets, activePrecisionTemplateName]);
+  }, [isLoadingSettings, dbLabelTemplates, dbMarginPresets, dbCustomPresets, activePrecisionTemplateName, dbPresets]);
 
   // Get organization context
   const { currentOrganization } = useOrganization();
@@ -1457,13 +1504,9 @@ export default function BarcodePrinting() {
     
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     
-    const templateName = activePrecisionTemplateName.startsWith("preset:") 
-      ? activePrecisionTemplateName.replace("preset:", "") 
-      : activePrecisionTemplateName;
-    
     autoSaveTimerRef.current = setTimeout(() => {
-      autoSavePrecisionConfig(
-        templateName,
+      void autoSavePrecisionConfig(
+        activePrecisionTemplateName,
         precisionSettings.labelConfig,
         precisionSettings.labelWidth,
         precisionSettings.labelHeight,
@@ -1474,7 +1517,7 @@ export default function BarcodePrinting() {
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
-  }, [precisionSettings.labelConfig, activePrecisionTemplateName, currentOrganization?.id, autoSavePrecisionConfig]);
+  }, [precisionSettings.labelConfig, precisionSettings.labelWidth, precisionSettings.labelHeight, activePrecisionTemplateName, currentOrganization?.id, autoSavePrecisionConfig]);
 
   // Fetch business name from settings (organization-scoped)
   useEffect(() => {
@@ -5251,7 +5294,7 @@ export default function BarcodePrinting() {
                   const mode = preset.printMode || (preset.a4Cols && preset.a4Rows ? 'a4' : (preset.thermalCols && preset.thermalCols > 1) ? 'thermal2up' : 'thermal');
                   setPrecisionSettings((prev) => ({ ...prev, printMode: mode }));
                   const isLabelTemplate = savedLabelTemplates.some(t => t.name === preset.name);
-                  setActivePrecisionTemplateName(isLabelTemplate ? preset.name : null);
+                  setActivePrecisionTemplateName(isLabelTemplate ? preset.name : `preset:${preset.name}`);
                 }}
                 labelConfig={precisionSettings.labelConfig || undefined}
                 savedTemplates={savedLabelTemplates}
@@ -5392,8 +5435,8 @@ export default function BarcodePrinting() {
                 const mode = preset.printMode || (preset.a4Cols && preset.a4Rows ? 'a4' : (preset.thermalCols && preset.thermalCols > 1) ? 'thermal2up' : 'thermal');
                 setPrecisionSettings((prev) => ({ ...prev, printMode: mode }));
                 // Track active template for auto-save (only for saved label templates, not built-in presets)
-                const isLabelTemplate = savedLabelTemplates.some(t => t.name === preset.name);
-                setActivePrecisionTemplateName(isLabelTemplate ? preset.name : null);
+                  const isLabelTemplate = savedLabelTemplates.some(t => t.name === preset.name);
+                  setActivePrecisionTemplateName(isLabelTemplate ? preset.name : `preset:${preset.name}`);
               }}
               labelConfig={precisionSettings.labelConfig || undefined}
               savedTemplates={savedLabelTemplates}
@@ -5565,53 +5608,31 @@ export default function BarcodePrinting() {
                 if (!currentOrganization?.id) return;
                 try {
                   const configToSave = precisionSettings.labelConfig || DEFAULT_PRECISION_CONFIG;
-                  
-                  // Save to organization settings
-                  const { data: existing } = await (supabase
-                    .from("organization_settings" as any)
-                    .select("bill_barcode_settings")
-                    .eq("organization_id", currentOrganization.id)
-                    .maybeSingle() as any);
-                  
-                  const currentBbs = (existing?.bill_barcode_settings as any) || {};
-                  const updatedBbs = {
-                    ...currentBbs,
-                    precision_label_config: configToSave,
-                  };
-
-                  await (supabase
-                    .from("organization_settings" as any) as any)
-                    .update({ bill_barcode_settings: updatedBbs })
-                    .eq("organization_id", currentOrganization.id);
+                  await savePrecisionConfigToSettings(configToSave, currentOrganization.id);
 
                   // Also save to active template if one is loaded
                   if (activePrecisionTemplateName) {
-                    const cleanName = activePrecisionTemplateName.startsWith("preset:") 
-                      ? activePrecisionTemplateName.replace("preset:", "") 
+                    const success = await autoSavePrecisionConfig(
+                      activePrecisionTemplateName,
+                      configToSave,
+                      precisionSettings.labelWidth,
+                      precisionSettings.labelHeight,
+                      currentOrganization.id
+                    );
+
+                    if (!success) {
+                      toast.error("Failed to save label design");
+                      return;
+                    }
+
+                    const cleanName = activePrecisionTemplateName.startsWith("preset:")
+                      ? activePrecisionTemplateName.replace("preset:", "")
                       : activePrecisionTemplateName;
-                    const updatedTemplate: LabelTemplate = {
-                      name: cleanName,
-                      config: { ...configToSave },
-                      labelWidth: precisionSettings.labelWidth,
-                      labelHeight: precisionSettings.labelHeight,
-                    };
-                    await saveTemplateToDb(updatedTemplate);
-                    
-                    // Also update the printer_presets table so default preset stays in sync
-                    await supabase
-                      .from("printer_presets")
-                      .update({ label_config: configToSave as any })
-                      .eq("organization_id", currentOrganization.id)
-                      .eq("name", cleanName);
-                    
-                    // Update local dbPresets state
-                    setDbPresets(prev => prev.map(p => 
-                      p.name === cleanName 
-                        ? { ...p, labelConfig: configToSave } 
-                        : p
-                    ));
-                    
-                    toast.success(`Design saved & template "${cleanName}" updated`);
+                    const targetLabel = activePrecisionTemplateName.startsWith("preset:")
+                      ? `preset "${cleanName}"`
+                      : `template "${cleanName}"`;
+
+                    toast.success(`Design saved & ${targetLabel} updated`);
                   } else {
                     toast.success("Label design saved successfully");
                   }
