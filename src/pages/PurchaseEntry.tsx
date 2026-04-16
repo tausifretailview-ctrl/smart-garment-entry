@@ -266,6 +266,15 @@ const PurchaseEntry = () => {
   const [barcodeWarnings, setBarcodeWarnings] = useState<Map<string, string>>(new Map());
   const barcodeCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Helper: For MTR/roll items, use meters (from size field) as multiplier instead of qty
+  const getMtrMultiplier = (item: { uom?: string; size?: string; qty: number }): number => {
+    if ((item.uom || '').toUpperCase() === 'MTR') {
+      const meters = parseFloat(item.size || '');
+      if (!isNaN(meters) && meters > 0) return meters;
+    }
+    return item.qty;
+  };
+
   // Product Edit Panel state
   const [showEditPanel, setShowEditPanel] = useState(false);
   const [editPanelIndex, setEditPanelIndex] = useState(0);
@@ -315,7 +324,7 @@ const PurchaseEntry = () => {
   // Handle product edit panel updates
   const handleProductUpdated = useCallback((tempId: string, updates: Partial<LineItem>) => {
     setLineItems(prev => prev.map(item => 
-      item.temp_id === tempId ? { ...item, ...updates, line_total: ((updates.pur_price ?? item.pur_price) * item.qty) * (1 - item.discount_percent / 100) } : item
+      item.temp_id === tempId ? (() => { const merged = { ...item, ...updates }; const mult = getMtrMultiplier(merged); return { ...merged, line_total: ((updates.pur_price ?? item.pur_price) * mult) * (1 - item.discount_percent / 100) }; })() : item
     ));
     // Show updated badge briefly
     setUpdatedRows(prev => new Set(prev).add(tempId));
@@ -1324,9 +1333,9 @@ const PurchaseEntry = () => {
 
 
   useEffect(() => {
-    const grossBeforeDiscount = lineItems.reduce((sum, r) => sum + (r.qty * r.pur_price), 0);
+    const grossBeforeDiscount = lineItems.reduce((sum, r) => sum + (getMtrMultiplier(r) * r.pur_price), 0);
     const itemDiscount = lineItems.reduce((sum, r) => {
-      const sub = r.qty * r.pur_price;
+      const sub = getMtrMultiplier(r) * r.pur_price;
       return sum + (sub * r.discount_percent / 100);
     }, 0);
     const grossAfterItemDiscount = grossBeforeDiscount - itemDiscount;
@@ -1565,7 +1574,8 @@ const PurchaseEntry = () => {
    * Never creates a new variant or new barcode.
    */
   const handleProductSelectSameBarcode = async (variant: ProductVariant) => {
-    const subTotal = 1 * (variant.pur_price || 0);
+    const mtrMult = getMtrMultiplier({ uom: variant.uom || 'NOS', size: variant.size || '', qty: 1 });
+    const subTotal = mtrMult * (variant.pur_price || 0);
     const newItem: LineItem = {
       temp_id: Date.now().toString() + Math.random(),
       product_id: variant.product_id,
@@ -1940,7 +1950,8 @@ const PurchaseEntry = () => {
 
   const addItemRow = (item: Omit<LineItem, "temp_id" | "line_total">) => {
     const effectiveGst = isDcPurchase ? 0 : item.gst_per;
-    const subTotal = item.qty * item.pur_price;
+    const mtrMult = getMtrMultiplier(item);
+    const subTotal = mtrMult * item.pur_price;
     const discountAmount = subTotal * (item.discount_percent / 100);
     const lineTotal = subTotal - discountAmount;
     setLineItems((prev) => [
@@ -1962,8 +1973,9 @@ const PurchaseEntry = () => {
       items.map((item) => {
         if (item.temp_id === temp_id) {
           const updated = { ...item, [field]: value };
-          if (field === "qty" || field === "pur_price" || field === "discount_percent") {
-            const subTotal = updated.qty * updated.pur_price;
+          if (field === "qty" || field === "pur_price" || field === "discount_percent" || field === "size") {
+            const mtrMult = getMtrMultiplier(updated);
+            const subTotal = mtrMult * updated.pur_price;
             const discountAmount = subTotal * (updated.discount_percent / 100);
             updated.line_total = subTotal - discountAmount;
           }
@@ -3931,7 +3943,7 @@ const PurchaseEntry = () => {
               <Table className="table-fixed min-w-[1460px]">
                 <TableBody>
                   {lineItems.slice(0, visibleItemCount).map((item, index) => {
-                    const subTotal = item.qty * item.pur_price;
+                    const subTotal = getMtrMultiplier(item) * item.pur_price;
                     const total = item.line_total;
                     const gstAmount = (total * item.gst_per) / 100;
                     
