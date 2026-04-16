@@ -106,6 +106,7 @@ interface RetailERPTemplateProps {
   stampPosition?: string;
   stampSize?: string;
   financerDetails?: any;
+  instagramLink?: string;
 }
 
 const B = "1px solid #000";
@@ -157,6 +158,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   stampImageBase64,
   stampPosition = "bottom-right",
   stampSize = "medium",
+  instagramLink,
 }) => {
   const isA4 = format === "a4";
   const MAX_ITEMS_PER_PAGE = isA4 ? 20 : 15;
@@ -337,6 +339,16 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                 </div>
                 {gstNumber && (
                   <div style={{ fontSize: isA4 ? "12px" : "9px", fontWeight: "bold", color: "#000", marginTop: "1px" }}>GSTIN: {gstNumber}</div>
+                )}
+                {instagramLink && (
+                  <div style={{ fontSize: isA4 ? "11px" : "9px", color: "#111", marginTop: "2px", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+                    <svg width={isA4 ? "14" : "11"} height={isA4 ? "14" : "11"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+                      <circle cx="12" cy="12" r="5"/>
+                      <circle cx="17.5" cy="6.5" r="1.5"/>
+                    </svg>
+                    <span>{instagramLink.replace(/^https?:\/\/(www\.)?instagram\.com\//i, '@').replace(/\/$/, '')}</span>
+                  </div>
                 )}
                 {customHeaderText && (
                   <div style={{ fontSize: isA4 ? "10px" : "8px", color: "#333", marginTop: "1px" }}>{customHeaderText}</div>
