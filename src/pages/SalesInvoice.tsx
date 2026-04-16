@@ -1298,17 +1298,7 @@ export default function SalesInvoice() {
     }
 
     if (foundVariant && foundProduct) {
-      // For MTR/roll products, barcode uniquely identifies the variant — skip size grid
-      const isMtrProduct = (foundProduct.uom || '').toUpperCase() === 'MTR' ||
-        /^\d+(\.\d+)?\s*MTR$/i.test(foundVariant.size || '');
-      
-      // If in grid mode AND not a MTR product, open size grid dialog
-      if (entryMode === "grid" && !isMtrProduct) {
-        openSizeGridForProduct(foundProduct, foundVariant?.sale_price);
-        setSearchInput("");
-        barcodeInputRef.current?.focus();
-        return;
-      }
+      // Barcode uniquely identifies a specific variant (size+color) — always add directly, skip size grid
 
       playSuccessBeep();
       await addProductToInvoice(foundProduct, foundVariant);
