@@ -151,13 +151,13 @@ export default function StockReport() {
   });
 
   // Paginated fetch helper to bypass 1000-row PostgREST default
-  const fetchAllPages = async (query: any) => {
+  // Uses a factory pattern — each page gets a fresh query builder so .range() works correctly
+  const fetchAllPages = async (queryFactory: () => any) => {
     const PAGE_SIZE = 1000;
     let all: any[] = [];
     let from = 0;
-    let hasMore = true;
-    while (hasMore) {
-      const { data: page } = await query.range(from, from + PAGE_SIZE - 1);
+    while (true) {
+      const { data: page } = await queryFactory().range(from, from + PAGE_SIZE - 1);
       if (!page || page.length === 0) break;
       all = [...all, ...page];
       if (page.length < PAGE_SIZE) break;
