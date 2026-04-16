@@ -370,6 +370,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
         : undefined,
       stampPosition: (settings?.bill_barcode_settings as any)?.stamp_position || 'bottom-right',
       stampSize: (settings?.bill_barcode_settings as any)?.stamp_size || 'medium',
+      instagramLink: (settings?.bill_barcode_settings as any)?.instagram_link || undefined,
     };
 
     // Select template component based on settings

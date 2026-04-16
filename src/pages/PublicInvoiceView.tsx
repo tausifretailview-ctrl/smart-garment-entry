@@ -197,6 +197,7 @@ export default function PublicInvoiceView() {
     stampSize: settings?.bill_barcode_settings?.stamp_size || 'medium',
     qrCodeUrl: sale.einvoice_qr_code || "",
     financerDetails: financerDetails || undefined,
+    instagramLink: settings?.bill_barcode_settings?.instagram_link || undefined,
   };
 
   const renderTemplate = () => {
