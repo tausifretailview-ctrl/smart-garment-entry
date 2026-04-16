@@ -3,7 +3,7 @@ import { normalizePhoneNumber } from "./excelImportUtils";
 
 export interface CreateCustomerParams {
   customer_name?: string;
-  phone: string;
+  phone?: string;
   email?: string;
   address?: string;
   gst_number?: string;
@@ -24,54 +24,54 @@ export interface CreateCustomerResult {
  * different phone formats (e.g., 919819082836 vs 9819082836).
  */
 export async function createOrGetCustomer(params: CreateCustomerParams): Promise<CreateCustomerResult> {
-  const normalizedPhone = normalizePhoneNumber(params.phone);
+  const normalizedPhone = params.phone ? normalizePhoneNumber(params.phone) : null;
   
-  if (!normalizedPhone) {
-    throw new Error("Valid phone number is required");
+  // If phone is provided, check for existing customer by phone
+  if (normalizedPhone) {
+    // Server-side search for existing customer by normalized phone
+    const { data: exactMatch, error: exactError } = await supabase
+      .from("customers")
+      .select("*")
+      .eq("organization_id", params.organization_id)
+      .eq("phone", normalizedPhone)
+      .is("deleted_at", null)
+      .maybeSingle();
+    
+    if (exactError) throw exactError;
+    
+    if (exactMatch) {
+      return { customer: exactMatch, isExisting: true };
+    }
+    
+    // Also search for variations (with/without country code) using ilike
+    const lastDigits = normalizedPhone.slice(-10);
+    const { data: fuzzyMatches, error: fuzzyError } = await supabase
+      .from("customers")
+      .select("*")
+      .eq("organization_id", params.organization_id)
+      .ilike("phone", `%${lastDigits}`)
+      .is("deleted_at", null)
+      .limit(5);
+    
+    if (fuzzyError) throw fuzzyError;
+    
+    const existing = fuzzyMatches?.find(c => 
+      normalizePhoneNumber(c.phone) === normalizedPhone
+    );
+    
+    if (existing) {
+      return { customer: existing, isExisting: true };
+    }
+  }
+
+  if (!params.customer_name?.trim() && !normalizedPhone) {
+    throw new Error("Either customer name or phone number is required");
   }
   
-  // Server-side search for existing customer by normalized phone
-  // Search for exact match first (most common case)
-  const { data: exactMatch, error: exactError } = await supabase
-    .from("customers")
-    .select("*")
-    .eq("organization_id", params.organization_id)
-    .eq("phone", normalizedPhone)
-    .is("deleted_at", null)
-    .maybeSingle();
-  
-  if (exactError) throw exactError;
-  
-  if (exactMatch) {
-    return { customer: exactMatch, isExisting: true };
-  }
-  
-  // Also search for variations (with/without country code) using ilike
-  // This handles cases like searching for "9819082836" when "919819082836" exists
-  const lastDigits = normalizedPhone.slice(-10); // Get last 10 digits
-  const { data: fuzzyMatches, error: fuzzyError } = await supabase
-    .from("customers")
-    .select("*")
-    .eq("organization_id", params.organization_id)
-    .ilike("phone", `%${lastDigits}`)
-    .is("deleted_at", null)
-    .limit(5);
-  
-  if (fuzzyError) throw fuzzyError;
-  
-  // Check if any fuzzy match has the same normalized phone
-  const existing = fuzzyMatches?.find(c => 
-    normalizePhoneNumber(c.phone) === normalizedPhone
-  );
-  
-  if (existing) {
-    return { customer: existing, isExisting: true };
-  }
-  
-  // Create new customer with NORMALIZED phone
+  // Create new customer
   const customerData: any = {
-    customer_name: params.customer_name?.trim() || normalizedPhone,
-    phone: normalizedPhone, // Store normalized
+    customer_name: (params.customer_name?.trim() || normalizedPhone || "WALK-IN").toUpperCase(),
+    phone: normalizedPhone || null,
     email: params.email || null,
     address: params.address || null,
     gst_number: params.gst_number || null,
