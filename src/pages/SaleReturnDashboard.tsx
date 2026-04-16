@@ -728,11 +728,19 @@ export default function SaleReturnDashboard() {
 
         <div style={{ display: "none" }}>
           {returnToPrint && businessDetails && (
-            <SaleReturnPrint
-              ref={printRef}
-              saleReturn={returnToPrint}
-              businessDetails={businessDetails}
-            />
+            isThermal ? (
+              <SaleReturnThermalPrint
+                ref={printRef}
+                saleReturn={returnToPrint}
+                businessDetails={businessDetails}
+              />
+            ) : (
+              <SaleReturnPrint
+                ref={printRef}
+                saleReturn={returnToPrint}
+                businessDetails={businessDetails}
+              />
+            )
           )}
         </div>
 
