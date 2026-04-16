@@ -14,6 +14,7 @@ import { ChevronDown, ChevronUp, Printer, Trash2, Plus, Search, Receipt, Trendin
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useReactToPrint } from "react-to-print";
 import { SaleReturnPrint } from "@/components/SaleReturnPrint";
+import { SaleReturnThermalPrint } from "@/components/SaleReturnThermalPrint";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { AdjustCustomerCreditNoteDialog } from "@/components/AdjustCustomerCreditNoteDialog";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
