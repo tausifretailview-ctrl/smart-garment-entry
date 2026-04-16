@@ -2107,7 +2107,7 @@ const PurchaseEntry = () => {
           sku_id: newVariant.id,
           product_name: product.product_name,
           size: roll.meters.toString(),
-          qty: roll.meters,
+          qty: 1,
           pur_price: purPrice,
           sale_price: product.default_sale_price || 0,
           mrp: 0,
