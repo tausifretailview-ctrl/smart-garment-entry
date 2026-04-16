@@ -1727,6 +1727,7 @@ const PurchaseEntry = () => {
         category: product.category || "",
         color: v.color || product.color || "",
         style: product.style || "",
+        uom: product.uom || 'NOS',
       });
       return;
     }
@@ -1921,7 +1922,8 @@ const PurchaseEntry = () => {
     }
     // Branded barcode or no barcode + scan mode → reuse as-is
 
-    const subTotal = 1 * variant.pur_price;
+    const mtrMult = getMtrMultiplier({ uom: variant.uom || 'NOS', size: variant.size || '', qty: 1 });
+    const subTotal = mtrMult * variant.pur_price;
     const discountAmount = 0;
     const lineTotal = subTotal - discountAmount;
     const newItem: LineItem = {
@@ -2471,9 +2473,9 @@ const PurchaseEntry = () => {
     
     try {
       // Calculate totals directly from lineItems to avoid stale state issues
-      const calculatedGrossBeforeDiscount = lineItems.reduce((sum, r) => sum + (r.qty * r.pur_price), 0);
+      const calculatedGrossBeforeDiscount = lineItems.reduce((sum, r) => sum + (getMtrMultiplier(r) * r.pur_price), 0);
       const calculatedItemDiscount = lineItems.reduce((sum, r) => {
-        const sub = r.qty * r.pur_price;
+        const sub = getMtrMultiplier(r) * r.pur_price;
         return sum + (sub * r.discount_percent / 100);
       }, 0);
       const calculatedTotalDiscount = calculatedItemDiscount + discountAmount;
@@ -2878,7 +2880,7 @@ const PurchaseEntry = () => {
   };
 
   const itemDiscountTotal = lineItems.reduce((sum, r) => {
-    const sub = r.qty * r.pur_price;
+    const sub = getMtrMultiplier(r) * r.pur_price;
     return sum + (sub * r.discount_percent / 100);
   }, 0);
 
