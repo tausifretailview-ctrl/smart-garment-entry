@@ -7,6 +7,8 @@ interface BarcodeScannerConfig {
   maxKeystrokeInterval?: number;
   /** Debounce delay before showing dropdown for manual typing (default: 300ms) */
   dropdownDebounceDelay?: number;
+  /** Auto-submit delay after scanner-like input settles (default: 120ms). Set 0 to disable. */
+  autoSubmitDelay?: number;
 }
 
 interface BarcodeScannerResult {
@@ -18,6 +20,19 @@ interface BarcodeScannerResult {
   reset: () => void;
   /** Check if input is likely from scanner based on timing and content */
   detectScannerInput: (value: string, timeSinceLastKeystroke: number) => boolean;
+  /**
+   * Schedule an auto-submit if the input looks scanner-like and no more
+   * keystrokes arrive within `autoSubmitDelay` ms.
+   * Prevents duplicate submits of the same barcode value.
+   */
+  scheduleAutoSubmit: (currentValue: string, onSubmit: (value: string) => void) => void;
+  /** Cancel any pending auto-submit timer */
+  cancelAutoSubmit: () => void;
+  /**
+   * Mark a barcode value as "just submitted" so the auto-submit guard
+   * won't fire again for the same value.
+   */
+  markSubmitted: (value: string) => void;
 }
 
 /**
@@ -34,12 +49,17 @@ export function useBarcodeScanner(config: BarcodeScannerConfig = {}): BarcodeSca
   const {
     minBarcodeLength = 4,
     maxKeystrokeInterval = 50,
+    autoSubmitDelay = 120,
   } = config;
 
   // Track keystroke timings
   const lastKeystrokeTime = useRef<number>(0);
   const keystrokeIntervals = useRef<number[]>([]);
   const inputStartTime = useRef<number>(0);
+
+  // Auto-submit
+  const autoSubmitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSubmittedValue = useRef<string>("");
 
   const recordKeystroke = useCallback(() => {
     const now = Date.now();
@@ -59,10 +79,22 @@ export function useBarcodeScanner(config: BarcodeScannerConfig = {}): BarcodeSca
     lastKeystrokeTime.current = now;
   }, []);
 
+  const cancelAutoSubmit = useCallback(() => {
+    if (autoSubmitTimer.current) {
+      clearTimeout(autoSubmitTimer.current);
+      autoSubmitTimer.current = null;
+    }
+  }, []);
+
   const reset = useCallback(() => {
     lastKeystrokeTime.current = 0;
     keystrokeIntervals.current = [];
     inputStartTime.current = 0;
+    cancelAutoSubmit();
+  }, [cancelAutoSubmit]);
+
+  const markSubmitted = useCallback((value: string) => {
+    lastSubmittedValue.current = value.trim().toLowerCase();
   }, []);
 
   /**
@@ -103,6 +135,32 @@ export function useBarcodeScanner(config: BarcodeScannerConfig = {}): BarcodeSca
     return false;
   }, [minBarcodeLength, maxKeystrokeInterval]);
 
+  /**
+   * Schedule auto-submit for scanner-like input that may not send Enter.
+   * Safe to call on every keystroke — it resets the timer each time.
+   */
+  const scheduleAutoSubmit = useCallback((currentValue: string, onSubmit: (value: string) => void) => {
+    cancelAutoSubmit();
+
+    if (autoSubmitDelay <= 0) return;
+    if (currentValue.trim().length < minBarcodeLength) return;
+
+    autoSubmitTimer.current = setTimeout(() => {
+      const trimmed = currentValue.trim();
+      // Guard: don't submit same value twice (e.g. Enter already fired)
+      if (trimmed && trimmed.toLowerCase() !== lastSubmittedValue.current) {
+        // Only auto-submit if the accumulated input was scanner-like
+        if (keystrokeIntervals.current.length >= 3) {
+          const avgInterval = keystrokeIntervals.current.reduce((a, b) => a + b, 0) / keystrokeIntervals.current.length;
+          if (avgInterval < 50) {
+            lastSubmittedValue.current = trimmed.toLowerCase();
+            onSubmit(trimmed);
+          }
+        }
+      }
+    }, autoSubmitDelay);
+  }, [autoSubmitDelay, minBarcodeLength, cancelAutoSubmit]);
+
   // Determine if current accumulated input looks like scanner input
   const isScannerInput = keystrokeIntervals.current.length >= 3 &&
     (keystrokeIntervals.current.reduce((a, b) => a + b, 0) / keystrokeIntervals.current.length) < 50;
@@ -112,5 +170,8 @@ export function useBarcodeScanner(config: BarcodeScannerConfig = {}): BarcodeSca
     recordKeystroke,
     reset,
     detectScannerInput,
+    scheduleAutoSubmit,
+    cancelAutoSubmit,
+    markSubmitted,
   };
 }
