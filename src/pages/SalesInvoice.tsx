@@ -1639,8 +1639,16 @@ export default function SalesInvoice() {
   }, [allInvoiceIds, navInvoiceIndex, loadInvoiceById]);
 
 
+  const getMtrMultiplier = (item: { uom?: string; size?: string; quantity: number }): number => {
+    if ((item.uom || '').toUpperCase() === 'MTR') {
+      const meters = parseFloat(item.size || '');
+      if (!isNaN(meters) && meters > 0) return meters;
+    }
+    return item.quantity;
+  };
+
   const calculateLineTotal = (item: LineItem): LineItem => {
-    const baseAmount = item.salePrice * item.quantity;
+    const baseAmount = item.salePrice * getMtrMultiplier(item);
     const discountAmount = item.discountPercent > 0 
       ? (baseAmount * item.discountPercent) / 100 
       : item.discountAmount;
@@ -2563,9 +2571,9 @@ Thank you for choosing us!`;
   };
 
   // Calculate totals
-  const grossAmount = lineItems.reduce((sum, item) => sum + (item.salePrice * item.quantity), 0);
+  const grossAmount = lineItems.reduce((sum, item) => sum + (item.salePrice * getMtrMultiplier(item)), 0);
   const lineItemDiscount = lineItems.reduce((sum, item) => {
-    const baseAmount = item.salePrice * item.quantity;
+    const baseAmount = item.salePrice * getMtrMultiplier(item);
     // Use discountAmount if set, otherwise calculate from discountPercent
     const discount = item.discountAmount > 0 
       ? item.discountAmount 
@@ -2579,7 +2587,7 @@ Thank you for choosing us!`;
   const amountAfterDiscount = grossAmount - totalDiscount + otherCharges;
   
   const totalGST = lineItems.reduce((sum, item) => {
-    const baseAmount = item.salePrice * item.quantity - item.discountAmount;
+    const baseAmount = item.salePrice * getMtrMultiplier(item) - item.discountAmount;
     // Apply flat discount proportionally
     const proportionalFlatDiscount = grossAmount > 0 ? (baseAmount / grossAmount) * flatDiscountAmount : 0;
     const adjustedBase = baseAmount - proportionalFlatDiscount;
@@ -2741,12 +2749,12 @@ Thank you for choosing us!`;
                         <div className="flex items-center gap-2 mt-1">
                           <button onClick={() => {
                             const updated = [...lineItems];
-                            if (updated[realIdx].quantity > 1) { updated[realIdx] = { ...updated[realIdx], quantity: updated[realIdx].quantity - 1, lineTotal: (updated[realIdx].quantity - 1) * updated[realIdx].salePrice }; setLineItems(updated); }
+                            if (updated[realIdx].quantity > 1) { const newItem = { ...updated[realIdx], quantity: updated[realIdx].quantity - 1 }; updated[realIdx] = calculateLineTotal(newItem); setLineItems(updated); }
                           }} className="w-8 h-8 bg-muted rounded-lg text-base font-bold flex items-center justify-center active:scale-90 touch-manipulation">−</button>
                           <span className="w-8 text-center text-sm font-semibold tabular-nums">{item.quantity}</span>
                           <button onClick={() => {
                             const updated = [...lineItems];
-                            updated[realIdx] = { ...updated[realIdx], quantity: updated[realIdx].quantity + 1, lineTotal: (updated[realIdx].quantity + 1) * updated[realIdx].salePrice };
+                            const newItem = { ...updated[realIdx], quantity: updated[realIdx].quantity + 1 }; updated[realIdx] = calculateLineTotal(newItem);
                             setLineItems(updated);
                           }} className="w-8 h-8 bg-muted rounded-lg text-base font-bold flex items-center justify-center active:scale-90 touch-manipulation">+</button>
                         </div>
