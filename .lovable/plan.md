@@ -1,40 +1,36 @@
 
 
-## Fix MTR/Roll Line Total Calculation in Purchase Bill
+## Fix MTR/Roll Total Calculation in Sales Invoice
 
-**Problem**: When roll-wise entry is enabled, pur_price and sale_price represent **per-meter** cost. Qty is set to 1 (one physical roll). But the line_total and gross calculations use `qty × pur_price` = `1 × 95 = ₹95`, when it should be `meters × pur_price` = `75 × 95 = ₹7,125`.
+**Problem**: Same issue as Purchase Bill — when a roll product (79 MTR, sale price ₹110/mtr) is scanned, the total shows ₹110 (1 × 110) instead of ₹8,690 (79 × 110). The price is per-meter but qty is 1 (one roll).
 
-**Solution**: Create a helper that extracts meters from the `size` field for MTR items and uses that as the multiplier instead of qty.
+### Changes in `src/pages/SalesInvoice.tsx`
 
-### Changes in `src/pages/PurchaseEntry.tsx`
-
-1. **Add helper function** near the top:
+1. **Add `getMtrMultiplier` helper** (same pattern as PurchaseEntry):
 ```typescript
-const getMtrMultiplier = (item: LineItem): number => {
-  if (item.uom === 'MTR') {
-    const meters = parseFloat(item.size);
+const getMtrMultiplier = (item: { uom?: string; size?: string; quantity: number }): number => {
+  if ((item.uom || '').toUpperCase() === 'MTR') {
+    const meters = parseFloat(item.size || '');
     if (!isNaN(meters) && meters > 0) return meters;
   }
-  return item.qty;
+  return item.quantity;
 };
 ```
 
-2. **Fix 6 calculation points** to use `getMtrMultiplier(item)` instead of `item.qty`:
+2. **Fix `calculateLineTotal`** (line ~1643): Use `getMtrMultiplier(item)` instead of `item.quantity` for `baseAmount`.
 
-| Line | Current | Fixed |
-|------|---------|-------|
-| ~318 | `(pur_price * item.qty)` | `(pur_price * getMtrMultiplier({...item, ...updates}))` |
-| ~1327 | `r.qty * r.pur_price` | `getMtrMultiplier(r) * r.pur_price` |
-| ~1329 | `r.qty * r.pur_price` | `getMtrMultiplier(r) * r.pur_price` |
-| ~1943 | `item.qty * item.pur_price` | `getMtrMultiplier(item) * item.pur_price` (addItemRow) |
-| ~1966 | `updated.qty * updated.pur_price` | `getMtrMultiplier(updated) * updated.pur_price` (updateLineItem) |
-| ~1568 | `1 * pur_price` for same-barcode | Use `getMtrMultiplier` with parsed size |
+3. **Fix gross/net totals** (lines ~2566-2593): Replace `item.salePrice * item.quantity` with `item.salePrice * getMtrMultiplier(item)` in:
+   - `grossAmount` calculation
+   - `lineItemDiscount` calculation
+   - `totalGST` calculation
 
-3. **Display column**: The SUB TOTAL and TOTAL columns in the table (line ~3934) also use `item.qty * item.pur_price` — fix to use `getMtrMultiplier`.
+4. **Fix mobile +/- buttons** (lines ~2743-2749): Use `getMtrMultiplier` for lineTotal recalculation on quantity change.
+
+5. **Fix footer total row** (line ~3624): Already uses `grossAmount` which will be fixed by step 3.
 
 This ensures:
-- Roll entry: 75 MTR × ₹95/mtr = ₹7,125 total
-- Regular items: unchanged (qty × price)
-- Editing pur_price inline recalculates correctly
-- Gross totals sum correctly
+- 79 MTR × ₹110/mtr = ₹8,690 total per line
+- Net amount updates correctly
+- GST calculated on full roll value
+- Regular (non-MTR) items unchanged
 
