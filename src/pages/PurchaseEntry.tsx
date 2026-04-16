@@ -1921,7 +1921,8 @@ const PurchaseEntry = () => {
     }
     // Branded barcode or no barcode + scan mode → reuse as-is
 
-    const subTotal = 1 * variant.pur_price;
+    const mtrMult = getMtrMultiplier({ uom: variant.uom || 'NOS', size: variant.size || '', qty: 1 });
+    const subTotal = mtrMult * variant.pur_price;
     const discountAmount = 0;
     const lineTotal = subTotal - discountAmount;
     const newItem: LineItem = {
