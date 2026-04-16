@@ -1329,7 +1329,11 @@ export default function SalesInvoice() {
 
   const addProductToInvoice = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }) => {
     // If in grid mode, open size grid dialog
-    if (entryMode === "grid") {
+    // For MTR/roll products, barcode uniquely identifies the variant — skip size grid
+    const isMtrProduct = (product.uom || '').toUpperCase() === 'MTR' ||
+      /^\d+(\.\d+)?\s*MTR$/i.test(variant?.size || '');
+    
+    if (entryMode === "grid" && !isMtrProduct) {
       openSizeGridForProduct(product, variant?.sale_price);
       setOpenProductSearch(false);
       setSearchInput("");
