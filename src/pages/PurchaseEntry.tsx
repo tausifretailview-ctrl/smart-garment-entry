@@ -3417,7 +3417,7 @@ const PurchaseEntry = () => {
                           className="w-20 h-8 text-right text-sm rounded-lg border"
                           placeholder="Price"
                         />
-                        <p className="text-xs font-semibold text-foreground mt-1 tabular-nums">= ₹{Math.round((item.pur_price || 0) * (item.qty || 0)).toLocaleString("en-IN")}</p>
+                        <p className="text-xs font-semibold text-foreground mt-1 tabular-nums">= ₹{Math.round((item.pur_price || 0) * getMtrMultiplier(item)).toLocaleString("en-IN")}</p>
                         <button onClick={() => setLineItems(lineItems.filter((_, i) => i !== realIdx))} className="text-[10px] text-destructive font-medium mt-1">Remove</button>
                       </div>
                     </div>
