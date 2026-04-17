@@ -1648,7 +1648,7 @@ const PurchaseEntry = () => {
       category: variant.category || "",
       color: variant.color || "",
       style: variant.style || "",
-      uom: variant.uom || 'NOS',
+      uom: resolvedUom,
     };
     setLineItems(prev => [...prev, newItem]);
     setTimeout(() => {
@@ -1975,7 +1975,8 @@ const PurchaseEntry = () => {
     }
     // Branded barcode or no barcode + scan mode → reuse as-is
 
-    const mtrMult = getMtrMultiplier({ uom: variant.uom || 'NOS', size: variant.size || '', qty: 1 });
+    const resolvedUom = await ensureVariantUom(variant);
+    const mtrMult = getMtrMultiplier({ uom: resolvedUom, size: variant.size || '', qty: 1 });
     const subTotal = mtrMult * variant.pur_price;
     const discountAmount = 0;
     const lineTotal = subTotal - discountAmount;
@@ -1998,7 +1999,7 @@ const PurchaseEntry = () => {
       category: variant.category || "",
       color: variant.color || "",
       style: variant.style || "",
-      uom: variant.uom || 'NOS',
+      uom: resolvedUom,
     };
     setLineItems([...lineItems, newItem]);
   };
