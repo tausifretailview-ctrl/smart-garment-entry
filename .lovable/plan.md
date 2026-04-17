@@ -1,6 +1,7 @@
 
-The user wants me to run a read-only SQL query to list all RLS policies in the public schema. I have access to `supabase--read_query` which allows SELECT statements. This is a simple research task — no implementation needed. I can just execute the query directly and return the results.
+The user wants to apply an RLS hardening migration that closes 3 cross-tenant access gaps. This is a schema/policy change → migration tool. Need to verify a few assumptions before writing.
 
-Since this is a pure read-only query and the user explicitly asked to "run this", I'll execute it via the supabase read tool and return the results in a single response. No plan needed for a one-shot SELECT — but since I'm in plan mode, I should present what I'll do.
-
-Actually, this is research/inspection, not implementation. Per plan-mode rules: "Skip [plans] for research ('how does X work?')". This is exactly that — listing policies. I'll just run the query and return results.
+Let me check:
+1. Does `public.get_user_organization_ids(uuid)` exist?
+2. Does `login_attempts` have `organization_id` or `email`?
+3. Current policies on the 4 affected tables.
