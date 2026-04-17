@@ -107,7 +107,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
       })();
     }, [settings, grandTotal]);
 
-    const docTitle = documentType === 'quotation' ? 'QUOTATION' : documentType === 'sale-order' ? 'SALE ORDER' : 'TAX INVOICE';
+    const docTitle = documentType === 'quotation' ? 'QUOTATION' : documentType === 'sale-order' ? 'SALE ORDER' : (grandTotal < 0 ? 'CREDIT NOTE' : 'TAX INVOICE');
     const docLabel = documentType === 'quotation' ? 'Qtn No' : documentType === 'sale-order' ? 'Ord No' : 'Bill No';
     const gst = gstBreakdown || { cgst: 0, sgst: 0 };
     const totalQty = items.reduce((s, i) => s + i.qty, 0);
