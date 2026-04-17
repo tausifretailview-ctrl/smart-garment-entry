@@ -851,24 +851,27 @@ const PurchaseEntry = () => {
   useEffect(() => {
     const savedState = sessionStorage.getItem('purchaseEntryState');
     if (savedState) {
-      try {
-        const parsed = JSON.parse(savedState);
-        setBillData(parsed.billData);
-        setSoftwareBillNo(parsed.softwareBillNo);
-        setBillDate(new Date(parsed.billDate));
-        setLineItems(parsed.lineItems);
-        setRoundOff(parsed.roundOff || 0);
-        // Restore edit mode state if it was saved
-        if (parsed.isEditMode) {
-          setIsEditMode(true);
-          setEditingBillId(parsed.editingBillId);
-          setOriginalLineItems(parsed.originalLineItems || []);
+      (async () => {
+        try {
+          const parsed = JSON.parse(savedState);
+          setBillData(parsed.billData);
+          setSoftwareBillNo(parsed.softwareBillNo);
+          setBillDate(new Date(parsed.billDate));
+          const enriched = await enrichItemsWithUom(parsed.lineItems || []);
+          setLineItems(enriched);
+          setRoundOff(parsed.roundOff || 0);
+          // Restore edit mode state if it was saved
+          if (parsed.isEditMode) {
+            setIsEditMode(true);
+            setEditingBillId(parsed.editingBillId);
+            setOriginalLineItems(parsed.originalLineItems || []);
+          }
+          sessionStorage.removeItem('purchaseEntryState');
+          deleteDraft();
+        } catch (error) {
+          console.error('Error restoring purchase state:', error);
         }
-        sessionStorage.removeItem('purchaseEntryState');
-        deleteDraft();
-      } catch (error) {
-        console.error('Error restoring purchase state:', error);
-      }
+      })();
     }
   }, []);
 
