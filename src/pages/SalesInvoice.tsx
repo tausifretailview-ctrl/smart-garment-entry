@@ -1299,9 +1299,8 @@ export default function SalesInvoice() {
 
     if (foundVariant && foundProduct) {
       // Barcode uniquely identifies a specific variant (size+color) — always add directly, skip size grid
-
       playSuccessBeep();
-      await addProductToInvoice(foundProduct, foundVariant);
+      await addProductToInvoice(foundProduct, foundVariant, undefined, { skipSizeGrid: true });
       setSearchInput("");
       setTimeout(() => barcodeInputRef.current?.focus(), 50);
       return;
