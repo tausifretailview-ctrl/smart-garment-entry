@@ -1052,7 +1052,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         sale_discount_value: formData.default_sale_discount || null,
         status: formData.status,
         organization_id: currentOrganization.id,
-        size_group_id: formData.size_group_id || null,
+        // In roll-wise MTR mode, no size group is used — force null to avoid stale FK
+        size_group_id: (rollWiseMtrEnabled && formData.uom === 'MTR')
+          ? null
+          : (formData.size_group_id && sizeGroups.some(g => g.id === formData.size_group_id) ? formData.size_group_id : null),
       };
       
       const { data: productData, error: productError } = await supabase
