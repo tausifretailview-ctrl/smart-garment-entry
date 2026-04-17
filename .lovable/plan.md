@@ -1,4 +1,10 @@
 
-This is a well-specified implementation prompt. The user wants a `useRef`-based synchronous guard added to 7 save handlers across 7 files to fix a React double-click race condition that has caused at least one confirmed duplicate purchase bill.
+This is a detailed, well-specified DB-only migration. No code changes, no UI. Just need to confirm a couple of schema assumptions before writing the migration.
 
-The plan is already fully detailed in the prompt. I just need to present a concise summary for approval.
+Key things to verify:
+1. `organizations` table has `org_name` and `deleted_at` columns
+2. `organization_users` table exists with `user_id` and `organization_id`
+3. `detect_stock_discrepancies` returns the expected columns
+4. `product_variants` has `stock_qty` column
+
+Let me check these quickly.
