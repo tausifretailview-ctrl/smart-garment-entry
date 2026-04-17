@@ -73,6 +73,7 @@ export const FloatingSaleReturn = ({
   const [returnItems, setReturnItems] = useState<ReturnItem[]>([]);
   const [barcodeInput, setBarcodeInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [loading, setLoading] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -421,6 +422,18 @@ export const FloatingSaleReturn = ({
   const totalAmount = returnItems.reduce((sum, item) => sum + item.lineTotal, 0);
 
   const handleSaveReturn = async () => {
+    // PRIMARY GUARD: synchronous ref (React state updates are async — `saving` check is insufficient against rapid double-clicks)
+    if (savingRef.current) return;
+    if (saving) return;
+    savingRef.current = true;
+    try {
+      await handleSaveReturnInner();
+    } finally {
+      savingRef.current = false;
+    }
+  };
+
+  const handleSaveReturnInner = async () => {
     if (returnItems.length === 0) {
       toast({ title: "Error", description: "Add at least one item to return", variant: "destructive" });
       return;

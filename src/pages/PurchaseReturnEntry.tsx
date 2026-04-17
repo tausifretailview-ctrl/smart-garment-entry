@@ -68,6 +68,7 @@ const PurchaseReturnEntry = () => {
   const isEditMode = !!editId;
   
   const [loading, setLoading] = useState(false);
+  const savingRef = useRef(false);
   const [loadingReturn, setLoadingReturn] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ProductVariant[]>([]);
@@ -809,6 +810,18 @@ const PurchaseReturnEntry = () => {
   };
 
   const handleSave = async () => {
+    // PRIMARY GUARD: synchronous ref (React state updates are async — `loading` check is insufficient against rapid double-clicks)
+    if (savingRef.current) return;
+    if (loading) return;
+    savingRef.current = true;
+    try {
+      await handleSaveInner();
+    } finally {
+      savingRef.current = false;
+    }
+  };
+
+  const handleSaveInner = async () => {
     if (!returnData.supplier_id) {
       toast({
         title: "Error",

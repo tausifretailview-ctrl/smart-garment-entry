@@ -118,6 +118,7 @@ export default function QuotationEntry() {
   const [notes, setNotes] = useState<string>("");
   const [shippingAddress, setShippingAddress] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
+  const savingRef = useRef(false);
   const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null);
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
   const [printData, setPrintData] = useState<any>(null);
@@ -783,9 +784,21 @@ export default function QuotationEntry() {
   };
 
   const handleSaveQuotation = async () => {
+    // PRIMARY GUARD: synchronous ref shared with handleSaveAndPrint (React state updates are async)
+    if (savingRef.current) return { success: false };
+    if (isSaving) return { success: false };
+    savingRef.current = true;
+    try {
+      return await handleSaveQuotationInner();
+    } finally {
+      savingRef.current = false;
+    }
+  };
+
+  const handleSaveQuotationInner = async () => {
     if (filledItems.length === 0) {
       toast({ title: "Error", description: "Add at least one item", variant: "destructive" });
-      return;
+      return { success: false };
     }
 
     setIsSaving(true);

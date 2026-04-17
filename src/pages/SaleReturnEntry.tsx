@@ -84,6 +84,7 @@ export default function SaleReturnEntry() {
   const [barcodeInput, setBarcodeInput] = useState<string>("");
   
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [editLoading, setEditLoading] = useState(false);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const [originalSaleId, setOriginalSaleId] = useState<string>('');
@@ -664,6 +665,18 @@ export default function SaleReturnEntry() {
   };
 
   const handleSave = async () => {
+    // PRIMARY GUARD: synchronous ref (React state updates are async — `saving` check is insufficient against rapid double-clicks)
+    if (savingRef.current) return;
+    if (saving) return;
+    savingRef.current = true;
+    try {
+      await handleSaveInner();
+    } finally {
+      savingRef.current = false;
+    }
+  };
+
+  const handleSaveInner = async () => {
     if (returnItems.length === 0) {
       toast({ title: "Error", description: "Please add at least one item", variant: "destructive" });
       return;
