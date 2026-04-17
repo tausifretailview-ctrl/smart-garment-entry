@@ -48,7 +48,7 @@ export const productSchema = z.object({
   category: z.string().max(100, "Category must be less than 100 characters").optional(),
   brand: z.string().max(100, "Brand must be less than 100 characters").optional(),
   style: z.string().max(100, "Style must be less than 100 characters").optional(),
-  color: z.string().max(200, "Color must be less than 200 characters").optional(),
+  color: z.string().max(1000, "Color must be less than 1000 characters").optional(),
   size_group_id: z.string().optional(),
   hsn_code: z
     .string()
