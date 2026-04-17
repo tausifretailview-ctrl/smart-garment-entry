@@ -1223,6 +1223,7 @@ const PurchaseEntry = () => {
     hsn_code: string | null;
     color: string | null;
     style?: string | null;
+    uom?: string | null;
     purchase_discount_type?: string | null;
     purchase_discount_value?: number | null;
     variants: any[];
@@ -1259,6 +1260,7 @@ const PurchaseEntry = () => {
             category: product.category || "",
             color: variant.color || product.color || "",
             style: product.style || "",
+            uom: product.uom || 'NOS',
           });
           addedCount++;
         }

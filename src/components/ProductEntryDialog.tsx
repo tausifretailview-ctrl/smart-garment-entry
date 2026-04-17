@@ -101,6 +101,7 @@ interface ProductEntryDialogProps {
     hsn_code: string | null;
     color: string | null;
     style?: string | null;
+    uom?: string | null;
     purchase_discount_type?: string | null;
     purchase_discount_value?: number | null;
     variants: any[];
@@ -1178,6 +1179,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         hsn_code: productData.hsn_code,
         color: productData.color,
         style: productData.style,
+        uom: productData.uom || 'NOS',
         purchase_discount_type: productData.purchase_discount_type,
         purchase_discount_value: productData.purchase_discount_value,
         variants: variantsWithQty,
