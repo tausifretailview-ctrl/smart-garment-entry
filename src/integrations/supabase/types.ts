@@ -5203,6 +5203,76 @@ export type Database = {
           },
         ]
       }
+      stock_alerts: {
+        Row: {
+          barcode: string | null
+          calculated_stock_qty: number
+          current_stock_qty: number
+          detected_at: string
+          discrepancy: number
+          id: string
+          organization_id: string
+          product_name: string | null
+          resolution_notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          size: string | null
+          variant_id: string
+        }
+        Insert: {
+          barcode?: string | null
+          calculated_stock_qty: number
+          current_stock_qty: number
+          detected_at?: string
+          discrepancy: number
+          id?: string
+          organization_id: string
+          product_name?: string | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          size?: string | null
+          variant_id: string
+        }
+        Update: {
+          barcode?: string | null
+          calculated_stock_qty?: number
+          current_stock_qty?: number
+          detected_at?: string
+          discrepancy?: number
+          id?: string
+          organization_id?: string
+          product_name?: string | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          size?: string | null
+          variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_alerts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_alerts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "stock_alerts_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_movements: {
         Row: {
           bill_number: string | null
@@ -7281,6 +7351,24 @@ export type Database = {
       restore_sale_order: { Args: { p_order_id: string }; Returns: undefined }
       restore_sale_return: { Args: { p_return_id: string }; Returns: undefined }
       restore_voucher: { Args: { p_voucher_id: string }; Returns: undefined }
+      scan_stock_alerts_all_orgs: {
+        Args: never
+        Returns: {
+          new_alerts: number
+          org_name: string
+          organization_id: string
+          resolved_alerts: number
+          updated_alerts: number
+        }[]
+      }
+      scan_stock_alerts_for_org: {
+        Args: { p_organization_id: string }
+        Returns: {
+          new_alerts: number
+          resolved_alerts: number
+          updated_alerts: number
+        }[]
+      }
       soft_delete_delivery_challan: {
         Args: { p_challan_id: string; p_user_id: string }
         Returns: undefined
