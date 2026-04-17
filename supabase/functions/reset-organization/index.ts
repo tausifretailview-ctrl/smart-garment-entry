@@ -6,25 +6,30 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// Phase 1: Child/item tables that don't have organization_id
-// Delete via parent table join using the DB helper function
+// Phase 1: Child/item tables that don't have organization_id.
+// Deleted via parent table join using the DB helper function.
+// FK column names match the actual schema (verified 2026-04-17).
 const CHILD_TABLES = [
   { child: "sale_items", fk: "sale_id", parent: "sales" },
-  { child: "sale_return_items", fk: "sale_return_id", parent: "sale_returns" },
-  { child: "purchase_items", fk: "purchase_bill_id", parent: "purchase_bills" },
-  { child: "purchase_return_items", fk: "purchase_return_id", parent: "purchase_returns" },
+  { child: "sale_return_items", fk: "return_id", parent: "sale_returns" },
+  { child: "purchase_items", fk: "bill_id", parent: "purchase_bills" },
+  { child: "purchase_return_items", fk: "return_id", parent: "purchase_returns" },
   { child: "quotation_items", fk: "quotation_id", parent: "quotations" },
-  { child: "sale_order_items", fk: "sale_order_id", parent: "sale_orders" },
-  { child: "purchase_order_items", fk: "purchase_order_id", parent: "purchase_orders" },
+  { child: "sale_order_items", fk: "order_id", parent: "sale_orders" },
+  { child: "purchase_order_items", fk: "order_id", parent: "purchase_orders" },
   { child: "delivery_challan_items", fk: "challan_id", parent: "delivery_challans" },
-  { child: "voucher_items", fk: "voucher_id", parent: "account_ledgers" }, // orphaned, will likely delete 0
+  { child: "voucher_items", fk: "voucher_id", parent: "voucher_entries" },
 ];
 
-// Phase 2: Tables with organization_id (child-first order)
+// Phase 2: Tables with organization_id (child-first order).
+// Order matters: delete dependents before parents to avoid FK violations.
 const ORG_TABLES = [
+  // Movement / audit
   "stock_movements",
   "batch_stock",
   "delivery_tracking",
+  "dc_sale_transfers",
+  // Transactions (parents of items already cleared in Phase 1)
   "sale_returns",
   "purchase_returns",
   "sales",
@@ -33,19 +38,26 @@ const ORG_TABLES = [
   "sale_orders",
   "purchase_orders",
   "delivery_challans",
+  "voucher_entries",
+  // Customer money / loyalty
   "credit_notes",
+  "advance_refunds",
   "customer_advances",
+  "customer_balance_adjustments",
   "customer_brand_discounts",
   "customer_product_prices",
   "customer_points_history",
   "gift_redemptions",
+  // Catalog
   "product_images",
   "product_variants",
   "products",
+  // Masters
   "customers",
   "suppliers",
   "size_groups",
   "employees",
+  // Misc
   "legacy_invoices",
   "drafts",
   "whatsapp_messages",
@@ -72,7 +84,6 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Verify user
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -93,6 +104,8 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const startValue = Number(barcodeStartValue) > 0 ? Number(barcodeStartValue) : 1;
 
     // Verify admin role
     const { data: membership } = await userClient
@@ -144,8 +157,8 @@ Deno.serve(async (req) => {
           .select("id");
 
         if (error) {
-          if (error.code === "42703") {
-            console.log(`Table ${tableName} missing organization_id, skipping`);
+          if (error.code === "42703" || error.code === "42P01") {
+            console.log(`Skipping ${tableName}: ${error.message}`);
             continue;
           }
           console.error(`Phase 2 error for ${tableName}:`, error.message);
@@ -159,27 +172,41 @@ Deno.serve(async (req) => {
     }
 
     // Phase 3: Reset sequences
+    // barcode_sequence (singular) — upsert so a missing row gets created
     const { error: barcodeError } = await adminClient
-      .from("barcode_sequences")
-      .update({ next_number: 1, updated_at: new Date().toISOString() })
-      .eq("organization_id", organizationId);
-
+      .from("barcode_sequence")
+      .upsert(
+        { organization_id: organizationId, next_barcode: startValue, updated_at: new Date().toISOString() },
+        { onConflict: "organization_id" }
+      );
     if (barcodeError) {
-      errors.push(`barcode_sequences reset: ${barcodeError.message}`);
+      errors.push(`barcode_sequence reset: ${barcodeError.message}`);
     } else {
-      deletedCounts["barcode_sequences"] = 1;
+      deletedCounts["barcode_sequence"] = 1;
     }
 
+    // bill_number_sequence (monthly counters)
     const { data: billSeqData, error: billSeqError } = await adminClient
       .from("bill_number_sequence")
       .delete()
       .eq("organization_id", organizationId)
       .select("id");
-
     if (billSeqError) {
       errors.push(`bill_number_sequence: ${billSeqError.message}`);
     } else {
       deletedCounts["bill_number_sequence"] = billSeqData?.length || 0;
+    }
+
+    // bill_number_sequences (series counters)
+    const { data: billSeqs2Data, error: billSeqs2Error } = await adminClient
+      .from("bill_number_sequences")
+      .delete()
+      .eq("organization_id", organizationId)
+      .select("id");
+    if (billSeqs2Error) {
+      errors.push(`bill_number_sequences: ${billSeqs2Error.message}`);
+    } else {
+      deletedCounts["bill_number_sequences"] = billSeqs2Data?.length || 0;
     }
 
     // Log the reset
@@ -193,9 +220,8 @@ Deno.serve(async (req) => {
       error_message: errors.length > 0 ? errors.join("; ") : null,
     });
 
-    // If critical parent tables had errors, report failure
-    const criticalTables = ["sales", "purchase_bills", "products", "customers"];
-    const criticalErrors = errors.filter(e => criticalTables.some(t => e.startsWith(t + ":")));
+    const criticalTables = ["sales", "purchase_bills", "products", "customers", "product_variants", "suppliers"];
+    const criticalErrors = errors.filter((e) => criticalTables.some((t) => e.startsWith(t + ":")));
 
     return new Response(
       JSON.stringify({
