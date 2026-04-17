@@ -1,45 +1,66 @@
 
+This is a research/explanation question, not an implementation task. Let me explain the existing credit note adjustment flow in your ERP.
 
-## Why "75 MTR × ₹95" is still showing as ₹95
+## How Credit Note Adjustment Works in the Next Invoice
 
-I traced through every code path that adds rows to the Purchase Bill. The math itself is correct everywhere — `getMtrMultiplier(item) * item.pur_price` is used in:
-- Sub Total cell (line 3961) ✓
-- Line Total ✓
-- Gross / Net total reducers (lines 1349-1356) ✓
-- Live updates on qty/price/discount/size change (line 1992) ✓
-- Edit-mode reload (lines 789, 956 — yesterday's fix) ✓
-- Roll Entry insert (line 2128) ✓
-- Inline search add (line 1938) ✓
-- Same-barcode-series add (line 1590) ✓
+### 1. Credit Note Creation (Source)
+A credit note is created in two ways:
+- **Sale Return**: When you process a sale return for a customer, a credit note record is created in the `credit_notes` table with `credit_amount` = return value, `used_amount` = 0, `status` = 'active'.
+- **Negative POS Bill**: When a POS bill ends with a negative amount (e.g., return ₹390 - new item ₹100 = -₹290), the credit balance is stored against the customer.
 
-**All of those depend on `item.uom === 'MTR'`.** If `uom` is missing/undefined on the row, `getMtrMultiplier` falls back to `qty` (=1), so the bill computes `1 × ₹95 = ₹95` — exactly what your screenshot shows (no MTR badge next to qty input either, because that badge only renders when `item.uom !== 'NOS'`).
+The credit note is linked to a `customer_id` — that's why customer name/phone is now mandatory for negative bills (just implemented).
 
-DB confirms barcodes 250001069 & 250001070 are saved with `products.uom = 'MTR'` and `size = '75 MTR' / '85 MTR'`. So the data is fine — the bug is that **two row-loading paths still don't backfill `uom`**:
+### 2. Available Credit Visibility
+When you select a customer in POS or Sales Invoice:
+- The system calls `useCreditNotes.getAvailableCreditBalance(customerId)`
+- This sums `(credit_amount - used_amount)` from all active credit notes for that customer (FIFO order — oldest first)
+- The available credit shows in the bill footer / payment section as "Available Credit: ₹X"
 
-### The gap
+### 3. Adjusting Credit in Next Invoice
+In the next sale to the same customer:
 
-1. **Draft restore** (`loadDraftData`, line 343-376) — sets `lineItems` straight from the draft JSON. Drafts saved before yesterday's fix have `uom: undefined`, so the restored rows lose MTR behavior permanently until edited.
-2. **sessionStorage state restore** (line 843, used when navigating away to add a product and coming back) — same: pushes the saved `lineItems` back into state with no uom enrichment.
+**Step A — User Action**: 
+- Open the **Adjust Credit Note** dialog (`AdjustCustomerCreditNoteDialog.tsx`) from the bill footer
+- System displays all active credit notes for the customer with available balance
+- User enters amount to apply (or system auto-suggests up to invoice total)
 
-The user's screenshot is almost certainly a draft auto-restored on page load (or a state restore after navigating to add a product/supplier and back) — so the row was originally added with correct uom, persisted to the draft without uom (or with stale uom), and reloaded without re-fetching.
+**Step B — Application Logic** (FIFO):
+The `applyCredit(customerId, amountToApply)` function in `useCreditNotes.tsx`:
+1. Fetches active credit notes ordered by `created_at ASC` (oldest first)
+2. Loops through each note, deducting from `available_balance` until requested amount is satisfied
+3. Updates each note's `used_amount` and changes `status`:
+   - `used_amount = credit_amount` → `'fully_used'`
+   - `used_amount > 0` but `< credit_amount` → `'partially_used'`
 
-### Fix
+**Step C — Invoice Effect**:
+- Applied credit reduces the invoice's outstanding amount
+- Stored on the sale record (reduces what customer owes)
+- Reflected in customer balance via `useCustomerBalance` hook (refundsPaid logic in balance formula)
 
-Add the same uom-backfill we already do in edit-mode load to **draft restore** and **sessionStorage restore**:
+### 4. Example Flow
+```
+Customer: RAJESH
+Credit Note CN-001: ₹290 (active, used=0)
 
-1. After `setLineItems(items)` in `loadDraftData` and the sessionStorage restore block, collect distinct `product_id`s, fetch `products.uom` for each in one query, and overwrite each line item's `uom` from the products map before storing.
-2. Recompute `line_total` for each row using `getMtrMultiplier` so totals (Gross/Net/Sub-Total cells) are immediately correct without the user having to click each row.
+Next Invoice: ₹500
+→ Open Adjust Credit dialog → Apply ₹290
+→ CN-001 updated: used_amount=290, status='fully_used'  
+→ Invoice net payable: ₹210
+→ Customer pays ₹210 cash → settled
+```
 
-Optionally tighten things up so this can never happen again:
-3. In `addInlineRow` / `handleProductSelect` / `handleProductSelectSameBarcode`, if `variant.uom` is missing, fall back to a one-shot `products.uom` lookup (defensive — should already be set by the search query, but guards against stale variant objects).
+### 5. Customer Balance Math
+The `calculateCustomerBalance` formula already accounts for this:
+```
+Balance = Opening + Sales - Paid + Adjustments - UnusedAdvances + Refunds
+```
+- Credit notes that are NOT yet adjusted sit as a negative balance (we owe customer)
+- Once adjusted to a new invoice, `used_amount` increases, reducing the available credit, while the invoice payment is satisfied
 
-### Files to touch
-- `src/pages/PurchaseEntry.tsx` — `loadDraftData` (≈ line 343), sessionStorage restore (≈ line 820-844), and small defensive fallback in the 3 add-row functions.
+### Where to Find This in UI
+- **Bill Footer**: "Available Credit" badge appears when customer has unused credit
+- **Adjust Credit Button**: Opens `AdjustCustomerCreditNoteDialog` showing all available credit notes
+- **Customer Ledger**: Shows credit notes issued, used, and remaining balance per note
+- **Customer History Dialog**: Audit trail of all credit note movements
 
-### Verification
-After fix, reloading any in-progress draft with a 75 MTR roll @ ₹95 must show:
-- MTR badge next to qty input
-- SUB TOTAL cell = `₹7,125.00`
-- TOTAL (line) = `₹7,125.00`
-- Footer NET = `₹15,200` for both rows combined
-
+No code changes needed — this flow already exists end-to-end. If you want, I can add improvements like auto-applying available credit when a customer is selected, or showing a prominent banner.
