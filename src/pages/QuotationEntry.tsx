@@ -942,7 +942,19 @@ export default function QuotationEntry() {
   };
 
   const handleSaveAndPrint = async () => {
-    const result = await handleSaveQuotation();
+    // PRIMARY GUARD: shares savingRef with handleSaveQuotation so rapid Save→Save&Print is blocked
+    if (savingRef.current) return;
+    if (isSaving) return;
+    savingRef.current = true;
+    try {
+      await handleSaveAndPrintInner();
+    } finally {
+      savingRef.current = false;
+    }
+  };
+
+  const handleSaveAndPrintInner = async () => {
+    const result = await handleSaveQuotationInner();
     if (result.success) {
       // Prepare print data
       const printItems = filledItems.map((item, index) => ({
