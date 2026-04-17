@@ -2508,6 +2508,38 @@ const PurchaseEntry = () => {
       return;
     }
 
+    // UNIQUENESS CHECK: Supplier Invoice No must be unique per supplier within organization
+    if (billData.supplier_id && currentOrganization?.id) {
+      let dupQuery = supabase
+        .from("purchase_bills")
+        .select("id, software_bill_no")
+        .eq("organization_id", currentOrganization.id)
+        .eq("supplier_id", billData.supplier_id)
+        .eq("supplier_invoice_no", billData.supplier_invoice_no.trim())
+        .is("deleted_at", null)
+        .limit(1);
+
+      if (isEditMode && editingBillId) {
+        dupQuery = dupQuery.neq("id", editingBillId);
+      }
+
+      const { data: dupBills, error: dupErr } = await dupQuery;
+      if (dupErr) {
+        console.error("[PurchaseEntry] Duplicate invoice check failed:", dupErr);
+      } else if (dupBills && dupBills.length > 0) {
+        toast({
+          title: "Duplicate Invoice Number",
+          description: `This invoice number "${billData.supplier_invoice_no}" already exists for this supplier (Bill: ${dupBills[0].software_bill_no}). Please enter a different number.`,
+          variant: "destructive",
+        });
+        // Focus the supplier invoice no input
+        const inv = document.querySelector<HTMLInputElement>('[data-field="supplier-invoice-no"]');
+        inv?.focus();
+        inv?.select();
+        return;
+      }
+    }
+
     if (lineItems.length === 0 || !lineItems.some(item => item.qty > 0)) {
       toast({
         title: "Validation Error",
