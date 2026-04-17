@@ -196,6 +196,7 @@ const PurchaseEntry = () => {
     mrp: isColumnVisible('purchase_bill', 'mrp'),
   };
   const [loading, setLoading] = useState(false);
+  const savingRef = useRef(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ProductVariant[]>([]);
   const [showSearch, setShowSearch] = useState(false);
@@ -2467,8 +2468,20 @@ const PurchaseEntry = () => {
   };
 
   const handleSave = async () => {
-    // Prevent double-click saves
+    // Synchronous double-click guard (React state updates are async, so `loading`
+    // alone leaves a ~50ms window where a second click can pass). The ref flips
+    // immediately and is the authoritative gate; `loading` remains for UI feedback.
+    if (savingRef.current) return;
     if (loading) return;
+    savingRef.current = true;
+    try {
+      await doSave();
+    } finally {
+      savingRef.current = false;
+    }
+  };
+
+  const doSave = async () => {
     
     // Use Zod schema validation
     const validation = validatePurchaseBill({
