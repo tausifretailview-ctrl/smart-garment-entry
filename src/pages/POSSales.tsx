@@ -2045,6 +2045,16 @@ export default function POSSales() {
       return;
     }
 
+    // Credit Note (negative net amount) requires a customer (name or phone)
+    if (finalAmount < 0 && !customerId && !customerPhone?.trim() && (!customerName?.trim() || customerName.trim().toLowerCase() === 'walk-in customer')) {
+      toast({
+        title: "Customer Required for Credit Note",
+        description: "Net amount is negative (credit note). Please add customer name or mobile number before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const saleData = {
       customerId: customerId || null,
       customerName,
