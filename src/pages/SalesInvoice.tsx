@@ -1316,13 +1316,14 @@ export default function SalesInvoice() {
     barcodeInputRef.current?.focus();
   }, [productsData, barcodeIndex, currentOrganization?.id, entryMode, playSuccessBeep, playErrorBeep, toast]);
 
-  const addProductToInvoice = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }) => {
+  const addProductToInvoice = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }, options?: { skipSizeGrid?: boolean }) => {
     // If in grid mode, open size grid dialog
     // For MTR/roll products, barcode uniquely identifies the variant — skip size grid
+    // skipSizeGrid: passed from barcode scan path — barcode already identifies exact variant
     const isMtrProduct = (product.uom || '').toUpperCase() === 'MTR' ||
       /^\d+(\.\d+)?\s*MTR$/i.test(variant?.size || '');
     
-    if (entryMode === "grid" && !isMtrProduct) {
+    if (entryMode === "grid" && !isMtrProduct && !options?.skipSizeGrid) {
       openSizeGridForProduct(product, variant?.sale_price);
       setOpenProductSearch(false);
       setSearchInput("");
