@@ -275,6 +275,26 @@ const PurchaseEntry = () => {
     return item.qty;
   };
 
+  // Backfill missing uom on line items by fetching products.uom — fixes drafts/sessionStorage rows that lost uom
+  const enrichItemsWithUom = async (items: any[]): Promise<any[]> => {
+    if (!items || items.length === 0) return items;
+    const missing = items.filter(it => !it.uom).map(it => it.product_id).filter(Boolean);
+    const uniqIds = Array.from(new Set(missing));
+    let uomMap: Record<string, string> = {};
+    if (uniqIds.length > 0) {
+      const { data } = await supabase.from('products').select('id, uom').in('id', uniqIds);
+      (data || []).forEach((p: any) => { uomMap[p.id] = p.uom || 'NOS'; });
+    }
+    return items.map((it) => {
+      const uom = it.uom || uomMap[it.product_id] || 'NOS';
+      const merged = { ...it, uom };
+      const mult = getMtrMultiplier(merged);
+      const sub = mult * (Number(merged.pur_price) || 0);
+      const lineTotal = sub * (1 - (Number(merged.discount_percent) || 0) / 100);
+      return { ...merged, line_total: lineTotal };
+    });
+  };
+
   // Product Edit Panel state
   const [showEditPanel, setShowEditPanel] = useState(false);
   const [editPanelIndex, setEditPanelIndex] = useState(0);
