@@ -753,18 +753,19 @@ const PurchaseEntry = () => {
       if (productIds.length > 0) {
         const { data: productsData } = await supabase
           .from('products')
-          .select('id, brand, category, style, color')
+          .select('id, brand, category, style, color, uom')
           .in('id', productIds);
         if (productsData) {
           productsData.forEach((p: any) => {
-            productDetailsMap.set(p.id, { brand: p.brand || '', category: p.category || '', style: p.style || '', color: p.color || '' });
+            productDetailsMap.set(p.id, { brand: p.brand || '', category: p.category || '', style: p.style || '', color: p.color || '', uom: p.uom || 'NOS' });
           });
         }
       }
 
       const loadedItems: LineItem[] = itemsData.map((item: any) => {
         const pd = productDetailsMap.get(item.product_id);
-        return {
+        const uom = pd?.uom || 'NOS';
+        const base = {
           temp_id: item.id,
           product_id: item.product_id,
           sku_id: item.sku_id || '',
@@ -782,8 +783,13 @@ const PurchaseEntry = () => {
           hsn_code: item.hsn_code || '',
           barcode: item.barcode || '',
           discount_percent: 0,
+          uom,
           line_total: Number(item.line_total),
-        };
+        } as LineItem;
+        const mult = getMtrMultiplier(base);
+        const sub = mult * base.pur_price;
+        base.line_total = sub * (1 - (base.discount_percent || 0) / 100);
+        return base;
       });
 
       setLineItems(loadedItems);
@@ -902,12 +908,12 @@ const PurchaseEntry = () => {
 
           // Fetch product details to fill in missing style/brand/category for older records
           const productIds = [...new Set(itemsData.map((item: any) => item.product_id).filter(Boolean))];
-          let productDetailsMap = new Map<string, { brand: string; category: string; style: string; color: string }>();
+          let productDetailsMap = new Map<string, { brand: string; category: string; style: string; color: string; uom: string }>();
           
           if (productIds.length > 0) {
             const { data: productsData } = await supabase
               .from("products")
-              .select("id, brand, category, style, color")
+              .select("id, brand, category, style, color, uom")
               .in("id", productIds);
             
             if (productsData) {
@@ -917,6 +923,7 @@ const PurchaseEntry = () => {
                   category: p.category || "",
                   style: p.style || "",
                   color: p.color || "",
+                  uom: p.uom || "NOS",
                 });
               });
             }
@@ -924,8 +931,9 @@ const PurchaseEntry = () => {
           
           const loadedItems: LineItem[] = itemsData.map((item: any) => {
             const productDetails = productDetailsMap.get(item.product_id);
-            return {
-              temp_id: item.id, // Use actual database ID as temp_id for tracking
+            const uom = productDetails?.uom || 'NOS';
+            const base = {
+              temp_id: item.id,
               product_id: item.product_id,
               sku_id: item.sku_id || "",
               product_name: item.product_name || "",
@@ -942,8 +950,13 @@ const PurchaseEntry = () => {
               hsn_code: item.hsn_code || "",
               barcode: item.barcode || "",
               discount_percent: 0,
+              uom,
               line_total: Number(item.line_total),
-            };
+            } as LineItem;
+            const mult = getMtrMultiplier(base);
+            const sub = mult * base.pur_price;
+            base.line_total = sub * (1 - (base.discount_percent || 0) / 100);
+            return base;
           });
           
           setLineItems(loadedItems);

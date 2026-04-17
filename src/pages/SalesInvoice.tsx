@@ -1514,6 +1514,19 @@ export default function SalesInvoice() {
         .single();
       if (error || !invoiceData) throw error || new Error('Invoice not found');
 
+      // Fetch product UOMs so MTR/roll multiplier is applied on edit
+      const productIds = [...new Set((invoiceData.sale_items || []).map((it: any) => it.product_id).filter(Boolean))];
+      const productUomMap = new Map<string, string>();
+      if (productIds.length > 0) {
+        const { data: productsData } = await supabase
+          .from('products')
+          .select('id, uom')
+          .in('id', productIds as string[]);
+        if (productsData) {
+          productsData.forEach((p: any) => productUomMap.set(p.id, p.uom || 'NOS'));
+        }
+      }
+
       setEditingInvoiceId(invoiceData.id);
       setInvoiceDate(new Date(invoiceData.sale_date));
       setDueDate(invoiceData.due_date ? new Date(invoiceData.due_date) : new Date());
@@ -1542,24 +1555,33 @@ export default function SalesInvoice() {
       setRoundOff(invoiceData.round_off || 0);
 
       if (invoiceData.sale_items && invoiceData.sale_items.length > 0) {
-        const transformedItems = invoiceData.sale_items.map((item: any) => ({
-          id: item.id,
-          productId: item.product_id,
-          variantId: item.variant_id,
-          productName: item.product_name,
-          size: item.size,
-          barcode: item.barcode || '',
-          color: item.color || '',
-          quantity: item.quantity,
-          box: '',
-          mrp: item.mrp,
-          salePrice: item.unit_price,
-          discountPercent: item.discount_percent,
-          discountAmount: 0,
-          gstPercent: item.gst_percent,
-          lineTotal: item.line_total,
-          hsnCode: item.hsn_code || '',
-        }));
+        const transformedItems = invoiceData.sale_items.map((item: any) => {
+          const uom = productUomMap.get(item.product_id) || 'NOS';
+          const base: any = {
+            id: item.id,
+            productId: item.product_id,
+            variantId: item.variant_id,
+            productName: item.product_name,
+            size: item.size,
+            barcode: item.barcode || '',
+            color: item.color || '',
+            quantity: item.quantity,
+            box: '',
+            mrp: item.mrp,
+            salePrice: item.unit_price,
+            discountPercent: item.discount_percent,
+            discountAmount: 0,
+            gstPercent: item.gst_percent,
+            lineTotal: item.line_total,
+            hsnCode: item.hsn_code || '',
+            uom,
+          };
+          const mult = getMtrMultiplier(base);
+          const subTotal = base.salePrice * mult;
+          const discAmt = (subTotal * (base.discountPercent || 0)) / 100;
+          base.lineTotal = subTotal - discAmt;
+          return base;
+        });
         setLineItems(transformedItems);
         setOriginalItemsForEdit(invoiceData.sale_items.map((item: any) => ({
           variantId: item.variant_id,
@@ -1583,6 +1605,7 @@ export default function SalesInvoice() {
         gstPercent: item.gst_percent,
         lineTotal: item.line_total,
         hsnCode: item.hsn_code || '',
+        uom: productUomMap.get(item.product_id) || 'NOS',
       }));
       setSavedInvoiceData({
         invoiceNumber: invoiceData.sale_number,
