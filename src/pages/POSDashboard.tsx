@@ -125,7 +125,7 @@ const DEFAULT_POS_COLUMNS = {
 const POSDashboard = () => {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, organizationRole } = useOrganization();
   const { user } = useAuth();
   const { formatMessage } = useWhatsAppTemplates();
   const { sendWhatsApp, copyInvoiceLink } = useWhatsAppSend();
@@ -167,10 +167,10 @@ const POSDashboard = () => {
     staleTime: 300000,
   });
 
-  // Default userFilter to logged-in user (single-user orgs default to "all")
+  // Default userFilter: admins see all users; non-admins default to themselves
   useEffect(() => {
     if (userFilter === "__pending__" && orgUsers.length > 0 && user?.id) {
-      if (orgUsers.length === 1) {
+      if (orgUsers.length === 1 || organizationRole === "admin") {
         setUserFilter("all");
       } else {
         const isOrgMember = orgUsers.some((u: any) => u.id === user.id);
@@ -179,7 +179,7 @@ const POSDashboard = () => {
     } else if (userFilter === "__pending__" && orgUsers.length > 0) {
       setUserFilter("all");
     }
-  }, [orgUsers, user?.id]);
+  }, [orgUsers, user?.id, organizationRole]);
 
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [saleItems, setSaleItems] = useState<Record<string, SaleItem[]>>({});
