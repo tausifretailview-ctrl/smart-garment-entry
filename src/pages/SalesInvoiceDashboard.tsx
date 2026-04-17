@@ -107,7 +107,7 @@ export default function SalesInvoiceDashboard() {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { user } = useAuth();
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, organizationRole } = useOrganization();
   const { hasSpecialPermission } = useUserPermissions();
   const { formatMessage } = useWhatsAppTemplates();
   const { sendWhatsApp, copyInvoiceLink } = useWhatsAppSend();
@@ -145,11 +145,10 @@ export default function SalesInvoiceDashboard() {
     staleTime: 300000,
   });
 
-  // Default userFilter to logged-in user (single-user orgs default to "all")
-  // On mobile, always default to "all" so owner can see all invoices
+  // Default userFilter: admins (and mobile) see all users; non-admins default to themselves
   useEffect(() => {
     if (userFilter === "__pending__" && orgUsers.length > 0 && user?.id) {
-      if (orgUsers.length === 1 || isMobile) {
+      if (orgUsers.length === 1 || isMobile || organizationRole === "admin") {
         setUserFilter("all");
       } else {
         const isOrgMember = orgUsers.some((u: any) => u.id === user.id);
@@ -158,7 +157,7 @@ export default function SalesInvoiceDashboard() {
     } else if (userFilter === "__pending__" && orgUsers.length > 0) {
       setUserFilter("all");
     }
-  }, [orgUsers, user?.id, isMobile]);
+  }, [orgUsers, user?.id, isMobile, organizationRole]);
 
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);

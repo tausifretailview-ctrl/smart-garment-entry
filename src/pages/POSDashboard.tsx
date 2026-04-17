@@ -125,7 +125,7 @@ const DEFAULT_POS_COLUMNS = {
 const POSDashboard = () => {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, organizationRole } = useOrganization();
   const { user } = useAuth();
   const { formatMessage } = useWhatsAppTemplates();
   const { sendWhatsApp, copyInvoiceLink } = useWhatsAppSend();
