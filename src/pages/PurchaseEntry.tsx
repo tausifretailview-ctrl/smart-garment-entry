@@ -374,17 +374,20 @@ const PurchaseEntry = () => {
     setEntryMode(data.entryMode || "grid");
     setIsDcPurchase(data.isDcPurchase || false);
     
-    if (items.length > 200) {
+    // Backfill uom from products table for any rows missing it (drafts saved before MTR fix)
+    const enrichedItems = await enrichItemsWithUom(items);
+
+    if (enrichedItems.length > 200) {
       // Load in chunks with progress for large bills
       setDraftLoading(true);
-      setDraftLoadProgress({ loaded: 0, total: items.length });
+      setDraftLoadProgress({ loaded: 0, total: enrichedItems.length });
       setLineItems([]);
       const CHUNK = 200;
-      for (let i = 0; i < items.length; i += CHUNK) {
+      for (let i = 0; i < enrichedItems.length; i += CHUNK) {
         await new Promise<void>(resolve => {
           setTimeout(() => {
-            setLineItems(prev => [...prev, ...items.slice(i, i + CHUNK)]);
-            setDraftLoadProgress({ loaded: Math.min(i + CHUNK, items.length), total: items.length });
+            setLineItems(prev => [...prev, ...enrichedItems.slice(i, i + CHUNK)]);
+            setDraftLoadProgress({ loaded: Math.min(i + CHUNK, enrichedItems.length), total: enrichedItems.length });
             resolve();
           }, 0);
         });
@@ -392,7 +395,7 @@ const PurchaseEntry = () => {
       setDraftLoading(false);
       setVisibleItemCount(100);
     } else {
-      setLineItems(items);
+      setLineItems(enrichedItems);
     }
     
     // Restore edit mode if draft was from an edit
