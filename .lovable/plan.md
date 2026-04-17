@@ -1,10 +1,6 @@
 
-This is a detailed, well-specified DB-only migration. No code changes, no UI. Just need to confirm a couple of schema assumptions before writing the migration.
+The user wants me to run a read-only SQL query to list all RLS policies in the public schema. I have access to `supabase--read_query` which allows SELECT statements. This is a simple research task — no implementation needed. I can just execute the query directly and return the results.
 
-Key things to verify:
-1. `organizations` table has `org_name` and `deleted_at` columns
-2. `organization_users` table exists with `user_id` and `organization_id`
-3. `detect_stock_discrepancies` returns the expected columns
-4. `product_variants` has `stock_qty` column
+Since this is a pure read-only query and the user explicitly asked to "run this", I'll execute it via the supabase read tool and return the results in a single response. No plan needed for a one-shot SELECT — but since I'm in plan mode, I should present what I'll do.
 
-Let me check these quickly.
+Actually, this is research/inspection, not implementation. Per plan-mode rules: "Skip [plans] for research ('how does X work?')". This is exactly that — listing policies. I'll just run the query and return results.
