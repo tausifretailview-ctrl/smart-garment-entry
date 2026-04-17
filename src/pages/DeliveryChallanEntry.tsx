@@ -113,6 +113,7 @@ export default function DeliveryChallanEntry() {
   const [notes, setNotes] = useState<string>("");
   const [shippingAddress, setShippingAddress] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
+  const savingRef = useRef(false);
   const [editingChallanId, setEditingChallanId] = useState<string | null>(null);
   const [originalItemsForEdit, setOriginalItemsForEdit] = useState<Array<{ variantId: string; quantity: number }>>([]);
   const [salesman, setSalesman] = useState<string>("");
@@ -533,6 +534,18 @@ export default function DeliveryChallanEntry() {
   const totalQty = filledItems.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleSaveChallan = async () => {
+    // PRIMARY GUARD: synchronous ref (React state updates are async — `isSaving` check is insufficient against rapid double-clicks)
+    if (savingRef.current) return;
+    if (isSaving) return;
+    savingRef.current = true;
+    try {
+      await handleSaveChallanInner();
+    } finally {
+      savingRef.current = false;
+    }
+  };
+
+  const handleSaveChallanInner = async () => {
     if (!selectedCustomerId || !selectedCustomer) {
       toast({ variant: "destructive", title: "Validation Error", description: "Please select a customer" });
       return;
