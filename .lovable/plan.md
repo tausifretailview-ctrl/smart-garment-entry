@@ -1,43 +1,35 @@
 
+## Fix: MTR Multiplier Lost When Editing Existing Bills
 
-## Plan: Fix Velvet Opening Stock Bill #53 Duplicate Lines
+### Root cause
+`purchase_items` and `sale_items` tables don't store `uom` — it lives on `products.uom`. When opening an existing bill in **edit mode**, both `loadBillById` paths in `PurchaseEntry.tsx` (lines 765-787 and 925-947) and the equivalent in `SalesInvoice.tsx` map DB rows to `LineItem` **without populating `uom`**. So `getMtrMultiplier` sees `item.uom = undefined`, falls back to `qty` (=1), and shows ₹95 instead of 75 × ₹95 = ₹7,125.
 
-### Audit findings
-- Bill: `33b10ed8-cdfc-4f1e-b485-02e7488d2cfe` (PUR/25-26/8, supplier invoice 53, OPENING STOCK)
-- 331 line items but only **309 unique barcodes** → **22 duplicate rows** across **19 barcodes** (15 duplicated 2x, 4 duplicated 3x like 150006965, 150006966, 150006967)
-- Inserts span 9h 40m → bill was re-saved/edited multiple times without clearing prior items; each insert re-fired the stock trigger, inflating `product_variants.stock_qty`
-- Confirmed: barcode 150006965 shows stock_qty = 9 (should be 3); 150006968 = 8 (should be 4); 150006971 = 3 (should be 2); etc.
+The user's screenshot confirms this: no "MTR" badge next to the qty input (which only renders when `item.uom === 'MTR'`).
 
-### Fix (one-time data correction migration, scoped to this bill only)
+The new-line scan path is correct — search results already join `products(uom)`. The bug only bites on edit/navigate-existing-bill.
 
-1. **Remove duplicate purchase_items rows** for this bill — keep the earliest `created_at` per `(barcode, size)`, hard-delete the later duplicates. Hard delete (not soft) so the existing stock trigger reverses the inflated stock automatically.
-   ```
-   DELETE FROM purchase_items
-   WHERE bill_id = '33b10ed8-cdfc-4f1e-b485-02e7488d2cfe'
-     AND id IN (
-       SELECT id FROM (
-         SELECT id, ROW_NUMBER() OVER (
-           PARTITION BY barcode, size ORDER BY created_at
-         ) AS rn
-         FROM purchase_items
-         WHERE bill_id = '33b10ed8-cdfc-4f1e-b485-02e7488d2cfe'
-           AND deleted_at IS NULL
-           AND barcode IS NOT NULL AND barcode <> ''
-       ) t WHERE rn > 1
-     );
-   ```
+### Fix
 
-2. **Recalculate bill header** (`total_qty`, `gross_amount`, `net_amount`) from the cleaned `purchase_items` so dashboard/GST totals align.
+**1. `src/pages/PurchaseEntry.tsx`** — both edit-load paths
+- Extend the `products` SELECT in lines ~754-757 and ~908-911 to include `uom`:
+  ```
+  .select('id, brand, category, style, color, uom')
+  ```
+- Store `uom` in `productDetailsMap` alongside brand/category/style/color.
+- Set `uom: productDetails?.uom || 'NOS'` on each loaded `LineItem` (lines ~786 and ~946).
+- Recalculate `line_total` after load using `getMtrMultiplier` so totals match the in-memory formula (defensive — in case stored `line_total` was wrong).
 
-3. **Verify stock_qty** for the 19 affected variants drops to expected values (e.g. 150006965 → 3, 150006968 → 4). If the stock trigger does not auto-reverse on hard delete, also issue scoped `UPDATE product_variants SET stock_qty = stock_qty - <extra>` per variant.
+**2. `src/pages/SalesInvoice.tsx`** — `loadInvoiceById`
+- Same fix: fetch `products.uom`, populate `uom` on loaded line items, recalc line totals via the existing MTR helper.
 
-4. All statements scoped with `organization_id = 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'` per the Scoped Mutations core rule.
+**3. Verification**
+After the fix, opening Purchase Bill / Sales Invoice with the FLEXI-TEST barcodes (250001052 size "75 MTR", 250001053 size "85 MTR") should show:
+- Qty cell: `1 MTR` badge visible
+- Sub Total: `₹7,125.00` (75 × 95) and `₹8,075.00` (85 × 95)
+- Bill totals recalculated correctly
 
-### Prevention (code side, separate from data fix)
-Investigate `PurchaseEntry.tsx` save path for opening-stock / edit-mode to confirm it follows the **Edit-Mode Pattern** (hard-delete existing `purchase_items` for the bill before re-inserting). Likely cause: the OPENING STOCK / large-bill save path appends rows on re-save instead of replacing, possibly when the user clicks Save while still adding rows or after a network retry. Add a safeguard: on edit-save, `DELETE FROM purchase_items WHERE bill_id = ?` before re-insert (already the documented pattern).
+### Files touched
+- `src/pages/PurchaseEntry.tsx` (2 edit-load blocks)
+- `src/pages/SalesInvoice.tsx` (1 edit-load block)
 
-### Deliverables
-- Migration SQL to dedupe + recalc bill 53
-- Verification query output (before vs after stock_qty for the 19 barcodes)
-- Code review note on PurchaseEntry save flow with a recommended guard (separate follow-up if a bug is found)
-
+No DB migration needed — uom stays derived from `products` on every load.
