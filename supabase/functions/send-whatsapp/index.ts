@@ -701,6 +701,13 @@ serve(async (req) => {
       console.error('Error creating log entry:', logError);
     }
 
+    // Hoisted: image attachment state. The IMAGE-header template branch may set
+    // headerLogoEmbedded=true to suppress sending the logo as a separate image
+    // message, since it's already embedded in the template header.
+    let finalImageUrl: string | undefined = imageUrl;
+    let finalImageCaption: string | undefined = imageCaption;
+    let headerLogoEmbedded = false;
+
     // Check if we should use document header template (PDF embedded in template header)
     // This bypasses the 24-hour window restriction since it's a template message
     console.log('Document header check - useDocumentHeaderTemplate:', useDocumentHeaderTemplate);
