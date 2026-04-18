@@ -1,9 +1,15 @@
+import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, User, Shield, CheckCircle2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Loader2, User, Shield, CheckCircle2, KeyRound } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const roleDescriptions = {
   admin: "Full system access including user management and all settings",
