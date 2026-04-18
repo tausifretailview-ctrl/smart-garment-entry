@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { logError } from "@/lib/errorLogger";
 import { UOM_OPTIONS } from "@/constants/uom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, Building2, ShoppingCart, Receipt, CreditCard, BarChart2, Users, MessageSquare, MessageCircle, Database, Palette, FileText, Smartphone } from "lucide-react";
@@ -682,6 +683,14 @@ export default function Settings() {
         description: "Settings saved successfully",
       });
     } catch (error: any) {
+      logError(
+        {
+          operation: 'settings_save',
+          organizationId: currentOrganization?.id,
+          additionalContext: { section: 'general' },
+        },
+        error
+      );
       console.error("Error saving settings:", error);
       toast({
         title: "Error",

@@ -40,6 +40,7 @@ import {
   Monitor,
   Lock,
   Unlock,
+  AlertTriangle,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
@@ -168,6 +169,22 @@ export function AppSidebar() {
               </span>
             )}
           </div>
+        )}
+
+        {/* System Health - admin or platform_admin */}
+        {(isAdmin || isPlatformAdmin) && (
+          <SidebarGroup className="pt-0 first:pt-0">
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/admin/health")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
+                  <NavLink to="/admin/health" className="flex items-center gap-2 group">
+                    <AlertTriangle className="h-5 w-5 text-amber-500 sidebar-icon group-hover:animate-icon-pulse" />
+                    {open && <span className="font-semibold dark:text-white">System Health</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroup>
         )}
 
         {/* Platform Admin - Only visible to platform admins */}

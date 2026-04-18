@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useProductProtection } from "@/hooks/useProductProtection";
+import { logError } from "@/lib/errorLogger";
 
 export type SoftDeleteEntity = 
   | "customers"
@@ -112,6 +113,13 @@ export function useSoftDelete() {
 
       return true;
     } catch (error: any) {
+      logError(
+        {
+          operation: `entity_soft_delete_${entity}`,
+          additionalContext: { entity, id },
+        },
+        error
+      );
       console.error(`Error soft deleting ${entity}:`, error);
       toast({
         title: "Error",
@@ -247,6 +255,13 @@ export function useSoftDelete() {
 
       return true;
     } catch (error: any) {
+      logError(
+        {
+          operation: `entity_hard_delete_${entity}`,
+          additionalContext: { entity, id },
+        },
+        error
+      );
       console.error(`Error permanently deleting ${entity}:`, error);
       toast({
         title: "Error",

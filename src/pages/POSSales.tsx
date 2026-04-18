@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { logError } from "@/lib/errorLogger";
 import { isDecimalUOM } from "@/constants/uom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useMobileERP, validateIMEI } from "@/hooks/useMobileERP";
@@ -783,6 +784,14 @@ export default function POSSales() {
 
       queryClient.invalidateQueries({ queryKey: ['todaysSales'] });
     } catch (error: any) {
+      logError(
+        {
+          operation: 'pos_save_metadata',
+          organizationId: currentOrganization?.id,
+          additionalContext: { currentSaleId, hasCustomer: !!customerId },
+        },
+        error
+      );
       toast({
         title: "Save Failed",
         description: error.message || "Failed to save changes",
