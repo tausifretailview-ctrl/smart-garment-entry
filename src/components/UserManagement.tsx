@@ -38,6 +38,10 @@ const AVAILABLE_ROLES = ["admin", "manager", "user"];
 export function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [resetUser, setResetUser] = useState<User | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetConfirm, setResetConfirm] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
 
@@ -46,6 +50,38 @@ export function UserManagement() {
       fetchOrganizationUsers();
     }
   }, [currentOrganization]);
+
+  const handleResetPassword = async () => {
+    if (!resetUser || !currentOrganization) return;
+    if (resetPassword.length < 6) {
+      toast({ title: "Error", description: "Password must be at least 6 characters", variant: "destructive" });
+      return;
+    }
+    if (resetPassword !== resetConfirm) {
+      toast({ title: "Error", description: "Passwords do not match", variant: "destructive" });
+      return;
+    }
+    setResetLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-reset-user-password", {
+        body: {
+          target_user_id: resetUser.id,
+          new_password: resetPassword,
+          organization_id: currentOrganization.id,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast({ title: "Success", description: `Password reset for ${resetUser.email}` });
+      setResetUser(null);
+      setResetPassword("");
+      setResetConfirm("");
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to reset password", variant: "destructive" });
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const fetchOrganizationUsers = async () => {
     if (!currentOrganization) return;
