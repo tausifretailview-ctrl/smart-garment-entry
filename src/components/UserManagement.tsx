@@ -5,6 +5,15 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -13,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, Plus, X, Store } from "lucide-react";
+import { Loader2, Plus, X, Store, KeyRound } from "lucide-react";
 
 interface User {
   id: string;
@@ -29,6 +38,10 @@ const AVAILABLE_ROLES = ["admin", "manager", "user"];
 export function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [resetUser, setResetUser] = useState<User | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetConfirm, setResetConfirm] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
 
@@ -37,6 +50,38 @@ export function UserManagement() {
       fetchOrganizationUsers();
     }
   }, [currentOrganization]);
+
+  const handleResetPassword = async () => {
+    if (!resetUser || !currentOrganization) return;
+    if (resetPassword.length < 6) {
+      toast({ title: "Error", description: "Password must be at least 6 characters", variant: "destructive" });
+      return;
+    }
+    if (resetPassword !== resetConfirm) {
+      toast({ title: "Error", description: "Passwords do not match", variant: "destructive" });
+      return;
+    }
+    setResetLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-reset-user-password", {
+        body: {
+          target_user_id: resetUser.id,
+          new_password: resetPassword,
+          organization_id: currentOrganization.id,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast({ title: "Success", description: `Password reset for ${resetUser.email}` });
+      setResetUser(null);
+      setResetPassword("");
+      setResetConfirm("");
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to reset password", variant: "destructive" });
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const fetchOrganizationUsers = async () => {
     if (!currentOrganization) return;
@@ -257,7 +302,7 @@ export function UserManagement() {
                     {new Date(user.created_at).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 flex-wrap">
                       {AVAILABLE_ROLES.filter((role) => !user.roles.includes(role)).map(
                         (role) => (
                           <Button
@@ -271,6 +316,18 @@ export function UserManagement() {
                           </Button>
                         )
                       )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setResetUser(user);
+                          setResetPassword("");
+                          setResetConfirm("");
+                        }}
+                      >
+                        <KeyRound className="h-3 w-3 mr-1" />
+                        Reset Password
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -279,6 +336,56 @@ export function UserManagement() {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={!!resetUser} onOpenChange={(open) => !open && setResetUser(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Set a new password for <strong>{resetUser?.email}</strong>. They will need to use this new password to sign in.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="reset-pw">New Password</Label>
+              <Input
+                id="reset-pw"
+                type="password"
+                value={resetPassword}
+                onChange={(e) => setResetPassword(e.target.value)}
+                minLength={6}
+                disabled={resetLoading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reset-pw-confirm">Confirm Password</Label>
+              <Input
+                id="reset-pw-confirm"
+                type="password"
+                value={resetConfirm}
+                onChange={(e) => setResetConfirm(e.target.value)}
+                minLength={6}
+                disabled={resetLoading}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetUser(null)} disabled={resetLoading}>
+              Cancel
+            </Button>
+            <Button onClick={handleResetPassword} disabled={resetLoading}>
+              {resetLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Resetting...
+                </>
+              ) : (
+                "Reset Password"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

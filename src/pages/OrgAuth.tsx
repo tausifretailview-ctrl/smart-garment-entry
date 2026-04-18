@@ -763,7 +763,20 @@ export default function OrgAuth() {
                     <div className="flex items-center justify-between">
                       <Label htmlFor="password" className="text-card-foreground font-medium text-sm">Password</Label>
                       <button type="button" className="text-xs hover:underline" style={{ color: brandColor }}
-                        onClick={() => toast.info('Please contact your organization administrator to reset your password.')}>
+                        onClick={async () => {
+                          if (!email) {
+                            toast.error('Enter your email first');
+                            return;
+                          }
+                          const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                            redirectTo: `${window.location.origin}/reset-password`,
+                          });
+                          if (error) {
+                            toast.error(error.message);
+                          } else {
+                            toast.success('Password reset link sent. Check your email.');
+                          }
+                        }}>
                         Forgot password?
                       </button>
                     </div>

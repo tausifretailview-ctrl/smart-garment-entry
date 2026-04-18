@@ -74,6 +74,7 @@ const DeliveryDashboard = lazyWithRetry(() => import("./pages/DeliveryDashboard"
 const PaymentsDashboard = lazyWithRetry(() => import("./pages/PaymentsDashboard"));
 const UserRights = lazyWithRetry(() => import("./pages/UserRights"));
 const Auth = lazyWithRetry(() => import("./pages/Auth"));
+const ResetPassword = lazyWithRetry(() => import("./pages/ResetPassword"));
 const OrgAuth = lazyWithRetry(() => import("./pages/OrgAuth"));
 const FieldSalesAuth = lazyWithRetry(() => import("./pages/FieldSalesAuth"));
 const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
@@ -263,6 +264,7 @@ const App = () => {
             <Routes>
               {/* Public routes - No org context needed */}
               <Route path="/auth" element={<Auth />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/invoice/view/:saleId" element={<PublicInvoiceView />} />
               <Route path="/pay" element={<PublicPaymentPage />} />
               
