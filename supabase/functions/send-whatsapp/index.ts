@@ -977,12 +977,14 @@ serve(async (req) => {
         // Enrich saleData with org-level social links so params like
         // instagram / facebook / google_review_link / website auto-fill.
         const socialLinks = (orgSettings as any)?.social_links || {};
+        // Use '-' as a safe placeholder so messages don't fail when an org
+        // hasn't filled social links yet. WhatsApp rejects empty params.
         const enrichedSaleData: Record<string, unknown> = {
           ...saleData,
-          website: saleData.website || socialLinks.website || '',
-          instagram: saleData.instagram || socialLinks.instagram || '',
-          facebook: saleData.facebook || socialLinks.facebook || '',
-          google_review_link: (saleData as any).google_review_link || socialLinks.google_review || socialLinks.google_review_link || '',
+          website: saleData.website || socialLinks.website || '-',
+          instagram: saleData.instagram || socialLinks.instagram || '-',
+          facebook: saleData.facebook || socialLinks.facebook || '-',
+          google_review_link: (saleData as any).google_review_link || socialLinks.google_review || socialLinks.google_review_link || '-',
         };
 
         if (paramMapping && paramMapping.length > 0) {
@@ -1011,8 +1013,24 @@ serve(async (req) => {
           .map(({ idx }) => idx);
 
         if (missingParamIndexes.length > 0) {
-          console.log('ERROR: Template params contain empty values at indexes:', missingParamIndexes);
+          // Resolve human-readable field names from the active param mapping
+          let missingFieldNames: string[] = [];
+          try {
+            const paramMappingKey = `${(templateType || '').replace('sales_', '')}_template_params`;
+            const paramMapping = (orgSettings as any)?.[paramMappingKey] as TemplateParamMapping[] | null;
+            if (paramMapping && Array.isArray(paramMapping)) {
+              missingFieldNames = missingParamIndexes.map(
+                (idx) => paramMapping[idx]?.field || `param_${idx + 1}`
+              );
+            }
+          } catch (_) { /* ignore */ }
+
+          console.log('ERROR: Template params contain empty values at indexes:', missingParamIndexes, 'fields:', missingFieldNames);
           console.log('Template params (normalized):', JSON.stringify(normalizedParams));
+
+          const fieldsLabel = missingFieldNames.length > 0
+            ? missingFieldNames.join(', ')
+            : `index(es) ${missingParamIndexes.join(', ')}`;
 
           // Update log entry so UI shows exactly what's missing
           if (logEntry) {
@@ -1021,12 +1039,13 @@ serve(async (req) => {
               .update({
                 status: 'failed',
                 sent_at: new Date().toISOString(),
-                error_message: `Template parameter(s) empty at index(es): ${missingParamIndexes.join(', ')}`,
+                error_message: `Empty template field(s): ${fieldsLabel}. Fill these in WhatsApp Settings.`,
                 provider_response: {
                   error: {
                     code: 'TEMPLATE_PARAMS_EMPTY',
                     message: 'One or more WhatsApp template parameters are empty',
                     missingParamIndexes,
+                    missingFieldNames,
                     templateName,
                     templateType,
                   },
