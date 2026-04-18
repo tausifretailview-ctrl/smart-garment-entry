@@ -1292,9 +1292,21 @@ export const WhatsAppAPISettings = () => {
                   Social & Business Links
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  These links are used in follow-up responses
+                  These links are used in follow-up responses and template parameters
                 </p>
-                
+
+                {(!formData.social_links?.instagram || !formData.social_links?.google_review ||
+                  !formData.social_links?.website || !formData.social_links?.facebook) && (
+                  <Alert className="border-amber-500/50 bg-amber-500/10">
+                    <AlertCircle className="h-4 w-4 text-amber-600" />
+                    <AlertDescription className="text-sm text-amber-900 dark:text-amber-200">
+                      Some links are empty. If your active WhatsApp template references them,
+                      they'll be sent as <code className="bg-amber-500/20 px-1 rounded">-</code> placeholders.
+                      Fill them in for proper branded messages.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <div className="grid gap-3">
                   <div className="flex items-center gap-2">
                     <Globe className="h-4 w-4 text-muted-foreground" />

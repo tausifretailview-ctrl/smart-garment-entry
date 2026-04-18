@@ -455,6 +455,7 @@ export const useSaveSale = () => {
               website: (whatsappSettings.social_links as Record<string, string> | null)?.website || '',
               instagram: (whatsappSettings.social_links as Record<string, string> | null)?.instagram || '',
               facebook: (whatsappSettings.social_links as Record<string, string> | null)?.facebook || '',
+              google_review_link: (whatsappSettings.social_links as Record<string, string> | null)?.google_review || '',
             };
 
             // ============================================
