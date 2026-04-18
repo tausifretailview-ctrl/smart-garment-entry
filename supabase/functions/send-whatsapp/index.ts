@@ -1069,7 +1069,40 @@ serve(async (req) => {
 
         // Build components array
         const components: Array<Record<string, unknown>> = [];
-        
+
+        // If the template has an IMAGE header, embed the org logo as the
+        // header component (per-organization). This is required for IMAGE
+        // header templates — the logo cannot be sent as a separate message.
+        const tplHeader = templateComponents?.find(
+          (c: any) => String(c?.type ?? '').toUpperCase() === 'HEADER'
+        );
+        const headerFormat = String(tplHeader?.format ?? '').toUpperCase();
+        if (headerFormat === 'IMAGE') {
+          try {
+            const { data: logoSettings } = await supabase
+              .from('settings')
+              .select('bill_barcode_settings')
+              .eq('organization_id', organizationId)
+              .maybeSingle();
+            const headerLogoUrl = (logoSettings?.bill_barcode_settings as Record<string, any> | null)?.logo_url;
+            if (headerLogoUrl) {
+              components.push({
+                type: 'header',
+                parameters: [
+                  { type: 'image', image: { link: headerLogoUrl } },
+                ],
+              });
+              // Avoid sending the logo again as a separate image message
+              finalImageUrl = undefined;
+              console.log('Embedded org logo into IMAGE header:', headerLogoUrl);
+            } else {
+              console.warn('Template has IMAGE header but no org logo_url found in settings.bill_barcode_settings');
+            }
+          } catch (logoErr) {
+            console.error('Failed to fetch org logo for IMAGE header:', logoErr);
+          }
+        }
+
         // Add body component if we have body parameters
         if (bodyParameters.length > 0) {
           components.push({
