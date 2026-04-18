@@ -198,9 +198,14 @@ function buildTemplateParams(
       case 'website':
         return String(saleData.website || '');
       case 'instagram':
-        return String(saleData.instagram || '');
+      case 'instagram_link':
+        return String(saleData.instagram || saleData.instagram_link || '');
       case 'facebook':
-        return String(saleData.facebook || '');
+      case 'facebook_link':
+        return String(saleData.facebook || saleData.facebook_link || '');
+      case 'google_review_link':
+      case 'google_review':
+        return String(saleData.google_review_link || saleData.google_review || '');
       case 'custom_text':
         return param.customValue || '';
       case 'balance':
