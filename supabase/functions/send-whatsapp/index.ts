@@ -102,13 +102,6 @@ async function fetchNamedTemplateParamNames(opts: {
   }
 }
 
-    // Hoisted: image attachment state. The IMAGE-header template branch (below)
-    // may set headerLogoEmbedded=true to suppress sending the logo as a separate
-    // image message, since it's already embedded in the template header.
-    let finalImageUrl: string | undefined = imageUrl;
-    let finalImageCaption: string | undefined = imageCaption;
-    let headerLogoEmbedded = false;
-
 
 // Build template parameters dynamically from saleData and param mapping
 function buildTemplateParams(
