@@ -1100,7 +1100,7 @@ serve(async (req) => {
                 ],
               });
               // Avoid sending the logo again as a separate image message
-              finalImageUrl = undefined;
+              headerLogoEmbedded = true;
               console.log('Embedded org logo into IMAGE header:', headerLogoUrl);
             } else {
               console.warn('Template has IMAGE header but no org logo_url found in settings.bill_barcode_settings');
