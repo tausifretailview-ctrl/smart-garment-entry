@@ -178,6 +178,63 @@ export type Database = {
           },
         ]
       }
+      app_error_logs: {
+        Row: {
+          additional_context: Json | null
+          browser_info: Json | null
+          created_at: string
+          error_code: string | null
+          error_message: string
+          error_stack: string | null
+          id: string
+          operation: string
+          organization_id: string | null
+          page_path: string | null
+          user_id: string | null
+        }
+        Insert: {
+          additional_context?: Json | null
+          browser_info?: Json | null
+          created_at?: string
+          error_code?: string | null
+          error_message: string
+          error_stack?: string | null
+          id?: string
+          operation: string
+          organization_id?: string | null
+          page_path?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          additional_context?: Json | null
+          browser_info?: Json | null
+          created_at?: string
+          error_code?: string | null
+          error_message?: string
+          error_stack?: string | null
+          id?: string
+          operation?: string
+          organization_id?: string | null
+          page_path?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_error_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "app_error_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
