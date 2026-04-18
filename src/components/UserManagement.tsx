@@ -302,7 +302,7 @@ export function UserManagement() {
                     {new Date(user.created_at).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 flex-wrap">
                       {AVAILABLE_ROLES.filter((role) => !user.roles.includes(role)).map(
                         (role) => (
                           <Button
@@ -316,6 +316,18 @@ export function UserManagement() {
                           </Button>
                         )
                       )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setResetUser(user);
+                          setResetPassword("");
+                          setResetConfirm("");
+                        }}
+                      >
+                        <KeyRound className="h-3 w-3 mr-1" />
+                        Reset Password
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -324,6 +336,56 @@ export function UserManagement() {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={!!resetUser} onOpenChange={(open) => !open && setResetUser(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Set a new password for <strong>{resetUser?.email}</strong>. They will need to use this new password to sign in.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="reset-pw">New Password</Label>
+              <Input
+                id="reset-pw"
+                type="password"
+                value={resetPassword}
+                onChange={(e) => setResetPassword(e.target.value)}
+                minLength={6}
+                disabled={resetLoading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reset-pw-confirm">Confirm Password</Label>
+              <Input
+                id="reset-pw-confirm"
+                type="password"
+                value={resetConfirm}
+                onChange={(e) => setResetConfirm(e.target.value)}
+                minLength={6}
+                disabled={resetLoading}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetUser(null)} disabled={resetLoading}>
+              Cancel
+            </Button>
+            <Button onClick={handleResetPassword} disabled={resetLoading}>
+              {resetLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Resetting...
+                </>
+              ) : (
+                "Reset Password"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
