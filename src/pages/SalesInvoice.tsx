@@ -84,6 +84,7 @@ import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
 import { useShopName } from "@/hooks/useShopName";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { logError } from "@/lib/errorLogger";
 
 interface LineItem {
   id: string;
@@ -2510,6 +2511,18 @@ Thank you for choosing us!`;
         setShowPrintDialog(true);
       }
     } catch (error: any) {
+      logError(
+        {
+          operation: 'sale_invoice_save',
+          organizationId: currentOrganization?.id,
+          additionalContext: {
+            lineItemsCount: lineItems.length,
+            customerId: selectedCustomerId,
+            isEditMode: !!editingInvoiceId,
+          },
+        },
+        error
+      );
       console.error('Error saving invoice:', error);
       toast({
         variant: "destructive",

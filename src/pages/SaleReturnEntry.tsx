@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { logError } from "@/lib/errorLogger";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -836,6 +837,18 @@ export default function SaleReturnEntry() {
 
       navigate("/sale-returns");
     } catch (error) {
+      logError(
+        {
+          operation: 'sale_return_save',
+          organizationId: currentOrganization?.id,
+          additionalContext: {
+            itemsCount: returnItems.length,
+            saleId: selectedCustomer || null,
+            isEditMode,
+          },
+        },
+        error
+      );
       console.error("Error saving sale return:", error);
       const errMsg = (error as any)?.details || (error as any)?.hint || (error as any)?.message || "Failed to save sale return";
       toast({ title: "Error", description: errMsg, variant: "destructive" });

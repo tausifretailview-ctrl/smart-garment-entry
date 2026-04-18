@@ -57,6 +57,7 @@ import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 import { RollEntryDialog } from "@/components/RollEntryDialog";
 import { compareSizes } from "@/utils/sizeSort";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { logError } from "@/lib/errorLogger";
 
 interface PriceChange {
   sku_id: string;
@@ -2959,6 +2960,19 @@ const PurchaseEntry = () => {
         setIsDcPurchase(false);
       }
     } catch (error: any) {
+      logError(
+        {
+          operation: 'purchase_bill_save',
+          organizationId: currentOrganization?.id,
+          additionalContext: {
+            lineItemsCount: lineItems.length,
+            isEditMode,
+            editingBillId,
+            supplierInvoice: billData.supplier_invoice_no,
+          },
+        },
+        error
+      );
       console.error('[PurchaseEntry] Bill save FAILED:', {
         error,
         message: error?.message,

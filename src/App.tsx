@@ -140,6 +140,7 @@ const PortalOrders = lazyWithRetry(() => import("./pages/portal/PortalOrders"));
 const PortalInvoices = lazyWithRetry(() => import("./pages/portal/PortalInvoices"));
 const PortalAccount = lazyWithRetry(() => import("./pages/portal/PortalAccount"));
 const SalesmanCommission = lazyWithRetry(() => import("./pages/SalesmanCommission"));
+const AdminHealth = lazyWithRetry(() => import("./pages/AdminHealth"));
 
 const LazyFallback = () => (
   <div className="min-h-screen flex items-center justify-center">
@@ -281,6 +282,16 @@ const App = () => {
                     <RoleProtectedRoute allowedRoles={["platform_admin"]}>
                       <PlatformAdmin />
                     </RoleProtectedRoute>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Admin Health - admin/platform_admin only (gated inside the page) */}
+              <Route
+                path="/admin/health"
+                element={
+                  <ProtectedRoute>
+                    <AdminHealth />
                   </ProtectedRoute>
                 }
               />
