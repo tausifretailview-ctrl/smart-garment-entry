@@ -1,45 +1,65 @@
 
-## Root cause
+The user wants to know how admins and other users can change/update their organization login passwords. Let me check existing infrastructure.
 
-The WhatsApp edge function correctly auto-fills `instagram` and `google_review_link` params from `whatsapp_api_settings.social_links` (lines 977-986 of `send-whatsapp/index.ts`). But for the failing org ("Adtech Agency"), these fields are saved as **empty strings** in the DB — so the trim-and-validate guard at line 1008 rejects the message with `TEMPLATE_PARAMS_EMPTY` at indexes 5, 6.
+Need to check:
+1. Is there a Profile page with password change?
+2. Is there existing user management UI for admins?
+3. Auth context
 
-DB confirms: most orgs have `social_links: { instagram: "", google_review: "", ... }` — empty.
+From the file list I see: `src/pages/Profile.tsx`, `src/components/UserManagement.tsx`, `supabase/functions/create-org-user/`, `supabase/functions/create-user/`. Let me check what exists.
+<lov-tool-use id="toolu_vrtx_015hYpsaCAbg9f7bTcLoQns5" name="code--view" integration-id="code" data="{\"file_path\": \"src/pages/Profile.tsx\"}">
+</lov-tool-use>
 
-Two real problems:
-1. **No graceful fallback** when an org hasn't filled social links → the whole message fails instead of substituting a placeholder or skipping.
-2. **The Settings UI exists** (WhatsApp Settings → Social Links section already has Instagram, Facebook, Website, Google Review inputs), but the user likely never filled it in for Adtech Agency, and the error message doesn't tell them what to do.
+<lov-tool-use id="toolu_vrtx_01SReCy7GewVnx5nwFSYMHfK" name="code--search_files" integration-id="code" data="{\"query\": \"updateUser|resetPasswordForEmail|admin.updateUserById\", \"include_patterns\": \"src/**/*.tsx,src/**/*.ts,supabase/functions/**/*.ts\"}">
+</lov-tool-use>
 
-## Fix plan
+<lov-tool-use id="toolu_vrtx_01QbUNswLcdoYgohjJvcMoX2" name="code--view" integration-id="code" data="{\"file_path\": \"src/pages/Profile.tsx\"}">
+</lov-tool-use>
 
-### 1. Edge function — graceful fallback for social-link params (`supabase/functions/send-whatsapp/index.ts`)
+<lov-tool-use id="toolu_vrtx_01XsFd87bKQnHWZJfJevipio" name="code--search_files" integration-id="code" data="{\"query\": \"updateUser|resetPasswordForEmail|admin\\\\.updateUserById|change password|new_password\", \"include_patterns\": \"src/**/*.tsx,src/**/*.ts,supabase/functions/**/*.ts\"}">
+</lov-tool-use>
+No existing password change UI. Let me check the create-user edge function and Auth page for context.
+<lov-tool-use id="toolu_vrtx_01T7dmC1KkX3dwrxU2b7Gff7" name="code--search_files" integration-id="code" data="{\"query\": \"resetPasswordForEmail\", \"include_patterns\": \"src/**/*.tsx,src/**/*.ts\"}">
+</lov-tool-use>
+<lov-plan>
+There is currently **no password change UI** in the app. I'll add two flows so admins and users can manage passwords.
 
-For the known auto-fill social fields (`instagram`, `facebook`, `website`, `google_review_link`), if both saleData and `social_links` are empty, substitute a **safe placeholder** (a single dash `-` or the org name's default landing) instead of empty string. WhatsApp accepts non-empty text and the message goes through. This is preferable to silently failing because the user sees the params but they're fillers.
+## What gets built
 
-Specifically: change the enrichment block (lines 980-986) so the final value is `value || socialLinks.X || '-'` — never empty.
+### 1. "Change Password" card on Profile page (every logged-in user)
+On `src/pages/Profile.tsx`, add a new card with:
+- Current password, new password (min 6), confirm password fields
+- Calls `supabase.auth.updateUser({ password: newPassword })` after re-authenticating with current password via `signInWithPassword`
+- Toast on success / error, also calls `logError` on failure
 
-Also, when `TEMPLATE_PARAMS_EMPTY` is still triggered (non-social params actually missing), include a clearer hint in `error_message` listing the **field names** (e.g. "google_review_link, instagram") not just indexes — looked up via the active param mapping for that template.
+### 2. "Reset Password" action in User Management (admin-only)
+On `src/components/UserManagement.tsx` (the org users table at Settings → Users), for each user row add a "Reset Password" button that opens a small dialog where the org admin enters a new password. It calls a new edge function:
 
-### 2. UX — surface "social links not configured" warning in WhatsApp Settings (`src/components/WhatsAppAPISettings.tsx`)
+**New edge function `supabase/functions/admin-reset-user-password/index.ts`**
+- Verifies caller is an `admin` of the same `organization_id` as the target user (via `organization_members`)
+- Uses `supabase.auth.admin.updateUserById(targetUserId, { password })` with the service role key
+- Validates: password length 6–128, target must belong to caller's org
+- Logs to audit trail (`log_audit` RPC, action `USER_PASSWORD_RESET`)
 
-In the Social Links section, when any field used by an active template's param mapping is empty, show an inline amber warning: "These links are referenced by your active template; empty values will be replaced with '-'." Non-blocking, just informative.
+### 3. "Forgot Password?" link on Auth page
+On `src/pages/Auth.tsx` (and `src/pages/OrgAuth.tsx` if used), add a "Forgot password?" link that calls `supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/reset-password' })`.
 
-### 3. Sale data plumbing — forward `google_review_link` (`src/hooks/useSaveSale.tsx` line 458)
+**New page `src/pages/ResetPassword.tsx`** at route `/reset-password`:
+- Public route (added in `src/App.tsx`)
+- Detects `type=recovery` in URL hash
+- Shows new-password form, calls `supabase.auth.updateUser({ password })`
+- Redirects to login on success
 
-Add `google_review_link: socialLinks.google_review || ''` to the saleData payload alongside website/instagram/facebook so direct invocations (not just the edge-function fallback) carry it.
+## Files touched
+- `src/pages/Profile.tsx` — add Change Password card
+- `src/components/UserManagement.tsx` — add Reset Password button + dialog
+- `supabase/functions/admin-reset-user-password/index.ts` — NEW edge function
+- `src/pages/Auth.tsx` (and `OrgAuth.tsx` if present) — add "Forgot password?" link
+- `src/pages/ResetPassword.tsx` — NEW page
+- `src/App.tsx` — register `/reset-password` route
 
-### Files touched
-- `supabase/functions/send-whatsapp/index.ts` — fallback `'-'` for social params; clearer error message with field names.
-- `src/components/WhatsAppAPISettings.tsx` — inline warning when social links empty.
-- `src/hooks/useSaveSale.tsx` — forward `google_review_link` in saleData.
-
-### Acceptance
-- Sending a sales_invoice via the 7-param template to an org with empty `social_links` → message succeeds with `-` shown for missing links (no `TEMPLATE_PARAMS_EMPTY`).
-- Filling Instagram + Google Review URLs in WhatsApp Settings → next message shows real links.
-- Settings page shows amber hint when active template references social fields not yet filled.
-
-<lov-actions>
-<lov-suggestion message="Approved — proceed with all 3 fixes">Proceed with the fix</lov-suggestion>
-<lov-suggestion message="Only apply the edge function fallback (skip the UI warning and useSaveSale change)">Edge function only</lov-suggestion>
-<lov-suggestion message="Instead of using '-' as fallback, skip sending when social links are empty and show a clear toast in the UI">Skip-and-toast variant</lov-suggestion>
-<lov-suggestion message="After the fix, send a test sales_invoice via WhatsApp end-to-end and confirm the message arrives">Verify end-to-end after fix</lov-suggestion>
-</lov-actions>
+## Acceptance
+- Any logged-in user can change their own password from Profile.
+- Org admin can reset any user-in-their-org password from Settings → Users.
+- Anyone can request a password-reset email from the login screen and complete it via the `/reset-password` page.
+- All operations scoped to the caller's organization; no cross-tenant password changes possible.
