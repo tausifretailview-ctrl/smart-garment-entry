@@ -288,16 +288,6 @@ const App = () => {
                 }
               />
 
-              {/* Admin Health - admin/platform_admin only (gated inside the page) */}
-              <Route
-                path="/admin/health"
-                element={
-                  <ProtectedRoute>
-                    <AdminHealth />
-                  </ProtectedRoute>
-                }
-              />
-              
               {/* Organization setup - public page (also used when session expires) */}
               <Route path="/organization-setup" element={<OrganizationSetup />} />
 
@@ -339,6 +329,16 @@ const App = () => {
                           <OrganizationManagement />
                         </Layout>
                       </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* System Health - admin-gated inside the page via useUserRoles */}
+                <Route
+                  path="admin/health"
+                  element={
+                    <ProtectedRoute>
+                      <AdminHealth />
                     </ProtectedRoute>
                   }
                 />
