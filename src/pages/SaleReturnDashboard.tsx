@@ -255,8 +255,11 @@ export default function SaleReturnDashboard() {
 
     setBusinessDetails(data);
     const saleSettings = data?.sale_settings as any;
-    if (saleSettings?.pos_bill_format) {
-      setBillFormat(saleSettings.pos_bill_format);
+    // Use Invoice setting (sales_bill_format) for credit note print format.
+    // If POS is configured as thermal, also use thermal.
+    const fmt = saleSettings?.sales_bill_format || saleSettings?.pos_bill_format;
+    if (fmt) {
+      setBillFormat(fmt);
     }
   };
 
