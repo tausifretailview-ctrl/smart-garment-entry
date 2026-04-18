@@ -198,9 +198,14 @@ function buildTemplateParams(
       case 'website':
         return String(saleData.website || '');
       case 'instagram':
-        return String(saleData.instagram || '');
+      case 'instagram_link':
+        return String(saleData.instagram || saleData.instagram_link || '');
       case 'facebook':
-        return String(saleData.facebook || '');
+      case 'facebook_link':
+        return String(saleData.facebook || saleData.facebook_link || '');
+      case 'google_review_link':
+      case 'google_review':
+        return String(saleData.google_review_link || saleData.google_review || '');
       case 'custom_text':
         return param.customValue || '';
       case 'balance':
@@ -696,6 +701,13 @@ serve(async (req) => {
       console.error('Error creating log entry:', logError);
     }
 
+    // Hoisted: image attachment state. The IMAGE-header template branch may set
+    // headerLogoEmbedded=true to suppress sending the logo as a separate image
+    // message, since it's already embedded in the template header.
+    let finalImageUrl: string | undefined = imageUrl;
+    let finalImageCaption: string | undefined = imageCaption;
+    let headerLogoEmbedded = false;
+
     // Check if we should use document header template (PDF embedded in template header)
     // This bypasses the 24-hour window restriction since it's a template message
     console.log('Document header check - useDocumentHeaderTemplate:', useDocumentHeaderTemplate);
@@ -961,9 +973,20 @@ serve(async (req) => {
           .maybeSingle();
         
         const orgName = companySettings?.business_name || 'Our Company';
-        
+
+        // Enrich saleData with org-level social links so params like
+        // instagram / facebook / google_review_link / website auto-fill.
+        const socialLinks = (orgSettings as any)?.social_links || {};
+        const enrichedSaleData: Record<string, unknown> = {
+          ...saleData,
+          website: saleData.website || socialLinks.website || '',
+          instagram: saleData.instagram || socialLinks.instagram || '',
+          facebook: saleData.facebook || socialLinks.facebook || '',
+          google_review_link: (saleData as any).google_review_link || socialLinks.google_review || socialLinks.google_review_link || '',
+        };
+
         if (paramMapping && paramMapping.length > 0) {
-          finalTemplateParams = buildTemplateParams(paramMapping, saleData, orgName);
+          finalTemplateParams = buildTemplateParams(paramMapping, enrichedSaleData, orgName);
           console.log('Built dynamic params:', JSON.stringify(finalTemplateParams));
         }
       }
@@ -1053,7 +1076,40 @@ serve(async (req) => {
 
         // Build components array
         const components: Array<Record<string, unknown>> = [];
-        
+
+        // If the template has an IMAGE header, embed the org logo as the
+        // header component (per-organization). This is required for IMAGE
+        // header templates — the logo cannot be sent as a separate message.
+        const tplHeader = templateComponents?.find(
+          (c: any) => String(c?.type ?? '').toUpperCase() === 'HEADER'
+        );
+        const headerFormat = String(tplHeader?.format ?? '').toUpperCase();
+        if (headerFormat === 'IMAGE') {
+          try {
+            const { data: logoSettings } = await supabase
+              .from('settings')
+              .select('bill_barcode_settings')
+              .eq('organization_id', organizationId)
+              .maybeSingle();
+            const headerLogoUrl = (logoSettings?.bill_barcode_settings as Record<string, any> | null)?.logo_url;
+            if (headerLogoUrl) {
+              components.push({
+                type: 'header',
+                parameters: [
+                  { type: 'image', image: { link: headerLogoUrl } },
+                ],
+              });
+              // Avoid sending the logo again as a separate image message
+              headerLogoEmbedded = true;
+              console.log('Embedded org logo into IMAGE header:', headerLogoUrl);
+            } else {
+              console.warn('Template has IMAGE header but no org logo_url found in settings.bill_barcode_settings');
+            }
+          } catch (logoErr) {
+            console.error('Failed to fetch org logo for IMAGE header:', logoErr);
+          }
+        }
+
         // Add body component if we have body parameters
         if (bodyParameters.length > 0) {
           components.push({
@@ -1241,10 +1297,9 @@ serve(async (req) => {
       }
     }
 
-    // Auto-fetch logo from settings if imageUrl not provided by caller
-    let finalImageUrl = imageUrl;
-    let finalImageCaption = imageCaption;
-    if (!finalImageUrl && response.ok) {
+    // Auto-fetch logo from settings if imageUrl not provided by caller.
+    // Skip when the logo was already embedded as the template's IMAGE header.
+    if (!finalImageUrl && !headerLogoEmbedded && response.ok) {
       try {
         const { data: logoSettings } = await supabase
           .from('settings')
