@@ -966,9 +966,20 @@ serve(async (req) => {
           .maybeSingle();
         
         const orgName = companySettings?.business_name || 'Our Company';
-        
+
+        // Enrich saleData with org-level social links so params like
+        // instagram / facebook / google_review_link / website auto-fill.
+        const socialLinks = (orgSettings as any)?.social_links || {};
+        const enrichedSaleData: Record<string, unknown> = {
+          ...saleData,
+          website: saleData.website || socialLinks.website || '',
+          instagram: saleData.instagram || socialLinks.instagram || '',
+          facebook: saleData.facebook || socialLinks.facebook || '',
+          google_review_link: (saleData as any).google_review_link || socialLinks.google_review || socialLinks.google_review_link || '',
+        };
+
         if (paramMapping && paramMapping.length > 0) {
-          finalTemplateParams = buildTemplateParams(paramMapping, saleData, orgName);
+          finalTemplateParams = buildTemplateParams(paramMapping, enrichedSaleData, orgName);
           console.log('Built dynamic params:', JSON.stringify(finalTemplateParams));
         }
       }
