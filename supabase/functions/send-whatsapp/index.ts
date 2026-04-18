@@ -1297,10 +1297,9 @@ serve(async (req) => {
       }
     }
 
-    // Auto-fetch logo from settings if imageUrl not provided by caller
-    let finalImageUrl = imageUrl;
-    let finalImageCaption = imageCaption;
-    if (!finalImageUrl && response.ok) {
+    // Auto-fetch logo from settings if imageUrl not provided by caller.
+    // Skip when the logo was already embedded as the template's IMAGE header.
+    if (!finalImageUrl && !headerLogoEmbedded && response.ok) {
       try {
         const { data: logoSettings } = await supabase
           .from('settings')
