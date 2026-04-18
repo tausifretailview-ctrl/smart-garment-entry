@@ -154,7 +154,7 @@ export default function NetProfitAnalysis() {
         .select("id")
         .eq("organization_id", currentOrganization.id)
         .gte("sale_date", fromDate)
-        .lte("sale_date", toDate)
+        .lte("sale_date", `${toDate}T23:59:59`)
         .is("deleted_at", null)
         .eq("is_cancelled", false);
 
@@ -280,7 +280,7 @@ export default function NetProfitAnalysis() {
         .select("id")
         .eq("organization_id", currentOrganization.id)
         .gte("sale_date", fromDate)
-        .lte("sale_date", toDate)
+        .lte("sale_date", `${toDate}T23:59:59`)
         .is("deleted_at", null)
         .eq("is_cancelled", false);
 
