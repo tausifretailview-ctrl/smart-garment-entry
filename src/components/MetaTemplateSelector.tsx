@@ -86,6 +86,7 @@ const AVAILABLE_FIELDS: Record<string, { key: string; label: string; description
     { key: 'website', label: 'Website', description: 'Organization website URL' },
     { key: 'instagram', label: 'Instagram', description: 'Instagram profile link' },
     { key: 'facebook', label: 'Facebook', description: 'Facebook page link' },
+    { key: 'google_review_link', label: 'Google Review Link', description: 'Google business review URL' },
     { key: 'custom_text', label: 'Custom Text', description: 'Enter your own static text' },
   ],
   quotation: [
@@ -199,6 +200,19 @@ const TEMPLATE_PRESETS: Record<string, { name: string; description: string; para
         { index: 4, field: 'amount', label: 'Amount' },
         { index: 5, field: 'invoice_link', label: 'Invoice Link' },
         { index: 6, field: 'organization_name', label: 'Organization Name' },
+      ],
+    },
+    {
+      name: '7-Param Invoice (with Social Links)',
+      description: 'Customer, Org, Invoice No, Amount, Invoice Link, Instagram, Google Review',
+      params: [
+        { index: 1, field: 'customer_name', label: 'Customer Name' },
+        { index: 2, field: 'organization_name', label: 'Organization Name' },
+        { index: 3, field: 'invoice_number', label: 'Invoice Number' },
+        { index: 4, field: 'amount', label: 'Invoice Amount' },
+        { index: 5, field: 'invoice_link', label: 'Invoice Link' },
+        { index: 6, field: 'instagram', label: 'Instagram Link' },
+        { index: 7, field: 'google_review_link', label: 'Google Review Link' },
       ],
     },
   ],
