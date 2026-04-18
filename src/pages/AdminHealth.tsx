@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -262,7 +262,7 @@ export default function AdminHealth() {
               </div>
             ) : filtered.length === 0 ? (
               <div className="p-12 text-center space-y-3">
-                <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto" />
+                <CheckCircle2 className="h-12 w-12 text-primary mx-auto" />
                 <p className="text-muted-foreground">No errors in selected period</p>
               </div>
             ) : (
@@ -281,7 +281,7 @@ export default function AdminHealth() {
                   {filtered.map((row) => {
                     const isOpen = expanded.has(row.id);
                     return (
-                      <>
+                      <React.Fragment key={row.id}>
                         <TableRow
                           key={row.id}
                           onClick={() => toggle(row.id)}
