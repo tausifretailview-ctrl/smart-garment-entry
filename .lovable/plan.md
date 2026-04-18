@@ -1,47 +1,108 @@
 
+Plan: combined security cleanup. One migration + one auth config call + one tiny code touch (none needed actually — all server-side).
 
-## Root cause
+## What I need to verify before writing the migration
 
-`sales.sale_date` is a **timestamp** column. The Net Profit page queries it with:
+I have the view names (8) and the permissive policy table (`login_attempts`). I still need:
+- Exact names of the 7 functions with mutable `search_path` (from linter)
+- Current `storage.objects` SELECT policies (to know what to replace vs add)
+- Current `login_attempts` INSERT policy definition (to rewrite cleanly)
 
-```ts
-.gte("sale_date", fromDate)   // "2026-04-18"
-.lte("sale_date", toDate)     // "2026-04-18"  ← interpreted as 00:00:00
+I'll fetch these inside the migration step — they're quick reads — but the plan below is structured so the SQL can be written with placeholders the implementation step fills in.
+
+## Migration contents (single file)
+
+### 1. Tighten `login_attempts` INSERT
+Drop the `WITH CHECK (true)` policy. Replace with a policy that:
+- Still allows `anon` to insert (needed — it's pre-auth)
+- Restricts inserts to one row per (email, ip) per 10 seconds via a `BEFORE INSERT` trigger that raises if a recent row exists
+- Forces `attempted_at = now()` server-side (prevents client-supplied timestamps gaming the window)
+
+```sql
+-- Trigger-based rate guard
+CREATE OR REPLACE FUNCTION public.login_attempts_rate_guard()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+  NEW.attempted_at := now();
+  IF EXISTS (
+    SELECT 1 FROM public.login_attempts
+    WHERE email = NEW.email AND ip_address = NEW.ip_address
+      AND attempted_at > now() - interval '10 seconds'
+  ) THEN
+    RAISE EXCEPTION 'rate_limited' USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END $$;
+
+DROP POLICY IF EXISTS "<old permissive name>" ON public.login_attempts;
+CREATE POLICY "anon_insert_rate_limited" ON public.login_attempts
+  FOR INSERT TO anon WITH CHECK (true);  -- guard enforced by trigger
+
+CREATE TRIGGER trg_login_attempts_rate_guard
+  BEFORE INSERT ON public.login_attempts
+  FOR EACH ROW EXECUTE FUNCTION public.login_attempts_rate_guard();
 ```
 
-When user picks **Today**, both `fromDate` and `toDate` become `"2026-04-18"`. Postgres treats the upper bound as `2026-04-18 00:00:00`, so every sale created today (after midnight) is **excluded** → empty result → blank report.
+### 2. Flip 8 dashboard views to `security_invoker`
+```sql
+ALTER VIEW public.v_dashboard_counts SET (security_invoker = true);
+-- ... repeat for: v_dashboard_gross_profit, v_dashboard_purchase_returns,
+-- v_dashboard_purchase_summary, v_dashboard_receivables, v_dashboard_sale_returns,
+-- v_dashboard_sales_summary, v_dashboard_stock_summary
+```
+Underlying tables already have `organization_id`-scoped RLS, so invoker mode is safe.
 
-This bug affects **all presets** in `NetProfitAnalysis.tsx` (Today, Week, Month, Quarter, FY) — anything with sales on the end date is silently dropped. Other dashboards (e.g. `SalesInvoiceDashboard`) avoid this by appending `'T23:59:59'` to the end bound.
+### 3. Pin `search_path` on 7 flagged functions
+```sql
+ALTER FUNCTION public.<fn>(<args>) SET search_path = public, pg_temp;
+```
+List filled in from linter output at write time.
 
-## Fix
+### 4. Storage: block public listing on sensitive buckets, keep signed URLs
+Signed URLs work via `storage.objects` GET by token — they don't require a SELECT policy match for unauthenticated users. So we can safely restrict authenticated SELECT to bucket owners only, and rely on signed URLs for everyone else.
 
-### 1. `src/pages/NetProfitAnalysis.tsx` — extend `toDate` to end-of-day when querying
+```sql
+-- Block anon listing on sensitive private-data buckets
+DROP POLICY IF EXISTS "<existing public select on objects>" ON storage.objects;
 
-In both `fetchSupplierWiseProfit` (line 157) and `fetchProductWiseProfit` (line 283), change:
+CREATE POLICY "supplier_bills_org_members_only" ON storage.objects
+  FOR SELECT TO authenticated
+  USING (
+    bucket_id = 'supplier-bill-images'
+    AND EXISTS (
+      SELECT 1 FROM public.organization_members om
+      WHERE om.user_id = auth.uid()
+        AND om.organization_id::text = (storage.foldername(name))[1]
+    )
+  );
 
-```ts
-.lte("sale_date", toDate)
+CREATE POLICY "invoice_pdfs_org_members_only" ON storage.objects
+  FOR SELECT TO authenticated
+  USING (
+    bucket_id = 'invoice-pdfs'
+    AND EXISTS (
+      SELECT 1 FROM public.organization_members om
+      WHERE om.user_id = auth.uid()
+        AND om.organization_id::text = (storage.foldername(name))[1]
+    )
+  );
+
+-- Also flip the bucket public flag off; signed URLs still work
+UPDATE storage.buckets SET public = false WHERE id IN ('supplier-bill-images','invoice-pdfs');
 ```
 
-to:
+Caveat to verify at write time: confirm the file path convention is `{organization_id}/...` for these buckets. If not, use the actual prefix scheme. `product-images` and `company-logos` stay public (intentional — used in public invoice view + portal catalogue).
 
-```ts
-.lte("sale_date", `${toDate}T23:59:59`)
-```
+### 5. Auth leaked-password protection
+Single `cloud--configure_auth` call with `password_hibp_enabled: true`. Not part of the SQL migration.
 
-Keep `gte("sale_date", fromDate)` as-is (start-of-day is correct for date-only string).
-
-### 2. Empty-state UX (small but useful)
-
-After Generate runs and result is empty, currently the page shows nothing. Add a friendly empty row in both tables ("No sales found in the selected period") so the user knows the query succeeded and the date range simply has no data — instead of a blank page that looks broken.
-
-That's it — two query lines + one empty-state message. No schema, no RLS, no other reports touched.
-
-## Files touched
-- `src/pages/NetProfitAnalysis.tsx` — fix `lte` upper bound (2 places); add empty-state row in supplier and product tables.
+## Files / actions
+- 1 SQL migration (items 1–4)
+- 1 auth config call (item 5)
+- No app code changes — all server-side hardening
 
 ## Acceptance
-- Dashboard → Today → Net Profit → Generate now shows today's sales with COGS and profit.
-- Week / Month / Quarter / FY presets all include sales on the final date.
-- When a date range genuinely has no sales, the table shows "No data" instead of going blank.
-
+- `login_attempts` rejects >1 insert per (email,ip) per 10s with a `42501` error, but legitimate logins still work.
+- Linter run after migration shows 0 SECURITY DEFINER VIEW errors, 0 mutable-search-path warnings on the 7 fns, 0 permissive-policy warnings on `login_attempts`.
+- `supplier-bill-images` and `invoice-pdfs` no longer list publicly; existing signed-URL flows in app continue to work (verify by opening one signed PDF link from Purchase Bill Dashboard).
+- Auth → leaked-password protection enabled.
