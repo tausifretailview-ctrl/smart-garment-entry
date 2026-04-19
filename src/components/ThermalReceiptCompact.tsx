@@ -45,6 +45,7 @@ interface ThermalReceiptCompactProps {
   upiPaid?: number;
   cardPaid?: number;
   creditPaid?: number;
+  paidAmount?: number;
   refundCash?: number;
   documentType?: 'invoice' | 'quotation' | 'sale-order' | 'pos';
   termsConditions?: string;
@@ -68,7 +69,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
       items, subTotal, discount, saleReturnAdjust = 0,
       roundOff = 0, grandTotal,
       gstBreakdown, gstRateBreakdown, paymentMethod,
-      cashPaid = 0, upiPaid = 0, cardPaid = 0, creditPaid = 0, refundCash = 0,
+      cashPaid = 0, upiPaid = 0, cardPaid = 0, creditPaid = 0, paidAmount = 0, refundCash = 0,
       documentType = 'invoice', termsConditions, notes,
       pointsRedeemed = 0, pointsRedemptionValue = 0, pointsBalance = 0,
       cashier, salesman, counter, isDcInvoice,
@@ -112,7 +113,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
     const gst = gstBreakdown || { cgst: 0, sgst: 0 };
     const totalQty = items.reduce((s, i) => s + i.qty, 0);
     const netAmount = subTotal - discount;
-    const totalPaid = cashPaid + upiPaid + cardPaid + creditPaid;
+    const totalPaid = (cashPaid + upiPaid + cardPaid + creditPaid) > 0 ? (cashPaid + upiPaid + cardPaid + creditPaid) : paidAmount;
     const balanceDue = grandTotal - totalPaid;
     const salesPerson = salesman || cashier;
 
@@ -286,7 +287,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
         <div style={singleLine} />
 
         {/* PAYMENT */}
-        {(cashPaid > 0 || upiPaid > 0 || cardPaid > 0 || creditPaid > 0 || paymentMethod) && (
+        {(cashPaid > 0 || upiPaid > 0 || cardPaid > 0 || creditPaid > 0 || paidAmount > 0 || paymentMethod) && (
           <div style={{ fontSize: '12px', marginBottom: '3px' }}>
             <div style={{ fontWeight: 900, marginBottom: '1px' }}>PAYMENT</div>
             {cashPaid > 0 && <div style={row}><span>Cash</span><span>₹{fmtAmt(cashPaid)}</span></div>}

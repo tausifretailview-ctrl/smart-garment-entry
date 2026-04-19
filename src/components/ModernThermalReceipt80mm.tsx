@@ -45,6 +45,7 @@ interface ModernThermalReceipt80mmProps {
   upiPaid?: number;
   cardPaid?: number;
   creditPaid?: number;
+  paidAmount?: number;
   refundCash?: number;
   documentType?: 'invoice' | 'quotation' | 'sale-order' | 'pos';
   termsConditions?: string;
@@ -68,7 +69,7 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
       items, subTotal, discount, saleReturnAdjust = 0,
       roundOff = 0, grandTotal,
       gstBreakdown, gstRateBreakdown, paymentMethod,
-      cashPaid = 0, upiPaid = 0, cardPaid = 0, creditPaid = 0, refundCash = 0,
+      cashPaid = 0, upiPaid = 0, cardPaid = 0, creditPaid = 0, paidAmount = 0, refundCash = 0,
       documentType = 'invoice', termsConditions, notes,
       pointsRedeemed = 0, pointsRedemptionValue = 0, pointsBalance = 0,
       cashier, salesman, counter, isDcInvoice,
@@ -112,7 +113,7 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
     const gst = gstBreakdown || { cgst: 0, sgst: 0 };
     const totalQty = items.reduce((s, i) => s + i.qty, 0);
     const netAmount = subTotal - discount;
-    const totalPaid = cashPaid + upiPaid + cardPaid + creditPaid;
+    const totalPaid = (cashPaid + upiPaid + cardPaid + creditPaid) > 0 ? (cashPaid + upiPaid + cardPaid + creditPaid) : paidAmount;
     const balanceDue = grandTotal - totalPaid;
     const salesPerson = salesman || cashier;
 
@@ -347,7 +348,7 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
         )}
 
         {/* ═══ PAYMENT DETAILS ═══ */}
-        {(cashPaid > 0 || upiPaid > 0 || cardPaid > 0 || creditPaid > 0) && (
+        {(cashPaid > 0 || upiPaid > 0 || cardPaid > 0 || creditPaid > 0 || paidAmount > 0) && (
           <div style={{ fontSize: '11px', fontWeight: 800, marginBottom: '4px' }}>
             {cashPaid > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Cash</span><span style={{ fontFamily: 'monospace', fontWeight: 900 }}>₹{fmtAmt(cashPaid)}</span></div>}
             {upiPaid > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>UPI</span><span style={{ fontFamily: 'monospace', fontWeight: 900 }}>₹{fmtAmt(upiPaid)}</span></div>}
