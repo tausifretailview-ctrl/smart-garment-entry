@@ -7359,7 +7359,12 @@ export type Database = {
             }
             Returns: Json
           }
+      purge_all_old_backup_logs: { Args: never; Returns: Json }
       purge_old_audit_logs: { Args: never; Returns: Json }
+      purge_old_backup_logs: {
+        Args: { p_days: number; p_org_id: string }
+        Returns: number
+      }
       reconcile_customer_balances: {
         Args: { p_organization_id: string }
         Returns: {
