@@ -76,40 +76,40 @@ export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnTherm
           @media print {
             @page { size: 80mm auto; margin: 2mm; }
             .sale-return-thermal { width: 76mm !important; }
-            .sale-return-thermal * { color: black !important; }
+            .sale-return-thermal * { color: black !important; font-weight: bold !important; }
           }
         `}</style>
 
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '4px' }}>
-          <div style={{ fontSize: '16px', fontWeight: 'bold' }}>
+          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>
             {businessDetails.business_name || 'Business Name'}
           </div>
           {businessDetails.address && (
-            <div style={{ fontSize: '10px', marginTop: '2px' }}>{businessDetails.address}</div>
+            <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '2px' }}>{businessDetails.address}</div>
           )}
           {businessDetails.mobile_number && (
-            <div style={{ fontSize: '10px' }}>Ph: {businessDetails.mobile_number}</div>
+            <div style={{ fontSize: '13px', fontWeight: 'bold' }}>Ph: {businessDetails.mobile_number}</div>
           )}
           {businessDetails.gst_number && (
-            <div style={{ fontSize: '10px', fontWeight: 'bold' }}>GSTIN: {businessDetails.gst_number}</div>
+            <div style={{ fontSize: '13px', fontWeight: 'bold' }}>GSTIN: {businessDetails.gst_number}</div>
           )}
         </div>
 
-        <div style={{ textAlign: 'center', fontSize: '9px', letterSpacing: '1px' }}>{dashedLine}</div>
+        <div style={{ textAlign: 'center', fontSize: '11px', letterSpacing: '1px' }}>{dashedLine}</div>
 
         {/* Title */}
-        <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '14px', margin: '4px 0' }}>
+        <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '18px', margin: '4px 0' }}>
           CREDIT NOTE
         </div>
-        <div style={{ textAlign: 'center', fontSize: '10px', marginBottom: '2px' }}>
+        <div style={{ textAlign: 'center', fontSize: '13px', fontWeight: 'bold', marginBottom: '2px' }}>
           (Sale Return)
         </div>
 
-        <div style={{ textAlign: 'center', fontSize: '9px', letterSpacing: '1px' }}>{dashedLine}</div>
+        <div style={{ textAlign: 'center', fontSize: '11px', letterSpacing: '1px' }}>{dashedLine}</div>
 
         {/* Meta info */}
-        <div style={{ fontSize: '11px', margin: '4px 0' }}>
+        <div style={{ fontSize: '14px', fontWeight: 'bold', margin: '4px 0' }}>
           {saleReturn.return_number && (
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>Return No:</span>
@@ -138,10 +138,10 @@ export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnTherm
           )}
         </div>
 
-        <div style={{ textAlign: 'center', fontSize: '9px', letterSpacing: '1px' }}>{dashedLine}</div>
+        <div style={{ textAlign: 'center', fontSize: '11px', letterSpacing: '1px' }}>{dashedLine}</div>
 
         {/* Column headers */}
-        <div style={{ display: 'flex', fontSize: '10px', fontWeight: 'bold', padding: '2px 0' }}>
+        <div style={{ display: 'flex', fontSize: '13px', fontWeight: 'bold', padding: '2px 0' }}>
           <span style={{ width: '8%' }}>#</span>
           <span style={{ flex: 1 }}>Item</span>
           <span style={{ width: '12%', textAlign: 'center' }}>Qty</span>
@@ -149,12 +149,12 @@ export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnTherm
           <span style={{ width: '22%', textAlign: 'right' }}>Amt</span>
         </div>
 
-        <div style={{ textAlign: 'center', fontSize: '9px', letterSpacing: '1px' }}>{dashedLine}</div>
+        <div style={{ textAlign: 'center', fontSize: '11px', letterSpacing: '1px' }}>{dashedLine}</div>
 
         {/* Items */}
         {saleReturn.items?.map((item, idx) => (
           <div key={idx} style={{ marginBottom: '3px' }}>
-            <div style={{ display: 'flex', fontSize: '11px' }}>
+            <div style={{ display: 'flex', fontSize: '14px', fontWeight: 'bold' }}>
               <span style={{ width: '8%' }}>{idx + 1}</span>
               <span style={{ flex: 1, fontWeight: 'bold' }}>{item.product_name}</span>
               <span style={{ width: '12%', textAlign: 'center' }}>{item.quantity}</span>
@@ -162,7 +162,7 @@ export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnTherm
               <span style={{ width: '22%', textAlign: 'right' }}>{item.line_total.toFixed(0)}</span>
             </div>
             {(item.size || item.color) && (
-              <div style={{ fontSize: '9px', paddingLeft: '8%', color: '#444' }}>
+              <div style={{ fontSize: '12px', fontWeight: 'bold', paddingLeft: '8%' }}>
                 {item.size}{item.color ? ` / ${item.color}` : ''}
                 {item.gst_percent > 0 ? ` (GST ${item.gst_percent}%)` : ''}
               </div>
@@ -170,10 +170,10 @@ export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnTherm
           </div>
         ))}
 
-        <div style={{ textAlign: 'center', fontSize: '9px', letterSpacing: '1px' }}>{dashedLine}</div>
+        <div style={{ textAlign: 'center', fontSize: '11px', letterSpacing: '1px' }}>{dashedLine}</div>
 
         {/* Totals */}
-        <div style={{ fontSize: '11px', margin: '4px 0' }}>
+        <div style={{ fontSize: '14px', fontWeight: 'bold', margin: '4px 0' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>Total Qty:</span>
             <span style={{ fontWeight: 'bold' }}>{totalQty}</span>
@@ -190,32 +190,32 @@ export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnTherm
           )}
         </div>
 
-        <div style={{ textAlign: 'center', fontSize: '9px', letterSpacing: '1px' }}>{dashedLine}</div>
+        <div style={{ textAlign: 'center', fontSize: '11px', letterSpacing: '1px' }}>{dashedLine}</div>
 
         {/* Grand Total */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px', margin: '4px 0' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '18px', margin: '4px 0' }}>
           <span>NET CREDIT:</span>
           <span>₹{saleReturn.net_amount.toFixed(2)}</span>
         </div>
 
-        <div style={{ fontSize: '9px', textAlign: 'center', fontStyle: 'italic', margin: '2px 0' }}>
+        <div style={{ fontSize: '12px', fontWeight: 'bold', textAlign: 'center', fontStyle: 'italic', margin: '2px 0' }}>
           {numberToWords(Math.floor(saleReturn.net_amount))} Rupees Only
         </div>
 
-        <div style={{ textAlign: 'center', fontSize: '9px', letterSpacing: '1px' }}>{dashedLine}</div>
+        <div style={{ textAlign: 'center', fontSize: '11px', letterSpacing: '1px' }}>{dashedLine}</div>
 
         {/* Notes */}
         {saleReturn.notes && (
-          <div style={{ fontSize: '10px', margin: '4px 0' }}>
+          <div style={{ fontSize: '13px', fontWeight: 'bold', margin: '4px 0' }}>
             <span style={{ fontWeight: 'bold' }}>Note: </span>{saleReturn.notes}
           </div>
         )}
 
         {/* Footer */}
-        <div style={{ textAlign: 'center', fontSize: '9px', marginTop: '8px', color: '#444' }}>
+        <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 'bold', marginTop: '8px' }}>
           <div>This credit can be used for future purchases</div>
           <div>Not redeemable for cash</div>
-          <div style={{ marginTop: '6px', fontWeight: 'bold' }}>Thank you!</div>
+          <div style={{ marginTop: '6px', fontWeight: 'bold', fontSize: '14px' }}>Thank you!</div>
         </div>
       </div>
     );
