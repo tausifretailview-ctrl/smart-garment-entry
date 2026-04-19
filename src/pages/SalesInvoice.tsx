@@ -1037,10 +1037,10 @@ export default function SalesInvoice() {
   const openSizeGridForProduct = async (product: any, selectedSalePrice?: number) => {
     if (!currentOrganization) return;
 
-    // Find all product IDs with the same name (handles duplicate products)
-    const matchingProductIds = productsData
-      ?.filter((p: any) => p.product_name?.toLowerCase() === product.product_name?.toLowerCase() && p.brand?.toLowerCase() === product.brand?.toLowerCase())
-      .map((p: any) => p.id) || [product.id];
+    // Fetch variants ONLY for the specific product the user selected.
+    // (Earlier code broadened this to all products with same name+brand, which caused
+    //  cross-product dedup bugs when tenants had duplicate product records.)
+    const matchingProductIds = [product.id];
 
     // Fetch variants from ALL matching products
     const { data, error } = await supabase
@@ -1067,17 +1067,28 @@ export default function SalesInvoice() {
       const existing = uniqueMap.get(key);
       if (!existing) {
         uniqueMap.set(key, v);
-      } else if (selectedSalePrice) {
-        // If user searched by price, prefer the variant matching that price
+        continue;
+      }
+
+      const existingStock = existing.stock_qty || 0;
+      const newStock = v.stock_qty || 0;
+
+      if (selectedSalePrice) {
         const existingMatchesPrice = Math.round(existing.sale_price || 0) === Math.round(selectedSalePrice);
         const newMatchesPrice = Math.round(v.sale_price || 0) === Math.round(selectedSalePrice);
+
         if (newMatchesPrice && !existingMatchesPrice) {
+          // New matches user's selected price, existing doesn't — new wins
           uniqueMap.set(key, v);
-        } else if (!newMatchesPrice && !existingMatchesPrice && (v.stock_qty || 0) > (existing.stock_qty || 0)) {
-          uniqueMap.set(key, v);
+        } else if (!newMatchesPrice && existingMatchesPrice) {
+          // Existing matches price — keep it
+        } else {
+          // Both match price, or neither matches — tiebreak by higher stock
+          if (newStock > existingStock) uniqueMap.set(key, v);
         }
-      } else if ((v.stock_qty || 0) > (existing.stock_qty || 0)) {
-        uniqueMap.set(key, v);
+      } else {
+        // No selected price — prefer higher stock
+        if (newStock > existingStock) uniqueMap.set(key, v);
       }
     }
 
@@ -1102,6 +1113,42 @@ export default function SalesInvoice() {
       barcode: v.barcode,
     })));
     setShowSizeGrid(true);
+
+    // Safety net: if the dropdown advertised stock for a specific size but the size-grid
+    // computed zero or less for that same size+color, log it. This means the dedup/merge
+    // produced a worse result than the source data and needs investigation.
+    try {
+      const dropdownVariant = (product as any)?.variant || null;
+      if (dropdownVariant && dropdownVariant.size) {
+        const key = `${(dropdownVariant.size || '').toLowerCase()}_${(dropdownVariant.color || '').toLowerCase()}`;
+        const gridEntry = mergedVariants.find((gv: any) => {
+          const gk = `${(gv.size || '').toLowerCase()}_${(gv.color || '').toLowerCase()}`;
+          return gk === key;
+        });
+        const dropdownStock = dropdownVariant.stock_qty || 0;
+        const gridStock = gridEntry?.stock_qty || 0;
+        if (dropdownStock > 0 && gridStock < dropdownStock) {
+          logError(
+            {
+              operation: 'size_grid_stock_mismatch',
+              organizationId: currentOrganization?.id,
+              additionalContext: {
+                productId: product.id,
+                productName: product.product_name,
+                size: dropdownVariant.size,
+                color: dropdownVariant.color,
+                dropdownStock,
+                gridStock,
+                variantCount: data?.length || 0,
+              },
+            },
+            new Error(`Size-grid stock (${gridStock}) is less than dropdown stock (${dropdownStock}) for ${product.product_name} ${dropdownVariant.size}`)
+          );
+        }
+      }
+    } catch (_) {
+      // never throw from safety-net
+    }
   };
 
   // Handle size grid confirmation
