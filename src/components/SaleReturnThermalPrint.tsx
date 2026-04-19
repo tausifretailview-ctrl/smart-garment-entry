@@ -62,11 +62,12 @@ export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnTherm
       width: '80mm',
       padding: '4mm',
       fontFamily: "'Courier New', monospace",
-      fontSize: '11px',
+      fontSize: '14px',
+      fontWeight: 'bold',
       backgroundColor: 'white',
       color: 'black',
       boxSizing: 'border-box',
-      lineHeight: 1.4,
+      lineHeight: 1.45,
     };
 
     return (
