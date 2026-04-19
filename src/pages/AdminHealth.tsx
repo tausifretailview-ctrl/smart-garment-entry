@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,7 +44,9 @@ function relativeTime(iso: string): string {
 
 export default function AdminHealth() {
   const { roles, loading: rolesLoading } = useUserRoles();
-  const isAdmin = roles.includes("admin") || roles.includes("platform_admin");
+  const { hasSpecialPermission, loading: permsLoading } = useUserPermissions();
+  const isPlatformAdmin = roles.includes("platform_admin");
+  const isAuthorized = isPlatformAdmin || hasSpecialPermission("system_health");
 
   const [dateRange, setDateRange] = useState<DateRange>("24h");
   const [operation, setOperation] = useState<string>("all");
@@ -78,7 +81,7 @@ export default function AdminHealth() {
       if (error) throw error;
       return (data || []) as ErrorLogRow[];
     },
-    enabled: !rolesLoading && isAdmin,
+    enabled: !rolesLoading && !permsLoading && isAuthorized,
     staleTime: 30_000,
   });
 
@@ -139,7 +142,7 @@ export default function AdminHealth() {
     );
   }
 
-  if (!isAdmin) {
+  if (!isAuthorized) {
     return (
       <Layout>
         <div className="p-6 flex items-center justify-center min-h-[60vh]">
@@ -148,7 +151,7 @@ export default function AdminHealth() {
               <ShieldAlert className="h-12 w-12 text-destructive mx-auto" />
               <h2 className="text-xl font-semibold">Not Authorized</h2>
               <p className="text-sm text-muted-foreground">
-                You need admin privileges to access System Health.
+                System Health access is disabled. Ask a Platform Admin to enable it under User Rights → Special Rights.
               </p>
             </CardContent>
           </Card>
