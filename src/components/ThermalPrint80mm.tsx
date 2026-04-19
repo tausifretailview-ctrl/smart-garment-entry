@@ -342,7 +342,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         <div style={singleLine} />
 
         {/* ═══ PAYMENT ═══ */}
-        {(cashPaid > 0 || upiPaid > 0 || cardPaid > 0 || creditPaid > 0 || paymentMethod) && (
+        {(cashPaid > 0 || upiPaid > 0 || cardPaid > 0 || creditPaid > 0 || paidAmount > 0 || paymentMethod) && (
           <div style={{ fontSize: '13px', marginBottom: '3px' }}>
             <div style={{ fontWeight: 900, marginBottom: '2px' }}>PAYMENT</div>
             {cashPaid > 0 && <div style={row}><span>Cash</span><span>₹{fmtAmt(cashPaid)}</span></div>}
