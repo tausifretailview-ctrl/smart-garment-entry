@@ -45,6 +45,7 @@ interface ThermalPrint80mmProps {
   upiPaid?: number;
   cardPaid?: number;
   creditPaid?: number;
+  paidAmount?: number;
   refundCash?: number;
   documentType?: 'invoice' | 'quotation' | 'sale-order' | 'pos';
   termsConditions?: string;
@@ -68,7 +69,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
       items, subTotal, discount, saleReturnAdjust = 0,
       roundOff = 0, grandTotal,
       gstBreakdown, gstRateBreakdown, paymentMethod,
-      cashPaid = 0, upiPaid = 0, cardPaid = 0, creditPaid = 0, refundCash = 0,
+      cashPaid = 0, upiPaid = 0, cardPaid = 0, creditPaid = 0, paidAmount = 0, refundCash = 0,
       documentType = 'invoice', termsConditions, notes,
       pointsRedeemed = 0, pointsRedemptionValue = 0, pointsBalance = 0,
       cashier, salesman, counter, isDcInvoice,
@@ -112,7 +113,9 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
     const gst = gstBreakdown || { cgst: 0, sgst: 0 };
     const totalQty = items.reduce((s, i) => s + i.qty, 0);
     const netAmount = subTotal - discount;
-    const totalPaid = cashPaid + upiPaid + cardPaid + creditPaid;
+    const breakdownPaid = cashPaid + upiPaid + cardPaid + creditPaid;
+    // If POS-style breakdown is empty but paidAmount > 0 (e.g. credit invoice with later payment collection), use it.
+    const totalPaid = breakdownPaid > 0 ? breakdownPaid : paidAmount;
     const balanceDue = grandTotal - totalPaid;
     const salesPerson = salesman || cashier;
 
@@ -339,7 +342,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         <div style={singleLine} />
 
         {/* ═══ PAYMENT ═══ */}
-        {(cashPaid > 0 || upiPaid > 0 || cardPaid > 0 || creditPaid > 0 || paymentMethod) && (
+        {(cashPaid > 0 || upiPaid > 0 || cardPaid > 0 || creditPaid > 0 || paidAmount > 0 || paymentMethod) && (
           <div style={{ fontSize: '13px', marginBottom: '3px' }}>
             <div style={{ fontWeight: 900, marginBottom: '2px' }}>PAYMENT</div>
             {cashPaid > 0 && <div style={row}><span>Cash</span><span>₹{fmtAmt(cashPaid)}</span></div>}

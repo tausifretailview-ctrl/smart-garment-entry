@@ -736,18 +736,29 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
               <span>{formatCurrency(totalSavings)}</span>
             </div>
           )}
-          {showReceivedAmount && paidAmount !== undefined && paidAmount > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: fontSizes.small }}>
-              <span>Amount Received:</span>
-              <span>{formatCurrency(paidAmount)}</span>
-            </div>
-          )}
-          {showBalanceAmount && balanceDue > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', color: '#dc2626', fontWeight: 'bold', fontSize: fontSizes.small }}>
-              <span>Balance Due:</span>
-              <span>{formatCurrency(balanceDue)}</span>
-            </div>
-          )}
+          {(() => {
+            // Auto-show Paid + Balance whenever a partial payment exists (paid > 0 but < grandTotal),
+            // regardless of the toggles. The toggles still apply for fully-paid invoices.
+            const hasPartialPayment = (paidAmount ?? 0) > 0 && (paidAmount ?? 0) < grandTotal;
+            const showPaid = hasPartialPayment || (showReceivedAmount && paidAmount !== undefined && paidAmount > 0);
+            const showBalance = hasPartialPayment || (showBalanceAmount && balanceDue > 0);
+            return (
+              <>
+                {showPaid && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: fontSizes.small }}>
+                    <span>Amount Received:</span>
+                    <span>{formatCurrency(paidAmount ?? 0)}</span>
+                  </div>
+                )}
+                {showBalance && balanceDue > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', color: '#dc2626', fontWeight: 'bold', fontSize: fontSizes.small }}>
+                    <span>Balance Due:</span>
+                    <span>{formatCurrency(balanceDue)}</span>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       </div>
 
