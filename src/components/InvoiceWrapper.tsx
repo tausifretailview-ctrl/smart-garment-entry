@@ -428,13 +428,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             cashPaid={props.cashPaid || props.cashAmount}
             upiPaid={props.upiPaid || props.upiAmount}
             cardPaid={props.cardAmount}
-            creditPaid={(() => {
-              // If POS-style breakdown is provided, honour it.
-              const breakdownTotal = (props.cashPaid || props.cashAmount || 0) + (props.upiPaid || props.upiAmount || 0) + (props.cardAmount || 0) + (props.creditAmount || 0);
-              if (breakdownTotal > 0) return props.creditAmount;
-              // Otherwise, surface partial-payment paidAmount as "Credit/Received" so thermal still prints Paid + Balance.
-              return props.paidAmount && props.paidAmount > 0 ? props.paidAmount : props.creditAmount;
-            })()}
+            creditPaid={props.creditAmount}
+            paidAmount={props.paidAmount}
             refundCash={props.refundCash}
             documentType="invoice"
             termsConditions={filteredTerms.join('\n')}
