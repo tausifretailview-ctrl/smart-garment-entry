@@ -113,7 +113,9 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
     const gst = gstBreakdown || { cgst: 0, sgst: 0 };
     const totalQty = items.reduce((s, i) => s + i.qty, 0);
     const netAmount = subTotal - discount;
-    const totalPaid = cashPaid + upiPaid + cardPaid + creditPaid;
+    const breakdownPaid = cashPaid + upiPaid + cardPaid + creditPaid;
+    // If POS-style breakdown is empty but paidAmount > 0 (e.g. credit invoice with later payment collection), use it.
+    const totalPaid = breakdownPaid > 0 ? breakdownPaid : paidAmount;
     const balanceDue = grandTotal - totalPaid;
     const salesPerson = salesman || cashier;
 
