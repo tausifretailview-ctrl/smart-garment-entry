@@ -43,7 +43,9 @@ function relativeTime(iso: string): string {
 
 export default function AdminHealth() {
   const { roles, loading: rolesLoading } = useUserRoles();
-  const isAdmin = roles.includes("admin") || roles.includes("platform_admin");
+  const { hasSpecialPermission, loading: permsLoading } = useUserPermissions();
+  const isPlatformAdmin = roles.includes("platform_admin");
+  const isAuthorized = isPlatformAdmin || hasSpecialPermission("system_health");
 
   const [dateRange, setDateRange] = useState<DateRange>("24h");
   const [operation, setOperation] = useState<string>("all");
