@@ -151,6 +151,7 @@ const specialRights = [
   { id: "ai_chatbot", name: "AI Chatbot", description: "Access AI assistant for queries" },
   { id: "fee_structure_edit", name: "Edit Fee Structure", description: "Allow editing fee amounts and saving fee structure" },
   { id: "reset_data", name: "Reset Organization Data", description: "Allow resetting all organization data" },
+  { id: "system_health", name: "System Health", description: "Access System Health diagnostics page (hidden by default)" },
 ];
 
 // Column visibility config for modules

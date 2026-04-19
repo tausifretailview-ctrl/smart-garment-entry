@@ -171,8 +171,8 @@ export function AppSidebar() {
           </div>
         )}
 
-        {/* System Health - admin or platform_admin */}
-        {(isAdmin || isPlatformAdmin) && (
+        {/* System Health - hidden by default; enable per-user via User Rights → Special Rights → "System Health". Platform admins always see it. */}
+        {(isPlatformAdmin || hasSpecialPermission('system_health')) && (
           <SidebarGroup className="pt-0 first:pt-0">
             <SidebarMenu>
               <SidebarMenuItem>
