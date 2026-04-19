@@ -45,6 +45,7 @@ interface ThermalPrint80mmProps {
   upiPaid?: number;
   cardPaid?: number;
   creditPaid?: number;
+  paidAmount?: number;
   refundCash?: number;
   documentType?: 'invoice' | 'quotation' | 'sale-order' | 'pos';
   termsConditions?: string;
