@@ -70,9 +70,12 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
       // the separately-subtracted saleReturnTotal.
       let openingBalanceVoucherPayments = 0;
       const invoiceVoucherPayments: Record<string, number> = {};
-      // Per-sale advance + CN voucher portions, used to subtract from sale.paid_amount
-      // before the Math.max() drift check (mirrors RPC GREATEST logic).
-      const invoiceAdvCnPortions: Record<string, number> = {};
+      // Per-sale advance and CN voucher portions, tracked separately:
+      //  - advance portion is excluded from cash drift check, then added back to
+      //    totalPaid (advances ARE customer payments — they reduce what's owed)
+      //  - CN portion is excluded entirely (separately subtracted via saleReturnTotal)
+      const invoiceAdvPortions: Record<string, number> = {};
+      const invoiceCnPortions: Record<string, number> = {};
 
       allVouchers?.forEach(v => {
         if (!v.reference_id) return;
@@ -86,8 +89,10 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
           || desc.includes('cn adjusted');
 
         if (saleIds.includes(v.reference_id)) {
-          if (isAdv || isCn) {
-            invoiceAdvCnPortions[v.reference_id] = (invoiceAdvCnPortions[v.reference_id] || 0) + (Number(v.total_amount) || 0);
+          if (isAdv) {
+            invoiceAdvPortions[v.reference_id] = (invoiceAdvPortions[v.reference_id] || 0) + (Number(v.total_amount) || 0);
+          } else if (isCn) {
+            invoiceCnPortions[v.reference_id] = (invoiceCnPortions[v.reference_id] || 0) + (Number(v.total_amount) || 0);
           } else {
             invoiceVoucherPayments[v.reference_id] = (invoiceVoucherPayments[v.reference_id] || 0) + (Number(v.total_amount) || 0);
           }
@@ -105,17 +110,22 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
       const totalSales = sales?.reduce((sum, sale) => sum + (sale.net_amount || 0) + (sale.sale_return_adjust || 0), 0) || 0;
       
       let totalPaidOnSales = 0;
+      let totalAdvanceApplied = 0;
       sales?.forEach(sale => {
         const salePaidAmount = sale.paid_amount || 0;
         const cashVoucher = invoiceVoucherPayments[sale.id] || 0;
-        const advCnVoucher = invoiceAdvCnPortions[sale.id] || 0;
+        const advVoucher = invoiceAdvPortions[sale.id] || 0;
+        const cnVoucher = invoiceCnPortions[sale.id] || 0;
+        const advCnVoucher = advVoucher + cnVoucher;
         // sale.paid_amount typically includes advance + CN portions. Subtract them
         // before the GREATEST drift check so we only count true cash receipts here
-        // (advances handled via unusedAdvanceTotal, CN handled via saleReturnTotal).
+        // (CN handled via saleReturnTotal, advance applied is added back below).
         totalPaidOnSales += Math.max(salePaidAmount - advCnVoucher, cashVoucher);
+        totalAdvanceApplied += advVoucher;
       });
 
-      const totalPaid = totalPaidOnSales + openingBalanceVoucherPayments;
+      // Total paid includes: cash receipts on sales + advance applied to sales + opening-balance receipts
+      const totalPaid = totalPaidOnSales + totalAdvanceApplied + openingBalanceVoucherPayments;
 
       // Fetch balance adjustments
       const { data: adjustments, error: adjError } = await supabase
