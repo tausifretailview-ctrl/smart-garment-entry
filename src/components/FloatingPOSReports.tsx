@@ -556,15 +556,62 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
     }).slice(0, 100);
   }, [allProducts, searchQuery]);
 
+  // Server-side fallback: if local cache misses (e.g. zero-stock items truncated by the 1000-row limit),
+  // hit the DB directly so the user always sees a result — including 0 qty items, like the Stock Report.
+  const { data: fallbackData } = useQuery({
+    queryKey: ["floating-stock-fallback", currentOrganization?.id, searchQuery],
+    queryFn: async () => {
+      if (!currentOrganization?.id || searchQuery.trim().length < 2) return [];
+      const term = searchQuery.trim();
+      const tokens = term.split(/[\s-]+/).filter(Boolean);
+      let query = supabase
+        .from("product_variants")
+        .select(`
+          id, barcode, size, color, stock_qty, sale_price, mrp, pur_price,
+          product:products!inner(id, product_name, brand, category, deleted_at, organization_id)
+        `)
+        .eq("products.organization_id", currentOrganization.id)
+        .is("products.deleted_at", null)
+        .is("deleted_at", null)
+        .eq("active", true)
+        .limit(100);
+
+      // Try variant-level barcode/size match OR product-level name/brand match
+      query = query.or(
+        tokens.map(t => `barcode.ilike.%${t}%,size.ilike.%${t}%,color.ilike.%${t}%`).join(',')
+      );
+      const { data } = await query;
+      if (data && data.length > 0) return data;
+
+      // Product-name fallback
+      const { data: data2 } = await supabase
+        .from("product_variants")
+        .select(`
+          id, barcode, size, color, stock_qty, sale_price, mrp, pur_price,
+          product:products!inner(id, product_name, brand, category, deleted_at, organization_id)
+        `)
+        .eq("products.organization_id", currentOrganization.id)
+        .is("products.deleted_at", null)
+        .is("deleted_at", null)
+        .eq("active", true)
+        .or(`product_name.ilike.%${term}%,brand.ilike.%${term}%,category.ilike.%${term}%`, { foreignTable: "products" })
+        .limit(100);
+      return data2 || [];
+    },
+    enabled: !!currentOrganization?.id && open && searchQuery.trim().length >= 2 && stockData.length === 0,
+  });
+
+  const displayData = stockData.length > 0 ? stockData : (fallbackData || []);
+
   // Fetch supplier names for filtered variants
   const [supplierMap, setSupplierMap] = useState<Record<string, string>>({});
   useEffect(() => {
-    if (!stockData.length || !currentOrganization?.id) {
+    if (!displayData.length || !currentOrganization?.id) {
       setSupplierMap({});
       return;
     }
 
-    const variantIds = stockData.map((item: any) => item.id);
+    const variantIds = displayData.map((item: any) => item.id);
     const variantKey = variantIds.join(',');
 
     (async () => {
@@ -587,14 +634,14 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
         /* ignore */
       }
     })();
-  }, [currentOrganization?.id, stockData.map((item: any) => item.id).join(',')]);
+  }, [currentOrganization?.id, displayData.map((item: any) => item.id).join(',')]);
 
   // Total stock value
-  const totalStockValue = stockData?.reduce((sum, item) => {
+  const totalStockValue = displayData?.reduce((sum, item) => {
     return sum + (Number(item.stock_qty) || 0) * (Number(item.sale_price) || 0);
   }, 0) || 0;
 
-  const totalQty = stockData?.reduce((sum, item) => sum + (Number(item.stock_qty) || 0), 0) || 0;
+  const totalQty = displayData?.reduce((sum, item) => sum + (Number(item.stock_qty) || 0), 0) || 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -634,13 +681,13 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
           <div className="text-center py-8 text-muted-foreground">
             Start typing to search products...
           </div>
-        ) : stockData && stockData.length > 0 ? (
+        ) : displayData && displayData.length > 0 ? (
           <>
             {/* Summary */}
             <div className="flex gap-4 mb-3">
               <div className="bg-blue-50 dark:bg-blue-950 px-4 py-2 rounded-lg">
                 <span className="text-xs text-muted-foreground">Items Found</span>
-                <p className="font-bold text-lg">{stockData.length}</p>
+                <p className="font-bold text-lg">{displayData.length}</p>
               </div>
               <div className="bg-green-50 dark:bg-green-950 px-4 py-2 rounded-lg">
                 <span className="text-xs text-muted-foreground">Total Qty</span>
@@ -668,7 +715,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {stockData.map((item: any) => (
+                  {displayData.map((item: any) => (
                     <TableRow key={item.id}>
                       <TableCell>
                         <div>
