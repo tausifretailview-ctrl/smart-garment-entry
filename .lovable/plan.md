@@ -1,98 +1,57 @@
 
+Goal: fix the Nazbin Choudhury ledger page so it shows the authoritative balance of ₹0 instead of ₹3,600, and prevent the ledger from drifting again.
 
-## Permanent Fix: Customer Balance Calculation (Nazbin Choudhury & all similar cases)
+What I found
+- `src/components/CustomerLedger.tsx` does not use the authoritative balance source. It rebuilds customer totals with its own custom aggregation.
+- That ledger aggregation has drift from the approved balance logic:
+  1. It references `v.payment_method` but the voucher query does not select `payment_method`, so those skip rules never reliably run.
+  2. It mixes `receipt` and `payment` vouchers in the same pass.
+  3. It has separate logic from both `useCustomerBalance` and the reconciliation RPC, so Nazbin can be correct in one place and wrong in ledger.
+- The top summary card on the ledger page uses `selectedCustomer.balance`, `selectedCustomer.totalPaid`, etc. from this non-authoritative query path, which explains why the ledger still shows ₹3,600.
 
-### Ground truth (verified)
-- Nazbin's true balance = **₹0** (Σ sales 27,700 = Σ vouchers 27,700; advances ₹15,900 fully used).
-- `useCustomerBalance` hook math: returns balance=0 ✓ (works correctly here).
-- `reconcile_customer_balances` RPC math: returns **11,800 Dr** ✗ (severely wrong).
-- The "₹700 Dr" the user sees is a related symptom — it appears wherever the system reads from the broken RPC or from hooks that share the same bug class.
+Implementation plan
+1. Make Customer Ledger use the authoritative balance calculation
+- Replace the manual summary math in `CustomerLedger.tsx` for business orgs.
+- For the selected customer header/cards, use the same balance source as the approved master logic instead of `selectedCustomer.balance` from the list aggregation.
+- Prefer a single shared source so Nazbin and all similar accounts render consistently everywhere.
 
-### Two real bugs in the RPC
+2. Fix the ledger’s voucher aggregation bugs
+- Update the voucher select in `CustomerLedger.tsx` to include fields it actually uses (`payment_method`, and any other referenced fields).
+- Separate true customer receipts from refunds/adjustments correctly.
+- Apply the same legacy-safe ID-match classification already approved for reconciliation:
+  - sale-linked by `reference_id -> sales.id`
+  - opening-balance payments only when `reference_id` is truly the customer id
+  - exclude advance/CN adjustment rows only if the formula also accounts for them consistently
 
-**Bug A — `cash_pay` CTE (line 18-31 of RPC)** filters on `reference_type = 'sale'`. But this org's older receipts use `reference_type = 'customer'` with `reference_id = sale_id` (legacy data pattern). Result: 4 of Nazbin's 5 invoice receipts are skipped.
+3. Remove duplicate balance drift paths
+- Refactor the ledger list/customer summary logic so it does not maintain a third version of customer balance math.
+- Reuse either:
+  - the authoritative hook logic for selected customer summaries, and/or
+  - the reconciliation RPC output for list-level balances.
+- Keep transaction rendering separate from summary calculation.
 
-**Bug B — `open_pay` CTE (line 32-42)** assumes `reference_type='customer'` rows have `reference_id = customer_id`. For this org, those rows have `reference_id = sale_id`. So it joins to nothing and silently drops ₹15,650 of legitimate receipts.
+4. Verify Nazbin specifically
+- Recheck Nazbin in ELLA BELLA/ELLA NOOR org after the refactor.
+- Expected result:
+  - Outstanding = ₹0
+  - Total sales / paid / returns align with the approved master formula
+  - No fake ₹3,600 residual in header, exports, or WhatsApp summary
 
-**Bug C — Double subtraction** for advance-funded receipts. Receipts with `payment_method='advance_adjustment'` are excluded from `cash_pay` AND the same money is subtracted again as `total_advances`. For Nazbin: ₹3,350 + ₹450 + ₹4,600 = ₹8,400 of advance-funded receipts → not counted as payment, then ₹15,900 of advances subtracted (which already covers them).
+5. Audit nearby surfaces that likely share the same drift risk
+- `src/hooks/useCustomerSearch.tsx`
+- exports / WhatsApp summary inside `CustomerLedger.tsx`
+- any outstanding/customer list view that still uses local reconstruction instead of the authoritative source
 
-### The fix (one migration, RPC rewrite)
+Technical details
+- Main file to change: `src/components/CustomerLedger.tsx`
+- Supporting file to align if needed: `src/hooks/useCustomerBalance.tsx`
+- Likely cleanup target: `src/hooks/useCustomerSearch.tsx`
+- Key root cause: duplicated business rules across multiple client aggregations
+- Permanent prevention: one authoritative balance path for summary/UI, separate chronological rendering for ledger rows
 
-Rewrite `reconcile_customer_balances` so the cash_pay CTE classifies receipts by **what `reference_id` actually points to**, not by `reference_type`:
-
-```sql
-cash_pay AS (
-  SELECT s.customer_id, SUM(ve.total_amount) AS total
-  FROM voucher_entries ve
-  JOIN sales s ON s.id = ve.reference_id   -- join purely by id match
-  WHERE ve.organization_id = p_organization_id
-    AND ve.deleted_at IS NULL
-    AND ve.voucher_type = 'receipt'
-    AND s.deleted_at IS NULL
-    AND s.payment_status NOT IN ('cancelled','hold')
-  GROUP BY s.customer_id
-),
-open_pay AS (
-  SELECT ve.reference_id AS cust_id, SUM(ve.total_amount) AS total
-  FROM voucher_entries ve
-  JOIN customers c ON c.id = ve.reference_id  -- only match real customer rows
-  WHERE ve.organization_id = p_organization_id
-    AND ve.deleted_at IS NULL
-    AND ve.voucher_type = 'receipt'
-    AND ve.reference_type = 'customer'
-    AND NOT EXISTS (SELECT 1 FROM sales s2 WHERE s2.id = ve.reference_id)
-  GROUP BY ve.reference_id
-),
-```
-
-Then change the balance formula to **stop double-subtracting advances**. Two equivalent approaches:
-
-**Option 1 (cleaner)**: subtract `total_advance_used` instead of `total_advances`, and don't re-subtract advance-funded vouchers (since they ARE the advance application):
-```
-balance = opening
-        + total_invoices
-        - total_cash_payments_excluding_advance_method
-        - total_advance_used
-        - total_sale_returns
-        + total_refunds_paid
-        + adjustments
-```
-
-For Nazbin: 0 + 31,300 − 11,800 − 15,900 − 3,600 + 0 = **0** ✓
-
-### Also fix the duplicate `useCustomerBalance` hook
-
-Apply the same correction so the History Dialog stays consistent with the RPC:
-- Sum invoice voucher payments by **id-match** (already does this).
-- Subtract `unusedAdvanceTotal` (already does).
-- Cap `totalSales` at gross only when `saleReturnTotal` is also subtracted — current formula `net+sale_return_adjust − saleReturnTotal` is correct.
-- Verify Nazbin returns 0 (already does, per trace).
-
-### Verification step (post-fix)
-
-After migration:
-```sql
-SELECT customer_id, calculated_balance, total_invoices, total_cash_payments,
-       total_advances, total_advance_used, total_sale_returns
-FROM reconcile_customer_balances('3fdca631-1e0c-4417-9704-421f5129ff67')
-WHERE customer_id = '836c93d6-18c4-4858-ae10-9659329f87a2';
--- expect calculated_balance = 0
-```
-
-Also spot-check 5 other customers in ELLA NOOR to confirm no regressions.
-
-### Files / changes
-
-1. **New migration** — `CREATE OR REPLACE FUNCTION reconcile_customer_balances(...)` with the corrected CTEs and formula above.
-2. **`src/hooks/useCustomerBalance.tsx`** — small audit pass; align comments and ensure the `Math.max(salePaidAmount, voucherAmount)` vs current `voucherAmount > 0 ? voucherAmount : salePaidAmount` is consistent (both work for Nazbin; the first is safer when paid_amount drifts from voucher sum).
-3. **`src/hooks/useCustomerSearch.tsx::useCustomerBalances`** — same id-match-based classification so the customer dropdown chip matches the dialog.
-
-### Out of scope
-
-- No data backfill — receipts with `reference_type='customer'` but `reference_id=sale_id` are LEFT AS-IS (the new logic handles them correctly without rewriting history).
-- No UI text changes.
-
-### Risk
-
-Low — changes are server-side aggregation only. Hook math for Nazbin already returns 0, so the dialog "₹700" must originate from a path consuming the RPC's wrong figure (CustomerReconciliation page or any list using it). Fixing the RPC + the two hooks closes all paths.
-
+Verification checklist
+- Nazbin shows ₹0 in ledger header
+- customer list row for Nazbin also shows settled
+- exported PDF/Excel reflect ₹0
+- WhatsApp ledger summary reflects ₹0
+- spot-check 3–5 other ELLA BELLA customers so the fix does not regress good balances
