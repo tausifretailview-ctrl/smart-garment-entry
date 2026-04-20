@@ -321,7 +321,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       //  - Opening-balance receipts are tracked separately and added to totalPaid.
       const openingBalancePayments = new Map<string, number>(); // customer_id -> amount
       const invoiceVoucherPayments = new Map<string, number>(); // sale_id -> cash amount
-      const invoiceAdvCnPortions = new Map<string, number>();   // sale_id -> adv+cn amount
+      const invoiceAdvPortions = new Map<string, number>();     // sale_id -> advance amount
+      const invoiceCnPortions = new Map<string, number>();      // sale_id -> credit note amount
 
       allVouchers?.forEach((v: any) => {
         if (!v.reference_id) return;
@@ -341,9 +342,12 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         // sale, treat as invoice payment regardless of reference_type string.
         const isSaleRef = saleToCustomerMap.has(v.reference_id);
         if (isSaleRef) {
-          if (isAdv || isCn) {
-            invoiceAdvCnPortions.set(v.reference_id,
-              (invoiceAdvCnPortions.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
+          if (isAdv) {
+            invoiceAdvPortions.set(v.reference_id,
+              (invoiceAdvPortions.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
+          } else if (isCn) {
+            invoiceCnPortions.set(v.reference_id,
+              (invoiceCnPortions.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
           } else {
             invoiceVoucherPayments.set(v.reference_id,
               (invoiceVoucherPayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
@@ -381,19 +385,24 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         const totalSales = customerSales.reduce((sum: number, s: any) => sum + (s.net_amount || 0) + (s.sale_return_adjust || 0), 0);
         
         let totalPaidOnSales = 0;
+        let totalAdvanceApplied = 0;
         customerSales.forEach((sale: any) => {
           const salePaidAmount = sale.paid_amount || 0;
           const cashVoucher = invoiceVoucherPayments.get(sale.id) || 0;
-          const advCnVoucher = invoiceAdvCnPortions.get(sale.id) || 0;
+          const advVoucher = invoiceAdvPortions.get(sale.id) || 0;
+          const cnVoucher = invoiceCnPortions.get(sale.id) || 0;
+          const advCnVoucher = advVoucher + cnVoucher;
           // sale.paid_amount typically includes advance + CN-adjusted portions.
           // Subtract them before the drift check so we only count true cash here.
           // Mirrors reconcile_customer_balances RPC GREATEST(...) logic.
           const actualPaid = Math.max(salePaidAmount - advCnVoucher, cashVoucher);
           totalPaidOnSales += actualPaid;
+          totalAdvanceApplied += advVoucher;
         });
         
         const openingBalancePaymentTotal = openingBalancePayments.get(customer.id) || 0;
-        const totalPaid = totalPaidOnSales + openingBalancePaymentTotal;
+        // totalPaid = true cash on sales + advance applied to sales + opening-balance receipts
+        const totalPaid = totalPaidOnSales + totalAdvanceApplied + openingBalancePaymentTotal;
         const openingBalance = customer.opening_balance || 0;
         const adjustmentTotal = customerAdjustments.get(customer.id) || 0;
         const unusedAdvanceTotal = customerUnusedAdvances.get(customer.id) || 0;
