@@ -1131,7 +1131,8 @@ const POSDashboard = () => {
       const matchesSaleType =
         saleTypeFilter === "all" ||
         (saleTypeFilter === "dc" && sale.sale_type === "delivery_challan") ||
-        (saleTypeFilter === "pos" && sale.sale_type !== "delivery_challan");
+        (saleTypeFilter === "pos" && sale.sale_type !== "delivery_challan") ||
+        (saleTypeFilter === "cn" && !!sale.credit_note_id);
 
       const matchesRefund =
         refundFilter === "all" ||
