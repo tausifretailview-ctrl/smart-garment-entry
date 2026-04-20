@@ -1,21 +1,14 @@
 
-User picked Option A: restore the soft-deleted variants of `FLEXI LS/100` and set stock to 1.
+User chose Option C — audit only, no changes.
 
-## Plan
+## Summary
 
-Run a single scoped UPDATE on `product_variants` for LUCKY SALES → product `29c85e67-3198-40ea-a908-2a0d5b8e408d`:
+Findings already delivered. No code or data changes will be made.
 
-```sql
-UPDATE product_variants
-SET deleted_at = NULL,
-    stock_qty = 1
-WHERE product_id = '29c85e67-3198-40ea-a908-2a0d5b8e408d'
-  AND organization_id = '<LUCKY SALES org id>'
-  AND stock_qty = 0
-  AND deleted_at IS NOT NULL;
-```
+**Recap of audit conclusion for Nazbin Choudhury (ELLA NOOR):**
+- True outstanding: **₹0** (customer overpaid by ₹450 via April advance)
+- Displayed "₹700 Dr" is a UI artifact + one wrong advance application
+- Voucher `RCP/26-27/231` (₹450 → INV/434 on 17-Apr) is the bad entry — INV/434 was already paid on 26-Mar
+- ADV/26-27/76 is marked fully_used but ₹450 of that usage is misapplied
 
-- Affects exactly the 9 soft-deleted variants
-- Silent (no `stock_movements` row)
-- Won't touch any variant with stock > 0 or any variant in another org/product
-- Result: FLEXI LS/100 becomes active again with 1 unit per variant
+**No actions will be taken.** The audit findings are recorded in this conversation for your reference. If you change your mind later, refer back to Option A or B and I can apply the fix.
