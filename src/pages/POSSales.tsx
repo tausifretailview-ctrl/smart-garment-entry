@@ -5632,6 +5632,14 @@ export default function POSSales() {
                 description: `${returnNumber} — ₹${Math.round(amount)} ${refundType === "exchange" ? "deducted from new bill" : "credit note issued"}`,
               });
             } else {
+              if (items.length > 0) {
+                setSaleReturnAdjust(amount);
+                toast({
+                  title: "Cash Refund Adjusted",
+                  description: `${returnNumber} — ₹${Math.round(amount)} adjusted in current bill. Save to finalize.`,
+                });
+                return;
+              }
               toast({
                 title: "Cash Refund Processed",
                 description: `${returnNumber} — ₹${Math.round(amount)} cash refunded to customer`,
