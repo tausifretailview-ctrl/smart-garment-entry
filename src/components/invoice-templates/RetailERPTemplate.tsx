@@ -355,11 +355,14 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                 )}
               </div>
 
-              {/* ===== TAX INVOICE — flush, no gap ===== */}
+              {/* ===== TAX INVOICE / CREDIT NOTE — flush, no gap ===== */}
               <div style={{ textAlign: "center", fontWeight: "bold", fontSize: titleFs, borderBottom: B2, padding: "1px 0", lineHeight: "1.2", margin: 0, textTransform: "uppercase", letterSpacing: "1px" }}>
-                {itemPages.length > 1
-                  ? `TAX INVOICE${pageIndex > 0 ? ` (Page ${pageIndex + 1} of ${itemPages.length})` : ''}`
-                  : 'TAX INVOICE'}
+                {(() => {
+                  const docTitle = grandTotal < 0 ? 'CREDIT NOTE' : 'TAX INVOICE';
+                  return itemPages.length > 1
+                    ? `${docTitle}${pageIndex > 0 ? ` (Page ${pageIndex + 1} of ${itemPages.length})` : ''}`
+                    : docTitle;
+                })()}
               </div>
 
               {/* ===== BILL TO + INVOICE INFO — boxed sub-grid ===== */}
