@@ -278,16 +278,37 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
     e.preventDefault();
     const term = barcodeInput.trim();
 
-    if (!productsData) return;
-
     let foundVariant: any = null;
     let foundProduct: any = null;
 
-    for (const product of productsData) {
-      const v = product.product_variants?.find((v: any) =>
-        v.barcode?.toLowerCase() === term.toLowerCase()
-      );
-      if (v) { foundVariant = v; foundProduct = product; break; }
+    // First check in-memory cache
+    if (productsData) {
+      for (const product of productsData) {
+        const v = product.product_variants?.find((v: any) =>
+          v.barcode?.toLowerCase() === term.toLowerCase()
+        );
+        if (v) { foundVariant = v; foundProduct = product; break; }
+      }
+    }
+
+    // Fallback: direct DB lookup (covers large catalogs where embedded
+    // variants get truncated by PostgREST row limits)
+    if (!foundVariant && currentOrganization?.id) {
+      const { data: variantRow } = await supabase
+        .from('product_variants')
+        .select(`id, barcode, size, color, stock_qty, sale_price, mrp, product_id, active, deleted_at,
+          products!inner(id, product_name, brand, hsn_code, gst_per, product_type, status, deleted_at, organization_id)`)
+        .eq('organization_id', currentOrganization.id)
+        .eq('barcode', term)
+        .is('deleted_at', null)
+        .limit(1)
+        .maybeSingle();
+      if (variantRow && (variantRow as any).products
+          && (variantRow as any).products.status === 'active'
+          && !(variantRow as any).products.deleted_at) {
+        foundVariant = variantRow;
+        foundProduct = (variantRow as any).products;
+      }
     }
 
     if (!foundVariant || !foundProduct) {
@@ -297,7 +318,7 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
     }
 
     await addVariantToItems(foundVariant, foundProduct);
-  }, [barcodeInput, productsData, addVariantToItems]);
+  }, [barcodeInput, productsData, addVariantToItems, currentOrganization?.id]);
 
   const removeItem = (id: string) => setItems(prev => prev.filter(i => i.id !== id));
 
