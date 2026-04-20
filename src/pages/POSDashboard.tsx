@@ -1919,7 +1919,7 @@ const POSDashboard = () => {
                                 <div className="flex items-center justify-end gap-1">
                                   {sale.net_amount < 0 && (
                                     <Badge variant="destructive" className="text-xs px-1 py-0 font-bold whitespace-nowrap">
-                                      CREDIT NOTE
+                                      CN
                                     </Badge>
                                   )}
                                   {(sale.sale_return_adjust || 0) > 0 && (
@@ -1933,7 +1933,7 @@ const POSDashboard = () => {
                                 </div>
                                 {(sale.sale_return_adjust || 0) > 0 && (
                                   <div
-                                    className="text-[10px] font-normal text-muted-foreground whitespace-nowrap leading-tight"
+                                    className="text-xs font-semibold text-foreground whitespace-nowrap leading-tight"
                                     title={`Bill ₹${Math.round(sale.net_amount + (sale.sale_return_adjust || 0)).toLocaleString('en-IN')} − S/R Adj ₹${Math.round(sale.sale_return_adjust || 0).toLocaleString('en-IN')} = Payable ₹${Math.round(sale.net_amount).toLocaleString('en-IN')}`}
                                   >
                                     ₹{Math.round(sale.net_amount + (sale.sale_return_adjust || 0)).toLocaleString('en-IN')}
