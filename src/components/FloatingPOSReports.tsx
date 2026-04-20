@@ -681,13 +681,13 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
           <div className="text-center py-8 text-muted-foreground">
             Start typing to search products...
           </div>
-        ) : stockData && stockData.length > 0 ? (
+        ) : displayData && displayData.length > 0 ? (
           <>
             {/* Summary */}
             <div className="flex gap-4 mb-3">
               <div className="bg-blue-50 dark:bg-blue-950 px-4 py-2 rounded-lg">
                 <span className="text-xs text-muted-foreground">Items Found</span>
-                <p className="font-bold text-lg">{stockData.length}</p>
+                <p className="font-bold text-lg">{displayData.length}</p>
               </div>
               <div className="bg-green-50 dark:bg-green-950 px-4 py-2 rounded-lg">
                 <span className="text-xs text-muted-foreground">Total Qty</span>
@@ -715,7 +715,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {stockData.map((item: any) => (
+                  {displayData.map((item: any) => (
                     <TableRow key={item.id}>
                       <TableCell>
                         <div>
