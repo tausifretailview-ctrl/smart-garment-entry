@@ -2190,6 +2190,32 @@ const POSDashboard = () => {
                                               <TableCell className="px-2 py-1 text-sm text-right tabular-nums font-semibold">₹{Math.round(item.line_total).toLocaleString('en-IN')}</TableCell>
                                             </TableRow>
                                           ))}
+                                          {(saleReturns[sale.sale_number] || []).flatMap((ret: any) =>
+                                            Array.isArray(ret.sale_return_items)
+                                              ? ret.sale_return_items.map((ri: any) => ({ ...ri, _retNum: ret.return_number }))
+                                              : []
+                                          ).map((ri: any, idx: number) => (
+                                            <TableRow key={`sr-${ri.id || idx}`} className="h-9 bg-red-50/40 dark:bg-red-950/20">
+                                              <TableCell className="px-2 py-1 text-sm">
+                                                <div className="flex items-center gap-1.5">
+                                                  <Badge variant="destructive" className="text-[10px] px-1 py-0 font-bold">SR</Badge>
+                                                  <span className="text-red-700 dark:text-red-400">{ri.product_name}</span>
+                                                </div>
+                                              </TableCell>
+                                              {showItemBrand && <TableCell className="px-2 py-1 text-sm text-red-700 dark:text-red-400">-</TableCell>}
+                                              {showItemColor && <TableCell className="px-2 py-1 text-sm text-red-700 dark:text-red-400">{ri.color || '-'}</TableCell>}
+                                              {showItemStyle && <TableCell className="px-2 py-1 text-sm text-red-700 dark:text-red-400">-</TableCell>}
+                                              <TableCell className="px-2 py-1 text-sm text-red-700 dark:text-red-400">{ri.size || '-'}</TableCell>
+                                              {showItemBarcode && <TableCell className="px-2 py-1 text-xs font-mono text-red-700 dark:text-red-400">{ri.barcode || '-'}</TableCell>}
+                                              {showItemHsn && <TableCell className="px-2 py-1 text-xs text-red-700 dark:text-red-400">-</TableCell>}
+                                              <TableCell className="px-2 py-1 text-sm text-right tabular-nums text-red-700 dark:text-red-400">-{ri.quantity}</TableCell>
+                                              {showItemMrp && <TableCell className="px-2 py-1 text-sm text-right tabular-nums text-red-700 dark:text-red-400">-</TableCell>}
+                                              <TableCell className="px-2 py-1 text-sm text-right tabular-nums text-red-700 dark:text-red-400">₹{Math.round(ri.unit_price).toLocaleString('en-IN')}</TableCell>
+                                              <TableCell className="px-2 py-1 text-sm text-right tabular-nums text-red-700 dark:text-red-400">-</TableCell>
+                                              <TableCell className="px-2 py-1 text-sm text-right tabular-nums text-red-700 dark:text-red-400">{ri.gst_percent || 0}%</TableCell>
+                                              <TableCell className="px-2 py-1 text-sm text-right tabular-nums font-semibold text-red-600">-₹{Math.round(ri.line_total).toLocaleString('en-IN')}</TableCell>
+                                            </TableRow>
+                                          ))}
                                         </TableBody>
                                       </Table>
                                     </div>
