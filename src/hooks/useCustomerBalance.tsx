@@ -86,8 +86,9 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
       sales?.forEach(sale => {
         const salePaidAmount = sale.paid_amount || 0;
         const voucherAmount = invoiceVoucherPayments[sale.id] || 0;
-        // Don't subtract sale_return_adjust — it's in totalSales (gross) and subtracted once via saleReturnTotal
-        totalPaidOnSales += voucherAmount > 0 ? voucherAmount : salePaidAmount;
+        // Use Math.max to handle drift between sale.paid_amount and voucher sum
+        // (mirrors RPC reconcile_customer_balances logic).
+        totalPaidOnSales += Math.max(salePaidAmount, voucherAmount);
       });
 
       const totalPaid = totalPaidOnSales + openingBalanceVoucherPayments;
