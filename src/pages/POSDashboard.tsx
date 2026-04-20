@@ -184,6 +184,7 @@ const POSDashboard = () => {
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [saleItems, setSaleItems] = useState<Record<string, SaleItem[]>>({});
   const [saleReturns, setSaleReturns] = useState<Record<string, any[]>>({});
+  const [creditNoteUsage, setCreditNoteUsage] = useState<Record<string, { credit_amount: number; used_amount: number; status: string }>>({});
   const [selectedSales, setSelectedSales] = useState<Set<string>>(new Set());
   const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
   const [itemCountToDelete, setItemCountToDelete] = useState<number | null>(null);
@@ -362,6 +363,22 @@ const POSDashboard = () => {
       setSales(allSales);
       // Phase 1 complete - show table immediately
       setLoading(false);
+
+      // Fetch credit_notes usage for sales that issued credit notes
+      const cnIds = allSales.map((s: any) => s.credit_note_id).filter(Boolean);
+      if (cnIds.length > 0) {
+        const { data: cnData } = await supabase
+          .from('credit_notes')
+          .select('id, credit_amount, used_amount, status')
+          .in('id', cnIds);
+        if (cnData) {
+          const map: Record<string, { credit_amount: number; used_amount: number; status: string }> = {};
+          cnData.forEach((c: any) => {
+            map[c.id] = { credit_amount: c.credit_amount || 0, used_amount: c.used_amount || 0, status: c.status };
+          });
+          setCreditNoteUsage(map);
+        }
+      }
       
       // Phase 2: Fetch sale items in background (non-blocking)
       if (allSales.length > 0) {
@@ -1131,7 +1148,8 @@ const POSDashboard = () => {
       const matchesSaleType =
         saleTypeFilter === "all" ||
         (saleTypeFilter === "dc" && sale.sale_type === "delivery_challan") ||
-        (saleTypeFilter === "pos" && sale.sale_type !== "delivery_challan");
+        (saleTypeFilter === "pos" && sale.sale_type !== "delivery_challan") ||
+        (saleTypeFilter === "cn" && !!sale.credit_note_id);
 
       const matchesRefund =
         refundFilter === "all" ||
@@ -1682,6 +1700,7 @@ const POSDashboard = () => {
                   <SelectItem value="all">All Bills</SelectItem>
                   <SelectItem value="pos">POS Bills</SelectItem>
                   <SelectItem value="dc">DC Only</SelectItem>
+                  <SelectItem value="cn">CN Only</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={userFilter} onValueChange={setUserFilter}>
@@ -1917,7 +1936,7 @@ const POSDashboard = () => {
                                 <div className="flex items-center justify-end gap-1">
                                   {sale.net_amount < 0 && (
                                     <Badge variant="destructive" className="text-xs px-1 py-0 font-bold whitespace-nowrap">
-                                      CREDIT NOTE
+                                      CN
                                     </Badge>
                                   )}
                                   {(sale.sale_return_adjust || 0) > 0 && (
@@ -1931,7 +1950,7 @@ const POSDashboard = () => {
                                 </div>
                                 {(sale.sale_return_adjust || 0) > 0 && (
                                   <div
-                                    className="text-[10px] font-normal text-muted-foreground whitespace-nowrap leading-tight"
+                                    className="text-xs font-semibold text-foreground whitespace-nowrap leading-tight"
                                     title={`Bill ₹${Math.round(sale.net_amount + (sale.sale_return_adjust || 0)).toLocaleString('en-IN')} − S/R Adj ₹${Math.round(sale.sale_return_adjust || 0).toLocaleString('en-IN')} = Payable ₹${Math.round(sale.net_amount).toLocaleString('en-IN')}`}
                                   >
                                     ₹{Math.round(sale.net_amount + (sale.sale_return_adjust || 0)).toLocaleString('en-IN')}
@@ -2003,11 +2022,30 @@ const POSDashboard = () => {
                             )}
                             {columnSettings.creditNoteStatus && (
                               <TableCell className="px-2 py-1.5" onClick={() => toggleExpanded(sale.id)}>
-                                {sale.credit_note_id ? (
-                                  <Badge className="bg-violet-500 hover:bg-violet-600 text-white text-xs px-1.5 py-0">
-                                    Issued
-                                  </Badge>
-                                ) : (
+                                {sale.credit_note_id ? (() => {
+                                  const cn = creditNoteUsage[sale.credit_note_id!];
+                                  const used = cn?.used_amount || 0;
+                                  const total = cn?.credit_amount || 0;
+                                  if (used > 0 && used >= total) {
+                                    return (
+                                      <Badge className="bg-green-600 hover:bg-green-700 text-white text-xs px-1.5 py-0 font-bold" title={`Adjusted ₹${Math.round(used).toLocaleString('en-IN')}`}>
+                                        CN AD
+                                      </Badge>
+                                    );
+                                  }
+                                  if (used > 0) {
+                                    return (
+                                      <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs px-1.5 py-0 font-bold" title={`Partially adjusted ₹${Math.round(used).toLocaleString('en-IN')} of ₹${Math.round(total).toLocaleString('en-IN')}`}>
+                                        CN AD
+                                      </Badge>
+                                    );
+                                  }
+                                  return (
+                                    <Badge className="bg-violet-500 hover:bg-violet-600 text-white text-xs px-1.5 py-0">
+                                      Issued
+                                    </Badge>
+                                  );
+                                })() : (
                                   <Badge variant="outline" className="text-muted-foreground text-xs px-1.5 py-0">
                                     None
                                   </Badge>
