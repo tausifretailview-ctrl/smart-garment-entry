@@ -510,7 +510,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     {/* Right — Totals */}
                     <div style={{ width: "40%", fontSize: fsTotals }}>
                       {saleReturnAdjust > 0 && (
-                        <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px", color: "#b45309", fontSize: isA4 ? "13px" : "10px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px", color: "#b45309", fontSize: isA4 ? "13px" : "10px", fontWeight: "bold" }}>
                           <span>S/R Adjust</span><span>- ₹{fmt(saleReturnAdjust)}</span>
                         </div>
                       )}
@@ -545,13 +545,13 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
                   {/* Balance rows */}
                   <div style={{ display: "flex", borderBottom: B }}>
-                    <div style={{ flex: 1, borderRight: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px" }}>
+                    <div style={{ flex: 1, borderRight: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px", fontWeight: "bold", color: "#000" }}>
                       <strong>Received:</strong> ₹{fmt(receivedToday)}
                     </div>
-                    <div style={{ flex: 1, borderRight: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px" }}>
-                      <strong>Balance:</strong> <span style={{ color: currentBalance > 0 ? "#dc2626" : "#16a34a" }}>₹{fmt(currentBalance)}</span>
+                    <div style={{ flex: 1, borderRight: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px", fontWeight: "bold", color: "#000" }}>
+                      <strong>Balance:</strong> <span style={{ color: currentBalance > 0 ? "#dc2626" : "#16a34a", fontWeight: "bold" }}>₹{fmt(currentBalance)}</span>
                     </div>
-                    <div style={{ flex: 1, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px" }}>
+                    <div style={{ flex: 1, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px", fontWeight: "bold", color: "#000" }}>
                       <strong>Prev Bal:</strong> ₹{fmt(previousBalance)}
                       {" | "}
                       <strong>Total Due:</strong> <span style={{ color: totalDue > 0 ? "#dc2626" : "#16a34a", fontWeight: "bold" }}>₹{fmt(totalDue)}</span>
@@ -595,7 +595,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         For {businessName}
                       </div>
                       {qrCodeUrl && (
-                        <img src={qrCodeUrl} alt="QR" style={{ width: isA4 ? "110px" : "85px", height: isA4 ? "110px" : "85px", border: "1px solid #ccc" }} />
+                        <img src={qrCodeUrl} alt="QR" style={{ width: isA4 ? "150px" : "115px", height: isA4 ? "150px" : "115px", border: "1px solid #ccc" }} />
                       )}
                     </div>
                   </div>
