@@ -1218,7 +1218,7 @@ export default function ItemWiseSalesReport() {
             <CardHeader className="pb-3">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <CardTitle className="text-lg">
-                  {({ product_name: "Product Name", brand: "Brand", category: "Category", department: "Department" })[saleDetailsGroupBy]} Wise Sale Details ({saleDetailsData.length} rows)
+                  {({ product_name: "Product Name", brand: "Brand", category: "Category", department: "Department", barcode: "Barcode" })[saleDetailsGroupBy]} Wise Sale Details ({saleDetailsData.length} rows)
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   <Button variant="outline" size="sm" onClick={exportToExcel}>
@@ -1241,13 +1241,14 @@ export default function ItemWiseSalesReport() {
                       <SelectItem value="brand">Brand</SelectItem>
                       <SelectItem value="category">Category</SelectItem>
                       <SelectItem value="department">Department</SelectItem>
+                      <SelectItem value="barcode">Barcode</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder={`Search ${({ product_name: "product name", brand: "brand", category: "category", department: "department" })[saleDetailsGroupBy]}...`}
+                    placeholder={`Search ${({ product_name: "product name", brand: "brand", category: "category", department: "department", barcode: "barcode / product / brand" })[saleDetailsGroupBy]}...`}
                     value={saleDetailsSearch}
                     onChange={(e) => { setSaleDetailsSearch(e.target.value); setSaleDetailsPage(1); }}
                     className="pl-9 pr-8 no-uppercase"
