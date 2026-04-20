@@ -510,7 +510,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     {/* Right — Totals */}
                     <div style={{ width: "40%", fontSize: fsTotals }}>
                       {saleReturnAdjust > 0 && (
-                        <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px", color: "#b45309", fontSize: isA4 ? "13px" : "10px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px", color: "#b45309", fontSize: isA4 ? "13px" : "10px", fontWeight: "bold" }}>
                           <span>S/R Adjust</span><span>- ₹{fmt(saleReturnAdjust)}</span>
                         </div>
                       )}
