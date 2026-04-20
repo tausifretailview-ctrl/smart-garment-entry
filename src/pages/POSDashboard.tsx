@@ -1913,13 +1913,24 @@ const POSDashboard = () => {
                               {saleItems[sale.id]?.reduce((sum, item) => sum + item.quantity, 0) || '-'}
                             </TableCell>
                             <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums font-semibold text-primary" onClick={() => toggleExpanded(sale.id)}>
-                              <div className="flex items-center justify-end gap-1">
+                              <div className="flex flex-col items-end gap-0.5">
+                                <div className="flex items-center justify-end gap-1">
+                                  {(sale.sale_return_adjust || 0) > 0 && (
+                                    <Badge variant="outline" className="text-xs px-1 py-0 font-semibold border-orange-300 text-orange-600 bg-orange-50 dark:bg-orange-950 dark:border-orange-700 dark:text-orange-400 whitespace-nowrap">
+                                      S/R Adj
+                                    </Badge>
+                                  )}
+                                  <span>₹{Math.round(sale.net_amount).toLocaleString('en-IN')}</span>
+                                </div>
                                 {(sale.sale_return_adjust || 0) > 0 && (
-                                  <Badge variant="outline" className="text-xs px-1 py-0 font-semibold border-orange-300 text-orange-600 bg-orange-50 dark:bg-orange-950 dark:border-orange-700 dark:text-orange-400 whitespace-nowrap">
-                                    S/R Adj
-                                  </Badge>
+                                  <div
+                                    className="text-[10px] font-normal text-muted-foreground whitespace-nowrap leading-tight"
+                                    title={`Bill ₹${Math.round(sale.net_amount + (sale.sale_return_adjust || 0)).toLocaleString('en-IN')} − S/R Adj ₹${Math.round(sale.sale_return_adjust || 0).toLocaleString('en-IN')} = Payable ₹${Math.round(sale.net_amount).toLocaleString('en-IN')}`}
+                                  >
+                                    ₹{Math.round(sale.net_amount + (sale.sale_return_adjust || 0)).toLocaleString('en-IN')}
+                                    <span className="text-orange-600"> − ₹{Math.round(sale.sale_return_adjust || 0).toLocaleString('en-IN')}</span>
+                                  </div>
                                 )}
-                                <span>₹{Math.round(sale.net_amount).toLocaleString('en-IN')}</span>
                               </div>
                             </TableCell>
                             <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
