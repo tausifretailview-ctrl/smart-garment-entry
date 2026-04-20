@@ -231,23 +231,15 @@ const ProductEditPanel = ({
 
       // Update variant MRP if changed
       if (modifiedFields.has("default_mrp") || modifiedFields.has("default_pur_price") || modifiedFields.has("default_sale_price")) {
-        // Update ALL variants of this product that are part of the current purchase bill
-        // (so changing price for one size propagates to S/M/L/XL/XXL of the same product in this bill)
-        const billVariantIds = Array.from(new Set(
-          lineItems
-            .filter(li => li.product_id === item.product_id && li.sku_id)
-            .map(li => li.sku_id)
-        ));
-        const variantUpdates: Record<string, any> = {};
-        if (modifiedFields.has("default_pur_price")) variantUpdates.pur_price = form.default_pur_price;
-        if (modifiedFields.has("default_sale_price")) variantUpdates.sale_price = form.default_sale_price;
-        if (modifiedFields.has("default_mrp")) variantUpdates.mrp = form.default_mrp || null;
-        if (Object.keys(variantUpdates).length > 0 && billVariantIds.length > 0) {
-          await supabase
-            .from("product_variants")
-            .update(variantUpdates)
-            .in("id", billVariantIds);
-        }
+        // Pricing changes apply ONLY to the currently selected variant (size-specific)
+        await supabase
+          .from("product_variants")
+          .update({
+            pur_price: form.default_pur_price,
+            sale_price: form.default_sale_price,
+            mrp: form.default_mrp || null,
+          })
+          .eq("id", item.sku_id);
       }
 
       // Update line item in bill
@@ -264,8 +256,22 @@ const ProductEditPanel = ({
       if (modifiedFields.has("default_mrp")) lineUpdates.mrp = form.default_mrp;
 
       if (Object.keys(lineUpdates).length > 0) {
-        // Pass product_id so parent can apply updates to ALL line items of this product in the bill
-        onProductUpdated(item.temp_id, lineUpdates, item.product_id);
+        // Pricing fields → only the current row. Master fields → all rows of same product.
+        const PRICING_FIELDS = new Set(["pur_price", "sale_price", "mrp"]);
+        const masterUpdates: Partial<LineItem> = {};
+        const rowOnlyUpdates: Partial<LineItem> = {};
+        Object.entries(lineUpdates).forEach(([k, v]) => {
+          if (PRICING_FIELDS.has(k)) (rowOnlyUpdates as any)[k] = v;
+          else (masterUpdates as any)[k] = v;
+        });
+        // Apply master/classification fields to ALL line items of this product
+        if (Object.keys(masterUpdates).length > 0) {
+          onProductUpdated(item.temp_id, masterUpdates, item.product_id);
+        }
+        // Apply pricing only to the edited row
+        if (Object.keys(rowOnlyUpdates).length > 0) {
+          onProductUpdated(item.temp_id, rowOnlyUpdates);
+        }
       }
 
       // Sync product_name to all purchase_items for this product
