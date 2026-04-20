@@ -595,7 +595,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         For {businessName}
                       </div>
                       {qrCodeUrl && (
-                        <img src={qrCodeUrl} alt="QR" style={{ width: isA4 ? "110px" : "85px", height: isA4 ? "110px" : "85px", border: "1px solid #ccc" }} />
+                        <img src={qrCodeUrl} alt="QR" style={{ width: isA4 ? "150px" : "115px", height: isA4 ? "150px" : "115px", border: "1px solid #ccc" }} />
                       )}
                     </div>
                   </div>
