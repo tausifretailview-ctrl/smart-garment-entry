@@ -2022,11 +2022,30 @@ const POSDashboard = () => {
                             )}
                             {columnSettings.creditNoteStatus && (
                               <TableCell className="px-2 py-1.5" onClick={() => toggleExpanded(sale.id)}>
-                                {sale.credit_note_id ? (
-                                  <Badge className="bg-violet-500 hover:bg-violet-600 text-white text-xs px-1.5 py-0">
-                                    Issued
-                                  </Badge>
-                                ) : (
+                                {sale.credit_note_id ? (() => {
+                                  const cn = creditNoteUsage[sale.credit_note_id!];
+                                  const used = cn?.used_amount || 0;
+                                  const total = cn?.credit_amount || 0;
+                                  if (used > 0 && used >= total) {
+                                    return (
+                                      <Badge className="bg-green-600 hover:bg-green-700 text-white text-xs px-1.5 py-0 font-bold" title={`Adjusted ₹${Math.round(used).toLocaleString('en-IN')}`}>
+                                        CN AD
+                                      </Badge>
+                                    );
+                                  }
+                                  if (used > 0) {
+                                    return (
+                                      <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs px-1.5 py-0 font-bold" title={`Partially adjusted ₹${Math.round(used).toLocaleString('en-IN')} of ₹${Math.round(total).toLocaleString('en-IN')}`}>
+                                        CN AD
+                                      </Badge>
+                                    );
+                                  }
+                                  return (
+                                    <Badge className="bg-violet-500 hover:bg-violet-600 text-white text-xs px-1.5 py-0">
+                                      Issued
+                                    </Badge>
+                                  );
+                                })() : (
                                   <Badge variant="outline" className="text-muted-foreground text-xs px-1.5 py-0">
                                     None
                                   </Badge>
