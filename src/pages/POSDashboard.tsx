@@ -491,7 +491,7 @@ const POSDashboard = () => {
     try {
       const { data, error } = await supabase
         .from("sale_returns")
-        .select("*")
+        .select("*, sale_return_items(id, product_name, size, color, barcode, hsn_code, quantity, unit_price, gst_percent, line_total)")
         .eq("organization_id", currentOrganization?.id)
         .eq("original_sale_number", saleNumber);
 
@@ -2200,7 +2200,8 @@ const POSDashboard = () => {
                                           </TableHeader>
                                           <TableBody>
                                             {saleReturns[sale.sale_number].map((ret: any) => (
-                                              <TableRow key={ret.id} className="h-9">
+                                              <React.Fragment key={ret.id}>
+                                              <TableRow className="h-9">
                                                 <TableCell className="px-2 py-1">
                                                   <Badge variant="destructive" className="text-xs px-1.5 py-0">{ret.return_number || "-"}</Badge>
                                                 </TableCell>
@@ -2213,6 +2214,43 @@ const POSDashboard = () => {
                                                   {ret.notes || "-"}
                                                 </TableCell>
                                               </TableRow>
+                                              {Array.isArray(ret.sale_return_items) && ret.sale_return_items.length > 0 && (
+                                                <TableRow>
+                                                  <TableCell colSpan={5} className="p-2 bg-red-50/30">
+                                                    <div className="rounded border border-red-200 bg-background">
+                                                      <Table>
+                                                        <TableHeader>
+                                                          <TableRow className="h-8 bg-muted/40">
+                                                            <TableHead className="px-2 py-1 text-[11px] uppercase tracking-wider font-semibold">Product</TableHead>
+                                                            <TableHead className="px-2 py-1 text-[11px] uppercase tracking-wider font-semibold">Size</TableHead>
+                                                            <TableHead className="px-2 py-1 text-[11px] uppercase tracking-wider font-semibold">Color</TableHead>
+                                                            <TableHead className="px-2 py-1 text-[11px] uppercase tracking-wider font-semibold">Barcode</TableHead>
+                                                            <TableHead className="px-2 py-1 text-[11px] uppercase tracking-wider font-semibold text-right">Qty</TableHead>
+                                                            <TableHead className="px-2 py-1 text-[11px] uppercase tracking-wider font-semibold text-right">Rate</TableHead>
+                                                            <TableHead className="px-2 py-1 text-[11px] uppercase tracking-wider font-semibold text-right">GST%</TableHead>
+                                                            <TableHead className="px-2 py-1 text-[11px] uppercase tracking-wider font-semibold text-right">Total</TableHead>
+                                                          </TableRow>
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                          {ret.sale_return_items.map((ri: any) => (
+                                                            <TableRow key={ri.id} className="h-8">
+                                                              <TableCell className="px-2 py-1 text-sm">{ri.product_name}</TableCell>
+                                                              <TableCell className="px-2 py-1 text-sm">{ri.size || '-'}</TableCell>
+                                                              <TableCell className="px-2 py-1 text-sm">{ri.color || '-'}</TableCell>
+                                                              <TableCell className="px-2 py-1 text-xs font-mono">{ri.barcode || '-'}</TableCell>
+                                                              <TableCell className="px-2 py-1 text-sm text-right tabular-nums">{ri.quantity}</TableCell>
+                                                              <TableCell className="px-2 py-1 text-sm text-right tabular-nums">₹{Math.round(ri.unit_price).toLocaleString('en-IN')}</TableCell>
+                                                              <TableCell className="px-2 py-1 text-sm text-right tabular-nums">{ri.gst_percent}%</TableCell>
+                                                              <TableCell className="px-2 py-1 text-sm text-right tabular-nums font-semibold text-red-600">₹{Math.round(ri.line_total).toLocaleString('en-IN')}</TableCell>
+                                                            </TableRow>
+                                                          ))}
+                                                        </TableBody>
+                                                      </Table>
+                                                    </div>
+                                                  </TableCell>
+                                                </TableRow>
+                                              )}
+                                              </React.Fragment>
                                             ))}
                                           </TableBody>
                                         </Table>
