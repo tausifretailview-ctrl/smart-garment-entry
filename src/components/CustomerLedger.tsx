@@ -223,7 +223,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // Fetch ALL voucher payments (both opening balance and invoice payments)
       const { data: allVouchers, error: voucherError } = await supabase
         .from('voucher_entries')
-        .select('reference_id, reference_type, total_amount, voucher_type, description')
+        .select('reference_id, reference_type, total_amount, voucher_type, description, payment_method')
         .eq('organization_id', organizationId)
         .in('voucher_type', ['receipt', 'payment'])
         .is('deleted_at', null);
@@ -311,31 +311,54 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         }
       });
 
-      // Separate opening balance payments from invoice payments
+      // Separate opening-balance payments from invoice payments.
+      // Per master reconciliation rules:
+      //  - True cash receipts go in invoiceVoucherPayments (used in Math.max drift check)
+      //  - Advance + CN adjustment receipts go in invoiceAdvCnPortions and are
+      //    SUBTRACTED from sale.paid_amount before the Math.max drift check, so
+      //    they aren't double-counted (advances handled via customerUnusedAdvances,
+      //    CN handled via customerCreditNotes).
+      //  - Opening-balance receipts are tracked separately and added to totalPaid.
       const openingBalancePayments = new Map<string, number>(); // customer_id -> amount
-      const invoiceVoucherPayments = new Map<string, number>(); // sale_id -> amount
+      const invoiceVoucherPayments = new Map<string, number>(); // sale_id -> cash amount
+      const invoiceAdvPortions = new Map<string, number>();     // sale_id -> advance amount
+      const invoiceCnPortions = new Map<string, number>();      // sale_id -> credit note amount
 
       allVouchers?.forEach((v: any) => {
         if (!v.reference_id) return;
-        
-        // Skip advance adjustment vouchers — already accounted via customer_advances
-        if (v.payment_method === 'advance_adjustment') return;
+        // Only consider receipt-type vouchers as customer payments here.
+        // Payment-type vouchers (refunds TO customer) are handled via refundsPaidTotal.
+        if (v.voucher_type !== 'receipt') return;
+
         const desc = (v.description || '').toLowerCase();
-        if (desc.includes('adjusted from advance balance') || desc.includes('advance adjusted')) return;
-        // Skip credit note adjustment vouchers — already accounted via creditNoteTotal
-        if (desc.includes('credit note adjusted') || desc.includes('cn adjusted')) return;
-        
-        if (v.payment_method === 'credit_note_adjustment') return;
-        
-        const customerId = saleToCustomerMap.get(v.reference_id);
-        if (v.reference_type === 'sale' || customerId) {
-          invoiceVoucherPayments.set(v.reference_id, 
-            (invoiceVoucherPayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
-        } else if (v.reference_type === 'customer' && v.voucher_type === 'receipt') {
-          // Only count receipt-type vouchers as payments FROM customer
-          // Exclude payment-type vouchers (refunds TO customer) - handled via refundsPaidTotal
-          openingBalancePayments.set(v.reference_id, 
-            (openingBalancePayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
+        const isAdv = v.payment_method === 'advance_adjustment'
+          || desc.includes('adjusted from advance balance')
+          || desc.includes('advance adjusted');
+        const isCn = v.payment_method === 'credit_note_adjustment'
+          || desc.includes('credit note adjusted')
+          || desc.includes('cn adjusted');
+
+        // ID-match classification (legacy-safe): if reference_id points to a known
+        // sale, treat as invoice payment regardless of reference_type string.
+        const isSaleRef = saleToCustomerMap.has(v.reference_id);
+        if (isSaleRef) {
+          if (isAdv) {
+            invoiceAdvPortions.set(v.reference_id,
+              (invoiceAdvPortions.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
+          } else if (isCn) {
+            invoiceCnPortions.set(v.reference_id,
+              (invoiceCnPortions.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
+          } else {
+            invoiceVoucherPayments.set(v.reference_id,
+              (invoiceVoucherPayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
+          }
+        } else if (v.reference_type === 'customer') {
+          // True opening-balance payment (reference_id is the customer id).
+          // Skip adv/CN adjustment rows since those are accounted separately.
+          if (!isAdv && !isCn) {
+            openingBalancePayments.set(v.reference_id,
+              (openingBalancePayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
+          }
         }
       });
 
@@ -362,18 +385,28 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         const totalSales = customerSales.reduce((sum: number, s: any) => sum + (s.net_amount || 0) + (s.sale_return_adjust || 0), 0);
         
         let totalPaidOnSales = 0;
+        let totalAdvanceApplied = 0;
+        let totalCnApplied = 0;
         customerSales.forEach((sale: any) => {
           const salePaidAmount = sale.paid_amount || 0;
-          const saleReturnAdjust = sale.sale_return_adjust || 0;
-          const voucherAmount = invoiceVoucherPayments.get(sale.id) || 0;
-          // Don't subtract saleReturnAdjust from paid — it's now included in
-          // totalSales (gross) and subtracted once via creditNoteTotal
-          const actualPaid = Math.max(salePaidAmount, voucherAmount);
+          const cashVoucher = invoiceVoucherPayments.get(sale.id) || 0;
+          const advVoucher = invoiceAdvPortions.get(sale.id) || 0;
+          const cnVoucher = invoiceCnPortions.get(sale.id) || 0;
+          const advCnVoucher = advVoucher + cnVoucher;
+          // sale.paid_amount typically includes advance + CN-adjusted portions.
+          // Subtract them before the drift check so we only count true cash here.
+          // Mirrors reconcile_customer_balances RPC GREATEST(...) logic.
+          // Advance + CN applied are added back below (totalSales is GROSS;
+          // saleReturnTotal subtracts the CN side once).
+          const actualPaid = Math.max(salePaidAmount - advCnVoucher, cashVoucher);
           totalPaidOnSales += actualPaid;
+          totalAdvanceApplied += advVoucher;
+          totalCnApplied += cnVoucher;
         });
         
         const openingBalancePaymentTotal = openingBalancePayments.get(customer.id) || 0;
-        const totalPaid = totalPaidOnSales + openingBalancePaymentTotal;
+        // totalPaid = cash on sales + advance applied + CN applied + opening-balance receipts.
+        const totalPaid = totalPaidOnSales + totalAdvanceApplied + totalCnApplied + openingBalancePaymentTotal;
         const openingBalance = customer.opening_balance || 0;
         const adjustmentTotal = customerAdjustments.get(customer.id) || 0;
         const unusedAdvanceTotal = customerUnusedAdvances.get(customer.id) || 0;
