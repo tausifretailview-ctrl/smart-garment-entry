@@ -271,9 +271,12 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
 
               {/* ===== TITLE ===== */}
               <div style={{ textAlign: "center", fontWeight: "bold", fontSize: titleFs, borderBottom: B, padding: "3px 0" }}>
-                {itemPages.length > 1
-                  ? `Tax Invoice${pageIndex > 0 ? ` (Page ${pageIndex + 1} of ${itemPages.length})` : ''}`
-                  : 'Tax Invoice'}
+                {(() => {
+                  const docTitle = grandTotal < 0 ? 'Credit Note' : 'Tax Invoice';
+                  return itemPages.length > 1
+                    ? `${docTitle}${pageIndex > 0 ? ` (Page ${pageIndex + 1} of ${itemPages.length})` : ''}`
+                    : docTitle;
+                })()}
               </div>
 
               {/* ===== BILL TO + INVOICE INFO ===== */}
