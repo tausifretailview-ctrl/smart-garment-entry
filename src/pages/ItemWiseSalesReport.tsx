@@ -794,12 +794,25 @@ export default function ItemWiseSalesReport() {
                     allValue="all"
                   />
                 </div>
+
+                {/* User Filter */}
+                <div className="w-full md:w-48">
+                  <label className="text-sm font-medium text-muted-foreground mb-1 block">User</label>
+                  <SearchableSelect
+                    value={selectedUser}
+                    onValueChange={setSelectedUser}
+                    options={filterOptions.users}
+                    placeholder="All Users"
+                    allLabel="All Users"
+                    allValue="all"
+                  />
+                </div>
               </div>
             )}
 
             <div className="text-sm text-muted-foreground">
               Showing data from {format(dateRange.from, "dd MMM yyyy")} to {format(dateRange.to, "dd MMM yyyy")}
-              {(selectedBrand !== "all" || selectedCategory !== "all" || selectedDepartment !== "all" || selectedColor !== "all" || selectedCustomer !== "all") && (
+              {(selectedBrand !== "all" || selectedCategory !== "all" || selectedDepartment !== "all" || selectedColor !== "all" || selectedCustomer !== "all" || selectedUser !== "all") && (
                 <span className="ml-2 text-primary">• Filters applied</span>
               )}
             </div>
