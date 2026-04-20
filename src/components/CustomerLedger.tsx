@@ -386,6 +386,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         
         let totalPaidOnSales = 0;
         let totalAdvanceApplied = 0;
+        let totalCnApplied = 0;
         customerSales.forEach((sale: any) => {
           const salePaidAmount = sale.paid_amount || 0;
           const cashVoucher = invoiceVoucherPayments.get(sale.id) || 0;
@@ -395,14 +396,17 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           // sale.paid_amount typically includes advance + CN-adjusted portions.
           // Subtract them before the drift check so we only count true cash here.
           // Mirrors reconcile_customer_balances RPC GREATEST(...) logic.
+          // Advance + CN applied are added back below (totalSales is GROSS;
+          // saleReturnTotal subtracts the CN side once).
           const actualPaid = Math.max(salePaidAmount - advCnVoucher, cashVoucher);
           totalPaidOnSales += actualPaid;
           totalAdvanceApplied += advVoucher;
+          totalCnApplied += cnVoucher;
         });
         
         const openingBalancePaymentTotal = openingBalancePayments.get(customer.id) || 0;
-        // totalPaid = true cash on sales + advance applied to sales + opening-balance receipts
-        const totalPaid = totalPaidOnSales + totalAdvanceApplied + openingBalancePaymentTotal;
+        // totalPaid = cash on sales + advance applied + CN applied + opening-balance receipts.
+        const totalPaid = totalPaidOnSales + totalAdvanceApplied + totalCnApplied + openingBalancePaymentTotal;
         const openingBalance = customer.opening_balance || 0;
         const adjustmentTotal = customerAdjustments.get(customer.id) || 0;
         const unusedAdvanceTotal = customerUnusedAdvances.get(customer.id) || 0;
