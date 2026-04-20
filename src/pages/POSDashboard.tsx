@@ -360,25 +360,56 @@ const POSDashboard = () => {
         }
       }
 
-      setSales(allSales);
+      // Fetch credit_notes by sale_id (reverse lookup) to populate CN columns
+      // This handles cases where credit_note_id isn't directly stored on the sale
+      const saleIdsForCN = allSales.map((s: any) => s.id);
+      if (saleIdsForCN.length > 0) {
+        const cnBatchSize = 500;
+        const cnBySaleId: Record<string, any> = {};
+        for (let i = 0; i < saleIdsForCN.length; i += cnBatchSize) {
+          const batch = saleIdsForCN.slice(i, i + cnBatchSize);
+          const { data: cnData } = await supabase
+            .from('credit_notes')
+            .select('id, sale_id, credit_amount, used_amount, status')
+            .in('sale_id', batch)
+            .is('deleted_at', null);
+          if (cnData) {
+            cnData.forEach((c: any) => {
+              if (c.sale_id) cnBySaleId[c.sale_id] = c;
+            });
+          }
+        }
+        // Patch sales with CN data and build usage map
+        const usageMap: Record<string, { credit_amount: number; used_amount: number; status: string }> = {};
+        allSales.forEach((s: any) => {
+          const cn = cnBySaleId[s.id];
+          if (cn) {
+            s.credit_note_id = s.credit_note_id || cn.id;
+            s.credit_note_amount = s.credit_note_amount || cn.credit_amount || 0;
+            usageMap[cn.id] = {
+              credit_amount: cn.credit_amount || 0,
+              used_amount: cn.used_amount || 0,
+              status: cn.status,
+            };
+          }
+        });
+        // Also include directly linked credit_note_ids
+        const directCnIds = allSales.map((s: any) => s.credit_note_id).filter((id: any) => id && !usageMap[id]);
+        if (directCnIds.length > 0) {
+          const { data: directCN } = await supabase
+            .from('credit_notes')
+            .select('id, credit_amount, used_amount, status')
+            .in('id', directCnIds);
+          directCN?.forEach((c: any) => {
+            usageMap[c.id] = { credit_amount: c.credit_amount || 0, used_amount: c.used_amount || 0, status: c.status };
+          });
+        }
+        setCreditNoteUsage(usageMap);
+      }
+
+      setSales([...allSales]);
       // Phase 1 complete - show table immediately
       setLoading(false);
-
-      // Fetch credit_notes usage for sales that issued credit notes
-      const cnIds = allSales.map((s: any) => s.credit_note_id).filter(Boolean);
-      if (cnIds.length > 0) {
-        const { data: cnData } = await supabase
-          .from('credit_notes')
-          .select('id, credit_amount, used_amount, status')
-          .in('id', cnIds);
-        if (cnData) {
-          const map: Record<string, { credit_amount: number; used_amount: number; status: string }> = {};
-          cnData.forEach((c: any) => {
-            map[c.id] = { credit_amount: c.credit_amount || 0, used_amount: c.used_amount || 0, status: c.status };
-          });
-          setCreditNoteUsage(map);
-        }
-      }
       
       // Phase 2: Fetch sale items in background (non-blocking)
       if (allSales.length > 0) {
