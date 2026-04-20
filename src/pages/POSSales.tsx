@@ -2300,6 +2300,29 @@ export default function POSSales() {
       return;
     }
 
+    // Credit Note (negative net amount) requires a customer (name or phone)
+    // so the credit can be redeemed by them later
+    if (finalAmount < 0 && !customerId && !customerPhone?.trim() && (!customerName?.trim() || customerName.trim().toLowerCase() === 'walk-in customer')) {
+      paymentLockRef.current = false;
+      toast({
+        title: "Customer Required for Credit Note",
+        description: "Net amount is negative (credit note). Please add customer name or mobile number so the balance can be redeemed later.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Pay-later also needs customer phone
+    if (method === 'pay_later' && !customerPhone?.trim()) {
+      paymentLockRef.current = false;
+      toast({
+        title: "Customer Details Required",
+        description: "Please enter customer mobile number for balance/credit invoices.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Save the sale with the selected payment method
     const saleData = {
       customerId: customerId || null,
