@@ -71,6 +71,7 @@ export default function ItemWiseSalesReport() {
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [selectedCustomer, setSelectedCustomer] = useState<string>("all");
   const [selectedColor, setSelectedColor] = useState<string>("all");
+  const [selectedUser, setSelectedUser] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"itemwise" | "customerwise" | "brandwise" | "saledetails">("itemwise");
   const [saleDetailsGroupBy, setSaleDetailsGroupBy] = useState<"product_name" | "brand" | "category" | "department" | "barcode">("product_name");
   const [saleDetailsSearch, setSaleDetailsSearch] = useState("");
@@ -82,6 +83,7 @@ export default function ItemWiseSalesReport() {
     departments: [],
     customers: [],
     colors: [],
+    users: [],
   });
 
   const REPORT_CACHE = { staleTime: 5 * 60 * 1000, gcTime: 30 * 60 * 1000, refetchOnWindowFocus: false as const };
@@ -97,11 +99,11 @@ export default function ItemWiseSalesReport() {
   const { data: filterOptionsData } = useQuery({
     queryKey: ["item-wise-filter-options", currentOrganization?.id],
     queryFn: async () => {
-      if (!currentOrganization?.id) return { brands: [], categories: [], departments: [], customers: [], colors: [] };
+      if (!currentOrganization?.id) return { brands: [], categories: [], departments: [], customers: [], colors: [], users: [] };
 
       const [{ data: products }, { data: sales }, { data: variants }] = await Promise.all([
         supabase.from("products").select("brand, category, style").eq("organization_id", currentOrganization.id).is("deleted_at", null),
-        supabase.from("sales").select("customer_name").eq("organization_id", currentOrganization.id).is("deleted_at", null),
+        supabase.from("sales").select("customer_name, salesman").eq("organization_id", currentOrganization.id).is("deleted_at", null),
         supabase.from("product_variants").select("color, product_id, products!inner(organization_id)").eq("products.organization_id", currentOrganization.id).is("deleted_at", null),
       ]);
 
@@ -111,6 +113,7 @@ export default function ItemWiseSalesReport() {
         departments: [...new Set((products || []).map(p => p.style).filter(Boolean))].sort() as string[],
         customers: [...new Set((sales || []).map(s => s.customer_name).filter(Boolean))].sort() as string[],
         colors: [...new Set((variants || []).map((v: any) => v.color).filter(Boolean))].sort() as string[],
+        users: [...new Set((sales || []).map((s: any) => s.salesman).filter(Boolean))].sort() as string[],
       };
     },
     enabled: !!currentOrganization?.id,
