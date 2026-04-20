@@ -153,7 +153,7 @@ export default function ItemWiseSalesReport() {
 
   // Fetch sale items with product details
   const { data: saleItems = [], isLoading, isError } = useQuery({
-    queryKey: ["item-wise-sales", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer],
+    queryKey: ["item-wise-sales", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer, selectedUser],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
@@ -166,7 +166,7 @@ export default function ItemWiseSalesReport() {
       while (hasMore) {
         let salesQuery = supabase
           .from("sales")
-          .select("id, customer_name")
+          .select("id, customer_name, salesman")
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
           .gte("sale_date", dateRange.from.toISOString())
@@ -177,6 +177,9 @@ export default function ItemWiseSalesReport() {
 
         if (selectedCustomer !== "all") {
           salesQuery = salesQuery.eq("customer_name", selectedCustomer);
+        }
+        if (selectedUser !== "all") {
+          salesQuery = salesQuery.eq("salesman", selectedUser);
         }
 
         const { data: salesData, error: salesError } = await salesQuery;
