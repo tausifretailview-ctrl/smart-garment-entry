@@ -111,6 +111,7 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
       
       let totalPaidOnSales = 0;
       let totalAdvanceApplied = 0;
+      let totalCnApplied = 0;
       sales?.forEach(sale => {
         const salePaidAmount = sale.paid_amount || 0;
         const cashVoucher = invoiceVoucherPayments[sale.id] || 0;
@@ -119,13 +120,16 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
         const advCnVoucher = advVoucher + cnVoucher;
         // sale.paid_amount typically includes advance + CN portions. Subtract them
         // before the GREATEST drift check so we only count true cash receipts here
-        // (CN handled via saleReturnTotal, advance applied is added back below).
+        // (advance applied + CN applied are added back below).
         totalPaidOnSales += Math.max(salePaidAmount - advCnVoucher, cashVoucher);
         totalAdvanceApplied += advVoucher;
+        totalCnApplied += cnVoucher;
       });
 
-      // Total paid includes: cash receipts on sales + advance applied to sales + opening-balance receipts
-      const totalPaid = totalPaidOnSales + totalAdvanceApplied + openingBalanceVoucherPayments;
+      // Total paid = true cash on sales + advance applied + CN applied + opening-balance receipts.
+      // CN-applied is included because the formula uses GROSS sales (net+sale_return_adjust)
+      // and separately subtracts saleReturnTotal — the CN payment closes the gross side.
+      const totalPaid = totalPaidOnSales + totalAdvanceApplied + totalCnApplied + openingBalanceVoucherPayments;
 
       // Fetch balance adjustments
       const { data: adjustments, error: adjError } = await supabase
