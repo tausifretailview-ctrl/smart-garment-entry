@@ -606,12 +606,12 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
   // Fetch supplier names for filtered variants
   const [supplierMap, setSupplierMap] = useState<Record<string, string>>({});
   useEffect(() => {
-    if (!stockData.length || !currentOrganization?.id) {
+    if (!displayData.length || !currentOrganization?.id) {
       setSupplierMap({});
       return;
     }
 
-    const variantIds = stockData.map((item: any) => item.id);
+    const variantIds = displayData.map((item: any) => item.id);
     const variantKey = variantIds.join(',');
 
     (async () => {
@@ -634,7 +634,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
         /* ignore */
       }
     })();
-  }, [currentOrganization?.id, stockData.map((item: any) => item.id).join(',')]);
+  }, [currentOrganization?.id, displayData.map((item: any) => item.id).join(',')]);
 
   // Total stock value
   const totalStockValue = displayData?.reduce((sum, item) => {
