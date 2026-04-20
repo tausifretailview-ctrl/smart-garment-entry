@@ -42,6 +42,7 @@ interface FilterOptions {
   departments: string[];
   customers: string[];
   colors: string[];
+  users: string[];
 }
 
 const CHART_COLORS = [
@@ -70,6 +71,7 @@ export default function ItemWiseSalesReport() {
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [selectedCustomer, setSelectedCustomer] = useState<string>("all");
   const [selectedColor, setSelectedColor] = useState<string>("all");
+  const [selectedUser, setSelectedUser] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"itemwise" | "customerwise" | "brandwise" | "saledetails">("itemwise");
   const [saleDetailsGroupBy, setSaleDetailsGroupBy] = useState<"product_name" | "brand" | "category" | "department" | "barcode">("product_name");
   const [saleDetailsSearch, setSaleDetailsSearch] = useState("");
@@ -81,6 +83,7 @@ export default function ItemWiseSalesReport() {
     departments: [],
     customers: [],
     colors: [],
+    users: [],
   });
 
   const REPORT_CACHE = { staleTime: 5 * 60 * 1000, gcTime: 30 * 60 * 1000, refetchOnWindowFocus: false as const };
@@ -96,11 +99,11 @@ export default function ItemWiseSalesReport() {
   const { data: filterOptionsData } = useQuery({
     queryKey: ["item-wise-filter-options", currentOrganization?.id],
     queryFn: async () => {
-      if (!currentOrganization?.id) return { brands: [], categories: [], departments: [], customers: [], colors: [] };
+      if (!currentOrganization?.id) return { brands: [], categories: [], departments: [], customers: [], colors: [], users: [] };
 
       const [{ data: products }, { data: sales }, { data: variants }] = await Promise.all([
         supabase.from("products").select("brand, category, style").eq("organization_id", currentOrganization.id).is("deleted_at", null),
-        supabase.from("sales").select("customer_name").eq("organization_id", currentOrganization.id).is("deleted_at", null),
+        supabase.from("sales").select("customer_name, salesman").eq("organization_id", currentOrganization.id).is("deleted_at", null),
         supabase.from("product_variants").select("color, product_id, products!inner(organization_id)").eq("products.organization_id", currentOrganization.id).is("deleted_at", null),
       ]);
 
@@ -110,6 +113,7 @@ export default function ItemWiseSalesReport() {
         departments: [...new Set((products || []).map(p => p.style).filter(Boolean))].sort() as string[],
         customers: [...new Set((sales || []).map(s => s.customer_name).filter(Boolean))].sort() as string[],
         colors: [...new Set((variants || []).map((v: any) => v.color).filter(Boolean))].sort() as string[],
+        users: [...new Set((sales || []).map((s: any) => s.salesman).filter(Boolean))].sort() as string[],
       };
     },
     enabled: !!currentOrganization?.id,
@@ -149,7 +153,7 @@ export default function ItemWiseSalesReport() {
 
   // Fetch sale items with product details
   const { data: saleItems = [], isLoading, isError } = useQuery({
-    queryKey: ["item-wise-sales", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer],
+    queryKey: ["item-wise-sales", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer, selectedUser],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
@@ -162,7 +166,7 @@ export default function ItemWiseSalesReport() {
       while (hasMore) {
         let salesQuery = supabase
           .from("sales")
-          .select("id, customer_name")
+          .select("id, customer_name, salesman")
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
           .gte("sale_date", dateRange.from.toISOString())
@@ -173,6 +177,9 @@ export default function ItemWiseSalesReport() {
 
         if (selectedCustomer !== "all") {
           salesQuery = salesQuery.eq("customer_name", selectedCustomer);
+        }
+        if (selectedUser !== "all") {
+          salesQuery = salesQuery.eq("salesman", selectedUser);
         }
 
         const { data: salesData, error: salesError } = await salesQuery;
@@ -787,12 +794,25 @@ export default function ItemWiseSalesReport() {
                     allValue="all"
                   />
                 </div>
+
+                {/* User Filter */}
+                <div className="w-full md:w-48">
+                  <label className="text-sm font-medium text-muted-foreground mb-1 block">User</label>
+                  <SearchableSelect
+                    value={selectedUser}
+                    onValueChange={setSelectedUser}
+                    options={filterOptions.users}
+                    placeholder="All Users"
+                    allLabel="All Users"
+                    allValue="all"
+                  />
+                </div>
               </div>
             )}
 
             <div className="text-sm text-muted-foreground">
               Showing data from {format(dateRange.from, "dd MMM yyyy")} to {format(dateRange.to, "dd MMM yyyy")}
-              {(selectedBrand !== "all" || selectedCategory !== "all" || selectedDepartment !== "all" || selectedColor !== "all" || selectedCustomer !== "all") && (
+              {(selectedBrand !== "all" || selectedCategory !== "all" || selectedDepartment !== "all" || selectedColor !== "all" || selectedCustomer !== "all" || selectedUser !== "all") && (
                 <span className="ml-2 text-primary">• Filters applied</span>
               )}
             </div>
