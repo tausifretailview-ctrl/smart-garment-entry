@@ -2200,8 +2200,8 @@ const POSDashboard = () => {
                                           </TableHeader>
                                           <TableBody>
                                             {saleReturns[sale.sale_number].map((ret: any) => (
-                                              <>
-                                              <TableRow key={ret.id} className="h-9">
+                                              <React.Fragment key={ret.id}>
+                                              <TableRow className="h-9">
                                                 <TableCell className="px-2 py-1">
                                                   <Badge variant="destructive" className="text-xs px-1.5 py-0">{ret.return_number || "-"}</Badge>
                                                 </TableCell>
@@ -2215,7 +2215,7 @@ const POSDashboard = () => {
                                                 </TableCell>
                                               </TableRow>
                                               {Array.isArray(ret.sale_return_items) && ret.sale_return_items.length > 0 && (
-                                                <TableRow key={`${ret.id}-items`}>
+                                                <TableRow>
                                                   <TableCell colSpan={5} className="p-2 bg-red-50/30">
                                                     <div className="rounded border border-red-200 bg-background">
                                                       <Table>
@@ -2250,7 +2250,7 @@ const POSDashboard = () => {
                                                   </TableCell>
                                                 </TableRow>
                                               )}
-                                              </>
+                                              </React.Fragment>
                                             ))}
                                           </TableBody>
                                         </Table>
