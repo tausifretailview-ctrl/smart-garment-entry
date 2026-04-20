@@ -561,44 +561,58 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
   const { data: fallbackData } = useQuery({
     queryKey: ["floating-stock-fallback", currentOrganization?.id, searchQuery],
     queryFn: async () => {
-      if (!currentOrganization?.id || searchQuery.trim().length < 2) return [];
+      if (!currentOrganization?.id || searchQuery.trim().length < 1) return [];
       const term = searchQuery.trim();
-      const tokens = term.split(/[\s-]+/).filter(Boolean);
-      let query = supabase
+      const orgId = currentOrganization.id;
+      const select = `id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id,
+          product:products!inner(id, product_name, brand, category, deleted_at, organization_id)`;
+
+      // 1) Exact barcode match (fast path for scanner / numeric search)
+      const exact = await supabase
         .from("product_variants")
-        .select(`
-          id, barcode, size, color, stock_qty, sale_price, mrp, pur_price,
-          product:products!inner(id, product_name, brand, category, deleted_at, organization_id)
-        `)
-        .eq("products.organization_id", currentOrganization.id)
+        .select(select)
+        .eq("products.organization_id", orgId)
         .is("products.deleted_at", null)
         .is("deleted_at", null)
         .eq("active", true)
-        .limit(100);
+        .eq("barcode", term)
+        .limit(50);
+      if (exact.data && exact.data.length > 0) return exact.data;
 
-      // Try variant-level barcode/size match OR product-level name/brand match
-      query = query.or(
-        tokens.map(t => `barcode.ilike.%${t}%,size.ilike.%${t}%,color.ilike.%${t}%`).join(',')
-      );
-      const { data } = await query;
-      if (data && data.length > 0) return data;
-
-      // Product-name fallback
-      const { data: data2 } = await supabase
+      // 2) Variant-level partial match (barcode/size/color)
+      const variantQ = await supabase
         .from("product_variants")
-        .select(`
-          id, barcode, size, color, stock_qty, sale_price, mrp, pur_price,
-          product:products!inner(id, product_name, brand, category, deleted_at, organization_id)
-        `)
-        .eq("products.organization_id", currentOrganization.id)
+        .select(select)
+        .eq("products.organization_id", orgId)
         .is("products.deleted_at", null)
         .is("deleted_at", null)
         .eq("active", true)
-        .or(`product_name.ilike.%${term}%,brand.ilike.%${term}%,category.ilike.%${term}%`, { foreignTable: "products" })
+        .or(`barcode.ilike.%${term}%,size.ilike.%${term}%,color.ilike.%${term}%`)
         .limit(100);
-      return data2 || [];
+      if (variantQ.data && variantQ.data.length > 0) return variantQ.data;
+
+      // 3) Product-level partial match (name/brand/category) → fetch their variants
+      const prodQ = await supabase
+        .from("products")
+        .select("id")
+        .eq("organization_id", orgId)
+        .is("deleted_at", null)
+        .or(`product_name.ilike.%${term}%,brand.ilike.%${term}%,category.ilike.%${term}%`)
+        .limit(50);
+      const prodIds = (prodQ.data || []).map((p: any) => p.id);
+      if (prodIds.length === 0) return [];
+      const { data: vData } = await supabase
+        .from("product_variants")
+        .select(select)
+        .eq("products.organization_id", orgId)
+        .is("products.deleted_at", null)
+        .is("deleted_at", null)
+        .eq("active", true)
+        .in("product_id", prodIds)
+        .limit(200);
+      return vData || [];
     },
-    enabled: !!currentOrganization?.id && open && searchQuery.trim().length >= 2 && stockData.length === 0,
+    enabled: !!currentOrganization?.id && open && searchQuery.trim().length >= 1 && stockData.length === 0,
   });
 
   const displayData = stockData.length > 0 ? stockData : (fallbackData || []);
