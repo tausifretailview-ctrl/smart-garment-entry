@@ -363,6 +363,22 @@ const POSDashboard = () => {
       setSales(allSales);
       // Phase 1 complete - show table immediately
       setLoading(false);
+
+      // Fetch credit_notes usage for sales that issued credit notes
+      const cnIds = allSales.map((s: any) => s.credit_note_id).filter(Boolean);
+      if (cnIds.length > 0) {
+        const { data: cnData } = await supabase
+          .from('credit_notes')
+          .select('id, credit_amount, used_amount, status')
+          .in('id', cnIds);
+        if (cnData) {
+          const map: Record<string, { credit_amount: number; used_amount: number; status: string }> = {};
+          cnData.forEach((c: any) => {
+            map[c.id] = { credit_amount: c.credit_amount || 0, used_amount: c.used_amount || 0, status: c.status };
+          });
+          setCreditNoteUsage(map);
+        }
+      }
       
       // Phase 2: Fetch sale items in background (non-blocking)
       if (allSales.length > 0) {
