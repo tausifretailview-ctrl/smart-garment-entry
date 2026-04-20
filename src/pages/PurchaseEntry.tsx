@@ -1936,6 +1936,102 @@ const PurchaseEntry = () => {
     focusSearchBar();
   };
 
+  // Add ALL active variants of a product as inline rows (qty=1 each).
+  // Useful when the supplier ships every size/color of a style and the user
+  // wants every variant pre-loaded into the purchase bill for editing.
+  const addAllVariantsRows = async (productId: string) => {
+    if (!currentOrganization) return;
+
+    if (searchAbortControllerRef.current) {
+      searchAbortControllerRef.current.abort();
+      searchAbortControllerRef.current = null;
+    }
+    setSearchQuery("");
+    setSearchResults([]);
+    setShowSearch(false);
+
+    const { data, error } = await supabase
+      .from("product_variants")
+      .select(`
+        id, size, color, barcode, pur_price, sale_price, mrp, active,
+        products (
+          id, product_name, brand, category, color, style,
+          hsn_code, gst_per, purchase_gst_percent, sale_gst_percent,
+          default_pur_price, default_sale_price,
+          purchase_discount_type, purchase_discount_value, uom
+        )
+      `)
+      .eq("product_id", productId)
+      .eq("organization_id", currentOrganization.id)
+      .eq("active", true);
+
+    if (error || !data || data.length === 0) {
+      toast({
+        title: "Error",
+        description: "Could not load variants for this product",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const sorted = [...data].sort((a: any, b: any) => {
+      const ca = (a.color || "").toString();
+      const cb = (b.color || "").toString();
+      if (ca !== cb) return ca.localeCompare(cb);
+      return (a.size || "").toString().localeCompare((b.size || "").toString(), undefined, { numeric: true });
+    });
+
+    const newRows: LineItem[] = [];
+    sorted.forEach((v: any, idx: number) => {
+      const product = v.products as any;
+      const purPrice = v.pur_price || product?.default_pur_price || 0;
+      const salePrice = v.sale_price || product?.default_sale_price || 0;
+      const gstPer = product?.purchase_gst_percent ?? product?.gst_per ?? 0;
+      const discountPercent = (() => {
+        const pdt = product?.purchase_discount_type;
+        const pdv = product?.purchase_discount_value || 0;
+        if (pdv > 0 && (!pdt || pdt === 'percent')) return pdv;
+        return 0;
+      })();
+      const uom = product?.uom || 'NOS';
+      const mtrMult = getMtrMultiplier({ uom, size: v.size || '', qty: 1 });
+      const subTotal = mtrMult * purPrice;
+      const lineTotal = subTotal - subTotal * (discountPercent / 100);
+
+      newRows.push({
+        temp_id: Date.now().toString() + Math.random() + idx,
+        product_id: productId,
+        sku_id: v.id,
+        product_name: product?.product_name || "",
+        size: v.size || "",
+        qty: 1,
+        pur_price: purPrice,
+        sale_price: salePrice,
+        mrp: v.mrp || 0,
+        gst_per: isDcPurchase ? 0 : gstPer,
+        hsn_code: product?.hsn_code || "",
+        barcode: v.barcode || "",
+        discount_percent: discountPercent,
+        line_total: lineTotal,
+        brand: product?.brand || "",
+        category: product?.category || "",
+        color: v.color || product?.color || "",
+        style: product?.style || "",
+        uom,
+      });
+    });
+
+    setLineItems((prev) => [...prev, ...newRows]);
+    toast({
+      title: "All variants added",
+      description: `Added ${newRows.length} variant${newRows.length === 1 ? "" : "s"} to bill (qty 1 each — adjust as needed).`,
+    });
+    setTimeout(() => {
+      lastQtyInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      lastQtyInputRef.current?.focus();
+    }, 100);
+  };
+
   const addInlineRow = async (variant: ProductVariant) => {
     let skuId = variant.id;
     let barcode = variant.barcode;
