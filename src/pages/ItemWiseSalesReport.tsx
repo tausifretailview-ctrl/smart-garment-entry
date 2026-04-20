@@ -396,7 +396,7 @@ export default function ItemWiseSalesReport() {
 
   // Sale Details: aggregate by selected group
   const saleDetailsData = useMemo(() => {
-    const groups = new Map<string, { key: string; total_qty: number; purchase_value: number; sale_value: number }>();
+    const groups = new Map<string, { key: string; total_qty: number; purchase_value: number; sale_value: number; product_name?: string; brand?: string; size?: string; color?: string; category?: string }>();
 
     saleItems.forEach((item: any) => {
       // Apply same client-side filters
@@ -411,6 +411,7 @@ export default function ItemWiseSalesReport() {
         case "brand": groupKey = item.products?.brand || "Unbranded"; break;
         case "category": groupKey = item.products?.category || "Uncategorized"; break;
         case "department": groupKey = item.products?.style || "No Department"; break;
+        case "barcode": groupKey = item.barcode || "(No Barcode)"; break;
       }
 
       const existing = groups.get(groupKey);
@@ -423,7 +424,17 @@ export default function ItemWiseSalesReport() {
         existing.sale_value += saleVal;
         existing.purchase_value += purchaseVal;
       } else {
-        groups.set(groupKey, { key: groupKey, total_qty: qty, purchase_value: purchaseVal, sale_value: saleVal });
+        groups.set(groupKey, {
+          key: groupKey,
+          total_qty: qty,
+          purchase_value: purchaseVal,
+          sale_value: saleVal,
+          product_name: item.product_name || "",
+          brand: item.products?.brand || "",
+          size: item.size || "",
+          color: item.products?.color || "",
+          category: item.products?.category || "",
+        });
       }
     });
 
@@ -432,7 +443,11 @@ export default function ItemWiseSalesReport() {
     // Apply search
     if (saleDetailsSearch.trim()) {
       const q = saleDetailsSearch.toLowerCase();
-      result = result.filter(r => r.key.toLowerCase().includes(q));
+      result = result.filter(r =>
+        r.key.toLowerCase().includes(q) ||
+        (r.product_name || "").toLowerCase().includes(q) ||
+        (r.brand || "").toLowerCase().includes(q)
+      );
     }
 
     return result;
