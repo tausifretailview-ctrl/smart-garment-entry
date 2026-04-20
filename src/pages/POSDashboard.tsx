@@ -184,6 +184,7 @@ const POSDashboard = () => {
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [saleItems, setSaleItems] = useState<Record<string, SaleItem[]>>({});
   const [saleReturns, setSaleReturns] = useState<Record<string, any[]>>({});
+  const [creditNoteUsage, setCreditNoteUsage] = useState<Record<string, { credit_amount: number; used_amount: number; status: string }>>({});
   const [selectedSales, setSelectedSales] = useState<Set<string>>(new Set());
   const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
   const [itemCountToDelete, setItemCountToDelete] = useState<number | null>(null);
