@@ -71,7 +71,7 @@ export default function ItemWiseSalesReport() {
   const [selectedCustomer, setSelectedCustomer] = useState<string>("all");
   const [selectedColor, setSelectedColor] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"itemwise" | "customerwise" | "brandwise" | "saledetails">("itemwise");
-  const [saleDetailsGroupBy, setSaleDetailsGroupBy] = useState<"product_name" | "brand" | "category" | "department">("product_name");
+  const [saleDetailsGroupBy, setSaleDetailsGroupBy] = useState<"product_name" | "brand" | "category" | "department" | "barcode">("product_name");
   const [saleDetailsSearch, setSaleDetailsSearch] = useState("");
   const [saleDetailsPage, setSaleDetailsPage] = useState(1);
   const SALE_DETAILS_PAGE_SIZE = 200;
@@ -396,7 +396,7 @@ export default function ItemWiseSalesReport() {
 
   // Sale Details: aggregate by selected group
   const saleDetailsData = useMemo(() => {
-    const groups = new Map<string, { key: string; total_qty: number; purchase_value: number; sale_value: number }>();
+    const groups = new Map<string, { key: string; total_qty: number; purchase_value: number; sale_value: number; product_name?: string; brand?: string; size?: string; color?: string; category?: string }>();
 
     saleItems.forEach((item: any) => {
       // Apply same client-side filters
@@ -411,6 +411,7 @@ export default function ItemWiseSalesReport() {
         case "brand": groupKey = item.products?.brand || "Unbranded"; break;
         case "category": groupKey = item.products?.category || "Uncategorized"; break;
         case "department": groupKey = item.products?.style || "No Department"; break;
+        case "barcode": groupKey = item.barcode || "(No Barcode)"; break;
       }
 
       const existing = groups.get(groupKey);
@@ -423,7 +424,17 @@ export default function ItemWiseSalesReport() {
         existing.sale_value += saleVal;
         existing.purchase_value += purchaseVal;
       } else {
-        groups.set(groupKey, { key: groupKey, total_qty: qty, purchase_value: purchaseVal, sale_value: saleVal });
+        groups.set(groupKey, {
+          key: groupKey,
+          total_qty: qty,
+          purchase_value: purchaseVal,
+          sale_value: saleVal,
+          product_name: item.product_name || "",
+          brand: item.products?.brand || "",
+          size: item.size || "",
+          color: item.products?.color || "",
+          category: item.products?.category || "",
+        });
       }
     });
 
@@ -432,7 +443,11 @@ export default function ItemWiseSalesReport() {
     // Apply search
     if (saleDetailsSearch.trim()) {
       const q = saleDetailsSearch.toLowerCase();
-      result = result.filter(r => r.key.toLowerCase().includes(q));
+      result = result.filter(r =>
+        r.key.toLowerCase().includes(q) ||
+        (r.product_name || "").toLowerCase().includes(q) ||
+        (r.brand || "").toLowerCase().includes(q)
+      );
     }
 
     return result;
@@ -500,14 +515,24 @@ export default function ItemWiseSalesReport() {
       XLSX.utils.book_append_sheet(wb, ws, "Customer-wise Sales");
       XLSX.writeFile(wb, `customer-wise-sales-${format(dateRange.from, "yyyy-MM-dd")}.xlsx`);
     } else if (activeTab === "saledetails") {
-      const groupLabel = { product_name: "Product Name", brand: "Brand", category: "Category", department: "Department" }[saleDetailsGroupBy];
-      const exportData = saleDetailsData.map((item, i) => ({
-        "Sr No": i + 1,
-        [groupLabel]: item.key,
-        "Total Qty": item.total_qty,
-        "Purchase Value": item.purchase_value.toFixed(2),
-        "Sale Value": item.sale_value.toFixed(2),
-      }));
+      const groupLabel = { product_name: "Product Name", brand: "Brand", category: "Category", department: "Department", barcode: "Barcode" }[saleDetailsGroupBy];
+      const exportData = saleDetailsData.map((item, i) => {
+        const base: any = {
+          "Sr No": i + 1,
+          [groupLabel]: item.key,
+        };
+        if (saleDetailsGroupBy === "barcode") {
+          base["Product Name"] = item.product_name || "";
+          base["Brand"] = item.brand || "";
+          base["Category"] = item.category || "";
+          base["Color"] = item.color || "";
+          base["Size"] = item.size || "";
+        }
+        base["Total Qty"] = item.total_qty;
+        base["Purchase Value"] = item.purchase_value.toFixed(2);
+        base["Sale Value"] = item.sale_value.toFixed(2);
+        return base;
+      });
       const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Sale Details");
@@ -1193,7 +1218,7 @@ export default function ItemWiseSalesReport() {
             <CardHeader className="pb-3">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <CardTitle className="text-lg">
-                  {({ product_name: "Product Name", brand: "Brand", category: "Category", department: "Department" })[saleDetailsGroupBy]} Wise Sale Details ({saleDetailsData.length} rows)
+                  {({ product_name: "Product Name", brand: "Brand", category: "Category", department: "Department", barcode: "Barcode" })[saleDetailsGroupBy]} Wise Sale Details ({saleDetailsData.length} rows)
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   <Button variant="outline" size="sm" onClick={exportToExcel}>
@@ -1216,13 +1241,14 @@ export default function ItemWiseSalesReport() {
                       <SelectItem value="brand">Brand</SelectItem>
                       <SelectItem value="category">Category</SelectItem>
                       <SelectItem value="department">Department</SelectItem>
+                      <SelectItem value="barcode">Barcode</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder={`Search ${({ product_name: "product name", brand: "brand", category: "category", department: "department" })[saleDetailsGroupBy]}...`}
+                    placeholder={`Search ${({ product_name: "product name", brand: "brand", category: "category", department: "department", barcode: "barcode / product / brand" })[saleDetailsGroupBy]}...`}
                     value={saleDetailsSearch}
                     onChange={(e) => { setSaleDetailsSearch(e.target.value); setSaleDetailsPage(1); }}
                     className="pl-9 pr-8 no-uppercase"
@@ -1284,7 +1310,15 @@ export default function ItemWiseSalesReport() {
                   <TableHeader>
                      <TableRow className="bg-muted/50">
                       <TableHead className="w-12 font-bold text-foreground">SR.NO</TableHead>
-                      <TableHead className="font-bold text-foreground">{({ product_name: "PRODUCT NAME", brand: "BRAND", category: "CATEGORY", department: "DEPARTMENT" })[saleDetailsGroupBy]}</TableHead>
+                      <TableHead className="font-bold text-foreground">{({ product_name: "PRODUCT NAME", brand: "BRAND", category: "CATEGORY", department: "DEPARTMENT", barcode: "BARCODE" })[saleDetailsGroupBy]}</TableHead>
+                      {saleDetailsGroupBy === "barcode" && (
+                        <>
+                          <TableHead className="font-bold text-foreground">PRODUCT</TableHead>
+                          <TableHead className="font-bold text-foreground">BRAND</TableHead>
+                          <TableHead className="font-bold text-foreground">SIZE</TableHead>
+                          <TableHead className="font-bold text-foreground">COLOR</TableHead>
+                        </>
+                      )}
                       <TableHead className="text-right font-bold text-foreground">STOCK</TableHead>
                       <TableHead className="text-right font-bold text-foreground">PURCHASE VALUE</TableHead>
                       <TableHead className="text-right font-bold text-foreground">SALES VALUE</TableHead>
@@ -1293,11 +1327,11 @@ export default function ItemWiseSalesReport() {
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading...</TableCell>
+                        <TableCell colSpan={saleDetailsGroupBy === "barcode" ? 9 : 5} className="text-center py-8 text-muted-foreground">Loading...</TableCell>
                       </TableRow>
                     ) : saleDetailsData.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No data found</TableCell>
+                        <TableCell colSpan={saleDetailsGroupBy === "barcode" ? 9 : 5} className="text-center py-8 text-muted-foreground">No data found</TableCell>
                       </TableRow>
                     ) : (() => {
                       const totalPages = Math.ceil(saleDetailsData.length / SALE_DETAILS_PAGE_SIZE);
@@ -1308,6 +1342,14 @@ export default function ItemWiseSalesReport() {
                             <TableRow key={row.key} className="hover:bg-muted/30">
                               <TableCell className="font-mono text-muted-foreground">{(saleDetailsPage - 1) * SALE_DETAILS_PAGE_SIZE + idx + 1}</TableCell>
                               <TableCell className="font-medium text-primary">{row.key}</TableCell>
+                              {saleDetailsGroupBy === "barcode" && (
+                                <>
+                                  <TableCell>{row.product_name || "-"}</TableCell>
+                                  <TableCell>{row.brand || "-"}</TableCell>
+                                  <TableCell>{row.size || "-"}</TableCell>
+                                  <TableCell>{row.color || "-"}</TableCell>
+                                </>
+                              )}
                               <TableCell className="text-right font-mono">{row.total_qty}</TableCell>
                               <TableCell className="text-right font-mono">{row.purchase_value.toFixed(2)}</TableCell>
                               <TableCell className="text-right font-mono font-semibold">{row.sale_value.toFixed(2)}</TableCell>
@@ -1315,7 +1357,7 @@ export default function ItemWiseSalesReport() {
                           ))}
                           {totalPages > 1 && (
                             <TableRow>
-                              <TableCell colSpan={5}>
+                              <TableCell colSpan={saleDetailsGroupBy === "barcode" ? 9 : 5}>
                                 <div className="flex items-center justify-between py-2">
                                   <p className="text-sm text-muted-foreground">
                                     Showing {(saleDetailsPage - 1) * SALE_DETAILS_PAGE_SIZE + 1}–{Math.min(saleDetailsPage * SALE_DETAILS_PAGE_SIZE, saleDetailsData.length)} of {saleDetailsData.length}
@@ -1336,7 +1378,7 @@ export default function ItemWiseSalesReport() {
                   {saleDetailsData.length > 0 && (
                     <TableFooter>
                       <TableRow>
-                        <TableCell colSpan={2} className="font-bold">Grand Total</TableCell>
+                        <TableCell colSpan={saleDetailsGroupBy === "barcode" ? 6 : 2} className="font-bold">Grand Total</TableCell>
                         <TableCell className="text-right font-bold">{saleDetailsTotals.total_qty.toLocaleString()}</TableCell>
                         <TableCell className="text-right font-bold">{saleDetailsTotals.purchase_value.toFixed(2)}</TableCell>
                         <TableCell className="text-right font-bold text-primary">₹{saleDetailsTotals.sale_value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
