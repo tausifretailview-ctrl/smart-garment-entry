@@ -46,7 +46,7 @@ interface ProductEditPanelProps {
   lineItems: LineItem[];
   currentIndex: number;
   onIndexChange: (index: number) => void;
-  onProductUpdated: (tempId: string, updates: Partial<LineItem>) => void;
+  onProductUpdated: (tempId: string, updates: Partial<LineItem>, applyToProductId?: string) => void;
   focusField?: string;
 }
 
@@ -231,14 +231,23 @@ const ProductEditPanel = ({
 
       // Update variant MRP if changed
       if (modifiedFields.has("default_mrp") || modifiedFields.has("default_pur_price") || modifiedFields.has("default_sale_price")) {
-        await supabase
-          .from("product_variants")
-          .update({
-            pur_price: form.default_pur_price,
-            sale_price: form.default_sale_price,
-            mrp: form.default_mrp || null,
-          })
-          .eq("id", item.sku_id);
+        // Update ALL variants of this product that are part of the current purchase bill
+        // (so changing price for one size propagates to S/M/L/XL/XXL of the same product in this bill)
+        const billVariantIds = Array.from(new Set(
+          lineItems
+            .filter(li => li.product_id === item.product_id && li.sku_id)
+            .map(li => li.sku_id)
+        ));
+        const variantUpdates: Record<string, any> = {};
+        if (modifiedFields.has("default_pur_price")) variantUpdates.pur_price = form.default_pur_price;
+        if (modifiedFields.has("default_sale_price")) variantUpdates.sale_price = form.default_sale_price;
+        if (modifiedFields.has("default_mrp")) variantUpdates.mrp = form.default_mrp || null;
+        if (Object.keys(variantUpdates).length > 0 && billVariantIds.length > 0) {
+          await supabase
+            .from("product_variants")
+            .update(variantUpdates)
+            .in("id", billVariantIds);
+        }
       }
 
       // Update line item in bill
@@ -255,7 +264,8 @@ const ProductEditPanel = ({
       if (modifiedFields.has("default_mrp")) lineUpdates.mrp = form.default_mrp;
 
       if (Object.keys(lineUpdates).length > 0) {
-        onProductUpdated(item.temp_id, lineUpdates);
+        // Pass product_id so parent can apply updates to ALL line items of this product in the bill
+        onProductUpdated(item.temp_id, lineUpdates, item.product_id);
       }
 
       // Sync product_name to all purchase_items for this product

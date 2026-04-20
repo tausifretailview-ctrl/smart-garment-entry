@@ -344,14 +344,21 @@ const PurchaseEntry = () => {
   } = useDraftSave('purchase');
 
   // Handle product edit panel updates
-  const handleProductUpdated = useCallback((tempId: string, updates: Partial<LineItem>) => {
-    setLineItems(prev => prev.map(item => 
-      item.temp_id === tempId ? (() => { const merged = { ...item, ...updates }; const mult = getMtrMultiplier(merged); return { ...merged, line_total: ((updates.pur_price ?? item.pur_price) * mult) * (1 - item.discount_percent / 100) }; })() : item
-    ));
-    // Show updated badge briefly
-    setUpdatedRows(prev => new Set(prev).add(tempId));
+  const handleProductUpdated = useCallback((tempId: string, updates: Partial<LineItem>, applyToProductId?: string) => {
+    const touched = new Set<string>();
+    setLineItems(prev => prev.map(item => {
+      // Apply to the edited row, OR to ALL rows of the same product in this bill
+      const matches = item.temp_id === tempId || (applyToProductId && item.product_id === applyToProductId);
+      if (!matches) return item;
+      touched.add(item.temp_id);
+      const merged = { ...item, ...updates };
+      const mult = getMtrMultiplier(merged);
+      return { ...merged, line_total: ((updates.pur_price ?? item.pur_price) * mult) * (1 - item.discount_percent / 100) };
+    }));
+    // Show updated badge briefly on all touched rows
+    setUpdatedRows(prev => { const next = new Set(prev); touched.forEach(id => next.add(id)); return next; });
     setTimeout(() => {
-      setUpdatedRows(prev => { const next = new Set(prev); next.delete(tempId); return next; });
+      setUpdatedRows(prev => { const next = new Set(prev); touched.forEach(id => next.delete(id)); return next; });
     }, 3000);
   }, []);
 
