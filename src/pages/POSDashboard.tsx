@@ -1682,6 +1682,7 @@ const POSDashboard = () => {
                   <SelectItem value="all">All Bills</SelectItem>
                   <SelectItem value="pos">POS Bills</SelectItem>
                   <SelectItem value="dc">DC Only</SelectItem>
+                  <SelectItem value="cn">CN Only</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={userFilter} onValueChange={setUserFilter}>
