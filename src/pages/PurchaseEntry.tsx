@@ -4021,17 +4021,21 @@ const PurchaseEntry = () => {
                   {showSearch && searchResults.length > 0 && (
                     <div className="absolute top-full mt-1 w-full bg-popover border border-border rounded-md shadow-lg z-[100] max-h-80 overflow-auto">
                       {searchResults.map((result, idx) => (
-                        <button
+                        <div
                           key={result.product_id + idx}
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => handleProductSelect(result)}
                           onMouseEnter={() => setSelectedSearchIndex(idx)}
                           className={cn(
-                            "w-full text-left px-4 py-3 text-popover-foreground border-b border-border last:border-0 transition-colors",
+                            "w-full text-left px-4 py-3 text-popover-foreground border-b border-border last:border-0 transition-colors flex items-start gap-2",
                             idx === selectedSearchIndex ? "bg-accent" : "hover:bg-accent/50"
                           )}
                         >
-                          <div className="flex justify-between items-start gap-2">
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleProductSelect(result)}
+                            className="flex-1 text-left"
+                          >
+                            <div className="flex justify-between items-start gap-2">
                             <div className="min-w-0 flex-1">
                               <div className="font-semibold text-sm flex items-center gap-2">
                                 <span>{result.product_name}</span>
@@ -4057,8 +4061,21 @@ const PurchaseEntry = () => {
                               <div className="text-[11px] text-amber-600 dark:text-amber-400 font-bold">MRP: ₹{result.mrp?.toFixed(2) || '0.00'}</div>
                               <div className="text-[11px] text-muted-foreground">Sale: ₹{result.sale_price?.toFixed(2) || '0.00'}</div>
                             </div>
-                          </div>
-                        </button>
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            title="Add all variants of this product (each qty 1)"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (result.product_id) addAllVariantsRows(result.product_id);
+                            }}
+                            className="shrink-0 self-center text-[11px] font-semibold px-2 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20 border border-primary/30"
+                          >
+                            + All variants
+                          </button>
+                        </div>
                       ))}
                     </div>
                   )}
