@@ -2037,21 +2037,25 @@ const POSDashboard = () => {
                             )}
                             {columnSettings.creditNoteAmt && (
                               <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
-                                {sale.credit_note_id ? (
-                                  <span className="font-semibold text-violet-600">
-                                    ₹{Math.round(sale.credit_note_amount || 0).toLocaleString('en-IN')}
-                                  </span>
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
+                                {(() => {
+                                  const cnAmt = sale.credit_note_amount || (sale.net_amount < 0 ? Math.abs(sale.net_amount) : 0);
+                                  if (cnAmt > 0 || sale.credit_note_id) {
+                                    return (
+                                      <span className="font-semibold text-violet-600">
+                                        ₹{Math.round(cnAmt).toLocaleString('en-IN')}
+                                      </span>
+                                    );
+                                  }
+                                  return <span className="text-muted-foreground">-</span>;
+                                })()}
                               </TableCell>
                             )}
                             {columnSettings.creditNoteStatus && (
                               <TableCell className="px-2 py-1.5" onClick={() => toggleExpanded(sale.id)}>
-                                {sale.credit_note_id ? (() => {
-                                  const cn = creditNoteUsage[sale.credit_note_id!];
+                                {(sale.credit_note_id || sale.net_amount < 0) ? (() => {
+                                  const cn = sale.credit_note_id ? creditNoteUsage[sale.credit_note_id] : null;
                                   const used = cn?.used_amount || 0;
-                                  const total = cn?.credit_amount || 0;
+                                  const total = cn?.credit_amount || (sale.net_amount < 0 ? Math.abs(sale.net_amount) : 0);
                                   if (used > 0 && used >= total) {
                                     return (
                                       <Badge className="bg-green-600 hover:bg-green-700 text-white text-xs px-1.5 py-0 font-bold" title={`Adjusted ₹${Math.round(used).toLocaleString('en-IN')}`}>
@@ -2067,8 +2071,8 @@ const POSDashboard = () => {
                                     );
                                   }
                                   return (
-                                    <Badge className="bg-violet-500 hover:bg-violet-600 text-white text-xs px-1.5 py-0">
-                                      Issued
+                                    <Badge className="bg-violet-500 hover:bg-violet-600 text-white text-xs px-1.5 py-0 font-bold">
+                                      CN
                                     </Badge>
                                   );
                                 })() : (
