@@ -1310,7 +1310,15 @@ export default function ItemWiseSalesReport() {
                   <TableHeader>
                      <TableRow className="bg-muted/50">
                       <TableHead className="w-12 font-bold text-foreground">SR.NO</TableHead>
-                      <TableHead className="font-bold text-foreground">{({ product_name: "PRODUCT NAME", brand: "BRAND", category: "CATEGORY", department: "DEPARTMENT" })[saleDetailsGroupBy]}</TableHead>
+                      <TableHead className="font-bold text-foreground">{({ product_name: "PRODUCT NAME", brand: "BRAND", category: "CATEGORY", department: "DEPARTMENT", barcode: "BARCODE" })[saleDetailsGroupBy]}</TableHead>
+                      {saleDetailsGroupBy === "barcode" && (
+                        <>
+                          <TableHead className="font-bold text-foreground">PRODUCT</TableHead>
+                          <TableHead className="font-bold text-foreground">BRAND</TableHead>
+                          <TableHead className="font-bold text-foreground">SIZE</TableHead>
+                          <TableHead className="font-bold text-foreground">COLOR</TableHead>
+                        </>
+                      )}
                       <TableHead className="text-right font-bold text-foreground">STOCK</TableHead>
                       <TableHead className="text-right font-bold text-foreground">PURCHASE VALUE</TableHead>
                       <TableHead className="text-right font-bold text-foreground">SALES VALUE</TableHead>
@@ -1319,11 +1327,11 @@ export default function ItemWiseSalesReport() {
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading...</TableCell>
+                        <TableCell colSpan={saleDetailsGroupBy === "barcode" ? 9 : 5} className="text-center py-8 text-muted-foreground">Loading...</TableCell>
                       </TableRow>
                     ) : saleDetailsData.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No data found</TableCell>
+                        <TableCell colSpan={saleDetailsGroupBy === "barcode" ? 9 : 5} className="text-center py-8 text-muted-foreground">No data found</TableCell>
                       </TableRow>
                     ) : (() => {
                       const totalPages = Math.ceil(saleDetailsData.length / SALE_DETAILS_PAGE_SIZE);
@@ -1334,6 +1342,14 @@ export default function ItemWiseSalesReport() {
                             <TableRow key={row.key} className="hover:bg-muted/30">
                               <TableCell className="font-mono text-muted-foreground">{(saleDetailsPage - 1) * SALE_DETAILS_PAGE_SIZE + idx + 1}</TableCell>
                               <TableCell className="font-medium text-primary">{row.key}</TableCell>
+                              {saleDetailsGroupBy === "barcode" && (
+                                <>
+                                  <TableCell>{row.product_name || "-"}</TableCell>
+                                  <TableCell>{row.brand || "-"}</TableCell>
+                                  <TableCell>{row.size || "-"}</TableCell>
+                                  <TableCell>{row.color || "-"}</TableCell>
+                                </>
+                              )}
                               <TableCell className="text-right font-mono">{row.total_qty}</TableCell>
                               <TableCell className="text-right font-mono">{row.purchase_value.toFixed(2)}</TableCell>
                               <TableCell className="text-right font-mono font-semibold">{row.sale_value.toFixed(2)}</TableCell>
@@ -1341,7 +1357,7 @@ export default function ItemWiseSalesReport() {
                           ))}
                           {totalPages > 1 && (
                             <TableRow>
-                              <TableCell colSpan={5}>
+                              <TableCell colSpan={saleDetailsGroupBy === "barcode" ? 9 : 5}>
                                 <div className="flex items-center justify-between py-2">
                                   <p className="text-sm text-muted-foreground">
                                     Showing {(saleDetailsPage - 1) * SALE_DETAILS_PAGE_SIZE + 1}–{Math.min(saleDetailsPage * SALE_DETAILS_PAGE_SIZE, saleDetailsData.length)} of {saleDetailsData.length}
@@ -1362,7 +1378,7 @@ export default function ItemWiseSalesReport() {
                   {saleDetailsData.length > 0 && (
                     <TableFooter>
                       <TableRow>
-                        <TableCell colSpan={2} className="font-bold">Grand Total</TableCell>
+                        <TableCell colSpan={saleDetailsGroupBy === "barcode" ? 6 : 2} className="font-bold">Grand Total</TableCell>
                         <TableCell className="text-right font-bold">{saleDetailsTotals.total_qty.toLocaleString()}</TableCell>
                         <TableCell className="text-right font-bold">{saleDetailsTotals.purchase_value.toFixed(2)}</TableCell>
                         <TableCell className="text-right font-bold text-primary">₹{saleDetailsTotals.sale_value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
