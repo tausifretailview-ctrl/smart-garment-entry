@@ -28,8 +28,14 @@ serve(async (req) => {
 
     const token = authHeader.replace("Bearer ", "");
     console.log("Verifying token...");
-    
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+
+    // Use a user-context client to validate the JWT (works with new signing-keys)
+    const userClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
 
     if (authError) {
       console.error("Auth error:", authError.message);
