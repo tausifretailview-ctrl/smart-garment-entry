@@ -42,6 +42,7 @@ interface FilterOptions {
   departments: string[];
   customers: string[];
   colors: string[];
+  users: string[];
 }
 
 const CHART_COLORS = [
