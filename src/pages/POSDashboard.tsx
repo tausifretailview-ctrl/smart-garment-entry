@@ -1915,12 +1915,19 @@ const POSDashboard = () => {
                             <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums font-semibold text-primary" onClick={() => toggleExpanded(sale.id)}>
                               <div className="flex flex-col items-end gap-0.5">
                                 <div className="flex items-center justify-end gap-1">
+                                  {sale.net_amount < 0 && (
+                                    <Badge variant="destructive" className="text-xs px-1 py-0 font-bold whitespace-nowrap">
+                                      CREDIT NOTE
+                                    </Badge>
+                                  )}
                                   {(sale.sale_return_adjust || 0) > 0 && (
                                     <Badge variant="outline" className="text-xs px-1 py-0 font-semibold border-orange-300 text-orange-600 bg-orange-50 dark:bg-orange-950 dark:border-orange-700 dark:text-orange-400 whitespace-nowrap">
                                       S/R Adj
                                     </Badge>
                                   )}
-                                  <span>₹{Math.round(sale.net_amount).toLocaleString('en-IN')}</span>
+                                  <span className={sale.net_amount < 0 ? 'text-red-600' : ''}>
+                                    ₹{Math.round(sale.net_amount).toLocaleString('en-IN')}
+                                  </span>
                                 </div>
                                 {(sale.sale_return_adjust || 0) > 0 && (
                                   <div
