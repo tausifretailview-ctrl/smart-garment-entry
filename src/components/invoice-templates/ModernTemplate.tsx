@@ -172,7 +172,7 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
         </div>
       )}
 
-      {/* TAX INVOICE Title */}
+      {/* TAX INVOICE / CREDIT NOTE Title */}
       <div style={{ 
         textAlign: 'center', 
         fontSize: '16pt', 
@@ -182,7 +182,7 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
         marginBottom: '10px',
         letterSpacing: '2px'
       }}>
-        TAX INVOICE
+        {grandTotal < 0 ? 'CREDIT NOTE' : 'TAX INVOICE'}
       </div>
 
       {/* Main Container with Border */}

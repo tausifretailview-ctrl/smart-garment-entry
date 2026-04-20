@@ -347,7 +347,9 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             }}
           >
             <div style={{ fontWeight: "800", fontSize: isA5 ? "8pt" : "10pt", color: colors.primary, lineHeight: "1.35", letterSpacing: "0.3px" }}>
-              {businessName?.toLowerCase().includes("banshri") || businessName?.toLowerCase().includes("bansari") || businessName?.toLowerCase().includes("banshri") ? (
+              {grandTotal < 0 ? (
+                <>CREDIT<br />NOTE</>
+              ) : businessName?.toLowerCase().includes("banshri") || businessName?.toLowerCase().includes("bansari") || businessName?.toLowerCase().includes("banshri") ? (
                 <>DELIVERY<br />CHALLAN</>
               ) : (
                 <>TAX<br />INVOICE</>

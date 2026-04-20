@@ -257,7 +257,7 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
         borderRadius: '4px',
         color: 'white'
       }}>
-        <div style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '4px' }}>TAX INVOICE</div>
+        <div style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '4px' }}>{grandTotal < 0 ? 'CREDIT NOTE' : 'TAX INVOICE'}</div>
         {logoUrl && (
           <img src={logoUrl} alt="Logo" style={{ maxWidth: '60px', maxHeight: '60px', marginBottom: '4px' }} />
         )}

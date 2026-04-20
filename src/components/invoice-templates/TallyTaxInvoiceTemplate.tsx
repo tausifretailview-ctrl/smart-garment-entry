@@ -359,7 +359,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
             backgroundColor: "#f8f8f8",
           }}
         >
-          TAX INVOICE
+          {grandTotal < 0 ? 'CREDIT NOTE' : 'TAX INVOICE'}
         </div>
 
         {/* Seller + Invoice Details */}

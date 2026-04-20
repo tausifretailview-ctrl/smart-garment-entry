@@ -272,7 +272,7 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
             {logoUrl && logoPlacement === 'right' && (
               <img src={logoUrl} alt="Logo" style={{ height: '50px', marginBottom: '10px' }} />
             )}
-            <h2 style={{ margin: 0, fontSize: isA4 ? '16pt' : '14pt', color: 'white' }}>INVOICE</h2>
+            <h2 style={{ margin: 0, fontSize: isA4 ? '16pt' : '14pt', color: 'white' }}>{grandTotal < 0 ? 'CREDIT NOTE' : 'INVOICE'}</h2>
             <p style={{ margin: '5px 0', fontSize: isA4 ? '10pt' : '8pt' }}>
               <strong>Invoice #:</strong> {invoiceNumber}<br />
               <strong>Date:</strong> {invoiceDate.toLocaleDateString('en-IN')}

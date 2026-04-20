@@ -233,7 +233,7 @@ export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
           {logoUrl && logoPlacement === 'right' && (
             <img src={logoUrl} alt="Logo" style={{ height: '40px', marginBottom: '10px' }} />
           )}
-          <div style={{ fontSize: isA4 ? '24pt' : '18pt', fontWeight: 'bold', color: colors.primary }}>INVOICE</div>
+          <div style={{ fontSize: isA4 ? '24pt' : '18pt', fontWeight: 'bold', color: colors.primary }}>{grandTotal < 0 ? 'CREDIT NOTE' : 'INVOICE'}</div>
           <div style={{ fontSize: '9pt', marginTop: '10px' }}>
             <strong>No:</strong> {invoiceNumber}<br />
             <strong>Date:</strong> {invoiceDate.toLocaleDateString('en-IN')}
