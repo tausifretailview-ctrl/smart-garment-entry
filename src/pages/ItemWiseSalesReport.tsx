@@ -515,14 +515,24 @@ export default function ItemWiseSalesReport() {
       XLSX.utils.book_append_sheet(wb, ws, "Customer-wise Sales");
       XLSX.writeFile(wb, `customer-wise-sales-${format(dateRange.from, "yyyy-MM-dd")}.xlsx`);
     } else if (activeTab === "saledetails") {
-      const groupLabel = { product_name: "Product Name", brand: "Brand", category: "Category", department: "Department" }[saleDetailsGroupBy];
-      const exportData = saleDetailsData.map((item, i) => ({
-        "Sr No": i + 1,
-        [groupLabel]: item.key,
-        "Total Qty": item.total_qty,
-        "Purchase Value": item.purchase_value.toFixed(2),
-        "Sale Value": item.sale_value.toFixed(2),
-      }));
+      const groupLabel = { product_name: "Product Name", brand: "Brand", category: "Category", department: "Department", barcode: "Barcode" }[saleDetailsGroupBy];
+      const exportData = saleDetailsData.map((item, i) => {
+        const base: any = {
+          "Sr No": i + 1,
+          [groupLabel]: item.key,
+        };
+        if (saleDetailsGroupBy === "barcode") {
+          base["Product Name"] = item.product_name || "";
+          base["Brand"] = item.brand || "";
+          base["Category"] = item.category || "";
+          base["Color"] = item.color || "";
+          base["Size"] = item.size || "";
+        }
+        base["Total Qty"] = item.total_qty;
+        base["Purchase Value"] = item.purchase_value.toFixed(2);
+        base["Sale Value"] = item.sale_value.toFixed(2);
+        return base;
+      });
       const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Sale Details");
