@@ -242,7 +242,7 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '18px', fontWeight: 'bold' }}>INVOICE</div>
+          <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{grandTotal < 0 ? 'CREDIT NOTE' : 'INVOICE'}</div>
           <div style={{ fontSize: '10px', marginTop: '4px', opacity: 0.9 }}>
             <strong>No:</strong> {invoiceNumber}<br/>
             <strong>Date:</strong> {formatDate(invoiceDate)}<br/>
