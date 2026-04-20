@@ -124,7 +124,7 @@ export const Header = () => {
           {/* FILE */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="text-[12px] text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent px-2.5 py-1.5 rounded transition-colors focus:outline-none">
+              <button className="text-[14px] font-semibold text-white/95 hover:text-white hover:bg-sidebar-accent px-2.5 py-1.5 rounded transition-colors focus:outline-none">
                 File
               </button>
             </DropdownMenuTrigger>
@@ -158,7 +158,7 @@ export const Header = () => {
           {/* VIEW */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="text-[12px] text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent px-2.5 py-1.5 rounded transition-colors focus:outline-none">
+              <button className="text-[14px] font-semibold text-white/95 hover:text-white hover:bg-sidebar-accent px-2.5 py-1.5 rounded transition-colors focus:outline-none">
                 View
               </button>
             </DropdownMenuTrigger>
@@ -195,7 +195,7 @@ export const Header = () => {
           {/* TOOLS */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="text-[12px] text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent px-2.5 py-1.5 rounded transition-colors focus:outline-none">
+              <button className="text-[14px] font-semibold text-white/95 hover:text-white hover:bg-sidebar-accent px-2.5 py-1.5 rounded transition-colors focus:outline-none">
                 Tools
               </button>
             </DropdownMenuTrigger>
@@ -236,7 +236,7 @@ export const Header = () => {
           {/* REPORTS */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="text-[12px] text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent px-2.5 py-1.5 rounded transition-colors focus:outline-none">
+              <button className="text-[14px] font-semibold text-white/95 hover:text-white hover:bg-sidebar-accent px-2.5 py-1.5 rounded transition-colors focus:outline-none">
                 Reports
               </button>
             </DropdownMenuTrigger>
@@ -292,7 +292,7 @@ export const Header = () => {
           {/* HELP */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="text-[12px] text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent px-2.5 py-1.5 rounded transition-colors focus:outline-none">
+              <button className="text-[14px] font-semibold text-white/95 hover:text-white hover:bg-sidebar-accent px-2.5 py-1.5 rounded transition-colors focus:outline-none">
                 Help
               </button>
             </DropdownMenuTrigger>

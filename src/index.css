@@ -1398,3 +1398,17 @@ input.no-uppercase {
 [data-sidebar] [data-sidebar-menu-sub] {
   gap: 0.125rem;
 }
+
+/* Brighter, larger sidebar text — main + sub menus */
+[data-sidebar="sidebar"] [data-sidebar="menu-button"] span,
+[data-sidebar="sidebar"] [data-sidebar="menu-sub-button"] span,
+[data-sidebar="sidebar"] [data-sidebar="menu-sub-button"],
+[data-sidebar="sidebar"] button span {
+  color: rgba(255, 255, 255, 0.96) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+}
+[data-sidebar="sidebar"] [data-sidebar="menu-sub-button"] span {
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+}
