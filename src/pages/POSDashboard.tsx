@@ -491,7 +491,7 @@ const POSDashboard = () => {
     try {
       const { data, error } = await supabase
         .from("sale_returns")
-        .select("*")
+        .select("*, sale_return_items(id, product_name, size, color, barcode, hsn_code, quantity, unit_price, gst_percent, line_total)")
         .eq("organization_id", currentOrganization?.id)
         .eq("original_sale_number", saleNumber);
 
