@@ -4562,12 +4562,12 @@ export default function POSSales() {
               </TooltipProvider>
               
               {/* Date & Time Display + EMI Button Row */}
-              <div className="flex items-center gap-2 shrink-0">
-                <div className="relative h-10 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-md px-2 flex flex-col items-center justify-center shadow-sm whitespace-nowrap leading-tight">
-                  <div className="text-white font-semibold text-[11px]">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <div className="relative h-10 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-md px-1.5 flex flex-col items-center justify-center shadow-sm whitespace-nowrap leading-[1.05]">
+                  <div className="text-white font-semibold text-[10px]">
                     {currentDateTime.toLocaleDateString('en-GB')}
                   </div>
-                  <div className="text-white/80 text-[9px]">
+                  <div className="text-white/80 text-[8px]">
                     {currentDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                   </div>
                 </div>
@@ -4578,13 +4578,13 @@ export default function POSSales() {
                     <TooltipTrigger asChild>
                       <Button
                         onClick={() => setShowFinancerDialog(true)}
-                        className={`h-10 px-2 flex items-center gap-1 text-xs font-semibold rounded-md shadow-sm transition-all whitespace-nowrap ${
+                        className={`h-10 px-1.5 flex items-center gap-1 text-[11px] font-semibold rounded-md shadow-sm transition-all whitespace-nowrap ${
                           financerDetails?.financer_name
                             ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white'
                             : 'bg-muted/60 hover:bg-muted text-foreground border border-border/50'
                         }`}
                       >
-                        <CreditCard className="h-4 w-4" />
+                        <CreditCard className="h-3.5 w-3.5" />
                         <span>EMI</span>
                         {financerDetails?.financer_name && (
                           <Badge className="h-4 px-1 text-[9px] bg-white/20 hover:bg-white/20 text-white">
