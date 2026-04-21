@@ -4478,14 +4478,14 @@ export default function POSSales() {
           </div>
           
           {/* Running Total Display */}
-          <div className="h-10 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-5 flex items-center justify-center min-w-[160px] shadow-sm">
-            <div className="text-white font-bold text-lg tracking-tight">
+          <div className="h-10 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-3 flex items-center justify-center min-w-[120px] shadow-sm shrink-0">
+            <div className="text-white font-bold text-base tracking-tight">
               ₹{Math.round(finalAmount).toLocaleString('en-IN')}
             </div>
           </div>
               
-              <div className="relative h-10 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-md px-3 flex items-center justify-center min-w-[90px] shadow-sm">
-                <div className="text-white font-semibold text-sm">
+              <div className="relative h-10 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-md px-2 flex items-center justify-center min-w-[70px] shadow-sm shrink-0">
+                <div className="text-white font-semibold text-xs">
                   {items.length} {items.length === 1 ? 'Item' : 'Items'}
                 </div>
               </div>
