@@ -332,6 +332,27 @@ export const Header = () => {
 
         {/* Right icons */}
         <div className="flex items-center gap-1">
+          {!isInstalled && (isInstallable || /iPad|iPhone|iPod/.test(navigator.userAgent)) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                if (isInstallable) {
+                  const ok = await promptInstall();
+                  if (ok) toast.success("App installed");
+                } else {
+                  toast("Install on iOS", {
+                    description: 'Tap the Share icon, then "Add to Home Screen".',
+                  });
+                }
+              }}
+              className="h-7 px-2 gap-1.5 text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+              title="Install EzzyERP App"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline text-[11px] font-medium">Install App</span>
+            </Button>
+          )}
           <UIScaleSelector />
           <Button variant="ghost" size="icon" className="h-7 w-7 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent hidden md:flex">
             <Bell className="h-3.5 w-3.5" />
