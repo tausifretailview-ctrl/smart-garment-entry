@@ -334,6 +334,11 @@ export const printBarcodesDirectly = async (
   // For thermal printers, add print instructions banner (hidden when printing)
   const printInstructions = isThermal ? `
     <div id="print-instructions" style="
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 9999;
       background: #FEF3C7;
       border: 1px solid #F59E0B;
       border-radius: 8px;
@@ -357,7 +362,10 @@ export const printBarcodesDirectly = async (
         <title>Barcode Labels - ${isThermal ? `${labelWidth}×${labelHeight}mm` : 'A4'}</title>
         <style>
           @media print {
-            #print-instructions { display: none !important; }
+            #print-instructions { display: none !important; visibility: hidden !important; }
+          }
+          @media screen {
+            body { padding-top: 90px !important; }
           }
         </style>
       </head>
@@ -751,6 +759,15 @@ export const printBarcodesDirectly = async (
 
     setTimeout(() => {
       printWindow.focus();
+      // Remove the on-screen print instructions banner BEFORE printing so it
+      // cannot influence the first page's top alignment (some browsers reserve
+      // space for it on page 1 even with display:none).
+      try {
+        const banner = doc.getElementById('print-instructions');
+        if (banner && banner.parentNode) {
+          banner.parentNode.removeChild(banner);
+        }
+      } catch {}
       printWindow.print();
       setTimeout(() => {
         printWindow.close();
