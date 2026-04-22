@@ -436,7 +436,7 @@ export function CustomerHistoryDialog({
       if (!customerId || !organizationId) return [];
       const { data, error } = await supabase
         .from('sale_returns')
-        .select('id, return_number, return_date, original_sale_number, net_amount')
+        .select('id, return_number, return_date, original_sale_number, net_amount, credit_status, linked_sale_id')
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .is('deleted_at', null)
@@ -592,12 +592,20 @@ export function CustomerHistoryDialog({
               return sum;
             }, 0);
 
-            // Sale returns also create credit for the customer
+            // Sale returns also create credit for the customer — only count those
+            // that are still pending (not yet adjusted/refunded).
             const saleReturnsPending = (saleReturns || []).reduce((sum: number, sr: any) => {
+              if (sr.credit_status && sr.credit_status !== 'pending') return sum;
               const alreadyInCN = (creditNotes || []).some((cn: any) =>
                 cn.notes?.includes(sr.return_number) || cn.sale_id === sr.linked_sale_id
               );
               return alreadyInCN ? sum : sum + (sr.net_amount || 0);
+            }, 0);
+
+            const saleReturnsAdjusted = (saleReturns || []).reduce((sum: number, sr: any) => {
+              return sr.credit_status && sr.credit_status !== 'pending'
+                ? sum + (sr.net_amount || 0)
+                : sum;
             }, 0);
 
             const crPending = creditNotesPending + saleReturnsPending;
@@ -632,20 +640,40 @@ export function CustomerHistoryDialog({
                     <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Returns / CR</p>
                     <p className="text-xs sm:text-sm font-bold text-pink-600 truncate tabular-nums mt-0.5">₹{crPending.toFixed(2)}</p>
                     <p className="text-[10px] text-pink-400 mt-0.5">
-                      {crPending > 0 ? 'Pending adjustment' : 'None pending'}
+                      {crPending > 0
+                        ? 'Pending adjustment'
+                        : saleReturnsAdjusted > 0
+                          ? `₹${saleReturnsAdjusted.toFixed(0)} adjusted`
+                          : 'None pending'}
                     </p>
                   </CardContent>
                 </Card>
                 <Card className={`border-l-4 ${balance > 0 ? 'border-l-red-500' : balance < 0 ? 'border-l-emerald-500' : 'border-l-slate-400'}`}>
                   <CardContent className="p-2">
                     <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">
-                      {balance > 0 ? 'Outstanding (Dr)' : balance < 0 ? 'Advance Bal (Cr)' : 'Current Bal'}
+                      {balance > 0
+                        ? 'Outstanding (Dr)'
+                        : balance < 0
+                          ? (advanceBalance > 0
+                              ? 'Unused Advance'
+                              : crPending > 0
+                                ? 'SR Credit (Pending)'
+                                : 'Net Credit Bal')
+                          : 'Current Bal'}
                     </p>
                     <p className={`text-xs sm:text-sm font-bold truncate tabular-nums mt-0.5 ${balance > 0 ? 'text-red-600' : balance < 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
                       ₹{Math.abs(balance).toFixed(2)}
                     </p>
                     <p className={`text-[10px] font-semibold mt-0.5 ${balance > 0 ? 'text-red-500' : balance < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                      {balance > 0 ? 'Customer Owes' : balance < 0 ? 'In Advance / Overpaid' : 'Fully Settled ✓'}
+                      {balance > 0
+                        ? 'Customer Owes'
+                        : balance < 0
+                          ? (advanceBalance > 0
+                              ? 'Available for future bills'
+                              : crPending > 0
+                                ? 'Credit note not yet applied'
+                                : 'Customer net credit')
+                          : 'Fully Settled ✓'}
                     </p>
                   </CardContent>
                 </Card>
