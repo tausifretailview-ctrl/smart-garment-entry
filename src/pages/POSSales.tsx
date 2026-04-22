@@ -208,9 +208,7 @@ export default function POSSales() {
   const [nextInvoicePreview, setNextInvoicePreview] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'upi' | 'multiple' | 'pay_later'>('cash');
   const [showPrintPreview, setShowPrintPreview] = useState(false);
-  const [posBillFormat, setPosBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal' | null>(null);
-  const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
-  const [showInvoicePreviewSetting, setShowInvoicePreviewSetting] = useState(true);
+  // POS bill format/template/preview are derived from cached useSettings() below.
   const printRef = useRef<HTMLDivElement>(null);
   const invoicePrintRef = useRef<HTMLDivElement>(null);
   const printBtnRef = useRef<HTMLButtonElement>(null);
