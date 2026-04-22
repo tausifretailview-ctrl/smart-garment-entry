@@ -1700,7 +1700,7 @@ export default function POSSales() {
         quantity: 1,
         mrp: displayMrp,
         originalMrp: mrpToUse,
-        gstPer: product.sale_gst_percent || product.gst_per || 0,
+        gstPer: applyGarmentGstRule(displayMrp, product.sale_gst_percent || product.gst_per || 0, garmentGstSettings),
         discountPercent,
         discountAmount,
         unitCost: salePrice,
