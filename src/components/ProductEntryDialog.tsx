@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CalculatorInput } from "@/components/ui/calculator-input";
 import { Label } from "@/components/ui/label";
+import { applyGarmentGstRule, isGarmentGstAutoBumped, getGarmentGstThreshold, type GarmentGstRuleSettings } from "@/utils/gstRules";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
@@ -123,6 +124,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const [fieldSettings, setFieldSettings] = useState<any>(null);
   const [showMrp, setShowMrp] = useState(false);
   const [showDiscountFields, setShowDiscountFields] = useState(false);
+  const [garmentGstSettings, setGarmentGstSettings] = useState<GarmentGstRuleSettings>({});
  const [cursorAfterStyle, setCursorAfterStyle] = useState<'pur_price' | 'hsn'>('pur_price');
   const purGstRef = useRef<HTMLButtonElement>(null);
   const saleGstRef = useRef<HTMLButtonElement>(null);
@@ -643,6 +645,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         setShowDiscountFields(purchaseSettings.product_entry_discount_enabled || false);
         setCursorAfterStyle(purchaseSettings.cursor_after_style || 'pur_price');
         setRollWiseMtrEnabled(purchaseSettings.roll_wise_mtr_entry || false);
+        setGarmentGstSettings({
+          garment_gst_rule_enabled: purchaseSettings.garment_gst_rule_enabled === true,
+          garment_gst_threshold: purchaseSettings.garment_gst_threshold,
+        });
       }
     }
   };
@@ -1540,6 +1546,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       ≠ Purchase
                     </span>
                   )}
+                  {isGarmentGstAutoBumped(formData.default_sale_price, garmentGstSettings) && (
+                    <span className="ml-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                      Auto 18% (&gt;₹{getGarmentGstThreshold(garmentGstSettings)})
+                    </span>
+                  )}
                   <Select
                     value={formData.sale_gst_percent.toString()}
                     onValueChange={(value) =>
@@ -1595,6 +1606,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         const mk = parseFloat(markupPercent);
                         if (!isNaN(mk)) {
                           updates.default_sale_price = Math.round(purPrice * (1 + mk / 100));
+                          updates.sale_gst_percent = applyGarmentGstRule(updates.default_sale_price, formData.sale_gst_percent, garmentGstSettings);
                         }
                       }
                       setFormData({ ...formData, ...updates });
@@ -1618,7 +1630,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       const mk = parseFloat(val);
                       const purPrice = formData.default_pur_price;
                       if (!isNaN(mk) && purPrice && purPrice > 0) {
-                        setFormData({ ...formData, default_sale_price: Math.round(purPrice * (1 + mk / 100)) });
+                        const newSalePrice = Math.round(purPrice * (1 + mk / 100));
+                        setFormData({
+                          ...formData,
+                          default_sale_price: newSalePrice,
+                          sale_gst_percent: applyGarmentGstRule(newSalePrice, formData.sale_gst_percent, garmentGstSettings),
+                        });
                       }
                     }}
                     onKeyDown={handleEnterAsTab}
@@ -1635,7 +1652,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     value={formData.default_sale_price ?? ""}
                     onChange={(val) => {
                       const salePrice = val || undefined;
-                      setFormData({ ...formData, default_sale_price: salePrice });
+                      const newGst = applyGarmentGstRule(salePrice, formData.sale_gst_percent, garmentGstSettings);
+                      setFormData({ ...formData, default_sale_price: salePrice, sale_gst_percent: newGst });
                       const purPrice = formData.default_pur_price;
                       if (salePrice && salePrice > 0 && purPrice && purPrice > 0) {
                         setMarkupPercent((((salePrice - purPrice) / purPrice) * 100).toFixed(2));

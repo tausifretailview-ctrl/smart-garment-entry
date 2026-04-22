@@ -22,6 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet, ChevronLeft, ChevronRight, Check, AlertTriangle, SkipBack, Search, Save, Trash2, Pencil, Lock, LockOpen } from "lucide-react";
+import { applyGarmentGstRule, type GarmentGstRuleSettings } from "@/utils/gstRules";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -633,6 +634,10 @@ const PurchaseEntry = () => {
   const autoFocusSearch = (settings?.purchase_settings as any)?.auto_focus_search || false;
   const sizeGridReviewMode = (settings?.purchase_settings as any)?.size_grid_review_mode || false;
   const rollWiseMtrEntry = (settings?.purchase_settings as any)?.roll_wise_mtr_entry || false;
+  const garmentGstSettings: GarmentGstRuleSettings = {
+    garment_gst_rule_enabled: (settings?.purchase_settings as any)?.garment_gst_rule_enabled === true,
+    garment_gst_threshold: (settings?.purchase_settings as any)?.garment_gst_threshold,
+  };
   
   const focusSearchBar = useCallback(() => {
     if (autoFocusSearch) {
@@ -2141,6 +2146,13 @@ const PurchaseEntry = () => {
             const subTotal = mtrMult * updated.pur_price;
             const discountAmount = subTotal * (updated.discount_percent / 100);
             updated.line_total = subTotal - discountAmount;
+          }
+          // Garment / Footwear GST auto-bump rule on sale price change
+          if (field === "sale_price") {
+            const newGst = applyGarmentGstRule(updated.sale_price, updated.gst_per, garmentGstSettings);
+            if (newGst !== updated.gst_per) {
+              updated.gst_per = newGst;
+            }
           }
           return updated;
         }

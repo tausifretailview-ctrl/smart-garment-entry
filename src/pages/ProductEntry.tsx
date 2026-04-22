@@ -20,6 +20,7 @@ import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialo
 import { productEntryFields, productEntrySampleData, parseLocalizedNumber } from "@/utils/excelImportUtils";
 import { validateProduct } from "@/lib/validations";
 import { UOM_OPTIONS, DEFAULT_UOM } from "@/constants/uom";
+import { applyGarmentGstRule, isGarmentGstAutoBumped, getGarmentGstThreshold, type GarmentGstRuleSettings } from "@/utils/gstRules";
 import {
   Dialog,
   DialogContent,
@@ -98,6 +99,7 @@ const ProductEntry = () => {
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [fieldSettings, setFieldSettings] = useState<any>(null);
   const [showMrp, setShowMrp] = useState(false);
+  const [garmentGstSettings, setGarmentGstSettings] = useState<GarmentGstRuleSettings>({});
   const productNameInputRef = useRef<HTMLInputElement>(null);
   const variantsSectionRef = useRef<HTMLDivElement>(null);
   const autoGenerateBtnRef = useRef<HTMLButtonElement>(null);
@@ -402,6 +404,11 @@ const ProductEntry = () => {
         setShowDiscountFields(purchaseSettings.product_entry_discount_enabled || false);
         // Set roll-wise MTR entry
         setRollWiseMtrEnabled(purchaseSettings.roll_wise_mtr_entry || false);
+        // Garment GST auto-bump rule
+        setGarmentGstSettings({
+          garment_gst_rule_enabled: purchaseSettings.garment_gst_rule_enabled === true,
+          garment_gst_threshold: purchaseSettings.garment_gst_threshold,
+        });
       }
     }
   };
@@ -2216,6 +2223,11 @@ const ProductEntry = () => {
                     ≠ Purchase
                   </span>
                 )}
+                {isGarmentGstAutoBumped(formData.default_sale_price, garmentGstSettings) && (
+                  <span className="ml-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                    Auto 18% (&gt;₹{getGarmentGstThreshold(garmentGstSettings)})
+                  </span>
+                )}
                 <Select
                   value={formData.sale_gst_percent.toString()}
                   onValueChange={(value) =>
@@ -2274,11 +2286,12 @@ const ProductEntry = () => {
                     const newSalePrice = (!isNaN(markup) && purPrice > 0)
                       ? Math.round(purPrice * (1 + markup / 100))
                       : formData.default_sale_price;
-                    setFormData({
-                      ...formData,
-                      default_pur_price: purPrice,
-                      ...((!isNaN(markup) && purPrice > 0) ? { default_sale_price: newSalePrice } : {}),
-                    });
+                    const updates: any = { default_pur_price: purPrice };
+                    if (!isNaN(markup) && purPrice > 0) {
+                      updates.default_sale_price = newSalePrice;
+                      updates.sale_gst_percent = applyGarmentGstRule(newSalePrice, formData.sale_gst_percent, garmentGstSettings);
+                    }
+                    setFormData({ ...formData, ...updates });
                   }}
                   className={`${(formData.default_pur_price ?? 0) > 0 && (formData.default_sale_price ?? 0) > 0 && (formData.default_pur_price ?? 0) > (formData.default_sale_price ?? 0) ? 'border-destructive' : ''}`}
                   placeholder="₹ 0.00"
@@ -2302,7 +2315,11 @@ const ProductEntry = () => {
                     const markup = parseFloat(val);
                     if (!isNaN(markup) && (formData.default_pur_price ?? 0) > 0) {
                       const newSalePrice = Math.round((formData.default_pur_price ?? 0) * (1 + markup / 100));
-                      setFormData(prev => ({ ...prev, default_sale_price: newSalePrice }));
+                      setFormData(prev => ({
+                        ...prev,
+                        default_sale_price: newSalePrice,
+                        sale_gst_percent: applyGarmentGstRule(newSalePrice, prev.sale_gst_percent, garmentGstSettings),
+                      }));
                     }
                   }}
                   placeholder="e.g. 100"
@@ -2316,7 +2333,12 @@ const ProductEntry = () => {
                   value={formData.default_sale_price ?? ""}
                   onChange={(val) => {
                     const salePrice = val || 0;
-                    setFormData({ ...formData, default_sale_price: salePrice });
+                    const newGst = applyGarmentGstRule(salePrice, formData.sale_gst_percent, garmentGstSettings);
+                    setFormData({
+                      ...formData,
+                      default_sale_price: salePrice,
+                      sale_gst_percent: newGst,
+                    });
                     if ((formData.default_pur_price ?? 0) > 0 && salePrice > 0) {
                       const calc = ((salePrice - (formData.default_pur_price ?? 0)) / (formData.default_pur_price ?? 1)) * 100;
                       setMarkupPercent(Math.round(calc * 100) / 100 + "");
