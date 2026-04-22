@@ -2552,7 +2552,7 @@ export default function POSSales() {
       flatDiscountAmount,
       saleReturnAdjust,
       roundOff,
-      netAmount: finalAmount,
+      netAmount: paymentData.issueCreditNote ? Math.max(0, finalAmount) : finalAmount,
       refundAmount: paymentData.issueCreditNote ? 0 : paymentData.refundAmount,
       creditApplied,
       salesman: selectedSalesman || null,
