@@ -1218,7 +1218,7 @@ export default function SalesInvoice() {
           salePrice: variant.sale_price || 0,
           discountPercent,
           discountAmount: 0,
-          gstPercent: product.sale_gst_percent || product.gst_per || 0,
+          gstPercent: applyGarmentGstRule(variant.sale_price || 0, product.sale_gst_percent || product.gst_per || 0, garmentGstSettings),
           lineTotal: 0,
           hsnCode: product.hsn_code || '',
           uom: product.uom || 'NOS',
@@ -1485,7 +1485,7 @@ export default function SalesInvoice() {
         salePrice: salePrice,
         discountPercent,
         discountAmount: 0,
-        gstPercent: product.sale_gst_percent || product.gst_per || 0,
+        gstPercent: applyGarmentGstRule(salePrice, product.sale_gst_percent || product.gst_per || 0, garmentGstSettings),
         lineTotal: 0,
         hsnCode: product.hsn_code || '',
         uom: product.uom || 'NOS',
@@ -1797,7 +1797,7 @@ export default function SalesInvoice() {
 
   const updateGSTPercent = (id: string, gstPercent: number) => {
     const updatedItems = lineItems.map(item => 
-      item.id === id ? calculateLineTotal({ ...item, gstPercent }) : item
+      item.id === id ? calculateLineTotal({ ...item, gstPercent: applyGarmentGstRule(item.salePrice, gstPercent, garmentGstSettings) }) : item
     );
     setLineItems(updatedItems);
   };
@@ -1811,7 +1811,7 @@ export default function SalesInvoice() {
 
   const updateSalePrice = (id: string, salePrice: number) => {
     const updatedItems = lineItems.map(item => 
-      item.id === id ? calculateLineTotal({ ...item, salePrice }) : item
+      item.id === id ? calculateLineTotal({ ...item, salePrice, gstPercent: applyGarmentGstRule(salePrice, item.gstPercent, garmentGstSettings) }) : item
     );
     setLineItems(updatedItems);
   };
