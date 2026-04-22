@@ -544,7 +544,7 @@ export const FloatingSaleReturn = ({
           voucher_type: "receipt",
           voucher_date: new Date().toISOString().split("T")[0],
           reference_type: "customer",
-          reference_id: customerId,
+          reference_id: effectiveCustomerId,
           description: `Credit note ${cn.returnNumber} applied via POS`,
           total_amount: cn.creditAmount,
           payment_method: "credit_note_adjustment",
