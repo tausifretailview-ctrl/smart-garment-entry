@@ -2310,7 +2310,11 @@ const ProductEntry = () => {
                     const markup = parseFloat(val);
                     if (!isNaN(markup) && (formData.default_pur_price ?? 0) > 0) {
                       const newSalePrice = Math.round((formData.default_pur_price ?? 0) * (1 + markup / 100));
-                      setFormData(prev => ({ ...prev, default_sale_price: newSalePrice }));
+                      setFormData(prev => ({
+                        ...prev,
+                        default_sale_price: newSalePrice,
+                        sale_gst_percent: applyGarmentGstRule(newSalePrice, prev.sale_gst_percent, garmentGstSettings),
+                      }));
                     }
                   }}
                   placeholder="e.g. 100"
