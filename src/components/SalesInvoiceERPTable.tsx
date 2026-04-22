@@ -300,7 +300,7 @@ export function SalesInvoiceERPTable({
           id: "balance",
           header: "Balance",
           cell: ({ row }) => (
-            <span className="text-right block tabular-nums">
+            <span className="text-right block tabular-nums text-[17px] font-medium">
               ₹{Math.max(0, Math.round((row.original.net_amount || 0) - (row.original.paid_amount || 0) - (row.original.sale_return_adjust || 0))).toLocaleString('en-IN')}
             </span>
           ),
