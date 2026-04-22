@@ -1710,19 +1710,20 @@ export default function SalesInvoice() {
 
   const calculateLineTotal = (item: LineItem): LineItem => {
     const baseAmount = item.salePrice * getMtrMultiplier(item);
-    const discountAmount = item.discountPercent > 0 
-      ? (baseAmount * item.discountPercent) / 100 
-      : item.discountAmount;
-    const amountAfterDiscount = baseAmount - discountAmount;
+    // Round discount to 2dp to prevent float drift
+    const discountAmount = item.discountPercent > 0
+      ? Math.round((baseAmount * item.discountPercent) / 100 * 100) / 100
+      : Math.round(item.discountAmount * 100) / 100;
+    const amountAfterDiscount = Math.round((baseAmount - discountAmount) * 100) / 100;
     
     let lineTotal: number;
     if (taxType === "inclusive") {
       // For inclusive GST, the price already includes tax
       lineTotal = amountAfterDiscount;
     } else {
-      // For exclusive GST, add tax on top
-      const gstAmount = (amountAfterDiscount * item.gstPercent) / 100;
-      lineTotal = amountAfterDiscount + gstAmount;
+      // Round GST to 2dp per line item — prevents accumulated float error
+      const gstAmount = Math.round((amountAfterDiscount * item.gstPercent) / 100 * 100) / 100;
+      lineTotal = Math.round((amountAfterDiscount + gstAmount) * 100) / 100;
     }
     
     return {
@@ -2663,13 +2664,13 @@ Thank you for choosing us!`;
     const baseAmount = item.salePrice * getMtrMultiplier(item) - item.discountAmount;
     // Apply flat discount proportionally
     const proportionalFlatDiscount = grossAmount > 0 ? (baseAmount / grossAmount) * flatDiscountAmount : 0;
-    const adjustedBase = baseAmount - proportionalFlatDiscount;
+    const adjustedBase = Math.round((baseAmount - proportionalFlatDiscount) * 100) / 100;
     if (taxType === "inclusive") {
       // Extract GST from inclusive price
-      return sum + (adjustedBase - (adjustedBase / (1 + item.gstPercent / 100)));
+      return sum + Math.round((adjustedBase - (adjustedBase / (1 + item.gstPercent / 100))) * 100) / 100;
     } else {
       // Calculate GST on exclusive price
-      return sum + (adjustedBase * item.gstPercent) / 100;
+      return sum + Math.round((adjustedBase * item.gstPercent) / 100 * 100) / 100;
     }
   }, 0);
   
