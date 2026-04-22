@@ -2509,6 +2509,7 @@ export default function POSSales() {
     totalPaid: number;
     refundAmount: number;
     issueCreditNote?: boolean;
+    refundMode?: 'cash' | 'upi' | 'bank_transfer';
   }) => {
     // Check if there's a balance and customer mobile is missing
     const balanceAmount = finalAmount - paymentData.totalPaid;
