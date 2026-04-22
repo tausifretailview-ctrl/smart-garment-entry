@@ -105,9 +105,9 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
         }
       });
 
-      // Use gross amount (net_amount + sale_return_adjust) because
-      // saleReturnTotal already subtracts sale return amounts separately
-      const totalSales = sales?.reduce((sum, sale) => sum + (sale.net_amount || 0) + (sale.sale_return_adjust || 0), 0) || 0;
+      // net_amount is already the post-SR-adjustment amount.
+      // saleReturnTotal subtracts the sale_return entries separately.
+      const totalSales = sales?.reduce((sum, sale) => sum + (sale.net_amount || 0), 0) || 0;
       
       let totalPaidOnSales = 0;
       let totalAdvanceApplied = 0;
@@ -126,10 +126,9 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
         totalCnApplied += cnVoucher;
       });
 
-      // Total paid = true cash on sales + advance applied + CN applied + opening-balance receipts.
-      // CN-applied is included because the formula uses GROSS sales (net+sale_return_adjust)
-      // and separately subtracts saleReturnTotal — the CN payment closes the gross side.
-      const totalPaid = totalPaidOnSales + totalAdvanceApplied + totalCnApplied + openingBalanceVoucherPayments;
+      // net_amount already accounts for CN adjustments at POS save time, so do not
+      // add totalCnApplied here (would double-count).
+      const totalPaid = totalPaidOnSales + totalAdvanceApplied + openingBalanceVoucherPayments;
 
       // Fetch balance adjustments
       const { data: adjustments, error: adjError } = await supabase

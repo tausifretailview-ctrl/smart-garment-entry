@@ -185,7 +185,7 @@ export default function CustomerReconciliation() {
 
         // Sales for this customer
         const custSales = sales?.filter((s) => s.customer_id === custId) || [];
-        const totalSales = custSales.reduce((sum, s) => sum + (s.net_amount || 0) + (s.sale_return_adjust || 0), 0);
+        const totalSales = custSales.reduce((sum, s) => sum + (s.net_amount || 0), 0);
 
         // Per-customer totalPaid using cash/adv/CN split (mirrors CustomerLedger)
         let totalPaidOnSales = 0;
