@@ -4937,7 +4937,6 @@ export default function POSSales() {
                     </div>
                   );
                 })()}
-              </div>
             </div>
           </Card>
           </div>
