@@ -772,11 +772,11 @@ export const FloatingSaleReturn = ({
               <CreditCard className="h-3.5 w-3.5" />
               Pending Credit Notes — Click to apply to current bill
             </p>
-            {pendingCreditNotes.map((cn) => {
-              const isApplied = appliedCreditNoteId === cn.id;
+            {pendingCreditNotes.map((pcn) => {
+              const isApplied = appliedCreditNoteId === pcn.id;
               return (
                 <div
-                  key={cn.id}
+                  key={pcn.id}
                   className={cn(
                     "flex items-center justify-between px-3 py-2 rounded-md border text-sm transition-all",
                     isApplied
@@ -786,15 +786,15 @@ export const FloatingSaleReturn = ({
                 >
                   <div className="flex-1 min-w-0">
                     <span className="font-mono text-xs bg-amber-100 dark:bg-amber-800/50 px-1.5 py-0.5 rounded mr-2">
-                      {cn.returnNumber}
+                      {pcn.returnNumber}
                     </span>
                     <span className="text-muted-foreground text-xs">
-                      {cn.returnDate}
+                      {pcn.returnDate}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="font-bold text-amber-800 dark:text-amber-200">
-                      ₹{Math.round(cn.creditAmount).toLocaleString("en-IN")}
+                      ₹{Math.round(pcn.creditAmount).toLocaleString("en-IN")}
                     </span>
                     {isApplied ? (
                       <button
@@ -811,12 +811,12 @@ export const FloatingSaleReturn = ({
                       <button
                         type="button"
                         onClick={() => {
-                          setAppliedCreditNoteId(cn.id);
-                          setAppliedCreditAmount(cn.creditAmount);
+                          setAppliedCreditNoteId(pcn.id);
+                          setAppliedCreditAmount(pcn.creditAmount);
                         }}
                         className="text-xs px-2 py-1 rounded bg-green-600 text-white hover:bg-green-700 font-medium"
                       >
-                        Apply ₹{Math.round(cn.creditAmount).toLocaleString("en-IN")}
+                        Apply ₹{Math.round(pcn.creditAmount).toLocaleString("en-IN")}
                       </button>
                     )}
                   </div>
