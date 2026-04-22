@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn, displayBarcode } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
 interface VariantResult {
