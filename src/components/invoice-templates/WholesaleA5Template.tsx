@@ -127,6 +127,7 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
   totalTax,
   roundOff,
   grandTotal,
+  saleReturnAdjust,
   showTotalQuantity = true,
   showBarcode = true,
   amountWithDecimal = true,
