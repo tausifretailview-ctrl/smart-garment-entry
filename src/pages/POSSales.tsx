@@ -5,6 +5,7 @@ import { isDecimalUOM } from "@/constants/uom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useMobileERP, validateIMEI } from "@/hooks/useMobileERP";
 import { useSettings } from "@/hooks/useSettings";
+import { applyGarmentGstRule } from "@/utils/gstRules";
 import { useSearchParams } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
@@ -508,6 +509,12 @@ export default function POSSales() {
 
   // Fetch settings (centralized, cached 5min)
   const { data: settingsData } = useSettings();
+
+  // Garment / Footwear GST auto-bump rule (from purchase_settings)
+  const garmentGstSettings = {
+    garment_gst_rule_enabled: ((settingsData as any)?.purchase_settings?.garment_gst_rule_enabled === true),
+    garment_gst_threshold: (settingsData as any)?.purchase_settings?.garment_gst_threshold,
+  };
 
   // Derive POS bill format / invoice template / preview flag from cached settings (no extra DB call)
   const _posSaleSettings = (settingsData as any)?.sale_settings || {};
@@ -1693,7 +1700,7 @@ export default function POSSales() {
         quantity: 1,
         mrp: displayMrp,
         originalMrp: mrpToUse,
-        gstPer: product.sale_gst_percent || product.gst_per || 0,
+        gstPer: applyGarmentGstRule(displayMrp, product.sale_gst_percent || product.gst_per || 0, garmentGstSettings),
         discountPercent,
         discountAmount,
         unitCost: salePrice,
@@ -1796,6 +1803,8 @@ export default function POSSales() {
       updatedItems[index].mrp = newMrp;
       // CRITICAL: Sync unitCost with MRP to ensure correct unit_price is saved to database
       updatedItems[index].unitCost = newMrp;
+      // Garment / Footwear GST auto-bump rule on price change
+      updatedItems[index].gstPer = applyGarmentGstRule(newMrp, updatedItems[index].gstPer, garmentGstSettings);
       updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
       return updatedItems;
     });
@@ -1804,7 +1813,8 @@ export default function POSSales() {
   const updateGstPer = (index: number, newGstPer: number) => {
     setItems(prev => {
       const updatedItems = [...prev];
-      updatedItems[index].gstPer = newGstPer;
+      // Re-apply auto-bump: if user picks <18% but price > threshold, bump back to 18
+      updatedItems[index].gstPer = applyGarmentGstRule(updatedItems[index].mrp, newGstPer, garmentGstSettings);
       updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
       return updatedItems;
     });
