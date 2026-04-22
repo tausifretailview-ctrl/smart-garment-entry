@@ -162,6 +162,10 @@ export const FloatingSaleReturn = ({
       setPendingCreditNotes([]);
       setAppliedCreditNoteId(null);
       setAppliedCreditAmount(0);
+      setPickedCustomerId(null);
+      setPickedCustomerName(null);
+      setCustomerSearchTerm("");
+      setCustomerSearchOpen(false);
     }
   }, [open, organizationId, customerId]);
 
