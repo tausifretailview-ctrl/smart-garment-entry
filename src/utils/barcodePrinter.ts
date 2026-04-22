@@ -759,6 +759,15 @@ export const printBarcodesDirectly = async (
 
     setTimeout(() => {
       printWindow.focus();
+      // Remove the on-screen print instructions banner BEFORE printing so it
+      // cannot influence the first page's top alignment (some browsers reserve
+      // space for it on page 1 even with display:none).
+      try {
+        const banner = doc.getElementById('print-instructions');
+        if (banner && banner.parentNode) {
+          banner.parentNode.removeChild(banner);
+        }
+      } catch {}
       printWindow.print();
       setTimeout(() => {
         printWindow.close();
