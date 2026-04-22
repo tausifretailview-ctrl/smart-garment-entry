@@ -562,6 +562,14 @@ export default function POSSales() {
   // Fetch settings (centralized, cached 5min)
   const { data: settingsData } = useSettings();
 
+  // Derive POS bill format / invoice template / preview flag from cached settings (no extra DB call)
+  const _posSaleSettings = (settingsData as any)?.sale_settings || {};
+  const posBillFormat: 'a4' | 'a5' | 'a5-horizontal' | 'thermal' =
+    (_posSaleSettings.pos_bill_format as 'a4' | 'a5' | 'a5-horizontal' | 'thermal') || 'thermal';
+  const posInvoiceTemplate: 'professional' | 'modern' | 'classic' | 'compact' =
+    (_posSaleSettings.invoice_template as 'professional' | 'modern' | 'classic' | 'compact') || 'professional';
+  const showInvoicePreviewSetting: boolean = _posSaleSettings.show_invoice_preview ?? true;
+
   // Direct print hook
   const { isDirectPrintEnabled, isAutoPrintEnabled, directPrint } = useDirectPrint(
     (settingsData as any)?.bill_barcode_settings
