@@ -1604,6 +1604,56 @@ export default function Settings() {
                   />
                 </div>
 
+                {/* Garment / Footwear GST Auto-Bump Rule */}
+                <div className="col-span-full rounded-lg border border-amber-300 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-800 p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-semibold">
+                        Auto-set Sale GST 18% above price threshold (Garment / Footwear rule)
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        When sale price exceeds the threshold below, Sale GST % auto-changes to 18%.
+                        Below or equal, it follows Purchase GST %. Manual GST &gt; 18% is preserved.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={settings.purchase_settings?.garment_gst_rule_enabled === true}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          purchase_settings: {
+                            ...settings.purchase_settings,
+                            garment_gst_rule_enabled: checked,
+                          },
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5 max-w-xs">
+                    <Label htmlFor="garment_gst_threshold" className="text-xs">
+                      Threshold price (incl. GST)
+                    </Label>
+                    <Input
+                      id="garment_gst_threshold"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={settings.purchase_settings?.garment_gst_threshold ?? 2625}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          purchase_settings: {
+                            ...settings.purchase_settings,
+                            garment_gst_threshold: parseFloat(e.target.value) || 0,
+                          },
+                        })
+                      }
+                      disabled={!settings.purchase_settings?.garment_gst_rule_enabled}
+                      placeholder="2625"
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <Label>Default Unit of Measurement (UOM)</Label>
                   <Select
