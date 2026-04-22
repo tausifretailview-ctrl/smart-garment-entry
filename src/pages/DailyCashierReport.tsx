@@ -712,7 +712,7 @@ const DailyCashierReport = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-6 print:p-2">
+    <div id="cashier-report-root" className="min-h-screen bg-background p-4 md:p-6 print:p-2">
       {/* Header */}
       <div className="flex items-center justify-between mb-6 print:hidden">
         <div className="flex items-center gap-4">
@@ -1195,10 +1195,10 @@ const DailyCashierReport = () => {
           body * {
             visibility: hidden;
           }
-          .container, .container * {
+          #cashier-report-root, #cashier-report-root * {
             visibility: visible;
           }
-          .container {
+          #cashier-report-root {
             position: absolute;
             left: 0;
             top: 0;
