@@ -124,6 +124,27 @@ export const FloatingSaleReturn = ({
     }
   }, [organizationId]);
 
+  // Inline customer search — only relevant when no customer was passed from POS
+  useEffect(() => {
+    if (!open || customerId || !organizationId) return;
+    const term = customerSearchTerm.trim();
+    const handle = setTimeout(async () => {
+      let query = supabase
+        .from("customers")
+        .select("id, customer_name, phone")
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null)
+        .order("customer_name")
+        .limit(30);
+      if (term) {
+        query = query.or(`customer_name.ilike.%${term}%,phone.ilike.%${term}%`);
+      }
+      const { data } = await query;
+      setCustomerOptions((data as any) || []);
+    }, 200);
+    return () => clearTimeout(handle);
+  }, [open, organizationId, customerId, customerSearchTerm]);
+
   // Load sold products when dialog opens
   useEffect(() => {
     if (open && organizationId) {
