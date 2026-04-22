@@ -775,6 +775,46 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         linkedSales?.forEach((s: any) => { linkedSaleMap[s.id] = s.sale_number; });
       }
 
+      // Build applied-CN map: sale_return_id -> { saleId, saleNumber, applied }[]
+      // by reading credit_note_adjustment vouchers that target each linked sale.
+      // We sum CN-adjustment voucher amounts per linked_sale_id, and attribute
+      // them to the SR that links to that sale. If multiple SRs link to the
+      // same sale, applied amount is allocated in chronological order up to
+      // each SR's net_amount.
+      const cnVoucherBySaleId: Record<string, number> = {};
+      (vouchersData || []).forEach((v: any) => {
+        if (v.voucher_type !== 'receipt') return;
+        const desc = (v.description || '').toLowerCase();
+        const isCn = v.payment_method === 'credit_note_adjustment'
+          || desc.includes('credit note adjusted')
+          || desc.includes('cn adjusted');
+        if (!isCn || !v.reference_id) return;
+        cnVoucherBySaleId[v.reference_id] =
+          (cnVoucherBySaleId[v.reference_id] || 0) + (Number(v.total_amount) || 0);
+      });
+
+      // Allocate applied amount per SR (chronological by return_date)
+      const srAppliedMap: Record<string, { saleId: string; saleNumber: string | null; applied: number }> = {};
+      const remainingBySale: Record<string, number> = { ...cnVoucherBySaleId };
+      const sortedSRs = [...(saleReturnsData || [])]
+        .filter((sr: any) => sr.linked_sale_id)
+        .sort((a: any, b: any) =>
+          new Date(a.return_date).getTime() - new Date(b.return_date).getTime()
+          || new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+        );
+      sortedSRs.forEach((sr: any) => {
+        const saleId = sr.linked_sale_id;
+        const remaining = remainingBySale[saleId] || 0;
+        if (remaining <= 0) return;
+        const applied = Math.min(remaining, Number(sr.net_amount) || 0);
+        srAppliedMap[sr.id] = {
+          saleId,
+          saleNumber: linkedSaleMap[saleId] || null,
+          applied,
+        };
+        remainingBySale[saleId] = remaining - applied;
+      });
+
       // Fetch advance refunds for this customer
       const customerAdvanceIds = (advancesData || []).map((a: any) => a.id);
       let filteredAdvanceRefunds: any[] = [];
