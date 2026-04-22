@@ -144,7 +144,7 @@ export function CustomerBalanceAdjustmentDialog({
         .is("deleted_at", null)
         .neq("payment_status", "cancelled");
       const totalGrossInvoices = (sales || []).reduce(
-        (sum, s) => sum + (s.net_amount || 0) + (s.sale_return_adjust || 0), 0);
+        (sum, s) => sum + (s.net_amount || 0), 0);
       const saleIdSet = new Set((sales || []).map((s: any) => s.id));
 
       // 2. Cash/card/UPI payments ONLY (exclude advance & CN adjustments)
