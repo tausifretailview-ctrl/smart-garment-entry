@@ -51,7 +51,7 @@ export function DraggableHeader<T>({ header, isSticky, density }: DraggableHeade
           : {}),
       }}
       className={cn(
-        "erp-table-header text-left text-foreground font-semibold text-[13px] uppercase tracking-wider select-none group bg-muted/70",
+        "erp-table-header text-left text-foreground font-semibold text-[14px] uppercase tracking-wider select-none group bg-muted/70",
         density === "compact" ? "px-3 py-2" : "px-5 py-4",
         isSticky && "erp-table-sticky-col-header"
       )}
