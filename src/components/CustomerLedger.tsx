@@ -2364,6 +2364,11 @@ Please clear your dues at the earliest. Thank you!`;
                                   ₹{transaction.credit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                                 </span>
                               )}
+                              {transaction.type === 'advance_application' && transaction.credit === 0 && (transaction.appliedAmount || 0) > 0 && (
+                                <span className="text-xs italic text-muted-foreground">
+                                  (₹{(transaction.appliedAmount || 0).toLocaleString("en-IN")} applied)
+                                </span>
+                              )}
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex flex-col items-end gap-0.5">
