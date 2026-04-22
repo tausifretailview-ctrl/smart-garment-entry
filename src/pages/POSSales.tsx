@@ -5107,22 +5107,22 @@ export default function POSSales() {
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="phone">Mobile Number *</Label>
-                <Input
-                  id="phone"
-                  value={newCustomerForm.phone}
-                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })}
-                  placeholder="Enter mobile number"
-                  autoFocus
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="customer_name">Customer Name</Label>
+                <Label htmlFor="customer_name">Customer Name *</Label>
                 <Input
                   id="customer_name"
                   value={newCustomerForm.customer_name}
                   onChange={(e) => setNewCustomerForm({ ...newCustomerForm, customer_name: e.target.value })}
-                  placeholder="Enter customer name (optional)"
+                  placeholder="Enter customer name"
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Mobile Number</Label>
+                <Input
+                  id="phone"
+                  value={newCustomerForm.phone}
+                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })}
+                  placeholder="Enter mobile number (optional)"
                 />
               </div>
               <div className="space-y-2">
@@ -5161,7 +5161,7 @@ export default function POSSales() {
               </Button>
               <Button 
                 onClick={() => createCustomer.mutate(newCustomerForm)}
-                disabled={!newCustomerForm.phone || createCustomer.isPending}
+                disabled={!newCustomerForm.customer_name.trim() || createCustomer.isPending}
               >
                 {createCustomer.isPending ? "Adding..." : "Add Customer"}
               </Button>
