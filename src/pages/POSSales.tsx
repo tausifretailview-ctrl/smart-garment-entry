@@ -4774,7 +4774,7 @@ export default function POSSales() {
                               onChange={(e) => updateQuantity(index, isDecimalUOM(item.uom) ? (parseFloat(e.target.value) || 0.001) : (parseInt(e.target.value) || 1))}
                               placeholder="1"
                               step={isDecimalUOM(item.uom) ? "0.001" : "1"}
-                              className="h-8 text-sm w-full text-center bg-muted/30 border-border/60"
+                              className="h-7 text-xs w-full text-center bg-muted/30 border-border/60"
                               min={isDecimalUOM(item.uom) ? "0.001" : "1"}
                             />
                             {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
@@ -4787,7 +4787,7 @@ export default function POSSales() {
                               value={item.mrp || ""}
                               onChange={(e) => updateMrp(index, parseFloat(e.target.value) || 0)}
                               placeholder="0"
-                              className="h-8 text-sm w-full text-right bg-muted/30 border-border/60"
+                              className="h-7 text-xs w-full text-right bg-muted/30 border-border/60"
                               min="0"
                               step="0.01"
                             />
@@ -4796,7 +4796,7 @@ export default function POSSales() {
                             <select
                               value={item.gstPer}
                               onChange={(e) => updateGstPer(index, parseInt(e.target.value))}
-                              className="h-8 w-full rounded-md border border-border/60 bg-muted/30 px-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-ring"
+                              className="h-7 w-full rounded-md text-xs border border-border/60 bg-muted/30 px-1.5 text-center focus:outline-none focus:ring-2 focus:ring-ring"
                             >
                               <option value="0">0%</option>
                               <option value="5">5%</option>
@@ -4811,7 +4811,7 @@ export default function POSSales() {
                               value={item.discountPercent || ""}
                               onChange={(e) => updateDiscountPercent(index, parseFloat(e.target.value) || 0)}
                               placeholder="0"
-                              className="h-8 text-sm w-full text-center bg-muted/30 border-border/60"
+                              className="h-7 text-xs w-full text-center bg-muted/30 border-border/60"
                               min="0"
                               max="100"
                               step="0.01"
@@ -4823,7 +4823,7 @@ export default function POSSales() {
                               value={item.discountAmount || ""}
                               onChange={(e) => updateDiscountAmount(index, parseFloat(e.target.value) || 0)}
                               placeholder="0"
-                              className="h-8 text-sm w-full text-right bg-muted/30 border-border/60"
+                              className="h-7 text-xs w-full text-right bg-muted/30 border-border/60"
                               min="0"
                               step="0.01"
                             />
