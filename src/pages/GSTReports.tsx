@@ -214,6 +214,7 @@ const GSTReports = () => {
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .eq("is_cancelled", false)
+        .gt("net_amount", 0)
         .gte("sale_date", fromDateObj.toISOString())
         .lte("sale_date", toDateObj.toISOString())
         .order("sale_date", { ascending: true });
@@ -422,7 +423,8 @@ const GSTReports = () => {
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .gte("return_date", fromDate)
-        .lte("return_date", toDate);
+        .lte("return_date", toDate)
+        .in("refund_type", ["credit_note", "exchange"]);
 
       const returnTaxable = (saleReturnsData || []).reduce((sum, r) => {
         const gst = r.gst_amount || 0;
