@@ -3493,15 +3493,15 @@ export default function POSSales() {
                 <Input id="tablet_customer_name" value={newCustomerForm.customer_name} onChange={(e) => setNewCustomerForm(prev => ({ ...prev, customer_name: e.target.value }))} placeholder="Customer name" autoFocus />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="tablet_phone">Mobile *</Label>
-                <Input id="tablet_phone" value={newCustomerForm.phone} onChange={(e) => setNewCustomerForm(prev => ({ ...prev, phone: e.target.value }))} placeholder="Mobile number" />
+                <Label htmlFor="tablet_phone">Mobile</Label>
+                <Input id="tablet_phone" value={newCustomerForm.phone} onChange={(e) => setNewCustomerForm(prev => ({ ...prev, phone: e.target.value }))} placeholder="Mobile number (optional)" />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="tablet_address">Address</Label>
                 <Input id="tablet_address" value={newCustomerForm.address} onChange={(e) => setNewCustomerForm(prev => ({ ...prev, address: e.target.value }))} placeholder="Address (optional)" />
               </div>
             </div>
-            <Button onClick={() => createCustomer.mutate(newCustomerForm)} disabled={!newCustomerForm.customer_name.trim() || !newCustomerForm.phone.trim()}>Save Customer</Button>
+            <Button onClick={() => createCustomer.mutate(newCustomerForm)} disabled={!newCustomerForm.customer_name.trim()}>Save Customer</Button>
           </DialogContent>
         </Dialog>
       </>
@@ -3639,12 +3639,12 @@ export default function POSSales() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="phone">Mobile *</Label>
+                <Label htmlFor="phone">Mobile</Label>
                 <Input
                   id="phone"
                   value={newCustomerForm.phone}
                   onChange={(e) => setNewCustomerForm(prev => ({ ...prev, phone: e.target.value }))}
-                  placeholder="Mobile number"
+                  placeholder="Mobile number (optional)"
                 />
               </div>
               <div className="grid gap-2">
@@ -3663,7 +3663,7 @@ export default function POSSales() {
               </Button>
               <Button 
                 onClick={() => createCustomer.mutate(newCustomerForm)}
-                disabled={!newCustomerForm.customer_name || !newCustomerForm.phone}
+                disabled={!newCustomerForm.customer_name.trim()}
               >
                 Add Customer
               </Button>
@@ -5107,22 +5107,22 @@ export default function POSSales() {
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="phone">Mobile Number *</Label>
-                <Input
-                  id="phone"
-                  value={newCustomerForm.phone}
-                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })}
-                  placeholder="Enter mobile number"
-                  autoFocus
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="customer_name">Customer Name</Label>
+                <Label htmlFor="customer_name">Customer Name *</Label>
                 <Input
                   id="customer_name"
                   value={newCustomerForm.customer_name}
                   onChange={(e) => setNewCustomerForm({ ...newCustomerForm, customer_name: e.target.value })}
-                  placeholder="Enter customer name (optional)"
+                  placeholder="Enter customer name"
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Mobile Number</Label>
+                <Input
+                  id="phone"
+                  value={newCustomerForm.phone}
+                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })}
+                  placeholder="Enter mobile number (optional)"
                 />
               </div>
               <div className="space-y-2">
@@ -5161,7 +5161,7 @@ export default function POSSales() {
               </Button>
               <Button 
                 onClick={() => createCustomer.mutate(newCustomerForm)}
-                disabled={!newCustomerForm.phone || createCustomer.isPending}
+                disabled={!newCustomerForm.customer_name.trim() || createCustomer.isPending}
               >
                 {createCustomer.isPending ? "Adding..." : "Add Customer"}
               </Button>
