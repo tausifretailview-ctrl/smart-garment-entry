@@ -43,6 +43,7 @@ interface BarcodeItem {
   bill_number?: string;
   business_name?: string;
   supplier_code?: string;
+  supplier_invoice_no?: string;
 }
 
 interface LabelFieldConfig {
@@ -70,6 +71,7 @@ interface LabelConfig {
   billNumber: LabelFieldConfig;
   supplierCode: LabelFieldConfig;
   purchaseCode: LabelFieldConfig;
+  supplierInvoiceNo?: LabelFieldConfig;
   fieldOrder: string[];
   barcodeHeight?: number;
   barcodeWidth?: number;
@@ -109,7 +111,7 @@ const sheetPresets: Record<string, { cols: number; rows?: number; width: string;
 
 // Check if config has absolute positioning (x/y defined)
 const hasAbsolutePositioning = (config: LabelConfig): boolean => {
-  const fields = ['brand', 'businessName', 'productName', 'color', 'style', 'size', 'price', 'mrp', 'barcode', 'barcodeText', 'billNumber', 'supplierCode', 'purchaseCode'];
+  const fields = ['brand', 'businessName', 'productName', 'color', 'style', 'size', 'price', 'mrp', 'barcode', 'barcodeText', 'billNumber', 'supplierCode', 'purchaseCode', 'supplierInvoiceNo'];
   return fields.some(fieldKey => {
     const field = config[fieldKey as keyof LabelConfig] as LabelFieldConfig | undefined;
     return field && (field.x !== undefined || field.y !== undefined);
@@ -142,6 +144,7 @@ const getAbsolutePositionedLabelHTML = (
     billNumber: { content: item.bill_number || '', key: 'billNumber' },
     supplierCode: { content: item.supplier_code || '', key: 'supplierCode' },
     purchaseCode: { content: item.purchase_code || '', key: 'purchaseCode' },
+    supplierInvoiceNo: { content: item.supplier_invoice_no || '', key: 'supplierInvoiceNo' },
   };
 
   let fieldsHtml = '';
