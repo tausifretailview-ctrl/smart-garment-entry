@@ -146,7 +146,7 @@ export function SalesInvoiceERPTable({
           const invoice = row.original;
           return (
             <div className="flex flex-col">
-              <div className="flex items-center gap-1.5 font-medium">
+              <div className="flex items-center gap-1.5 font-medium text-[17px]">
                 <span className={invoice.is_cancelled ? "line-through decoration-red-500/70" : ""}>{invoice.sale_number}</span>
                 {invoice.is_cancelled && (
                   <Badge className="no-line-through text-xs px-1.5 py-0 h-4 bg-red-700 hover:bg-red-800 text-white no-underline" style={{ textDecoration: 'none' }}>CANCELLED</Badge>
@@ -157,7 +157,7 @@ export function SalesInvoiceERPTable({
                   </span>
                 )}
               </div>
-              <span className="text-sm text-foreground/70">
+              <span className="text-[14px] text-foreground/70">
                 {invoice.sale_date ? format(new Date(invoice.sale_date), 'hh:mm a') : ''}
               </span>
             </div>
@@ -173,7 +173,7 @@ export function SalesInvoiceERPTable({
           const invoice = row.original;
           return (
             <span
-              className="cursor-pointer text-blue-600 hover:underline whitespace-nowrap block truncate max-w-[200px]"
+              className="cursor-pointer text-blue-600 hover:underline whitespace-nowrap block truncate max-w-[200px] text-[17px] font-medium"
               onClick={(e) => {
                 e.stopPropagation();
                 setSelectedCustomerForHistory({
@@ -195,7 +195,7 @@ export function SalesInvoiceERPTable({
       cols.push({
         accessorKey: "customer_phone",
         header: "Phone",
-        cell: ({ row }) => row.original.customer_phone || '-',
+        cell: ({ row }) => <span className="text-[17px]">{row.original.customer_phone || '-'}</span>,
         size: 115,
         minSize: 100,
       });
@@ -205,7 +205,7 @@ export function SalesInvoiceERPTable({
       {
         accessorKey: "sale_date",
         header: "Date",
-        cell: ({ row }) => row.original.sale_date ? format(new Date(row.original.sale_date), 'dd/MM/yyyy') : '-',
+        cell: ({ row }) => <span className="text-[17px]">{row.original.sale_date ? format(new Date(row.original.sale_date), 'dd/MM/yyyy') : '-'}</span>,
         size: 95,
         minSize: 85,
       },
@@ -213,7 +213,7 @@ export function SalesInvoiceERPTable({
         id: "qty",
         header: "QTY",
         cell: ({ row }) => (
-          <span className="text-center block">
+          <span className="text-center block text-[17px]">
             {row.original.total_qty || 0}
           </span>
         ),
@@ -226,10 +226,10 @@ export function SalesInvoiceERPTable({
         cell: ({ row }) => {
           const invoice = row.original;
           return (
-            <div className="text-right">
+            <div className="text-right text-[17px]">
               ₹{Math.round((invoice.discount_amount || 0) + (invoice.flat_discount_amount || 0)).toLocaleString('en-IN')}
               {(invoice.sale_return_adjust || 0) > 0 && (
-                <span className="block text-sm text-amber-600">+S/R: ₹{Math.round(invoice.sale_return_adjust).toLocaleString('en-IN')}</span>
+                <span className="block text-[14px] text-amber-600">+S/R: ₹{Math.round(invoice.sale_return_adjust).toLocaleString('en-IN')}</span>
               )}
             </div>
           );
@@ -240,7 +240,7 @@ export function SalesInvoiceERPTable({
       {
         accessorKey: "net_amount",
         header: "Amount",
-        cell: ({ row }) => <span className="tabular-nums">₹{Math.round(row.original.net_amount).toLocaleString('en-IN')}</span>,
+        cell: ({ row }) => <span className="tabular-nums text-[17px] font-medium">₹{Math.round(row.original.net_amount).toLocaleString('en-IN')}</span>,
         size: 100,
         minSize: 85,
       }
@@ -300,7 +300,7 @@ export function SalesInvoiceERPTable({
           id: "balance",
           header: "Balance",
           cell: ({ row }) => (
-            <span className="text-right block tabular-nums">
+            <span className="text-right block tabular-nums text-[17px] font-medium">
               ₹{Math.max(0, Math.round((row.original.net_amount || 0) - (row.original.paid_amount || 0) - (row.original.sale_return_adjust || 0))).toLocaleString('en-IN')}
             </span>
           ),
