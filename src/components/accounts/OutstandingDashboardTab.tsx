@@ -64,10 +64,43 @@ export function OutstandingDashboardTab({ organizationId }: OutstandingDashboard
       // Fetch voucher payments for accurate outstanding calc
       const { data: allVouchers } = await supabase
         .from("voucher_entries")
-        .select("reference_id, reference_type, total_amount")
+        .select("reference_id, reference_type, total_amount, payment_method, description")
         .eq("organization_id", organizationId)
         .eq("voucher_type", "receipt")
         .is("deleted_at", null);
+
+      // Also fetch sale returns and unused advances per customer
+      const [saleReturnsResult, advancesResult] = await Promise.all([
+        supabase
+          .from("sale_returns")
+          .select("customer_id, net_amount")
+          .eq("organization_id", organizationId)
+          .is("deleted_at", null),
+        supabase
+          .from("customer_advances")
+          .select("customer_id, amount, used_amount")
+          .eq("organization_id", organizationId)
+          .in("status", ["active", "partially_used"]),
+      ]);
+
+      const customerSaleReturnTotals = new Map<string, number>();
+      saleReturnsResult.data?.forEach((sr: any) => {
+        if (sr.customer_id)
+          customerSaleReturnTotals.set(
+            sr.customer_id,
+            (customerSaleReturnTotals.get(sr.customer_id) || 0) + (sr.net_amount || 0)
+          );
+      });
+
+      const customerUnusedAdvances = new Map<string, number>();
+      advancesResult.data?.forEach((adv: any) => {
+        const unused = Math.max(0, (adv.amount || 0) - (adv.used_amount || 0));
+        if (unused > 0 && adv.customer_id)
+          customerUnusedAdvances.set(
+            adv.customer_id,
+            (customerUnusedAdvances.get(adv.customer_id) || 0) + unused
+          );
+      });
 
       // Build voucher payment map (sale_id -> total paid via vouchers)
       const invoiceVoucherPayments = new Map<string, number>();
@@ -80,6 +113,17 @@ export function OutstandingDashboardTab({ organizationId }: OutstandingDashboard
 
       allVouchers?.forEach((v: any) => {
         if (!v.reference_id) return;
+        // Skip advance/CN adjustment receipts so they don't inflate cash voucherPaid
+        const desc = (v.description || "").toLowerCase();
+        const isAdv =
+          v.payment_method === "advance_adjustment" ||
+          desc.includes("adjusted from advance balance") ||
+          desc.includes("advance adjusted");
+        const isCn =
+          v.payment_method === "credit_note_adjustment" ||
+          desc.includes("credit note adjusted") ||
+          desc.includes("cn adjusted");
+        if (isAdv || isCn) return;
         const customerId = saleToCustomerMap.get(v.reference_id);
         if (v.reference_type === "sale" || customerId) {
           invoiceVoucherPayments.set(
@@ -167,7 +211,32 @@ export function OutstandingDashboardTab({ organizationId }: OutstandingDashboard
         entry.oldestDays = Math.max(entry.oldestDays, 365);
       });
 
-      return Array.from(customerOutstandings.values());
+      // Apply customer-level credits: sale returns + unused advances reduce outstanding.
+      // Distribute the credit proportionally across aging buckets so the buckets stay consistent.
+      const result: CustomerOutstanding[] = [];
+      customerOutstandings.forEach((entry) => {
+        const srCredit = customerSaleReturnTotals.get(entry.id) || 0;
+        const advCredit = customerUnusedAdvances.get(entry.id) || 0;
+        const totalCredit = srCredit + advCredit;
+        if (totalCredit <= 0) {
+          result.push(entry);
+          return;
+        }
+        const raw = entry.totalOutstanding;
+        const netOutstanding = Math.max(0, raw - totalCredit);
+        if (netOutstanding < 1) return; // fully covered by credits
+        const ratio = raw > 0 ? netOutstanding / raw : 0;
+        entry.totalOutstanding = netOutstanding;
+        entry.aging = {
+          current: entry.aging.current * ratio,
+          d30: entry.aging.d30 * ratio,
+          d60: entry.aging.d60 * ratio,
+          d90: entry.aging.d90 * ratio,
+          d90plus: entry.aging.d90plus * ratio,
+        };
+        result.push(entry);
+      });
+      return result;
     },
     enabled: !!organizationId,
     staleTime: 60000,
