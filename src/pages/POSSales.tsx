@@ -396,26 +396,6 @@ export default function POSSales() {
     };
   }, [isIPadSafari]);
 
-  const fetchPosBillFormat = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('settings')
-        .select('sale_settings')
-        .eq('organization_id', currentOrganization?.id)
-        .maybeSingle();
-
-      if (error) throw error;
-      if (data?.sale_settings) {
-        const settings = data.sale_settings as any;
-        setPosBillFormat(settings.pos_bill_format || 'thermal');
-        setPosInvoiceTemplate(settings.invoice_template || 'professional');
-        setShowInvoicePreviewSetting(settings.show_invoice_preview ?? true);
-      }
-    } catch (error) {
-      console.error('Error fetching POS bill format:', error);
-    }
-  };
-
   const loadSaleForEdit = async (saleId: string) => {
     try {
       // Fetch sale data
