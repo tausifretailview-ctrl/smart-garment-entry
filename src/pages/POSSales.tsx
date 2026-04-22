@@ -1026,66 +1026,87 @@ export default function POSSales() {
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       
-      // Fetch all products using pagination to bypass 1000 row limit
-      const allProducts: any[] = [];
+      // Two-query strategy: load active products and only stocked-or-barcoded variants
+      // separately, then join in JS. Avoids pulling tens of thousands of variant rows
+      // for orgs with large catalogs.
       const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
-      
-      while (hasMore) {
-        const { data: products, error: productsError } = await supabase
+
+      // Query 1: active, non-deleted products
+      const allProducts: any[] = [];
+      let pOffset = 0;
+      let pHasMore = true;
+      while (pHasMore) {
+        const { data, error } = await supabase
           .from('products')
-          .select(`
-            id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, product_type, status, category, style, color, sale_discount_type, sale_discount_value, uom,
-            product_variants (
-              id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, deleted_at,
-              last_purchase_sale_price, last_purchase_mrp, last_purchase_date, is_dc_product
-            )
-          `)
+          .select('id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, product_type, status, category, style, color, sale_discount_type, sale_discount_value, uom')
           .eq('organization_id', currentOrganization.id)
           .eq('status', 'active')
           .is('deleted_at', null)
-          .range(offset, offset + PAGE_SIZE - 1);
-        
-        if (productsError) throw productsError;
-        
-        if (products && products.length > 0) {
-          allProducts.push(...products);
-          offset += PAGE_SIZE;
-          hasMore = products.length === PAGE_SIZE;
+          .range(pOffset, pOffset + PAGE_SIZE - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allProducts.push(...data);
+          pOffset += PAGE_SIZE;
+          pHasMore = data.length === PAGE_SIZE;
         } else {
-          hasMore = false;
+          pHasMore = false;
         }
       }
-      
-      // Filter products: service/combo always shown, goods only with available stock
-      // First, filter out deleted variants from all products
-      const productsWithValidVariants = allProducts.map((product: any) => ({
-        ...product,
-        product_variants: product.product_variants?.filter((v: any) => !v.deleted_at)
-      }));
-      
-      return productsWithValidVariants.filter((product: any) => {
-        // Service and combo products are always available (no stock tracking)
-        if (product.product_type === 'service' || product.product_type === 'combo') {
-          return product.product_variants?.length > 0;
+
+      // Query 2: only variants with stock OR a barcode (so zero-stock barcoded
+      // items can still be scanned). Excludes deleted variants.
+      const allVariants: any[] = [];
+      let vOffset = 0;
+      let vHasMore = true;
+      while (vHasMore) {
+        const { data, error } = await supabase
+          .from('product_variants')
+          .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, is_dc_product')
+          .eq('organization_id', currentOrganization.id)
+          .is('deleted_at', null)
+          .or('stock_qty.gt.0,barcode.not.is.null')
+          .range(vOffset, vOffset + PAGE_SIZE - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allVariants.push(...data);
+          vOffset += PAGE_SIZE;
+          vHasMore = data.length === PAGE_SIZE;
+        } else {
+          vHasMore = false;
         }
-        // Goods products require available stock
-        const hasAvailableStock = product.product_variants?.some((v: any) => v.stock_qty > 0);
-        return hasAvailableStock;
-      }).map((product: any) => {
-        // Service/combo: keep all variants, goods: filter by stock
-        if (product.product_type === 'service' || product.product_type === 'combo') {
-          return product;
-        }
-        return {
+      }
+
+      // Group variants by product_id
+      const variantsByProduct: Record<string, any[]> = {};
+      for (const v of allVariants) {
+        if (!variantsByProduct[v.product_id]) variantsByProduct[v.product_id] = [];
+        variantsByProduct[v.product_id].push(v);
+      }
+
+      // Join + apply same product-type filtering as before
+      return allProducts
+        .map((product: any) => ({
           ...product,
-          product_variants: product.product_variants?.filter((v: any) => v.stock_qty > 0)
-        };
-      }) || [];
+          product_variants: variantsByProduct[product.id] || [],
+        }))
+        .filter((product: any) => {
+          if (product.product_type === 'service' || product.product_type === 'combo') {
+            return product.product_variants.length > 0;
+          }
+          return product.product_variants.some((v: any) => v.stock_qty > 0);
+        })
+        .map((product: any) => {
+          if (product.product_type === 'service' || product.product_type === 'combo') {
+            return product;
+          }
+          return {
+            ...product,
+            product_variants: product.product_variants.filter((v: any) => v.stock_qty > 0),
+          };
+        });
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 300000, // Cache for 5 minutes
+    staleTime: 10 * 60 * 1000, // Cache for 10 minutes — products rarely change mid-session
     refetchInterval: posRefetchInterval,
     refetchOnWindowFocus: false,
   });
