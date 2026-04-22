@@ -2281,11 +2281,12 @@ const ProductEntry = () => {
                     const newSalePrice = (!isNaN(markup) && purPrice > 0)
                       ? Math.round(purPrice * (1 + markup / 100))
                       : formData.default_sale_price;
-                    setFormData({
-                      ...formData,
-                      default_pur_price: purPrice,
-                      ...((!isNaN(markup) && purPrice > 0) ? { default_sale_price: newSalePrice } : {}),
-                    });
+                    const updates: any = { default_pur_price: purPrice };
+                    if (!isNaN(markup) && purPrice > 0) {
+                      updates.default_sale_price = newSalePrice;
+                      updates.sale_gst_percent = applyGarmentGstRule(newSalePrice, formData.sale_gst_percent, garmentGstSettings);
+                    }
+                    setFormData({ ...formData, ...updates });
                   }}
                   className={`${(formData.default_pur_price ?? 0) > 0 && (formData.default_sale_price ?? 0) > 0 && (formData.default_pur_price ?? 0) > (formData.default_sale_price ?? 0) ? 'border-destructive' : ''}`}
                   placeholder="₹ 0.00"
