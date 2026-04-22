@@ -68,6 +68,7 @@ interface Transaction {
     upi?: number;
     method?: string;
   };
+  appliedAmount?: number;
 }
 
 export function CustomerLedger({ organizationId, paymentFilter, preSelectedCustomerId }: CustomerLedgerProps) {
