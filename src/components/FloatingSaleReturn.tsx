@@ -610,9 +610,51 @@ export const FloatingSaleReturn = ({
         } catch (vErr) { console.error("Refund voucher failed:", vErr); }
       }
 
+      // Apply pending credit note if one was selected alongside this return
+      if (appliedCreditNoteId && customerId) {
+        try {
+          const cn = pendingCreditNotes.find(c => c.id === appliedCreditNoteId);
+          if (cn) {
+            await supabase
+              .from("sale_returns")
+              .update({
+                credit_status: "adjusted",
+                linked_sale_id: null,
+              })
+              .eq("id", cn.id);
+
+            const { data: lastVoucher } = await supabase
+              .from("voucher_entries")
+              .select("voucher_number")
+              .eq("organization_id", organizationId)
+              .eq("voucher_type", "receipt")
+              .order("created_at", { ascending: false })
+              .limit(1);
+            const lastNum = lastVoucher?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
+            const newVoucherNumber = `RCP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`;
+
+            await supabase.from("voucher_entries").insert({
+              organization_id: organizationId,
+              voucher_number: newVoucherNumber,
+              voucher_type: "receipt",
+              voucher_date: new Date().toISOString().split("T")[0],
+              reference_type: "customer",
+              reference_id: customerId,
+              description: `Credit note ${cn.returnNumber} applied via POS`,
+              total_amount: cn.creditAmount,
+              payment_method: "credit_note_adjustment",
+            });
+          }
+        } catch (cnErr) {
+          console.error("Credit note apply failed:", cnErr);
+        }
+      }
+
       const refundLabel = refundType === "cash_refund" ? "Cash Refund" : refundType === "exchange" ? "Exchange" : "Credit Note";
       toast({ title: "Return Saved", description: `Return ${returnNumber} — ₹${Math.round(grossAmount)} (${refundLabel})` });
-      onReturnSaved(grossAmount, returnNumber, refundType);
+      const effectiveReturnAmount = returnItems.length === 0 ? appliedCreditAmount : grossAmount;
+      const effectiveRefundType: RefundType = returnItems.length === 0 ? "credit_note" : refundType;
+      onReturnSaved(effectiveReturnAmount, returnNumber, effectiveRefundType);
       onOpenChange(false);
     } catch (error: any) {
       console.error("Error saving return:", error);
