@@ -1006,18 +1006,41 @@ export const FloatingSaleReturn = ({
 
         {/* Footer */}
         <div className="flex items-center justify-between pt-2 border-t">
-          <div className="text-lg font-bold">
-            Return Total: <span className="text-destructive">₹{Math.round(totalAmount).toLocaleString('en-IN')}</span>
+          <div className="text-base font-bold space-y-0.5">
+            {appliedCreditNoteId && returnItems.length > 0 && (
+              <div className="text-sm font-normal text-muted-foreground">
+                Return: ₹{Math.round(totalAmount).toLocaleString("en-IN")}
+                {" − "}
+                CN: ₹{Math.round(appliedCreditAmount).toLocaleString("en-IN")}
+              </div>
+            )}
+            {appliedCreditNoteId && returnItems.length === 0 ? (
+              <div>
+                Apply Credit Note:{" "}
+                <span className="text-green-600">
+                  ₹{Math.round(appliedCreditAmount).toLocaleString("en-IN")}
+                </span>
+              </div>
+            ) : (
+              <div>
+                Return Total:{" "}
+                <span className="text-destructive">
+                  ₹{Math.round(totalAmount).toLocaleString("en-IN")}
+                </span>
+              </div>
+            )}
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={handleSaveReturn} disabled={saving || returnItems.length === 0}>
+            <Button onClick={handleSaveReturn} disabled={saving || (returnItems.length === 0 && !appliedCreditNoteId)}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {refundType === "cash_refund" ? "Save & Cash Refund" :
-               refundType === "exchange" ? "Save & Exchange (S/R Adj)" :
-               "Save Return (Credit Note)"}
+              {returnItems.length === 0 && appliedCreditNoteId
+                ? `Apply Credit Note — ₹${Math.round(appliedCreditAmount).toLocaleString("en-IN")}`
+                : refundType === "cash_refund" ? "Save & Cash Refund"
+                : refundType === "exchange" ? "Save & Exchange (S/R Adj)"
+                : "Save Return (Credit Note)"}
             </Button>
           </div>
         </div>
