@@ -103,6 +103,8 @@ interface PurchaseSettings {
   size_grid_review_mode?: boolean;
   roll_wise_mtr_entry?: boolean;
   cursor_after_style?: 'pur_price' | 'hsn';
+  garment_gst_rule_enabled?: boolean;
+  garment_gst_threshold?: number;
 }
 
 interface EInvoiceSettings {
