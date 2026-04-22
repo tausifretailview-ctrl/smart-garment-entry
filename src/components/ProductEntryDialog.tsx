@@ -124,6 +124,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const [fieldSettings, setFieldSettings] = useState<any>(null);
   const [showMrp, setShowMrp] = useState(false);
   const [showDiscountFields, setShowDiscountFields] = useState(false);
+  const [garmentGstSettings, setGarmentGstSettings] = useState<GarmentGstRuleSettings>({});
  const [cursorAfterStyle, setCursorAfterStyle] = useState<'pur_price' | 'hsn'>('pur_price');
   const purGstRef = useRef<HTMLButtonElement>(null);
   const saleGstRef = useRef<HTMLButtonElement>(null);
