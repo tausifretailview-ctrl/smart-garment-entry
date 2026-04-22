@@ -4638,6 +4638,7 @@ export type Database = {
           flat_discount_amount: number
           flat_discount_percent: number
           gross_amount: number
+          held_cart_data: Json | null
           id: string
           invoice_type: string | null
           irn: string | null
@@ -4699,6 +4700,7 @@ export type Database = {
           flat_discount_amount?: number
           flat_discount_percent?: number
           gross_amount?: number
+          held_cart_data?: Json | null
           id?: string
           invoice_type?: string | null
           irn?: string | null
@@ -4760,6 +4762,7 @@ export type Database = {
           flat_discount_amount?: number
           flat_discount_percent?: number
           gross_amount?: number
+          held_cart_data?: Json | null
           id?: string
           invoice_type?: string | null
           irn?: string | null
