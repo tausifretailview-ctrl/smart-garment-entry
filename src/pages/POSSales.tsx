@@ -344,13 +344,6 @@ export default function POSSales() {
     }
   }, [searchParams, currentOrganization?.id]);
 
-  // Fetch POS bill format from settings
-  useEffect(() => {
-    if (currentOrganization?.id) {
-      fetchPosBillFormat();
-    }
-  }, [currentOrganization?.id]);
-
   // Auto-focus barcode input on mount and keep focus when idle
   // Disabled on iPad to prevent soft keyboard from popping up unexpectedly
   useEffect(() => {
