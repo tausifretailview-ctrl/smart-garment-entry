@@ -2796,7 +2796,8 @@ export default function POSSales() {
     // Get invoice URL if we have a sale ID - include org slug for branding
     const saleId = useCurrentData ? currentSaleId : savedInvoiceData?.saleId;
     const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
-    const invoiceUrl = saleId ? `${window.location.origin}/${orgSlug}/invoice/view/${saleId}` : '';
+    const thermalSuffix = posBillFormat === 'thermal' ? '?format=thermal' : '';
+    const invoiceUrl = saleId ? `${window.location.origin}/${orgSlug}/invoice/view/${saleId}${thermalSuffix}` : '';
     
     // Build payment breakdown
     const paymentParts: string[] = [];

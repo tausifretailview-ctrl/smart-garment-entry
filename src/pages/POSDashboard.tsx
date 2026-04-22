@@ -820,7 +820,8 @@ const POSDashboard = () => {
 
     // Generate invoice URL - include org slug for branding
     const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
-    const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${sale.id}`;
+    const thermalSuffix = saleSettings?.pos_bill_format === 'thermal' ? '?format=thermal' : '';
+    const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${sale.id}${thermalSuffix}`;
     
     // Fetch customer balance if customer_id exists
     let customerBalance = 0;
@@ -957,7 +958,8 @@ const POSDashboard = () => {
   const handleCopyLink = async (sale: Sale, event: React.MouseEvent) => {
     event.stopPropagation();
     const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
-    const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${sale.id}`;
+    const thermalSuffix = saleSettings?.pos_bill_format === 'thermal' ? '?format=thermal' : '';
+    const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${sale.id}${thermalSuffix}`;
     copyInvoiceLink(invoiceUrl);
   };
 
