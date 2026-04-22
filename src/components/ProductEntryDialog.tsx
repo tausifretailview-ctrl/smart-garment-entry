@@ -1647,7 +1647,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     value={formData.default_sale_price ?? ""}
                     onChange={(val) => {
                       const salePrice = val || undefined;
-                      setFormData({ ...formData, default_sale_price: salePrice });
+                      const newGst = applyGarmentGstRule(salePrice, formData.sale_gst_percent, garmentGstSettings);
+                      setFormData({ ...formData, default_sale_price: salePrice, sale_gst_percent: newGst });
                       const purPrice = formData.default_pur_price;
                       if (salePrice && salePrice > 0 && purPrice && purPrice > 0) {
                         setMarkupPercent((((salePrice - purPrice) / purPrice) * 100).toFixed(2));
