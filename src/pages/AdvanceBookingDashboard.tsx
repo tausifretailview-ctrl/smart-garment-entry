@@ -340,11 +340,32 @@ export default function AdvanceBookingDashboard() {
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (ids: string[]) => {
-      const { error } = await supabase
+      // Safety check: don't allow deleting advances that have been adjusted against invoices
+      const { data: rows, error: fetchErr } = await supabase
+        .from("customer_advances")
+        .select("id, advance_number, used_amount")
+        .in("id", ids);
+      if (fetchErr) throw fetchErr;
+      const used = (rows || []).filter((r: any) => Number(r.used_amount) > 0);
+      if (used.length > 0) {
+        const nums = used.map((r: any) => r.advance_number).join(", ");
+        throw new Error(
+          `Cannot delete used advance(s): ${nums}. Already adjusted against invoices — reverse the adjustment first.`
+        );
+      }
+
+      const { data: deleted, error } = await supabase
         .from("customer_advances")
         .delete()
-        .in("id", ids);
+        .in("id", ids)
+        .select("id");
       if (error) throw error;
+      if (!deleted || deleted.length === 0) {
+        throw new Error("No records were deleted. You may not have permission.");
+      }
+      if (deleted.length !== ids.length) {
+        throw new Error(`Only ${deleted.length} of ${ids.length} advances were deleted.`);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["advance-dashboard"] });
