@@ -1625,7 +1625,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       const mk = parseFloat(val);
                       const purPrice = formData.default_pur_price;
                       if (!isNaN(mk) && purPrice && purPrice > 0) {
-                        setFormData({ ...formData, default_sale_price: Math.round(purPrice * (1 + mk / 100)) });
+                        const newSalePrice = Math.round(purPrice * (1 + mk / 100));
+                        setFormData({
+                          ...formData,
+                          default_sale_price: newSalePrice,
+                          sale_gst_percent: applyGarmentGstRule(newSalePrice, formData.sale_gst_percent, garmentGstSettings),
+                        });
                       }
                     }}
                     onKeyDown={handleEnterAsTab}
