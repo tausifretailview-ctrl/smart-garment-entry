@@ -524,7 +524,7 @@ export const FloatingSaleReturn = ({
             voucher_date: new Date().toISOString().split("T")[0],
             reference_type: "customer",
             reference_id: customerId,
-            description: `Cash Refund for Sale Return: ${returnNumber}`,
+            description: `Refund paid for sale return: ${returnNumber}`,
             total_amount: grossAmount,
             payment_method: "cash",
           });
