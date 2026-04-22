@@ -1,54 +1,37 @@
 
 
-## Fix: Customer Ledger CN Adjustment Showing Wrong Balance
+## Fix: Customer Ledger CN Attribution for Multi-SR Adjustments
 
-### The bug
+### Audit findings (Ella Noor org)
 
-For Hanif Bhai (Ella Noor org), Sale Return SR/26-27/11 has `net_amount = ₹6,250`, of which only **₹3,200 was applied** against invoice INV/26-27/287 at billing time (recorded as `sales.sale_return_adjust = 3200` and a `credit_note_adjustment` voucher of ₹3,200). The remaining **₹3,050 is unused CN credit**.
+Scanning all customers, **5 customers** have CN-applied vs SR-amount mismatches. The previous fix correctly handles 4 (Hanif, Priyanka, Arezah, Sharmin — partial unused balance). The 5th, **Amrin**, exposes a deeper bug:
 
-The ledger currently shows:
+| Customer | SR | Net | Applied (voucher) | Issue |
+|---|---|---:|---:|---|
+| Hanif bhai | SR/26-27/11 | 6,250 | 3,200 | ✅ fixed (partial unused 3,050) |
+| Priyanka Yadav | SR/26-27/9 | 4,400 | 3,900 | ✅ fixed (partial unused 500) |
+| Arezah Nathani | SR/26-27/4 | 3,200 | 50 | ✅ fixed (partial unused 3,150) |
+| Sharmin Mewara | SR/25-26/39 | 13,450 | 1,950 | ✅ fixed (partial unused 11,500) |
+| **Amrin** | SR/25-26/21 + SR/26-27/3 | 6,400 + 2,800 | 9,200 (single voucher on INV/25-26/733) | ❌ phantom pending |
 
-```text
-SR/26-27/11        Credit ₹6,250    ← full SR amount
-INV/26-27/287      Debit  ₹6,400    ← gross (net 3,200 + sr_adjust 3,200)
-                   Balance ₹150 Dr  ← WRONG, should be ₹3,050 Cr
-```
-
-The summary cards above (TOTAL PAID, balance) compute `-₹3,050` correctly because they net the CN-applied voucher, but the running ledger renders the SR credit and the gross invoice as two independent rows, double-counting the ₹3,200 against the customer.
+Amrin's case: invoice INV/25-26/733 was billed with `sale_return_adjust = ₹9,200` (both SRs applied at billing time). The voucher row credits ₹9,200 against INV/25-26/733. But **SR/26-27/3 has no `linked_sale_id`**, so the current allocator only attributes ₹6,400 (from SR/25-26/21 which is linked); the remaining ₹2,800 of voucher remains "unattributed" and SR/26-27/3 wrongly shows as ₹2,800 Pending CN — even though the customer already used it on INV/25-26/733.
 
 ### Fix
 
-Inside `combined.forEach` in `src/components/CustomerLedger.tsx` (the section that renders `cn_adjustment` rows around lines 1121-1147), split each Sale Return into TWO ledger entries when applicable:
+In `src/components/CustomerLedger.tsx` (`srAppliedMap` builder, lines ~796-816):
 
-**1. Applied portion** (matches a `credit_note_adjustment` voucher on a sale)
-   - One row per linked invoice: `Credit = applied_amount`, description: `"Sale Return SR/X — applied to INV/Y"`.
-   - Computed by reading `voucher_entries` rows where `payment_method = 'credit_note_adjustment'` and `reference_id` is one of the customer's sales, summed per `sale_return.linked_sale_id`.
+1. **Two-pass allocation** within the customer's SRs:
+   - **Pass 1** (existing): Allocate CN voucher remaining-by-sale to SRs whose `linked_sale_id` matches that sale (chronological).
+   - **Pass 2** (new): For any voucher remainder still on a sale (i.e., `remainingBySale[saleId] > 0` after pass 1), distribute it across this customer's *unlinked* SRs (chronological by date) up to each SR's `net_amount`. Tag those SR entries with the sale they were applied to (using `linkedSaleMap[saleId]`).
 
-**2. Unused / pending portion** (`net_amount − applied`)
-   - Single row labelled `"Sale Return SR/X (Pending CN — ₹Z available)"`, with `Credit = unused`.
-   - Skipped if unused = 0.
-
-Both rows together always sum to `sale_returns.net_amount`, so the running balance still reconciles with the summary formula.
-
-For Hanif Bhai this becomes:
-
-```text
-SR/26-27/11   Credit ₹3,200   (Applied to INV/26-27/287)
-SR/26-27/11   Credit ₹3,050   (Pending CN — available)
-INV/26-27/287 Debit  ₹6,400   (Incl. SR Adj ₹3,200)
-                  Balance ₹3,050 Cr ✓
-```
+2. Result: Amrin's SR/26-27/3 will show "Applied to INV/25-26/733 ₹2,800" (Credit) and SR/25-26/21 will show "Applied to INV/25-26/733 ₹6,400" — both fully accounted, no phantom pending CN, balance reconciles.
 
 ### Technical changes
 
-- **`src/components/CustomerLedger.tsx`**:
-  - In the desktop ledger transaction builder (~line 791), fetch `credit_note_adjustment` vouchers per sale once, then build a `Map<sale_return_id, applied_amount>` keyed via `linked_sale_id`.
-  - Replace the single `cn_adjustment` push (lines 1121-1147) with up to two pushes: applied (if > 0) and unused (if > 0).
-  - Apply the same split in the mobile transaction builder if the file has a mirrored block (search for `cn_adjustment` — there are 27 hits; update each render path consistently).
-- **No DB migration** — all data already exists; we are only changing presentation.
+- **`src/components/CustomerLedger.tsx`** — extend the `srAppliedMap` builder to add Pass 2: after the existing chronological allocation against linked SRs, iterate remaining `cnVoucherBySaleId` balances and allocate to unlinked SRs of the same customer in chronological order. No DB changes; presentation-only fix that uses already-existing data (voucher rows + SR rows).
 
 ### Out of scope
 
-- Changing how invoices store `sale_return_adjust` (already correct).
-- Reconciling historical CN adjustments where the voucher row was never written (very rare; would require a separate backfill script).
+- Cleanup of the 4 already-fixed customers (no action needed — display now correct).
+- Auto-linking historical unlinked SRs to their billing-time invoice via `sales.sale_return_adjust` (would need a backfill migration; current presentation fix avoids needing it).
 
