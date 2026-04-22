@@ -46,6 +46,7 @@ export interface LabelData {
   billNumber?: string;
   purchaseCode?: string;
   supplierCode?: string;
+  supplierInvoiceNo?: string;
   style?: string;
 }
 
@@ -83,6 +84,7 @@ export interface TSPLTemplateConfig {
   billNumber: TSPLFieldConfig;
   supplierCode: TSPLFieldConfig;
   purchaseCode: TSPLFieldConfig;
+  supplierInvoiceNo?: TSPLFieldConfig;
   fieldOrder: string[];
   barcodeHeight?: number;
   barcodeWidth?: number;
@@ -172,6 +174,7 @@ const getFieldContent = (fieldKey: string, data: LabelData): string => {
     case 'billNumber': return data.billNumber || '';
     case 'supplierCode': return data.supplierCode || '';
     case 'purchaseCode': return data.purchaseCode || '';
+    case 'supplierInvoiceNo': return data.supplierInvoiceNo || '';
     default: return '';
   }
 };

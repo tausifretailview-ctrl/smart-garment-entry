@@ -50,6 +50,7 @@ const defaultFieldLabels: Record<FieldKey, string> = {
   billNumber: 'Bill Number',
   supplierCode: 'Supplier Code',
   purchaseCode: 'Purchase Code',
+  supplierInvoiceNo: 'Supplier Invoice No',
 };
 
 // Draggable Field Component for Canvas
