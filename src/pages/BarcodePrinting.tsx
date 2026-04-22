@@ -98,7 +98,7 @@ const sortItemsBySize = (items: LabelItem[], order: SizeSortOrder): LabelItem[] 
 const ensureCompleteFieldOrder = (config: Partial<LabelDesignConfig>): LabelDesignConfig => {
   const allFields: FieldKey[] = [
     'businessName', 'brand', 'productName', 'category', 'color', 'style', 'size', 'price', 'mrp', 'qty',
-    'customText', 'barcode', 'barcodeText', 'billNumber', 'supplierCode', 'purchaseCode'
+    'customText', 'barcode', 'barcodeText', 'billNumber', 'supplierCode', 'purchaseCode', 'supplierInvoiceNo'
   ];
   
   const existingOrder = config.fieldOrder || [];
@@ -121,6 +121,7 @@ const ensureCompleteFieldOrder = (config: Partial<LabelDesignConfig>): LabelDesi
     billNumber: config.billNumber || { show: true, fontSize: 7, bold: false },
     supplierCode: config.supplierCode || { show: true, fontSize: 7, bold: false },
     purchaseCode: config.purchaseCode || { show: false, fontSize: 7, bold: false },
+    supplierInvoiceNo: config.supplierInvoiceNo || { show: false, fontSize: 7, bold: false },
     fieldOrder: [...existingOrder, ...missingFields] as FieldKey[],
     barcodeHeight: config.barcodeHeight,
     barcodeWidth: config.barcodeWidth,
@@ -494,6 +495,8 @@ function DraggablePreviewField({ fieldKey, labelConfig, businessName, sampleItem
           return sampleItem.supplier_code || '';
         case 'purchaseCode':
           return sampleItem.purchase_code || '';
+        case 'supplierInvoiceNo':
+          return sampleItem.supplier_invoice_no ? `Inv: ${sampleItem.supplier_invoice_no}` : '';
         case 'size':
           return sampleItem.size || '';
         default:
@@ -524,6 +527,8 @@ function DraggablePreviewField({ fieldKey, labelConfig, businessName, sampleItem
         return 'SUP01';
       case 'purchaseCode':
         return 'PC123';
+      case 'supplierInvoiceNo':
+        return 'Inv: INV-2024-001';
       case 'size':
         return 'M';
       default:
@@ -627,6 +632,7 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
         case 'billNumber': return sampleItem.bill_number ? `Bill: ${sampleItem.bill_number}` : '';
         case 'supplierCode': return sampleItem.supplier_code || '';
         case 'purchaseCode': return sampleItem.purchase_code || '';
+        case 'supplierInvoiceNo': return sampleItem.supplier_invoice_no ? `Inv: ${sampleItem.supplier_invoice_no}` : '';
         case 'size': return sampleItem.size || '';
         default: return '';
       }
@@ -2319,6 +2325,7 @@ export default function BarcodePrinting() {
             bill_date: billData.bill_date || undefined,
             barcode: item.barcode || variantInfo.barcode,
             bill_number: billData.software_bill_no || '',
+            supplier_invoice_no: billData.supplier_invoice_no || '',
             qty: item.qty,
             uom: variantInfo.uom || 'NOS',
             supplier_code: supplierCode
@@ -2891,6 +2898,8 @@ export default function BarcodePrinting() {
           return item.supplier_code || '';
         case 'purchaseCode': 
           return item.purchase_code || '';
+        case 'supplierInvoiceNo':
+          return item.supplier_invoice_no || '';
         case 'size': 
           return item.size || '';
         default: 

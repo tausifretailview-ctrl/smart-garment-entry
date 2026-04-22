@@ -59,7 +59,8 @@ const DEFAULT_PRECISION_CONFIG: LabelDesignConfig = {
   billNumber: { show: false, fontSize: 6, bold: false, x: 1, y: 22, width: 20 },
   supplierCode: { show: false, fontSize: 6, bold: false, x: 25, y: 22, width: 24 },
   purchaseCode: { show: false, fontSize: 6, bold: false, x: 1, y: 23, width: 20 },
-  fieldOrder: ["businessName", "brand", "productName", "category", "color", "style", "size", "price", "mrp", "qty", "barcode", "barcodeText", "customText", "billNumber", "supplierCode", "purchaseCode"],
+  supplierInvoiceNo: { show: false, fontSize: 6, bold: false, x: 25, y: 23, width: 24 },
+  fieldOrder: ["businessName", "brand", "productName", "category", "color", "style", "size", "price", "mrp", "qty", "barcode", "barcodeText", "customText", "billNumber", "supplierCode", "purchaseCode", "supplierInvoiceNo"],
   barcodeHeight: 30,
   barcodeWidth: 1.5,
   customTextValue: "",
@@ -80,6 +81,7 @@ const SAMPLE_ITEM = {
   bill_number: "PB-2024-001",
   supplier_code: "SUP-101",
   purchase_code: "ABC",
+  supplier_invoice_no: "INV-2024-001",
   qty: 10,
   uom: "NOS",
 };
