@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Banknote, CreditCard, Smartphone, Building2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface MixPaymentDialogProps {
   open: boolean;
@@ -26,6 +27,7 @@ interface MixPaymentDialogProps {
     totalPaid: number;
     refundAmount: number;
     issueCreditNote?: boolean;
+    refundMode?: 'cash' | 'upi' | 'bank_transfer';
   }) => void;
 }
 
@@ -42,6 +44,7 @@ export function MixPaymentDialog({
   const [bankAmount, setBankAmount] = useState(0);
   const [financeAmount, setFinanceAmount] = useState(0);
   const [refundAmount, setRefundAmount] = useState(0);
+  const [refundMode, setRefundMode] = useState<'cash' | 'upi' | 'bank_transfer'>('cash');
 
   const isRefundMode = billAmount < 0;
   const refundRequired = Math.abs(billAmount);
@@ -58,6 +61,7 @@ export function MixPaymentDialog({
       setBankAmount(0);
       setFinanceAmount(0);
       setRefundAmount(0);
+      setRefundMode('cash');
     } else if (isRefundMode) {
       // Pre-fill refund amount in refund mode
       setRefundAmount(refundRequired);
@@ -79,6 +83,7 @@ export function MixPaymentDialog({
         totalPaid: 0,
         refundAmount,
         issueCreditNote,
+        refundMode,
       });
     } else {
       if (totalPaid <= 0) {
@@ -151,23 +156,45 @@ export function MixPaymentDialog({
           )}
 
           {isRefundMode ? (
-            /* Refund Amount Input */
-            <div className="space-y-2">
-              <Label htmlFor="refund" className="flex items-center gap-2">
-                <Banknote className="h-4 w-4" />
-                Refund Amount (Cash)
-              </Label>
-              <Input
-                id="refund"
-                type="number"
-                min="0"
-                step="0.01"
-                value={refundAmount || ""}
-                onChange={(e) => setRefundAmount(Number(e.target.value) || 0)}
-                placeholder="₹ 0.00"
-                className="text-right"
-              />
-            </div>
+            /* Refund Mode Selector + Amount */
+            <>
+              <div className="space-y-2">
+                <Label>Refund Mode</Label>
+                <div className="flex gap-2">
+                  {(['cash', 'upi', 'bank_transfer'] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setRefundMode(mode)}
+                      className={cn(
+                        "flex-1 py-2 rounded-lg border-2 text-sm font-medium capitalize transition-all",
+                        refundMode === mode
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border text-muted-foreground hover:border-primary/40"
+                      )}
+                    >
+                      {mode === 'bank_transfer' ? 'Bank' : mode.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="refund" className="flex items-center gap-2">
+                  <Banknote className="h-4 w-4" />
+                  Refund Amount ({refundMode === 'bank_transfer' ? 'Bank Transfer' : refundMode.toUpperCase()})
+                </Label>
+                <Input
+                  id="refund"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={refundAmount || ""}
+                  onChange={(e) => setRefundAmount(Number(e.target.value) || 0)}
+                  placeholder="₹ 0.00"
+                  className="text-right"
+                />
+              </div>
+            </>
           ) : (
             <>
               {/* Cash Amount */}
