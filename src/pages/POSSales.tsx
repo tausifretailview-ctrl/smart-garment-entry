@@ -208,9 +208,7 @@ export default function POSSales() {
   const [nextInvoicePreview, setNextInvoicePreview] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'upi' | 'multiple' | 'pay_later'>('cash');
   const [showPrintPreview, setShowPrintPreview] = useState(false);
-  const [posBillFormat, setPosBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal' | null>(null);
-  const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
-  const [showInvoicePreviewSetting, setShowInvoicePreviewSetting] = useState(true);
+  // POS bill format/template/preview are derived from cached useSettings() below.
   const printRef = useRef<HTMLDivElement>(null);
   const invoicePrintRef = useRef<HTMLDivElement>(null);
   const printBtnRef = useRef<HTMLButtonElement>(null);
@@ -346,13 +344,6 @@ export default function POSSales() {
     }
   }, [searchParams, currentOrganization?.id]);
 
-  // Fetch POS bill format from settings
-  useEffect(() => {
-    if (currentOrganization?.id) {
-      fetchPosBillFormat();
-    }
-  }, [currentOrganization?.id]);
-
   // Auto-focus barcode input on mount and keep focus when idle
   // Disabled on iPad to prevent soft keyboard from popping up unexpectedly
   useEffect(() => {
@@ -404,26 +395,6 @@ export default function POSSales() {
       clearInterval(focusInterval);
     };
   }, [isIPadSafari]);
-
-  const fetchPosBillFormat = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('settings')
-        .select('sale_settings')
-        .eq('organization_id', currentOrganization?.id)
-        .maybeSingle();
-
-      if (error) throw error;
-      if (data?.sale_settings) {
-        const settings = data.sale_settings as any;
-        setPosBillFormat(settings.pos_bill_format || 'thermal');
-        setPosInvoiceTemplate(settings.invoice_template || 'professional');
-        setShowInvoicePreviewSetting(settings.show_invoice_preview ?? true);
-      }
-    } catch (error) {
-      console.error('Error fetching POS bill format:', error);
-    }
-  };
 
   const loadSaleForEdit = async (saleId: string) => {
     try {
@@ -563,6 +534,14 @@ export default function POSSales() {
 
   // Fetch settings (centralized, cached 5min)
   const { data: settingsData } = useSettings();
+
+  // Derive POS bill format / invoice template / preview flag from cached settings (no extra DB call)
+  const _posSaleSettings = (settingsData as any)?.sale_settings || {};
+  const posBillFormat: 'a4' | 'a5' | 'a5-horizontal' | 'thermal' =
+    (_posSaleSettings.pos_bill_format as 'a4' | 'a5' | 'a5-horizontal' | 'thermal') || 'thermal';
+  const posInvoiceTemplate: 'professional' | 'modern' | 'classic' | 'compact' =
+    (_posSaleSettings.invoice_template as 'professional' | 'modern' | 'classic' | 'compact') || 'professional';
+  const showInvoicePreviewSetting: boolean = _posSaleSettings.show_invoice_preview ?? true;
 
   // Direct print hook
   const { isDirectPrintEnabled, isAutoPrintEnabled, directPrint } = useDirectPrint(
