@@ -510,6 +510,16 @@ export const FloatingSaleReturn = ({
       return;
     }
 
+    // Credit Note refund REQUIRES a customer (otherwise the credit cannot be tracked/applied later)
+    if (refundType === "credit_note" && returnItems.length > 0 && !effectiveCustomerId) {
+      toast({
+        title: "Customer Required",
+        description: "Please select a customer to generate a Credit Note. Use the customer search above.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // If only applying a credit note (no return items), skip the full return flow
     if (returnItems.length === 0 && appliedCreditNoteId) {
       const cn = pendingCreditNotes.find(c => c.id === appliedCreditNoteId);
