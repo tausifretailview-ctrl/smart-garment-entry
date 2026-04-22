@@ -49,6 +49,7 @@ interface GSTR1Data {
   b2b: any[];
   b2cs: any[];
   cdnr: any[];
+  cdnur: any[];
   hsn: any[];
   summary: {
     totalInvoices: number;
@@ -368,10 +369,27 @@ const GSTReports = () => {
           igst: 0
         }));
 
+      // CDNUR - Unregistered (B2C) customer credit/debit notes
+      const cdnur = (saleReturns || [])
+        .filter(ret => !(ret.customers as any)?.gst_number && (ret.net_amount || 0) > 0)
+        .map(ret => ({
+          noteType: "C",
+          noteNo: ret.return_number,
+          noteDate: format(new Date(ret.return_date), "dd-MM-yyyy"),
+          partyName: ret.customer_name,
+          originalInvoice: ret.original_sale_number || "",
+          noteValue: ret.net_amount,
+          taxableValue: ret.net_amount - (ret.gst_amount || 0),
+          cgst: (ret.gst_amount || 0) / 2,
+          sgst: (ret.gst_amount || 0) / 2,
+          igst: 0,
+        }));
+
       setGstr1Data({
         b2b,
         b2cs,
         cdnr,
+        cdnur,
         hsn: Array.from(hsnMap.values()),
         summary: {
           totalInvoices: salesData?.length || 0,
@@ -620,6 +638,7 @@ const GSTReports = () => {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.b2b), "B2B");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.b2cs), "B2CS");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.cdnr), "CDNR");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.cdnur), "CDNUR");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.hsn), "HSN");
     XLSX.writeFile(wb, `GSTR1_${format(new Date(fromDate), "MMM-yyyy")}.xlsx`);
   };
@@ -865,6 +884,7 @@ const GSTReports = () => {
                   <TabsTrigger value="b2b">B2B ({gstr1Data.b2b.length})</TabsTrigger>
                   <TabsTrigger value="b2cs">B2CS ({gstr1Data.b2cs.length})</TabsTrigger>
                   <TabsTrigger value="cdnr">CDNR ({gstr1Data.cdnr.length})</TabsTrigger>
+                  <TabsTrigger value="cdnur">CDNUR ({gstr1Data.cdnur.length})</TabsTrigger>
                 </TabsList>
                 <TabsContent value="b2b">
                   <ScrollArea className="h-[300px]">
