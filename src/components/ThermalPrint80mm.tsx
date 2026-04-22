@@ -59,6 +59,10 @@ interface ThermalPrint80mmProps {
   isDcInvoice?: boolean;
 }
 
+interface ThermalPrint80mmPropsExt extends ThermalPrint80mmProps {
+  settingsOverride?: any;
+}
+
 const fmtAmt = (n: number): string => Math.round(n).toLocaleString('en-IN');
 const fmtDec = (n: number): string => n.toFixed(2);
 
@@ -74,12 +78,14 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
       pointsRedeemed = 0, pointsRedemptionValue = 0, pointsBalance = 0,
       cashier, salesman, counter, isDcInvoice,
     } = props;
+    const settingsOverride = (props as ThermalPrint80mmPropsExt).settingsOverride;
 
     const { currentOrganization } = useOrganization();
     const [settings, setSettings] = useState<any>(null);
     const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
 
     useEffect(() => {
+      if (settingsOverride) { setSettings(settingsOverride); return; }
       if (!currentOrganization?.id) return;
       (async () => {
         const { data } = await (supabase as any)
@@ -89,7 +95,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
           .maybeSingle();
         if (data) setSettings(data);
       })();
-    }, [currentOrganization?.id]);
+    }, [currentOrganization?.id, settingsOverride]);
 
     useEffect(() => {
       const upiId = (isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id)
