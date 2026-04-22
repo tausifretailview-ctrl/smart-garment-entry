@@ -222,6 +222,15 @@ export default function PublicInvoiceView() {
         paymentMethod: sale.payment_method,
         documentType: 'pos' as const,
         termsConditions: sale.terms_conditions || '',
+        settingsOverride: {
+          business_name: settings?.business_name,
+          address: settings?.address,
+          mobile_number: settings?.mobile_number,
+          email_id: settings?.email_id,
+          gst_number: settings?.gst_number,
+          sale_settings: settings,
+          bill_barcode_settings: settings?.bill_barcode_settings,
+        },
       };
       if (thermalStyle === 'modern') {
         return <ModernThermalReceipt80mm ref={printRef} {...thermalProps} />;
