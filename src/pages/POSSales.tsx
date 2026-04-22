@@ -465,11 +465,11 @@ export default function POSSales() {
       setPaymentMethod(sale.payment_method as any);
       setSelectedSalesman(sale.salesman || "");
 
-      if (isHeld && sale.notes) {
-        // Load items from notes (held sale doesn't have sale_items)
+      if (isHeld) {
+        // Load items from dedicated held_cart_data column (held sale doesn't have sale_items)
         try {
-          const holdData = JSON.parse(sale.notes);
-          if (holdData.items && Array.isArray(holdData.items)) {
+          const holdData = (sale as any).held_cart_data;
+          if (holdData && holdData.items && Array.isArray(holdData.items)) {
             setItems(holdData.items);
             if (holdData.flatDiscountPercent !== undefined) {
               setFlatDiscountValue(holdData.flatDiscountPercent);
@@ -483,7 +483,7 @@ export default function POSSales() {
             }
           }
         } catch (parseError) {
-          console.error('Error parsing held sale notes:', parseError);
+          console.error('Error loading held cart data:', parseError);
         }
         
         toast({
