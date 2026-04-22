@@ -3493,15 +3493,15 @@ export default function POSSales() {
                 <Input id="tablet_customer_name" value={newCustomerForm.customer_name} onChange={(e) => setNewCustomerForm(prev => ({ ...prev, customer_name: e.target.value }))} placeholder="Customer name" autoFocus />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="tablet_phone">Mobile *</Label>
-                <Input id="tablet_phone" value={newCustomerForm.phone} onChange={(e) => setNewCustomerForm(prev => ({ ...prev, phone: e.target.value }))} placeholder="Mobile number" />
+                <Label htmlFor="tablet_phone">Mobile</Label>
+                <Input id="tablet_phone" value={newCustomerForm.phone} onChange={(e) => setNewCustomerForm(prev => ({ ...prev, phone: e.target.value }))} placeholder="Mobile number (optional)" />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="tablet_address">Address</Label>
                 <Input id="tablet_address" value={newCustomerForm.address} onChange={(e) => setNewCustomerForm(prev => ({ ...prev, address: e.target.value }))} placeholder="Address (optional)" />
               </div>
             </div>
-            <Button onClick={() => createCustomer.mutate(newCustomerForm)} disabled={!newCustomerForm.customer_name.trim() || !newCustomerForm.phone.trim()}>Save Customer</Button>
+            <Button onClick={() => createCustomer.mutate(newCustomerForm)} disabled={!newCustomerForm.customer_name.trim()}>Save Customer</Button>
           </DialogContent>
         </Dialog>
       </>
