@@ -199,8 +199,8 @@ export function ERPTable<T>({
                 ) : rows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={visibleColumnCount}
-                      className="text-center py-12 text-muted-foreground text-[15px]"
+                       colSpan={visibleColumnCount}
+                       className="text-center py-12 text-muted-foreground text-[16px]"
                     >
                       {emptyMessage}
                     </td>
@@ -237,8 +237,8 @@ export function ERPTable<T>({
                                   ? { position: 'sticky', right: 0, zIndex: 5 }
                                   : {}),
                               }}
-                              className={cn(
-                                "text-[15px] border-b border-muted/80",
+                               className={cn(
+                                 "text-[16px] border-b border-muted/80",
                                 persistence.density === "compact" ? "px-3 py-1.5" : "px-5 py-4",
                                 stickyFirstColumn && idx === 0 && "erp-table-sticky-col bg-card",
                                 ((cell.column.columnDef as any).meta as any)?.stickyRight && "bg-card shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]"
