@@ -32,6 +32,7 @@ const getFieldContent = (key: FieldKey, item: LabelItem, customTextValue?: strin
     case "purchaseCode": return item.purchase_code || "";
     case "customText": return customTextValue || "";
     case "businessName": return item.businessName || "";
+    case "supplierInvoiceNo": return item.supplier_invoice_no ? `Inv: ${item.supplier_invoice_no}` : "";
     default: return "";
   }
 };
