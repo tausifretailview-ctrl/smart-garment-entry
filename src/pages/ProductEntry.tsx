@@ -404,6 +404,11 @@ const ProductEntry = () => {
         setShowDiscountFields(purchaseSettings.product_entry_discount_enabled || false);
         // Set roll-wise MTR entry
         setRollWiseMtrEnabled(purchaseSettings.roll_wise_mtr_entry || false);
+        // Garment GST auto-bump rule
+        setGarmentGstSettings({
+          garment_gst_rule_enabled: purchaseSettings.garment_gst_rule_enabled === true,
+          garment_gst_threshold: purchaseSettings.garment_gst_threshold,
+        });
       }
     }
   };
