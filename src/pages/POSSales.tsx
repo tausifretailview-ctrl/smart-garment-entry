@@ -1061,7 +1061,7 @@ export default function POSSales() {
     hasMore: hasMoreCustomers,
   } = useCustomerSearch(customerName, { enabled: !customerJustSelected.current });
   
-  const { getCustomerBalance, getCustomerAdvance } = useCustomerBalances();
+  const { getCustomerBalance, getCustomerAdvance, getCustomerCreditNote } = useCustomerBalances();
 
   // Fetch credit balance and pending sale return credit notes when customer changes
   useEffect(() => {
@@ -4221,6 +4221,7 @@ export default function POSSales() {
                         {filteredCustomers.map((customer: any) => {
                           const balance = getCustomerBalance(customer);
                           const advanceAmt = getCustomerAdvance(customer.id);
+                          const creditNoteAmt = getCustomerCreditNote(customer.id);
                           return (
                             <CommandItem
                               key={customer.id}
@@ -4243,6 +4244,11 @@ export default function POSSales() {
                                     {advanceAmt > 0 && (
                                       <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-600">
                                         ₹{advanceAmt.toLocaleString('en-IN')} Adv
+                                      </span>
+                                    )}
+                                    {creditNoteAmt > 0 && (
+                                      <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600">
+                                        ₹{creditNoteAmt.toLocaleString('en-IN')} CN
                                       </span>
                                     )}
                                     {balance !== 0 && (
