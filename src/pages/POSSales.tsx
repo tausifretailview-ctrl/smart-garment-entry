@@ -350,26 +350,8 @@ export default function POSSales() {
   useEffect(() => {
     if (isIOS) return; // Skip auto-focus on iOS — user taps when ready
     
-    // Focus immediately on mount
-    barcodeInputRef.current?.focus();
-    
-    // Re-focus periodically when no dialog is open
-    const focusInterval = setInterval(() => {
-      const activeElement = document.activeElement;
-      const isDialogOpen = document.querySelector('[role="dialog"]');
-      const isPopoverOpen = document.querySelector('[data-radix-popper-content-wrapper]');
-      
-      // Only auto-focus if no dialog/popover is open and user isn't in another input
-      if (
-        !isDialogOpen && 
-        !isPopoverOpen &&
-        activeElement?.tagName !== 'INPUT' &&
-        activeElement?.tagName !== 'SELECT' &&
-        activeElement?.tagName !== 'TEXTAREA'
-      ) {
-        barcodeInputRef.current?.focus();
-      }
-    }, 500);
+    // Focus once on mount (small delay to let initial render settle)
+    const initialFocus = setTimeout(() => barcodeInputRef.current?.focus(), 100);
 
     const handleGlobalClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -393,7 +375,7 @@ export default function POSSales() {
     document.addEventListener('click', handleGlobalClick);
     return () => {
       document.removeEventListener('click', handleGlobalClick);
-      clearInterval(focusInterval);
+      clearTimeout(initialFocus);
     };
   }, [isIPadSafari]);
 
