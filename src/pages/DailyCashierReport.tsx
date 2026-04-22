@@ -1195,10 +1195,10 @@ const DailyCashierReport = () => {
           body * {
             visibility: hidden;
           }
-          .container, .container * {
+          #cashier-report-root, #cashier-report-root * {
             visibility: visible;
           }
-          .container {
+          #cashier-report-root {
             position: absolute;
             left: 0;
             top: 0;
