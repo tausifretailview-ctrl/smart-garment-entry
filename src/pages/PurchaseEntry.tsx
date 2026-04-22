@@ -2147,6 +2147,13 @@ const PurchaseEntry = () => {
             const discountAmount = subTotal * (updated.discount_percent / 100);
             updated.line_total = subTotal - discountAmount;
           }
+          // Garment / Footwear GST auto-bump rule on sale price change
+          if (field === "sale_price") {
+            const newGst = applyGarmentGstRule(updated.sale_price, updated.gst_per, garmentGstSettings);
+            if (newGst !== updated.gst_per) {
+              updated.gst_per = newGst;
+            }
+          }
           return updated;
         }
         return item;
