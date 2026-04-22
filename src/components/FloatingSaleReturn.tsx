@@ -87,6 +87,17 @@ export const FloatingSaleReturn = ({
   const [refundType, setRefundType] = useState<RefundType>("credit_note");
   const [useOriginalPrice, setUseOriginalPrice] = useState(false);
 
+  // Pending credit notes for current customer (unapplied sale returns with credit_status = 'pending')
+  const [pendingCreditNotes, setPendingCreditNotes] = useState<Array<{
+    id: string;
+    returnNumber: string;
+    returnDate: string;
+    creditAmount: number;
+    creditNoteId: string | null;
+  }>>([]);
+  const [appliedCreditNoteId, setAppliedCreditNoteId] = useState<string | null>(null);
+  const [appliedCreditAmount, setAppliedCreditAmount] = useState(0);
+
   // Fetch sale return price setting
   useEffect(() => {
     if (organizationId) {
