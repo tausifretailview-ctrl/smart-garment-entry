@@ -1830,6 +1830,7 @@ export default function BarcodePrinting() {
           uom: item.uom || 'NOS',
           bill_number: item.bill_number || "",
           supplier_code: item.supplier_code || "",
+          supplier_invoice_no: item.supplier_invoice_no || "",
         };
       });
       
