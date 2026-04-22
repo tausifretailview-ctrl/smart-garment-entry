@@ -589,8 +589,8 @@ export const FloatingSaleReturn = ({
         .insert({
           return_number: returnNumber,
           organization_id: organizationId,
-          customer_id: customerId || null,
-          customer_name: customerName || "Walk-in Customer",
+          customer_id: effectiveCustomerId || null,
+          customer_name: effectiveCustomerName || "Walk-in Customer",
           return_date: new Date().toISOString().split("T")[0],
           gross_amount: grossAmount,
           gst_amount: gstAmount,
@@ -632,7 +632,7 @@ export const FloatingSaleReturn = ({
       // (restore_stock_on_sale_return) — no manual increment needed
 
       // For cash_refund: create payment voucher so ledger balance updates
-      if (refundType === "cash_refund" && customerId) {
+      if (refundType === "cash_refund" && effectiveCustomerId) {
         try {
           const { data: lastV } = await supabase
             .from("voucher_entries")
@@ -648,7 +648,7 @@ export const FloatingSaleReturn = ({
             voucher_type: "payment",
             voucher_date: new Date().toISOString().split("T")[0],
             reference_type: "customer",
-            reference_id: customerId,
+            reference_id: effectiveCustomerId,
             description: `Refund paid for sale return: ${returnNumber}`,
             total_amount: grossAmount,
             payment_method: "cash",
@@ -658,7 +658,7 @@ export const FloatingSaleReturn = ({
 
       // For credit_note: create a real credit_notes record and mark sale_return as adjusted
       // (otherwise it stays 'pending' forever and inflates the customer ledger)
-      if (refundType === "credit_note" && customerId) {
+      if (refundType === "credit_note" && effectiveCustomerId) {
         try {
           const { data: cnNumber } = await supabase
             .rpc('generate_credit_note_number', { p_organization_id: organizationId });
@@ -669,8 +669,8 @@ export const FloatingSaleReturn = ({
               organization_id: organizationId,
               credit_note_number: cnNumber,
               sale_id: billSaleId || null,
-              customer_id: customerId,
-              customer_name: customerName || 'Walk-in Customer',
+              customer_id: effectiveCustomerId,
+              customer_name: effectiveCustomerName || 'Walk-in Customer',
               credit_amount: grossAmount,
               used_amount: 0,
               status: 'active',
@@ -691,7 +691,7 @@ export const FloatingSaleReturn = ({
         } catch (cnErr) {
           console.error('Credit note creation failed:', cnErr);
         }
-      } else if (refundType === "credit_note" && !customerId) {
+      } else if (refundType === "credit_note" && !effectiveCustomerId) {
         // No customer — credit note cannot be tracked, mark as adjusted_outstanding
         try {
           await supabase
