@@ -850,7 +850,7 @@ export const useSaveSale = () => {
       }
       const saleNumber = `${holdPrefix}${holdSeq}`;
 
-      // Store items as JSON in notes field for later retrieval
+      // Store items as JSON in dedicated held_cart_data column (notes preserved for real customer notes)
       const holdData = {
         items: saleData.items,
         flatDiscountPercent: saleData.flatDiscountPercent,
@@ -882,7 +882,8 @@ export const useSaveSale = () => {
           upi_amount: 0,
           refund_amount: 0,
           salesman: saleData.salesman || null,
-          notes: JSON.stringify(holdData),
+          held_cart_data: holdData as any,
+          notes: saleData.notes || null,
           created_by: user.id,
           organization_id: currentOrganization.id,
           shop_name: shopName || null,
