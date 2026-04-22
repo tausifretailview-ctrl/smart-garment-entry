@@ -469,8 +469,52 @@ export const FloatingSaleReturn = ({
   };
 
   const handleSaveReturnInner = async () => {
-    if (returnItems.length === 0) {
-      toast({ title: "Error", description: "Add at least one item to return", variant: "destructive" });
+    if (returnItems.length === 0 && !appliedCreditNoteId) {
+      toast({ title: "Error", description: "Add items to return or select a pending credit note", variant: "destructive" });
+      return;
+    }
+
+    // If only applying a credit note (no return items), skip the full return flow
+    if (returnItems.length === 0 && appliedCreditNoteId) {
+      const cn = pendingCreditNotes.find(c => c.id === appliedCreditNoteId);
+      if (!cn) return;
+      setSaving(true);
+      try {
+        await supabase.from("sale_returns").update({
+          credit_status: "adjusted",
+        }).eq("id", cn.id);
+
+        const { data: lastVoucher } = await supabase
+          .from("voucher_entries")
+          .select("voucher_number")
+          .eq("organization_id", organizationId)
+          .eq("voucher_type", "receipt")
+          .order("created_at", { ascending: false })
+          .limit(1);
+        const lastNum = lastVoucher?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
+        await supabase.from("voucher_entries").insert({
+          organization_id: organizationId,
+          voucher_number: `RCP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`,
+          voucher_type: "receipt",
+          voucher_date: new Date().toISOString().split("T")[0],
+          reference_type: "customer",
+          reference_id: customerId,
+          description: `Credit note ${cn.returnNumber} applied via POS`,
+          total_amount: cn.creditAmount,
+          payment_method: "credit_note_adjustment",
+        });
+
+        toast({
+          title: "Credit Note Applied",
+          description: `${cn.returnNumber} — ₹${Math.round(cn.creditAmount).toLocaleString("en-IN")} applied to current bill`,
+        });
+        onReturnSaved(cn.creditAmount, cn.returnNumber, "credit_note");
+        onOpenChange(false);
+      } catch (err: any) {
+        toast({ title: "Error", description: err.message || "Failed to apply credit note", variant: "destructive" });
+      } finally {
+        setSaving(false);
+      }
       return;
     }
 
