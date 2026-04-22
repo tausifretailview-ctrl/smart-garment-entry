@@ -68,103 +68,41 @@ export const useSaveSale = () => {
     return fmt.replace(/\/(\d{2})-(\d{2})\//, `/${currentFY}/`);
   };
 
-  const generateInvoiceNumber = async (format: string, seriesStart?: string) => {
+  const generateInvoiceNumber = async (
+    format: string,
+    seriesStart?: string,
+    kind: 'sale' | 'pos' = 'sale'
+  ) => {
     const now = new Date();
-    const year = now.getFullYear();
+    const year = String(now.getFullYear());
     const month = String(now.getMonth() + 1).padStart(2, '0');
 
     // Auto-correct stale FY in literal formats
     const correctedFormat = autoCorrectFY(format);
     const correctedStart = seriesStart ? autoCorrectFY(seriesStart) : seriesStart;
-    
-    // If seriesStart is provided (e.g. "POS/36-27/11"), extract base and minimum sequence
+
+    // Determine minimum sequence from seriesStart trailing digits
     let minSequence = 1;
-    let startBase = '';
     if (correctedStart && correctedStart.trim()) {
-      const startMatches = correctedStart.match(/^(.*?)(\d+)$/);
+      const startMatches = correctedStart.match(/(\d+)$/);
       if (startMatches) {
-        startBase = startMatches[1];
-        minSequence = parseInt(startMatches[2]);
+        minSequence = parseInt(startMatches[1]);
       }
     }
 
-    // Check if format has placeholders
-    const hasPlaceholders = correctedFormat.includes('{');
-    
-    // Try up to 10 times to find a unique invoice number
-    for (let attempt = 0; attempt < 10; attempt++) {
-      let invoiceNumber: string;
-      
-      if (hasPlaceholders) {
-        // Get the last invoice number matching this format pattern
-        const { data: lastSale } = await supabase
-          .from('sales')
-          .select('sale_number')
-          .eq('organization_id', currentOrganization?.id)
-          .is('deleted_at', null)
-          .like('sale_number', `%${year}%`)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+    const rpcName =
+      kind === 'pos' ? 'generate_custom_pos_number' : 'generate_custom_sale_number';
 
-        // Extract the last sequence number
-        let sequence = minSequence;
-        if (lastSale?.sale_number) {
-          const matches = lastSale.sale_number.match(/(\d+)$/);
-          if (matches) {
-            sequence = Math.max(parseInt(matches[1]) + 1, minSequence) + attempt;
-          }
-        }
+    const { data, error } = await supabase.rpc(rpcName as any, {
+      p_organization_id: currentOrganization!.id,
+      p_format: correctedFormat,
+      p_year: year,
+      p_month: month,
+      p_min_sequence: minSequence,
+    } as any);
 
-        // Replace placeholders in format
-        invoiceNumber = correctedFormat
-          .replace('{YYYY}', String(year))
-          .replace('{YY}', String(year).slice(-2))
-          .replace('{MM}', month)
-          .replace('{####}', String(sequence).padStart(4, '0'))
-          .replace('{###}', String(sequence).padStart(3, '0'))
-          .replace('{#####}', String(sequence).padStart(5, '0'));
-      } else {
-        // Format is literal string OR using seriesStart base
-        const basePattern = startBase || correctedFormat.replace(/\d+$/, ''); // Remove trailing numbers
-        
-        const { data: lastSale } = await supabase
-          .from('sales')
-          .select('sale_number')
-          .eq('organization_id', currentOrganization?.id)
-          .is('deleted_at', null)
-          .like('sale_number', `${basePattern}%`)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        let sequence = minSequence;
-        if (lastSale?.sale_number) {
-          const matches = lastSale.sale_number.match(/(\d+)$/);
-          if (matches) {
-            sequence = Math.max(parseInt(matches[1]) + 1, minSequence) + attempt;
-          }
-        }
-
-        // Append sequence to base pattern
-        invoiceNumber = `${basePattern}${sequence}`;
-      }
-
-      // Check if this number already exists
-      const { data: existing } = await supabase
-        .from('sales')
-        .select('id')
-        .eq('sale_number', invoiceNumber)
-        .eq('organization_id', currentOrganization?.id)
-        .maybeSingle();
-
-      if (!existing) {
-        return invoiceNumber;
-      }
-    }
-
-    // Fallback: use timestamp-based unique number
-    return `SALE-${Date.now()}`;
+    if (error) throw error;
+    return data as string;
   };
 
   const saveSale = async (
