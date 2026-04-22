@@ -301,7 +301,7 @@ export function SalesInvoiceERPTable({
           header: "Balance",
           cell: ({ row }) => (
             <span className="text-right block tabular-nums">
-              ₹{Math.round((row.original.net_amount || 0) - (row.original.paid_amount || 0)).toLocaleString('en-IN')}
+              ₹{Math.max(0, Math.round((row.original.net_amount || 0) - (row.original.paid_amount || 0) - (row.original.sale_return_adjust || 0))).toLocaleString('en-IN')}
             </span>
           ),
           size: 90,
