@@ -380,9 +380,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // Calculate totals per customer using Math.max to avoid double-counting
       const customerTotals = customersData.map((customer: any) => {
         const customerSales = salesData.filter((s: any) => s.customer_id === customer.id && s.payment_status !== 'cancelled' && s.payment_status !== 'hold');
-        // Use gross amount (net_amount + sale_return_adjust) because
-        // creditNoteTotal already subtracts sale return amounts separately
-        const totalSales = customerSales.reduce((sum: number, s: any) => sum + (s.net_amount || 0) + (s.sale_return_adjust || 0), 0);
+        // net_amount is already post-return; do NOT add sale_return_adjust (would double-count).
+        const totalSales = customerSales.reduce((sum: number, s: any) => sum + (s.net_amount || 0), 0);
         
         let totalPaidOnSales = 0;
         let totalAdvanceApplied = 0;
@@ -1050,13 +1049,12 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           const sale = item.data as any;
           const isCancelled = sale.payment_status === 'cancelled';
           const saleReturnAdjust = sale.sale_return_adjust || 0;
-          // Use gross invoice amount (net_amount + sale_return_adjust) because
-          // the sale return credit appears as a SEPARATE ledger entry
-          const grossInvoiceAmount = sale.net_amount + saleReturnAdjust;
-          
-          // Cancelled invoices: show in ledger but do NOT affect running balance
+          // net_amount is already the post-return amount saved at POS.
+          // The sale return entry is a separate credit row — do NOT add
+          // sale_return_adjust here or it double-counts the return.
+          const invoiceDebit = sale.net_amount;
           if (!isCancelled) {
-            runningBalance += grossInvoiceAmount;
+            runningBalance += invoiceDebit;
           }
           
           // Build payment breakdown for display
@@ -1071,8 +1069,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             timestamp: item.timestamp || null,
             type: 'invoice',
             reference: sale.sale_number,
-            description: `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status}${saleReturnAdjust > 0 ? ` (Incl. SR Adj ₹${saleReturnAdjust.toLocaleString('en-IN')})` : ''}`,
-            debit: isCancelled ? 0 : grossInvoiceAmount,
+            description: `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status}${saleReturnAdjust > 0 ? ` (S/R Adj ₹${saleReturnAdjust.toLocaleString('en-IN')} applied)` : ''}`,
+            debit: isCancelled ? 0 : invoiceDebit,
             credit: 0,
             balance: runningBalance,
             paymentStatus: sale.payment_status,
@@ -1086,7 +1084,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           // Total paid_amount includes all payments, but voucher payments are recorded separately
           const totalPaidOnSale = sale.paid_amount || 0;
           const voucherPayments = voucherPaymentsBySaleId[sale.id] || 0;
-          const paidAtSale = Math.max(0, totalPaidOnSale - voucherPayments - saleReturnAdjust);
+          const paidAtSale = Math.max(0, totalPaidOnSale - voucherPayments);
           
           if (paidAtSale > 0) {
             runningBalance -= paidAtSale;
@@ -1440,7 +1438,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         const totalPaidOnSale = sale.paid_amount || 0;
         const voucherPayments = voucherPaymentsBySaleId[sale.id] || 0;
         const saleReturnAdjust = sale.sale_return_adjust || 0;
-        const paidAtSale = Math.max(0, totalPaidOnSale - voucherPayments - saleReturnAdjust);
+        const paidAtSale = Math.max(0, totalPaidOnSale - voucherPayments);
         
         if (paidAtSale > 0) {
           // Check date filter
